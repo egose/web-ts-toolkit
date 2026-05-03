@@ -1,0 +1,78 @@
+{
+  "name": "@web-ts-toolkit/express-response-handler",
+  "description": "Express response handler",
+  "version": "0.0.0-PLACEHOLDER",
+  "author": "Junmin Ahn",
+  "license": "MIT",
+  "keywords": [
+    "express",
+    "api",
+    "request",
+    "handler"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/public-types.d.ts",
+      "import": "./dist/public-types.mjs",
+      "require": "./dist/public-types.js",
+      "default": "./dist/public-types.js"
+    },
+    "./responses": {
+      "types": "./dist/responses/index.d.ts",
+      "import": "./dist/responses/index.mjs",
+      "require": "./dist/responses/index.js",
+      "default": "./dist/responses/index.js"
+    },
+    "./responses/csv": {
+      "types": "./dist/responses/csv.d.ts",
+      "import": "./dist/responses/csv.mjs",
+      "require": "./dist/responses/csv.js",
+      "default": "./dist/responses/csv.js"
+    },
+    "./responses/success": {
+      "types": "./dist/responses/success.d.ts",
+      "import": "./dist/responses/success.mjs",
+      "require": "./dist/responses/success.js",
+      "default": "./dist/responses/success.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/egose/web-ts-toolkit.git",
+    "directory": "packages/express-response-handler"
+  },
+  "bugs": {
+    "url": "https://github.com/egose/web-ts-toolkit/issues"
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "test": "pnpm build && vitest run --config ../../vitest.config.ts"
+  },
+  "files": [
+    "README.md",
+    "dist",
+    "tsup.config.ts"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@fast-csv/format": "^5.0.5",
+    "@web-ts-toolkit/http-errors": "workspace:*"
+  },
+  "devDependencies": {
+    "@fast-csv/parse": "^5.0.5",
+    "@types/node": "^25.6.0",
+    "express": "^5.2.1",
+    "supertest": "^7.2.2"
+  }
+}

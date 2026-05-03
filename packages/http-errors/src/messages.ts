@@ -1,0 +1,46 @@
+export const messages = {
+  400: 'The server cannot process the request due to a client error',
+  401: 'The user is not authorized',
+  403: 'The server refused to authorize the request',
+  404: 'The server did not find a current representation for the target resource',
+  405: 'The method received is not allowed',
+  406: 'The request is not acceptable to the user agent',
+  407: 'The client needs to authenticate itself in order to use a proxy',
+  408: 'The request was not completed in the expected time',
+  409: 'The request was not completed due to a conflict with the target resource',
+  410: 'The target resource is no longer available at the origin server',
+  411: 'The server refuses to accept the request without a defined Content-Length',
+  412: 'One or more conditions given in the request header fields evaluated to false',
+  413: 'The request payload is too large',
+  414: 'The request target is too long',
+  415: 'The payload is in a format not supported',
+  416: "None of the ranges in the request's Range header field overlap the current extent of the selected resource",
+  417: "The expectation given in the request's Expect header field could not be met",
+  418: "I'm a teapot",
+  421: 'The request was directed at a server that is not able to produce a response',
+  422: 'The server is unable to process the request',
+  423: 'The source or destination resource of a method is locked',
+  424: 'The requested action depended on another action',
+  426: 'This service requires use of a different protocol',
+  428: 'This request is required to be conditional',
+  429: 'The user has sent too many requests in a given amount of time',
+  431: 'Request header fields too large',
+  451: 'Denied access due to a consequence of a legal demand',
+  500: 'The server encountered an unexpected condition',
+  501: 'The server does not support the functionality required to fulfill the request',
+  502: 'The server received an invalid response from an upstream server',
+  503: 'The server is temporarily unable to handle the request',
+  504: 'The server did not receive a timely response from an upstream server',
+  505: 'The server does not support the HTTP protocol version used in the request',
+  506: 'The server has an internal configuration error',
+  507: 'The server is unable to store the representation needed to complete the request',
+  508: 'The server detected an infinite loop while processing the request',
+  510: 'Further extensions to the request are required for the server to fulfill it',
+  511: 'The client needs to authenticate to gain network access',
+} as const;
+
+export type ErrorMessageMap = typeof messages;
+export type ErrorStatusCode = keyof ErrorMessageMap;
+
+export const getDefaultMessage = (statusCode: number): string =>
+  messages[statusCode as ErrorStatusCode] || messages[500];

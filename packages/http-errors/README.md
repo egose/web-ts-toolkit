@@ -61,6 +61,63 @@ try {
 }
 ```
 
+### Add machine-readable error metadata
+
+```ts
+import { BadRequestError } from '@web-ts-toolkit/http-errors';
+
+throw new BadRequestError('invalid email', {
+  reason: 'INVALID_EMAIL',
+  domain: 'api.example.com',
+  metadata: {
+    field: 'email',
+  },
+  details: [
+    {
+      type: 'help',
+      links: [
+        {
+          description: 'Validation guide',
+          url: 'https://api.example.com/docs/errors/invalid-email',
+        },
+      ],
+    },
+  ],
+  errors: [
+    {
+      field: 'email',
+      description: 'Email must be a valid address.',
+    },
+  ],
+});
+```
+
+The base `HttpError` now carries optional structured fields that are useful when building AIP-193-style error payloads:
+
+- `statusCode`: HTTP status code
+- `status`: canonical status string for common HTTP codes, otherwise `UNKNOWN`
+- `reason`: application-specific machine-readable identifier
+- `domain`: logical error domain such as `api.example.com`
+- `metadata`: stringified key-value metadata
+- `details`: structured detail entries
+- `errors`: validation or field-level error payloads
+
+### Convert an error to an AIP-193-style payload
+
+```ts
+import { BadRequestError, toAip193ErrorPayload } from '@web-ts-toolkit/http-errors';
+
+const error = new BadRequestError('invalid email', {
+  reason: 'INVALID_EMAIL',
+  domain: 'api.example.com',
+  metadata: {
+    field: 'email',
+  },
+});
+
+const payload = toAip193ErrorPayload(error);
+```
+
 ### Express route example
 
 ```ts
