@@ -12,7 +12,7 @@ export function isObjectId(value: unknown): value is InstanceType<typeof ObjectI
     const asObjectId = new ObjectId(asString);
     const asStringifiedObjectId = asObjectId.toString();
     return asString === asStringifiedObjectId;
-  } catch (error) {
+  } catch {
     return false;
   }
 }

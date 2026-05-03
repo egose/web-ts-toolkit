@@ -52,7 +52,7 @@ type FileMethods = CascadeDeleteDocumentMethods<typeof referenceModelName, Refer
   CascadeDeleteDocumentMethods<typeof noteModelName, Note> &
   CascadeDeleteDocumentMethods<typeof tagModelName, Tag>;
 
-type FileModel = Model<File, {}, FileMethods> &
+type FileModel = Model<File, Record<string, never>, FileMethods> &
   CascadeDeleteModelStatics<typeof referenceModelName, Reference> &
   CascadeDeleteModelStatics<typeof priceModelName, Price> &
   CascadeDeleteModelStatics<typeof noteModelName, Note> &

@@ -5,8 +5,7 @@ import { isObjectId } from '../dist/index.mjs';
 
 describe('isObjectId', () => {
   it('returns false for numeric values', () => {
-    // eslint-disable-next-line @typescript-eslint/no-loss-of-precision
-    expect(isObjectId(123456789012345678901234)).toBe(false);
+    expect(isObjectId(123456)).toBe(false);
   });
 
   it('returns false for random strings', () => {

@@ -21,7 +21,7 @@ type CartDocument = ModelDocument<Cart, CartMethods>;
 type CartMethods = ModelFunctionInstanceMethods<'applyDiscount', [string, number], CartDocument> &
   ModelFunctionInstanceMethods<'applyDiscountAsync', [string, number], Promise<CartDocument>>;
 
-type CartModel = Model<Cart, {}, CartMethods> &
+type CartModel = Model<Cart, Record<string, never>, CartMethods> &
   ModelFunctionStaticMethods<'applyDiscount', CartDocument, [string, number], CartDocument> &
   ModelFunctionStaticMethods<'applyDiscountAsync', CartDocument, [string, number], Promise<CartDocument>>;
 

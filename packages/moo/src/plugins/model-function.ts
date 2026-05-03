@@ -1,6 +1,9 @@
 import mongoose, { type HydratedDocument, type Model, type Schema, type Types } from 'mongoose';
 
-export type ModelDocument<TRawDocType, TInstanceMethods = {}> = HydratedDocument<TRawDocType, TInstanceMethods>;
+export type ModelDocument<TRawDocType, TInstanceMethods = Record<string, never>> = HydratedDocument<
+  TRawDocType,
+  TInstanceMethods
+>;
 
 export type ModelFunctionInstanceMethods<
   TMethodName extends string,
@@ -34,7 +37,7 @@ export interface ModelFunctionPluginOptions<
 export function modelFunctionPlugin<
   TRawDocType,
   TMethodName extends string = string,
-  TInstanceMethods = {},
+  TInstanceMethods = Record<string, never>,
   TDocument = ModelDocument<TRawDocType, TInstanceMethods>,
   TArgs extends unknown[] = unknown[],
   TResult = unknown,

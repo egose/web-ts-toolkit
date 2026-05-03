@@ -204,7 +204,7 @@ export function cascadeDeletePlugin<
       }
     });
   } else {
-    // @ts-ignore
+    // @ts-expect-error Mongoose still exposes `remove` middleware for older versions.
     schema.post('remove', async function () {
       try {
         await deleteDependents.call(this);
