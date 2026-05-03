@@ -1,4 +1,5 @@
-import apiHandler, {
+import apiHandler from '@web-ts-toolkit/express-response-handler';
+import {
   Accepted,
   AlreadyReported,
   Created,
@@ -9,7 +10,7 @@ import apiHandler, {
   OK,
   PartialContent,
   ResetContent,
-} from '@web-ts-toolkit/express-response-handler';
+} from '@web-ts-toolkit/express-response-handler/responses/success';
 import * as clientErrors from '@web-ts-toolkit/http-errors';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
