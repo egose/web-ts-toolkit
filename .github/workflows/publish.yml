@@ -19,7 +19,7 @@ jobs:
       uses: ./.github/actions/setup-tools
 
     - name: Setup NPM Packages
-      uses: ./.github/actions/setup-yarn
+      uses: ./.github/actions/setup-npm
 
     - name: Publish Packages
       run: |
