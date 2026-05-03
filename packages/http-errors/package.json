@@ -18,7 +18,8 @@
     }
   },
   "scripts": {
-    "build": "tsup --config tsup.config.ts"
+    "build": "tsup --config tsup.config.ts",
+    "test": "pnpm build && vitest run --config ../../vitest.config.ts"
   },
   "repository": {
     "type": "git",
