@@ -1,0 +1,41 @@
+{
+  "name": "@web-ts-toolkit/express-json-router",
+  "description": "Express router wrapper for JSON responses",
+  "version": "0.0.0-PLACEHOLDER",
+  "keywords": [
+    "express",
+    "api",
+    "json",
+    "router"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "test": "pnpm build && vitest run --config ../../vitest.config.ts"
+  },
+  "files": [
+    "README.md",
+    "dist",
+    "tsup.config.ts"
+  ],
+  "dependencies": {
+    "@web-ts-toolkit/express-response-handler": "workspace:*",
+    "@web-ts-toolkit/http-errors": "workspace:*",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^25.6.0",
+    "supertest": "^7.2.2"
+  }
+}

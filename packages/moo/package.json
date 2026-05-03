@@ -1,0 +1,68 @@
+{
+  "name": "@web-ts-toolkit/moo",
+  "description": "Mongoose helpers for schema fields, ObjectId checks, and document plugins",
+  "version": "0.0.0-PLACEHOLDER",
+  "keywords": [
+    "mongoose",
+    "mongodb",
+    "schema",
+    "plugin"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./is": {
+      "types": "./dist/is.d.ts",
+      "import": "./dist/is.mjs",
+      "require": "./dist/is.js",
+      "default": "./dist/is.js"
+    },
+    "./schema": {
+      "types": "./dist/schema.d.ts",
+      "import": "./dist/schema.mjs",
+      "require": "./dist/schema.js",
+      "default": "./dist/schema.js"
+    },
+    "./plugins": {
+      "types": "./dist/plugins/index.d.ts",
+      "import": "./dist/plugins/index.mjs",
+      "require": "./dist/plugins/index.js",
+      "default": "./dist/plugins/index.js"
+    },
+    "./plugins/cascade-delete": {
+      "types": "./dist/plugins/cascade-delete.d.ts",
+      "import": "./dist/plugins/cascade-delete.mjs",
+      "require": "./dist/plugins/cascade-delete.js",
+      "default": "./dist/plugins/cascade-delete.js"
+    },
+    "./plugins/model-function": {
+      "types": "./dist/plugins/model-function.d.ts",
+      "import": "./dist/plugins/model-function.mjs",
+      "require": "./dist/plugins/model-function.js",
+      "default": "./dist/plugins/model-function.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "test": "pnpm build && vitest run --config ../../vitest.config.ts --maxWorkers=1"
+  },
+  "files": [
+    "README.md",
+    "dist",
+    "tsup.config.ts"
+  ],
+  "peerDependencies": {
+    "mongoose": ">=8.0.0"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^11.1.0",
+    "mongoose": "^9.6.1"
+  }
+}
