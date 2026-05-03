@@ -1,0 +1,20 @@
+{
+  "name": "web-ts-toolkit",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Junmin Dev",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@10.14.0",
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.3",
+    "@commitlint/config-conventional": "^20.5.3",
+    "@commitlint/format": "^20.5.0",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3"
+  }
+}
