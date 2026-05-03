@@ -1,4 +1,6 @@
-## 0.0.1 (2026-05-03)
+## [0.0.2](https://github.com/egose/web-ts-toolkit/compare/v0.0.1...v0.0.2) (2026-05-03)
+
+## [0.0.1](https://github.com/egose/web-ts-toolkit/compare/a4d2fb96f53403a14d87906f11473f01c16e22c6...v0.0.1) (2026-05-03)
 
 ### Features
 
