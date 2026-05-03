@@ -1,0 +1,39 @@
+{
+  "name": "@web-ts-toolkit/http-errors",
+  "description": "HTTP error classes for backend APIs",
+  "version": "0.0.0-PLACEHOLDER",
+  "keywords": [
+    "http-errors",
+    "api-errors"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/egose/web-ts-toolkit.git",
+    "directory": "packages/http-errors"
+  },
+  "bugs": {
+    "url": "https://github.com/egose/web-ts-toolkit/issues"
+  },
+  "files": [
+    "README.md",
+    "dist",
+    "tsup.config.ts"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}
