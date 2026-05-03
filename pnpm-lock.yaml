@@ -17,6 +17,9 @@ importers:
       '@commitlint/format':
         specifier: ^20.5.0
         version: 20.5.0
+      prettier:
+        specifier: ^4.0.0-alpha.13
+        version: 4.0.0-alpha.13
       tsup:
         specifier: ^8.5.1
         version: 8.5.1(jiti@2.6.1)(postcss@8.5.13)(typescript@6.0.3)
@@ -978,6 +981,11 @@ packages:
   postcss@8.5.13:
     resolution: {integrity: sha512-qif0+jGGZoLWdHey3UFHHWP0H7Gbmsk8T5VEqyYFbWqPr1XqvLGBbk/sl8V5exGmcYJklJOhOQq1pV9IcsiFag==}
     engines: {node: ^10 || ^12 || >=14}
+
+  prettier@4.0.0-alpha.13:
+    resolution: {integrity: sha512-177K/2S5iYDKtvZkDC2ZMqpyXtoiiVQBVQZpcQsRs+ZIIUQxsXomWIjquAlwt2pXpio9riz5IgtaUEnoZH44tg==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   readdirp@4.1.2:
     resolution: {integrity: sha512-GDhwkLfywWL2s6vEjyhri+eXmfH6j1L7JE27WhqLeYzoh/A3DBaYGEj2H/HFZCn/kMfim73FXxEJTw06WtxQwg==}
@@ -1986,6 +1994,8 @@ snapshots:
       nanoid: 3.3.12
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  prettier@4.0.0-alpha.13: {}
 
   readdirp@4.1.2: {}
 

@@ -19,6 +19,13 @@ repos:
     args: [--autofix, --indent, '2']
 - repo: local
   hooks:
+  - id: prettier
+    name: prettier
+    entry: .bin/prettier.sh
+    language: script
+    pass_filenames: true
+    files: \.(ts|tsx|js|jsx|json|css|scss|md|html)$
+    exclude: .git/COMMIT_EDITMSG
   - id: commitlint
     name: commitlint
     entry: .bin/commitlint.sh
