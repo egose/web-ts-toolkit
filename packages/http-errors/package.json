@@ -21,20 +21,9 @@
     "build": "tsup --config tsup.config.ts",
     "test": "pnpm build && vitest run --config ../../vitest.config.ts"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/egose/web-ts-toolkit.git",
-    "directory": "packages/http-errors"
-  },
-  "bugs": {
-    "url": "https://github.com/egose/web-ts-toolkit/issues"
-  },
   "files": [
     "README.md",
     "dist",
     "tsup.config.ts"
-  ],
-  "engines": {
-    "node": ">=20"
-  }
+  ]
 }

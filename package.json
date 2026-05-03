@@ -5,11 +5,22 @@
   "main": "index.js",
   "scripts": {
     "lint": "eslint .",
+    "publish:all": "node scripts/publish-all.mjs",
     "test": "pnpm -r --if-present test"
   },
   "keywords": [],
   "author": "Junmin Dev",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egose/web-ts-toolkit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/egose/web-ts-toolkit/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "packageManager": "pnpm@10.14.0",
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
