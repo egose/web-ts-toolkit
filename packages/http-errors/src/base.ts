@@ -3,7 +3,7 @@ import { getCanonicalStatus } from './status';
 import type { HttpErrorOptions } from './types';
 
 type ErrorWithCaptureStackTrace = ErrorConstructor & {
-  captureStackTrace?: (targetObject: object, constructorOpt?: Function) => void;
+  captureStackTrace?: (targetObject: object, constructorOpt?: abstract new (...args: never[]) => object) => void;
 };
 
 const ErrorCtor = Error as ErrorWithCaptureStackTrace;
@@ -33,7 +33,7 @@ export class HttpError extends Error {
     super(message || getDefaultMessage(statusCode), options);
 
     if (ErrorCtor.captureStackTrace) {
-      ErrorCtor.captureStackTrace(this, this.constructor);
+      ErrorCtor.captureStackTrace(this, this.constructor as abstract new (...args: never[]) => object);
     }
 
     this.name = this.constructor.name;
