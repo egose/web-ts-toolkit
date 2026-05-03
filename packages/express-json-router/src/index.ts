@@ -89,6 +89,30 @@ class JsonRouter {
   readonly endpoints: Endpoint[] = [];
   readonly middlewares: JsonRouterCallback[];
   readonly basePath: string;
+  all!: RouteRegistrar;
+  checkout!: RouteRegistrar;
+  copy!: RouteRegistrar;
+  delete!: RouteRegistrar;
+  get!: RouteRegistrar;
+  head!: RouteRegistrar;
+  lock!: RouteRegistrar;
+  merge!: RouteRegistrar;
+  mkactivity!: RouteRegistrar;
+  mkcol!: RouteRegistrar;
+  move!: RouteRegistrar;
+  ['m-search']!: RouteRegistrar;
+  notify!: RouteRegistrar;
+  options!: RouteRegistrar;
+  patch!: RouteRegistrar;
+  post!: RouteRegistrar;
+  purge!: RouteRegistrar;
+  put!: RouteRegistrar;
+  report!: RouteRegistrar;
+  search!: RouteRegistrar;
+  subscribe!: RouteRegistrar;
+  trace!: RouteRegistrar;
+  unlock!: RouteRegistrar;
+  unsubscribe!: RouteRegistrar;
   private readonly _router: ExpressRouter;
 
   static readonly clientErrors = clientErrors;
@@ -211,7 +235,5 @@ class JsonRouter {
     return addLeadingSlash(path);
   }
 }
-
-interface JsonRouter extends Record<RouteMethod, RouteRegistrar> {}
 
 export = JsonRouter;
