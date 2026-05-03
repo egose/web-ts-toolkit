@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "lint": "eslint .",
     "test": "pnpm -r --if-present test"
   },
   "keywords": [],
@@ -14,9 +15,14 @@
     "@commitlint/cli": "^20.5.3",
     "@commitlint/config-conventional": "^20.5.3",
     "@commitlint/format": "^20.5.0",
-    "prettier": "^4.0.0-alpha.13",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.6.0",
+    "eslint": "10.3.0",
+    "globals": "^17.6.0",
+    "prettier": "4.0.0-alpha.13",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.1",
     "vitest": "^4.1.5"
   }
 }

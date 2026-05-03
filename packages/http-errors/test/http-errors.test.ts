@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { BadRequestError, ClientError, HttpError, ServerError, ServiceUnavailableError } from '../dist/index.mjs';
+import {
+  BadRequestError,
+  ClientError,
+  HttpError,
+  ServerError,
+  ServiceUnavailableError,
+  UnauthorizedError,
+  toAip193ErrorPayload,
+} from '../dist/index.mjs';
 
 describe('http-errors', () => {
   it('uses the default 500 status and message for HttpError', () => {
@@ -48,5 +56,119 @@ describe('http-errors', () => {
     const error = new HttpError(503, undefined, { cause });
 
     expect(error.cause).toBe(cause);
+  });
+
+  it('exposes canonical status strings for common HTTP errors', () => {
+    const error = new UnauthorizedError();
+
+    expect(error.status).toBe('UNAUTHENTICATED');
+  });
+
+  it('supports structured error metadata for machine-readable payloads', () => {
+    const error = new BadRequestError('invalid email', {
+      reason: 'INVALID_EMAIL',
+      domain: 'api.example.com',
+      metadata: {
+        field: 'email',
+        attempt: 2,
+      },
+      details: [
+        {
+          type: 'help',
+          links: [
+            {
+              description: 'Validation guide',
+              url: 'https://api.example.com/docs/errors/invalid-email',
+            },
+          ],
+        },
+      ],
+      errors: [
+        {
+          field: 'email',
+          description: 'Email must be a valid address.',
+        },
+      ],
+    });
+
+    expect(error.statusCode).toBe(400);
+    expect(error.status).toBe('INVALID_ARGUMENT');
+    expect(error.reason).toBe('INVALID_EMAIL');
+    expect(error.domain).toBe('api.example.com');
+    expect(error.metadata).toEqual({
+      field: 'email',
+      attempt: '2',
+    });
+    expect(error.details).toEqual([
+      {
+        type: 'help',
+        links: [
+          {
+            description: 'Validation guide',
+            url: 'https://api.example.com/docs/errors/invalid-email',
+          },
+        ],
+      },
+    ]);
+    expect(error.errors).toEqual([
+      {
+        field: 'email',
+        description: 'Email must be a valid address.',
+      },
+    ]);
+  });
+
+  it('falls back to UNKNOWN for statuses without a canonical mapping', () => {
+    const error = new HttpError(422);
+
+    expect(error.status).toBe('UNKNOWN');
+  });
+
+  it('serializes HttpError values into an AIP-193-style payload', () => {
+    const error = new BadRequestError('invalid email', {
+      reason: 'INVALID_EMAIL',
+      domain: 'api.example.com',
+      metadata: {
+        field: 'email',
+      },
+      details: [
+        {
+          type: 'help',
+          links: [
+            {
+              description: 'Validation guide',
+              url: 'https://api.example.com/docs/errors/invalid-email',
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(toAip193ErrorPayload(error)).toEqual({
+      error: {
+        code: 400,
+        status: 'INVALID_ARGUMENT',
+        message: 'invalid email',
+        details: [
+          {
+            type: 'error_info',
+            reason: 'INVALID_EMAIL',
+            domain: 'api.example.com',
+            metadata: {
+              field: 'email',
+            },
+          },
+          {
+            type: 'help',
+            links: [
+              {
+                description: 'Validation guide',
+                url: 'https://api.example.com/docs/errors/invalid-email',
+              },
+            ],
+          },
+        ],
+      },
+    });
   });
 });
