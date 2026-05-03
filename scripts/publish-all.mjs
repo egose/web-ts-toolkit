@@ -105,7 +105,7 @@ for (const pkg of orderedPackages) {
       publishArgs.push('--dry-run');
     }
 
-    // runCommand('npm', publishArgs, publishDir);
+    runCommand('npm', publishArgs, publishDir);
   }
 }
 
