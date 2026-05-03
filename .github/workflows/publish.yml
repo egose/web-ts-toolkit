@@ -9,7 +9,7 @@ jobs:
   build-and-publish:
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
+      contents: write
 
     steps:
     - uses: hmarr/debug-action@f7318c783045ac39ed9bb497e22ce835fdafbfe6
@@ -32,3 +32,5 @@ jobs:
 
     - name: Release
       uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
