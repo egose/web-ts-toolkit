@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  BadRequestError,
-  ClientError,
-  HttpError,
-  ServerError,
-  ServiceUnavailableError,
-} from '../dist/index.mjs';
+import { BadRequestError, ClientError, HttpError, ServerError, ServiceUnavailableError } from '../dist/index.mjs';
 
 describe('http-errors', () => {
   it('uses the default 500 status and message for HttpError', () => {

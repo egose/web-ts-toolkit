@@ -53,10 +53,7 @@ export class HttpError extends Error {
   readonly date: Date;
 
   constructor(statusCode = 500, message?: string, ...others: unknown[]) {
-    super(
-      message || messages[statusCode as ErrorStatusCode] || messages[500],
-      others[0] as ErrorOptions | undefined,
-    );
+    super(message || messages[statusCode as ErrorStatusCode] || messages[500], others[0] as ErrorOptions | undefined);
 
     if (ErrorCtor.captureStackTrace) {
       ErrorCtor.captureStackTrace(this, this.constructor);
