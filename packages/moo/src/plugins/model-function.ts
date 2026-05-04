@@ -34,6 +34,15 @@ export interface ModelFunctionPluginOptions<
   fn(doc: TDocument, ...args: TArgs): TResult;
 }
 
+const invokePluginFunction = <TDocument, TArgs extends unknown[], TResult>(
+  fn: (doc: TDocument, ...args: TArgs) => TResult,
+  document: TDocument,
+  args: TArgs,
+): TResult => {
+  // Preserve the historical mongoose-bound callback context for existing consumers.
+  return fn.call(mongoose, document, ...args);
+};
+
 export function modelFunctionPlugin<
   TRawDocType,
   TMethodName extends string = string,
@@ -48,11 +57,11 @@ export function modelFunctionPlugin<
   const { fnName, fn } = options;
 
   schema.static(fnName, function staticFn(doc: TDocument, ...args: TArgs) {
-    return fn.call(mongoose, doc, ...args);
+    return invokePluginFunction(fn, doc, args);
   });
 
   schema.method(fnName, function methodFn(this: TDocument, ...args: TArgs) {
-    return fn.call(mongoose, this, ...args);
+    return invokePluginFunction(fn, this, args);
   });
 
   schema.static(
@@ -62,7 +71,7 @@ export function modelFunctionPlugin<
 
       if (!model) return null;
 
-      return fn.call(mongoose, model, ...args);
+      return invokePluginFunction(fn, model, args);
     },
   );
 }

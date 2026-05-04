@@ -1,6 +1,6 @@
 import mongoose, { type Schema } from 'mongoose';
 
-const deleteOneSupported = Number.parseInt(mongoose.version.split('.')[0] ?? '0', 10) >= 7;
+import { isFunction, isObject, isPlainObject, isReference } from '../utils';
 
 type QueryOptions = {
   lean?: boolean;
@@ -66,25 +66,6 @@ export interface CascadeDeletePluginOptions<
   extraForeignFilter?: FilterResolver<TDependentDocument>;
 }
 
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value);
-
-const isFunction = (value: unknown): value is (...args: unknown[]) => unknown => typeof value === 'function';
-
-const getReferenceModel = (value: unknown): string | null => {
-  if (Array.isArray(value)) {
-    return getReferenceModel(value[0]);
-  }
-
-  if (!isPlainObject(value) || typeof value.ref !== 'string') {
-    return null;
-  }
-
-  return value.ref;
-};
-
-const isReference = (value: unknown, modelName: string) => getReferenceModel(value) === modelName;
-
 const resolveFilter = <TDependentDocument extends Record<string, unknown>>(
   value: FilterResolver<TDependentDocument> | undefined,
   document?: unknown,
@@ -121,10 +102,27 @@ const applyQueryOptions = <TResult>(query: QueryBuilder<TResult>, options: Query
 };
 
 const supportsDeleteOne = (value: unknown): value is Required<Pick<DeleteCapableDocument, 'deleteOne'>> =>
-  isPlainObject(value) && typeof value.deleteOne === 'function';
+  isObject(value) && typeof (value as DeleteCapableDocument).deleteOne === 'function';
 
 const supportsRemove = (value: unknown): value is Required<Pick<DeleteCapableDocument, 'remove'>> =>
-  isPlainObject(value) && typeof value.remove === 'function';
+  isObject(value) && typeof (value as DeleteCapableDocument).remove === 'function';
+
+const mergeResults = <TModelName extends string, TResult>(
+  previousResults: unknown,
+  modelName: TModelName,
+  currentResults: TResult | null,
+) => {
+  const resultMap = isPlainObject(previousResults) ? previousResults : {};
+
+  if (currentResults === null) {
+    return resultMap;
+  }
+
+  return {
+    ...resultMap,
+    [modelName]: currentResults,
+  };
+};
 
 export function cascadeDeletePlugin<
   TModelName extends string = string,
@@ -195,24 +193,9 @@ export function cascadeDeletePlugin<
     );
   };
 
-  if (deleteOneSupported) {
-    schema.post('deleteOne', { document: true, query: false }, async function () {
-      try {
-        await deleteDependents.call(this);
-      } catch (err) {
-        console.error(err);
-      }
-    });
-  } else {
-    // @ts-expect-error Mongoose still exposes `remove` middleware for older versions.
-    schema.post('remove', async function () {
-      try {
-        await deleteDependents.call(this);
-      } catch (err) {
-        console.error(err);
-      }
-    });
-  }
+  schema.post('deleteOne', { document: true, query: false }, async function postDeleteOne() {
+    await deleteDependents.call(this);
+  });
 
   const methodFnName = 'findDependents';
   const prevMethodFn = schema.methods[methodFnName] as
@@ -230,10 +213,7 @@ export function cascadeDeletePlugin<
 
     const previousResults = prevMethodFn ? await prevMethodFn.call(this) : {};
 
-    return {
-      ...(isPlainObject(previousResults) ? previousResults : {}),
-      [model]: await findDependents.call(this, {}),
-    };
+    return mergeResults(previousResults, model, await findDependents.call(this, {}));
   });
 
   const staticFnName = 'findOrphans';
@@ -253,13 +233,6 @@ export function cascadeDeletePlugin<
     const previousResults = prevStaticFn ? await prevStaticFn.call(this) : {};
     const currentResults = await findOrphans.call(this, {});
 
-    if (!currentResults) {
-      return isPlainObject(previousResults) ? previousResults : {};
-    }
-
-    return {
-      ...(isPlainObject(previousResults) ? previousResults : {}),
-      [model]: currentResults,
-    };
+    return mergeResults(previousResults, model, currentResults);
   });
 }

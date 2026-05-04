@@ -30,6 +30,12 @@
       "require": "./dist/schema.js",
       "default": "./dist/schema.js"
     },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.mjs",
+      "require": "./dist/utils/index.js",
+      "default": "./dist/utils/index.js"
+    },
     "./plugins": {
       "types": "./dist/plugins/index.d.ts",
       "import": "./dist/plugins/index.mjs",
