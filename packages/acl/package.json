@@ -1,0 +1,58 @@
+{
+  "name": "@web-ts-toolkit/acl",
+  "description": "ACL-driven Express routers and in-memory data services for Mongoose-backed APIs",
+  "version": "0.0.0-PLACEHOLDER",
+  "keywords": [
+    "express",
+    "mongoose",
+    "acl",
+    "router"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./processors": {
+      "types": "./dist/processors.d.ts",
+      "import": "./dist/processors.mjs",
+      "require": "./dist/processors.js",
+      "default": "./dist/processors.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "test": "pnpm build && vitest run --config vitest.config.ts"
+  },
+  "files": [
+    "README.md",
+    "dist",
+    "tsup.config.ts"
+  ],
+  "dependencies": {
+    "@web-ts-toolkit/express-json-router": "workspace:*",
+    "deep-diff": "^1.0.2",
+    "lodash": "^4.17.21",
+    "mongoose-schema-jsonschema": "^3.0.0",
+    "sift": "^17.0.1",
+    "winston": "^3.8.2"
+  },
+  "peerDependencies": {
+    "express": ">=5.0.0",
+    "mongoose": ">=8.0.0"
+  },
+  "devDependencies": {
+    "@types/deep-diff": "^1.0.5",
+    "@types/express": "^5.0.3",
+    "@types/lodash": "^4.17.20",
+    "express": "^5.2.1",
+    "mongodb-memory-server": "^11.1.0",
+    "mongoose": "^8.23.1",
+    "supertest": "^7.2.2"
+  }
+}
