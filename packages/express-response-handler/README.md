@@ -243,9 +243,10 @@ If you want an AIP-193-inspired error envelope, create a handler instance with `
 
 ```ts
 import apiHandler from '@web-ts-toolkit/express-response-handler';
+import { ErrorFormats } from '@web-ts-toolkit/express-response-handler/types';
 
 const structuredHandler = apiHandler.createExpressResponseHandler({
-  errorFormat: 'aip193',
+  errorFormat: ErrorFormats.aip193,
   errorDomain: 'api.example.com',
 });
 ```
@@ -289,6 +290,59 @@ app.get(
               url: 'https://api.example.com/docs/errors/invalid-project-id',
             },
           ],
+        },
+      ],
+    });
+  }),
+);
+```
+
+If you want RFC 9457 problem details instead, create a handler instance with `errorFormat: 'rfc9457'`:
+
+```ts
+import apiHandler from '@web-ts-toolkit/express-response-handler';
+import { ErrorFormats } from '@web-ts-toolkit/express-response-handler/types';
+
+const problemHandler = apiHandler.createExpressResponseHandler({
+  errorFormat: ErrorFormats.rfc9457,
+  errorDomain: 'api.example.com',
+});
+```
+
+That mode returns `application/problem+json` payloads in this shape:
+
+```json
+{
+  "type": "https://api.example.com/problems/invalid-project-id",
+  "title": "Invalid project id",
+  "status": 400,
+  "detail": "invalid project id",
+  "instance": "/problems/invalid-project-id/123",
+  "errors": [
+    {
+      "detail": "must be a valid project id",
+      "pointer": "#/id"
+    }
+  ]
+}
+```
+
+You can enrich HTTP errors with problem detail fields:
+
+```ts
+import { BadRequestError } from '@web-ts-toolkit/http-errors';
+
+app.get(
+  '/projects/:id',
+  problemHandler.handleResponse(async () => {
+    throw new BadRequestError('invalid project id', {
+      type: 'https://api.example.com/problems/invalid-project-id',
+      title: 'Invalid project id',
+      instance: '/problems/invalid-project-id/123',
+      errors: [
+        {
+          detail: 'must be a valid project id',
+          pointer: '#/id',
         },
       ],
     });

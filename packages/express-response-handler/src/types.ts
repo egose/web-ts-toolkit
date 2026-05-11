@@ -1,8 +1,9 @@
 import type { HttpResponseHelpers } from './http-response';
+import type { ErrorFormats } from './error-formats';
 
 export type ErrorMessageResult = string | Record<string, unknown>;
 export type ErrorMessageProvider = (error: unknown) => ErrorMessageResult;
-export type ErrorFormat = 'simple' | 'aip193';
+export type ErrorFormat = (typeof ErrorFormats)[keyof typeof ErrorFormats];
 export type MaybePromise<T> = T | Promise<T>;
 export type Hook = (value: unknown) => unknown;
 export type AsyncHook = (value: unknown) => Promise<unknown>;
@@ -61,6 +62,9 @@ export type ErrorWithPayload = {
   domain?: string;
   metadata?: unknown;
   details?: unknown;
+  type?: string;
+  title?: string;
+  instance?: string;
 };
 
 export type ExpressResponseHandlerFactory = (options?: ExpressResponseHandlerOptions) => ExpressResponseHandler;

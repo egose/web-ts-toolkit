@@ -5,12 +5,17 @@ import { Response } from './responses';
 import { HttpResponse } from './http-response';
 import {
   defaultErrorMessageProvider,
+  toRfc9457GenericErrorPayload,
+  toRfc9457HttpErrorPayload,
   toSimpleErrorPayload,
   toStructuredGenericErrorPayload,
   toStructuredHttpErrorPayload,
 } from './error-format';
+import { ErrorFormats } from './error-formats';
 import type {
   AsyncHook,
+  ErrorFormat,
+  ErrorMessageResult,
   ErrorMessageProvider,
   ErrorWithPayload,
   ExpressResponseHandler,
@@ -36,6 +41,53 @@ const invokePostHook = (hook: AsyncHook, value: unknown): void => {
   void hook(value).catch(() => undefined);
 };
 
+const RFC_9457_CONTENT_TYPE = 'application/problem+json';
+
+type HttpErrorSender = (res: ResponseLike, error: ErrorWithPayload, errorDomain: string) => void;
+type GenericErrorSender = (res: ResponseLike, result: ErrorMessageResult, errorDomain: string) => void;
+
+const shouldSkipResponse = (res: ResponseLike, event: EventState): boolean => res.headersSent || event.canceled;
+
+const sendProblemJson = (res: ResponseLike, statusCode: number, payload: unknown): void => {
+  res.status(statusCode);
+  res.set('Content-Type', RFC_9457_CONTENT_TYPE);
+  res.send(payload);
+};
+
+const sendHttpErrorByFormat: Record<ErrorFormat, HttpErrorSender> = {
+  [ErrorFormats.simple]: (res, error) => {
+    const payload: Record<string, unknown> = { message: error.message ?? '' };
+
+    if (error.errors !== undefined) {
+      payload.errors = error.errors;
+    }
+
+    res.status(error.statusCode ?? 500).send(payload);
+  },
+  [ErrorFormats.aip193]: (res, error, domain) => {
+    res.status(error.statusCode ?? 500).send(toStructuredHttpErrorPayload(error, domain));
+  },
+  [ErrorFormats.rfc9457]: (res, error, domain) => {
+    sendProblemJson(res, error.statusCode ?? 500, toRfc9457HttpErrorPayload(error, domain));
+  },
+};
+
+const sendGenericErrorByFormat: Record<ErrorFormat, GenericErrorSender> = {
+  [ErrorFormats.simple]: (res, result) => {
+    res.status(422).send(toSimpleErrorPayload(result));
+  },
+  [ErrorFormats.aip193]: (res, result, domain) => {
+    const payload = toStructuredGenericErrorPayload(result, domain);
+
+    res.status(payload.error.code).send(payload);
+  },
+  [ErrorFormats.rfc9457]: (res, result) => {
+    const payload = toRfc9457GenericErrorPayload(result);
+
+    sendProblemJson(res, payload.status ?? 422, payload);
+  },
+};
+
 const assertMiddleware: (fn: unknown) => asserts fn is MiddlewareFunction = (fn) => {
   assert.ok(isFunction(fn), 'middleware handler must be a function');
 };
@@ -59,8 +111,8 @@ const normalizeMiddlewareList = (fns: Array<MiddlewareFunction | MiddlewareFunct
 };
 
 export function createExpressResponseHandler(options: ExpressResponseHandlerOptions = {}): ExpressResponseHandler {
-  const errorFormat = options.errorFormat || 'simple';
-  const errorDomain = options.errorDomain || 'express-response-handler';
+  const errorFormat = options.errorFormat ?? ErrorFormats.simple;
+  const errorDomain = options.errorDomain ?? 'express-response-handler';
 
   let errorMessageProvider = defaultErrorMessageProvider;
   let preJson: Hook | null = null;
@@ -72,8 +124,25 @@ export function createExpressResponseHandler(options: ExpressResponseHandlerOpti
   let preErrorHook: AsyncHook | null = null;
   let postErrorHook: AsyncHook | null = null;
 
+  const updateHook = (
+    fn: Hook | null,
+    name: string,
+    setState: (syncHook: Hook | null, asyncHook: AsyncHook | null) => void,
+    rebuild: () => void,
+  ): void => {
+    if (fn === null) {
+      setState(null, null);
+      rebuild();
+      return;
+    }
+
+    assert.ok(isFunction(fn), `${name} hook must be a function`);
+    setState(fn, promisify(fn));
+    rebuild();
+  };
+
   const sendBaseJson = function (res: ResponseLike, data: unknown, event: EventState) {
-    if (res.headersSent || event.canceled) {
+    if (shouldSkipResponse(res, event)) {
       return;
     }
 
@@ -91,38 +160,19 @@ export function createExpressResponseHandler(options: ExpressResponseHandlerOpti
   };
 
   const sendBaseError = function (res: ResponseLike, err: unknown, event: EventState) {
-    if (res.headersSent || event.canceled) {
+    if (shouldSkipResponse(res, event)) {
       return;
     }
 
     const error = err as ErrorWithPayload;
 
     if (error.statusCode) {
-      if (errorFormat === 'aip193') {
-        res.status(error.statusCode).send(toStructuredHttpErrorPayload(error, errorDomain));
-        return;
-      }
-
-      const payload: Record<string, unknown> = { message: error.message || '' };
-
-      if (error.errors !== undefined) {
-        payload.errors = error.errors;
-      }
-
-      res.status(error.statusCode).send(payload);
+      sendHttpErrorByFormat[errorFormat](res, error, errorDomain);
       return;
     }
 
     const result = errorMessageProvider(err);
-
-    if (errorFormat === 'aip193') {
-      const payload = toStructuredGenericErrorPayload(result, errorDomain);
-
-      res.status(payload.error.code).send(payload);
-      return;
-    }
-
-    res.status(422).send(toSimpleErrorPayload(result));
+    sendGenericErrorByFormat[errorFormat](res, result, errorDomain);
   };
 
   let sendJson = sendBaseJson;
@@ -196,7 +246,7 @@ export function createExpressResponseHandler(options: ExpressResponseHandlerOpti
   };
 
   const handleResult = function (res: ResponseLike, result: unknown, event: EventState) {
-    if (res.headersSent || event.canceled) {
+    if (shouldSkipResponse(res, event)) {
       return;
     }
 
@@ -271,65 +321,57 @@ export function createExpressResponseHandler(options: ExpressResponseHandlerOpti
       return preJson;
     },
     set preJson(fn: Hook | null) {
-      if (fn === null) {
-        preJson = null;
-        preJsonHook = null;
-        rebuildSendJson();
-        return;
-      }
-
-      assert.ok(isFunction(fn), 'pre-json hook must be a function');
-      preJson = fn;
-      preJsonHook = promisify(fn);
-      rebuildSendJson();
+      updateHook(
+        fn,
+        'pre-json',
+        (syncHook, asyncHook) => {
+          preJson = syncHook;
+          preJsonHook = asyncHook;
+        },
+        rebuildSendJson,
+      );
     },
     get postJson() {
       return postJson;
     },
     set postJson(fn: Hook | null) {
-      if (fn === null) {
-        postJson = null;
-        postJsonHook = null;
-        rebuildSendJson();
-        return;
-      }
-
-      assert.ok(isFunction(fn), 'post-json hook must be a function');
-      postJson = fn;
-      postJsonHook = promisify(fn);
-      rebuildSendJson();
+      updateHook(
+        fn,
+        'post-json',
+        (syncHook, asyncHook) => {
+          postJson = syncHook;
+          postJsonHook = asyncHook;
+        },
+        rebuildSendJson,
+      );
     },
     get preError() {
       return preError;
     },
     set preError(fn: Hook | null) {
-      if (fn === null) {
-        preError = null;
-        preErrorHook = null;
-        rebuildSendError();
-        return;
-      }
-
-      assert.ok(isFunction(fn), 'pre-error hook must be a function');
-      preError = fn;
-      preErrorHook = promisify(fn);
-      rebuildSendError();
+      updateHook(
+        fn,
+        'pre-error',
+        (syncHook, asyncHook) => {
+          preError = syncHook;
+          preErrorHook = asyncHook;
+        },
+        rebuildSendError,
+      );
     },
     get postError() {
       return postError;
     },
     set postError(fn: Hook | null) {
-      if (fn === null) {
-        postError = null;
-        postErrorHook = null;
-        rebuildSendError();
-        return;
-      }
-
-      assert.ok(isFunction(fn), 'post-error hook must be a function');
-      postError = fn;
-      postErrorHook = promisify(fn);
-      rebuildSendError();
+      updateHook(
+        fn,
+        'post-error',
+        (syncHook, asyncHook) => {
+          postError = syncHook;
+          postErrorHook = asyncHook;
+        },
+        rebuildSendError,
+      );
     },
   };
 }

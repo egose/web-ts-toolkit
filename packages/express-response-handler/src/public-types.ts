@@ -17,4 +17,6 @@ export type {
   RouterFunction,
 } from './types';
 
+export { ErrorFormats } from './error-formats';
+
 export type { HttpResponseHelpers } from './http-response';

@@ -4,6 +4,7 @@ export default defineConfig({
   entry: [
     'src/index.ts',
     'src/create-express-response-handler.ts',
+    'src/error-formats.ts',
     'src/error-format.ts',
     'src/http-response.ts',
     'src/public-types.ts',

@@ -415,6 +415,77 @@ describe('AIP-193 error format', () => {
   });
 });
 
+describe('RFC 9457 error format', () => {
+  const problemHandler = apiHandler.createExpressResponseHandler({
+    errorFormat: 'rfc9457',
+    errorDomain: 'api.example.com',
+  });
+  const validationKey = 'rfc9457-validation-error';
+  const genericKey = 'rfc9457-generic-error';
+
+  it('should return a problem details payload for HTTP errors', async () => {
+    app.get(`/${validationKey}`, problemHandler.handleResponse(fnDetailedBadRequest));
+
+    const response = await request(app)
+      .get(`/${validationKey}`)
+      .expect('Content-Type', /application\/problem\+json/)
+      .expect(400);
+
+    expect(response.body).toEqual({
+      type: 'https://api.example.com/problems/invalid-email',
+      title: 'Invalid email address',
+      status: 400,
+      detail: 'invalid email',
+      instance: '/problems/invalid-email/123',
+      errors: [
+        {
+          field: 'email',
+          description: 'Email must be a valid address.',
+        },
+      ],
+    });
+  });
+
+  it('should return a problem details payload for generic errors', async () => {
+    problemHandler.errorMessageProvider = function () {
+      return {
+        type: 'https://api.example.com/problems/request-failed',
+        title: 'Request failed',
+        status: 422,
+        detail: 'request failed',
+        instance: '/problems/request-failed/456',
+        errors: [
+          {
+            detail: 'email is required',
+            pointer: '#/email',
+          },
+        ],
+      };
+    };
+
+    app.get(`/${genericKey}`, problemHandler.handleResponse(fnError1));
+
+    const response = await request(app)
+      .get(`/${genericKey}`)
+      .expect('Content-Type', /application\/problem\+json/)
+      .expect(422);
+
+    expect(response.body).toEqual({
+      type: 'https://api.example.com/problems/request-failed',
+      title: 'Request failed',
+      status: 422,
+      detail: 'request failed',
+      instance: '/problems/request-failed/456',
+      errors: [
+        {
+          detail: 'email is required',
+          pointer: '#/email',
+        },
+      ],
+    });
+  });
+});
+
 function fnApple() {
   return 'apple';
 }
@@ -440,6 +511,9 @@ function fnDetailedBadRequest() {
   throw new BadRequestError('invalid email', {
     reason: 'INVALID_EMAIL',
     domain: 'api.example.com',
+    type: 'https://api.example.com/problems/invalid-email',
+    title: 'Invalid email address',
+    instance: '/problems/invalid-email/123',
     metadata: { field: 'email' },
     errors: [{ field: 'email', description: 'Email must be a valid address.' }],
     details: [
