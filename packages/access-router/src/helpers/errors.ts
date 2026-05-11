@@ -1,12 +1,13 @@
 import { Codes, StatusCodes } from '../enums';
+import { ErrorResult, ServiceResult } from '../interfaces';
 
 export class CustomError extends Error {
   statusCode: number;
   message: string;
-  errors: string[];
+  errors: unknown[];
   date: Date;
 
-  constructor({ statusCode = 422, message = 'Unprocessable Content', errors = [] } = {}) {
+  constructor({ statusCode = 422, message = 'Unprocessable Content', errors = [] as unknown[] } = {}) {
     super(message);
 
     if (Error.captureStackTrace) {
@@ -54,16 +55,12 @@ export function mapCodeToStatusCode(code: string) {
   }
 }
 
-export function handleResultError({
-  success,
-  code,
-  errors = [],
-}: {
-  success: boolean;
-  code?: string;
-  errors?: string[];
-}) {
-  if (success) return;
+export function handleResultError<T>(
+  result: ServiceResult<T>,
+): asserts result is Exclude<ServiceResult<T>, ErrorResult> {
+  if (result.success) return;
+
+  const { code, errors = [] } = result;
 
   switch (code) {
     case Codes.BadRequest:

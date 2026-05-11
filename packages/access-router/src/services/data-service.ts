@@ -1,8 +1,9 @@
 import { getDataOptions } from '../options';
 import { findElement, filterCollection, genPagination, parseSortString } from '../helpers';
 import {
-  MiddlewareContext,
   DataMiddlewareContext,
+  ErrorResult,
+  ListResult,
   Request,
   Projection,
   SelectAccess,
@@ -15,7 +16,7 @@ import {
   DataFindOneOptions,
   DataFindArgs,
   DataFindOptions,
-  ServiceResult,
+  SingleResult,
 } from '../interfaces';
 import { Codes } from '../enums';
 import { orderBy, pick } from 'lodash';
@@ -37,7 +38,7 @@ export class DataService<T> {
     filter: DataFilter,
     args?: DataFindOneArgs,
     options?: DataFindOneOptions,
-  ): Promise<ServiceResult> {
+  ): Promise<SingleResult<T> | ErrorResult> {
     const { select } = args ?? {};
     const { access = 'read' } = options ?? {};
 
@@ -48,17 +49,21 @@ export class DataService<T> {
       select: _select,
     };
 
-    if (_filter === false) return { success: false, code: Codes.Forbidden, data: null, query };
+    if (_filter === false) return { success: false, code: Codes.Forbidden, query };
 
     let doc = await findElement(this.data, _filter);
-    if (!doc) return { success: false, code: Codes.NotFound, data: null, query };
+    if (!doc) return { success: false, code: Codes.NotFound, query };
     doc = await this.trimOutputFields(doc, access);
     if (_select.length > 0) doc = pick(doc, _select);
 
-    return { success: true, code: Codes.Success, data: doc, query };
+    return { success: true, kind: 'single', code: Codes.Success, data: doc, query };
   }
 
-  public async findById(id: string, args?: DataFindOneArgs, options?: DataFindOneOptions): Promise<ServiceResult> {
+  public async findById(
+    id: string,
+    args?: DataFindOneArgs,
+    options?: DataFindOneOptions,
+  ): Promise<SingleResult<T> | ErrorResult> {
     const { select } = args ?? {};
     const { access = 'read' } = options ?? {};
     const filter = await this.genIDFilter(id);
@@ -72,7 +77,11 @@ export class DataService<T> {
     );
   }
 
-  public async find(filter: DataFilter, args?: DataFindArgs, options?: DataFindOptions): Promise<ServiceResult> {
+  public async find(
+    filter: DataFilter,
+    args?: DataFindArgs,
+    options?: DataFindOptions,
+  ): Promise<ListResult<T> | ErrorResult> {
     const { select, sort, skip, limit, page, pageSize } = args ?? {};
 
     const [_filter, _select, pagination] = await Promise.all([
@@ -88,7 +97,7 @@ export class DataService<T> {
       ...pagination,
     };
 
-    if (_filter === false) return { success: false, code: 'forbidden', data: [], count: 0, totalCount: null, query };
+    if (_filter === false) return { success: false, code: Codes.Forbidden, query };
 
     let docs = await filterCollection(this.data, _filter);
     const totalCount = docs.length;
@@ -110,6 +119,7 @@ export class DataService<T> {
 
     return {
       success: true,
+      kind: 'list',
       code: Codes.Success,
       data: docs,
       count: docs.length,

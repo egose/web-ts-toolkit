@@ -3,6 +3,7 @@ import mongoose, { Document } from 'mongoose';
 import { Diff } from 'deep-diff';
 import { Core } from '../core';
 import { DataCore } from '../core-data';
+import { Codes } from '../enums';
 
 export type Validation = boolean | string | string[] | Function;
 
@@ -111,15 +112,36 @@ export interface Request extends express.Request {
   dacl: DataCore;
 }
 
-export interface ServiceResult {
-  success: boolean;
-  code: string;
-  data: any;
-  count?: number;
-  totalCount?: number;
-  input?: any;
-  query?: any;
-  errors?: any[];
+export interface ErrorResult<TError = unknown, TQuery = unknown> {
+  success: false;
+  code: Codes.BadRequest | Codes.Unauthorized | Codes.Forbidden | Codes.NotFound;
+  errors?: TError[];
+  query?: TQuery;
+}
+
+export interface SingleResult<T = unknown, TInput = unknown, TQuery = unknown> {
+  success: true;
+  kind: 'single';
+  code: Codes.Success | Codes.Created;
+  data: T;
+  input?: TInput;
+  query?: TQuery;
   context?: MiddlewareContext;
+}
+
+export interface ListResult<T = unknown, TInput = unknown, TQuery = unknown> {
+  success: true;
+  kind: 'list';
+  code: Codes.Success | Codes.Created;
+  data: T[];
+  count: number;
+  totalCount?: number | null;
+  input?: TInput;
+  query?: TQuery;
   contexts?: MiddlewareContext[];
 }
+
+export type ServiceResult<T = unknown, TError = unknown, TInput = unknown, TQuery = unknown> =
+  | SingleResult<T, TInput, TQuery>
+  | ListResult<T, TInput, TQuery>
+  | ErrorResult<TError, TQuery>;

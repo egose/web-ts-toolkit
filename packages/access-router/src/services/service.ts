@@ -47,6 +47,7 @@ import {
   FindByIdOptions,
   CreateArgs,
   CreateOptions,
+  ErrorResult,
   UpdateOneArgs,
   UpdateOneOptions,
   UpdateByIdArgs,
@@ -55,7 +56,9 @@ import {
   UpsertOptions,
   BaseFilterAccess,
   ExistsOptions,
+  ListResult,
   ServiceResult,
+  SingleResult,
   SubQueryEntry,
   FindAccess,
 } from '../interfaces';
@@ -80,7 +83,11 @@ export class Service extends Base {
     this.baseFieldsExt = this.baseFields.concat(this.options.documentPermissionField);
   }
 
-  public async findOne(filter: Filter, args?: FindOneArgs, options?: FindOneOptions): Promise<ServiceResult> {
+  public async findOne(
+    filter: Filter,
+    args?: FindOneArgs,
+    options?: FindOneOptions,
+  ): Promise<SingleResult | ErrorResult> {
     const {
       select = this.defaults.findOneArgs?.select,
       sort = this.defaults.findOneArgs?.sort,
@@ -117,10 +124,10 @@ export class Service extends Base {
 
     logger.debug(JSON.stringify({ op: 'findOne', query }));
 
-    if (_filter === false) return { success: false, code: Codes.Forbidden, data: null, query };
+    if (_filter === false) return { success: false, code: Codes.Forbidden, query };
 
     let doc = await this.model.findOne({ ...query, lean });
-    if (!doc) return { success: false, code: Codes.NotFound, data: null, query };
+    if (!doc) return { success: false, code: Codes.NotFound, query };
 
     const context: MiddlewareContext = {
       model: this.model.model,
@@ -143,10 +150,14 @@ export class Service extends Base {
     );
     if (!includePermissions) doc = this.addEmptyPermissions(doc);
 
-    return { success: true, code: Codes.Success, data: doc, query, context };
+    return { success: true, kind: 'single', code: Codes.Success, data: doc, query, context };
   }
 
-  public async findById(id: string, args?: FindByIdArgs, options?: FindByIdOptions): Promise<ServiceResult> {
+  public async findById(
+    id: string,
+    args?: FindByIdArgs,
+    options?: FindByIdOptions,
+  ): Promise<SingleResult | ErrorResult> {
     const {
       select = this.defaults.findByIdArgs?.select,
       populate = this.defaults.findByIdArgs?.populate,
@@ -185,7 +196,7 @@ export class Service extends Base {
     args?: FindArgs,
     options?: FindOptions,
     decorate?: Function,
-  ): Promise<ServiceResult> {
+  ): Promise<ListResult | ErrorResult> {
     const {
       select = this.defaults.findArgs?.select,
       populate = this.defaults.findArgs?.populate,
@@ -235,7 +246,7 @@ export class Service extends Base {
 
     logger.debug(JSON.stringify({ op: 'find', query }));
 
-    if (_filter === false) return { success: false, code: 'forbidden', data: [], count: 0, totalCount: null, query };
+    if (_filter === false) return { success: false, code: Codes.Forbidden, query };
 
     let docs = await this.model.find({
       ...query,
@@ -280,6 +291,7 @@ export class Service extends Base {
 
     return {
       success: true,
+      kind: 'list',
       code: Codes.Success,
       data: docs,
       count: docs.length,
@@ -289,7 +301,12 @@ export class Service extends Base {
     };
   }
 
-  public async create(data, args?: CreateArgs, options?: CreateOptions, decorate?: Function): Promise<ServiceResult> {
+  public async create(
+    data,
+    args?: CreateArgs,
+    options?: CreateOptions,
+    decorate?: Function,
+  ): Promise<ListResult | ErrorResult> {
     const { populate = this.defaults.createArgs?.populate } = args ?? {};
     const {
       skim = this.defaults.createOptions?.skim ?? false,
@@ -314,12 +331,12 @@ export class Service extends Base {
         const validated = await this.validate(allowedData, 'create', context);
         if (isBoolean(validated)) {
           if (!validated) {
-            validationError = { success: false, code: Codes.BadRequest, data: null };
+            validationError = { success: false, code: Codes.BadRequest };
             return;
           }
         } else if (isArray(validated)) {
           if (validated.length > 0) {
-            validationError = { success: false, code: Codes.BadRequest, data: null, errors: validated };
+            validationError = { success: false, code: Codes.BadRequest, errors: validated };
             return;
           }
         }
@@ -358,6 +375,7 @@ export class Service extends Base {
 
     return {
       success: true,
+      kind: 'list',
       code: Codes.Created,
       data: docs,
       input: items,
@@ -365,10 +383,11 @@ export class Service extends Base {
     };
   }
 
-  public async new(): Promise<ServiceResult> {
+  public async new(): Promise<SingleResult> {
     const data = await this.model.new();
     return {
       success: true,
+      kind: 'single',
       code: Codes.Success,
       data,
     };
@@ -380,7 +399,7 @@ export class Service extends Base {
     args?: UpdateOneArgs,
     options?: UpdateOneOptions,
     decorate?: Function,
-  ): Promise<ServiceResult> {
+  ): Promise<SingleResult | ErrorResult> {
     const { populate = this.defaults.updateOneArgs?.populate, overrides = {} } = args ?? {};
     const {
       skim = this.defaults.updateOneOptions?.skim ?? false,
@@ -398,10 +417,10 @@ export class Service extends Base {
 
     logger.debug(JSON.stringify({ op: 'updateOne', query }));
 
-    if (_filter === false) return { success: false, code: Codes.Forbidden, data: null, query };
+    if (_filter === false) return { success: false, code: Codes.Forbidden, query };
 
     let doc = await this.model.findOne({ filter: _filter });
-    if (!doc) return { success: false, code: Codes.NotFound, data: null, query };
+    if (!doc) return { success: false, code: Codes.NotFound, query };
 
     const context: MiddlewareContext = { model: this.model.model, modelName: this.modelName };
 
@@ -421,9 +440,9 @@ export class Service extends Base {
 
     const validated = await this.validate(allowedData, 'update', context);
     if (isBoolean(validated)) {
-      if (!validated) return { success: false, code: Codes.BadRequest, data: null };
+      if (!validated) return { success: false, code: Codes.BadRequest };
     } else if (isArray(validated)) {
-      if (validated.length > 0) return { success: false, code: Codes.BadRequest, data: null, errors: validated };
+      if (validated.length > 0) return { success: false, code: Codes.BadRequest, errors: validated };
     }
 
     const prepared = await this.prepare(allowedData, 'update', context);
@@ -464,7 +483,7 @@ export class Service extends Base {
     if (isFunction(decorate)) doc = await decorate(doc, context);
     if (!includePermissions) doc = this.addEmptyPermissions(doc);
 
-    return { success: true, code: Codes.Success, data: doc, input: prepared };
+    return { success: true, kind: 'single', code: Codes.Success, data: doc, input: prepared };
   }
 
   public async updateById(
@@ -477,7 +496,7 @@ export class Service extends Base {
       populateAccess = this.defaults.updateByIdOptions?.populateAccess ?? 'read',
     }: UpdateByIdOptions = {},
     decorate?: Function,
-  ): Promise<ServiceResult> {
+  ): Promise<SingleResult | ErrorResult> {
     const { populate: overridePopulate, idFilter: overrideIdFilter } = overrides;
     const filter = overrideIdFilter || (await this.genIDFilter(id));
 
@@ -516,10 +535,10 @@ export class Service extends Base {
       const query = { filter: _filter };
 
       logger.debug(JSON.stringify({ op: 'upsert', query }));
-      if (_filter === false) return { success: false, code: Codes.Forbidden, data: null, query };
+      if (_filter === false) return { success: false, code: Codes.Forbidden, query };
 
       const matched = matchElement(theone, _filter);
-      if (!matched) return { success: false, code: Codes.Forbidden, data: null, query };
+      if (!matched) return { success: false, code: Codes.Forbidden, query };
 
       return this.updateOne(
         null,
@@ -548,25 +567,27 @@ export class Service extends Base {
     }
   }
 
-  public async delete(id: string): Promise<ServiceResult> {
+  public async delete(id: string): Promise<SingleResult | ErrorResult> {
     const filter = await this.genFilter('delete', await this.genIDFilter(id));
 
     const query = { filter };
 
     logger.debug(JSON.stringify({ op: 'delete', query }));
 
-    if (filter === false) return { success: false, code: Codes.Forbidden, data: null, query };
+    if (filter === false) return { success: false, code: Codes.Forbidden, query };
     let doc = await this.model.findOne({ filter });
-    if (!doc) return { success: false, code: Codes.NotFound, data: null, query };
+    if (!doc) return { success: false, code: Codes.NotFound, query };
 
     // this function utilizes the 'deleteOne' method to delete the document,
     // triggering 'deleteOne' hooks, as opposed to using 'findOneAndDelete'.
     // see https://mongoosejs.com/docs/api/model.html#Model.prototype.deleteOne()
     await ('deleteOne' in doc ? doc.deleteOne() : doc.remove());
-    return { success: true, code: Codes.Success, data: doc._id, query };
+    return { success: true, kind: 'single', code: Codes.Success, data: doc._id, query };
   }
 
-  public async exists(filter: Filter, options?: ExistsOptions): Promise<ServiceResult> {
+  public async exists(filter: Filter, options: ExistsOptions & { includeId: true }): Promise<SingleResult>;
+  public async exists(filter: Filter, options?: ExistsOptions): Promise<SingleResult<boolean>>;
+  public async exists(filter: Filter, options?: ExistsOptions): Promise<SingleResult> {
     const {
       access = this.defaults.existsOptions?.access ?? 'read',
       includeId = this.defaults.existsOptions?.includeId ?? false,
@@ -574,30 +595,36 @@ export class Service extends Base {
 
     filter = await this.genFilter(access, filter);
     const result = await this.model.exists(filter);
-    return { success: true, code: Codes.Success, data: includeId ? result : !!result, query: { filter } };
+    return {
+      success: true,
+      kind: 'single',
+      code: Codes.Success,
+      data: includeId ? result : !!result,
+      query: { filter },
+    };
   }
 
-  public async distinct(field: string, args?: DistinctArgs): Promise<ServiceResult> {
+  public async distinct(field: string, args?: DistinctArgs): Promise<ListResult | ErrorResult> {
     let { filter } = args ?? {};
     filter = await this.genFilter('read', filter);
 
     const query = { filter };
 
-    if (filter === false) return { success: false, code: Codes.Forbidden, data: null, query };
+    if (filter === false) return { success: false, code: Codes.Forbidden, query };
 
     const result = await this.model.distinct(field, filter);
 
-    return { success: true, code: Codes.Success, data: result, query };
+    return { success: true, kind: 'list', code: Codes.Success, data: result, count: result.length, query };
   }
 
-  public async count(filter, access: BaseFilterAccess = 'list'): Promise<ServiceResult> {
+  public async count(filter, access: BaseFilterAccess = 'list'): Promise<SingleResult<number> | ErrorResult> {
     filter = await this.genFilter(access, filter);
 
     const query = { filter };
 
-    if (filter === false) return { success: false, code: Codes.Forbidden, data: 0, query };
+    if (filter === false) return { success: false, code: Codes.Forbidden, query };
 
-    return { success: true, code: Codes.Success, data: await this.model.countDocuments(filter), query };
+    return { success: true, kind: 'single', code: Codes.Success, data: await this.model.countDocuments(filter), query };
   }
 
   public getDocPermissions(doc) {
@@ -629,11 +656,11 @@ export class Service extends Base {
     return new Set(docs.map((doc) => String(doc._id)));
   }
 
-  async listSub(id, sub, options?: { filter: any; fields: string[] }): Promise<ServiceResult> {
+  async listSub(id, sub, options?: { filter: any; fields: string[] }): Promise<ListResult | ErrorResult> {
     let { filter: ft, fields } = options ?? {};
 
     const parentDoc = await this.getParentDoc(id, sub, null, { access: 'read' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound, data: [] };
+    if (!parentDoc) return { success: false, code: Codes.NotFound };
     let result = get(parentDoc, sub);
 
     const [subFilter, subSelect] = await Promise.all([
@@ -641,19 +668,24 @@ export class Service extends Base {
       this.genQuerySelect('list', fields, false, [sub, 'sub']),
     ]);
 
-    if (subFilter === false) return { success: false, code: Codes.Forbidden, data: [] };
+    if (subFilter === false) return { success: false, code: Codes.Forbidden };
 
     result = filterCollection(result, subFilter);
     if (subSelect) result = result.map((v) => pick(toObject(v), subSelect.concat('_id')));
 
-    return { success: true, code: Codes.Success, data: result };
+    return { success: true, kind: 'list', code: Codes.Success, data: result, count: result.length };
   }
 
-  public async readSub(id, sub, subId, options?: { fields: string[]; populate: any }): Promise<ServiceResult> {
+  public async readSub(
+    id,
+    sub,
+    subId,
+    options?: { fields: string[]; populate: any },
+  ): Promise<SingleResult | ErrorResult> {
     let { fields, populate } = options ?? {};
 
     const parentDoc = await this.getParentDoc(id, sub, { populate }, { access: 'read' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound, data: null };
+    if (!parentDoc) return { success: false, code: Codes.NotFound };
     let result = get(parentDoc, sub);
 
     const [subFilter, subSelect] = await Promise.all([
@@ -661,18 +693,18 @@ export class Service extends Base {
       this.genQuerySelect('read', fields, false, [sub, 'sub']),
     ]);
 
-    if (subFilter === false) return { success: false, code: Codes.Forbidden, data: null };
+    if (subFilter === false) return { success: false, code: Codes.Forbidden };
 
     result = findElement(result, subFilter);
-    if (!result) return { success: false, code: Codes.NotFound, data: null };
+    if (!result) return { success: false, code: Codes.NotFound };
 
     if (subSelect) result = pick(toObject(result), subSelect.concat(['_id']));
-    return { success: true, code: Codes.Success, data: result };
+    return { success: true, kind: 'single', code: Codes.Success, data: result };
   }
 
-  public async updateSub(id, sub, subId, data): Promise<ServiceResult> {
+  public async updateSub(id, sub, subId, data): Promise<SingleResult | ErrorResult> {
     const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound, data: null };
+    if (!parentDoc) return { success: false, code: Codes.NotFound };
     let result = get(parentDoc, sub);
 
     const [subFilter, subReadSelect, subUpdateSelect] = await Promise.all([
@@ -681,22 +713,22 @@ export class Service extends Base {
       this.genQuerySelect('update', null, false, [sub, 'sub']),
     ]);
 
-    if (subFilter === false) return { success: false, code: Codes.Forbidden, data: null };
+    if (subFilter === false) return { success: false, code: Codes.Forbidden };
 
     result = findElement(result, subFilter);
-    if (!result) return { success: false, code: Codes.NotFound, data: null };
+    if (!result) return { success: false, code: Codes.NotFound };
 
     const allowedData = pick(data, subUpdateSelect);
     Object.assign(result, allowedData);
 
     await parentDoc.save();
     if (subReadSelect) result = pick(toObject(result), subReadSelect.concat(['_id']));
-    return { success: true, code: Codes.Success, data: result };
+    return { success: true, kind: 'single', code: Codes.Success, data: result };
   }
 
-  public async bulkUpdateSub(id, sub, data): Promise<ServiceResult> {
+  public async bulkUpdateSub(id, sub, data): Promise<ListResult | ErrorResult> {
     const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound, data: null };
+    if (!parentDoc) return { success: false, code: Codes.NotFound };
     let result = get(parentDoc, sub);
 
     data = castArray(data);
@@ -707,7 +739,7 @@ export class Service extends Base {
       this.genQuerySelect('update', null, false, [sub, 'sub']),
     ]);
 
-    if (subFilter === false) return { success: false, code: Codes.Forbidden, data: null };
+    if (subFilter === false) return { success: false, code: Codes.Forbidden };
 
     result = filterCollection(result, subFilter);
     forEach(result, (subdoc) => {
@@ -720,14 +752,14 @@ export class Service extends Base {
 
     await parentDoc.save();
     if (subReadSelect) result = result.map((v) => pick(toObject(v), subReadSelect.concat(['_id'])));
-    return { success: true, code: Codes.Success, data: result };
+    return { success: true, kind: 'list', code: Codes.Success, data: result, count: result.length };
   }
 
-  public async createSub(id, sub, data, options?: { addFirst: boolean }): Promise<ServiceResult> {
+  public async createSub(id, sub, data, options?: { addFirst: boolean }): Promise<ListResult | ErrorResult> {
     const { addFirst } = options ?? {};
 
     const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound, data: null };
+    if (!parentDoc) return { success: false, code: Codes.NotFound };
     let result = get(parentDoc, sub);
 
     const [subCreateSelect, subReadSelect] = await Promise.all([
@@ -740,25 +772,25 @@ export class Service extends Base {
 
     await parentDoc.save();
     if (subReadSelect) result = result.map((v) => pick(toObject(v), subReadSelect.concat(['_id'])));
-    return { success: true, code: Codes.Created, data: result };
+    return { success: true, kind: 'list', code: Codes.Created, data: result, count: result.length };
   }
 
-  public async deleteSub(id, sub, subId): Promise<ServiceResult> {
+  public async deleteSub(id, sub, subId): Promise<SingleResult | ErrorResult> {
     const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound, data: null };
+    if (!parentDoc) return { success: false, code: Codes.NotFound };
     let result = get(parentDoc, sub);
 
     const subFilter = await this.genFilter(`subs.${sub}.delete` as any, { _id: subId });
-    if (subFilter === false) return { success: false, code: Codes.Forbidden, data: null };
+    if (subFilter === false) return { success: false, code: Codes.Forbidden };
 
     result = findElement(result, subFilter);
-    if (!result) return { success: false, code: Codes.NotFound, data: null };
+    if (!result) return { success: false, code: Codes.NotFound };
 
     // starting from version 7.x, the 'deleteOne' method replaces the 'remove' method for subdocuments.
     // see https://mongoosejs.com/docs/subdocs.html#removing-subdocs
     await ('deleteOne' in result ? result.deleteOne() : result.remove());
     await parentDoc.save();
-    return { success: true, code: Codes.Success, data: result._id };
+    return { success: true, kind: 'single', code: Codes.Success, data: result._id };
   }
 
   public async getParentDoc(

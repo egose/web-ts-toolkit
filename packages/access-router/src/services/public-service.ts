@@ -26,9 +26,11 @@ import {
   PublicUpdateArgs,
   PublicUpdateOptions,
   DistinctArgs,
+  ErrorResult,
+  ListResult,
   Request,
   BaseFilterAccess,
-  ServiceResult,
+  SingleResult,
   Task,
 } from '../interfaces';
 
@@ -37,7 +39,7 @@ export class PublicService extends Service {
   //   super(req, modelName);
   // }
 
-  async _list(filter: Filter, args?: PublicListArgs, options?: PublicListOptions): Promise<ServiceResult> {
+  async _list(filter: Filter, args?: PublicListArgs, options?: PublicListOptions): Promise<ListResult | ErrorResult> {
     const {
       select = this.defaults.publicListArgs?.select,
       populate = this.defaults.publicListArgs?.populate,
@@ -80,7 +82,7 @@ export class PublicService extends Service {
     return result;
   }
 
-  async _create(data, args?: PublicCreateArgs, options?: PublicCreateOptions): Promise<ServiceResult> {
+  async _create(data, args?: PublicCreateArgs, options?: PublicCreateOptions): Promise<ListResult | ErrorResult> {
     const {
       select = this.defaults.publicCreateArgs?.select,
       populate = this.defaults.publicCreateArgs?.populate,
@@ -110,11 +112,11 @@ export class PublicService extends Service {
     return result;
   }
 
-  async _new(): Promise<ServiceResult> {
+  async _new(): Promise<SingleResult> {
     return this.new();
   }
 
-  async _read(id: string, args?: PublicReadArgs, options?: PublicReadOptions): Promise<ServiceResult> {
+  async _read(id: string, args?: PublicReadArgs, options?: PublicReadOptions): Promise<SingleResult | ErrorResult> {
     const {
       select = this.defaults.publicReadArgs?.select,
       populate = this.defaults.publicReadArgs?.populate,
@@ -145,7 +147,7 @@ export class PublicService extends Service {
     );
 
     // if not found, try to get the doc with 'list' access
-    if (!result.data && tryList) {
+    if (tryList && (!result.success || !result.data)) {
       access = 'list';
 
       result = await this.findById(
@@ -175,7 +177,7 @@ export class PublicService extends Service {
     filter: Filter,
     args?: PublicReadArgs & { sort?: Sort },
     options?: PublicReadOptions,
-  ): Promise<ServiceResult> {
+  ): Promise<SingleResult | ErrorResult> {
     const {
       select = this.defaults.publicReadArgs?.select,
       sort = this.defaults.publicListArgs?.sort,
@@ -207,7 +209,7 @@ export class PublicService extends Service {
     );
 
     // if not found, try to get the doc with 'list' access
-    if (!result.data && tryList) {
+    if (tryList && (!result.success || !result.data)) {
       access = 'list';
 
       result = await this.findOne(
@@ -234,7 +236,12 @@ export class PublicService extends Service {
     return result;
   }
 
-  async _update(id: string, data, args?: PublicUpdateArgs, options?: PublicUpdateOptions): Promise<ServiceResult> {
+  async _update(
+    id: string,
+    data,
+    args?: PublicUpdateArgs,
+    options?: PublicUpdateOptions,
+  ): Promise<SingleResult | ErrorResult> {
     const {
       select = this.defaults.publicUpdateArgs?.select,
       populate = this.defaults.publicUpdateArgs?.populate,
@@ -268,17 +275,17 @@ export class PublicService extends Service {
     return result;
   }
 
-  async _delete(id: string): Promise<ServiceResult> {
+  async _delete(id: string): Promise<SingleResult | ErrorResult> {
     const result = await this.delete(id);
     return result;
   }
 
-  async _distinct(field: string, options: DistinctArgs = {}): Promise<ServiceResult> {
+  async _distinct(field: string, options: DistinctArgs = {}): Promise<ListResult | ErrorResult> {
     const result = await this.distinct(field, options);
     return result;
   }
 
-  async _count(filter, access: BaseFilterAccess = 'list'): Promise<ServiceResult> {
+  async _count(filter, access: BaseFilterAccess = 'list'): Promise<SingleResult<number> | ErrorResult> {
     const result = await this.count(filter, access);
     return result;
   }

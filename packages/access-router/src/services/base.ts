@@ -15,7 +15,9 @@ import intersectionBy from 'lodash/intersectionBy';
 import { getModelOption } from '../options';
 import { iterateQuery, CustomError, setDocValue, genPagination, normalizeSelect, populateDoc } from '../helpers';
 import {
+  ErrorResult,
   Include,
+  ListResult,
   MiddlewareContext,
   Request,
   Projection,
@@ -28,6 +30,7 @@ import {
   TransformAccess,
   FinalizeAccess,
   BaseFilterAccess,
+  SingleResult,
   ServiceResult,
   SubQueryEntry,
   Task,
@@ -261,7 +264,7 @@ export class Base {
     const svc = this.req.macl.getPublicService(model);
     if (!svc) return null;
 
-    let result!: ServiceResult;
+    let result!: ErrorResult | SingleResult | ListResult;
 
     if (op === 'list') {
       result = await svc.find(filter, args, options);
@@ -285,7 +288,7 @@ export class Base {
     }
 
     if (sqOptions.compact) {
-      ret = compact(ret);
+      ret = compact(castArray(ret));
     }
 
     return ret;

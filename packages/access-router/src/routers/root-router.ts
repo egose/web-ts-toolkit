@@ -7,11 +7,14 @@ import { setCore } from '../core';
 import { mapCodeToMessage, mapCodeToStatusCode } from '../helpers';
 import { getGlobalOption, getModelOption } from '../options';
 import {
+  ErrorResult,
+  ListResult,
   RootRouterOptions,
   ModelRouterOptions,
   Validation,
   RootQueryEntry,
   Request,
+  SingleResult,
   ServiceResult,
   RouteGuardAccess,
 } from '../interfaces';
@@ -36,10 +39,22 @@ export class RootRouter {
     this.setRoutes();
   }
 
-  private processResult(op: string, { success, code, data, count, totalCount, errors }: ServiceResult) {
-    const message = mapCodeToMessage(code);
-    const statusCode = mapCodeToStatusCode(code);
-    return { success, code, data, count, totalCount, errors, message, statusCode, op };
+  private processResult(op: string, result: ServiceResult) {
+    const message = mapCodeToMessage(result.code);
+    const statusCode = mapCodeToStatusCode(result.code);
+
+    if (!result.success) {
+      const { success, code, errors } = result as ErrorResult;
+      return { success, code, errors, message, statusCode, op };
+    }
+
+    if (result.kind === 'list') {
+      const { success, code, data, count, totalCount } = result as ListResult;
+      return { success, code, data, count, totalCount, message, statusCode, op };
+    }
+
+    const { success, code, data } = result as SingleResult;
+    return { success, code, data, message, statusCode, op };
   }
 
   private async processOp(req: Request, item: RootQueryEntry) {
