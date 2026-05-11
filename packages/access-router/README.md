@@ -1,17 +1,17 @@
-# @web-ts-toolkit/acl
+# @web-ts-toolkit/access-router
 
-ACL-driven Express routers and in-memory data services for Mongoose-backed APIs.
+Access-policy Express routers and in-memory data services for Mongoose-backed APIs.
 
 ## Installation
 
 ```sh
-pnpm add @web-ts-toolkit/acl express mongoose
+pnpm add @web-ts-toolkit/access-router express mongoose
 ```
 
 ## Usage
 
 ```ts
-import acl from '@web-ts-toolkit/acl';
+import acl from '@web-ts-toolkit/access-router';
 
 acl.set('globalPermissions', (req) => {
   return req.headers.user === 'admin' ? ['isAdmin'] : [];

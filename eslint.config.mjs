@@ -7,7 +7,7 @@ export default tseslint.config(
     ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'],
   },
   {
-    ignores: ['packages/acl/_tmp_examples/**'],
+    ignores: ['packages/access-router/_tmp_examples/**'],
   },
   {
     files: ['**/*.{js,mjs,cjs,ts,mts,cts}'],
@@ -26,7 +26,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['packages/acl/**/*.{ts,mts,cts,js,mjs,cjs}'],
+    files: ['packages/access-router/**/*.{ts,mts,cts,js,mjs,cjs}'],
     rules: {
       '@typescript-eslint/ban-ts-comment': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',

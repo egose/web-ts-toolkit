@@ -1,11 +1,12 @@
 {
-  "name": "@web-ts-toolkit/acl",
-  "description": "ACL-driven Express routers and in-memory data services for Mongoose-backed APIs",
+  "name": "@web-ts-toolkit/access-router",
+  "description": "Access-policy Express routers and in-memory data services for Mongoose-backed APIs",
   "version": "0.0.0-PLACEHOLDER",
   "keywords": [
     "express",
     "mongoose",
-    "acl",
+    "access",
+    "access-router",
     "router"
   ],
   "main": "dist/index.js",

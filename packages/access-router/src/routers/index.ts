@@ -1,5 +1,6 @@
 export * from './model-router';
 export * from './root-router';
+export * from './data-router';
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 
 JsonRouter.errorMessageProvider = function (error) {

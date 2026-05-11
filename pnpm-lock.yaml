@@ -57,7 +57,7 @@ importers:
         specifier: ^4.1.5
         version: 4.1.5(@types/node@25.6.0)(vite@8.0.10(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1))
 
-  packages/acl:
+  packages/access-router:
     dependencies:
       '@web-ts-toolkit/express-json-router':
         specifier: workspace:*

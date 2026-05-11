@@ -7,8 +7,8 @@ This document summarizes the main philosophy of the ACL package and identifies t
 Scope reviewed:
 
 - `docusaurus/docs/egose-acl`
-- `packages/acl/src`
-- selected tests under `packages/acl/test`
+- `packages/access-router/src`
+- selected tests under `packages/access-router/test`
 
 ## Main Philosophy
 
@@ -35,8 +35,8 @@ In short, the package is trying to make access control declarative, centralized,
 
 Files:
 
-- `packages/acl/src/core.ts:101-123`
-- `packages/acl/src/core-data.ts:77-99`
+- `packages/access-router/src/core.ts:101-123`
+- `packages/access-router/src/core-data.ts:77-99`
 
 Why it matters:
 
@@ -53,8 +53,8 @@ Recommended direction:
 
 Files:
 
-- `packages/acl/src/core.ts:178-236`
-- `packages/acl/src/core-data.ts:142-188`
+- `packages/access-router/src/core.ts:178-236`
+- `packages/access-router/src/core-data.ts:142-188`
 - `docusaurus/docs/egose-acl/philosophy.mdx:32-56`
 
 Why it matters:
@@ -77,10 +77,10 @@ Recommended direction:
 
 Files:
 
-- `packages/acl/src/meta.ts:7-36`
-- `packages/acl/src/routers/model-router.ts:55-64`
-- `packages/acl/src/routers/model-router.ts:508-620`
-- `packages/acl/src/core.ts:238-266`
+- `packages/access-router/src/meta.ts:7-36`
+- `packages/access-router/src/routers/model-router.ts:55-64`
+- `packages/access-router/src/routers/model-router.ts:508-620`
+- `packages/access-router/src/core.ts:238-266`
 
 Why it matters:
 
@@ -97,11 +97,11 @@ Recommended direction:
 
 Files:
 
-- `packages/acl/src/core.ts:348-390`
-- `packages/acl/src/services/service.ts:133-145`
-- `packages/acl/src/services/service.ts:255-270`
-- `packages/acl/src/services/service.ts:338-347`
-- `packages/acl/src/services/service.ts:449-459`
+- `packages/access-router/src/core.ts:348-390`
+- `packages/access-router/src/services/service.ts:133-145`
+- `packages/access-router/src/services/service.ts:255-270`
+- `packages/access-router/src/services/service.ts:338-347`
+- `packages/access-router/src/services/service.ts:449-459`
 
 Why it matters:
 
@@ -119,12 +119,12 @@ Recommended direction:
 
 Files:
 
-- `packages/acl/src/core.ts`
-- `packages/acl/src/core-data.ts`
-- `packages/acl/src/routers/model-router.ts`
-- `packages/acl/src/routers/data-router.ts`
-- `packages/acl/src/services/service.ts`
-- `packages/acl/src/services/data-service.ts`
+- `packages/access-router/src/core.ts`
+- `packages/access-router/src/core-data.ts`
+- `packages/access-router/src/routers/model-router.ts`
+- `packages/access-router/src/routers/data-router.ts`
+- `packages/access-router/src/services/service.ts`
+- `packages/access-router/src/services/data-service.ts`
 
 Why it matters:
 
@@ -147,12 +147,12 @@ Recommended direction:
 Files:
 
 - `docusaurus/docs/egose-acl/options/model-options.mdx:252-279`
-- `packages/acl/src/interfaces/root.ts:94-105`
-- `packages/acl/src/interfaces/root.ts:207-217`
-- `packages/acl/src/routers/model-router.ts:212-219`
-- `packages/acl/src/routers/model-router.ts:229-253`
-- `packages/acl/src/routers/model-router.ts:381-503`
-- `packages/acl/src/routers/model-router.ts:508-620`
+- `packages/access-router/src/interfaces/root.ts:94-105`
+- `packages/access-router/src/interfaces/root.ts:207-217`
+- `packages/access-router/src/routers/model-router.ts:212-219`
+- `packages/access-router/src/routers/model-router.ts:229-253`
+- `packages/access-router/src/routers/model-router.ts:381-503`
+- `packages/access-router/src/routers/model-router.ts:508-620`
 
 Why it matters:
 
@@ -169,10 +169,10 @@ Recommended direction:
 
 Files:
 
-- `packages/acl/src/options/global-options.ts:4-7`
-- `packages/acl/src/options/default-model-options.ts:7-17`
-- `packages/acl/src/core.ts:334-345`
-- `packages/acl/src/core.ts:428-443`
+- `packages/access-router/src/options/global-options.ts:4-7`
+- `packages/access-router/src/options/default-model-options.ts:7-17`
+- `packages/access-router/src/core.ts:334-345`
+- `packages/access-router/src/core.ts:428-443`
 
 Why it matters:
 
@@ -191,7 +191,7 @@ Recommended direction:
 
 Files:
 
-- `packages/acl/src/core.ts:318-331`
+- `packages/access-router/src/core.ts:318-331`
 
 Why it matters:
 
@@ -215,19 +215,19 @@ Completed so far:
 
 Implemented files of note:
 
-- `packages/acl/src/core-shared.ts`
-- `packages/acl/src/routers/shared.ts`
-- `packages/acl/src/core.ts`
-- `packages/acl/src/core-data.ts`
-- `packages/acl/src/services/base.ts`
-- `packages/acl/src/services/service.ts`
-- `packages/acl/src/services/data-service.ts`
-- `packages/acl/test/model-router.integration.test.ts`
-- `packages/acl/test/data-router.test.ts`
+- `packages/access-router/src/core-shared.ts`
+- `packages/access-router/src/routers/shared.ts`
+- `packages/access-router/src/core.ts`
+- `packages/access-router/src/core-data.ts`
+- `packages/access-router/src/services/base.ts`
+- `packages/access-router/src/services/service.ts`
+- `packages/access-router/src/services/data-service.ts`
+- `packages/access-router/test/model-router.integration.test.ts`
+- `packages/access-router/test/data-router.test.ts`
 
 Verified status:
 
-- full `packages/acl` test suite passing after each refactor step
+- full `packages/access-router` test suite passing after each refactor step
 
 ## Refactor Progress
 
@@ -283,7 +283,7 @@ Expected payoff:
 Status:
 
 - partially completed
-- shared request permission loading, route-guard evaluation, identifier filter resolution, base-filter resolution, middleware chaining, and schema-field collection were extracted into `packages/acl/src/core-shared.ts`
+- shared request permission loading, route-guard evaluation, identifier filter resolution, base-filter resolution, middleware chaining, and schema-field collection were extracted into `packages/access-router/src/core-shared.ts`
 - `Core` and `DataCore` now depend on the shared helper module for those concerns
 - source-specific behavior still remains appropriately separate in service and router layers
 
@@ -336,7 +336,7 @@ Expected payoff:
 Status:
 
 - partially completed
-- shared router response helpers were extracted into `packages/acl/src/routers/shared.ts`
+- shared router response helpers were extracted into `packages/access-router/src/routers/shared.ts`
 - repeated boolean parsing, route param extraction, list response formatting, and create/upsert payload formatting were removed from both routers
 - metadata polling and readiness coupling are still pending
 
@@ -379,8 +379,8 @@ If this package is going to be actively improved, the highest-value sequence is:
 
 ### P0: correctness blockers
 
-- [x] Fix `Core.genFilter()` cache behavior in `packages/acl/src/core.ts`
-- [x] Fix `DataCore.genFilter()` cache behavior in `packages/acl/src/core-data.ts`
+- [x] Fix `Core.genFilter()` cache behavior in `packages/access-router/src/core.ts`
+- [x] Fix `DataCore.genFilter()` cache behavior in `packages/access-router/src/core-data.ts`
 - [x] Add regression tests that call `genFilter()` multiple times with different caller filters in one request lifecycle
 - [x] Verify the same regression coverage for data routers and model routers
 - [x] Add visibility for `docPermissions` hook failures through logging or strict-mode behavior
@@ -402,7 +402,7 @@ If this package is going to be actively improved, the highest-value sequence is:
 
 ### P3: architecture cleanup
 
-- [ ] Replace global metadata polling in `packages/acl/src/meta.ts`
+- [ ] Replace global metadata polling in `packages/access-router/src/meta.ts`
 - [ ] Move model metadata loading to explicit lazy initialization
 - [x] Separate query-safe field selection from response-safe field trimming
 - [ ] Review `populate` ACL handling so denied relations are blocked earlier
@@ -442,8 +442,8 @@ Excluded from this phase:
 
 Target files:
 
-- `packages/acl/src/core.ts`
-- `packages/acl/src/core-data.ts`
+- `packages/access-router/src/core.ts`
+- `packages/access-router/src/core-data.ts`
 
 Implementation intent:
 
@@ -462,8 +462,8 @@ Acceptance criteria:
 
 Target files:
 
-- `packages/acl/test/model-router.integration.test.ts`
-- `packages/acl/test/data-router.test.ts`
+- `packages/access-router/test/model-router.integration.test.ts`
+- `packages/access-router/test/data-router.test.ts`
 - or a focused new test file if cleaner
 
 Test cases:
@@ -481,8 +481,8 @@ Acceptance criteria:
 
 Target files:
 
-- `packages/acl/src/core.ts`
-- optionally `packages/acl/src/logger.ts` if a structured log helper already exists
+- `packages/access-router/src/core.ts`
+- optionally `packages/access-router/src/logger.ts` if a structured log helper already exists
 
 Implementation intent:
 
@@ -499,8 +499,8 @@ Acceptance criteria:
 
 Target files:
 
-- `packages/acl/src/routers/model-router.ts`
-- relevant test files under `packages/acl/test`
+- `packages/access-router/src/routers/model-router.ts`
+- relevant test files under `packages/access-router/test`
 
 Implementation intent:
 

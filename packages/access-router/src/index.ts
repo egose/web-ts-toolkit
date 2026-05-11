@@ -3,7 +3,7 @@ import isObject from 'lodash/isObject';
 import isPlainObject from 'lodash/isPlainObject';
 import isUndefined from 'lodash/isUndefined';
 import middleware, { guard } from './middleware';
-import { RootRouter, ModelRouter } from './routers';
+import { RootRouter, ModelRouter, DataRouter } from './routers';
 import {
   setGlobalOptions,
   setGlobalOption,
@@ -21,7 +21,6 @@ import {
   getDefaultModelOption,
 } from './options';
 import { GlobalOptions, RootRouterOptions, ModelRouterOptions, DataRouterOptions } from './interfaces';
-import { DataRouter } from './routers/data-router';
 export {
   RootRouter,
   ModelRouter,
