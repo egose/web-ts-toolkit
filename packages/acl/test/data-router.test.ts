@@ -6,7 +6,7 @@ import acl, { getGlobalOptions, setGlobalOptions } from '../dist/index.mjs';
 
 const resetGlobalOptions = () => {
   setGlobalOptions({
-    permissionField: '_permissions',
+    requestPermissionField: '_permissions',
     globalPermissions: () => ({}),
   });
 };
@@ -23,7 +23,7 @@ const petData = [
 
 const createPetApp = () => {
   setGlobalOptions({
-    permissionField: '_permissions',
+    requestPermissionField: '_permissions',
     globalPermissions: (req) => {
       return req.headers.user === 'admin' ? ['isAdmin'] : [];
     },
@@ -53,6 +53,13 @@ const createPetApp = () => {
     },
   });
 
+  router.router.get('/custom/filter-cache', async (req) => {
+    const first = await req.dacl.genFilter('pet-legacy', 'read', { name: 'Max' });
+    const second = await req.dacl.genFilter('pet-legacy', 'read', { name: 'Bella' });
+
+    return { first, second };
+  });
+
   app.use(express.json());
   app.use(router.routes);
 
@@ -66,7 +73,7 @@ afterEach(() => {
 describe('data router', () => {
   it('creates package-local routers and applies permission-filtered fields', async () => {
     setGlobalOptions({
-      permissionField: '_permissions',
+      requestPermissionField: '_permissions',
       globalPermissions: (req) => {
         return req.headers.user === 'admin' ? ['isAdmin'] : [];
       },
@@ -123,6 +130,11 @@ describe('data router', () => {
       .set('user', 'admin')
       .expect(200)
       .expect('Content-Type', /json/);
+    const guestCountList = await request(app)
+      .get('/pets?include_count=true')
+      .set('user', 'john')
+      .expect(200)
+      .expect('Content-Type', /json/);
     const pagedList = await request(app)
       .get('/pets?limit=1&page=2')
       .set('user', 'admin')
@@ -167,6 +179,11 @@ describe('data router', () => {
       ],
     });
 
+    expect(guestCountList.body).toEqual({
+      count: 4,
+      rows: [{ name: 'Max' }, { name: 'Bella' }, { name: 'Buddy' }, { name: 'Toby' }],
+    });
+
     expect(pagedList.body).toEqual([{ name: 'Bella', age: 3 }]);
     expect(advancedList.body).toEqual([{ name: 'Max' }]);
     expect(read.body).toEqual({ name: 'Max', age: 1, sex: 'male' });
@@ -174,9 +191,26 @@ describe('data router', () => {
     expect(filteredRead.body).toEqual({ name: 'Max', age: 1, sex: 'male' });
   });
 
+  it('does not reuse merged base filters across different data genFilter calls in one request', async () => {
+    const app = createPetApp();
+
+    const response = await request(app)
+      .get('/pets/custom/filter-cache')
+      .set('user', 'john')
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    expect(response.body.first).toEqual({
+      $and: [{ public: true }, { name: 'Max' }],
+    });
+    expect(response.body.second).toEqual({
+      $and: [{ public: true }, { name: 'Bella' }],
+    });
+  });
+
   it('supports object-shaped global permissions in data router middleware', async () => {
     setGlobalOptions({
-      permissionField: '_permissions',
+      requestPermissionField: '_permissions',
       globalPermissions: (req) => {
         return req.headers.user === 'admin' ? { isAdmin: true } : {};
       },
@@ -198,13 +232,13 @@ describe('data router', () => {
   it('exposes the shared global options through the main package API', () => {
     const permissions = ['isAdmin'];
 
-    acl.set('permissionField', '__acl');
+    acl.set('requestPermissionField', '__acl');
     acl.set({
-      permissionField: '_permissions',
+      requestPermissionField: '_permissions',
       globalPermissions: () => permissions,
     });
 
-    expect(getGlobalOptions().permissionField).toBe('_permissions');
+    expect(getGlobalOptions().requestPermissionField).toBe('_permissions');
     expect(getGlobalOptions().globalPermissions?.({} as any)).toBe(permissions);
   });
 

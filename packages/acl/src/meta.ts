@@ -1,40 +1,44 @@
 import mongoose from 'mongoose';
 import get from 'lodash/get';
 import keys from 'lodash/keys';
-import forEach from 'lodash/forEach';
 import { buildRefs, buildSubPaths } from './helpers';
 
-let isReady = false;
-const modelRefs = {};
+const modelRefs: Record<string, any> = {};
 const modelSubs: { [key: string]: string[] } = {};
-const modelAtts = {};
-const listeners = [];
+const modelAtts: Record<string, string[]> = {};
 
-export const checkIfReady = () => isReady;
-export const listen = (fn) => listeners.push(fn);
-
-let _interval = setInterval(() => {
-  const modelNames = Object.keys(mongoose.models);
-  modelNames.forEach((modelName) => {
-    const schema = mongoose.models[modelName].schema;
-    // @ts-ignore
-    const references = buildRefs(schema.tree);
-    // @ts-ignore
-    const subPaths = buildSubPaths(schema.tree);
-    modelRefs[modelName] = references;
-    modelSubs[modelName] = subPaths;
-    modelAtts[modelName] = keys(schema.obj);
-  });
-
-  if (modelNames.length > 0) {
-    clearInterval(_interval);
-    forEach(listeners, (listener) => {
-      listener();
-    });
-    isReady = true;
+export const ensureModelMeta = (modelName: string) => {
+  if (modelName in modelRefs && modelName in modelSubs && modelName in modelAtts) {
+    return;
   }
-}, 10);
 
-export const getModelRef = (modelName: string, refPath: string) => get(modelRefs, `${modelName}.${refPath}`, null);
-export const getModelSub = (modelName: string) => get(modelSubs, modelName, []) as string[];
-export const getModelAtt = (modelName: string) => get(modelAtts, modelName, []);
+  const model = mongoose.models[modelName];
+  if (!model) {
+    modelRefs[modelName] = modelRefs[modelName] ?? {};
+    modelSubs[modelName] = modelSubs[modelName] ?? [];
+    modelAtts[modelName] = modelAtts[modelName] ?? [];
+    return;
+  }
+
+  const schema = model.schema;
+  // @ts-ignore
+  modelRefs[modelName] = buildRefs(schema.tree);
+  // @ts-ignore
+  modelSubs[modelName] = buildSubPaths(schema.tree);
+  modelAtts[modelName] = keys(schema.obj);
+};
+
+export const getModelRef = (modelName: string, refPath: string) => {
+  ensureModelMeta(modelName);
+  return get(modelRefs, `${modelName}.${refPath}`, null);
+};
+
+export const getModelSub = (modelName: string) => {
+  ensureModelMeta(modelName);
+  return get(modelSubs, modelName, []) as string[];
+};
+
+export const getModelAtt = (modelName: string) => {
+  ensureModelMeta(modelName);
+  return get(modelAtts, modelName, []);
+};

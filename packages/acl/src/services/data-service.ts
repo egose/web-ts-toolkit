@@ -41,7 +41,7 @@ export class DataService<T> {
     const { select } = args ?? {};
     const { access = 'read' } = options ?? {};
 
-    let [_filter, _select] = await Promise.all([this.genFilter(access, filter), this.genSelect(access, select)]);
+    let [_filter, _select] = await Promise.all([this.genFilter(access, filter), this.genQuerySelect(access, select)]);
 
     const query = {
       filter: _filter,
@@ -52,7 +52,7 @@ export class DataService<T> {
 
     let doc = await findElement(this.data, _filter);
     if (!doc) return { success: false, code: Codes.NotFound, data: null, query };
-    doc = await this.pickAllowedFields(doc, access);
+    doc = await this.trimOutputFields(doc, access);
     if (_select.length > 0) doc = pick(doc, _select);
 
     return { success: true, code: Codes.Success, data: doc, query };
@@ -77,7 +77,7 @@ export class DataService<T> {
 
     const [_filter, _select, pagination] = await Promise.all([
       this.genFilter('list', filter),
-      this.genSelect('list', select),
+      this.genQuerySelect('list', select),
       genPagination({ skip, limit, page, pageSize }, this.options.listHardLimit),
     ]);
 
@@ -91,10 +91,11 @@ export class DataService<T> {
     if (_filter === false) return { success: false, code: 'forbidden', data: [], count: 0, totalCount: null, query };
 
     let docs = await filterCollection(this.data, _filter);
+    const totalCount = docs.length;
 
     docs = await Promise.all(
       docs.map(async (doc) => {
-        doc = await this.pickAllowedFields(doc, 'list');
+        doc = await this.trimOutputFields(doc, 'list');
         if (_select.length > 0) doc = pick(doc, _select);
         return doc;
       }),
@@ -112,7 +113,7 @@ export class DataService<T> {
       code: Codes.Success,
       data: docs,
       count: docs.length,
-      totalCount: this.data.length,
+      totalCount,
       query,
     };
   }
@@ -146,7 +147,20 @@ export class DataService<T> {
     return this.req.dacl.genSelect(this.dataName, access, targetFields, skipChecks, subPaths);
   }
 
+  public genQuerySelect(
+    access: SelectAccess,
+    targetFields?: Projection,
+    skipChecks?: boolean,
+    subPaths?: string[],
+  ): Promise<any[]> {
+    return this.genSelect(access, targetFields, skipChecks, subPaths);
+  }
+
   public pickAllowedFields(doc: any, access: SelectAccess, baseFields?: string[]): Promise<any> {
     return this.req.dacl.pickAllowedFields(this.dataName, doc, access, baseFields);
+  }
+
+  public trimOutputFields(doc: any, access: SelectAccess, baseFields?: string[]): Promise<any> {
+    return this.pickAllowedFields(doc, access, baseFields);
   }
 }

@@ -12,7 +12,7 @@ let modelCounter = 0;
 
 const resetGlobalOptions = () => {
   setGlobalOptions({
-    permissionField: '_permissions',
+    requestPermissionField: '_permissions',
     globalPermissions: () => ({}),
   });
 };
@@ -30,7 +30,7 @@ const createIntegrationApp = async () => {
   const User = mongoose.model(modelName, schema);
 
   setGlobalOptions({
-    permissionField: '_permissions',
+    requestPermissionField: '_permissions',
     globalPermissions: async function (req: express.Request) {
       const userName = String(req.headers.user ?? '');
       const user = userName ? await User.findOne({ name: userName }) : null;
@@ -92,6 +92,13 @@ const createIntegrationApp = async () => {
     return result.data.permissions;
   });
 
+  router.router.get('/custom/filter-cache', async (req) => {
+    const first = await req.macl.genFilter(modelName, 'read', { name: 'user1' });
+    const second = await req.macl.genFilter(modelName, 'read', { name: 'user2' });
+
+    return { first, second };
+  });
+
   router.router.get(
     '/custom/query',
     guard({ modelName, id: { type: 'query', key: 'userid' }, condition: 'edit.role' }),
@@ -126,9 +133,73 @@ const createIntegrationApp = async () => {
   return { app, modelName };
 };
 
+const createPopulateIntegrationApp = async () => {
+  const orgModelName = `AclMongoOrg${++modelCounter}`;
+  const userModelName = `AclMongoPopulateUser${++modelCounter}`;
+
+  const Org = mongoose.model(
+    orgModelName,
+    new mongoose.Schema({
+      name: String,
+      secret: String,
+    }),
+  );
+
+  const User = mongoose.model(
+    userModelName,
+    new mongoose.Schema({
+      name: String,
+      org: { type: mongoose.Schema.Types.ObjectId, ref: orgModelName },
+    }),
+  );
+
+  setGlobalOptions({
+    requestPermissionField: '__reqAcl',
+    globalPermissions(req: express.Request) {
+      return req.headers.user === 'admin' ? ['isAdmin'] : [];
+    },
+  });
+
+  const orgRouter = acl.createRouter(orgModelName, {
+    basePath: '/orgs',
+    routeGuard: { list: true, read: true },
+    permissionSchema: {
+      name: { list: true, read: true },
+      secret: { list: 'isAdmin', read: 'isAdmin' },
+    },
+  });
+
+  const userRouter = acl.createRouter(userModelName, {
+    basePath: '/members',
+    documentPermissionField: '__acl',
+    routeGuard: { list: true, read: true },
+    permissionSchema: {
+      name: { list: true, read: true },
+      org: { list: 'isAdmin', read: 'isAdmin' },
+    },
+    identifier(id: string) {
+      return { name: id };
+    },
+  });
+
+  userRouter.router.get('/custom/populate-query', async (req) => {
+    return req.macl.genPopulate(userModelName, 'read', 'org');
+  });
+
+  const org = await Org.create({ name: 'org-1', secret: 'top-secret' });
+  await User.create([{ name: 'user1', org: org._id }]);
+
+  const app = express();
+  app.use(express.json());
+  app.use(orgRouter.routes);
+  app.use(userRouter.routes);
+
+  return { app };
+};
+
 afterEach(() => {
   resetGlobalOptions();
-  mongoose.deleteModel(/AclMongoUser.*/);
+  mongoose.deleteModel(/AclMongo(User|OpsUser|Org|PopulateUser).*/);
 });
 
 describe('model router integration', () => {
@@ -137,6 +208,11 @@ describe('model router integration', () => {
 
     const adminList = await request(app).get('/users').set('user', 'admin').expect(200).expect('Content-Type', /json/);
     const userList = await request(app).get('/users').set('user', 'user2').expect(200).expect('Content-Type', /json/);
+    const userListWithPermissions = await request(app)
+      .get('/users?include_permissions=true')
+      .set('user', 'user2')
+      .expect(200)
+      .expect('Content-Type', /json/);
     const selfRead = await request(app)
       .get('/users/user2?include_permissions=true')
       .set('user', 'user2')
@@ -154,16 +230,30 @@ describe('model router integration', () => {
       .expect('Content-Type', /json/);
 
     expect(adminList.body).toHaveLength(4);
-    expect(adminList.body[0]).toMatchObject({
+    expect(adminList.body.map((row: { name: string }) => row.name).sort()).toEqual([
+      'admin',
+      'user1',
+      'user2',
+      'user3',
+    ]);
+    const adminRow = adminList.body.find((row: { name: string }) => row.name === 'admin');
+    expect(adminRow).toMatchObject({
       name: 'admin',
       role: 'admin',
     });
-    expect(adminList.body[0].public).toBeUndefined();
+    expect(adminRow.public).toBeUndefined();
 
     expect(userList.body).toHaveLength(2);
     expect(userList.body.map((row: { name: string }) => row.name).sort()).toEqual(['user2', 'user3']);
     expect(userList.body[0].role).toBeUndefined();
     expect(userList.body[0].public).toBeUndefined();
+
+    const selfListRow = userListWithPermissions.body.find((row: { name: string }) => row.name === 'user2');
+    const publicListRow = userListWithPermissions.body.find((row: { name: string }) => row.name === 'user3');
+    expect(selfListRow._permissions._view.name).toBe(true);
+    expect(selfListRow._permissions._edit.name).toBe(true);
+    expect(publicListRow._permissions._view).toEqual({});
+    expect(publicListRow._permissions._edit).toEqual({});
 
     expect(selfRead.body).toMatchObject({
       name: 'user2',
@@ -200,5 +290,141 @@ describe('model router integration', () => {
     expect(permissions.body['edit.name']).toBe(true);
     expect(permissions.body['edit.role']).toBe(true);
     expect(permissions.body['edit.public']).toBe(true);
+  });
+
+  it('does not reuse merged base filters across different genFilter calls in one request', async () => {
+    const { app } = await createIntegrationApp();
+
+    const response = await request(app)
+      .get('/users/custom/filter-cache')
+      .set('user', 'user2')
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    expect(response.body.first).toMatchObject({
+      $and: [{ _id: expect.any(String) }, { name: 'user1' }],
+    });
+    expect(response.body.second).toMatchObject({
+      $and: [{ _id: expect.any(String) }, { name: 'user2' }],
+    });
+  });
+
+  it('supports route guards for count, distinct, and upsert routes', async () => {
+    const modelName = `AclMongoOpsUser${++modelCounter}`;
+    const schema = new mongoose.Schema({
+      name: String,
+      role: String,
+      public: Boolean,
+    });
+
+    const User = mongoose.model(modelName, schema);
+
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions(req: express.Request) {
+        return req.headers.user === 'admin' ? ['isAdmin'] : [];
+      },
+    });
+
+    const router = acl.createRouter(modelName, {
+      basePath: '/ops-users',
+      routeGuard: {
+        list: true,
+        read: true,
+        create: 'isAdmin',
+        update: 'isAdmin',
+        count: 'isAdmin',
+        distinct: 'isAdmin',
+        // `upsert` is supported by the runtime even though it is not yet documented consistently.
+        upsert: 'isAdmin',
+      } as any,
+      permissionSchema: {
+        name: { list: true, read: true, create: true, update: true },
+        role: { list: true, read: true, create: true, update: true },
+        public: { list: true, read: true, create: true, update: true },
+      },
+    });
+
+    await User.create([
+      { name: 'admin', role: 'admin', public: false },
+      { name: 'user1', role: 'user', public: true },
+      { name: 'user2', role: 'user', public: false },
+    ]);
+
+    const app = express();
+    app.use(express.json());
+    app.use(router.routes);
+
+    const count = await request(app)
+      .get('/ops-users/count')
+      .set('user', 'admin')
+      .expect(200)
+      .expect('Content-Type', /json/);
+    expect(Number(count.text)).toBe(3);
+    await request(app).get('/ops-users/count').expect(401);
+
+    const distinct = await request(app)
+      .get('/ops-users/distinct/role')
+      .set('user', 'admin')
+      .expect(200)
+      .expect('Content-Type', /json/);
+    expect(distinct.body.sort()).toEqual(['admin', 'user']);
+    await request(app).get('/ops-users/distinct/role').expect(401);
+
+    const created = await request(app)
+      .put('/ops-users')
+      .set('user', 'admin')
+      .send({ name: 'user3', role: 'user', public: true })
+      .expect(201)
+      .expect('Content-Type', /json/);
+    expect(created.body).toMatchObject({ name: 'user3', role: 'user', public: true });
+
+    const existing = await User.findOne({ name: 'user1' }).select('_id').lean();
+    expect(existing?._id).toBeDefined();
+
+    const updated = await request(app)
+      .put('/ops-users')
+      .set('user', 'admin')
+      .send({ _id: String(existing?._id), role: 'manager' })
+      .expect(200)
+      .expect('Content-Type', /json/);
+    expect(updated.body).toMatchObject({ _id: String(existing?._id), role: 'manager' });
+
+    await request(app).put('/ops-users').expect(401);
+  });
+
+  it('supports renamed request and document permission field options', async () => {
+    const { app } = await createPopulateIntegrationApp();
+
+    const response = await request(app)
+      .get('/members/user1?include_permissions=true')
+      .set('user', 'admin')
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    expect(response.body.__acl).toBeDefined();
+    expect(response.body._permissions).toBeUndefined();
+  });
+
+  it('denies populate paths at query-construction time when the parent path is not readable', async () => {
+    const { app } = await createPopulateIntegrationApp();
+
+    const deniedPopulate = await request(app)
+      .get('/members/custom/populate-query')
+      .expect(200)
+      .expect('Content-Type', /json/);
+    expect(deniedPopulate.body).toEqual([]);
+
+    const allowedPopulate = await request(app)
+      .get('/members/custom/populate-query')
+      .set('user', 'admin')
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    expect(allowedPopulate.body).toHaveLength(1);
+    expect(allowedPopulate.body[0]).toMatchObject({
+      path: 'org',
+      match: {},
+    });
   });
 });

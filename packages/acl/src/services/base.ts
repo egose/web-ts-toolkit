@@ -84,6 +84,15 @@ export class Base {
     return this.req.macl.genSelect(this.modelName, access, targetFields, skipChecks, subPaths);
   }
 
+  public genQuerySelect(
+    access: SelectAccess,
+    targetFields?: Projection,
+    skipChecks?: boolean,
+    subPaths?: string[],
+  ): Promise<any[]> {
+    return this.genSelect(access, targetFields, skipChecks, subPaths);
+  }
+
   public addEmptyPermissions(doc: any): any {
     return this.req.macl.addEmptyPermissions(this.modelName, doc);
   }
@@ -98,6 +107,10 @@ export class Base {
 
   public pickAllowedFields(doc: any, access: SelectAccess, baseFields?: string[]): Promise<any> {
     return this.req.macl.pickAllowedFields(this.modelName, doc, access, baseFields);
+  }
+
+  public trimOutputFields(doc: any, access: SelectAccess, baseFields?: string[]): Promise<any> {
+    return this.pickAllowedFields(doc, access, baseFields);
   }
 
   public prepare(allowedData: any, access: PrepareAccess, context: MiddlewareContext): Promise<any> {

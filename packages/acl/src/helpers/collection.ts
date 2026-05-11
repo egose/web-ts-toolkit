@@ -2,7 +2,6 @@ import { Schema } from 'mongoose';
 import sift from 'sift';
 import filter from 'lodash/filter';
 import find from 'lodash/find';
-import isMatch from 'lodash/isMatch';
 
 export const filterCollection = (collection, predicate) => {
   return filter(collection, sift(predicate));
@@ -13,7 +12,7 @@ export const findElement = (collection, predicate) => {
 };
 
 export const matchElement = (element, predicate) => {
-  return isMatch(element, sift(predicate));
+  return sift(predicate)(element);
 };
 
 type DocId = string | Schema.Types.ObjectId;

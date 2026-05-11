@@ -9,7 +9,7 @@ let modelCounter = 0;
 
 const resetGlobalOptions = () => {
   setGlobalOptions({
-    permissionField: '_permissions',
+    requestPermissionField: '_permissions',
     globalPermissions: () => ({}),
   });
 };
@@ -34,7 +34,7 @@ const createUserApp = ({
   });
 
   setGlobalOptions({
-    permissionField: '_permissions',
+    requestPermissionField: '_permissions',
     globalPermissions,
   });
 
