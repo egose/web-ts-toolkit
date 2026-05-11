@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
   entry: [
     'src/index.ts',
-    'src/create-express-response-handler.ts',
+    'src/create-handler.ts',
     'src/error-formats.ts',
     'src/error-format.ts',
     'src/http-response.ts',

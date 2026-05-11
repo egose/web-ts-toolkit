@@ -243,9 +243,9 @@ If you want an AIP-193-inspired error envelope, create a handler instance with `
 
 ```ts
 import apiHandler from '@web-ts-toolkit/express-response-handler';
-import { ErrorFormats } from '@web-ts-toolkit/express-response-handler/types';
+import { ErrorFormats } from '@web-ts-toolkit/express-response-handler';
 
-const structuredHandler = apiHandler.createExpressResponseHandler({
+const structuredHandler = apiHandler.createHandler({
   errorFormat: ErrorFormats.aip193,
   errorDomain: 'api.example.com',
 });
@@ -301,9 +301,9 @@ If you want RFC 9457 problem details instead, create a handler instance with `er
 
 ```ts
 import apiHandler from '@web-ts-toolkit/express-response-handler';
-import { ErrorFormats } from '@web-ts-toolkit/express-response-handler/types';
+import { ErrorFormats } from '@web-ts-toolkit/express-response-handler';
 
-const problemHandler = apiHandler.createExpressResponseHandler({
+const problemHandler = apiHandler.createHandler({
   errorFormat: ErrorFormats.rfc9457,
   errorDomain: 'api.example.com',
 });
@@ -357,8 +357,8 @@ The default export is a ready-to-use singleton. If you want separate hook config
 ```ts
 import apiHandler from '@web-ts-toolkit/express-response-handler';
 
-const adminHandler = apiHandler.createExpressResponseHandler();
-const publicHandler = apiHandler.createExpressResponseHandler();
+const adminHandler = apiHandler.createHandler();
+const publicHandler = apiHandler.createHandler();
 
 adminHandler.preError = async function (err) {
   console.error('admin route failed', err);

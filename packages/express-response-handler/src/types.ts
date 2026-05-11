@@ -67,14 +67,14 @@ export type ErrorWithPayload = {
   instance?: string;
 };
 
-export type ExpressResponseHandlerFactory = (options?: ExpressResponseHandlerOptions) => ExpressResponseHandler;
+export type CreateHandler = (options?: ExpressResponseHandlerOptions) => ExpressResponseHandler;
 
 export type ExpressResponseHandler = {
   handleResponse: HandleResponse;
   handleResult: (res: ResponseLike, result: unknown, event: EventState) => void;
   handlePromise: (res: ResponseLike, promise: Promise<unknown>, event: EventState) => void;
   HttpResponse: HttpResponseHelpers;
-  createExpressResponseHandler: ExpressResponseHandlerFactory;
+  createHandler: CreateHandler;
   errorMessageProvider: ErrorMessageProvider;
   preJson: Hook | null;
   postJson: Hook | null;

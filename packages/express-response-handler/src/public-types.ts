@@ -1,12 +1,12 @@
 export type {
   AsyncHook,
+  CreateHandler,
   ErrorFormat,
   ErrorMessageProvider,
   ErrorMessageResult,
   ErrorWithPayload,
   EventState,
   ExpressResponseHandler,
-  ExpressResponseHandlerFactory,
   ExpressResponseHandlerOptions,
   HandleResponse,
   Hook,

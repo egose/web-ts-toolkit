@@ -110,7 +110,7 @@ const normalizeMiddlewareList = (fns: Array<MiddlewareFunction | MiddlewareFunct
   return [fns[0]];
 };
 
-export function createExpressResponseHandler(options: ExpressResponseHandlerOptions = {}): ExpressResponseHandler {
+export function createHandler(options: ExpressResponseHandlerOptions = {}): ExpressResponseHandler {
   const errorFormat = options.errorFormat ?? ErrorFormats.simple;
   const errorDomain = options.errorDomain ?? 'express-response-handler';
 
@@ -309,7 +309,7 @@ export function createExpressResponseHandler(options: ExpressResponseHandlerOpti
     handleResult,
     handlePromise,
     HttpResponse,
-    createExpressResponseHandler,
+    createHandler,
     get errorMessageProvider() {
       return errorMessageProvider;
     },

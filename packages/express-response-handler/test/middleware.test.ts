@@ -4,7 +4,7 @@ import express from 'express';
 import request from 'supertest';
 import { afterAll, describe, expect, it } from 'vitest';
 import { BadRequestError, UnauthorizedError } from '@web-ts-toolkit/http-errors';
-import apiHandler from '../dist/index.mjs';
+import apiHandler, { ErrorFormats } from '../dist/index.mjs';
 
 const { handleResponse } = apiHandler;
 
@@ -289,7 +289,7 @@ describe('Invalid handler input', () => {
 
 describe('Configuration accessors', () => {
   it('should expose the configured provider and hooks', () => {
-    const handler = apiHandler.createExpressResponseHandler();
+    const handler = apiHandler.createHandler();
     const provider = function () {
       return 'customError';
     };
@@ -309,8 +309,8 @@ describe('Configuration accessors', () => {
 });
 
 describe('Handler instance isolation', () => {
-  const firstHandler = apiHandler.createExpressResponseHandler();
-  const secondHandler = apiHandler.createExpressResponseHandler();
+  const firstHandler = apiHandler.createHandler();
+  const secondHandler = apiHandler.createHandler();
   const firstKey = 'isolated-handler-first';
   const secondKey = 'isolated-handler-second';
 
@@ -340,8 +340,8 @@ describe('Handler instance isolation', () => {
 });
 
 describe('AIP-193 error format', () => {
-  const structuredHandler = apiHandler.createExpressResponseHandler({
-    errorFormat: 'aip193',
+  const structuredHandler = apiHandler.createHandler({
+    errorFormat: ErrorFormats.aip193,
     errorDomain: 'api.example.com',
   });
   const validationKey = 'aip193-validation-error';
@@ -416,8 +416,8 @@ describe('AIP-193 error format', () => {
 });
 
 describe('RFC 9457 error format', () => {
-  const problemHandler = apiHandler.createExpressResponseHandler({
-    errorFormat: 'rfc9457',
+  const problemHandler = apiHandler.createHandler({
+    errorFormat: ErrorFormats.rfc9457,
     errorDomain: 'api.example.com',
   });
   const validationKey = 'rfc9457-validation-error';
