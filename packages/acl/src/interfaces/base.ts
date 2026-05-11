@@ -60,6 +60,10 @@ export interface MiddlewareContext {
   modifiedPaths?: string[];
   changes?: Diff<any>[];
   docPermissions?: keyValue;
+  fieldPermissionAccess?: {
+    readIds?: Set<string>;
+    updateIds?: Set<string>;
+  };
 }
 
 export interface DataMiddlewareContext {}

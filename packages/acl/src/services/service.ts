@@ -77,7 +77,7 @@ export class Service extends Base {
     this.options = getModelOptions(modelName);
     this.defaults = this.options.defaults || {};
     this.baseFields = ['_id'];
-    this.baseFieldsExt = this.baseFields.concat(this.options.permissionField);
+    this.baseFieldsExt = this.baseFields.concat(this.options.documentPermissionField);
   }
 
   public async findOne(filter: Filter, args?: FindOneArgs, options?: FindOneOptions): Promise<ServiceResult> {
@@ -101,7 +101,7 @@ export class Service extends Base {
 
     let [_filter, _select, _populate] = await Promise.all([
       overrideFilter || this.genFilter(access, await this.parseClientData(filter)),
-      overrideSelect || this.genSelect(access, select),
+      overrideSelect || this.genQuerySelect(access, select),
       overridePopulate || this.genPopulate(populateAccess || access, populate),
     ]);
 
@@ -136,7 +136,7 @@ export class Service extends Base {
     }
     if (includeDocPermissions) doc = await this.addDocPermissions(doc, access, context);
     if (includePermissions) doc = await this.addFieldPermissions(doc, access, context);
-    doc = await this.pickAllowedFields(
+    doc = await this.trimOutputFields(
       doc,
       access,
       this.baseFieldsExt.concat(includePaths, normalizeSelect(overrideSelect)),
@@ -210,7 +210,7 @@ export class Service extends Base {
 
     const [_filter, _select, _populate, pagination] = await Promise.all([
       overrideFilter || this.genFilter('list', await this.parseClientData(filter)),
-      overrideSelect || this.genSelect('list', select),
+      overrideSelect || this.genQuerySelect('list', select),
       overridePopulate || this.genPopulate(populateAccess, populate),
       genPagination({ skip, limit, page, pageSize }, this.options.listHardLimit),
     ]);
@@ -252,15 +252,21 @@ export class Service extends Base {
 
     docs = await this.includeDocs(docs, includes);
 
+    const fieldPermissionAccess = includePermissions
+      ? await this.getFieldPermissionAccess(docs.map((doc) => doc._id))
+      : undefined;
+
     docs = await Promise.all(
       docs.map(async (doc, i) => {
+        contexts[i].fieldPermissionAccess = fieldPermissionAccess;
+
         let includeDocPermissions = includePermissions;
         if (!includeDocPermissions && !skim) {
           includeDocPermissions = this.checkIfModelPermissionExists(['list', 'read', 'update']);
         }
         if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'list', contexts[i]);
         if (includePermissions) doc = await this.addFieldPermissions(doc, 'list', contexts[i]);
-        doc = await this.pickAllowedFields(
+        doc = await this.trimOutputFields(
           doc,
           'list',
           this.baseFieldsExt.concat(includePaths, normalizeSelect(overrideSelect)),
@@ -342,7 +348,7 @@ export class Service extends Base {
         if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'create', contexts[index]);
         if (includePermissions) doc = await this.addFieldPermissions(doc, 'read', contexts[index]);
         if (populate) await populateDoc(doc, await this.genPopulate(populateAccess, populate));
-        doc = await this.pickAllowedFields(doc, 'read', this.baseFieldsExt);
+        doc = await this.trimOutputFields(doc, 'read', this.baseFieldsExt);
         doc = await _decorate(doc, contexts[index]);
         if (!includePermissions) doc = this.addEmptyPermissions(doc);
 
@@ -429,7 +435,7 @@ export class Service extends Base {
     doc = await this.transform(doc, 'update', context);
     doc = await doc.save();
 
-    const diffExcludeFields = [this.options.permissionField, '__v'];
+    const diffExcludeFields = [this.options.documentPermissionField, '__v'];
     context.diff = (d) => {
       context.changes =
         diff(
@@ -453,7 +459,7 @@ export class Service extends Base {
     if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'update', context);
     if (includePermissions) doc = await this.addFieldPermissions(doc, 'update', context);
     if (_populate) await populateDoc(doc, _populate);
-    doc = await this.pickAllowedFields(doc, 'read', this.baseFieldsExt);
+    doc = await this.trimOutputFields(doc, 'read', this.baseFieldsExt);
 
     if (isFunction(decorate)) doc = await decorate(doc, context);
     if (!includePermissions) doc = this.addEmptyPermissions(doc);
@@ -598,6 +604,31 @@ export class Service extends Base {
     return getDocPermissions(this.modelName, doc);
   }
 
+  private async getFieldPermissionAccess(ids: any[]) {
+    const uniqueIds = uniq(ids.map((id) => String(id)).filter(Boolean));
+    if (uniqueIds.length === 0) {
+      return {
+        readIds: new Set<string>(),
+        updateIds: new Set<string>(),
+      };
+    }
+
+    const [readIds, updateIds] = await Promise.all([
+      this.getAccessibleIdSet(uniqueIds, 'read'),
+      this.getAccessibleIdSet(uniqueIds, 'update'),
+    ]);
+
+    return { readIds, updateIds };
+  }
+
+  private async getAccessibleIdSet(ids: string[], access: BaseFilterAccess) {
+    const filter = await this.genFilter(access, { _id: { $in: ids } });
+    if (filter === false) return new Set<string>();
+
+    const docs = await this.model.find({ filter, select: '_id', lean: true });
+    return new Set(docs.map((doc) => String(doc._id)));
+  }
+
   async listSub(id, sub, options?: { filter: any; fields: string[] }): Promise<ServiceResult> {
     let { filter: ft, fields } = options ?? {};
 
@@ -607,7 +638,7 @@ export class Service extends Base {
 
     const [subFilter, subSelect] = await Promise.all([
       this.genFilter(`subs.${sub}.list`, ft),
-      this.genSelect('list', fields, false, [sub, 'sub']),
+      this.genQuerySelect('list', fields, false, [sub, 'sub']),
     ]);
 
     if (subFilter === false) return { success: false, code: Codes.Forbidden, data: [] };
@@ -627,7 +658,7 @@ export class Service extends Base {
 
     const [subFilter, subSelect] = await Promise.all([
       this.genFilter(`subs.${sub}.read` as any, { _id: subId }),
-      this.genSelect('read', fields, false, [sub, 'sub']),
+      this.genQuerySelect('read', fields, false, [sub, 'sub']),
     ]);
 
     if (subFilter === false) return { success: false, code: Codes.Forbidden, data: null };
@@ -646,8 +677,8 @@ export class Service extends Base {
 
     const [subFilter, subReadSelect, subUpdateSelect] = await Promise.all([
       this.genFilter(`subs.${sub}.update`, { _id: subId }),
-      this.genSelect('read', null, false, [sub, 'sub']),
-      this.genSelect('update', null, false, [sub, 'sub']),
+      this.genQuerySelect('read', null, false, [sub, 'sub']),
+      this.genQuerySelect('update', null, false, [sub, 'sub']),
     ]);
 
     if (subFilter === false) return { success: false, code: Codes.Forbidden, data: null };
@@ -672,8 +703,8 @@ export class Service extends Base {
 
     const [subFilter, subReadSelect, subUpdateSelect] = await Promise.all([
       this.genFilter(`subs.${sub}.update`, { _id: { $in: data.map((v) => v._id) } }),
-      this.genSelect('read', null, false, [sub, 'sub']),
-      this.genSelect('update', null, false, [sub, 'sub']),
+      this.genQuerySelect('read', null, false, [sub, 'sub']),
+      this.genQuerySelect('update', null, false, [sub, 'sub']),
     ]);
 
     if (subFilter === false) return { success: false, code: Codes.Forbidden, data: null };
@@ -700,8 +731,8 @@ export class Service extends Base {
     let result = get(parentDoc, sub);
 
     const [subCreateSelect, subReadSelect] = await Promise.all([
-      this.genSelect('create', null, false, [sub, 'sub']),
-      this.genSelect('read', null, false, [sub, 'sub']),
+      this.genQuerySelect('create', null, false, [sub, 'sub']),
+      this.genQuerySelect('read', null, false, [sub, 'sub']),
     ]);
 
     const allowedData = pick(data, subCreateSelect);
