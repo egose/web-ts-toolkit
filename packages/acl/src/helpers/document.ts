@@ -31,7 +31,7 @@ export function setDocValue(doc, path, value) {
 }
 
 export function getDocPermissions(modelName, doc) {
-  const docPermissionField = getModelOption(modelName, 'permissionField');
+  const docPermissionField = getModelOption(modelName, 'documentPermissionField');
   return getDocValue(doc, docPermissionField, {});
 }
 

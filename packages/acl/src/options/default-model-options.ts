@@ -6,7 +6,7 @@ export const DEFAULT_MUTATION_PATH = '__mutation';
 
 const defaultModelOptions = new OptionsManager<DefaultModelRouterOptions, ExtendedDefaultModelRouterOptions>({
   listHardLimit: 1000,
-  permissionField: '_permissions',
+  documentPermissionField: '_permissions',
   idParam: 'id',
   identifier: '_id',
   parentPath: '/',

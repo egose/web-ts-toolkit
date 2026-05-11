@@ -2,7 +2,7 @@ import { OptionsManager } from './manager';
 import { GlobalOptions } from '../interfaces';
 
 const globalOptions = new OptionsManager<GlobalOptions, GlobalOptions>({
-  permissionField: '_permissions',
+  requestPermissionField: '_permissions',
   globalPermissions: () => ({}),
 }).build();
 

@@ -6,14 +6,20 @@ import isUndefined from 'lodash/isUndefined';
 import forEach from 'lodash/forEach';
 import padEnd from 'lodash/padEnd';
 import Model from '../model';
-import { checkIfReady, listen, getModelSub } from '../meta';
+import { getModelSub } from '../meta';
 import { setCore } from '../core';
 import { setModelOptions, setModelOption, getModelOptions } from '../options';
 import { processUrl } from '../lib';
 import { handleResultError } from '../helpers';
 import { ModelRouterOptions, ExtendedModelRouterOptions, Request, Task } from '../interfaces';
-import { CustomHeaders } from '../enums';
 import { logger } from '../logger';
+import {
+  formatCreatedData,
+  formatListResponse,
+  formatUpsertCreatedData,
+  getStringRouteParam,
+  parseBooleanString,
+} from './shared';
 
 const clientErrors = JsonRouter.clientErrors;
 const success = JsonRouter.success;
@@ -30,9 +36,6 @@ function setOption(parentKey: string, optionKey: any, option?: any) {
   setModelOption(this.modelName, key as keyof ExtendedModelRouterOptions, value);
   return this;
 }
-
-const parseBooleanString = (str: string, defaultValue?: any) => (str ? str === 'true' : defaultValue);
-const getStringRouteParam = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value) ?? '';
 
 export class ModelRouter {
   readonly modelName: string;
@@ -51,17 +54,8 @@ export class ModelRouter {
 
     this.setCollectionRoutes();
     this.setDocumentRoutes();
-
-    const runAsyncTasks = () => {
-      this.setSubDocumentRoutes();
-      this.logEndpoints();
-    };
-
-    if (checkIfReady()) {
-      runAsyncTasks();
-    } else {
-      listen(runAsyncTasks);
-    }
+    this.setSubDocumentRoutes();
+    this.logEndpoints();
   }
 
   ///////////////////////
@@ -95,18 +89,7 @@ export class ModelRouter {
 
       handleResultError(result);
 
-      const { data, totalCount } = result;
-
-      if (includeCount) {
-        if (includeExtraHeaders) {
-          req.res.setHeader(CustomHeaders.TotalCount, totalCount);
-          return data;
-        }
-
-        return { count: totalCount, rows: data };
-      }
-
-      return data;
+      return formatListResponse(req, result, includeCount, includeExtraHeaders);
     });
 
     /////////////////////
@@ -148,18 +131,7 @@ export class ModelRouter {
 
       handleResultError(result);
 
-      const { data, totalCount } = result;
-
-      if (includeCount) {
-        if (includeExtraHeaders) {
-          req.res.setHeader(CustomHeaders.TotalCount, totalCount);
-          return data;
-        }
-
-        return { count: totalCount, rows: data };
-      }
-
-      return data;
+      return formatListResponse(req, result, includeCount, includeExtraHeaders);
     });
 
     ////////////
@@ -180,7 +152,7 @@ export class ModelRouter {
 
       handleResultError(result);
 
-      return new success.Created(result.count === 1 ? result.data[0] : result.data);
+      return new success.Created(formatCreatedData(result));
     });
 
     ///////////////////////
@@ -203,7 +175,7 @@ export class ModelRouter {
 
       handleResultError(result);
 
-      return new success.Created(result.count === 1 ? result.data[0] : result.data);
+      return new success.Created(formatCreatedData(result));
     });
 
     /////////////////
@@ -401,7 +373,7 @@ export class ModelRouter {
         const result = await svc._create(data, {}, { includePermissions: parseBooleanString(include_permissions) });
 
         handleResultError(result);
-        return new success.Created(result.data.length > 0 ? result.data[0] : null);
+        return new success.Created(formatUpsertCreatedData(result));
       }
     });
 
@@ -449,7 +421,7 @@ export class ModelRouter {
         );
 
         handleResultError(result);
-        return new success.Created(result.data.length > 0 ? result.data[0] : null);
+        return new success.Created(formatUpsertCreatedData(result));
       }
     });
 
@@ -679,7 +651,7 @@ export class ModelRouter {
   /**
    * The object field to store the document permissions.
    */
-  public permissionField: SetTargetOption = setOption.bind(this, 'permissionField');
+  public documentPermissionField: SetTargetOption = setOption.bind(this, 'documentPermissionField');
 
   /**
    * The essential model fields involved in generating document permissions.

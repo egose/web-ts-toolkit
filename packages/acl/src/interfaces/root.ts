@@ -48,7 +48,7 @@ export interface Defaults {
 }
 
 export interface GlobalOptions {
-  permissionField?: string;
+  requestPermissionField?: string;
   globalPermissions?: (req: express.Request) => any;
 }
 
@@ -81,7 +81,7 @@ interface DocPermissions {
 
 export interface DefaultModelRouterOptions {
   listHardLimit?: number;
-  permissionField?: string;
+  documentPermissionField?: string;
   idParam?: string;
   identifier?: string | Function;
   parentPath?: string;

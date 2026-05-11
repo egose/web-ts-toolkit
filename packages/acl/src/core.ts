@@ -10,17 +10,15 @@ import intersection from 'lodash/intersection';
 import isUndefined from 'lodash/isUndefined';
 import isArray from 'lodash/isArray';
 import isBoolean from 'lodash/isBoolean';
-import isEmpty from 'lodash/isEmpty';
 import isFunction from 'lodash/isFunction';
 import isNaN from 'lodash/isNaN';
-import isPlainObject from 'lodash/isPlainObject';
 import isString from 'lodash/isString';
 import isNil from 'lodash/isNil';
 import noop from 'lodash/noop';
 import pick from 'lodash/pick';
 import set from 'lodash/set';
 import reduce from 'lodash/reduce';
-import { getGlobalOption, getModelOption, getExactModelOption } from './options';
+import { getModelOption, getExactModelOption } from './options';
 import { getModelRef } from './meta';
 import {
   Populate,
@@ -43,19 +41,21 @@ import {
 } from './interfaces';
 import Permission, { Permissions } from './permission';
 import { Service, PublicService, Base } from './services';
-import {
-  normalizeSelect,
-  createValidator,
-  getDocPermissions,
-  setDocValue,
-  toObject,
-  pickDocFields,
-  genPagination,
-} from './helpers';
+import { normalizeSelect, getDocPermissions, setDocValue, toObject, pickDocFields, genPagination } from './helpers';
 import { copyAndDepopulate } from './processors';
-import { isDocument, arrToObj } from './lib';
+import { isDocument } from './lib';
 import { MIDDLEWARE, PERMISSIONS, PERMISSION_KEYS } from './symbols';
 import { Cache } from './cache';
+import { logger } from './logger';
+import {
+  callMiddlewareChain,
+  collectSchemaFields,
+  evaluateRouteGuard,
+  getRequestPermissions,
+  resolveAccessFilter,
+  resolveIdentifierFilter,
+  setRequestPermissions,
+} from './core-shared';
 
 export class Core {
   private req: Request;
@@ -86,41 +86,22 @@ export class Core {
 
   async genIDFilter(modelName: string, id: string) {
     const identifier = getModelOption(modelName, 'identifier');
-
-    if (isString(identifier)) {
-      return { [identifier]: id };
-    }
-
-    if (isFunction(identifier)) {
-      return identifier.call(this.req, id);
-    }
-
-    return { _id: id };
+    return resolveIdentifierFilter(this.req, identifier, id);
   }
 
   async genFilter(modelName: string, access: BaseFilterAccess = 'read', _filter: Filter = null): Promise<Filter> {
     const permissions = this.getGlobalPermissions();
-
-    let overrideFilterFn = getModelOption(modelName, `overrideFilter.${access}`, null);
-    if (isFunction(overrideFilterFn)) {
-      _filter = await overrideFilterFn.call(this.req, _filter, permissions);
-    }
-
-    let baseFilterFn = getModelOption(modelName, `baseFilter.${access}`, null);
-    if (!isFunction(baseFilterFn)) return _filter || {};
-
     const cacheKey = `${modelName}_baseFilter_${access}`;
-    const baseFilter = this.caches.baseFilter.has(cacheKey)
-      ? this.caches.baseFilter.get(cacheKey)
-      : await baseFilterFn.call(this.req, permissions);
 
-    if (baseFilter === false) return false;
-    if (baseFilter === true || isEmpty(baseFilter)) return _filter || {};
-    if (!_filter) return baseFilter;
-
-    const result = { $and: [baseFilter, _filter] };
-    this.caches.baseFilter.set(cacheKey, result);
-    return result;
+    return resolveAccessFilter({
+      req: this.req,
+      permissions,
+      cache: this.caches.baseFilter,
+      cacheKey,
+      access,
+      filter: _filter,
+      getOption: (key, defaultValue) => getModelOption(modelName, key, defaultValue),
+    });
   }
 
   private removePrefix(str, prefix) {
@@ -133,41 +114,21 @@ export class Core {
   }
 
   async genAllowedFields(modelName: string, doc: any, access: SelectAccess, baseFields = []) {
-    let fields = [...(baseFields ?? [])];
-
     const permissionSchema = getModelOption(modelName, 'permissionSchema');
-    if (!permissionSchema) return fields;
 
     const modelPermissionPrefix = getModelOption(modelName, 'modelPermissionPrefix', '');
 
     const permissions = this.getGlobalPermissions();
     const docPermissions = getDocPermissions(modelName, doc);
-    // get keys from permission schema as some fields might not be filled when created
-    const keys = Object.keys(permissionSchema);
-    // const keys = getModelKeys(doc);
 
-    const phas = (key) => permissions.has(key) || docPermissions[this.removePrefix(key, modelPermissionPrefix)];
-    const { stringHandler, arrayHandler } = createValidator(phas);
-
-    for (let x = 0; x < keys.length; x++) {
-      const key = keys[x];
-      if (baseFields.includes(key)) continue;
-
-      const val = permissionSchema[key];
-      const value = (val && val[access]) || val;
-
-      if (isBoolean(value)) {
-        if (value) fields.push(key);
-      } else if (isString(value)) {
-        if (stringHandler(value)) fields.push(key);
-      } else if (isArray(value)) {
-        if (arrayHandler(value)) fields.push(key);
-      } else if (isFunction(value)) {
-        if (await value.call(this.req, permissions, docPermissions)) fields.push(key);
-      }
-    }
-
-    return fields;
+    return collectSchemaFields({
+      req: this.req,
+      permissionSchema,
+      access,
+      baseFields,
+      hasPermission: (key) => permissions.has(key) || docPermissions[this.removePrefix(key, modelPermissionPrefix)],
+      functionArgs: [permissions, docPermissions],
+    });
   }
 
   async pickAllowedFields(modelName: string, doc: any, access: SelectAccess, baseFields = []) {
@@ -183,41 +144,25 @@ export class Core {
     subPaths = [],
   ) {
     let normalizedSelect = normalizeSelect(targetFields);
-    let fields = [];
 
     const permissionSchema = getModelOption(modelName, ['permissionSchema'].concat(subPaths).join('.'));
-    if (!permissionSchema) return fields;
+    if (!permissionSchema) return [];
 
     const permissions = this.getGlobalPermissions();
 
-    const phas = (key) => {
-      if (permissions.prop(key)) {
-        if (permissions.has(key)) return true;
-      } else if (skipChecks) {
-        return true;
-      }
+    let fields = await collectSchemaFields({
+      req: this.req,
+      permissionSchema,
+      access,
+      hasPermission: (key) => {
+        if (permissions.prop(key)) {
+          return permissions.has(key);
+        }
 
-      return false;
-    };
-
-    const { stringHandler, arrayHandler } = createValidator(phas);
-
-    const keys = Object.keys(permissionSchema);
-    for (let x = 0; x < keys.length; x++) {
-      const key = keys[x];
-      const val = permissionSchema[key];
-      const value = val[access] || val;
-
-      if (isBoolean(value)) {
-        if (value) fields.push(key);
-      } else if (isString(value)) {
-        if (stringHandler(value)) fields.push(key);
-      } else if (isArray(value)) {
-        if (arrayHandler(value)) fields.push(key);
-      } else if (isFunction(value)) {
-        if (await value.call(this.req, permissions)) fields.push(key);
-      }
-    }
+        return !!skipChecks;
+      },
+      functionArgs: [permissions],
+    });
 
     if (normalizedSelect.length > 0) {
       const excludeid = normalizedSelect.includes('-_id');
@@ -242,6 +187,7 @@ export class Core {
     populate = compact(
       await Promise.all(
         populate.map(async (p: Populate | string) => {
+          const populateAccess = !isString(p) && p.access ? p.access : access;
           const ret: Populate = isString(p)
             ? { path: p }
             : {
@@ -249,12 +195,14 @@ export class Core {
                 select: normalizeSelect(p.select),
               };
 
+          const allowedParentPaths = await this.genSelect(modelName, populateAccess as SelectAccess, [ret.path], false);
+          if (!allowedParentPaths.includes(ret.path)) return null;
+
           const refModelName = getModelRef(modelName, ret.path);
           if (!refModelName) return null;
 
-          if (!isString(p) && p.access) access = p.access;
-          ret.select = await this.genSelect(refModelName, access as SelectAccess, ret.select, false);
-          const filter = await this.genFilter(refModelName, access as BaseFilterAccess, null);
+          ret.select = await this.genSelect(refModelName, populateAccess as SelectAccess, ret.select, false);
+          const filter = await this.genFilter(refModelName, populateAccess as BaseFilterAccess, null);
           if (filter === false) return null;
 
           ret.match = filter;
@@ -282,19 +230,19 @@ export class Core {
   async prepare(modelName: string, allowedData: any, access: PrepareAccess, context: MiddlewareContext) {
     const prepare = getModelOption(modelName, `prepare.${access}`, null);
     const permissions = this.getGlobalPermissions();
-    return this.callMiddleware(prepare, allowedData, permissions, context);
+    return callMiddlewareChain(this.req, prepare, allowedData, permissions, context);
   }
 
   async transform(modelName: string, doc: any, access: TransformAccess, context: MiddlewareContext) {
     const transform = getModelOption(modelName, `transform.${access}`, null);
     const permissions = this.getGlobalPermissions();
-    return this.callMiddleware(transform, doc, permissions, context);
+    return callMiddlewareChain(this.req, transform, doc, permissions, context);
   }
 
   async finalize(modelName: string, doc: any, access: FinalizeAccess, context: MiddlewareContext) {
     const finalize = getModelOption(modelName, `finalize.${access}`, null);
     const permissions = this.getGlobalPermissions();
-    return this.callMiddleware(finalize, doc, permissions, context);
+    return callMiddlewareChain(this.req, finalize, doc, permissions, context);
   }
 
   async changes(modelName: string, doc: any, context: MiddlewareContext) {
@@ -323,8 +271,10 @@ export class Core {
       const permissions = this.getGlobalPermissions();
       try {
         docPermissions = await docPermissionsFn.call(this.req, doc, permissions, context);
-      } catch {
-        // Ignore doc-permission hook failures and fall back to empty permissions.
+      } catch (error) {
+        logger.warn(
+          `docPermissions hook failed for model=${modelName} access=${access}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 
@@ -332,22 +282,22 @@ export class Core {
   }
 
   addEmptyPermissions(modelName: string, doc: any) {
-    const docPermissionField = getModelOption(modelName, 'permissionField');
+    const docPermissionField = getModelOption(modelName, 'documentPermissionField');
     // Mongoose `toObject` method omits empty values
     setDocValue(doc, docPermissionField, { _view: { $: '_' }, _edit: { $: '_' } });
     return doc;
   }
 
   async addDocPermissions(modelName: string, doc: any, access: DocPermissionsAccess, context: MiddlewareContext) {
-    const docPermissionField = getModelOption(modelName, 'permissionField');
+    const docPermissionField = getModelOption(modelName, 'documentPermissionField');
     const docPermissions = await this.genDocPermissions(modelName, doc, access, context);
     setDocValue(doc, docPermissionField, docPermissions);
     return doc;
   }
 
   async addFieldPermissions(modelName: string, doc: any, access: DocPermissionsAccess, context: MiddlewareContext) {
-    const svc = this.req.macl.getService(modelName);
-    const docPermissionField = getModelOption(modelName, 'permissionField');
+    const docPermissionField = getModelOption(modelName, 'documentPermissionField');
+    const docId = String(doc._id);
 
     // TODO: do we need falsy fields as well?
     // const permissionSchemaKeys = getModelOption(modelName, 'permissionSchemaKeys');
@@ -356,16 +306,20 @@ export class Core {
     let updateExists = true;
 
     if (access !== 'read') {
-      readExists = (await svc.exists({ _id: doc._id }, { access: 'read' })).data;
+      readExists = context.fieldPermissionAccess?.readIds
+        ? context.fieldPermissionAccess.readIds.has(docId)
+        : (await this.req.macl.getService(modelName).exists({ _id: doc._id }, { access: 'read' })).data;
     }
 
     if (access !== 'update') {
-      updateExists = (await svc.exists({ _id: doc._id }, { access: 'update' })).data;
+      updateExists = context.fieldPermissionAccess?.updateIds
+        ? context.fieldPermissionAccess.updateIds.has(docId)
+        : (await this.req.macl.getService(modelName).exists({ _id: doc._id }, { access: 'update' })).data;
     }
 
     const [views, edits] = await Promise.all([
-      readExists ? svc.genAllowedFields(doc, 'read') : [],
-      updateExists ? svc.genAllowedFields(doc, 'update') : [],
+      readExists ? this.genAllowedFields(modelName, doc, 'read') : [],
+      updateExists ? this.genAllowedFields(modelName, doc, 'update') : [],
     ]);
 
     const viewObj = reduce(
@@ -398,14 +352,14 @@ export class Core {
     const permissions = this.getGlobalPermissions();
     context.docPermissions = getDocPermissions(modelName, doc);
 
-    return this.callMiddleware(decorate, doc, permissions, context);
+    return callMiddlewareChain(this.req, decorate, doc, permissions, context);
   }
 
   async decorateAll(modelName: string, docs: any[], access: DecorateAllAccess, context: MiddlewareContext) {
     const decorateAll = getModelOption(modelName, `decorateAll.${access}`, null);
     const permissions = this.getGlobalPermissions();
 
-    return this.callMiddleware(decorateAll, docs, permissions, context);
+    return callMiddlewareChain(this.req, decorateAll, docs, permissions, context);
   }
 
   runTasks(modelName: string, docObject: any, task: Task | Task[]) {
@@ -426,41 +380,16 @@ export class Core {
   }
 
   getPermissions() {
-    const permissionField = getGlobalOption('permissionField');
-    return new Permission(this.req[permissionField] || {});
+    return getRequestPermissions(this.req);
   }
 
   async setPermissions() {
-    const permissionField = getGlobalOption('permissionField');
-    if (this.req[permissionField]) return;
-
-    const globalPermissions = getGlobalOption('globalPermissions');
-    if (isFunction(globalPermissions)) {
-      const gp = await globalPermissions.call(this.req, this.req);
-      if (isPlainObject(gp)) this.req[permissionField] = gp;
-      else if (isArray(gp)) this.req[permissionField] = arrToObj(gp);
-      else if (isString(gp)) this.req[permissionField] = { [gp]: true };
-    }
+    await setRequestPermissions(this.req);
   }
 
   async canActivate(routeGuard: Validation) {
-    let allowed = false;
-
     const permissions = this.getGlobalPermissions();
-    const phas = (key) => permissions.has(key);
-    const { stringHandler, arrayHandler } = createValidator(phas);
-
-    if (isBoolean(routeGuard)) {
-      allowed = routeGuard === true;
-    } else if (isString(routeGuard)) {
-      allowed = stringHandler(routeGuard);
-    } else if (isArray(routeGuard)) {
-      allowed = arrayHandler(routeGuard);
-    } else if (isFunction(routeGuard)) {
-      allowed = routeGuard.call(this.req, permissions);
-    }
-
-    return allowed;
+    return evaluateRouteGuard(this.req, permissions, routeGuard);
   }
 
   async isAllowed(modelName: string, access: RouteGuardAccess | string) {
@@ -507,22 +436,6 @@ export class Core {
 
   private getGlobalPermissions() {
     return this.req[PERMISSIONS] as Permission;
-  }
-
-  private async callMiddleware(
-    middleware: Function | Function[],
-    doc: any,
-    permissions: Permissions,
-    context: MiddlewareContext,
-  ) {
-    middleware = castArray(middleware);
-    for (let x = 0; x < middleware.length; x++) {
-      if (isFunction(middleware[x])) {
-        doc = await middleware[x].call(this.req, doc, permissions, context);
-      }
-    }
-
-    return doc;
   }
 }
 

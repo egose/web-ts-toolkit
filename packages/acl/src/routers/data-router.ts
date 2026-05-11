@@ -11,8 +11,8 @@ import { setDataOption, setDataOptions, getDataOption, getDataOptions, getDataNa
 import { processUrl } from '../lib';
 import { handleResultError } from '../helpers';
 import { DataRouterOptions, Request } from '../interfaces';
-import { CustomHeaders } from '../enums';
 import { logger } from '../logger';
+import { formatListResponse, getStringRouteParam, parseBooleanString } from './shared';
 
 const clientErrors = JsonRouter.clientErrors;
 const success = JsonRouter.success;
@@ -29,9 +29,6 @@ function setOption(parentKey: string, optionKey: any, option?: any) {
   setDataOption(this.dataName, key as keyof DataRouterOptions, value);
   return this;
 }
-
-const parseBooleanString = (str: string, defaultValue?: any) => (str ? str === 'true' : defaultValue);
-const getStringRouteParam = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value) ?? '';
 
 export class DataRouter {
   readonly dataName: string;
@@ -78,18 +75,7 @@ export class DataRouter {
 
       handleResultError(result);
 
-      const { data, totalCount } = result;
-
-      if (includeCount) {
-        if (includeExtraHeaders) {
-          req.res.setHeader(CustomHeaders.TotalCount, totalCount);
-          return data;
-        }
-
-        return { count: totalCount, rows: data };
-      }
-
-      return data;
+      return formatListResponse(req, result, includeCount, includeExtraHeaders);
     });
 
     /////////////////////
@@ -108,18 +94,7 @@ export class DataRouter {
 
       handleResultError(result);
 
-      const { data, totalCount } = result;
-
-      if (includeCount) {
-        if (includeExtraHeaders) {
-          req.res.setHeader(CustomHeaders.TotalCount, totalCount);
-          return data;
-        }
-
-        return { count: totalCount, rows: data };
-      }
-
-      return data;
+      return formatListResponse(req, result, includeCount, includeExtraHeaders);
     });
   }
 

@@ -9,17 +9,15 @@ import get from 'lodash/get';
 import intersection from 'lodash/intersection';
 import isArray from 'lodash/isArray';
 import isBoolean from 'lodash/isBoolean';
-import isEmpty from 'lodash/isEmpty';
 import isFunction from 'lodash/isFunction';
 import isNaN from 'lodash/isNaN';
-import isPlainObject from 'lodash/isPlainObject';
 import isString from 'lodash/isString';
 import isNil from 'lodash/isNil';
 import noop from 'lodash/noop';
 import pick from 'lodash/pick';
 import set from 'lodash/set';
 import reduce from 'lodash/reduce';
-import { getGlobalOption, getDataOption } from './options';
+import { getDataOption } from './options';
 import {
   Populate,
   Projection,
@@ -41,11 +39,20 @@ import {
 } from './interfaces';
 import Permission, { Permissions } from './permission';
 import { DataService } from './services';
-import { normalizeSelect, createValidator, setDocValue, toObject, pickDocFields, genPagination } from './helpers';
+import { normalizeSelect, setDocValue, toObject, pickDocFields, genPagination } from './helpers';
 import { copyAndDepopulate } from './processors';
-import { isDocument, arrToObj } from './lib';
+import { isDocument } from './lib';
 import { DATA_MIDDLEWARE, PERMISSIONS, PERMISSION_KEYS } from './symbols';
 import { Cache } from './cache';
+import {
+  callMiddlewareChain,
+  collectSchemaFields,
+  evaluateRouteGuard,
+  getRequestPermissions,
+  resolveAccessFilter,
+  resolveIdentifierFilter,
+  setRequestPermissions,
+} from './core-shared';
 
 export class DataCore {
   private req: Request;
@@ -62,76 +69,37 @@ export class DataCore {
 
   async genIDFilter(dataName: string, id: string) {
     const identifier = getDataOption(dataName, 'identifier');
-
-    if (isString(identifier)) {
-      return { [identifier]: id };
-    }
-
-    if (isFunction(identifier)) {
-      return identifier.call(this.req, id);
-    }
-
-    return { _id: id };
+    return resolveIdentifierFilter(this.req, identifier, id);
   }
 
   async genFilter(dataName: string, access: BaseFilterAccess = 'read', _filter: Filter = null): Promise<Filter> {
     const permissions = this.getGlobalPermissions();
-
-    let overrideFilterFn = getDataOption(dataName, `overrideFilter.${access}`, null);
-    if (isFunction(overrideFilterFn)) {
-      _filter = await overrideFilterFn.call(this.req, _filter, permissions);
-    }
-
-    const baseFilterFn = getDataOption(dataName, `baseFilter.${access}`, null);
-    if (!isFunction(baseFilterFn)) return _filter || {};
-
     const cacheKey = `${dataName}_baseFilter_${access}`;
-    const baseFilter = this.caches.baseFilter.has(cacheKey)
-      ? this.caches.baseFilter.get(cacheKey)
-      : await baseFilterFn.call(this.req, permissions);
 
-    if (baseFilter === false) return false;
-    if (baseFilter === true || isEmpty(baseFilter)) return _filter || {};
-    if (!_filter) return baseFilter;
-
-    const result = { $and: [baseFilter, _filter] };
-    this.caches.baseFilter.set(cacheKey, result);
-    return result;
+    return resolveAccessFilter({
+      req: this.req,
+      permissions,
+      cache: this.caches.baseFilter,
+      cacheKey,
+      access,
+      filter: _filter,
+      getOption: (key, defaultValue) => getDataOption(dataName, key, defaultValue),
+    });
   }
 
   async genAllowedFields(dataName: string, doc: any, access: SelectAccess, baseFields = []) {
-    let fields = [...(baseFields ?? [])];
-
     const permissionSchema = getDataOption(dataName, 'permissionSchema');
-    if (!permissionSchema) return fields;
 
     const permissions = this.getGlobalPermissions();
 
-    // get keys from permission schema as some fields might not be filled when created
-    const keys = Object.keys(permissionSchema);
-
-    const phas = (key) => permissions.has(key);
-    const { stringHandler, arrayHandler } = createValidator(phas);
-
-    for (let x = 0; x < keys.length; x++) {
-      const key = keys[x];
-      if (baseFields.includes(key)) continue;
-
-      const val = permissionSchema[key];
-      const value = (val && val[access]) || val;
-
-      if (isBoolean(value)) {
-        if (value) fields.push(key);
-      } else if (isString(value)) {
-        if (stringHandler(value)) fields.push(key);
-      } else if (isArray(value)) {
-        if (arrayHandler(value)) fields.push(key);
-      } else if (isFunction(value)) {
-        if (await value.call(this.req, permissions)) fields.push(key);
-      }
-    }
-
-    return fields;
+    return collectSchemaFields({
+      req: this.req,
+      permissionSchema,
+      access,
+      baseFields,
+      hasPermission: (key) => permissions.has(key),
+      functionArgs: [permissions],
+    });
   }
 
   async pickAllowedFields(dataName: string, doc: any, access: SelectAccess, baseFields = []) {
@@ -147,41 +115,25 @@ export class DataCore {
     subPaths = [],
   ) {
     let normalizedSelect = normalizeSelect(targetFields);
-    let fields = [];
 
     const permissionSchema = getDataOption(dataName, ['permissionSchema'].concat(subPaths).join('.'));
-    if (!permissionSchema) return fields;
+    if (!permissionSchema) return [];
 
     const permissions = this.getGlobalPermissions();
 
-    const phas = (key) => {
-      if (permissions.prop(key)) {
-        if (permissions.has(key)) return true;
-      } else if (skipChecks) {
-        return true;
-      }
+    let fields = await collectSchemaFields({
+      req: this.req,
+      permissionSchema,
+      access,
+      hasPermission: (key) => {
+        if (permissions.prop(key)) {
+          return permissions.has(key);
+        }
 
-      return false;
-    };
-
-    const { stringHandler, arrayHandler } = createValidator(phas);
-
-    const keys = Object.keys(permissionSchema);
-    for (let x = 0; x < keys.length; x++) {
-      const key = keys[x];
-      const val = permissionSchema[key];
-      const value = val[access] || val;
-
-      if (isBoolean(value)) {
-        if (value) fields.push(key);
-      } else if (isString(value)) {
-        if (stringHandler(value)) fields.push(key);
-      } else if (isArray(value)) {
-        if (arrayHandler(value)) fields.push(key);
-      } else if (isFunction(value)) {
-        if (await value.call(this.req, permissions)) fields.push(key);
-      }
-    }
+        return !!skipChecks;
+      },
+      functionArgs: [permissions],
+    });
 
     fields = intersection(normalizedSelect, fields);
     return fields;
@@ -191,52 +143,27 @@ export class DataCore {
     const decorate = getDataOption(dataName, `decorate.${access}`, null);
 
     const permissions = this.getGlobalPermissions();
-    return this.callMiddleware(decorate, doc, permissions, context);
+    return callMiddlewareChain(this.req, decorate, doc, permissions, context);
   }
 
   async decorateAll(dataName: string, docs: any[], access: DecorateAllAccess) {
     const decorateAll = getDataOption(dataName, `decorateAll.${access}`, null);
     const permissions = this.getGlobalPermissions();
 
-    return this.callMiddleware(decorateAll, docs, permissions, {});
+    return callMiddlewareChain(this.req, decorateAll, docs, permissions, {});
   }
 
   getPermissions() {
-    const permissionField = getGlobalOption('permissionField');
-    return new Permission(this.req[permissionField] || {});
+    return getRequestPermissions(this.req);
   }
 
   async setPermissions() {
-    const permissionField = getGlobalOption('permissionField');
-    if (this.req[permissionField]) return;
-
-    const globalPermissions = getGlobalOption('globalPermissions');
-    if (isFunction(globalPermissions)) {
-      const gp = await globalPermissions.call(this.req, this.req);
-      if (isPlainObject(gp)) this.req[permissionField] = gp;
-      else if (isArray(gp)) this.req[permissionField] = arrToObj(gp);
-      else if (isString(gp)) this.req[permissionField] = { [gp]: true };
-    }
+    await setRequestPermissions(this.req);
   }
 
   async canActivate(routeGuard: Validation) {
-    let allowed = false;
-
     const permissions = this.getGlobalPermissions();
-    const phas = (key) => permissions.has(key);
-    const { stringHandler, arrayHandler } = createValidator(phas);
-
-    if (isBoolean(routeGuard)) {
-      allowed = routeGuard === true;
-    } else if (isString(routeGuard)) {
-      allowed = stringHandler(routeGuard);
-    } else if (isArray(routeGuard)) {
-      allowed = arrayHandler(routeGuard);
-    } else if (isFunction(routeGuard)) {
-      allowed = routeGuard.call(this.req, permissions);
-    }
-
-    return allowed;
+    return evaluateRouteGuard(this.req, permissions, routeGuard);
   }
 
   async isAllowed(dataName: string, access: RouteGuardAccess | string) {
@@ -258,22 +185,6 @@ export class DataCore {
 
   private getGlobalPermissions() {
     return this.req[PERMISSIONS] as Permission;
-  }
-
-  private async callMiddleware(
-    middleware: Function | Function[],
-    doc: any,
-    permissions: Permissions,
-    context: DataMiddlewareContext,
-  ) {
-    middleware = castArray(middleware);
-    for (let x = 0; x < middleware.length; x++) {
-      if (isFunction(middleware[x])) {
-        doc = await middleware[x].call(this.req, doc, permissions, context);
-      }
-    }
-
-    return doc;
   }
 }
 
