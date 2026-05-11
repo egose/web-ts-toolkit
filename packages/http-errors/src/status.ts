@@ -1,3 +1,5 @@
+import { STATUS_CODES } from 'node:http';
+
 export const canonicalStatusByHttpStatus = {
   400: 'INVALID_ARGUMENT',
   401: 'UNAUTHENTICATED',
@@ -17,3 +19,5 @@ type CanonicalStatusCode = keyof CanonicalStatusMap;
 
 export const getCanonicalStatus = (statusCode: number): string =>
   canonicalStatusByHttpStatus[statusCode as CanonicalStatusCode] || 'UNKNOWN';
+
+export const getStatusTitle = (statusCode: number): string => STATUS_CODES[statusCode] || 'Unknown Error';

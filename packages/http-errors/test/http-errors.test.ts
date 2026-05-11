@@ -8,6 +8,8 @@ import {
   ServiceUnavailableError,
   UnauthorizedError,
   toAip193ErrorPayload,
+  toRfc9457ErrorPayload,
+  toRfc9457ValidationErrorPayload,
 } from '../dist/index.mjs';
 
 describe('http-errors', () => {
@@ -89,6 +91,9 @@ describe('http-errors', () => {
           description: 'Email must be a valid address.',
         },
       ],
+      type: 'https://api.example.com/problems/invalid-email',
+      title: 'Invalid email address',
+      instance: '/problems/invalid-email/123',
     });
 
     expect(error.statusCode).toBe(400);
@@ -116,6 +121,9 @@ describe('http-errors', () => {
         description: 'Email must be a valid address.',
       },
     ]);
+    expect(error.type).toBe('https://api.example.com/problems/invalid-email');
+    expect(error.title).toBe('Invalid email address');
+    expect(error.instance).toBe('/problems/invalid-email/123');
   });
 
   it('falls back to UNKNOWN for statuses without a canonical mapping', () => {
@@ -169,6 +177,81 @@ describe('http-errors', () => {
           },
         ],
       },
+    });
+  });
+
+  it('serializes HttpError values into an RFC 9457 payload', () => {
+    const error = new BadRequestError('Email must be a valid address.', {
+      type: 'https://api.example.com/problems/invalid-email',
+      title: 'Invalid email address',
+      instance: '/problems/invalid-email/123',
+      errors: [
+        {
+          detail: 'must be a valid email address',
+          pointer: '#/email',
+        },
+      ],
+    });
+
+    expect(toRfc9457ErrorPayload(error)).toEqual({
+      type: 'https://api.example.com/problems/invalid-email',
+      title: 'Invalid email address',
+      status: 400,
+      detail: 'Email must be a valid address.',
+      instance: '/problems/invalid-email/123',
+      errors: [
+        {
+          detail: 'must be a valid email address',
+          pointer: '#/email',
+        },
+      ],
+    });
+  });
+
+  it('falls back to about:blank and the HTTP status title for RFC 9457 payloads', () => {
+    const error = new UnauthorizedError('missing bearer token');
+
+    expect(toRfc9457ErrorPayload(error)).toEqual({
+      type: 'about:blank',
+      title: 'Unauthorized',
+      status: 401,
+      detail: 'missing bearer token',
+    });
+  });
+
+  it('provides a typed RFC 9457 validation helper', () => {
+    const error = new BadRequestError('Email must be a valid address.', {
+      type: 'https://api.example.com/problems/invalid-email',
+      title: 'Invalid email address',
+      errors: [
+        {
+          detail: 'must be a valid email address',
+          pointer: '#/email',
+          parameter: 'email',
+        },
+        {
+          detail: 'x-request-id header is required',
+          header: 'x-request-id',
+        },
+      ],
+    });
+
+    expect(toRfc9457ValidationErrorPayload(error)).toEqual({
+      type: 'https://api.example.com/problems/invalid-email',
+      title: 'Invalid email address',
+      status: 400,
+      detail: 'Email must be a valid address.',
+      errors: [
+        {
+          detail: 'must be a valid email address',
+          pointer: '#/email',
+          parameter: 'email',
+        },
+        {
+          detail: 'x-request-id header is required',
+          header: 'x-request-id',
+        },
+      ],
     });
   });
 });

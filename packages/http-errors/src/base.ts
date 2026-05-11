@@ -13,10 +13,12 @@ const toMetadata = (metadata: HttpErrorOptions['metadata']): Record<string, stri
     return undefined;
   }
 
-  return Object.entries(metadata).reduce<Record<string, string>>((result, [key, value]) => {
+  const normalizedMetadata = Object.entries(metadata).reduce<Record<string, string>>((result, [key, value]) => {
     result[key] = String(value);
     return result;
   }, {});
+
+  return Object.keys(normalizedMetadata).length > 0 ? normalizedMetadata : undefined;
 };
 
 export class HttpError extends Error {
@@ -28,9 +30,14 @@ export class HttpError extends Error {
   readonly metadata?: Record<string, string>;
   readonly details?: unknown[];
   readonly errors?: unknown;
+  readonly type?: string;
+  readonly title?: string;
+  readonly instance?: string;
 
   constructor(statusCode = 500, message?: string, options: HttpErrorOptions = {}) {
-    super(message || getDefaultMessage(statusCode), options);
+    super(message ?? getDefaultMessage(statusCode), options);
+
+    const { status, reason, domain, metadata, details, errors, type, title, instance } = options;
 
     if (ErrorCtor.captureStackTrace) {
       ErrorCtor.captureStackTrace(this, this.constructor as abstract new (...args: never[]) => object);
@@ -38,27 +45,41 @@ export class HttpError extends Error {
 
     this.name = this.constructor.name;
     this.statusCode = statusCode;
-    this.status = options.status || getCanonicalStatus(statusCode);
+    this.status = status ?? getCanonicalStatus(statusCode);
     this.date = new Date();
 
-    if (options.reason) {
-      this.reason = options.reason;
+    if (reason !== undefined) {
+      this.reason = reason;
     }
 
-    if (options.domain) {
-      this.domain = options.domain;
+    if (domain !== undefined) {
+      this.domain = domain;
     }
 
-    if (options.metadata) {
-      this.metadata = toMetadata(options.metadata);
+    const normalizedMetadata = toMetadata(metadata);
+
+    if (normalizedMetadata !== undefined) {
+      this.metadata = normalizedMetadata;
     }
 
-    if (options.details) {
-      this.details = options.details;
+    if (details !== undefined) {
+      this.details = details;
     }
 
-    if (options.errors !== undefined) {
-      this.errors = options.errors;
+    if (errors !== undefined) {
+      this.errors = errors;
+    }
+
+    if (type !== undefined) {
+      this.type = type;
+    }
+
+    if (title !== undefined) {
+      this.title = title;
+    }
+
+    if (instance !== undefined) {
+      this.instance = instance;
     }
   }
 }
