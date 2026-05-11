@@ -109,13 +109,10 @@ export class Core {
     let baseFilterFn = getModelOption(modelName, `baseFilter.${access}`, null);
     if (!isFunction(baseFilterFn)) return _filter || {};
 
-    let baseFilter = null;
     const cacheKey = `${modelName}_baseFilter_${access}`;
-    if (this.caches.baseFilter.has(cacheKey)) {
-      baseFilter = this.caches.baseFilter.get(cacheKey);
-    } else {
-      baseFilter = await baseFilterFn.call(this.req, permissions);
-    }
+    const baseFilter = this.caches.baseFilter.has(cacheKey)
+      ? this.caches.baseFilter.get(cacheKey)
+      : await baseFilterFn.call(this.req, permissions);
 
     if (baseFilter === false) return false;
     if (baseFilter === true || isEmpty(baseFilter)) return _filter || {};
@@ -326,7 +323,9 @@ export class Core {
       const permissions = this.getGlobalPermissions();
       try {
         docPermissions = await docPermissionsFn.call(this.req, doc, permissions, context);
-      } catch {}
+      } catch {
+        // Ignore doc-permission hook failures and fall back to empty permissions.
+      }
     }
 
     return docPermissions;

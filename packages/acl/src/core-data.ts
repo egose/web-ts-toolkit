@@ -85,13 +85,10 @@ export class DataCore {
     const baseFilterFn = getDataOption(dataName, `baseFilter.${access}`, null);
     if (!isFunction(baseFilterFn)) return _filter || {};
 
-    let baseFilter = null;
     const cacheKey = `${dataName}_baseFilter_${access}`;
-    if (this.caches.baseFilter.has(cacheKey)) {
-      baseFilter = this.caches.baseFilter.get(cacheKey);
-    } else {
-      baseFilter = await baseFilterFn.call(this.req, permissions);
-    }
+    const baseFilter = this.caches.baseFilter.has(cacheKey)
+      ? this.caches.baseFilter.get(cacheKey)
+      : await baseFilterFn.call(this.req, permissions);
 
     if (baseFilter === false) return false;
     if (baseFilter === true || isEmpty(baseFilter)) return _filter || {};
