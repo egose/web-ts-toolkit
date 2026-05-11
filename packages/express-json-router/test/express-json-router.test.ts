@@ -1,6 +1,7 @@
 import express from 'express';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
+import { BadRequestError } from '@web-ts-toolkit/http-errors';
 
 import JsonRouter from '../dist/index.mjs';
 
@@ -277,5 +278,49 @@ describe('express-json-router', () => {
     const response = await request(app).get('/unauthorized').expect(401);
 
     expect(response.body).toEqual({ message: 'The user is not authorized' });
+  });
+
+  it('supports custom response-handler instances for structured error formats', async () => {
+    const app = express();
+    const responseHandler = JsonRouter.createHandler({
+      errorFormat: JsonRouter.ErrorFormats.rfc9457,
+      errorDomain: 'api.example.com',
+    });
+    const router = new JsonRouter('', undefined, responseHandler);
+
+    router.get('/validation', () => {
+      throw new BadRequestError('invalid email', {
+        type: 'https://api.example.com/problems/invalid-email',
+        title: 'Invalid email address',
+        instance: '/problems/invalid-email/123',
+        errors: [
+          {
+            detail: 'must be a valid email address',
+            pointer: '#/email',
+          },
+        ],
+      });
+    });
+
+    app.use(router.original);
+
+    const response = await request(app)
+      .get('/validation')
+      .expect('Content-Type', /application\/problem\+json/)
+      .expect(400);
+
+    expect(response.body).toEqual({
+      type: 'https://api.example.com/problems/invalid-email',
+      title: 'Invalid email address',
+      status: 400,
+      detail: 'invalid email',
+      instance: '/problems/invalid-email/123',
+      errors: [
+        {
+          detail: 'must be a valid email address',
+          pointer: '#/email',
+        },
+      ],
+    });
   });
 });
