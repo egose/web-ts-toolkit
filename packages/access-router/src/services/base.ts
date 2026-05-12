@@ -13,7 +13,7 @@ import pick from 'lodash/pick';
 import uniq from 'lodash/uniq';
 import intersectionBy from 'lodash/intersectionBy';
 import { getModelOption } from '../options';
-import { iterateQuery, CustomError, setDocValue, genPagination, normalizeSelect, populateDoc } from '../helpers';
+import { iterateQuery, setDocValue, genPagination, normalizeSelect, populateDoc } from '../helpers';
 import {
   ErrorResult,
   Filter,

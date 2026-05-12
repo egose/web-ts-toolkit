@@ -20,6 +20,7 @@ import {
   getStringRouteParam,
   parseBooleanString,
 } from './shared';
+import { accessRouterResponseHandler } from './index';
 
 const clientErrors = JsonRouter.clientErrors;
 const success = JsonRouter.success;
@@ -49,7 +50,7 @@ export class ModelRouter {
     this.options = getModelOptions(modelName);
     this.fullBasePath = processUrl(this.options.parentPath + this.options.basePath);
     this.modelName = modelName;
-    this.router = new JsonRouter(this.options.basePath, setCore);
+    this.router = new JsonRouter(this.options.basePath, setCore, accessRouterResponseHandler);
     this.model = new Model(modelName);
 
     this.setCollectionRoutes();

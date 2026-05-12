@@ -5,6 +5,7 @@ import _isNumber from 'lodash/isNumber';
 import _orderBy from 'lodash/orderBy';
 import { setCore } from '../core';
 import { mapCodeToMessage, mapCodeToStatusCode } from '../helpers';
+import { accessRouterResponseHandler } from './index';
 import { getGlobalOption, getModelOption } from '../options';
 import {
   ErrorResult,
@@ -35,7 +36,7 @@ export class RootRouter {
 
     this.basename = basePath || '';
     this.routeGuard = routeGuard;
-    this.router = new JsonRouter(this.basename, setCore);
+    this.router = new JsonRouter(this.basename, setCore, accessRouterResponseHandler);
     this.setRoutes();
   }
 

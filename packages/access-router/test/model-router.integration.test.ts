@@ -284,7 +284,9 @@ describe('model router integration', () => {
     expect(otherReadViaListFallback.body.name).toBe('user3');
     expect(otherReadViaListFallback.body.role).toBeUndefined();
     expect(otherReadViaListFallback.body.public).toBeUndefined();
-    expect(strictOtherRead.body.message).toBe('Not Found');
+    expect(strictOtherRead.body.title).toBe('Not Found');
+    expect(strictOtherRead.body.detail).toBe('Not Found');
+    expect(strictOtherRead.body.status).toBe(404);
   });
 
   it('computes document permissions and enforces custom guard routes against live data', async () => {

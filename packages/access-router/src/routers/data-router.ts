@@ -13,6 +13,7 @@ import { handleResultError } from '../helpers';
 import { DataRouterOptions, Request } from '../interfaces';
 import { logger } from '../logger';
 import { formatListResponse, getStringRouteParam, parseBooleanString } from './shared';
+import { accessRouterResponseHandler } from './index';
 
 const clientErrors = JsonRouter.clientErrors;
 const success = JsonRouter.success;
@@ -41,7 +42,7 @@ export class DataRouter {
     this.options = getDataOptions(dataName);
     this.fullBasePath = processUrl(this.options.parentPath + this.options.basePath);
     this.dataName = dataName;
-    this.router = new JsonRouter(this.options.basePath, setDataCore);
+    this.router = new JsonRouter(this.options.basePath, setDataCore, accessRouterResponseHandler);
 
     this.setCollectionRoutes();
     this.setDocumentRoutes();

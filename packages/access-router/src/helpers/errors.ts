@@ -1,25 +1,11 @@
+import JsonRouter from '@web-ts-toolkit/express-json-router';
 import { Codes, StatusCodes } from '../enums';
 import { ErrorResult, ServiceResult } from '../interfaces';
 
-export class CustomError extends Error {
-  statusCode: number;
-  message: string;
-  errors: unknown[];
-  date: Date;
+const { BadRequestError, ForbiddenError, NotFoundError, UnprocessableEntityError } = JsonRouter.clientErrors;
 
-  constructor({ statusCode = 422, message = 'Unprocessable Content', errors = [] as unknown[] } = {}) {
-    super(message);
-
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, CustomError);
-    }
-
-    this.statusCode = statusCode;
-    this.message = message;
-    this.errors = errors;
-    this.date = new Date();
-  }
-}
+/** @deprecated Use @web-ts-toolkit/express-json-router HttpResponse/clientErrors helpers instead. */
+export const CustomError = UnprocessableEntityError;
 
 export function mapCodeToMessage(code: string) {
   switch (code) {
@@ -61,15 +47,16 @@ export function handleResultError<T>(
   if (result.success) return;
 
   const { code, errors = [] } = result;
+  const errorOptions = { errors };
 
   switch (code) {
     case Codes.BadRequest:
-      throw new CustomError({ statusCode: StatusCodes.BadRequest, message: 'Bad Request', errors });
+      throw new BadRequestError('Bad Request', errorOptions);
     case Codes.Forbidden:
-      throw new CustomError({ statusCode: StatusCodes.Forbidden, message: 'Forbidden', errors });
+      throw new ForbiddenError('Forbidden', errorOptions);
     case Codes.NotFound:
-      throw new CustomError({ statusCode: StatusCodes.NotFound, message: 'Not Found', errors });
+      throw new NotFoundError('Not Found', errorOptions);
     default:
-      throw new CustomError();
+      throw new UnprocessableEntityError('Unprocessable Content', errorOptions);
   }
 }

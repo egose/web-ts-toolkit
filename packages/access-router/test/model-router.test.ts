@@ -103,11 +103,13 @@ describe('model router', () => {
       .set('user', 'admin')
       .send({ name: 'user-validate-err1', role: 'user', public: false })
       .expect(400)
-      .expect('Content-Type', /json/);
+      .expect('Content-Type', /application\/problem\+json/);
 
     expect(createSpy).not.toHaveBeenCalled();
     expect(response.body).toMatchObject({
-      message: 'Bad Request',
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
       errors: [],
     });
   });
@@ -123,11 +125,13 @@ describe('model router', () => {
       .set('user', 'admin')
       .send({ name: 'user-validate-err2', role: 'user', public: false })
       .expect(400)
-      .expect('Content-Type', /json/);
+      .expect('Content-Type', /application\/problem\+json/);
 
     expect(createSpy).not.toHaveBeenCalled();
     expect(response.body).toMatchObject({
-      message: 'Bad Request',
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
       errors: ['error1', 'error2'],
     });
   });
