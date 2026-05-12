@@ -1,22 +1,22 @@
 import mongoose from 'mongoose';
 import { getModelRef, getModelAtt } from './meta';
-import { Sort, Filter } from './interfaces';
+import { Sort, Filter, Projection, Populate, SortOrder } from './interfaces';
 
 interface FindProps {
   filter: Filter;
-  select?: any;
+  select?: Projection;
   sort?: Sort;
-  populate?: any;
-  limit?: any;
-  skip?: any;
+  populate?: Populate[] | string;
+  limit?: string | number;
+  skip?: string | number;
   lean?: boolean;
 }
 
 interface FindOneProps {
   filter: Filter;
-  select?: any;
+  select?: Projection;
   sort?: Sort;
-  populate?: any;
+  populate?: Populate[] | string;
   lean?: boolean;
 }
 
@@ -29,10 +29,10 @@ interface FindOneProps {
 // };
 // await Promise.all(mongoose.modelNames().map(concatKeys));
 
-const reducer1 = (baseArr, index) => baseArr.concat(Object.keys(index.key));
-const reducer2 = (baseObj, key) => ({ ...baseObj, [key]: true });
+const reducer1 = (baseArr: string[], index: { key: Record<string, unknown> }) => baseArr.concat(Object.keys(index.key));
+const reducer2 = (baseObj: Record<string, boolean>, key: string) => ({ ...baseObj, [key]: true });
 
-type SortValue = 1 | -1 | 'asc' | 'desc';
+type SortValue = 1 | -1 | 'asc' | 'ascending' | 'desc' | 'descending';
 type SortType =
   | string
   | [string, SortValue][]
@@ -44,14 +44,17 @@ type SortType =
 class Model {
   modelName: string;
   model: mongoose.Model<any>;
-  jsonSchema: Record<string, any>;
+  jsonSchema: Record<string, unknown>;
   indexKeys: string[];
-  indexMap: any;
+  indexMap: Record<string, boolean>;
   modelAttrs: string[];
 
   constructor(modelName: string) {
     this.modelName = modelName;
     this.model = mongoose.model(modelName);
+    this.jsonSchema = {};
+    this.indexKeys = [];
+    this.indexMap = {};
     if (!this.model) return;
 
     // Enable optimistic concurrency to ensure atomicity when
@@ -84,20 +87,20 @@ class Model {
       sort = null;
     }
 
-    let builder = this.model.find(filter as Record<string, any>);
-    if (select) builder = builder.select(select);
-    if (skip) builder = builder.skip(skip);
-    if (limit) builder = builder.limit(limit);
-    if (sort) builder = builder.sort(sort);
-    if (populate) builder = builder.populate(populate);
-    if (lean) builder = builder.lean();
+    const builder = this.model.find(filter as Record<string, unknown>);
+    if (select) builder.select(select);
+    if (skip) builder.skip(Number(skip));
+    if (limit) builder.limit(Number(limit));
+    if (sort) builder.sort(sort);
+    if (populate) builder.populate(populate as mongoose.PopulateOptions | Array<string | mongoose.PopulateOptions>);
+    if (lean) builder.lean();
     // builder = builder.setOptions({ sanitizeFilter: true });
 
     return builder;
   }
 
   // See https://github.com/Automattic/mongoose/blob/65b2d12a8f85f86136cfaf32947f338ba0c5f451/lib/query.js#L3011
-  validateSort(sort: SortType, logError: (msg: string, ...args: any[]) => void = console.error): boolean {
+  validateSort(sort: SortType, logError: (msg: string, ...args: unknown[]) => void = console.error): boolean {
     // Handle null/undefined (valid, no-op)
     if (sort === null || sort === undefined) return true;
 
@@ -113,17 +116,17 @@ class Model {
 
     // Validate array
     if (Array.isArray(sort)) {
-      const isValid = sort.every((pair: any) => {
+      const isValid = sort.every((pair) => {
         if (!Array.isArray(pair) || pair.length !== 2) {
           logError('Invalid sort array element: must be [key, order]', pair);
           return false;
         }
-        const [key, order] = pair as [string, any];
+        const [key, order] = pair as [string, SortOrder];
         if (typeof key !== 'string') {
           logError('Invalid sort array key: must be string', key);
           return false;
         }
-        if (![1, -1, 'asc', 'desc'].includes(order)) {
+        if (![1, -1, 'asc', 'ascending', 'desc', 'descending'].includes(order)) {
           logError('Invalid sort array order: must be 1, -1, "asc", or "desc"', order);
           return false;
         }
@@ -135,8 +138,8 @@ class Model {
 
     // Validate object
     if (typeof sort === 'object' && !(sort instanceof Map)) {
-      const isValid = Object.values(sort).every((order: any) => {
-        if (![1, -1, 'asc', 'desc'].includes(order)) {
+      const isValid = Object.values(sort).every((order) => {
+        if (![1, -1, 'asc', 'ascending', 'desc', 'descending'].includes(order as SortOrder)) {
           logError('Invalid sort object value: must be 1, -1, "asc", or "desc"', order);
           return false;
         }
@@ -147,8 +150,8 @@ class Model {
 
     // Validate Map
     if (sort instanceof Map) {
-      const isValid = Array.from(sort.values()).every((order: any) => {
-        if (![1, -1, 'asc', 'desc'].includes(order)) {
+      const isValid = Array.from(sort.values()).every((order) => {
+        if (![1, -1, 'asc', 'ascending', 'desc', 'descending'].includes(order)) {
           logError('Invalid sort Map value: must be 1, -1, "asc", or "desc"', order);
           return false;
         }
@@ -162,8 +165,8 @@ class Model {
     return false;
   }
 
-  pruneSort(sort = {}) {
-    const ret = {};
+  pruneSort(sort: Record<string, unknown> = {}) {
+    const ret: Record<string, unknown> = {};
     Object.keys(sort).forEach((key) => {
       if (this.indexMap[key]) {
         ret[key] = sort[key];
@@ -183,11 +186,11 @@ class Model {
       sort = null;
     }
 
-    let builder = this.model.findOne(filter as Record<string, any>);
-    if (select) builder = builder.select(select);
-    if (sort) builder = builder.sort(sort);
-    if (populate) builder = builder.populate(populate);
-    if (lean) builder = builder.lean();
+    const builder = this.model.findOne(filter as Record<string, unknown>);
+    if (select) builder.select(select);
+    if (sort) builder.sort(sort);
+    if (populate) builder.populate(populate as mongoose.PopulateOptions | Array<string | mongoose.PopulateOptions>);
+    if (lean) builder.lean();
 
     return builder;
   }

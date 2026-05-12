@@ -64,7 +64,7 @@ export async function populateDoc(doc: Document, target: unknown) {
   return 'execPopulate' in p && (p as LegacyPopulateResult).execPopulate?.();
 }
 
-export const genSubPopulate = (sub: string, popul?: SubPopulate | SubPopulate[] | string | string[]) => {
+export const genSubPopulate = (sub: string, popul?: SubPopulate | SubPopulate[] | string | string[]): SubPopulate[] => {
   if (!popul) return [];
 
   let populate = isArray(popul) ? popul : [popul];

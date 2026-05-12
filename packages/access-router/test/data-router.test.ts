@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import acl, { getGlobalOptions, setGlobalOptions } from '../dist/index.mjs';
+import type { Request as AccessRequest } from '../src/interfaces';
 
 const resetGlobalOptions = () => {
   setGlobalOptions({
@@ -499,7 +500,7 @@ describe('data router', () => {
     });
 
     expect(getGlobalOptions().requestPermissionField).toBe('_permissions');
-    expect(getGlobalOptions().globalPermissions?.({} as any)).toBe(permissions);
+    expect(getGlobalOptions().globalPermissions?.({} as AccessRequest)).toBe(permissions);
   });
 
   it('accepts an injected logger through global options', () => {

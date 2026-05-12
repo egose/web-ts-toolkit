@@ -21,9 +21,7 @@ export const ensureModelMeta = (modelName: string) => {
   }
 
   const schema = model.schema;
-  // @ts-ignore
   modelRefs[modelName] = buildRefs(schema.tree);
-  // @ts-ignore
   modelSubs[modelName] = buildSubPaths(schema.tree);
   modelAtts[modelName] = keys(schema.obj);
 };

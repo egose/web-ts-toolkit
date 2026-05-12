@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import acl, { guard, permissionsPlugin, setGlobalOptions } from '../dist/index.mjs';
+import type { ModelRouterOptions } from '../src/interfaces';
 import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
@@ -230,7 +231,7 @@ const createRequestSchemaApp = async () => {
       read: true,
       create: 'isAdmin',
       update: 'isAdmin',
-    } as any,
+    } as unknown as ModelRouterOptions['routeGuard'],
     permissionSchema: {
       name: { read: true, create: true, update: true },
       role: { read: true, create: true, update: true },
@@ -506,7 +507,7 @@ describe('model router integration', () => {
         distinct: 'isAdmin',
         // `upsert` is supported by the runtime even though it is not yet documented consistently.
         upsert: 'isAdmin',
-      } as any,
+      } as unknown as ModelRouterOptions['routeGuard'],
       permissionSchema: {
         name: { list: true, read: true, create: true, update: true },
         role: { list: true, read: true, create: true, update: true },

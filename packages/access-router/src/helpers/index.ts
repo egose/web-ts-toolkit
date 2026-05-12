@@ -1,4 +1,3 @@
-// @ts-nocheck
 export * from './collection';
 export * from './document';
 export * from './errors';
@@ -14,9 +13,13 @@ import noop from 'lodash/noop';
 import { isSchema, isReference, mapValuesAsync } from '../lib';
 import { FilterOperator } from '../enums';
 
-function recurseObject(obj: any) {
+type SchemaTree = Record<string, unknown>;
+type ReferenceMap = Record<string, string | ReferenceMap>;
+type QueryHandler = (operator: FilterOperator, value: unknown, key: string) => unknown | Promise<unknown>;
+
+function recurseObject(obj: unknown): string | ReferenceMap | null {
   if (isSchema(obj)) {
-    return buildRefs(obj.tree);
+    return buildRefs((obj as typeof obj & { tree: SchemaTree }).tree);
   }
 
   if (!isObject(obj)) return null;
@@ -24,8 +27,8 @@ function recurseObject(obj: any) {
     return obj.ref;
   }
 
-  let ret = null;
-  forEach(obj, (val, key) => {
+  let ret: string | ReferenceMap | null = null;
+  forEach(obj as Record<string, unknown>, (val) => {
     ret = recurseObject(val);
     if (!isEmpty(ret)) {
       return false;
@@ -35,11 +38,12 @@ function recurseObject(obj: any) {
   return ret;
 }
 
-export function buildRefs(schema: any) {
-  const references = {};
-  const subPaths = [];
+export function buildRefs(schema: unknown): ReferenceMap {
+  if (!isObject(schema)) return {};
 
-  forEach(schema, (val, key) => {
+  const references: ReferenceMap = {};
+
+  forEach(schema as Record<string, unknown>, (val, key) => {
     const paths = recurseObject(val);
     if (!isEmpty(paths)) {
       references[key] = paths;
@@ -47,10 +51,10 @@ export function buildRefs(schema: any) {
 
     // collection subdocuments paths
     // see https://mongoosejs.com/docs/subdocs.html#subdocuments
-    const target = val.type || val;
+    const target = isObject(val) && 'type' in val ? ((val as { type?: unknown }).type ?? val) : val;
     if (isArray(target) && target.length > 0) {
       if (isSchema(target[0]) || isPlainObject(target[0])) {
-        subPaths.push(key);
+        return;
       }
     }
   });
@@ -58,13 +62,15 @@ export function buildRefs(schema: any) {
   return references;
 }
 
-export function buildSubPaths(schema: any): string[] {
-  const subPaths = [];
+export function buildSubPaths(schema: unknown): string[] {
+  if (!isObject(schema)) return [];
 
-  forEach(schema, (val, key) => {
+  const subPaths: string[] = [];
+
+  forEach(schema as Record<string, unknown>, (val, key) => {
     // collection subdocuments paths
     // see https://mongoosejs.com/docs/subdocs.html#subdocuments
-    const target = val.type || val;
+    const target = isObject(val) && 'type' in val ? ((val as { type?: unknown }).type ?? val) : val;
     if (isArray(target) && target.length > 0) {
       if (isSchema(target[0]) || (isPlainObject(target[0]) && !isReference(target[0]))) {
         subPaths.push(key);
@@ -75,16 +81,18 @@ export function buildSubPaths(schema: any): string[] {
   return subPaths;
 }
 
-export async function iterateQuery(query: any, handler: Function) {
+export async function iterateQuery(query: unknown, handler?: QueryHandler): Promise<unknown> {
   if (!isPlainObject(query)) return query;
   if (!handler) return noop;
 
-  return mapValuesAsync(query, async (val, key) => {
+  const queryObject = query as Record<string, unknown>;
+  return mapValuesAsync(queryObject, async (val, key) => {
     if (isPlainObject(val)) {
-      if (val.$$sq) {
-        return handler(FilterOperator.SubQuery, val.$$sq, key);
-      } else if (val.$$date) {
-        return handler(FilterOperator.Date, val.$$date, key);
+      const plainValue = val as Record<string, unknown>;
+      if (plainValue.$$sq) {
+        return handler(FilterOperator.SubQuery, plainValue.$$sq, key);
+      } else if (plainValue.$$date) {
+        return handler(FilterOperator.Date, plainValue.$$date, key);
       } else {
         return iterateQuery(val, handler);
       }

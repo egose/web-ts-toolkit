@@ -4,6 +4,7 @@ import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import acl, { getModelOption, setGlobalOptions } from '../dist/index.mjs';
+import type { ModelRouterOptions } from '../src/interfaces';
 
 let modelCounter = 0;
 
@@ -18,8 +19,8 @@ const createUserApp = ({
   globalPermissions,
   validate,
 }: {
-  globalPermissions: (req: express.Request) => any;
-  validate?: any;
+  globalPermissions: (req: express.Request) => unknown;
+  validate?: unknown;
 }) => {
   const modelName = `AclUserModel${++modelCounter}`;
   const schema = new mongoose.Schema({
@@ -29,7 +30,7 @@ const createUserApp = ({
   });
 
   const User = mongoose.model(modelName, schema);
-  const createSpy = vi.spyOn(User, 'create').mockImplementation(async (docs: any) => {
+  const createSpy = vi.spyOn(User, 'create').mockImplementation(async (docs: Array<Record<string, unknown>>) => {
     return docs.map((doc) => new User(doc));
   });
 
@@ -216,7 +217,7 @@ describe('model router', () => {
       mandatoryFields: {
         default: ['id'],
         create: ['email'],
-      } as any,
+      } as unknown as ModelRouterOptions['mandatoryFields'],
       routeGuard: true,
     });
 
