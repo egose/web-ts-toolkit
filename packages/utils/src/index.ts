@@ -1,3 +1,4 @@
+export { default as addLeadingSlash } from './addLeadingSlash';
 export { default as assign } from './assign';
 export { default as castArray } from './castArray';
 export { default as cloneDeep } from './cloneDeep';
@@ -22,6 +23,7 @@ export { default as isNil } from './isNil';
 export { default as isNumber } from './isNumber';
 export { default as isObject } from './isObject';
 export { default as isPlainObject } from './isPlainObject';
+export { default as isPromise } from './isPromise';
 export { default as isString } from './isString';
 export { default as isUndefined } from './isUndefined';
 export { default as keys } from './keys';
@@ -33,4 +35,5 @@ export { default as padEnd } from './padEnd';
 export { default as pick } from './pick';
 export { default as reduce } from './reduce';
 export { default as set } from './set';
+export { default as toStringRecord } from './toStringRecord';
 export { default as uniq } from './uniq';
