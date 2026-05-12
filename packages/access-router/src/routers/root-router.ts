@@ -63,7 +63,7 @@ export class RootRouter {
     if (!ALL_ROUTES.includes(item.op))
       return { success: false, code: Codes.BadRequest, data: null, message: `Operation ${item.op} not found` };
 
-    const routeGuard = getModelOption(item.model, `routeGuard.${item.op as RouteGuardAccess}`);
+    const routeGuard = getModelOption(item.model, `routeGuard.${item.op as RouteGuardAccess}`) as Validation;
     const allowed = await req.macl.canActivate(routeGuard);
     if (!allowed) return { success: false, code: Codes.Unauthorized, data: null, message: 'Unauthorized' };
 

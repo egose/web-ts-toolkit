@@ -59,7 +59,7 @@ export class DataService<T> {
     let doc = (await findElement(this.data, _filter)) as T | undefined;
     if (!doc) return { success: false, code: Codes.NotFound, query };
     doc = (await this.trimOutputFields(doc, access)) as T;
-    if (_select.length > 0) doc = pick(doc, _select) as T;
+    if (_select.length > 0) doc = pick(doc as object, _select) as T;
 
     return { success: true, kind: 'single', code: Codes.Success, data: doc, query };
   }
@@ -113,7 +113,7 @@ export class DataService<T> {
     docs = await Promise.all(
       docs.map(async (doc) => {
         doc = await this.trimOutputFields(doc, 'list');
-        if (_select.length > 0) doc = pick(doc, _select) as T;
+        if (_select.length > 0) doc = pick(doc as object, _select) as T;
         return doc;
       }),
     );

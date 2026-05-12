@@ -1,5 +1,6 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
+import type { z } from 'zod';
 import { forEach, isPlainObject, isString, isUndefined, padEnd } from '@web-ts-toolkit/utils';
 import Model from '../model';
 import { getModelSub } from '../meta';
@@ -89,7 +90,7 @@ export class ModelRouter {
   }
 
   private getRequestSchema(key: string) {
-    return getExactModelOption(this.modelName, key as keyof ExtendedModelRouterOptions);
+    return getExactModelOption(this.modelName, key as keyof ExtendedModelRouterOptions) as z.ZodTypeAny | undefined;
   }
 
   private async assertAllowed(req: Request, access: string) {

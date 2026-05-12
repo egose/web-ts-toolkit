@@ -173,13 +173,13 @@ export const getModelOption = <K extends keyof ExtendedModelRouterOptions>(
     defaultValue as never,
   );
 
-  return getNestedOption(manager, key, defaultModelValue);
+  return getNestedOption(manager, key, defaultModelValue as never) as ExtendedModelRouterOptions[K];
 };
 
 export const getExactModelOption = <K extends keyof ExtendedModelRouterOptions>(modelName: string, key: K | string) => {
   const manager = getOrCreateModelOptions(modelName);
   const defaultModelValue = getDefaultModelOption(key as keyof ExtendedDefaultModelRouterOptions);
-  return manager.get(key, defaultModelValue);
+  return manager.get(key, defaultModelValue as never) as ExtendedModelRouterOptions[K];
 };
 
 export const getModelNames = () => {

@@ -147,7 +147,10 @@ export class Core {
   ) {
     let normalizedSelect = normalizeSelect(targetFields);
 
-    const permissionSchema = getModelOption(modelName, ['permissionSchema'].concat(subPaths).join('.'));
+    const permissionSchema = getModelOption(modelName, ['permissionSchema'].concat(subPaths).join('.')) as
+      | Record<string, unknown>
+      | null
+      | undefined;
     if (!permissionSchema) return [];
 
     const permissions = this.getGlobalPermissions();
@@ -178,7 +181,8 @@ export class Core {
       }
     }
 
-    const mandatoryFields = subPaths.length > 0 ? [] : getModelOption(modelName, `mandatoryFields.${access}`, []);
+    const mandatoryFields =
+      subPaths.length > 0 ? [] : (getModelOption(modelName, `mandatoryFields.${access}`, []) as string[]);
     return fields.concat(mandatoryFields);
   }
 
@@ -234,25 +238,25 @@ export class Core {
   }
 
   async prepare<T>(modelName: string, allowedData: T, access: PrepareAccess, context: MiddlewareContext): Promise<T> {
-    const prepare = getModelOption(modelName, `prepare.${access}`, null);
+    const prepare = getModelOption(modelName, `prepare.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
     return callMiddlewareChain(this.req, prepare, allowedData, permissions, context);
   }
 
   async transform<T>(modelName: string, doc: T, access: TransformAccess, context: MiddlewareContext): Promise<T> {
-    const transform = getModelOption(modelName, `transform.${access}`, null);
+    const transform = getModelOption(modelName, `transform.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
     return callMiddlewareChain(this.req, transform, doc, permissions, context);
   }
 
   async finalize<T>(modelName: string, doc: T, access: FinalizeAccess, context: MiddlewareContext): Promise<T> {
-    const finalize = getModelOption(modelName, `finalize.${access}`, null);
+    const finalize = getModelOption(modelName, `finalize.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
     return callMiddlewareChain(this.req, finalize, doc, permissions, context);
   }
 
   async changes(modelName: string, doc: Record<string, unknown>, context: MiddlewareContext) {
-    const changeOptions = getModelOption(modelName, `change`, {});
+    const changeOptions = getModelOption(modelName, `change`, {}) as Record<string, unknown>;
 
     for (let x = 0; x < context.modifiedPaths.length; x++) {
       const mpath = context.modifiedPaths[x];
@@ -369,7 +373,7 @@ export class Core {
   }
 
   async decorate<T>(modelName: string, doc: T, access: DecorateAccess, context: MiddlewareContext): Promise<T> {
-    const decorate = getModelOption(modelName, `decorate.${access}`, null);
+    const decorate = getModelOption(modelName, `decorate.${access}`, null) as Function | Function[];
 
     const permissions = this.getGlobalPermissions();
     context.docPermissions = getDocPermissions(modelName, doc) as Record<string, unknown>;
@@ -383,7 +387,7 @@ export class Core {
     access: DecorateAllAccess,
     context: MiddlewareContext,
   ): Promise<T[]> {
-    const decorateAll = getModelOption(modelName, `decorateAll.${access}`, null);
+    const decorateAll = getModelOption(modelName, `decorateAll.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
 
     return callMiddlewareChain(this.req, decorateAll, docs, permissions, context);
@@ -435,17 +439,17 @@ export class Core {
       if (isUndefined(subOption)) {
         const subFieldOption = getExactModelOption(modelName, `routeGuard.subs.${field}`);
         if (isUndefined(subFieldOption)) {
-          const opOption = getModelOption(modelName, `routeGuard.${op}`);
+          const opOption = getModelOption(modelName, `routeGuard.${op}`) as Validation;
           return this.canActivate(opOption);
         }
 
-        return this.canActivate(subFieldOption);
+        return this.canActivate(subFieldOption as Validation);
       }
 
-      return this.canActivate(subOption);
+      return this.canActivate(subOption as Validation);
     }
 
-    const routeGuard = getModelOption(modelName, `routeGuard.${access}`);
+    const routeGuard = getModelOption(modelName, `routeGuard.${access}`) as Validation;
     return this.canActivate(routeGuard);
   }
 

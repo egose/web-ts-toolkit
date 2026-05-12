@@ -90,7 +90,10 @@ export class DataCore {
   ) {
     let normalizedSelect = normalizeSelect(targetFields);
 
-    const permissionSchema = getDataOption(dataName, ['permissionSchema'].concat(subPaths).join('.'));
+    const permissionSchema = getDataOption(dataName, ['permissionSchema'].concat(subPaths).join('.')) as
+      | Record<string, unknown>
+      | null
+      | undefined;
     if (!permissionSchema) return [];
 
     const permissions = this.getGlobalPermissions();
@@ -114,14 +117,14 @@ export class DataCore {
   }
 
   async decorate<TDoc>(dataName: string, doc: TDoc, access: DecorateAccess, context: DataMiddlewareContext = {}) {
-    const decorate = getDataOption(dataName, `decorate.${access}`, null);
+    const decorate = getDataOption(dataName, `decorate.${access}`, null) as Function | Function[];
 
     const permissions = this.getGlobalPermissions();
     return callMiddlewareChain(this.req, decorate, doc, permissions, context);
   }
 
   async decorateAll<TDoc>(dataName: string, docs: TDoc[], access: DecorateAllAccess): Promise<TDoc[]> {
-    const decorateAll = getDataOption(dataName, `decorateAll.${access}`, null);
+    const decorateAll = getDataOption(dataName, `decorateAll.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
 
     return callMiddlewareChain(this.req, decorateAll, docs, permissions, {});
@@ -141,7 +144,7 @@ export class DataCore {
   }
 
   async isAllowed(dataName: string, access: RouteGuardAccess | string) {
-    const routeGuard = getDataOption(dataName, `routeGuard.${access}`);
+    const routeGuard = getDataOption(dataName, `routeGuard.${access}`) as Validation;
     return this.canActivate(routeGuard);
   }
 

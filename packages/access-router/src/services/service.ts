@@ -687,7 +687,7 @@ export class Service extends Base {
 
     const parentDoc = await this.getParentDoc(id, sub, null, { access: 'read' });
     if (!parentDoc) return { success: false, code: Codes.NotFound };
-    let result = get(parentDoc, sub);
+    let result = get(parentDoc, sub) as Record<string, unknown>[];
 
     const [subFilter, subSelect] = await Promise.all([
       this.genFilter(`subs.${sub}.list`, ft),
@@ -712,7 +712,7 @@ export class Service extends Base {
 
     const parentDoc = await this.getParentDoc(id, sub, { populate }, { access: 'read' });
     if (!parentDoc) return { success: false, code: Codes.NotFound };
-    let result = get(parentDoc, sub);
+    const result = get(parentDoc, sub) as Record<string, unknown>[];
 
     const [subFilter, subSelect] = await Promise.all([
       this.genFilter(`subs.${sub}.read`, { _id: subId }),
@@ -721,17 +721,17 @@ export class Service extends Base {
 
     if (subFilter === false) return { success: false, code: Codes.Forbidden };
 
-    result = findElement(result, subFilter);
-    if (!result) return { success: false, code: Codes.NotFound };
+    let subdoc = findElement(result, subFilter) as Record<string, unknown> | undefined;
+    if (!subdoc) return { success: false, code: Codes.NotFound };
 
-    if (subSelect) result = pick(toObject(result), subSelect.concat(['_id']));
-    return { success: true, kind: 'single', code: Codes.Success, data: result };
+    if (subSelect) subdoc = pick(toObject(subdoc), subSelect.concat(['_id']));
+    return { success: true, kind: 'single', code: Codes.Success, data: subdoc };
   }
 
   public async updateSub(id, sub, subId, data): Promise<SingleResult | ErrorResult> {
     const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
     if (!parentDoc) return { success: false, code: Codes.NotFound };
-    let result = get(parentDoc, sub);
+    const result = get(parentDoc, sub) as Record<string, unknown>[];
 
     const [subFilter, subReadSelect, subUpdateSelect] = await Promise.all([
       this.genFilter(`subs.${sub}.update`, { _id: subId }),
@@ -741,21 +741,21 @@ export class Service extends Base {
 
     if (subFilter === false) return { success: false, code: Codes.Forbidden };
 
-    result = findElement(result, subFilter);
-    if (!result) return { success: false, code: Codes.NotFound };
+    let subdoc = findElement(result, subFilter) as Record<string, unknown> | undefined;
+    if (!subdoc) return { success: false, code: Codes.NotFound };
 
     const allowedData = pick(data, subUpdateSelect);
-    Object.assign(result, allowedData);
+    Object.assign(subdoc, allowedData);
 
     await parentDoc.save();
-    if (subReadSelect) result = pick(toObject(result), subReadSelect.concat(['_id']));
-    return { success: true, kind: 'single', code: Codes.Success, data: result };
+    if (subReadSelect) subdoc = pick(toObject(subdoc), subReadSelect.concat(['_id']));
+    return { success: true, kind: 'single', code: Codes.Success, data: subdoc };
   }
 
   public async bulkUpdateSub(id, sub, data): Promise<ListResult | ErrorResult> {
     const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
     if (!parentDoc) return { success: false, code: Codes.NotFound };
-    let result = get(parentDoc, sub);
+    let result = get(parentDoc, sub) as Array<Record<string, unknown> & { _id?: unknown }>;
 
     data = castArray(data);
 
@@ -768,11 +768,11 @@ export class Service extends Base {
     if (subFilter === false) return { success: false, code: Codes.Forbidden };
 
     result = filterCollection(result, subFilter);
-    forEach(result, (subdoc) => {
-      const tdata = findElementById(data, subdoc._id);
+    forEach(result, (subdoc: Record<string, unknown> & { _id?: unknown }) => {
+      const tdata = findElementById(data, subdoc._id as string);
       if (!tdata) return;
 
-      const allowedData = pick(tdata, subUpdateSelect);
+      const allowedData = pick(tdata as object, subUpdateSelect);
       Object.assign(subdoc, allowedData);
     });
 
@@ -786,7 +786,7 @@ export class Service extends Base {
 
     const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
     if (!parentDoc) return { success: false, code: Codes.NotFound };
-    let result = get(parentDoc, sub);
+    let result = get(parentDoc, sub) as Record<string, unknown>[];
 
     const [subCreateSelect, subReadSelect] = await Promise.all([
       this.genQuerySelect('create', null, false, [sub, 'sub']),
@@ -804,19 +804,27 @@ export class Service extends Base {
   public async deleteSub(id, sub, subId): Promise<SingleResult | ErrorResult> {
     const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
     if (!parentDoc) return { success: false, code: Codes.NotFound };
-    let result = get(parentDoc, sub);
+    const result = get(parentDoc, sub) as Array<
+      Record<string, unknown> & { _id?: unknown; deleteOne?: () => Promise<unknown>; remove?: () => Promise<unknown> }
+    >;
 
     const subFilter = await this.genFilter(`subs.${sub}.delete`, { _id: subId });
     if (subFilter === false) return { success: false, code: Codes.Forbidden };
 
-    result = findElement(result, subFilter);
-    if (!result) return { success: false, code: Codes.NotFound };
+    const subdoc = findElement(result, subFilter) as
+      | (Record<string, unknown> & {
+          _id?: unknown;
+          deleteOne?: () => Promise<unknown>;
+          remove?: () => Promise<unknown>;
+        })
+      | undefined;
+    if (!subdoc) return { success: false, code: Codes.NotFound };
 
     // starting from version 7.x, the 'deleteOne' method replaces the 'remove' method for subdocuments.
     // see https://mongoosejs.com/docs/subdocs.html#removing-subdocs
-    await ('deleteOne' in result ? result.deleteOne() : result.remove());
+    await ('deleteOne' in subdoc ? subdoc.deleteOne?.() : subdoc.remove?.());
     await parentDoc.save();
-    return { success: true, kind: 'single', code: Codes.Success, data: result._id };
+    return { success: true, kind: 'single', code: Codes.Success, data: subdoc._id };
   }
 
   public async getParentDoc(

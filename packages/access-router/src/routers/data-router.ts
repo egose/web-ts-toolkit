@@ -1,5 +1,6 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
+import type { z } from 'zod';
 import { isPlainObject, isString, isUndefined } from '@web-ts-toolkit/utils';
 import { setDataCore } from '../core-data';
 import { setDataOption, setDataOptions, getDataOptions, getExactDataOption } from '../options';
@@ -51,7 +52,7 @@ export class DataRouter {
   }
 
   private getRequestSchema(key: string) {
-    return getExactDataOption(this.dataName, key as keyof ExtendedDataRouterOptions);
+    return getExactDataOption(this.dataName, key as keyof ExtendedDataRouterOptions) as z.ZodTypeAny | undefined;
   }
 
   private async assertAllowed(req: Request, access: string) {
