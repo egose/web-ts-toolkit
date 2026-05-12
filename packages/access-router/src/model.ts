@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-import { getModelRef, getModelAtt } from './meta';
 import { Sort, Filter, Projection, Populate, SortOrder } from './interfaces';
 
 interface FindProps {
@@ -20,18 +19,6 @@ interface FindOneProps {
   lean?: boolean;
 }
 
-// Reference
-// const indexMap = Object.create(null);
-// const reducer = (baseArr, index) => baseArr.concat(Object.keys(index.key));
-// const concatKeys = async (name) => {
-//   const indexes = await mongoose.model(name).collection.indexes()
-//   indexMap[name] = indexes.reduce(reducer, []);
-// };
-// await Promise.all(mongoose.modelNames().map(concatKeys));
-
-const reducer1 = (baseArr: string[], index: { key: Record<string, unknown> }) => baseArr.concat(Object.keys(index.key));
-const reducer2 = (baseObj: Record<string, boolean>, key: string) => ({ ...baseObj, [key]: true });
-
 type SortValue = 1 | -1 | 'asc' | 'ascending' | 'desc' | 'descending';
 type SortType =
   | string
@@ -44,17 +31,10 @@ type SortType =
 class Model {
   modelName: string;
   model: mongoose.Model<any>;
-  jsonSchema: Record<string, unknown>;
-  indexKeys: string[];
-  indexMap: Record<string, boolean>;
-  modelAttrs: string[];
 
   constructor(modelName: string) {
     this.modelName = modelName;
     this.model = mongoose.model(modelName);
-    this.jsonSchema = {};
-    this.indexKeys = [];
-    this.indexMap = {};
     if (!this.model) return;
 
     // Enable optimistic concurrency to ensure atomicity when
@@ -63,13 +43,6 @@ class Model {
     // In order to use optimistic concurrency, a version key must be set on the schema.
     const currVersionKey = this.model.schema.get('versionKey');
     if (!currVersionKey) this.model.schema.set('versionKey', '__v');
-
-    this.modelAttrs = getModelAtt(this.modelName);
-
-    // this.model.collection.indexes({}, (err, result = []) => {
-    //   this.indexKeys = result.reduce(reducer1, []);
-    //   this.indexMap = this.indexKeys.reduce(reducer2, {});
-    // });
   }
 
   new() {
@@ -82,7 +55,6 @@ class Model {
   }
 
   find({ filter, select, sort, populate, limit, skip, lean }: FindProps) {
-    // sort = this.pruneSort(sort);
     if (!this.validateSort(sort as SortType)) {
       sort = null;
     }
@@ -101,6 +73,8 @@ class Model {
 
   // See https://github.com/Automattic/mongoose/blob/65b2d12a8f85f86136cfaf32947f338ba0c5f451/lib/query.js#L3011
   validateSort(sort: SortType, logError: (msg: string, ...args: unknown[]) => void = console.error): boolean {
+    const validSortOrders: SortOrder[] = [1, -1, 'asc', 'ascending', 'desc', 'descending'];
+
     // Handle null/undefined (valid, no-op)
     if (sort === null || sort === undefined) return true;
 
@@ -126,7 +100,7 @@ class Model {
           logError('Invalid sort array key: must be string', key);
           return false;
         }
-        if (![1, -1, 'asc', 'ascending', 'desc', 'descending'].includes(order)) {
+        if (!validSortOrders.includes(order)) {
           logError('Invalid sort array order: must be 1, -1, "asc", or "desc"', order);
           return false;
         }
@@ -139,7 +113,7 @@ class Model {
     // Validate object
     if (typeof sort === 'object' && !(sort instanceof Map)) {
       const isValid = Object.values(sort).every((order) => {
-        if (![1, -1, 'asc', 'ascending', 'desc', 'descending'].includes(order as SortOrder)) {
+        if (!validSortOrders.includes(order as SortOrder)) {
           logError('Invalid sort object value: must be 1, -1, "asc", or "desc"', order);
           return false;
         }
@@ -151,7 +125,7 @@ class Model {
     // Validate Map
     if (sort instanceof Map) {
       const isValid = Array.from(sort.values()).every((order) => {
-        if (![1, -1, 'asc', 'ascending', 'desc', 'descending'].includes(order)) {
+        if (!validSortOrders.includes(order)) {
           logError('Invalid sort Map value: must be 1, -1, "asc", or "desc"', order);
           return false;
         }
@@ -163,22 +137,6 @@ class Model {
     // Invalid type
     logError('Invalid sort type: must be string, array, object, or Map', sort);
     return false;
-  }
-
-  pruneSort(sort: Record<string, unknown> = {}) {
-    const ret: Record<string, unknown> = {};
-    Object.keys(sort).forEach((key) => {
-      if (this.indexMap[key]) {
-        ret[key] = sort[key];
-      } else {
-        console.info(
-          `Please consider creating an index for field "${key}" in collection "${this.modelName}" for better sorting`,
-        );
-        ret[key] = sort[key];
-      }
-    });
-
-    return ret;
   }
 
   findOne({ filter, select, sort, populate, lean }: FindOneProps) {

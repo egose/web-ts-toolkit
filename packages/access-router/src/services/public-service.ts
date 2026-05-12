@@ -1,13 +1,3 @@
-import compact from 'lodash/compact';
-import filter from 'lodash/filter';
-import flatten from 'lodash/flatten';
-import get from 'lodash/get';
-import isArray from 'lodash/isArray';
-import isBoolean from 'lodash/isBoolean';
-import isMatch from 'lodash/isMatch';
-import isNil from 'lodash/isNil';
-import isPlainObject from 'lodash/isPlainObject';
-import isString from 'lodash/isString';
 import pick from 'lodash/pick';
 import { normalizeSelect, toObject } from '../helpers';
 import { Service } from './service';
@@ -16,7 +6,6 @@ import {
   Sort,
   MiddlewareContext,
   FindAccess,
-  SubPopulate,
   PublicListArgs,
   PublicListOptions,
   PublicReadArgs,
@@ -28,17 +17,11 @@ import {
   DistinctArgs,
   ErrorResult,
   ListResult,
-  Request,
   BaseFilterAccess,
   SingleResult,
-  Task,
 } from '../interfaces';
 
 export class PublicService extends Service {
-  // constructor(req: Request, modelName: string) {
-  //   super(req, modelName);
-  // }
-
   async _list(filter: Filter, args?: PublicListArgs, options?: PublicListOptions): Promise<ListResult | ErrorResult> {
     const {
       select = this.defaults.publicListArgs?.select,

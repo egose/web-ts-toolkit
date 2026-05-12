@@ -8,8 +8,8 @@ import { setCore } from './core';
 import Permission from './permission';
 import { Request } from './interfaces';
 import { createValidator, getDocPermissions } from './helpers';
-import { getGlobalOption, getModelOption } from './options';
-import { MIDDLEWARE, PERMISSIONS, PERMISSION_KEYS } from './symbols';
+import { getModelOption } from './options';
+import { PERMISSIONS } from './symbols';
 
 export default function macl() {
   return async function (req: Request, res: Response, next: NextFunction) {
@@ -34,7 +34,7 @@ export function guard(conditionFunc: Function);
 export function guard(modelCondition: GuardModelCondition);
 
 export function guard(condition: unknown) {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, _res: Response, next: NextFunction) => {
     const permissions = req[PERMISSIONS] as Permission;
     let cond = condition;
     let phas = (key) => permissions.has(key);

@@ -1,47 +1,21 @@
 import { Response, NextFunction } from 'express';
-import mongoose, { Model } from 'mongoose';
-import assign from 'lodash/assign';
-import castArray from 'lodash/castArray';
-import compact from 'lodash/compact';
-import difference from 'lodash/difference';
-import forEach from 'lodash/forEach';
-import get from 'lodash/get';
 import intersection from 'lodash/intersection';
-import isArray from 'lodash/isArray';
-import isBoolean from 'lodash/isBoolean';
-import isFunction from 'lodash/isFunction';
-import isNaN from 'lodash/isNaN';
-import isString from 'lodash/isString';
-import isNil from 'lodash/isNil';
-import noop from 'lodash/noop';
-import pick from 'lodash/pick';
-import set from 'lodash/set';
-import reduce from 'lodash/reduce';
 import { getDataOption } from './options';
 import {
-  Populate,
   Projection,
   Filter,
-  MiddlewareContext,
   DataMiddlewareContext,
   Validation,
   Request,
   SelectAccess,
   RouteGuardAccess,
-  DocPermissionsAccess,
   BaseFilterAccess,
   DecorateAccess,
   DecorateAllAccess,
-  ValidateAccess,
-  PrepareAccess,
-  TransformAccess,
-  Task,
 } from './interfaces';
-import Permission, { Permissions } from './permission';
+import Permission from './permission';
 import { DataService } from './services';
-import { normalizeSelect, setDocValue, toObject, pickDocFields, genPagination } from './helpers';
-import { copyAndDepopulate } from './processors';
-import { isDocument } from './lib';
+import { normalizeSelect, pickDocFields } from './helpers';
 import { DATA_MIDDLEWARE, PERMISSIONS, PERMISSION_KEYS } from './symbols';
 import { Cache } from './cache';
 import {
@@ -87,7 +61,7 @@ export class DataCore {
     });
   }
 
-  async genAllowedFields(dataName: string, doc: unknown, access: SelectAccess, baseFields = []) {
+  async genAllowedFields(dataName: string, _doc: unknown, access: SelectAccess, baseFields = []) {
     const permissionSchema = getDataOption(dataName, 'permissionSchema');
 
     const permissions = this.getGlobalPermissions();
@@ -188,7 +162,7 @@ export class DataCore {
   }
 }
 
-export async function setDataCore(req: Request, res: Response, next: NextFunction) {
+export async function setDataCore(req: Request, _res: Response, next: NextFunction) {
   if (req[DATA_MIDDLEWARE]) return next();
 
   const core = new DataCore(req);
