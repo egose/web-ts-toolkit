@@ -229,27 +229,43 @@ describe('model router integration', () => {
       .expect(404)
       .expect('Content-Type', /json/);
 
-    expect(adminList.body).toHaveLength(4);
-    expect(adminList.body.map((row: { name: string }) => row.name).sort()).toEqual([
+    expect(adminList.body.data).toHaveLength(4);
+    expect(adminList.body.data.map((row: { name: string }) => row.name).sort()).toEqual([
       'admin',
       'user1',
       'user2',
       'user3',
     ]);
-    const adminRow = adminList.body.find((row: { name: string }) => row.name === 'admin');
+    expect(adminList.body.meta).toEqual({
+      returnedCount: 4,
+      skip: 0,
+      limit: 1000,
+      page: 1,
+      pageSize: 1000,
+      hasPreviousPage: false,
+    });
+    const adminRow = adminList.body.data.find((row: { name: string }) => row.name === 'admin');
     expect(adminRow).toMatchObject({
       name: 'admin',
       role: 'admin',
     });
     expect(adminRow.public).toBeUndefined();
 
-    expect(userList.body).toHaveLength(2);
-    expect(userList.body.map((row: { name: string }) => row.name).sort()).toEqual(['user2', 'user3']);
-    expect(userList.body[0].role).toBeUndefined();
-    expect(userList.body[0].public).toBeUndefined();
+    expect(userList.body.data).toHaveLength(2);
+    expect(userList.body.data.map((row: { name: string }) => row.name).sort()).toEqual(['user2', 'user3']);
+    expect(userList.body.meta).toEqual({
+      returnedCount: 2,
+      skip: 0,
+      limit: 1000,
+      page: 1,
+      pageSize: 1000,
+      hasPreviousPage: false,
+    });
+    expect(userList.body.data[0].role).toBeUndefined();
+    expect(userList.body.data[0].public).toBeUndefined();
 
-    const selfListRow = userListWithPermissions.body.find((row: { name: string }) => row.name === 'user2');
-    const publicListRow = userListWithPermissions.body.find((row: { name: string }) => row.name === 'user3');
+    const selfListRow = userListWithPermissions.body.data.find((row: { name: string }) => row.name === 'user2');
+    const publicListRow = userListWithPermissions.body.data.find((row: { name: string }) => row.name === 'user3');
     expect(selfListRow._permissions._view.name).toBe(true);
     expect(selfListRow._permissions._edit.name).toBe(true);
     expect(publicListRow._permissions._view).toEqual({});

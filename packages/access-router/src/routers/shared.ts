@@ -6,24 +6,55 @@ export const parseBooleanString = (str: string, defaultValue?: any) => (str ? st
 export const getStringRouteParam = (value: string | string[] | undefined) =>
   (Array.isArray(value) ? value[0] : value) ?? '';
 
+type ListQuery = {
+  skip?: number;
+  limit?: number;
+};
+
 export const formatListResponse = (
   req: Request,
-  result: Pick<ListResult, 'data' | 'totalCount'>,
+  result: Pick<ListResult, 'data' | 'count' | 'totalCount' | 'query'>,
   includeCount?: boolean,
   includeExtraHeaders?: boolean,
 ) => {
-  const { data, totalCount } = result;
+  const { data, count: returnedCount, totalCount } = result;
+  const query = (result.query ?? {}) as ListQuery;
+  const rawLimit = Number(query.limit ?? 0);
+  const skip = Number(query.skip ?? 0);
+  const limit = rawLimit > 0 ? rawLimit : returnedCount;
+  const pageSize = limit;
+  const page = rawLimit > 0 ? Math.floor(skip / limit) + 1 : 1;
+  const hasPreviousPage = skip > 0;
+  const meta = {
+    returnedCount,
+    skip,
+    limit,
+    page,
+    pageSize,
+    hasPreviousPage,
+    ...(includeCount && totalCount != null
+      ? {
+          totalCount,
+          totalPages: limit > 0 ? Math.ceil(totalCount / limit) : 1,
+          hasNextPage: skip + returnedCount < totalCount,
+        }
+      : {}),
+  };
 
-  if (includeCount) {
-    if (includeExtraHeaders) {
+  if (includeExtraHeaders) {
+    req.res.setHeader(CustomHeaders.ReturnedCount, returnedCount);
+    req.res.setHeader(CustomHeaders.Page, page);
+    req.res.setHeader(CustomHeaders.PageSize, pageSize);
+    req.res.setHeader(CustomHeaders.HasPreviousPage, String(hasPreviousPage));
+
+    if (includeCount && totalCount != null) {
       req.res.setHeader(CustomHeaders.TotalCount, totalCount);
-      return data;
+      req.res.setHeader(CustomHeaders.TotalPages, meta.totalPages);
+      req.res.setHeader(CustomHeaders.HasNextPage, String(meta.hasNextPage));
     }
-
-    return { count: totalCount, rows: data };
   }
 
-  return data;
+  return { data, meta };
 };
 
 export const formatCreatedData = (result: Pick<ListResult, 'count' | 'data'>) => {

@@ -33,6 +33,62 @@ const router = acl.createDataRouter('fruit', {
 });
 ```
 
+## List Responses
+
+List endpoints now return a stable envelope:
+
+```json
+{
+  "data": [],
+  "meta": {
+    "returnedCount": 0,
+    "skip": 0,
+    "limit": 25,
+    "page": 1,
+    "pageSize": 25,
+    "hasPreviousPage": false
+  }
+}
+```
+
+When `include_count=true` is enabled, `meta` also includes total pagination information:
+
+```json
+{
+  "data": [],
+  "meta": {
+    "returnedCount": 0,
+    "totalCount": 100,
+    "skip": 25,
+    "limit": 25,
+    "page": 2,
+    "pageSize": 25,
+    "totalPages": 4,
+    "hasNextPage": true,
+    "hasPreviousPage": true
+  }
+}
+```
+
+Notes:
+
+- `returnedCount` is the number of rows in this response.
+- `totalCount` is only included when `include_count=true`.
+- `include_extra_headers=true` can still add the total count header, but it does not change the response body shape.
+
+When `include_extra_headers=true` is enabled, the response can also include these headers:
+
+- `wtt-returned-count`
+- `wtt-page`
+- `wtt-page-size`
+- `wtt-has-previous-page`
+
+And when `include_count=true` is also enabled:
+
+- `wtt-total-count`
+- `wtt-total-pages`
+- `wtt-has-next-page`
+
 ## Hook Signatures
 
 The most common model hooks are called with `this` bound to the current Express request.

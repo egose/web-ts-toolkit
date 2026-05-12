@@ -109,14 +109,34 @@ describe('data router', () => {
       .expect(200)
       .expect('Content-Type', /json/);
 
-    expect(guestList.body).toEqual([
-      { id: 'apple', public: true },
-      { id: 'pear', public: false },
-    ]);
-    expect(adminList.body).toEqual([
-      { id: 'apple', name: 'Apple', public: true },
-      { id: 'pear', name: 'Pear', public: false },
-    ]);
+    expect(guestList.body).toEqual({
+      data: [
+        { id: 'apple', public: true },
+        { id: 'pear', public: false },
+      ],
+      meta: {
+        returnedCount: 2,
+        skip: 0,
+        limit: 2,
+        page: 1,
+        pageSize: 2,
+        hasPreviousPage: false,
+      },
+    });
+    expect(adminList.body).toEqual({
+      data: [
+        { id: 'apple', name: 'Apple', public: true },
+        { id: 'pear', name: 'Pear', public: false },
+      ],
+      meta: {
+        returnedCount: 2,
+        skip: 0,
+        limit: 2,
+        page: 1,
+        pageSize: 2,
+        hasPreviousPage: false,
+      },
+    });
     expect(adminRead.body).toEqual({ id: 'apple', name: 'Apple', public: true });
   });
 
@@ -140,6 +160,16 @@ describe('data router', () => {
       .set('user', 'admin')
       .expect(200)
       .expect('Content-Type', /json/);
+    const pagedCountList = await request(app)
+      .get('/pets?limit=2&page=2&include_count=true')
+      .set('user', 'admin')
+      .expect(200)
+      .expect('Content-Type', /json/);
+    const pagedCountListWithHeaders = await request(app)
+      .get('/pets?limit=2&page=2&include_count=true&include_extra_headers=true')
+      .set('user', 'admin')
+      .expect(200)
+      .expect('Content-Type', /json/);
     const advancedList = await request(app)
       .post('/pets/__query')
       .set('user', 'admin')
@@ -160,15 +190,30 @@ describe('data router', () => {
       .expect(200)
       .expect('Content-Type', /json/);
 
-    expect(adminList.body).toHaveLength(7);
-    expect(adminList.body[0]).toEqual({ name: 'Max', age: 1 });
+    expect(adminList.body.data).toHaveLength(7);
+    expect(adminList.body.data[0]).toEqual({ name: 'Max', age: 1 });
+    expect(adminList.body.meta).toEqual({
+      returnedCount: 7,
+      skip: 0,
+      limit: 7,
+      page: 1,
+      pageSize: 7,
+      hasPreviousPage: false,
+    });
 
-    expect(userList.body).toHaveLength(4);
-    expect(userList.body[0]).toEqual({ name: 'Max' });
+    expect(userList.body.data).toHaveLength(4);
+    expect(userList.body.data[0]).toEqual({ name: 'Max' });
+    expect(userList.body.meta).toEqual({
+      returnedCount: 4,
+      skip: 0,
+      limit: 4,
+      page: 1,
+      pageSize: 4,
+      hasPreviousPage: false,
+    });
 
     expect(countList.body).toEqual({
-      count: 7,
-      rows: [
+      data: [
         { name: 'Max', age: 1 },
         { name: 'Bella', age: 3 },
         { name: 'Rocky', age: 5 },
@@ -177,15 +222,81 @@ describe('data router', () => {
         { name: 'Toby', age: 1 },
         { name: 'Zoey', age: 2 },
       ],
+      meta: {
+        returnedCount: 7,
+        totalCount: 7,
+        skip: 0,
+        limit: 7,
+        page: 1,
+        pageSize: 7,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
     });
 
     expect(guestCountList.body).toEqual({
-      count: 4,
-      rows: [{ name: 'Max' }, { name: 'Bella' }, { name: 'Buddy' }, { name: 'Toby' }],
+      data: [{ name: 'Max' }, { name: 'Bella' }, { name: 'Buddy' }, { name: 'Toby' }],
+      meta: {
+        returnedCount: 4,
+        totalCount: 4,
+        skip: 0,
+        limit: 4,
+        page: 1,
+        pageSize: 4,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
     });
 
-    expect(pagedList.body).toEqual([{ name: 'Bella', age: 3 }]);
-    expect(advancedList.body).toEqual([{ name: 'Max' }]);
+    expect(pagedList.body).toEqual({
+      data: [{ name: 'Bella', age: 3 }],
+      meta: {
+        returnedCount: 1,
+        skip: 1,
+        limit: 1,
+        page: 2,
+        pageSize: 1,
+        hasPreviousPage: true,
+      },
+    });
+    expect(pagedCountList.body).toEqual({
+      data: [
+        { name: 'Rocky', age: 5 },
+        { name: 'Buddy', age: 1 },
+      ],
+      meta: {
+        returnedCount: 2,
+        totalCount: 7,
+        skip: 2,
+        limit: 2,
+        page: 2,
+        pageSize: 2,
+        totalPages: 4,
+        hasNextPage: true,
+        hasPreviousPage: true,
+      },
+    });
+    expect(pagedCountListWithHeaders.body).toEqual(pagedCountList.body);
+    expect(pagedCountListWithHeaders.headers['wtt-returned-count']).toBe('2');
+    expect(pagedCountListWithHeaders.headers['wtt-total-count']).toBe('7');
+    expect(pagedCountListWithHeaders.headers['wtt-page']).toBe('2');
+    expect(pagedCountListWithHeaders.headers['wtt-page-size']).toBe('2');
+    expect(pagedCountListWithHeaders.headers['wtt-total-pages']).toBe('4');
+    expect(pagedCountListWithHeaders.headers['wtt-has-next-page']).toBe('true');
+    expect(pagedCountListWithHeaders.headers['wtt-has-previous-page']).toBe('true');
+    expect(advancedList.body).toEqual({
+      data: [{ name: 'Max' }],
+      meta: {
+        returnedCount: 1,
+        skip: 0,
+        limit: 1,
+        page: 1,
+        pageSize: 1,
+        hasPreviousPage: false,
+      },
+    });
     expect(read.body).toEqual({ name: 'Max', age: 1, sex: 'male' });
     expect(advancedRead.body).toEqual({ age: 1 });
     expect(filteredRead.body).toEqual({ name: 'Max', age: 1, sex: 'male' });
