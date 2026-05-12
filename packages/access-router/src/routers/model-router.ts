@@ -364,6 +364,7 @@ export class ModelRouter {
 
       if (idVal) {
         const existing = await svc.exists({ [idKey]: idVal }, { access: 'update' });
+        handleResultError(existing);
         if (!existing.data) throw new clientErrors.UnauthorizedError();
 
         const result = await svc._update(idVal, data, {}, { returningAll: parseBooleanString(returning_all) });
@@ -396,6 +397,7 @@ export class ModelRouter {
 
       if (idVal) {
         const existing = await svc.exists({ [idKey]: idVal }, { access: 'update' });
+        handleResultError(existing);
         if (!existing.data) throw new clientErrors.UnauthorizedError();
 
         const result = await svc._update(

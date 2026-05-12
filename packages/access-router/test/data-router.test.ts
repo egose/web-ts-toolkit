@@ -56,8 +56,11 @@ const createPetApp = () => {
   router.router.get('/custom/filter-cache', async (req) => {
     const first = await req.dacl.genFilter('pet-legacy', 'read', { name: 'Max' });
     const second = await req.dacl.genFilter('pet-legacy', 'read', { name: 'Bella' });
+    const empty = await req.dacl.genFilter('pet-legacy', 'read', {});
+    const emptyAnd = await req.dacl.genFilter('pet-legacy', 'read', { $and: [{}] });
+    const singleAnd = await req.dacl.genFilter('pet-legacy', 'read', { $and: [{ name: 'Toby' }] });
 
-    return { first, second };
+    return { first, second, empty, emptyAnd, singleAnd };
   });
 
   app.use(express.json());
@@ -316,6 +319,43 @@ describe('data router', () => {
     });
     expect(response.body.second).toEqual({
       $and: [{ public: true }, { name: 'Bella' }],
+    });
+    expect(response.body.empty).toEqual({ public: true });
+    expect(response.body.emptyAnd).toEqual({ public: true });
+    expect(response.body.singleAnd).toEqual({
+      $and: [{ public: true }, { name: 'Toby' }],
+    });
+  });
+
+  it('rejects unsupported client filter operators for in-memory data queries', async () => {
+    const app = createPetApp();
+
+    const whereResponse = await request(app)
+      .post('/pets/__query')
+      .set('user', 'admin')
+      .send({ filter: { $where: 'return true' } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(whereResponse.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: ['Unsupported filter operator: filter.$where'],
+    });
+
+    const exprResponse = await request(app)
+      .post('/pets/__query')
+      .set('user', 'admin')
+      .send({ filter: { $expr: { $eq: ['$name', 'Max'] } } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(exprResponse.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: ['Unsupported filter operator: filter.$expr'],
     });
   });
 

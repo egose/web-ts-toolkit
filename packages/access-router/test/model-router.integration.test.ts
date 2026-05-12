@@ -95,8 +95,11 @@ const createIntegrationApp = async () => {
   router.router.get('/custom/filter-cache', async (req) => {
     const first = await req.macl.genFilter(modelName, 'read', { name: 'user1' });
     const second = await req.macl.genFilter(modelName, 'read', { name: 'user2' });
+    const empty = await req.macl.genFilter(modelName, 'read', {});
+    const emptyAnd = await req.macl.genFilter(modelName, 'read', { $and: [{}] });
+    const singleAnd = await req.macl.genFilter(modelName, 'read', { $and: [{ name: 'user1' }] });
 
-    return { first, second };
+    return { first, second, empty, emptyAnd, singleAnd };
   });
 
   router.router.get(
@@ -324,6 +327,45 @@ describe('model router integration', () => {
     });
     expect(response.body.second).toMatchObject({
       $and: [{ _id: expect.any(String) }, { name: 'user2' }],
+    });
+    expect(response.body.empty).toMatchObject({ _id: expect.any(String) });
+    expect(response.body.empty.$and).toBeUndefined();
+    expect(response.body.emptyAnd).toMatchObject({ _id: expect.any(String) });
+    expect(response.body.emptyAnd.$and).toBeUndefined();
+    expect(response.body.singleAnd).toMatchObject({
+      $and: [{ _id: expect.any(String) }, { name: 'user1' }],
+    });
+  });
+
+  it('rejects unsupported client filter operators for model queries', async () => {
+    const { app } = await createIntegrationApp();
+
+    const whereResponse = await request(app)
+      .post('/users/__query')
+      .set('user', 'admin')
+      .send({ filter: { $where: 'return true' } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(whereResponse.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: ['Unsupported filter operator: filter.$where'],
+    });
+
+    const exprResponse = await request(app)
+      .post('/users/__query')
+      .set('user', 'admin')
+      .send({ filter: { $expr: { $eq: ['$name', 'user1'] } } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(exprResponse.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: ['Unsupported filter operator: filter.$expr'],
     });
   });
 

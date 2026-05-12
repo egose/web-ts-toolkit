@@ -320,15 +320,21 @@ export class Core {
     let updateExists = true;
 
     if (access !== 'read') {
-      readExists = context.fieldPermissionAccess?.readIds
-        ? context.fieldPermissionAccess.readIds.has(docId)
-        : (await this.req.macl.getService(modelName).exists({ _id: doc._id }, { access: 'read' })).data;
+      if (context.fieldPermissionAccess?.readIds) {
+        readExists = context.fieldPermissionAccess.readIds.has(docId);
+      } else {
+        const existsResult = await this.req.macl.getService(modelName).exists({ _id: doc._id }, { access: 'read' });
+        readExists = existsResult.success ? !!existsResult.data : false;
+      }
     }
 
     if (access !== 'update') {
-      updateExists = context.fieldPermissionAccess?.updateIds
-        ? context.fieldPermissionAccess.updateIds.has(docId)
-        : (await this.req.macl.getService(modelName).exists({ _id: doc._id }, { access: 'update' })).data;
+      if (context.fieldPermissionAccess?.updateIds) {
+        updateExists = context.fieldPermissionAccess.updateIds.has(docId);
+      } else {
+        const existsResult = await this.req.macl.getService(modelName).exists({ _id: doc._id }, { access: 'update' });
+        updateExists = existsResult.success ? !!existsResult.data : false;
+      }
     }
 
     const [views, edits] = await Promise.all([

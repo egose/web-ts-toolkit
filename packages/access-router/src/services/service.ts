@@ -88,6 +88,9 @@ export class Service extends Base {
     args?: FindOneArgs,
     options?: FindOneOptions,
   ): Promise<SingleResult | ErrorResult> {
+    const filterErrors = this.validateClientFilter(filter);
+    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+
     const {
       select = this.defaults.findOneArgs?.select,
       sort = this.defaults.findOneArgs?.sort,
@@ -197,6 +200,9 @@ export class Service extends Base {
     options?: FindOptions,
     decorate?: Function,
   ): Promise<ListResult | ErrorResult> {
+    const filterErrors = this.validateClientFilter(filter);
+    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+
     const {
       select = this.defaults.findArgs?.select,
       populate = this.defaults.findArgs?.populate,
@@ -400,6 +406,9 @@ export class Service extends Base {
     options?: UpdateOneOptions,
     decorate?: Function,
   ): Promise<SingleResult | ErrorResult> {
+    const filterErrors = this.validateClientFilter(filter);
+    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+
     const { populate = this.defaults.updateOneArgs?.populate, overrides = {} } = args ?? {};
     const {
       skim = this.defaults.updateOneOptions?.skim ?? false,
@@ -521,6 +530,9 @@ export class Service extends Base {
     options?: UpsertOptions,
     decorate?: Function,
   ): Promise<ServiceResult> {
+    const filterErrors = this.validateClientFilter(filter);
+    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+
     const { populate = this.defaults.upsertArgs?.populate, overrides = {} } = args ?? {};
     const {
       skim = this.defaults.upsertOptions?.skim ?? false,
@@ -585,9 +597,15 @@ export class Service extends Base {
     return { success: true, kind: 'single', code: Codes.Success, data: doc._id, query };
   }
 
-  public async exists(filter: Filter, options: ExistsOptions & { includeId: true }): Promise<SingleResult>;
-  public async exists(filter: Filter, options?: ExistsOptions): Promise<SingleResult<boolean>>;
-  public async exists(filter: Filter, options?: ExistsOptions): Promise<SingleResult> {
+  public async exists(
+    filter: Filter,
+    options: ExistsOptions & { includeId: true },
+  ): Promise<SingleResult | ErrorResult>;
+  public async exists(filter: Filter, options?: ExistsOptions): Promise<SingleResult<boolean> | ErrorResult>;
+  public async exists(filter: Filter, options?: ExistsOptions): Promise<SingleResult | ErrorResult> {
+    const filterErrors = this.validateClientFilter(filter);
+    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+
     const {
       access = this.defaults.existsOptions?.access ?? 'read',
       includeId = this.defaults.existsOptions?.includeId ?? false,
@@ -606,6 +624,9 @@ export class Service extends Base {
 
   public async distinct(field: string, args?: DistinctArgs): Promise<ListResult | ErrorResult> {
     let { filter } = args ?? {};
+    const filterErrors = this.validateClientFilter(filter);
+    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+
     filter = await this.genFilter('read', filter);
 
     const query = { filter };
@@ -618,6 +639,9 @@ export class Service extends Base {
   }
 
   public async count(filter, access: BaseFilterAccess = 'list'): Promise<SingleResult<number> | ErrorResult> {
+    const filterErrors = this.validateClientFilter(filter);
+    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+
     filter = await this.genFilter(access, filter);
 
     const query = { filter };

@@ -14,6 +14,28 @@ import Permission, { Permissions } from './permission';
 
 type OptionGetter = (key: string, defaultValue?: unknown) => unknown;
 
+function normalizeFilter(filter: Filter | null | undefined): Filter | null {
+  if (filter === false) return false;
+  if (!filter || !isPlainObject(filter) || isEmpty(filter)) return null;
+
+  if (Object.keys(filter).length !== 1 || !isArray(filter.$and)) {
+    return filter;
+  }
+
+  const clauses: Record<string, unknown>[] = [];
+
+  for (let x = 0; x < filter.$and.length; x++) {
+    const clause = normalizeFilter(filter.$and[x] as Filter | null | undefined);
+    if (clause === false) return false;
+    if (clause) clauses.push(clause);
+  }
+
+  if (clauses.length === 0) return null;
+  if (clauses.length === 1) return clauses[0];
+
+  return { $and: clauses };
+}
+
 export async function resolveIdentifierFilter(req: Request, identifier: string | Function | undefined, id: string) {
   if (isString(identifier)) {
     return { [identifier]: id };
@@ -43,24 +65,29 @@ export async function resolveAccessFilter({
   filter?: Filter;
   getOption: OptionGetter;
 }): Promise<Filter> {
-  let nextFilter = filter;
+  let nextFilter = normalizeFilter(filter);
 
   const overrideFilterFn = getOption(`overrideFilter.${access}`, null);
   if (isFunction(overrideFilterFn)) {
-    nextFilter = await overrideFilterFn.call(req, nextFilter, permissions);
+    nextFilter = normalizeFilter(await overrideFilterFn.call(req, nextFilter, permissions));
   }
 
   const baseFilterFn = getOption(`baseFilter.${access}`, null);
   if (!isFunction(baseFilterFn)) return nextFilter || {};
 
-  const baseFilter = cache.has(cacheKey) ? cache.get(cacheKey) : await baseFilterFn.call(req, permissions);
+  const baseFilter = normalizeFilter(
+    (cache.has(cacheKey) ? cache.get(cacheKey) : await baseFilterFn.call(req, permissions)) as
+      | Filter
+      | null
+      | undefined,
+  );
 
   if (!cache.has(cacheKey)) {
     cache.set(cacheKey, baseFilter);
   }
 
   if (baseFilter === false) return false;
-  if (baseFilter === true || isEmpty(baseFilter)) return nextFilter || {};
+  if (!baseFilter) return nextFilter || {};
   if (!nextFilter) return baseFilter;
 
   return { $and: [baseFilter, nextFilter] };

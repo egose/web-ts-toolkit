@@ -1,5 +1,6 @@
 import { getDataOptions } from '../options';
 import { findElement, filterCollection, genPagination, parseSortString } from '../helpers';
+import { validateClientFilter } from './base';
 import {
   DataMiddlewareContext,
   ErrorResult,
@@ -40,6 +41,9 @@ export class DataService<T> {
     args?: DataFindOneArgs,
     options?: DataFindOneOptions,
   ): Promise<SingleResult<T> | ErrorResult> {
+    const filterErrors = validateClientFilter(filter);
+    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+
     const { select } = args ?? {};
     const { access = 'read' } = options ?? {};
 
@@ -83,6 +87,9 @@ export class DataService<T> {
     args?: DataFindArgs,
     options?: DataFindOptions,
   ): Promise<ListResult<T> | ErrorResult> {
+    const filterErrors = validateClientFilter(filter);
+    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+
     const { select, sort, skip, limit, page, pageSize } = args ?? {};
 
     const [_filter, _select, pagination] = await Promise.all([

@@ -12,6 +12,7 @@ import isNil from 'lodash/isNil';
 import pick from 'lodash/pick';
 import uniq from 'lodash/uniq';
 import intersectionBy from 'lodash/intersectionBy';
+import isPlainObject from 'lodash/isPlainObject';
 import { getModelOption } from '../options';
 import { iterateQuery, setDocValue, genPagination, normalizeSelect, populateDoc } from '../helpers';
 import {
@@ -38,6 +39,34 @@ import {
   Task,
 } from '../interfaces';
 import { FilterOperator } from '../enums';
+
+export function validateClientFilter(filter: Filter | null | undefined): string[] {
+  const errors: string[] = [];
+  const blockedOperators = new Set(['$where', '$expr', '$function', '$accumulator']);
+
+  const visit = (value: unknown, path: string) => {
+    if (isArray(value)) {
+      value.forEach((item, index) => visit(item, `${path}[${index}]`));
+      return;
+    }
+
+    if (!isPlainObject(value)) return;
+
+    Object.entries(value).forEach(([key, child]) => {
+      const nextPath = path ? `${path}.${key}` : key;
+
+      if (blockedOperators.has(key)) {
+        errors.push(`Unsupported filter operator: ${nextPath}`);
+        return;
+      }
+
+      visit(child, nextPath);
+    });
+  };
+
+  visit(filter, 'filter');
+  return errors;
+}
 
 export class Base {
   req: Request;
@@ -157,6 +186,10 @@ export class Base {
   public checkIfModelPermissionExists(accesses: DocPermissionsAccess[]) {
     const modelPermissionKeys = getModelOption(this.modelName, '_modelPermissionKeys');
     return accesses.some((access) => modelPermissionKeys[access]?.length > 0);
+  }
+
+  protected validateClientFilter(filter: Filter | null | undefined): string[] {
+    return validateClientFilter(filter);
   }
 
   protected processInclude(include: Include | Include[]) {
