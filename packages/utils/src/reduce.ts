@@ -3,18 +3,24 @@ export default function reduce<T, TResult>(
   iteratee: (accumulator: TResult, value: T, key: number, collection: T[]) => TResult,
   accumulator?: TResult,
 ): TResult;
-export default function reduce<T extends object, TResult>(
-  collection: T | null | undefined,
-  iteratee: (accumulator: TResult, value: T[keyof T], key: string, collection: T) => TResult,
+export default function reduce<T, TResult>(
+  collection: Record<string, T> | null | undefined,
+  iteratee: (accumulator: TResult, value: T, key: string, collection: Record<string, T>) => TResult,
   accumulator?: TResult,
 ): TResult;
-export default function reduce(
-  collection: any,
-  iteratee: (accumulator: any, value: any, key: any, collection: any) => any,
-  accumulator?: any,
-) {
+export default function reduce<T, TResult>(
+  collection: T[] | Record<string, T> | null | undefined,
+  iteratee: (...args: never[]) => TResult,
+  accumulator?: TResult,
+): TResult {
   const hasAccumulator = arguments.length >= 3;
-  const entries: Array<[string | number, any]> = [];
+  const entries: Array<[string | number, T]> = [];
+  const callback = iteratee as (
+    accumulator: TResult,
+    value: T,
+    key: number | string,
+    collection: T[] | Record<string, T> | null | undefined,
+  ) => TResult;
 
   if (Array.isArray(collection)) {
     for (let index = 0; index < collection.length; index++) {
@@ -33,14 +39,14 @@ export default function reduce(
       throw new TypeError('Reduce of empty collection with no initial value');
     }
 
-    accumulator = entries[0][1];
+    accumulator = entries[0][1] as unknown as TResult;
     entries.shift();
   }
 
   let result = accumulator;
   for (let index = 0; index < entries.length; index++) {
     const [key, value] = entries[index];
-    result = iteratee(result, value, key, collection);
+    result = callback(result, value, key, collection);
   }
 
   return result;

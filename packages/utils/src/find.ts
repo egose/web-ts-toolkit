@@ -1,6 +1,7 @@
-import { Collection } from './_internal';
-
-export default function find<T>(collection: any, predicate: (value: T, key: any) => boolean): T | undefined {
+export default function find<T>(
+  collection: T[] | Record<string, T> | null | undefined,
+  predicate: (value: T, key: number | string) => boolean,
+): T | undefined {
   if (!collection) {
     return undefined;
   }

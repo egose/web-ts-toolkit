@@ -218,7 +218,9 @@ export function cloneValue<T>(value: T): T {
   if (typeof structuredClone === 'function') {
     try {
       return structuredClone(value);
-    } catch {}
+    } catch {
+      // Fall through to the manual clone logic when structured cloning is not supported.
+    }
   }
 
   if (Array.isArray(value)) {

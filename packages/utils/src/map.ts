@@ -1,8 +1,8 @@
-import { Collection, getIteratee } from './_internal';
+import { getIteratee } from './_internal';
 
 export default function map<T, TResult>(
-  collection: any,
-  iteratee: string | number | ((value: T, key: any, collection: any) => TResult),
+  collection: T[] | Record<string, T> | null | undefined,
+  iteratee: string | number | ((value: T, key: number | string, collection: T[] | Record<string, T>) => TResult),
 ): TResult[] {
   if (!collection) {
     return [];

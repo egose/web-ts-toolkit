@@ -6,14 +6,19 @@ export default function forEach<T extends object>(
   collection: T | null | undefined,
   iteratee: (value: T[keyof T], key: string, collection: T) => unknown,
 ): T | null | undefined;
-export default function forEach(collection: any, iteratee: (value: any, key: any, collection: any) => unknown) {
+export default function forEach<T>(
+  collection: T[] | T | null | undefined,
+  iteratee: (...args: never[]) => unknown,
+): T[] | T | null | undefined {
   if (!collection) {
     return collection;
   }
 
+  const callback = iteratee as (value: unknown, key: number | string, collection: T[] | T) => unknown;
+
   if (Array.isArray(collection)) {
     for (let index = 0; index < collection.length; index++) {
-      if (iteratee(collection[index], index, collection) === false) {
+      if (callback(collection[index], index, collection) === false) {
         break;
       }
     }
@@ -24,7 +29,7 @@ export default function forEach(collection: any, iteratee: (value: any, key: any
   const keys = Object.keys(collection);
   for (let index = 0; index < keys.length; index++) {
     const key = keys[index];
-    if (iteratee(collection[key], key, collection) === false) {
+    if (callback(collection[key], key, collection) === false) {
       break;
     }
   }

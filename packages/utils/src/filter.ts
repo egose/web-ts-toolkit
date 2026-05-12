@@ -1,6 +1,7 @@
-import { Collection } from './_internal';
-
-export default function filter<T>(collection: any, predicate: (value: T, key: any) => boolean): T[] {
+export default function filter<T>(
+  collection: T[] | Record<string, T> | null | undefined,
+  predicate: (value: T, key: number | string) => boolean,
+): T[] {
   if (!collection) {
     return [];
   }

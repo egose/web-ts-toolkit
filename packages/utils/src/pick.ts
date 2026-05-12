@@ -1,6 +1,7 @@
 import { getPath, hasPath, isObject, PropertyPath, setPath } from './_internal';
 
-export default function pick(object: any, paths: PropertyPath | PropertyPath[]): any {
+export default function pick<T extends object>(object: T, paths: PropertyPath | PropertyPath[]): Partial<T>;
+export default function pick(object: unknown, paths: PropertyPath | PropertyPath[]): Record<string, unknown> {
   if (!isObject(object)) {
     return {};
   }
