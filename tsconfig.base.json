@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@web-ts-toolkit/utils": ["packages/utils/src/index.ts"],
+      "@web-ts-toolkit/utils/*": ["packages/utils/src/*"],
+      "@web-ts-toolkit/http-errors": ["packages/http-errors/src/index.ts"],
+      "@web-ts-toolkit/http-errors/*": ["packages/http-errors/src/*"],
+      "@web-ts-toolkit/express-response-handler": ["packages/express-response-handler/src/index.ts"],
+      "@web-ts-toolkit/express-response-handler/*": ["packages/express-response-handler/src/*"],
+      "@web-ts-toolkit/express-json-router": ["packages/express-json-router/src/index.ts"],
+      "@web-ts-toolkit/express-json-router/*": ["packages/express-json-router/src/*"],
+      "@web-ts-toolkit/access-router": ["packages/access-router/src/index.ts"],
+      "@web-ts-toolkit/access-router/*": ["packages/access-router/src/*"],
+      "@web-ts-toolkit/moo": ["packages/moo/src/index.ts"],
+      "@web-ts-toolkit/moo/*": ["packages/moo/src/*"]
+    }
+  }
+}
