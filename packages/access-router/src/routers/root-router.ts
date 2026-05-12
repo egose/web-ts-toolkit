@@ -1,18 +1,16 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
-import castArray from 'lodash/castArray';
 import _isNumber from 'lodash/isNumber';
 import _orderBy from 'lodash/orderBy';
 import { setCore } from '../core';
 import { mapCodeToMessage, mapCodeToStatusCode } from '../helpers';
 import { accessRouterResponseHandler } from './index';
-import { getGlobalOption, getModelOption } from '../options';
+import { getModelOption } from '../options';
 import {
   ErrorResult,
   Filter,
   ListResult,
   RootRouterOptions,
-  ModelRouterOptions,
   Validation,
   RootQueryEntry,
   Request,
@@ -20,8 +18,7 @@ import {
   ServiceResult,
   RouteGuardAccess,
 } from '../interfaces';
-import { MIDDLEWARE, PERMISSIONS, PERMISSION_KEYS } from '../symbols';
-import { Codes, StatusCodes } from '../enums';
+import { Codes } from '../enums';
 import { parseBody, rootQuerySchema } from './validation';
 
 const clientErrors = JsonRouter.clientErrors;
@@ -115,10 +112,14 @@ export class RootRouter {
     }, []);
   }
 
+  private async assertAllowed(req: Request) {
+    const allowed = await req.macl.canActivate(this.routeGuard);
+    if (!allowed) throw new clientErrors.UnauthorizedError();
+  }
+
   private setRoutes() {
     this.router.post('', async (req: Request) => {
-      const allowed = await req.macl.canActivate(this.routeGuard);
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req);
 
       const items: RootQueryEntry[] = parseBody(rootQuerySchema, req.body).map((item) => ({
         ...item,

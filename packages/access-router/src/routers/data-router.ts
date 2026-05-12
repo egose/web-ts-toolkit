@@ -3,15 +3,11 @@ import type { Router } from 'express';
 import isString from 'lodash/isString';
 import isPlainObject from 'lodash/isPlainObject';
 import isUndefined from 'lodash/isUndefined';
-import forEach from 'lodash/forEach';
-import padEnd from 'lodash/padEnd';
-import Model from '../model';
 import { setDataCore } from '../core-data';
 import { setDataOption, setDataOptions, getDataOptions, getExactDataOption } from '../options';
 import { processUrl } from '../lib';
 import { handleResultError } from '../helpers';
 import { DataRouterOptions, ExtendedDataRouterOptions, Request, Filter } from '../interfaces';
-import { logger } from '../logger';
 import { formatListResponse, parseBooleanString } from './shared';
 import { accessRouterResponseHandler } from './index';
 import {
@@ -25,7 +21,6 @@ import {
 } from './validation';
 
 const clientErrors = JsonRouter.clientErrors;
-const success = JsonRouter.success;
 
 type SetTargetOption = {
   (option: unknown): DataRouter;
@@ -61,6 +56,11 @@ export class DataRouter {
     return getExactDataOption(this.dataName, key as keyof ExtendedDataRouterOptions);
   }
 
+  private async assertAllowed(req: Request, access: string) {
+    const allowed = await req.dacl.isAllowed(this.dataName, access);
+    if (!allowed) throw new clientErrors.UnauthorizedError();
+  }
+
   ///////////////////////
   // Collection Routes //
   ///////////////////////
@@ -69,8 +69,7 @@ export class DataRouter {
     // LIST //
     //////////
     this.router.get('', async (req: Request) => {
-      const allowed = await req.dacl.isAllowed(this.dataName, 'list');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'list');
 
       const { skip, limit, page, page_size, include_count, include_extra_headers } = parseQuery(
         requestSchemas.listQuery,
@@ -99,8 +98,7 @@ export class DataRouter {
     // LIST - Advanced //
     /////////////////////
     this.router.post(`/${this.options.queryPath}`, async (req: Request) => {
-      const allowed = await req.dacl.isAllowed(this.dataName, 'list');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'list');
 
       let {
         filter,
@@ -136,8 +134,7 @@ export class DataRouter {
     // READ //
     //////////
     this.router.get(`/:${this.options.idParam}`, async (req: Request) => {
-      const allowed = await req.dacl.isAllowed(this.dataName, 'read');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'read');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
       const svc = req.dacl.getService(this.dataName);
@@ -152,14 +149,9 @@ export class DataRouter {
     // READ - Advanced - Filter //
     //////////////////////////////
     this.router.post(`/${this.options.queryPath}/__filter`, async (req: Request) => {
-      const allowed = await req.dacl.isAllowed(this.dataName, 'read');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'read');
 
-      let {
-        filter,
-        select,
-        options = {},
-      } = parseBodyWithSchema(
+      let { filter, select } = parseBodyWithSchema(
         dataReadFilterBodySchema,
         req.body,
         this.getRequestSchema('requestSchemas.advancedReadFilter'),
@@ -177,11 +169,10 @@ export class DataRouter {
     // READ - Advanced //
     /////////////////////
     this.router.post(`/${this.options.queryPath}/:${this.options.idParam}`, async (req: Request) => {
-      const allowed = await req.dacl.isAllowed(this.dataName, 'read');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'read');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
-      let { select, options = {} } = parseBodyWithSchema(
+      let { select } = parseBodyWithSchema(
         dataReadByIdBodySchema,
         req.body,
         this.getRequestSchema('requestSchemas.advancedRead'),

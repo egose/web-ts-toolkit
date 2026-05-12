@@ -40,7 +40,6 @@ import {
   countBodySchema,
   createBodySchema,
   distinctBodySchema,
-  parseBody,
   parseBodyWithSchema,
   parseNestedBodyWithSchema,
   parsePathParam,
@@ -97,6 +96,11 @@ export class ModelRouter {
     return getExactModelOption(this.modelName, key as keyof ExtendedModelRouterOptions);
   }
 
+  private async assertAllowed(req: Request, access: string) {
+    const allowed = await req.macl.isAllowed(this.modelName, access);
+    if (!allowed) throw new clientErrors.UnauthorizedError();
+  }
+
   ///////////////////////
   // Collection Routes //
   ///////////////////////
@@ -105,8 +109,7 @@ export class ModelRouter {
     // LIST //
     //////////
     this.router.get('', async (req: Request) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'list');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'list');
 
       const { skip, limit, page, page_size, skim, include_permissions, include_count, include_extra_headers } =
         parseQuery(requestSchemas.listQuery, req.query);
@@ -135,8 +138,7 @@ export class ModelRouter {
     // LIST - Advanced //
     /////////////////////
     this.router.post(`/${this.options.queryPath}`, async (req: Request) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'list');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'list');
 
       // @Deprecated option 'query'
       const body = parseBodyWithSchema(
@@ -171,8 +173,7 @@ export class ModelRouter {
     // CREATE //
     ////////////
     this.router.post('', async (req: Request, res) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'create');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'create');
 
       const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
       const data = parseBodyWithSchema(createBodySchema, req.body, this.getRequestSchema('requestSchemas.create'));
@@ -189,8 +190,7 @@ export class ModelRouter {
     // CREATE - Advanced //
     ///////////////////////
     this.router.post(`/${this.options.mutationPath}`, async (req: Request, res) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'create');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'create');
 
       const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
       const body = parseNestedBodyWithSchema(
@@ -245,8 +245,7 @@ export class ModelRouter {
     // COUNT //
     ///////////
     this.router.get('/count', async (req: Request) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'count');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'count');
 
       const svc = req.macl.getPublicService(this.modelName);
       const result = await svc._count({});
@@ -257,8 +256,7 @@ export class ModelRouter {
     });
 
     this.router.post('/count', async (req: Request) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'count');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'count');
 
       // @Deprecated option 'query'
       const { query, filter, access }: CountBody = parseBodyWithSchema(
@@ -279,8 +277,7 @@ export class ModelRouter {
     // READ //
     //////////
     this.router.get(`/:${this.options.idParam}`, async (req: Request) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'read');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'read');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
       const { include_permissions, try_list } = parseQuery(requestSchemas.readQuery, req.query);
@@ -303,8 +300,7 @@ export class ModelRouter {
     // READ - Advanced - Filter //
     //////////////////////////////
     this.router.post(`/${this.options.queryPath}/__filter`, async (req: Request) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'read');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'read');
 
       const body = parseBodyWithSchema(
         readFilterBodySchema,
@@ -337,8 +333,7 @@ export class ModelRouter {
     // READ - Advanced //
     /////////////////////
     this.router.post(`/${this.options.queryPath}/:${this.options.idParam}`, async (req: Request) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'read');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'read');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
       const body = parseBodyWithSchema(
@@ -371,8 +366,7 @@ export class ModelRouter {
     // UPDATE //
     ////////////
     this.router.patch(`/:${this.options.idParam}`, async (req: Request) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'update');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'update');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
       const { returning_all } = parseQuery(requestSchemas.updateQuery, req.query);
@@ -390,8 +384,7 @@ export class ModelRouter {
     // UPDATE - Advanced //
     ///////////////////////
     this.router.patch(`/${this.options.mutationPath}/:${this.options.idParam}`, async (req: Request) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'update');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'update');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
       const { returning_all } = parseQuery(requestSchemas.updateQuery, req.query);
@@ -432,8 +425,7 @@ export class ModelRouter {
     // UPSERT //
     ////////////
     this.router.put(`/`, async (req: Request) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'upsert');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'upsert');
 
       const svc = req.macl.getPublicService(this.modelName);
       const idKey = svc.getIdentifier();
@@ -465,8 +457,7 @@ export class ModelRouter {
     // UPSERT - Advanced //
     ///////////////////////
     this.router.put(`/${this.options.mutationPath}`, async (req: Request) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'upsert');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'upsert');
 
       const svc = req.macl.getPublicService(this.modelName);
       const idKey = svc.getIdentifier();
@@ -528,8 +519,7 @@ export class ModelRouter {
     // DELETE //
     ////////////
     this.router.delete(`/:${this.options.idParam}`, async (req: Request) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'delete');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'delete');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
       const svc = req.macl.getPublicService(this.modelName);
@@ -544,8 +534,7 @@ export class ModelRouter {
     // DISTINCT //
     //////////////
     this.router.get('/distinct/:field', async (req: Request) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'distinct');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'distinct');
 
       const field = parsePathParam(req.params.field, 'field');
       const svc = req.macl.getPublicService(this.modelName);
@@ -557,8 +546,7 @@ export class ModelRouter {
     });
 
     this.router.post('/distinct/:field', async (req: Request) => {
-      const allowed = await req.macl.isAllowed(this.modelName, 'distinct');
-      if (!allowed) throw new clientErrors.UnauthorizedError();
+      await this.assertAllowed(req, 'distinct');
 
       const field = parsePathParam(req.params.field, 'field');
       // @Deprecated option 'query'
@@ -590,8 +578,7 @@ export class ModelRouter {
       // LIST //
       //////////
       this.router.get(`/:${this.options.idParam}/${sub}`, async (req: Request) => {
-        const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.list`);
-        if (!allowed) throw new clientErrors.UnauthorizedError();
+        await this.assertAllowed(req, `subs.${sub}.list`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
         const svc = req.macl.getPublicService(this.modelName);
@@ -605,8 +592,7 @@ export class ModelRouter {
       // LIST - Advanced //
       /////////////////////
       this.router.post(`/:${this.options.idParam}/${sub}/${this.options.queryPath}`, async (req: Request) => {
-        const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.list`);
-        if (!allowed) throw new clientErrors.UnauthorizedError();
+        await this.assertAllowed(req, `subs.${sub}.list`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
         const body = parseBodyWithSchema(
@@ -625,8 +611,7 @@ export class ModelRouter {
       // BULK UPDATE //
       /////////////////
       this.router.patch(`/:${this.options.idParam}/${sub}`, async (req: Request) => {
-        const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.update`);
-        if (!allowed) throw new clientErrors.UnauthorizedError();
+        await this.assertAllowed(req, `subs.${sub}.update`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
         const data = parseBodyWithSchema(
@@ -645,8 +630,7 @@ export class ModelRouter {
       // READ //
       //////////
       this.router.get(`/:${this.options.idParam}/${sub}/:subId`, async (req: Request) => {
-        const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.read`);
-        if (!allowed) throw new clientErrors.UnauthorizedError();
+        await this.assertAllowed(req, `subs.${sub}.read`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
         const subId = parsePathParam(req.params.subId, 'subId');
@@ -661,8 +645,7 @@ export class ModelRouter {
       // READ - Advanced //
       /////////////////////
       this.router.post(`/:${this.options.idParam}/${sub}/:subId/${this.options.queryPath}`, async (req: Request) => {
-        const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.read`);
-        if (!allowed) throw new clientErrors.UnauthorizedError();
+        await this.assertAllowed(req, `subs.${sub}.read`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
         const subId = parsePathParam(req.params.subId, 'subId');
@@ -688,8 +671,7 @@ export class ModelRouter {
       // UPDATE //
       ////////////
       this.router.patch(`/:${this.options.idParam}/${sub}/:subId`, async (req: Request) => {
-        const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.update`);
-        if (!allowed) throw new clientErrors.UnauthorizedError();
+        await this.assertAllowed(req, `subs.${sub}.update`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
         const subId = parsePathParam(req.params.subId, 'subId');
@@ -709,8 +691,7 @@ export class ModelRouter {
       // CREATE //
       ////////////
       this.router.post(`/:${this.options.idParam}/${sub}`, async (req: Request) => {
-        const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.create`);
-        if (!allowed) throw new clientErrors.UnauthorizedError();
+        await this.assertAllowed(req, `subs.${sub}.create`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
         const data = parseBodyWithSchema(
@@ -730,8 +711,7 @@ export class ModelRouter {
       // DELETE //
       ////////////
       this.router.delete(`/:${this.options.idParam}/${sub}/:subId`, async (req: Request) => {
-        const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.delete`);
-        if (!allowed) throw new clientErrors.UnauthorizedError();
+        await this.assertAllowed(req, `subs.${sub}.delete`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
         const subId = parsePathParam(req.params.subId, 'subId');
