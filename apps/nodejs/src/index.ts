@@ -119,8 +119,8 @@ async function start() {
 
   app.get('/', (_req, res) => {
     res.json({
-      name: 'access-router-nodejs-sample',
-      description: 'TypeScript Express sample app for @web-ts-toolkit/access-router',
+      name: 'nodejs-sample',
+      description: 'TypeScript Express sample app for trying @web-ts-toolkit packages',
       endpoints: {
         fruitList: 'GET /fruit',
         fruitRead: 'GET /fruit/:id',

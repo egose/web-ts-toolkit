@@ -1,5 +1,5 @@
 {
-  "name": "access-router-nodejs-sample",
+  "name": "nodejs-sample",
   "private": true,
   "scripts": {
     "build:deps": "pnpm --filter @web-ts-toolkit/access-router... build",

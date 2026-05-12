@@ -1,4 +1,4 @@
-# access-router-nodejs-sample
+# nodejs-sample
 
 Small TypeScript Express app for trying `@web-ts-toolkit/access-router` with both in-memory and Mongo-backed demos.
 
@@ -13,8 +13,8 @@ From the repo root:
 
 ```sh
 pnpm install
-pnpm --filter access-router-nodejs-sample build
-pnpm --filter access-router-nodejs-sample start
+pnpm --filter nodejs-sample build
+pnpm --filter nodejs-sample start
 ```
 
 The app starts on `http://localhost:3000` by default.
