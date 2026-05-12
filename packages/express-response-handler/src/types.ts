@@ -12,6 +12,7 @@ export type NextFunction = (error?: unknown) => void;
 export type ExpressResponseHandlerOptions = {
   errorFormat?: ErrorFormat;
   errorDomain?: string;
+  rfc9457ContentType?: 'application/problem+json' | 'application/json';
 };
 
 export type ResponseLike = {

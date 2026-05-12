@@ -48,9 +48,9 @@ type GenericErrorSender = (res: ResponseLike, result: ErrorMessageResult, errorD
 
 const shouldSkipResponse = (res: ResponseLike, event: EventState): boolean => res.headersSent || event.canceled;
 
-const sendProblemJson = (res: ResponseLike, statusCode: number, payload: unknown): void => {
+const sendProblemJson = (res: ResponseLike, statusCode: number, payload: unknown, contentType: string): void => {
   res.status(statusCode);
-  res.set('Content-Type', RFC_9457_CONTENT_TYPE);
+  res.set('Content-Type', contentType);
   res.send(payload);
 };
 
@@ -68,7 +68,7 @@ const sendHttpErrorByFormat: Record<ErrorFormat, HttpErrorSender> = {
     res.status(error.statusCode ?? 500).send(toStructuredHttpErrorPayload(error, domain));
   },
   [ErrorFormats.rfc9457]: (res, error, domain) => {
-    sendProblemJson(res, error.statusCode ?? 500, toRfc9457HttpErrorPayload(error, domain));
+    sendProblemJson(res, error.statusCode ?? 500, toRfc9457HttpErrorPayload(error, domain), RFC_9457_CONTENT_TYPE);
   },
 };
 
@@ -84,7 +84,7 @@ const sendGenericErrorByFormat: Record<ErrorFormat, GenericErrorSender> = {
   [ErrorFormats.rfc9457]: (res, result) => {
     const payload = toRfc9457GenericErrorPayload(result);
 
-    sendProblemJson(res, payload.status ?? 422, payload);
+    sendProblemJson(res, payload.status ?? 422, payload, RFC_9457_CONTENT_TYPE);
   },
 };
 
@@ -113,6 +113,7 @@ const normalizeMiddlewareList = (fns: Array<MiddlewareFunction | MiddlewareFunct
 export function createHandler(options: ExpressResponseHandlerOptions = {}): ExpressResponseHandler {
   const errorFormat = options.errorFormat ?? ErrorFormats.simple;
   const errorDomain = options.errorDomain ?? 'express-response-handler';
+  const rfc9457ContentType = options.rfc9457ContentType ?? RFC_9457_CONTENT_TYPE;
 
   let errorMessageProvider = defaultErrorMessageProvider;
   let preJson: Hook | null = null;
@@ -167,11 +168,29 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
     const error = err as ErrorWithPayload;
 
     if (error.statusCode) {
+      if (errorFormat === ErrorFormats.rfc9457) {
+        sendProblemJson(
+          res,
+          error.statusCode ?? 500,
+          toRfc9457HttpErrorPayload(error, errorDomain),
+          rfc9457ContentType,
+        );
+        return;
+      }
+
       sendHttpErrorByFormat[errorFormat](res, error, errorDomain);
       return;
     }
 
     const result = errorMessageProvider(err);
+
+    if (errorFormat === ErrorFormats.rfc9457) {
+      const payload = toRfc9457GenericErrorPayload(result);
+
+      sendProblemJson(res, payload.status ?? 422, payload, rfc9457ContentType);
+      return;
+    }
+
     sendGenericErrorByFormat[errorFormat](res, result, errorDomain);
   };
 

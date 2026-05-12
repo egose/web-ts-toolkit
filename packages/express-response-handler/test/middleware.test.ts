@@ -420,8 +420,15 @@ describe('RFC 9457 error format', () => {
     errorFormat: ErrorFormats.rfc9457,
     errorDomain: 'api.example.com',
   });
+  const jsonProblemHandler = apiHandler.createHandler({
+    errorFormat: ErrorFormats.rfc9457,
+    errorDomain: 'api.example.com',
+    rfc9457ContentType: 'application/json',
+  });
   const validationKey = 'rfc9457-validation-error';
   const genericKey = 'rfc9457-generic-error';
+  const jsonValidationKey = 'rfc9457-json-validation-error';
+  const jsonGenericKey = 'rfc9457-json-generic-error';
 
   it('should return a problem details payload for HTTP errors', async () => {
     app.get(`/${validationKey}`, problemHandler.handleResponse(fnDetailedBadRequest));
@@ -468,6 +475,68 @@ describe('RFC 9457 error format', () => {
     const response = await request(app)
       .get(`/${genericKey}`)
       .expect('Content-Type', /application\/problem\+json/)
+      .expect(422);
+
+    expect(response.body).toEqual({
+      type: 'https://api.example.com/problems/request-failed',
+      title: 'Request failed',
+      status: 422,
+      detail: 'request failed',
+      instance: '/problems/request-failed/456',
+      errors: [
+        {
+          detail: 'email is required',
+          pointer: '#/email',
+        },
+      ],
+    });
+  });
+
+  it('should allow RFC 9457 payloads to be returned as application/json for HTTP errors', async () => {
+    app.get(`/${jsonValidationKey}`, jsonProblemHandler.handleResponse(fnDetailedBadRequest));
+
+    const response = await request(app)
+      .get(`/${jsonValidationKey}`)
+      .expect('Content-Type', /application\/json/)
+      .expect(400);
+
+    expect(response.body).toEqual({
+      type: 'https://api.example.com/problems/invalid-email',
+      title: 'Invalid email address',
+      status: 400,
+      detail: 'invalid email',
+      instance: '/problems/invalid-email/123',
+      errors: [
+        {
+          field: 'email',
+          description: 'Email must be a valid address.',
+        },
+      ],
+    });
+  });
+
+  it('should allow RFC 9457 payloads to be returned as application/json for generic errors', async () => {
+    jsonProblemHandler.errorMessageProvider = function () {
+      return {
+        type: 'https://api.example.com/problems/request-failed',
+        title: 'Request failed',
+        status: 422,
+        detail: 'request failed',
+        instance: '/problems/request-failed/456',
+        errors: [
+          {
+            detail: 'email is required',
+            pointer: '#/email',
+          },
+        ],
+      };
+    };
+
+    app.get(`/${jsonGenericKey}`, jsonProblemHandler.handleResponse(fnError1));
+
+    const response = await request(app)
+      .get(`/${jsonGenericKey}`)
+      .expect('Content-Type', /application\/json/)
       .expect(422);
 
     expect(response.body).toEqual({
