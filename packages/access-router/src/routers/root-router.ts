@@ -1,5 +1,6 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
+import mongoose from 'mongoose';
 import { isNumber as _isNumber, orderBy as _orderBy } from '@web-ts-toolkit/utils';
 import { setCore } from '../core';
 import { mapCodeToMessage, mapCodeToStatusCode } from '../helpers';
@@ -57,8 +58,11 @@ export class RootRouter {
   }
 
   private async processOp(req: Request, item: RootQueryEntry) {
+    if (!mongoose.models[item.model]) {
+      return { success: false, code: Codes.BadRequest, data: null, message: `Model ${item.model} not found` };
+    }
+
     const svc = req.macl.getPublicService(item.model);
-    if (!svc) return { success: false, code: Codes.BadRequest, data: null, message: `Model ${item.model} not found` };
 
     if (!ALL_ROUTES.includes(item.op))
       return { success: false, code: Codes.BadRequest, data: null, message: `Operation ${item.op} not found` };
