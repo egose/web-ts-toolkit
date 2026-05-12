@@ -3,7 +3,7 @@ import get from 'lodash/get';
 import keys from 'lodash/keys';
 import { buildRefs, buildSubPaths } from './helpers';
 
-const modelRefs: Record<string, any> = {};
+const modelRefs: Record<string, Record<string, unknown>> = {};
 const modelSubs: { [key: string]: string[] } = {};
 const modelAtts: Record<string, string[]> = {};
 

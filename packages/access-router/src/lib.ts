@@ -3,42 +3,48 @@ import isFunction from 'lodash/isFunction';
 import isPlainObject from 'lodash/isPlainObject';
 
 export class PermissionDoc extends Document {
-  _doc: any;
+  _doc: Record<string, unknown>;
 
-  constructor(...args: any[]) {
+  constructor(...args: unknown[]) {
     super(...args);
     this._doc = {};
   }
 }
 
-export const isSchema = (val) => val instanceof Schema;
-export const isObjectIdType = (val) => val === 'ObjectId' || val === Schema.Types.ObjectId;
-export const isReference = (val) => isPlainObject(val) && val.ref && isObjectIdType(val.type);
+export const isSchema = (val: unknown): val is Schema => val instanceof Schema;
+export const isObjectIdType = (val: unknown) => val === 'ObjectId' || val === Schema.Types.ObjectId;
+export const isReference = (val: unknown) => isPlainObject(val) && !!val.ref && isObjectIdType(val.type);
 
-export const isPromise = function isPromise(val) {
-  return val && val.then && isFunction(val.then);
+export const isPromise = function isPromise<T = unknown>(val: unknown): val is PromiseLike<T> {
+  return !!val && isFunction((val as { then?: unknown }).then);
 };
 
-export const isDocument = function isDocument(doc): doc is PermissionDoc {
+export const isDocument = function isDocument(doc: unknown): doc is PermissionDoc {
   return doc instanceof Document;
 };
 
-export const toAsyncFn = function toAsyncFn(fn: Function, defaultValue?: any) {
+export const toAsyncFn = function toAsyncFn<TArgs extends unknown[], TResult>(
+  fn?: ((this: unknown, ...args: TArgs) => TResult | PromiseLike<TResult>) | null,
+  defaultValue?: TResult,
+) {
   if (!fn) return () => Promise.resolve(defaultValue);
-  return function asyncFn(...args) {
+  return function asyncFn(this: unknown, ...args: TArgs) {
     const ret = fn.apply(this, args);
     return isPromise(ret) ? ret : Promise.resolve(ret);
   };
 };
 
-export const mapValuesAsync = async function mapValuesAsync(object, asyncFn) {
+export const mapValuesAsync = async function mapValuesAsync<TObject extends Record<string, unknown>, TResult>(
+  object: TObject,
+  asyncFn: (value: TObject[keyof TObject], key: string, object: TObject) => Promise<TResult> | TResult,
+) {
   return Object.fromEntries(
     await Promise.all(Object.entries(object).map(async ([key, value]) => [key, await asyncFn(value, key, object)])),
   );
 };
 
-export const arrToObj = (arr: string[]): any => {
-  const obj = {};
+export const arrToObj = (arr: string[]): Record<string, true> => {
+  const obj: Record<string, true> = {};
   for (let x = 0; x < arr.length; x++) {
     obj[arr[x]] = true;
   }

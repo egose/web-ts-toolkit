@@ -370,7 +370,7 @@ export class Core {
     const decorate = getModelOption(modelName, `decorate.${access}`, null);
 
     const permissions = this.getGlobalPermissions();
-    context.docPermissions = getDocPermissions(modelName, doc);
+    context.docPermissions = getDocPermissions(modelName, doc) as Record<string, unknown>;
 
     return callMiddlewareChain(this.req, decorate, doc, permissions, context);
   }
@@ -387,7 +387,7 @@ export class Core {
     return callMiddlewareChain(this.req, decorateAll, docs, permissions, context);
   }
 
-  runTasks<T>(modelName: string, docObject: T, task: Task | Task[]): T {
+  runTasks<T extends object>(modelName: string, docObject: T, task: Task | Task[]): T {
     const tasks = compact(castArray(task));
     if (tasks.length === 0) return docObject;
 

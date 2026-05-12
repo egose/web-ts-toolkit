@@ -441,7 +441,7 @@ export class Service extends Base {
 
     doc = await this.addDocPermissions(doc, 'update', context);
 
-    context.docPermissions = this.getDocPermissions(doc);
+    context.docPermissions = this.getDocPermissions(doc) as Record<string, unknown>;
     context.currentDoc = doc;
 
     const allowedFields = await this.genAllowedFields(doc, 'update');

@@ -21,31 +21,31 @@ class Permission {
     }
   }
 
-  prop(permission) {
+  prop(permission: string) {
     return this.$_permissions.hasOwnProperty(permission);
   }
 
-  has(permission) {
+  has(permission: string) {
     return this.$_permissions[permission] || false;
   }
 
-  hasAny(permissions) {
+  hasAny(permissions: string[]) {
     return permissions.some((permission) => {
       return this.has(permission);
     });
   }
 
-  hasAll(permissions) {
+  hasAll(permissions: string[]) {
     return permissions.every((permission) => {
       return this.has(permission);
     });
   }
 
-  any(permissions) {
+  any(permissions: string[]) {
     return this.hasAny(permissions);
   }
 
-  all(permissions) {
+  all(permissions: string[]) {
     return this.hasAll(permissions);
   }
 }

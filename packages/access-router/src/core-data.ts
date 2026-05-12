@@ -57,13 +57,13 @@ import {
 export class DataCore {
   private req: Request;
   private caches: {
-    baseFilter: Cache<string, any>;
+    baseFilter: Cache<string, Filter>;
   };
 
   constructor(req: Request) {
     this.req = req;
     this.caches = {
-      baseFilter: new Cache<string, any>(),
+      baseFilter: new Cache<string, Filter>(),
     };
   }
 
@@ -87,7 +87,7 @@ export class DataCore {
     });
   }
 
-  async genAllowedFields(dataName: string, doc: any, access: SelectAccess, baseFields = []) {
+  async genAllowedFields(dataName: string, doc: unknown, access: SelectAccess, baseFields = []) {
     const permissionSchema = getDataOption(dataName, 'permissionSchema');
 
     const permissions = this.getGlobalPermissions();
@@ -102,9 +102,9 @@ export class DataCore {
     });
   }
 
-  async pickAllowedFields(dataName: string, doc: any, access: SelectAccess, baseFields = []) {
+  async pickAllowedFields<TDoc>(dataName: string, doc: TDoc, access: SelectAccess, baseFields = []): Promise<TDoc> {
     const allowed = await this.genAllowedFields(dataName, doc, access, baseFields);
-    return pickDocFields(doc, allowed);
+    return pickDocFields(doc, allowed) as TDoc;
   }
 
   async genSelect(
@@ -139,14 +139,14 @@ export class DataCore {
     return fields;
   }
 
-  async decorate(dataName: string, doc: any, access: DecorateAccess, context: DataMiddlewareContext = {}) {
+  async decorate<TDoc>(dataName: string, doc: TDoc, access: DecorateAccess, context: DataMiddlewareContext = {}) {
     const decorate = getDataOption(dataName, `decorate.${access}`, null);
 
     const permissions = this.getGlobalPermissions();
     return callMiddlewareChain(this.req, decorate, doc, permissions, context);
   }
 
-  async decorateAll(dataName: string, docs: any[], access: DecorateAllAccess) {
+  async decorateAll<TDoc>(dataName: string, docs: TDoc[], access: DecorateAllAccess): Promise<TDoc[]> {
     const decorateAll = getDataOption(dataName, `decorateAll.${access}`, null);
     const permissions = this.getGlobalPermissions();
 

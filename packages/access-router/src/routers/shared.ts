@@ -1,7 +1,8 @@
 import { CustomHeaders } from '../enums';
 import { ListResult, Request } from '../interfaces';
 
-export const parseBooleanString = (str: string, defaultValue?: any) => (str ? str === 'true' : defaultValue);
+export const parseBooleanString = (str: string | undefined, defaultValue?: boolean) =>
+  str ? str === 'true' : defaultValue;
 
 export const getStringRouteParam = (value: string | string[] | undefined) =>
   (Array.isArray(value) ? value[0] : value) ?? '';

@@ -10,7 +10,7 @@ import { setDataCore } from '../core-data';
 import { setDataOption, setDataOptions, getDataOptions, getExactDataOption } from '../options';
 import { processUrl } from '../lib';
 import { handleResultError } from '../helpers';
-import { DataRouterOptions, ExtendedDataRouterOptions, Request } from '../interfaces';
+import { DataRouterOptions, ExtendedDataRouterOptions, Request, Filter } from '../interfaces';
 import { logger } from '../logger';
 import { formatListResponse, parseBooleanString } from './shared';
 import { accessRouterResponseHandler } from './index';
@@ -28,11 +28,11 @@ const clientErrors = JsonRouter.clientErrors;
 const success = JsonRouter.success;
 
 type SetTargetOption = {
-  (option: any): DataRouter;
-  (key: string, option: any): DataRouter;
+  (option: unknown): DataRouter;
+  (key: string, option: unknown): DataRouter;
 };
 
-function setOption(parentKey: string, optionKey: any, option?: any) {
+function setOption(this: DataRouter, parentKey: string, optionKey: unknown, option?: unknown) {
   const key = isUndefined(option) ? parentKey : `${parentKey}.${optionKey}`;
   const value = isUndefined(option) ? optionKey : option;
 
@@ -116,7 +116,11 @@ export class DataRouter {
 
       const svc = req.dacl.getService(this.dataName);
 
-      const result = await svc.find(filter, { select, sort, skip, limit, page, pageSize }, { includeCount });
+      const result = await svc.find(
+        (filter ?? {}) as Filter,
+        { select, sort: typeof sort === 'string' ? sort : undefined, skip, limit, page, pageSize },
+        { includeCount },
+      );
 
       handleResultError(result);
 
@@ -162,7 +166,7 @@ export class DataRouter {
       );
 
       const svc = req.dacl.getService(this.dataName);
-      const result = await svc.findOne(filter, { select }, {});
+      const result = await svc.findOne((filter ?? {}) as Filter, { select }, {});
 
       handleResultError(result);
 

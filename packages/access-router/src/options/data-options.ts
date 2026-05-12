@@ -30,7 +30,10 @@ const createDataOptions = (dataName: string) => {
 
   manager
     .onchange('basePath', function (newval, key, target, oldval) {
-      target[key] = normalizeBasePath(dataName, newval);
+      (target as Record<string, unknown>)[key] = normalizeBasePath(
+        dataName,
+        isString(newval) || isNil(newval) ? newval : undefined,
+      );
     })
     .build();
 

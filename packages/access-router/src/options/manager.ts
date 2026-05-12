@@ -3,7 +3,7 @@ import set from 'lodash/set';
 import assign from 'lodash/assign';
 
 export const getNestedOption = <T extends object, K extends keyof T>(
-  manager: OptionsManager<any, T>,
+  manager: OptionsManager<object, T>,
   key: K | string,
   defaultValue?: T[K],
 ) => {
@@ -30,7 +30,7 @@ export const getNestedOption = <T extends object, K extends keyof T>(
 export class OptionsManager<T1 extends object, T2 extends object> {
   private readonly defaultOptions: T1;
   private currentOptions: T1;
-  private listeners: { [key in keyof T1]?: Function };
+  private listeners: Record<string, (value: unknown, key: string, target: T1, oldValue: unknown) => void>;
 
   constructor(defaultOptions: T1) {
     this.defaultOptions = defaultOptions;
@@ -69,7 +69,10 @@ export class OptionsManager<T1 extends object, T2 extends object> {
     assign(this.currentOptions, options);
   }
 
-  onchange<K extends keyof T1>(key: K | string, func: Function) {
+  onchange<K extends keyof T1>(
+    key: K | string,
+    func: (value: unknown, key: string, target: T1, oldValue: unknown) => void,
+  ) {
     set(this.listeners, key, func);
     return this;
   }

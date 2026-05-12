@@ -9,6 +9,7 @@ import { accessRouterResponseHandler } from './index';
 import { getGlobalOption, getModelOption } from '../options';
 import {
   ErrorResult,
+  Filter,
   ListResult,
   RootRouterOptions,
   ModelRouterOptions,
@@ -119,7 +120,10 @@ export class RootRouter {
       const allowed = await req.macl.canActivate(this.routeGuard);
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      const items: RootQueryEntry[] = parseBody(rootQuerySchema, req.body);
+      const items: RootQueryEntry[] = parseBody(rootQuerySchema, req.body).map((item) => ({
+        ...item,
+        filter: (item.filter ?? {}) as Filter,
+      }));
       const groupedItems = this.groupItemsByOrder(items);
 
       const results = [];

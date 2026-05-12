@@ -76,7 +76,7 @@ export class PublicService extends Service {
 
     let docs = result.data;
     docs = await this.decorateAll(docs, 'list', { model: this.model.model, modelName: this.modelName });
-    docs = docs.map((row) => this.runTasks(row, tasks));
+    docs = docs.map((row) => this.runTasks(row as Record<string, unknown>, tasks));
 
     result.data = docs;
     return result;
@@ -102,7 +102,7 @@ export class PublicService extends Service {
       async (doc, context: MiddlewareContext) => {
         doc = toObject(doc);
         doc = await this.decorate(doc, 'create', context);
-        doc = this.runTasks(doc, tasks);
+        doc = this.runTasks(doc as Record<string, unknown>, tasks);
 
         if (select) doc = pick(doc, [...normalizeSelect(select), ...this.baseFieldsExt]);
         return doc;
@@ -167,7 +167,7 @@ export class PublicService extends Service {
 
     let doc = toObject(result.data);
     doc = await this.decorate(doc, access, result.context);
-    doc = this.runTasks(doc, tasks);
+    doc = this.runTasks(doc as Record<string, unknown>, tasks);
 
     result.data = doc;
     return result;
@@ -230,7 +230,7 @@ export class PublicService extends Service {
 
     let doc = toObject(result.data);
     doc = await this.decorate(doc, access, result.context);
-    doc = this.runTasks(doc, tasks);
+    doc = this.runTasks(doc as Record<string, unknown>, tasks);
 
     result.data = doc;
     return result;

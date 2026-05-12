@@ -14,7 +14,11 @@ import { getModelOption } from '../options';
 import { SubPopulate } from '../interfaces';
 import { normalizeSelect } from './query';
 
-export function getDocValue(doc, path, defalutValue) {
+type DocumentLike = Document & { _doc: Record<string, unknown> };
+type DocValue = DocumentLike | Record<string, unknown>;
+type LegacyPopulateResult = { execPopulate?: () => Promise<unknown> };
+
+export function getDocValue(doc: DocValue, path: string, defalutValue?: unknown) {
   if (isDocument(doc)) {
     return get(doc._doc, path, defalutValue);
   } else if (isPlainObject(doc)) {
@@ -22,7 +26,7 @@ export function getDocValue(doc, path, defalutValue) {
   }
 }
 
-export function setDocValue(doc, path, value) {
+export function setDocValue(doc: unknown, path: string, value: unknown) {
   if (isDocument(doc)) {
     set(doc._doc, path, value);
   } else if (isPlainObject(doc)) {
@@ -30,37 +34,37 @@ export function setDocValue(doc, path, value) {
   }
 }
 
-export function getDocPermissions(modelName, doc) {
+export function getDocPermissions(modelName: string, doc: unknown) {
   const docPermissionField = getModelOption(modelName, 'documentPermissionField');
-  return getDocValue(doc, docPermissionField, {});
+  return getDocValue(doc as DocValue, docPermissionField, {});
 }
 
-export function getModelKeys(doc) {
+export function getModelKeys(doc: unknown) {
   return Object.keys(isDocument(doc) ? doc._doc : doc);
 }
 
-export function toObject(doc) {
+export function toObject<T>(doc: T | DocumentLike): T | Record<string, unknown> {
   return isDocument(doc) ? doc.toObject() : doc;
 }
 
-export function pickDocFields(doc, fields = []) {
+export function pickDocFields(doc: unknown, fields: string[] = []) {
   if (isDocument(doc)) {
     doc._doc = pick(doc._doc, fields);
     return doc;
   } else {
-    return pick(doc, fields);
+    return pick(doc as Record<string, unknown>, fields);
   }
 }
 
-export async function populateDoc(doc: Document, target) {
+export async function populateDoc(doc: Document, target: unknown) {
   let p = doc.populate(target);
   if (isPromise(p)) return p;
 
   // for backward compatibility, utilize the 'execPopulate' method to populate the target fields.
-  return 'execPopulate' in p && (p as any).execPopulate();
+  return 'execPopulate' in p && (p as LegacyPopulateResult).execPopulate?.();
 }
 
-export const genSubPopulate = (sub: string, popul: any) => {
+export const genSubPopulate = (sub: string, popul?: SubPopulate | SubPopulate[] | string | string[]) => {
   if (!popul) return [];
 
   let populate = isArray(popul) ? popul : [popul];

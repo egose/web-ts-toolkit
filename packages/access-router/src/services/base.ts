@@ -159,7 +159,7 @@ export class Base {
     return this.req.macl.prepare(this.modelName, allowedData, access, context);
   }
 
-  public runTasks<T>(docObject: T, tasks: Task | Task[]): T {
+  public runTasks<T extends object>(docObject: T, tasks: Task | Task[]): T {
     return this.req.macl.runTasks(this.modelName, docObject, tasks);
   }
 
@@ -291,10 +291,10 @@ export class Base {
   }
 
   protected async parseClientData(filter) {
-    const result = await iterateQuery(filter, async (fo: FilterOperator, val: any, key: string) => {
+    const result = await iterateQuery(filter, async (fo: FilterOperator, val: unknown, key: string) => {
       switch (fo) {
         case FilterOperator.SubQuery:
-          return this.handleSubQuery(val, key);
+          return this.handleSubQuery(val as SubQueryEntry, key);
         case FilterOperator.Date:
           return this.handleDate(val, key);
         default:
@@ -341,7 +341,7 @@ export class Base {
     return ret;
   }
 
-  private async handleDate(val: any, key: string) {
+  private async handleDate(val: unknown, key: string) {
     return new Date();
   }
 }

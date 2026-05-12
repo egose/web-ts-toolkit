@@ -19,7 +19,7 @@ import { getDefaultModelOption, getDefaultModelOptions } from './default-model-o
 mschema2Jsonschema(mongoose);
 const pluralize = mongoose.pluralize();
 
-type ExtendedModel = mongoose.Model<any> & { jsonSchema: Function };
+type ExtendedModel = mongoose.Model<unknown> & { jsonSchema: () => Record<string, unknown> };
 type PermissionKeyMap = Record<string, string[]>;
 
 const defaultModelOptions: ModelRouterOptions = {
@@ -29,7 +29,7 @@ const defaultModelOptions: ModelRouterOptions = {
 
 const modelOptions: Record<string, OptionsManager<ModelRouterOptions, ExtendedModelRouterOptions>> = {};
 
-const modelJsonSchemas: Record<string, any> = {};
+const modelJsonSchemas: Record<string, Record<string, unknown>> = {};
 
 const normalizeBasePath = (name: string, value: string | null | undefined) => {
   if (isNil(value)) {
@@ -113,9 +113,10 @@ const createModelOptions = (modelName: string) => {
 
   manager
     .onchange('permissionSchema', function (newval, key, target, oldval) {
+      const permissionSchema = (newval ?? {}) as NonNullable<ModelRouterOptions['permissionSchema']>;
       const { schemaKeys, globalPermissionKeys, modelPermissionKeys } = classifyPermissionSchema(
-        newval,
-        target.modelPermissionPrefix,
+        permissionSchema,
+        target.modelPermissionPrefix ?? '',
       );
 
       target._permissionSchemaKeys = schemaKeys;
@@ -123,7 +124,10 @@ const createModelOptions = (modelName: string) => {
       target._modelPermissionKeys = modelPermissionKeys;
     })
     .onchange('basePath', function (newval, key, target, oldval) {
-      target[key] = normalizeBasePath(modelName, newval);
+      (target as Record<string, unknown>)[key] = normalizeBasePath(
+        modelName,
+        isString(newval) || isNil(newval) ? newval : undefined,
+      );
     })
     .build();
 

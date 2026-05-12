@@ -1,10 +1,145 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import { z } from 'zod';
+import type { Filter, Include, Populate, Projection, Sort, SubPopulate, Task } from '../interfaces';
 
 type ValidationError = {
   detail: string;
   pointer?: string;
   parameter?: string;
+};
+
+export type ListQueryInput = {
+  skip?: string;
+  limit?: string;
+  page?: string;
+  page_size?: string;
+  skim?: 'true' | 'false';
+  include_permissions?: 'true' | 'false';
+  include_count?: 'true' | 'false';
+  include_extra_headers?: 'true' | 'false';
+};
+
+export type CreateQueryInput = {
+  include_permissions?: 'true' | 'false';
+};
+
+export type ReadQueryInput = {
+  include_permissions?: 'true' | 'false';
+  try_list?: 'true' | 'false';
+};
+
+export type UpdateQueryInput = {
+  returning_all?: 'true' | 'false';
+};
+
+export type UpsertQueryInput = {
+  returning_all?: 'true' | 'false';
+  include_permissions?: 'true' | 'false';
+};
+
+export type AdvancedListBody = {
+  query?: Filter | unknown[];
+  filter?: Filter | unknown[];
+  select?: Projection;
+  sort?: Sort;
+  populate?: Populate[] | string;
+  include?: Include | Include[];
+  tasks?: Task | Task[];
+  skip?: string | number;
+  limit?: string | number;
+  page?: string | number;
+  pageSize?: string | number;
+  options?: {
+    skim?: boolean;
+    includePermissions?: boolean;
+    includeCount?: boolean;
+    includeExtraHeaders?: boolean;
+    populateAccess?: unknown;
+  };
+};
+
+export type CountBody = {
+  query?: Filter | unknown[];
+  filter?: Filter | unknown[];
+  access?: unknown;
+};
+
+export type AdvancedReadFilterBody = {
+  filter?: Filter | unknown[];
+  select?: Projection;
+  sort?: Sort;
+  populate?: Populate[] | string;
+  include?: Include | Include[];
+  tasks?: Task | Task[];
+  options?: {
+    skim?: boolean;
+    includePermissions?: boolean;
+    tryList?: boolean;
+    populateAccess?: unknown;
+  };
+};
+
+export type AdvancedReadBody = {
+  select?: Projection;
+  populate?: Populate[] | string;
+  include?: Include | Include[];
+  tasks?: Task | Task[];
+  options?: {
+    skim?: boolean;
+    includePermissions?: boolean;
+    tryList?: boolean;
+    populateAccess?: unknown;
+  };
+};
+
+export type AdvancedCreateBody = {
+  data: unknown;
+  select?: Projection;
+  populate?: Populate[] | string;
+  tasks?: Task | Task[];
+  options?: {
+    includePermissions?: boolean;
+    populateAccess?: unknown;
+  };
+};
+
+export type AdvancedUpdateBody = {
+  data: unknown;
+  select?: Projection;
+  populate?: Populate[] | string;
+  tasks?: Task | Task[];
+  options?: {
+    returningAll?: boolean;
+    includePermissions?: boolean;
+    populateAccess?: unknown;
+  };
+};
+
+export type AdvancedUpsertBody = {
+  data: Record<string, unknown>;
+  select?: Projection;
+  populate?: Populate[] | string;
+  tasks?: Task | Task[];
+  options?: {
+    returningAll?: boolean;
+    includePermissions?: boolean;
+    populateAccess?: unknown;
+  };
+};
+
+export type DistinctBody = {
+  query?: Filter | unknown[];
+  filter?: Filter | unknown[];
+};
+
+export type SubListBody = {
+  filter?: Filter;
+  fields?: string[];
+};
+
+export type SubReadBody = {
+  fields?: string[];
+  populate?: SubPopulate | SubPopulate[] | string | string[];
 };
 
 const clientErrors = JsonRouter.clientErrors;
@@ -99,7 +234,7 @@ const taskSchema = z.object({
 const tasksSchema = z.union([taskSchema, z.array(taskSchema)]);
 const objectOrArraySchema = z.union([z.record(z.string(), z.unknown()), z.array(z.unknown())]);
 
-const listQuerySchema: z.ZodTypeAny = z
+const listQuerySchema = z
   .object({
     skip: positiveIntegerString.optional(),
     limit: positiveIntegerString.optional(),
@@ -112,33 +247,33 @@ const listQuerySchema: z.ZodTypeAny = z
   })
   .passthrough();
 
-const createQuerySchema: z.ZodTypeAny = z
+const createQuerySchema = z
   .object({
     include_permissions: queryBooleanString.optional(),
   })
   .passthrough();
 
-const readQuerySchema: z.ZodTypeAny = z
+const readQuerySchema = z
   .object({
     include_permissions: queryBooleanString.optional(),
     try_list: queryBooleanString.optional(),
   })
   .passthrough();
 
-const updateQuerySchema: z.ZodTypeAny = z
+const updateQuerySchema = z
   .object({
     returning_all: queryBooleanString.optional(),
   })
   .passthrough();
 
-const upsertQuerySchema: z.ZodTypeAny = z
+const upsertQuerySchema = z
   .object({
     returning_all: queryBooleanString.optional(),
     include_permissions: queryBooleanString.optional(),
   })
   .passthrough();
 
-const rootQueryEntrySchema: z.ZodTypeAny = z
+const rootQueryEntrySchema = z
   .object({
     model: z.string().min(1),
     op: z.string().min(1),
@@ -152,9 +287,9 @@ const rootQueryEntrySchema: z.ZodTypeAny = z
   })
   .passthrough();
 
-export const rootQuerySchema: z.ZodTypeAny = z.array(rootQueryEntrySchema);
+export const rootQuerySchema = z.array(rootQueryEntrySchema);
 
-export const listBodySchema: z.ZodTypeAny = z
+export const listBodySchema = z
   .object({
     query: objectOrArraySchema.optional(),
     filter: objectOrArraySchema.optional(),
@@ -180,7 +315,7 @@ export const listBodySchema: z.ZodTypeAny = z
   })
   .passthrough();
 
-export const dataListBodySchema: z.ZodTypeAny = z
+export const dataListBodySchema = z
   .object({
     filter: objectOrArraySchema.optional(),
     select: projectionSchema.optional(),
@@ -199,7 +334,7 @@ export const dataListBodySchema: z.ZodTypeAny = z
   })
   .passthrough();
 
-export const countBodySchema: z.ZodTypeAny = z
+export const countBodySchema = z
   .object({
     query: objectOrArraySchema.optional(),
     filter: objectOrArraySchema.optional(),
@@ -207,7 +342,7 @@ export const countBodySchema: z.ZodTypeAny = z
   })
   .passthrough();
 
-export const readFilterBodySchema: z.ZodTypeAny = z
+export const readFilterBodySchema = z
   .object({
     filter: objectOrArraySchema.optional(),
     select: projectionSchema.optional(),
@@ -227,7 +362,7 @@ export const readFilterBodySchema: z.ZodTypeAny = z
   })
   .passthrough();
 
-export const dataReadFilterBodySchema: z.ZodTypeAny = z
+export const dataReadFilterBodySchema = z
   .object({
     filter: objectOrArraySchema.optional(),
     select: projectionSchema.optional(),
@@ -235,7 +370,7 @@ export const dataReadFilterBodySchema: z.ZodTypeAny = z
   })
   .passthrough();
 
-export const readByIdBodySchema: z.ZodTypeAny = z
+export const readByIdBodySchema = z
   .object({
     select: projectionSchema.optional(),
     populate: populateSchema.optional(),
@@ -253,14 +388,14 @@ export const readByIdBodySchema: z.ZodTypeAny = z
   })
   .passthrough();
 
-export const dataReadByIdBodySchema: z.ZodTypeAny = z
+export const dataReadByIdBodySchema = z
   .object({
     select: projectionSchema.optional(),
     options: z.object({}).passthrough().optional(),
   })
   .passthrough();
 
-export const advancedCreateBodySchema: z.ZodTypeAny = z
+export const advancedCreateBodySchema = z
   .object({
     data: z.unknown(),
     select: projectionSchema.optional(),
@@ -276,13 +411,13 @@ export const advancedCreateBodySchema: z.ZodTypeAny = z
   })
   .passthrough();
 
-export const createBodySchema: z.ZodTypeAny = z.union([
+export const createBodySchema = z.union([
   z.record(z.string(), z.unknown()),
   z.array(z.record(z.string(), z.unknown())),
 ]);
-export const updateBodySchema: z.ZodTypeAny = z.record(z.string(), z.unknown());
+export const updateBodySchema = z.record(z.string(), z.unknown());
 
-export const advancedUpdateBodySchema: z.ZodTypeAny = z
+export const advancedUpdateBodySchema = z
   .object({
     data: z.unknown(),
     select: projectionSchema.optional(),
@@ -299,9 +434,9 @@ export const advancedUpdateBodySchema: z.ZodTypeAny = z
   })
   .passthrough();
 
-export const upsertBodySchema: z.ZodTypeAny = z.record(z.string(), z.unknown());
+export const upsertBodySchema = z.record(z.string(), z.unknown());
 
-export const advancedUpsertBodySchema: z.ZodTypeAny = z
+export const advancedUpsertBodySchema = z
   .object({
     data: z.record(z.string(), z.unknown()),
     select: projectionSchema.optional(),
@@ -318,24 +453,24 @@ export const advancedUpsertBodySchema: z.ZodTypeAny = z
   })
   .passthrough();
 
-export const distinctBodySchema: z.ZodTypeAny = z
+export const distinctBodySchema = z
   .object({
     query: objectOrArraySchema.optional(),
     filter: objectOrArraySchema.optional(),
   })
   .passthrough();
 
-export const subListBodySchema: z.ZodTypeAny = z
+export const subListBodySchema = z
   .object({
     filter: z.record(z.string(), z.unknown()).optional(),
     fields: fieldsSchema.optional(),
   })
   .passthrough();
-export const subMutationBodySchema: z.ZodTypeAny = z.union([
+export const subMutationBodySchema = z.union([
   z.record(z.string(), z.unknown()),
   z.array(z.record(z.string(), z.unknown())),
 ]);
-export const subReadBodySchema: z.ZodTypeAny = z
+export const subReadBodySchema = z
   .object({
     fields: fieldsSchema.optional(),
     populate: subPopulateSchema.optional(),
@@ -358,7 +493,7 @@ export function parsePathParam(value: string | string[] | undefined, parameter: 
   return param;
 }
 
-export function parseQuery(schema: z.ZodTypeAny, value: unknown): any {
+export function parseQuery<TSchema extends z.ZodTypeAny>(schema: TSchema, value: unknown): z.output<TSchema> {
   const result = schema.safeParse(value);
   if (!result.success) {
     throwValidationError(result.error.issues, undefined, 'parameter');
@@ -367,7 +502,7 @@ export function parseQuery(schema: z.ZodTypeAny, value: unknown): any {
   return result.data;
 }
 
-export function parseBody(schema: z.ZodTypeAny, value: unknown): any {
+export function parseBody<TSchema extends z.ZodTypeAny>(schema: TSchema, value: unknown): z.output<TSchema> {
   const result = schema.safeParse(value ?? {});
   if (!result.success) {
     throwValidationError(result.error.issues, undefined, 'pointer');
@@ -376,9 +511,13 @@ export function parseBody(schema: z.ZodTypeAny, value: unknown): any {
   return result.data;
 }
 
-export function parseBodyWithSchema(schema: z.ZodTypeAny, value: unknown, userSchema?: z.ZodTypeAny) {
+export function parseBodyWithSchema<TSchema extends z.ZodTypeAny>(
+  schema: TSchema,
+  value: unknown,
+  userSchema?: z.ZodTypeAny,
+): z.output<TSchema> {
   const body = parseBody(schema, value);
-  return isZodSchema(userSchema) ? parseUserSchema(userSchema, body) : body;
+  return isZodSchema(userSchema) ? (parseUserSchema(userSchema, body) as z.output<TSchema>) : body;
 }
 
 export function parseNestedBodyWithSchema(
@@ -386,8 +525,8 @@ export function parseNestedBodyWithSchema(
   value: unknown,
   nestedKey: string,
   userSchema?: z.ZodTypeAny,
-) {
-  const body = parseBody(schema, value);
+): Record<string, unknown> {
+  const body = parseBody(schema, value) as Record<string, unknown>;
   if (!isZodSchema(userSchema)) return body;
 
   return {
