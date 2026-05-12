@@ -1,9 +1,11 @@
 import { OptionsManager } from './manager';
 import { GlobalOptions } from '../interfaces';
+import { defaultLogger } from '../logger';
 
 const globalOptions = new OptionsManager<GlobalOptions, GlobalOptions>({
   requestPermissionField: '_permissions',
   globalPermissions: () => ({}),
+  logger: defaultLogger,
 }).build();
 
 export const setGlobalOptions = (options: GlobalOptions) => {

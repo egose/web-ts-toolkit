@@ -55,15 +55,15 @@ type CreateDataRouter = {
   (dataName: string, options: DataRouterOptions): DataRouter;
 };
 
-type EgoseSet = {
+type WttSet = {
   <K extends keyof GlobalOptions>(key: K, value: GlobalOptions[K]): void;
   (options: { [K in keyof GlobalOptions]: GlobalOptions[K] }): void;
 };
 
-interface Egose {
+interface Wtt {
   createRouter: CreateRouter;
   createDataRouter: CreateDataRouter;
-  set: EgoseSet;
+  set: WttSet;
   setGlobalOptions: typeof setGlobalOptions;
   setGlobalOption: typeof setGlobalOption;
   getGlobalOptions: typeof getGlobalOptions;
@@ -83,19 +83,19 @@ interface Egose {
   DataRouter: typeof DataRouter;
 }
 
-const egose = middleware as typeof middleware & Egose;
+const wtt = middleware as typeof middleware & Wtt;
 
-egose.createRouter = function (modelName: string | RootRouterOptions, options: ModelRouterOptions | undefined) {
+wtt.createRouter = function (modelName: string | RootRouterOptions, options: ModelRouterOptions | undefined) {
   return isUndefined(options)
     ? new RootRouter(modelName as RootRouterOptions)
     : new ModelRouter(modelName as string, options);
 } as CreateRouter;
 
-egose.createDataRouter = function (dataName: string, options: DataRouterOptions) {
+wtt.createDataRouter = function (dataName: string, options: DataRouterOptions) {
   return new DataRouter(dataName, options);
 };
 
-egose.set = function <K extends keyof GlobalOptions>(keyOrOptions: K | GlobalOptions, value?: unknown) {
+wtt.set = function <K extends keyof GlobalOptions>(keyOrOptions: K | GlobalOptions, value?: unknown) {
   if (arguments.length === 2 && isString(keyOrOptions)) {
     return setGlobalOption(keyOrOptions as K, value as GlobalOptions[K]);
   }
@@ -105,20 +105,20 @@ egose.set = function <K extends keyof GlobalOptions>(keyOrOptions: K | GlobalOpt
   }
 };
 
-egose.setGlobalOptions = setGlobalOptions;
-egose.setGlobalOption = setGlobalOption;
-egose.getGlobalOptions = getGlobalOptions;
-egose.getGlobalOption = getGlobalOption;
-egose.setModelOptions = setModelOptions;
-egose.setModelOption = setModelOption;
-egose.getModelOptions = getModelOptions;
-egose.getModelOption = getModelOption;
-egose.setDefaultModelOptions = setDefaultModelOptions;
-egose.setDefaultModelOption = setDefaultModelOption;
-egose.getDefaultModelOptions = getDefaultModelOptions;
-egose.getDefaultModelOption = getDefaultModelOption;
-egose.RootRouter = RootRouter;
-egose.ModelRouter = ModelRouter;
-egose.DataRouter = DataRouter;
+wtt.setGlobalOptions = setGlobalOptions;
+wtt.setGlobalOption = setGlobalOption;
+wtt.getGlobalOptions = getGlobalOptions;
+wtt.getGlobalOption = getGlobalOption;
+wtt.setModelOptions = setModelOptions;
+wtt.setModelOption = setModelOption;
+wtt.getModelOptions = getModelOptions;
+wtt.getModelOption = getModelOption;
+wtt.setDefaultModelOptions = setDefaultModelOptions;
+wtt.setDefaultModelOption = setDefaultModelOption;
+wtt.getDefaultModelOptions = getDefaultModelOptions;
+wtt.getDefaultModelOption = getDefaultModelOption;
+wtt.RootRouter = RootRouter;
+wtt.ModelRouter = ModelRouter;
+wtt.DataRouter = DataRouter;
 
-export default egose;
+export default wtt;

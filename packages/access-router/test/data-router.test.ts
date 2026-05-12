@@ -353,6 +353,17 @@ describe('data router', () => {
     expect(getGlobalOptions().globalPermissions?.({} as any)).toBe(permissions);
   });
 
+  it('accepts an injected logger through global options', () => {
+    const injectedLogger = {
+      info: () => undefined,
+      warn: () => undefined,
+    };
+
+    acl.set({ logger: injectedLogger });
+
+    expect(getGlobalOptions().logger).toBe(injectedLogger);
+  });
+
   it('creates a root router through the overloaded createRouter API', () => {
     const router = acl.createRouter({ basePath: '/api', routeGuard: true });
 

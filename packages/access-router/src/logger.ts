@@ -1,19 +1,44 @@
+import util from 'node:util';
 import { createLogger, format, transports } from 'winston';
+import { getGlobalOption } from './options';
 
 const colorizer = format.colorize();
+const defaultLogLevel = process.env.WTT_LOG_LEVEL || process.env.EGOSE_LOG_LEVEL || 'silent';
 
-export const logger = createLogger({
-  level: process.env.EGOSE_LOG_LEVEL || 'info',
+const inspectValue = (value: unknown) => {
+  return typeof value === 'string' ? value : util.inspect(value, { depth: 5, colors: false });
+};
+
+export const defaultLogger = createLogger({
+  level: defaultLogLevel,
   format: format.combine(
-    format.label({ label: '[EGOSE]' }),
-    format.timestamp({ format: 'YY-MM-DD HH:mm:ss' }),
-    format.printf((msg: { level: string; label: string; message: string; timestamp: string }) => {
-      const label = colorizer.colorize('notice', msg.label);
-      const timestamp = msg.timestamp;
-      const level = colorizer.colorize(msg.level, `[${msg.level.toUpperCase()}]`);
-      const message = colorizer.colorize(msg.level, msg.message);
-      return `${label} ${timestamp} ${level} ${message}`;
+    format.errors({ stack: true }),
+    format.splat(),
+    format.label({ label: '[WTT]' }),
+    format.timestamp(),
+    format.printf(({ level, label, message, timestamp, stack, ...meta }) => {
+      const formattedLabel = colorizer.colorize(level, label);
+      const formattedLevel = colorizer.colorize(level, `[${level.toUpperCase()}]`);
+      const formattedMessage = colorizer.colorize(level, inspectValue(stack ?? message));
+      const formattedMeta = Object.keys(meta).length > 0 ? ` ${inspectValue(meta)}` : '';
+
+      return `${formattedLabel} ${timestamp} ${formattedLevel} ${formattedMessage}${formattedMeta}`;
     }),
   ),
   transports: [new transports.Console()],
 });
+
+const passthrough =
+  (level: 'debug' | 'info' | 'warn' | 'error') =>
+  (...args: unknown[]) => {
+    const globalLogger = getGlobalOption('logger');
+    const target = globalLogger?.[level] ?? defaultLogger[level];
+    return target.apply(globalLogger ?? defaultLogger, args);
+  };
+
+export const logger = {
+  debug: passthrough('debug'),
+  info: passthrough('info'),
+  warn: passthrough('warn'),
+  error: passthrough('error'),
+};

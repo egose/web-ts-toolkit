@@ -100,9 +100,17 @@ export interface Defaults {
   publicUpdateOptions?: PublicUpdateOptions;
 }
 
+export interface AccessRouterLogger {
+  debug?: (...args: unknown[]) => unknown;
+  info?: (...args: unknown[]) => unknown;
+  warn?: (...args: unknown[]) => unknown;
+  error?: (...args: unknown[]) => unknown;
+}
+
 export interface GlobalOptions {
   requestPermissionField?: string;
   globalPermissions?: (this: express.Request, req: express.Request) => MaybePromise<GlobalPermissionValue>;
+  logger?: AccessRouterLogger;
 }
 
 export interface RootRouterOptions {

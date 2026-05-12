@@ -224,4 +224,32 @@ describe('model router', () => {
     expect(getModelOption(modelName, 'mandatoryFields.read')).toEqual(['id']);
     expect(getModelOption(modelName, 'routeGuard.list')).toBe(true);
   });
+
+  it('uses the injected logger for router endpoint logs', () => {
+    const modelName = `AclUserModel${++modelCounter}`;
+    const info = vi.fn();
+
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => ({}),
+      logger: { info },
+    });
+
+    mongoose.model(
+      modelName,
+      new mongoose.Schema({
+        name: String,
+      }),
+    );
+
+    acl.createRouter(modelName, {
+      basePath: '/users',
+      routeGuard: { list: true, read: true },
+      permissionSchema: {
+        name: { list: true, read: true },
+      },
+    });
+
+    expect(info).toHaveBeenCalled();
+  });
 });
