@@ -51,14 +51,14 @@ type OverrideFilterHook = (
   permissions: AccessRouterPermissions,
 ) => MaybePromise<Filter>;
 
-type MiddlewareHook<TValue, TContext> = (
+type Hook<TValue, TContext> = (
   this: AccessRouterRequest,
   value: TValue,
   permissions: AccessRouterPermissions,
   context: TContext,
 ) => MaybePromise<TValue>;
 
-type MiddlewareChain<TValue, TContext> = MiddlewareHook<TValue, TContext> | Array<MiddlewareHook<TValue, TContext>>;
+type HookChain<TValue, TContext> = Hook<TValue, TContext> | Array<Hook<TValue, TContext>>;
 
 type ValidateRule = boolean | unknown[];
 
@@ -84,10 +84,10 @@ type ChangeHook = (
   context: MiddlewareContext,
 ) => MaybePromise<void>;
 
-type ModelMiddleware<TValue = unknown> = MiddlewareChain<TValue, MiddlewareContext>;
-type ModelListMiddleware<TValue = unknown> = MiddlewareChain<TValue[], MiddlewareContext>;
-type DataMiddleware<TValue = unknown> = MiddlewareChain<TValue, DataMiddlewareContext>;
-type DataListMiddleware<TValue = unknown> = MiddlewareChain<TValue[], DataMiddlewareContext>;
+type ModelHook<TValue = unknown> = HookChain<TValue, MiddlewareContext>;
+type ModelListHook<TValue = unknown> = HookChain<TValue[], MiddlewareContext>;
+type DataHook<TValue = unknown> = HookChain<TValue, DataMiddlewareContext>;
+type DataListHook<TValue = unknown> = HookChain<TValue[], DataMiddlewareContext>;
 
 type SubRouteGuardOptions = Record<string, Validation | Record<string, Validation>>;
 
@@ -221,12 +221,12 @@ export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouter
   docPermissions?: DocPermissions | DocPermissionsHook;
   baseFilter?: BaseFilterHook | Record<string, BaseFilterHook>;
   overrideFilter?: OverrideFilterHook | Record<string, OverrideFilterHook>;
-  decorate?: ModelMiddleware<TModel> | Record<string, ModelMiddleware<TModel>>;
-  decorateAll?: ModelListMiddleware<TModel> | Record<string, ModelListMiddleware<TModel>>;
+  decorate?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
+  decorateAll?: ModelListHook<TModel> | Record<string, ModelListHook<TModel>>;
   validate?: ValidateRule | ValidateHook | Record<string, ValidateRule | ValidateHook>;
-  prepare?: ModelMiddleware<TModel> | Record<string, ModelMiddleware<TModel>>;
-  transform?: ModelMiddleware<TModel> | Record<string, ModelMiddleware<TModel>>;
-  finalize?: ModelMiddleware<TModel> | Record<string, ModelMiddleware<TModel>>;
+  prepare?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
+  transform?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
+  finalize?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
   change?: Record<string, ChangeHook>;
   requestSchemas?: RequestSchemas;
   defaults?: Defaults<TModel>;
@@ -245,8 +245,8 @@ export interface DataRouterOptions<TData = unknown> {
   permissionSchema?: PermissionSchema<AccessRouterFieldKey<TData>>;
   baseFilter?: BaseFilterHook | Record<string, BaseFilterHook>;
   overrideFilter?: OverrideFilterHook | Record<string, OverrideFilterHook>;
-  decorate?: DataMiddleware<TData> | Record<string, DataMiddleware<TData>>;
-  decorateAll?: DataListMiddleware<TData> | Record<string, DataListMiddleware<TData>>;
+  decorate?: DataHook<TData> | Record<string, DataHook<TData>>;
+  decorateAll?: DataListHook<TData> | Record<string, DataListHook<TData>>;
   requestSchemas?: DataRequestSchemas;
 }
 
@@ -272,24 +272,24 @@ export interface ExtendedModelRouterOptions<TModel = unknown>
   'overrideFilter.read'?: OverrideFilterHook;
   'overrideFilter.update'?: OverrideFilterHook;
   'overrideFilter.delete'?: OverrideFilterHook;
-  'decorate.default'?: ModelMiddleware;
-  'decorate.list'?: ModelMiddleware;
-  'decorate.create'?: ModelMiddleware;
-  'decorate.read'?: ModelMiddleware;
-  'decorate.update'?: ModelMiddleware;
-  'decorateAll.default'?: ModelListMiddleware;
-  'decorateAll.list'?: ModelListMiddleware;
+  'decorate.default'?: ModelHook;
+  'decorate.list'?: ModelHook;
+  'decorate.create'?: ModelHook;
+  'decorate.read'?: ModelHook;
+  'decorate.update'?: ModelHook;
+  'decorateAll.default'?: ModelListHook;
+  'decorateAll.list'?: ModelListHook;
   'validate.default'?: ValidateRule | ValidateHook;
   'validate.create'?: ValidateRule | ValidateHook;
   'validate.update'?: ValidateRule | ValidateHook;
-  'prepare.default'?: ModelMiddleware;
-  'prepare.create'?: ModelMiddleware;
-  'prepare.update'?: ModelMiddleware;
-  'transform.default'?: ModelMiddleware;
-  'transform.update'?: ModelMiddleware;
-  'finalize.default'?: ModelMiddleware;
-  'finalize.create'?: ModelMiddleware;
-  'finalize.update'?: ModelMiddleware;
+  'prepare.default'?: ModelHook;
+  'prepare.create'?: ModelHook;
+  'prepare.update'?: ModelHook;
+  'transform.default'?: ModelHook;
+  'transform.update'?: ModelHook;
+  'finalize.default'?: ModelHook;
+  'finalize.create'?: ModelHook;
+  'finalize.update'?: ModelHook;
   'requestSchemas.create'?: RequestZodSchema;
   'requestSchemas.update'?: RequestZodSchema;
   'requestSchemas.upsert'?: RequestZodSchema;

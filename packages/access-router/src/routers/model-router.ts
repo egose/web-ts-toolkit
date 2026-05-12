@@ -808,7 +808,7 @@ export class ModelRouter<TModel = unknown> {
   public overrideFilter: SetTargetOption = setOption.bind(this, 'overrideFilter');
 
   /**
-   * Middleware
+   * Hook
    *
    * The function called before a new/update document data is processed in `prepare` hooks. This method is used to validate `write data` and throw an error if not valid.
    * @operation `create`, `update`
@@ -816,7 +816,7 @@ export class ModelRouter<TModel = unknown> {
   public validate: SetTargetOption = setOption.bind(this, 'validate');
 
   /**
-   * Middleware
+   * Hook
    *
    * The function called before a new document is created or an existing document is updated. This method is used to process raw data passed into the API endpoints.
    * @operation `create`, `update`
@@ -824,7 +824,7 @@ export class ModelRouter<TModel = unknown> {
   public prepare: SetTargetOption = setOption.bind(this, 'prepare');
 
   /**
-   * Middleware
+   * Hook
    *
    * The function called before an updated document is saved.
    * @operation `update`
@@ -832,7 +832,7 @@ export class ModelRouter<TModel = unknown> {
   public transform: SetTargetOption = setOption.bind(this, 'transform');
 
   /**
-   * Middleware
+   * Hook
    *
    * The function called after a new document is created or an updated document is saved.
    * @operation `create`, `update`
@@ -840,7 +840,7 @@ export class ModelRouter<TModel = unknown> {
   public finalize: SetTargetOption = setOption.bind(this, 'finalize');
 
   /**
-   * Middleware
+   * Hook
    *
    * The function called after a updated document finalized
    * @operation `update`
@@ -848,7 +848,7 @@ export class ModelRouter<TModel = unknown> {
   public change: SetTargetOption = setOption.bind(this, 'change');
 
   /**
-   * Middleware
+   * Hook
    *
    * The function called before response data is sent. This method is used to process raw data to apply custom logic before sending the result.
    * @operation `list`, `read`, `create`, `update`
@@ -856,9 +856,9 @@ export class ModelRouter<TModel = unknown> {
   public decorate: SetTargetOption = setOption.bind(this, 'decorate');
 
   /**
-   * Middleware
+   * Hook
    *
-   * The function are called before response data is sent and after `decorate` middleware runs. This method is used to process and filter multiple document objects before sending the result.
+   * The functions are called before response data is sent and after `decorate` hooks run. This method is used to process and filter multiple document objects before sending the result.
    * @operation `list`
    */
   public decorateAll: SetTargetOption = setOption.bind(this, 'decorateAll');

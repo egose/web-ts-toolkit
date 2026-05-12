@@ -194,17 +194,17 @@ export async function evaluateRouteGuard(req: Request, permissions: Permissions,
   return false;
 }
 
-export async function callMiddlewareChain<TDoc, TContext>(
+export async function callHookChain<TDoc, TContext>(
   req: Request,
-  middleware: Function | Function[],
+  hook: Function | Function[],
   doc: TDoc,
   permissions: Permissions,
   context: TContext,
 ): Promise<TDoc> {
-  const middlewares = castArray(middleware);
-  for (let x = 0; x < middlewares.length; x++) {
-    if (isFunction(middlewares[x])) {
-      doc = (await middlewares[x].call(req, doc, permissions, context)) as TDoc;
+  const hooks = castArray(hook);
+  for (let x = 0; x < hooks.length; x++) {
+    if (isFunction(hooks[x])) {
+      doc = (await hooks[x].call(req, doc, permissions, context)) as TDoc;
     }
   }
 

@@ -436,7 +436,7 @@ The most common model hooks are called with `this` bound to the current Express 
 ```
 
 - Runs after a document has been loaded and trimmed.
-- Can also be an array of middleware functions.
+- Can also be an array of hook functions.
 
 ### `overrideFilter`
 
@@ -465,7 +465,7 @@ The most common model hooks are called with `this` bound to the current Express 
 ```
 
 - Runs before create/update data is assigned to the document.
-- Can also be an array of middleware functions.
+- Can also be an array of hook functions.
 
 ### `transform`
 
@@ -475,7 +475,7 @@ The most common model hooks are called with `this` bound to the current Express 
 ```
 
 - Runs during update flows before the document is saved.
-- Can also be an array of middleware functions.
+- Can also be an array of hook functions.
 
 ### `finalize`
 
@@ -485,7 +485,7 @@ The most common model hooks are called with `this` bound to the current Express 
 ```
 
 - Runs after create/update persistence work and before response decoration.
-- Can also be an array of middleware functions.
+- Can also be an array of hook functions.
 
 ### `docPermissions`
 

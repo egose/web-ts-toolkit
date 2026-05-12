@@ -19,7 +19,7 @@ import { normalizeSelect, pickDocFields } from './helpers';
 import { DATA_MIDDLEWARE, PERMISSIONS, PERMISSION_KEYS } from './symbols';
 import { Cache } from './cache';
 import {
-  callMiddlewareChain,
+  callHookChain,
   collectSchemaFields,
   evaluateRouteGuard,
   getRequestPermissions,
@@ -124,14 +124,14 @@ export class DataCore {
     const decorate = getDataOption(dataName, `decorate.${access}`, null) as Function | Function[];
 
     const permissions = this.getGlobalPermissions();
-    return callMiddlewareChain(this.req, decorate, doc, permissions, context);
+    return callHookChain(this.req, decorate, doc, permissions, context);
   }
 
   async decorateAll<TDoc>(dataName: string, docs: TDoc[], access: DecorateAllAccess): Promise<TDoc[]> {
     const decorateAll = getDataOption(dataName, `decorateAll.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
 
-    return callMiddlewareChain(this.req, decorateAll, docs, permissions, {});
+    return callHookChain(this.req, decorateAll, docs, permissions, {});
   }
 
   getPermissions() {
