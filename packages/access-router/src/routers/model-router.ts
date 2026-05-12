@@ -8,7 +8,7 @@ import padEnd from 'lodash/padEnd';
 import Model from '../model';
 import { getModelSub } from '../meta';
 import { setCore } from '../core';
-import { setModelOptions, setModelOption, getModelOptions } from '../options';
+import { setModelOptions, setModelOption, getModelOptions, getExactModelOption } from '../options';
 import { processUrl } from '../lib';
 import { handleResultError } from '../helpers';
 import { ModelRouterOptions, ExtendedModelRouterOptions, Request, Task } from '../interfaces';
@@ -23,6 +23,8 @@ import {
   createBodySchema,
   distinctBodySchema,
   parseBody,
+  parseBodyWithSchema,
+  parseNestedBodyWithSchema,
   parsePathParam,
   parseQuery,
   readByIdBodySchema,
@@ -71,6 +73,10 @@ export class ModelRouter {
     this.setDocumentRoutes();
     this.setSubDocumentRoutes();
     this.logEndpoints();
+  }
+
+  private getRequestSchema(key: string) {
+    return getExactModelOption(this.modelName, key as keyof ExtendedModelRouterOptions);
   }
 
   ///////////////////////
@@ -128,7 +134,7 @@ export class ModelRouter {
         page,
         pageSize,
         options = {},
-      } = parseBody(listBodySchema, req.body);
+      } = parseBodyWithSchema(listBodySchema, req.body, this.getRequestSchema('requestSchemas.advancedList'));
       const { skim, includePermissions, includeCount, includeExtraHeaders, populateAccess } = options;
 
       const svc = req.macl.getPublicService(this.modelName);
@@ -157,7 +163,7 @@ export class ModelRouter {
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
       const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
-      const data = parseBody(createBodySchema, req.body);
+      const data = parseBodyWithSchema(createBodySchema, req.body, this.getRequestSchema('requestSchemas.create'));
 
       const svc = req.macl.getPublicService(this.modelName);
       const result = await svc._create(data, {}, { includePermissions: parseBooleanString(include_permissions) });
@@ -175,7 +181,24 @@ export class ModelRouter {
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
       const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
-      const { data, select, populate, tasks, options = {} } = parseBody(advancedCreateBodySchema, req.body);
+      const {
+        data,
+        select,
+        populate,
+        tasks,
+        options = {},
+      } = parseNestedBodyWithSchema(
+        advancedCreateBodySchema,
+        req.body,
+        'data',
+        this.getRequestSchema('requestSchemas.advancedCreate.data'),
+      );
+      parseBodyWithSchema(
+        advancedCreateBodySchema,
+        { data, select, populate, tasks, options },
+        this.getRequestSchema('requestSchemas.advancedCreate.default') ??
+          this.getRequestSchema('requestSchemas.advancedCreate'),
+      );
       const { includePermissions, populateAccess } = options;
 
       const svc = req.macl.getPublicService(this.modelName);
@@ -227,7 +250,11 @@ export class ModelRouter {
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
       // @Deprecated option 'query'
-      const { query, filter, access } = parseBody(countBodySchema, req.body);
+      const { query, filter, access } = parseBodyWithSchema(
+        countBodySchema,
+        req.body,
+        this.getRequestSchema('requestSchemas.count'),
+      );
       const svc = req.macl.getPublicService(this.modelName);
       const result = await svc._count(filter ?? query, access);
 
@@ -267,7 +294,19 @@ export class ModelRouter {
       const allowed = await req.macl.isAllowed(this.modelName, 'read');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      let { filter, select, sort, populate, include, tasks, options = {} } = parseBody(readFilterBodySchema, req.body);
+      let {
+        filter,
+        select,
+        sort,
+        populate,
+        include,
+        tasks,
+        options = {},
+      } = parseBodyWithSchema(
+        readFilterBodySchema,
+        req.body,
+        this.getRequestSchema('requestSchemas.advancedReadFilter'),
+      );
       const { skim, includePermissions, tryList, populateAccess } = options;
 
       const svc = req.macl.getPublicService(this.modelName);
@@ -296,7 +335,13 @@ export class ModelRouter {
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
-      let { select, populate, include, tasks, options = {} } = parseBody(readByIdBodySchema, req.body);
+      let {
+        select,
+        populate,
+        include,
+        tasks,
+        options = {},
+      } = parseBodyWithSchema(readByIdBodySchema, req.body, this.getRequestSchema('requestSchemas.advancedRead'));
       const { skim, includePermissions, tryList, populateAccess } = options;
 
       const svc = req.macl.getPublicService(this.modelName);
@@ -325,7 +370,7 @@ export class ModelRouter {
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
       const { returning_all } = parseQuery(requestSchemas.updateQuery, req.query);
-      const data = parseBody(updateBodySchema, req.body);
+      const data = parseBodyWithSchema(updateBodySchema, req.body, this.getRequestSchema('requestSchemas.update'));
 
       const svc = req.macl.getPublicService(this.modelName);
       const result = await svc._update(id, data, {}, { returningAll: parseBooleanString(returning_all) });
@@ -344,7 +389,24 @@ export class ModelRouter {
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
       const { returning_all } = parseQuery(requestSchemas.updateQuery, req.query);
-      const { data, select, populate, tasks, options = {} } = parseBody(advancedUpdateBodySchema, req.body);
+      const {
+        data,
+        select,
+        populate,
+        tasks,
+        options = {},
+      } = parseNestedBodyWithSchema(
+        advancedUpdateBodySchema,
+        req.body,
+        'data',
+        this.getRequestSchema('requestSchemas.advancedUpdate.data'),
+      );
+      parseBodyWithSchema(
+        advancedUpdateBodySchema,
+        { data, select, populate, tasks, options },
+        this.getRequestSchema('requestSchemas.advancedUpdate.default') ??
+          this.getRequestSchema('requestSchemas.advancedUpdate'),
+      );
       const { returningAll, includePermissions, populateAccess } = options;
 
       const svc = req.macl.getPublicService(this.modelName);
@@ -372,7 +434,7 @@ export class ModelRouter {
       if (idKey !== '_id') throw new clientErrors.BadRequestError('not supported identifier');
 
       const { returning_all, include_permissions } = parseQuery(requestSchemas.upsertQuery, req.query);
-      const body = parseBody(upsertBodySchema, req.body);
+      const body = parseBodyWithSchema(upsertBodySchema, req.body, this.getRequestSchema('requestSchemas.upsert'));
       const { [idKey]: idVal, ...data } = body;
 
       if (idVal) {
@@ -404,7 +466,24 @@ export class ModelRouter {
       if (idKey !== '_id') throw new clientErrors.BadRequestError('not supported identifier');
 
       const { returning_all, include_permissions } = parseQuery(requestSchemas.upsertQuery, req.query);
-      const { data, select, populate, tasks, options = {} } = parseBody(advancedUpsertBodySchema, req.body);
+      const {
+        data,
+        select,
+        populate,
+        tasks,
+        options = {},
+      } = parseNestedBodyWithSchema(
+        advancedUpsertBodySchema,
+        req.body,
+        'data',
+        this.getRequestSchema('requestSchemas.advancedUpsert.data'),
+      );
+      parseBodyWithSchema(
+        advancedUpsertBodySchema,
+        { data, select, populate, tasks, options },
+        this.getRequestSchema('requestSchemas.advancedUpsert.default') ??
+          this.getRequestSchema('requestSchemas.advancedUpsert'),
+      );
       const { returningAll, includePermissions, populateAccess } = options;
       const { [idKey]: idVal, ...otherData } = data;
 
@@ -479,7 +558,11 @@ export class ModelRouter {
 
       const field = parsePathParam(req.params.field, 'field');
       // @Deprecated option 'query'
-      const { query, filter } = parseBody(distinctBodySchema, req.body);
+      const { query, filter } = parseBodyWithSchema(
+        distinctBodySchema,
+        req.body,
+        this.getRequestSchema('requestSchemas.distinct'),
+      );
 
       const svc = req.macl.getPublicService(this.modelName);
       const result = await svc._distinct(field, { filter: filter ?? query });
@@ -522,7 +605,7 @@ export class ModelRouter {
         if (!allowed) throw new clientErrors.UnauthorizedError();
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
-        const body = parseBody(subListBodySchema, req.body);
+        const body = parseBodyWithSchema(subListBodySchema, req.body, this.getRequestSchema('requestSchemas.subList'));
         const svc = req.macl.getPublicService(this.modelName);
         const result = await svc.listSub(id, sub, body);
 
@@ -538,7 +621,11 @@ export class ModelRouter {
         if (!allowed) throw new clientErrors.UnauthorizedError();
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
-        const data = parseBody(subMutationBodySchema, req.body);
+        const data = parseBodyWithSchema(
+          subMutationBodySchema,
+          req.body,
+          this.getRequestSchema('requestSchemas.subBulkUpdate'),
+        );
         const svc = req.macl.getPublicService(this.modelName);
         const result = await svc.bulkUpdateSub(id, sub, data);
 
@@ -571,7 +658,7 @@ export class ModelRouter {
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
         const subId = parsePathParam(req.params.subId, 'subId');
-        const body = parseBody(subReadBodySchema, req.body);
+        const body = parseBodyWithSchema(subReadBodySchema, req.body, this.getRequestSchema('requestSchemas.subRead'));
         const svc = req.macl.getPublicService(this.modelName);
         const result = await svc.readSub(id, sub, subId, body);
 
@@ -588,7 +675,11 @@ export class ModelRouter {
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
         const subId = parsePathParam(req.params.subId, 'subId');
-        const data = parseBody(subMutationBodySchema, req.body);
+        const data = parseBodyWithSchema(
+          subMutationBodySchema,
+          req.body,
+          this.getRequestSchema('requestSchemas.subUpdate'),
+        );
         const svc = req.macl.getPublicService(this.modelName);
         const result = await svc.updateSub(id, sub, subId, data);
 
@@ -604,7 +695,11 @@ export class ModelRouter {
         if (!allowed) throw new clientErrors.UnauthorizedError();
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
-        const data = parseBody(subMutationBodySchema, req.body);
+        const data = parseBodyWithSchema(
+          subMutationBodySchema,
+          req.body,
+          this.getRequestSchema('requestSchemas.subCreate'),
+        );
         const svc = req.macl.getPublicService(this.modelName);
         const result = await svc.createSub(id, sub, data);
 

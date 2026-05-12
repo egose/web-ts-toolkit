@@ -1,5 +1,6 @@
 import express from 'express';
 import { Diff } from 'deep-diff';
+import type { z } from 'zod';
 import type { Permissions } from '../permission';
 import { DataMiddlewareContext, Filter, MiddlewareContext, Validation } from './base';
 import { PublicCreateArgs, CreateArgs, PublicCreateOptions, CreateOptions } from './service-create';
@@ -24,6 +25,7 @@ interface DefaultFindByIdArgs extends Omit<FindByIdArgs, 'overrides'> {}
 interface DefaultFindArgs extends Omit<FindArgs, 'overrides'> {}
 
 type MaybePromise<T> = T | Promise<T>;
+type RequestZodSchema = z.ZodTypeAny;
 
 type GlobalPermissionValue = Record<string, boolean> | string[] | string | null | undefined;
 
@@ -73,6 +75,34 @@ type DataMiddleware = MiddlewareChain<unknown, DataMiddlewareContext>;
 type DataListMiddleware = MiddlewareChain<unknown[], DataMiddlewareContext>;
 
 type SubRouteGuardOptions = Record<string, Validation | Record<string, Validation>>;
+
+export interface RequestSchemas {
+  create?: RequestZodSchema;
+  update?: RequestZodSchema;
+  upsert?: RequestZodSchema;
+  count?: RequestZodSchema;
+  distinct?: RequestZodSchema;
+  advancedList?: RequestZodSchema;
+  advancedReadFilter?: RequestZodSchema;
+  advancedRead?: RequestZodSchema;
+  advancedCreate?: RequestZodSchema;
+  advancedCreateData?: RequestZodSchema;
+  advancedUpdate?: RequestZodSchema;
+  advancedUpdateData?: RequestZodSchema;
+  advancedUpsert?: RequestZodSchema;
+  advancedUpsertData?: RequestZodSchema;
+  subList?: RequestZodSchema;
+  subRead?: RequestZodSchema;
+  subCreate?: RequestZodSchema;
+  subUpdate?: RequestZodSchema;
+  subBulkUpdate?: RequestZodSchema;
+}
+
+export interface DataRequestSchemas {
+  advancedList?: RequestZodSchema;
+  advancedReadFilter?: RequestZodSchema;
+  advancedRead?: RequestZodSchema;
+}
 
 export interface Defaults {
   findOneArgs?: DefaultFindOneArgs;
@@ -183,6 +213,7 @@ export interface ModelRouterOptions extends DefaultModelRouterOptions {
   transform?: ModelMiddleware | Record<string, ModelMiddleware>;
   finalize?: ModelMiddleware | Record<string, ModelMiddleware>;
   change?: Record<string, ChangeHook>;
+  requestSchemas?: RequestSchemas;
   defaults?: Defaults;
 }
 
@@ -201,6 +232,7 @@ export interface DataRouterOptions {
   overrideFilter?: OverrideFilterHook | Record<string, OverrideFilterHook>;
   decorate?: DataMiddleware | Record<string, DataMiddleware>;
   decorateAll?: DataListMiddleware | Record<string, DataListMiddleware>;
+  requestSchemas?: DataRequestSchemas;
 }
 
 export interface ExtendedModelRouterOptions extends ModelRouterOptions, ExtendedDefaultModelRouterOptions {
@@ -242,6 +274,26 @@ export interface ExtendedModelRouterOptions extends ModelRouterOptions, Extended
   'finalize.default'?: ModelMiddleware;
   'finalize.create'?: ModelMiddleware;
   'finalize.update'?: ModelMiddleware;
+  'requestSchemas.create'?: RequestZodSchema;
+  'requestSchemas.update'?: RequestZodSchema;
+  'requestSchemas.upsert'?: RequestZodSchema;
+  'requestSchemas.count'?: RequestZodSchema;
+  'requestSchemas.distinct'?: RequestZodSchema;
+  'requestSchemas.advancedList'?: RequestZodSchema;
+  'requestSchemas.advancedReadFilter'?: RequestZodSchema;
+  'requestSchemas.advancedRead'?: RequestZodSchema;
+  'requestSchemas.advancedCreate.default'?: RequestZodSchema;
+  'requestSchemas.advancedCreate.data'?: RequestZodSchema;
+  'requestSchemas.advancedUpdate'?: RequestZodSchema;
+  'requestSchemas.advancedUpdate.default'?: RequestZodSchema;
+  'requestSchemas.advancedUpdate.data'?: RequestZodSchema;
+  'requestSchemas.advancedUpsert.default'?: RequestZodSchema;
+  'requestSchemas.advancedUpsert.data'?: RequestZodSchema;
+  'requestSchemas.subList'?: RequestZodSchema;
+  'requestSchemas.subRead'?: RequestZodSchema;
+  'requestSchemas.subCreate'?: RequestZodSchema;
+  'requestSchemas.subUpdate'?: RequestZodSchema;
+  'requestSchemas.subBulkUpdate'?: RequestZodSchema;
   'defaults.findOneArgs'?: DefaultFindOneArgs;
   'defaults.findOneOptions'?: FindOneOptions;
   'defaults.findByIdArgs'?: DefaultFindByIdArgs;
@@ -263,6 +315,12 @@ export interface ExtendedModelRouterOptions extends ModelRouterOptions, Extended
   'defaults.publicReadOptions'?: PublicReadOptions;
   'defaults.publicUpdateArgs'?: PublicUpdateArgs;
   'defaults.publicUpdateOptions'?: PublicUpdateOptions;
+}
+
+export interface ExtendedDataRouterOptions extends DataRouterOptions {
+  'requestSchemas.advancedList'?: RequestZodSchema;
+  'requestSchemas.advancedReadFilter'?: RequestZodSchema;
+  'requestSchemas.advancedRead'?: RequestZodSchema;
 }
 
 export type SelectAccess = 'list' | 'create' | 'read' | 'update' | string;

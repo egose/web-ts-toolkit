@@ -3,11 +3,11 @@ import isNil from 'lodash/isNil';
 import isString from 'lodash/isString';
 import { addLeadingSlash } from '../lib';
 import { OptionsManager, getNestedOption } from './manager';
-import { DataRouterOptions } from '../interfaces';
+import { DataRouterOptions, ExtendedDataRouterOptions } from '../interfaces';
 
 const pluralize = mongoose.pluralize();
 
-const dataOptions: Record<string, OptionsManager<DataRouterOptions, DataRouterOptions>> = {};
+const dataOptions: Record<string, OptionsManager<DataRouterOptions, ExtendedDataRouterOptions>> = {};
 
 const defaultDataOptions: DataRouterOptions = {
   basePath: null,
@@ -23,7 +23,7 @@ const normalizeBasePath = (name: string, value: string | null | undefined) => {
 };
 
 const createDataOptions = (dataName: string) => {
-  const manager = new OptionsManager<DataRouterOptions, DataRouterOptions>({
+  const manager = new OptionsManager<DataRouterOptions, ExtendedDataRouterOptions>({
     ...defaultDataOptions,
     dataName,
   });
@@ -77,6 +77,11 @@ export const getDataOption = <K extends keyof DataRouterOptions>(
   const manager = getOrCreateDataOptions(dataName);
 
   return getNestedOption(manager, key, defaultValue);
+};
+
+export const getExactDataOption = <K extends keyof ExtendedDataRouterOptions>(dataName: string, key: K | string) => {
+  const manager = getOrCreateDataOptions(dataName);
+  return manager.get(key);
 };
 
 export const getDataNames = () => {

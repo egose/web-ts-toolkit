@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import acl, { guard, permissionsPlugin, setGlobalOptions } from '../dist/index.mjs';
 import { useMongoTestDatabase } from './setup';
@@ -201,6 +202,56 @@ const createPopulateIntegrationApp = async () => {
   app.use(express.json());
   app.use(orgRouter.routes);
   app.use(userRouter.routes);
+
+  return { app };
+};
+
+const createRequestSchemaApp = async () => {
+  const modelName = `AclMongoSchemaUser${++modelCounter}`;
+  const schema = new mongoose.Schema({
+    name: String,
+    role: String,
+    public: Boolean,
+  });
+
+  const User = mongoose.model(modelName, schema);
+
+  setGlobalOptions({
+    requestPermissionField: '_permissions',
+    globalPermissions(req: express.Request) {
+      return req.headers.user === 'admin' ? ['isAdmin'] : [];
+    },
+  });
+
+  const router = acl.createRouter(modelName, {
+    basePath: '/schema-users',
+    identifier: 'name',
+    routeGuard: {
+      read: true,
+      create: 'isAdmin',
+      update: 'isAdmin',
+    } as any,
+    permissionSchema: {
+      name: { read: true, create: true, update: true },
+      role: { read: true, create: true, update: true },
+      public: { read: true, create: true, update: true },
+    },
+    requestSchemas: {
+      create: z.object({ name: z.string().min(3), role: z.string(), public: z.boolean().optional() }),
+      advancedCreate: {
+        data: z.object({ name: z.string().min(3), role: z.literal('user') }),
+      },
+      advancedUpdate: {
+        data: z.object({ role: z.enum(['manager', 'staff']) }),
+      },
+    },
+  });
+
+  await User.create([{ name: 'user1', role: 'user', public: true }]);
+
+  const app = express();
+  app.use(express.json());
+  app.use(router.routes);
 
   return { app };
 };
@@ -544,5 +595,72 @@ describe('model router integration', () => {
       path: 'org',
       match: {},
     });
+  });
+
+  it('supports user-defined requestSchemas for create and advanced mutation data', async () => {
+    const { app } = await createRequestSchemaApp();
+
+    const createInvalid = await request(app)
+      .post('/schema-users')
+      .set('user', 'admin')
+      .send({ name: 'ab', role: 'user' })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(createInvalid.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/name' }],
+    });
+
+    await request(app)
+      .post('/schema-users')
+      .set('user', 'admin')
+      .send({ name: 'user-new', role: 'user', public: true })
+      .expect(201)
+      .expect('Content-Type', /json/);
+
+    const advancedCreateInvalid = await request(app)
+      .post('/schema-users/__mutation')
+      .set('user', 'admin')
+      .send({ data: { name: 'valid-name', role: 'admin' } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(advancedCreateInvalid.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/data/role' }],
+    });
+
+    await request(app)
+      .post('/schema-users/__mutation')
+      .set('user', 'admin')
+      .send({ data: { name: 'valid-name', role: 'user' } })
+      .expect(201)
+      .expect('Content-Type', /json/);
+
+    const advancedUpdateInvalid = await request(app)
+      .patch('/schema-users/__mutation/user1')
+      .set('user', 'admin')
+      .send({ data: { role: 'owner' } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(advancedUpdateInvalid.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/data/role' }],
+    });
+
+    await request(app)
+      .patch('/schema-users/__mutation/user1')
+      .set('user', 'admin')
+      .send({ data: { role: 'manager' } })
+      .expect(200)
+      .expect('Content-Type', /json/);
   });
 });

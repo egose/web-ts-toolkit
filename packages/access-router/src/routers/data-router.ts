@@ -7,10 +7,10 @@ import forEach from 'lodash/forEach';
 import padEnd from 'lodash/padEnd';
 import Model from '../model';
 import { setDataCore } from '../core-data';
-import { setDataOption, setDataOptions, getDataOption, getDataOptions, getDataNames } from '../options';
+import { setDataOption, setDataOptions, getDataOptions, getExactDataOption } from '../options';
 import { processUrl } from '../lib';
 import { handleResultError } from '../helpers';
-import { DataRouterOptions, Request } from '../interfaces';
+import { DataRouterOptions, ExtendedDataRouterOptions, Request } from '../interfaces';
 import { logger } from '../logger';
 import { formatListResponse, parseBooleanString } from './shared';
 import { accessRouterResponseHandler } from './index';
@@ -18,7 +18,7 @@ import {
   dataListBodySchema,
   dataReadByIdBodySchema,
   dataReadFilterBodySchema,
-  parseBody,
+  parseBodyWithSchema,
   parsePathParam,
   parseQuery,
   requestSchemas,
@@ -55,6 +55,10 @@ export class DataRouter {
 
     this.setCollectionRoutes();
     this.setDocumentRoutes();
+  }
+
+  private getRequestSchema(key: string) {
+    return getExactDataOption(this.dataName, key as keyof ExtendedDataRouterOptions);
   }
 
   ///////////////////////
@@ -98,7 +102,16 @@ export class DataRouter {
       const allowed = await req.dacl.isAllowed(this.dataName, 'list');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      let { filter, select, sort, skip, limit, page, pageSize, options = {} } = parseBody(dataListBodySchema, req.body);
+      let {
+        filter,
+        select,
+        sort,
+        skip,
+        limit,
+        page,
+        pageSize,
+        options = {},
+      } = parseBodyWithSchema(dataListBodySchema, req.body, this.getRequestSchema('requestSchemas.advancedList'));
       const { includeCount, includeExtraHeaders } = options;
 
       const svc = req.dacl.getService(this.dataName);
@@ -138,7 +151,15 @@ export class DataRouter {
       const allowed = await req.dacl.isAllowed(this.dataName, 'read');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      let { filter, select, options = {} } = parseBody(dataReadFilterBodySchema, req.body);
+      let {
+        filter,
+        select,
+        options = {},
+      } = parseBodyWithSchema(
+        dataReadFilterBodySchema,
+        req.body,
+        this.getRequestSchema('requestSchemas.advancedReadFilter'),
+      );
 
       const svc = req.dacl.getService(this.dataName);
       const result = await svc.findOne(filter, { select }, {});
@@ -156,7 +177,11 @@ export class DataRouter {
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
-      let { select, options = {} } = parseBody(dataReadByIdBodySchema, req.body);
+      let { select, options = {} } = parseBodyWithSchema(
+        dataReadByIdBodySchema,
+        req.body,
+        this.getRequestSchema('requestSchemas.advancedRead'),
+      );
 
       const svc = req.dacl.getService(this.dataName);
       const result = await svc.findById(id, { select }, {});

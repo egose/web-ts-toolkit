@@ -376,6 +376,26 @@ export function parseBody(schema: z.ZodTypeAny, value: unknown): any {
   return result.data;
 }
 
+export function parseBodyWithSchema(schema: z.ZodTypeAny, value: unknown, userSchema?: z.ZodTypeAny) {
+  const body = parseBody(schema, value);
+  return isZodSchema(userSchema) ? parseUserSchema(userSchema, body) : body;
+}
+
+export function parseNestedBodyWithSchema(
+  schema: z.ZodTypeAny,
+  value: unknown,
+  nestedKey: string,
+  userSchema?: z.ZodTypeAny,
+) {
+  const body = parseBody(schema, value);
+  if (!isZodSchema(userSchema)) return body;
+
+  return {
+    ...body,
+    [nestedKey]: parseUserSchema(userSchema, body?.[nestedKey], [nestedKey]),
+  };
+}
+
 function throwValidationError(
   issues: z.ZodIssue[],
   key?: string,
@@ -383,6 +403,26 @@ function throwValidationError(
 ): never {
   const errors = issues.map((issue) => formatIssue(issue, key, location));
   throw new clientErrors.BadRequestError('Bad Request', { errors });
+}
+
+function parseUserSchema(schema: z.ZodTypeAny, value: unknown, prefix: string[] = []) {
+  const result = schema.safeParse(value);
+  if (!result.success) {
+    const issues = result.error.issues.map((issue) => ({
+      ...issue,
+      path: prefix.concat(issue.path.map(String)),
+    })) as z.ZodIssue[];
+
+    throwValidationError(issues, undefined, 'pointer');
+  }
+
+  return result.data;
+}
+
+function isZodSchema(schema: unknown): schema is z.ZodTypeAny {
+  return (
+    typeof schema === 'object' && schema !== null && 'safeParse' in schema && typeof schema.safeParse === 'function'
+  );
 }
 
 function formatIssue(issue: z.ZodIssue, key?: string, location: 'pointer' | 'parameter' = 'pointer'): ValidationError {

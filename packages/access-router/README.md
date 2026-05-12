@@ -116,6 +116,80 @@ Invalid requests return `400 application/problem+json` with structured `errors` 
 }
 ```
 
+## User-Defined Request Schemas
+
+Model and data routers can add route-specific Zod validation through the `requestSchemas` option.
+
+Use this when you want stricter application-level request validation on top of the built-in router boundary validation.
+
+Recommended shape:
+
+- whole-body schemas: `requestSchemas.<route>` or `requestSchemas.<route>.default`
+- nested advanced mutation payloads: `requestSchemas.<route>.data`
+
+Model router examples:
+
+- `requestSchemas.create`
+- `requestSchemas.update`
+- `requestSchemas.upsert`
+- `requestSchemas.count`
+- `requestSchemas.distinct`
+- `requestSchemas.advancedList`
+- `requestSchemas.advancedReadFilter`
+- `requestSchemas.advancedRead`
+- `requestSchemas.advancedCreate.default`
+- `requestSchemas.advancedCreate.data`
+- `requestSchemas.advancedUpdate.default`
+- `requestSchemas.advancedUpdate.data`
+- `requestSchemas.advancedUpsert.default`
+- `requestSchemas.advancedUpsert.data`
+- `requestSchemas.subList`
+- `requestSchemas.subRead`
+- `requestSchemas.subCreate`
+- `requestSchemas.subUpdate`
+- `requestSchemas.subBulkUpdate`
+
+Data router examples:
+
+- `requestSchemas.advancedList`
+- `requestSchemas.advancedReadFilter`
+- `requestSchemas.advancedRead`
+
+Example:
+
+```ts
+import { z } from 'zod';
+import acl from '@web-ts-toolkit/access-router';
+
+const router = acl.createRouter('User', {
+  basePath: '/users',
+  identifier: 'name',
+  requestSchemas: {
+    create: z.object({
+      name: z.string().min(3),
+      role: z.string(),
+    }),
+    advancedCreate: {
+      data: z.object({
+        name: z.string().min(3),
+        role: z.literal('user'),
+      }),
+    },
+    advancedUpdate: {
+      data: z.object({
+        role: z.enum(['manager', 'staff']),
+      }),
+    },
+  },
+});
+```
+
+Validation order:
+
+- built-in route/query/body-shape validation runs first
+- user-defined `requestSchemas` validation runs second
+- write-operation model `validate` hooks still run afterward in the service layer
+
 ## Custom Route Validation
 
 The package also exports the same validation helpers used by the built-in public routers:

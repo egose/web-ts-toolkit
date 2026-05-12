@@ -1,6 +1,7 @@
 import express from 'express';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import acl, { getGlobalOptions, setGlobalOptions } from '../dist/index.mjs';
 
@@ -411,6 +412,81 @@ describe('data router', () => {
 
     await request(app).get('/secure-fruit').set('user', 'admin').expect(200);
     await request(app).get('/secure-fruit').expect(401);
+  });
+
+  it('supports user-defined requestSchemas for advanced data routes', async () => {
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => [],
+    });
+
+    const app = express();
+    const router = acl.createDataRouter('schema-fruit', {
+      basePath: '/schema-fruit',
+      identifier: 'id',
+      routeGuard: {
+        list: true,
+        read: true,
+      },
+      data: [
+        { id: 'apple', name: 'Apple', public: true },
+        { id: 'pear', name: 'Pear', public: false },
+      ],
+      permissionSchema: {
+        id: true,
+        name: true,
+        public: true,
+      },
+      requestSchemas: {
+        advancedList: z.object({
+          filter: z.object({ public: z.boolean() }).optional(),
+        }),
+        advancedRead: z.object({
+          select: z.array(z.string()).optional(),
+        }),
+      },
+    });
+
+    app.use(express.json());
+    app.use(router.routes);
+
+    const invalidList = await request(app)
+      .post('/schema-fruit/__query')
+      .send({ filter: { public: 'yes' } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidList.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/filter/public' }],
+    });
+
+    await request(app)
+      .post('/schema-fruit/__query')
+      .send({ filter: { public: true } })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    const invalidRead = await request(app)
+      .post('/schema-fruit/__query/apple')
+      .send({ select: 'name' })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidRead.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/select' }],
+    });
+
+    await request(app)
+      .post('/schema-fruit/__query/apple')
+      .send({ select: ['name'] })
+      .expect(200)
+      .expect('Content-Type', /json/);
   });
 
   it('exposes the shared global options through the main package API', () => {
