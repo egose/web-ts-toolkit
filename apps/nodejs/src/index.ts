@@ -1,15 +1,27 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-
-const accessRouterModule = require('@web-ts-toolkit/access-router');
-const acl = accessRouterModule.default ?? accessRouterModule;
-const permissionsPlugin = accessRouterModule.permissionsPlugin;
+import acl, { permissionsPlugin } from '@web-ts-toolkit/access-router';
 
 const port = Number(process.env.PORT ?? 3000);
 const modelName = 'SampleUser';
 
-const fruitData = [
+type Fruit = {
+  id: string;
+  name: string;
+  color: string;
+  stock: number;
+  public: boolean;
+};
+
+type User = {
+  name: string;
+  role: string;
+  email: string;
+  public: boolean;
+};
+
+const fruitData: Fruit[] = [
   { id: 'apple', name: 'Apple', color: 'red', stock: 12, public: true },
   { id: 'banana', name: 'Banana', color: 'yellow', stock: 8, public: true },
   { id: 'dragonfruit', name: 'Dragon Fruit', color: 'pink', stock: 2, public: false },
@@ -17,7 +29,8 @@ const fruitData = [
 
 acl.setGlobalOptions({
   requestPermissionField: '_permissions',
-  globalPermissions(req: express.Request) {
+  globalPermissions(req) {
+    req.requestId = String(req.headers['x-request-id'] ?? 'sample-request');
     return req.headers.user === 'admin' ? ['isAdmin'] : [];
   },
 });
@@ -37,15 +50,27 @@ const fruitRouter = acl.createDataRouter('sample-fruit', {
     stock: 'isAdmin',
     public: true,
   },
+  decorate(item, permissions) {
+    if (permissions.isAdmin && this.requestId) {
+      return { ...item, requestId: this.requestId };
+    }
+
+    return item;
+  },
   baseFilter: {
-    list(this: express.Request, permissions: { has: (key: string) => boolean }) {
-      return permissions.has('isAdmin') ? {} : { public: true };
+    list(permissions) {
+      return permissions.isAdmin ? {} : { public: true };
     },
-    read(this: express.Request, permissions: { has: (key: string) => boolean }) {
-      return permissions.has('isAdmin') ? {} : { public: true };
+    read(permissions) {
+      return permissions.isAdmin ? {} : { public: true };
     },
   },
 });
+
+const fruitServiceTypecheck = fruitRouter.getService(
+  {} as express.Request as Parameters<typeof fruitRouter.getService>[0],
+);
+void fruitServiceTypecheck;
 
 async function createUserRouter() {
   const schema = new mongoose.Schema({
@@ -57,9 +82,9 @@ async function createUserRouter() {
 
   schema.plugin(permissionsPlugin, { modelName });
 
-  mongoose.model(modelName, schema);
+  const UserModel = mongoose.model<User>(modelName, schema);
 
-  const userRouter = acl.createRouter(modelName, {
+  const userRouter = acl.createRouter(UserModel, {
     basePath: '/users',
     identifier(id: string) {
       return { name: id };
@@ -77,14 +102,24 @@ async function createUserRouter() {
       public: { list: true, read: true, create: true, update: true },
     },
     baseFilter: {
-      list(this: express.Request, permissions: { isAdmin?: boolean }) {
+      list(permissions) {
         return permissions.isAdmin ? {} : { public: true };
       },
-      read(this: express.Request, permissions: { isAdmin?: boolean }) {
+      read(permissions) {
         return permissions.isAdmin ? {} : { public: true };
       },
     },
+    decorate(doc, permissions) {
+      if (permissions.isAdmin && this.requestId) {
+        return { ...doc, requestId: this.requestId };
+      }
+
+      return doc;
+    },
   });
+
+  const typedService = userRouter.getService({} as express.Request as Parameters<typeof userRouter.getService>[0]);
+  void typedService;
 
   await mongoose.model(modelName).create([
     { name: 'admin', role: 'admin', email: 'admin@example.com', public: false },
