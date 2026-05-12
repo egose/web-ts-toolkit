@@ -45,6 +45,7 @@ export * from './plugins';
 export * from './interfaces';
 export * from './symbols';
 export * from './enums';
+export * from './routers/validation';
 
 type CreateRouter = {
   (modelName: string, options: ModelRouterOptions): ModelRouter;
