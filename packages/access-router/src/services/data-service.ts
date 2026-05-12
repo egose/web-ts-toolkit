@@ -3,6 +3,7 @@ import { findElement, filterCollection, genPagination, parseSortString } from '.
 import {
   DataMiddlewareContext,
   ErrorResult,
+  Filter,
   ListResult,
   Request,
   Projection,
@@ -31,7 +32,7 @@ export class DataService<T> {
     this.req = req;
     this.dataName = dataName;
     this.options = getDataOptions(dataName);
-    this.data = this.options.data ?? [];
+    this.data = (this.options.data ?? []) as T[];
   }
 
   public async findOne(
@@ -128,15 +129,15 @@ export class DataService<T> {
     };
   }
 
-  public decorate(doc: any, access: DecorateAccess, context?: DataMiddlewareContext): Promise<any> {
+  public decorate<TDoc>(doc: TDoc, access: DecorateAccess, context?: DataMiddlewareContext): Promise<TDoc> {
     return this.req.dacl.decorate(this.dataName, doc, access, context);
   }
 
-  public decorateAll(docs: any[], access: DecorateAllAccess): Promise<any> {
+  public decorateAll<TDoc>(docs: TDoc[], access: DecorateAllAccess): Promise<TDoc[]> {
     return this.req.dacl.decorateAll(this.dataName, docs, access);
   }
 
-  public genAllowedFields(doc: any, access: SelectAccess, baseFields?: string[]): Promise<string[]> {
+  public genAllowedFields(doc: unknown, access: SelectAccess, baseFields?: string[]): Promise<string[]> {
     return this.req.dacl.genAllowedFields(this.dataName, doc, access, baseFields);
   }
 
@@ -144,7 +145,7 @@ export class DataService<T> {
     return this.req.dacl.genFilter(this.dataName, access, filter);
   }
 
-  public genIDFilter(id: string): Promise<any> {
+  public genIDFilter(id: string): Promise<Filter> {
     return this.req.dacl.genIDFilter(this.dataName, id);
   }
 
@@ -153,7 +154,7 @@ export class DataService<T> {
     targetFields?: Projection,
     skipChecks?: boolean,
     subPaths?: string[],
-  ): Promise<any[]> {
+  ): Promise<string[]> {
     return this.req.dacl.genSelect(this.dataName, access, targetFields, skipChecks, subPaths);
   }
 
@@ -162,15 +163,15 @@ export class DataService<T> {
     targetFields?: Projection,
     skipChecks?: boolean,
     subPaths?: string[],
-  ): Promise<any[]> {
+  ): Promise<string[]> {
     return this.genSelect(access, targetFields, skipChecks, subPaths);
   }
 
-  public pickAllowedFields(doc: any, access: SelectAccess, baseFields?: string[]): Promise<any> {
-    return this.req.dacl.pickAllowedFields(this.dataName, doc, access, baseFields);
+  public pickAllowedFields<TDoc>(doc: TDoc, access: SelectAccess, baseFields?: string[]): Promise<TDoc> {
+    return this.req.dacl.pickAllowedFields(this.dataName, doc, access, baseFields) as Promise<TDoc>;
   }
 
-  public trimOutputFields(doc: any, access: SelectAccess, baseFields?: string[]): Promise<any> {
+  public trimOutputFields<TDoc>(doc: TDoc, access: SelectAccess, baseFields?: string[]): Promise<TDoc> {
     return this.pickAllowedFields(doc, access, baseFields);
   }
 }

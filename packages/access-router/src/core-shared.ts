@@ -12,7 +12,7 @@ import { arrToObj } from './lib';
 import { getGlobalOption } from './options';
 import Permission, { Permissions } from './permission';
 
-type OptionGetter = (key: string, defaultValue?: any) => any;
+type OptionGetter = (key: string, defaultValue?: unknown) => unknown;
 
 export async function resolveIdentifierFilter(req: Request, identifier: string | Function | undefined, id: string) {
   if (isString(identifier)) {
@@ -37,7 +37,7 @@ export async function resolveAccessFilter({
 }: {
   req: Request;
   permissions: Permissions;
-  cache: Cache<string, any>;
+  cache: Cache<string, unknown>;
   cacheKey: string;
   access?: string;
   filter?: Filter;
@@ -107,17 +107,17 @@ export async function evaluateRouteGuard(req: Request, permissions: Permissions,
   return false;
 }
 
-export async function callMiddlewareChain<TContext>(
+export async function callMiddlewareChain<TDoc, TContext>(
   req: Request,
   middleware: Function | Function[],
-  doc: any,
+  doc: TDoc,
   permissions: Permissions,
   context: TContext,
-) {
+): Promise<TDoc> {
   const middlewares = castArray(middleware);
   for (let x = 0; x < middlewares.length; x++) {
     if (isFunction(middlewares[x])) {
-      doc = await middlewares[x].call(req, doc, permissions, context);
+      doc = (await middlewares[x].call(req, doc, permissions, context)) as TDoc;
     }
   }
 
@@ -133,7 +133,7 @@ export async function collectSchemaFields({
   functionArgs = [],
 }: {
   req: Request;
-  permissionSchema: Record<string, any> | null | undefined;
+  permissionSchema: Record<string, unknown> | null | undefined;
   access: string;
   baseFields?: string[];
   hasPermission: (key: string) => boolean;

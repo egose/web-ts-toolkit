@@ -51,7 +51,7 @@ export interface FindByIdArgs {
   overrides?: {
     select?: Projection;
     populate?: Populate[] | string;
-    idFilter?: any;
+    idFilter?: Filter;
   };
 }
 

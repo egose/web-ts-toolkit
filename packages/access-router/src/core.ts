@@ -60,13 +60,13 @@ import {
 export class Core {
   private req: Request;
   private caches: {
-    baseFilter: Cache<string, any>;
+    baseFilter: Cache<string, unknown>;
   };
 
   constructor(req: Request) {
     this.req = req;
     this.caches = {
-      baseFilter: new Cache<string, any>(),
+      baseFilter: new Cache<string, unknown>(),
     };
   }
 
@@ -113,7 +113,7 @@ export class Core {
     return str;
   }
 
-  async genAllowedFields(modelName: string, doc: any, access: SelectAccess, baseFields = []) {
+  async genAllowedFields(modelName: string, doc: unknown, access: SelectAccess, baseFields = []) {
     const permissionSchema = getModelOption(modelName, 'permissionSchema');
 
     const modelPermissionPrefix = getModelOption(modelName, 'modelPermissionPrefix', '');
@@ -131,9 +131,9 @@ export class Core {
     });
   }
 
-  async pickAllowedFields(modelName: string, doc: any, access: SelectAccess, baseFields = []) {
+  async pickAllowedFields<T>(modelName: string, doc: T, access: SelectAccess, baseFields = []) {
     const allowed = await this.genAllowedFields(modelName, doc, access, baseFields);
-    return pickDocFields(doc, allowed);
+    return pickDocFields(doc, allowed) as T;
   }
 
   async genSelect(
@@ -180,7 +180,11 @@ export class Core {
     return fields.concat(mandatoryFields);
   }
 
-  async genPopulate(modelName: string, access: SelectAccess | BaseFilterAccess = 'read', _populate: any = null) {
+  async genPopulate(
+    modelName: string,
+    access: SelectAccess | BaseFilterAccess = 'read',
+    _populate: Populate | Populate[] | string | null = null,
+  ) {
     if (!_populate) return [];
 
     let populate = Array.isArray(_populate) ? _populate : [_populate];
@@ -214,12 +218,12 @@ export class Core {
     return populate;
   }
 
-  async validate(modelName: string, allowedData: any, access: ValidateAccess, context: MiddlewareContext) {
+  async validate(modelName: string, allowedData: unknown, access: ValidateAccess, context: MiddlewareContext) {
     const validate = getModelOption(modelName, `validate.${access}`, null);
 
     if (isFunction(validate)) {
       const permissions = this.getGlobalPermissions();
-      return validate.call(this.req, allowedData, permissions, context) as boolean | any[];
+      return validate.call(this.req, allowedData, permissions, context) as boolean | unknown[];
     } else if (isBoolean(validate) || isArray(validate)) {
       return validate;
     } else {
@@ -227,25 +231,25 @@ export class Core {
     }
   }
 
-  async prepare(modelName: string, allowedData: any, access: PrepareAccess, context: MiddlewareContext) {
+  async prepare<T>(modelName: string, allowedData: T, access: PrepareAccess, context: MiddlewareContext): Promise<T> {
     const prepare = getModelOption(modelName, `prepare.${access}`, null);
     const permissions = this.getGlobalPermissions();
     return callMiddlewareChain(this.req, prepare, allowedData, permissions, context);
   }
 
-  async transform(modelName: string, doc: any, access: TransformAccess, context: MiddlewareContext) {
+  async transform<T>(modelName: string, doc: T, access: TransformAccess, context: MiddlewareContext): Promise<T> {
     const transform = getModelOption(modelName, `transform.${access}`, null);
     const permissions = this.getGlobalPermissions();
     return callMiddlewareChain(this.req, transform, doc, permissions, context);
   }
 
-  async finalize(modelName: string, doc: any, access: FinalizeAccess, context: MiddlewareContext) {
+  async finalize<T>(modelName: string, doc: T, access: FinalizeAccess, context: MiddlewareContext): Promise<T> {
     const finalize = getModelOption(modelName, `finalize.${access}`, null);
     const permissions = this.getGlobalPermissions();
     return callMiddlewareChain(this.req, finalize, doc, permissions, context);
   }
 
-  async changes(modelName: string, doc: any, context: MiddlewareContext) {
+  async changes(modelName: string, doc: Record<string, unknown>, context: MiddlewareContext) {
     const changeOptions = getModelOption(modelName, `change`, {});
 
     for (let x = 0; x < context.modifiedPaths.length; x++) {
@@ -263,7 +267,7 @@ export class Core {
     }
   }
 
-  async genDocPermissions(modelName: string, doc: any, access: DocPermissionsAccess, context: MiddlewareContext) {
+  async genDocPermissions(modelName: string, doc: unknown, access: DocPermissionsAccess, context: MiddlewareContext) {
     const docPermissionsFn = getModelOption(modelName, `docPermissions.${access}`, null);
     let docPermissions = {};
 
@@ -281,21 +285,31 @@ export class Core {
     return docPermissions;
   }
 
-  addEmptyPermissions(modelName: string, doc: any) {
+  addEmptyPermissions<T>(modelName: string, doc: T): T {
     const docPermissionField = getModelOption(modelName, 'documentPermissionField');
     // Mongoose `toObject` method omits empty values
     setDocValue(doc, docPermissionField, { _view: { $: '_' }, _edit: { $: '_' } });
     return doc;
   }
 
-  async addDocPermissions(modelName: string, doc: any, access: DocPermissionsAccess, context: MiddlewareContext) {
+  async addDocPermissions<T>(
+    modelName: string,
+    doc: T,
+    access: DocPermissionsAccess,
+    context: MiddlewareContext,
+  ): Promise<T> {
     const docPermissionField = getModelOption(modelName, 'documentPermissionField');
     const docPermissions = await this.genDocPermissions(modelName, doc, access, context);
     setDocValue(doc, docPermissionField, docPermissions);
     return doc;
   }
 
-  async addFieldPermissions(modelName: string, doc: any, access: DocPermissionsAccess, context: MiddlewareContext) {
+  async addFieldPermissions<T extends { _id?: unknown }>(
+    modelName: string,
+    doc: T,
+    access: DocPermissionsAccess,
+    context: MiddlewareContext,
+  ): Promise<T> {
     const docPermissionField = getModelOption(modelName, 'documentPermissionField');
     const docId = String(doc._id);
 
@@ -346,7 +360,7 @@ export class Core {
     return doc;
   }
 
-  async decorate(modelName: string, doc: any, access: DecorateAccess, context: MiddlewareContext) {
+  async decorate<T>(modelName: string, doc: T, access: DecorateAccess, context: MiddlewareContext): Promise<T> {
     const decorate = getModelOption(modelName, `decorate.${access}`, null);
 
     const permissions = this.getGlobalPermissions();
@@ -355,14 +369,19 @@ export class Core {
     return callMiddlewareChain(this.req, decorate, doc, permissions, context);
   }
 
-  async decorateAll(modelName: string, docs: any[], access: DecorateAllAccess, context: MiddlewareContext) {
+  async decorateAll<T>(
+    modelName: string,
+    docs: T[],
+    access: DecorateAllAccess,
+    context: MiddlewareContext,
+  ): Promise<T[]> {
     const decorateAll = getModelOption(modelName, `decorateAll.${access}`, null);
     const permissions = this.getGlobalPermissions();
 
     return callMiddlewareChain(this.req, decorateAll, docs, permissions, context);
   }
 
-  runTasks(modelName: string, docObject: any, task: Task | Task[]) {
+  runTasks<T>(modelName: string, docObject: T, task: Task | Task[]): T {
     const tasks = compact(castArray(task));
     if (tasks.length === 0) return docObject;
 
@@ -371,7 +390,11 @@ export class Core {
 
       switch (type) {
         case 'COPY_AND_DEPOPULATE':
-          docObject = copyAndDepopulate(docObject, args, options);
+          docObject = copyAndDepopulate(
+            docObject,
+            args as Array<{ src: string; dest: string }>,
+            options as { mutable?: boolean; idField?: string },
+          ) as T;
           break;
       }
     });

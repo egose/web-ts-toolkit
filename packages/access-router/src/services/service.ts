@@ -631,7 +631,7 @@ export class Service extends Base {
     return getDocPermissions(this.modelName, doc);
   }
 
-  private async getFieldPermissionAccess(ids: any[]) {
+  private async getFieldPermissionAccess(ids: unknown[]) {
     const uniqueIds = uniq(ids.map((id) => String(id)).filter(Boolean));
     if (uniqueIds.length === 0) {
       return {
@@ -656,7 +656,7 @@ export class Service extends Base {
     return new Set(docs.map((doc) => String(doc._id)));
   }
 
-  async listSub(id, sub, options?: { filter: any; fields: string[] }): Promise<ListResult | ErrorResult> {
+  async listSub(id, sub, options?: { filter: Filter; fields: string[] }): Promise<ListResult | ErrorResult> {
     let { filter: ft, fields } = options ?? {};
 
     const parentDoc = await this.getParentDoc(id, sub, null, { access: 'read' });
@@ -680,7 +680,7 @@ export class Service extends Base {
     id,
     sub,
     subId,
-    options?: { fields: string[]; populate: any },
+    options?: { fields: string[]; populate: SubPopulate | SubPopulate[] },
   ): Promise<SingleResult | ErrorResult> {
     let { fields, populate } = options ?? {};
 
@@ -689,7 +689,7 @@ export class Service extends Base {
     let result = get(parentDoc, sub);
 
     const [subFilter, subSelect] = await Promise.all([
-      this.genFilter(`subs.${sub}.read` as any, { _id: subId }),
+      this.genFilter(`subs.${sub}.read`, { _id: subId }),
       this.genQuerySelect('read', fields, false, [sub, 'sub']),
     ]);
 
@@ -780,7 +780,7 @@ export class Service extends Base {
     if (!parentDoc) return { success: false, code: Codes.NotFound };
     let result = get(parentDoc, sub);
 
-    const subFilter = await this.genFilter(`subs.${sub}.delete` as any, { _id: subId });
+    const subFilter = await this.genFilter(`subs.${sub}.delete`, { _id: subId });
     if (subFilter === false) return { success: false, code: Codes.Forbidden };
 
     result = findElement(result, subFilter);
@@ -797,7 +797,7 @@ export class Service extends Base {
     id,
     sub,
     args?: { populate?: SubPopulate | SubPopulate[] },
-    options?: { access?: any; lean?: boolean },
+    options?: { access?: BaseFilterAccess; lean?: boolean },
   ) {
     const { populate } = args ?? {};
     const { access = 'read', lean = false } = options ?? {};

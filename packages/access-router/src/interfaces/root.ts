@@ -1,5 +1,7 @@
 import express from 'express';
-import { Validation } from './base';
+import { Diff } from 'deep-diff';
+import type { Permissions } from '../permission';
+import { DataMiddlewareContext, Filter, MiddlewareContext, Validation } from './base';
 import { PublicCreateArgs, CreateArgs, PublicCreateOptions, CreateOptions } from './service-create';
 import {
   PublicUpdateArgs,
@@ -20,6 +22,57 @@ import { DistinctArgs } from './service';
 interface DefaultFindOneArgs extends Omit<FindOneArgs, 'overrides'> {}
 interface DefaultFindByIdArgs extends Omit<FindByIdArgs, 'overrides'> {}
 interface DefaultFindArgs extends Omit<FindArgs, 'overrides'> {}
+
+type MaybePromise<T> = T | Promise<T>;
+
+type GlobalPermissionValue = Record<string, boolean> | string[] | string | null | undefined;
+
+type BaseFilterHook = (
+  this: express.Request,
+  permissions: Permissions,
+) => MaybePromise<Filter | true | null | undefined>;
+
+type OverrideFilterHook = (this: express.Request, filter: Filter, permissions: Permissions) => MaybePromise<Filter>;
+
+type MiddlewareHook<TValue, TContext> = (
+  this: express.Request,
+  value: TValue,
+  permissions: Permissions,
+  context: TContext,
+) => MaybePromise<TValue>;
+
+type MiddlewareChain<TValue, TContext> = MiddlewareHook<TValue, TContext> | Array<MiddlewareHook<TValue, TContext>>;
+
+type ValidateRule = boolean | unknown[];
+
+type ValidateHook = (
+  this: express.Request,
+  allowedData: unknown,
+  permissions: Permissions,
+  context: MiddlewareContext,
+) => MaybePromise<ValidateRule>;
+
+type DocPermissionsHook = (
+  this: express.Request,
+  doc: unknown,
+  permissions: Permissions,
+  context: MiddlewareContext,
+) => MaybePromise<Record<string, unknown>>;
+
+type ChangeHook = (
+  this: express.Request,
+  previousValue: unknown,
+  nextValue: unknown,
+  changes: Diff<unknown>[],
+  context: MiddlewareContext,
+) => MaybePromise<void>;
+
+type ModelMiddleware = MiddlewareChain<unknown, MiddlewareContext>;
+type ModelListMiddleware = MiddlewareChain<unknown[], MiddlewareContext>;
+type DataMiddleware = MiddlewareChain<unknown, DataMiddlewareContext>;
+type DataListMiddleware = MiddlewareChain<unknown[], DataMiddlewareContext>;
+
+type SubRouteGuardOptions = Record<string, Validation | Record<string, Validation>>;
 
 export interface Defaults {
   findOneArgs?: DefaultFindOneArgs;
@@ -49,7 +102,7 @@ export interface Defaults {
 
 export interface GlobalOptions {
   requestPermissionField?: string;
-  globalPermissions?: (req: express.Request) => any;
+  globalPermissions?: (this: express.Request, req: express.Request) => MaybePromise<GlobalPermissionValue>;
 }
 
 export interface RootRouterOptions {
@@ -65,7 +118,7 @@ interface Access {
   delete?: Validation;
   distinct?: Validation;
   count?: Validation;
-  sub?: any;
+  sub?: Validation | SubRouteGuardOptions;
 }
 
 interface PermissionSchema {
@@ -101,7 +154,7 @@ export interface ExtendedDefaultModelRouterOptions extends DefaultModelRouterOpt
   'routeGuard.create'?: Validation;
   'routeGuard.distinct'?: Validation;
   'routeGuard.count'?: Validation;
-  'routeGuard.subs'?: any;
+  'routeGuard.subs'?: SubRouteGuardOptions;
 }
 
 export interface ModelRouterOptions extends DefaultModelRouterOptions {
@@ -112,20 +165,21 @@ export interface ModelRouterOptions extends DefaultModelRouterOptions {
   _globalPermissionKeys?: string[];
   _modelPermissionKeys?: string[];
   mandatoryFields?: string[];
-  docPermissions?: DocPermissions | Function;
-  baseFilter?: any;
-  overrideFilter?: any;
-  decorate?: any;
-  decorateAll?: any;
-  validate?: any;
-  prepare?: any;
-  transform?: any;
-  change?: Record<string, Function>;
+  docPermissions?: DocPermissions | DocPermissionsHook;
+  baseFilter?: BaseFilterHook | Record<string, BaseFilterHook>;
+  overrideFilter?: OverrideFilterHook | Record<string, OverrideFilterHook>;
+  decorate?: ModelMiddleware | Record<string, ModelMiddleware>;
+  decorateAll?: ModelListMiddleware | Record<string, ModelListMiddleware>;
+  validate?: ValidateRule | ValidateHook | Record<string, ValidateRule | ValidateHook>;
+  prepare?: ModelMiddleware | Record<string, ModelMiddleware>;
+  transform?: ModelMiddleware | Record<string, ModelMiddleware>;
+  finalize?: ModelMiddleware | Record<string, ModelMiddleware>;
+  change?: Record<string, ChangeHook>;
   defaults?: Defaults;
 }
 
 export interface DataRouterOptions {
-  data?: any[];
+  data?: unknown[];
   listHardLimit?: number;
   idParam?: string;
   identifier?: string | Function;
@@ -135,10 +189,10 @@ export interface DataRouterOptions {
   dataName?: string;
   basePath?: string;
   permissionSchema?: PermissionSchema;
-  baseFilter?: any;
-  overrideFilter?: any;
-  decorate?: any;
-  decorateAll?: any;
+  baseFilter?: BaseFilterHook | Record<string, BaseFilterHook>;
+  overrideFilter?: OverrideFilterHook | Record<string, OverrideFilterHook>;
+  decorate?: DataMiddleware | Record<string, DataMiddleware>;
+  decorateAll?: DataListMiddleware | Record<string, DataListMiddleware>;
 }
 
 export interface ExtendedModelRouterOptions extends ModelRouterOptions, ExtendedDefaultModelRouterOptions {
@@ -147,39 +201,39 @@ export interface ExtendedModelRouterOptions extends ModelRouterOptions, Extended
   'mandatoryFields.create'?: string[];
   'mandatoryFields.read'?: string[];
   'mandatoryFields.update'?: string[];
-  'docPermissions.default'?: Function;
-  'docPermissions.list'?: Function;
-  'docPermissions.create'?: Function;
-  'docPermissions.read'?: Function;
-  'docPermissions.update'?: Function;
-  'baseFilter.default'?: any;
-  'baseFilter.list'?: any;
-  'baseFilter.read'?: any;
-  'baseFilter.update'?: any;
-  'baseFilter.delete'?: any;
-  'overrideFilter.default'?: any;
-  'overrideFilter.list'?: any;
-  'overrideFilter.read'?: any;
-  'overrideFilter.update'?: any;
-  'overrideFilter.delete'?: any;
-  'decorate.default'?: any;
-  'decorate.list'?: any;
-  'decorate.create'?: any;
-  'decorate.read'?: any;
-  'decorate.update'?: any;
-  'decorateAll.default'?: any;
-  'decorateAll.list'?: any;
-  'validate.default'?: any;
-  'validate.create'?: any;
-  'validate.update'?: any;
-  'prepare.default'?: any;
-  'prepare.create'?: any;
-  'prepare.update'?: any;
-  'transform.default'?: any;
-  'transform.update'?: any;
-  'finalize.default'?: any;
-  'finalize.create'?: any;
-  'finalize.update'?: any;
+  'docPermissions.default'?: DocPermissionsHook;
+  'docPermissions.list'?: DocPermissionsHook;
+  'docPermissions.create'?: DocPermissionsHook;
+  'docPermissions.read'?: DocPermissionsHook;
+  'docPermissions.update'?: DocPermissionsHook;
+  'baseFilter.default'?: BaseFilterHook;
+  'baseFilter.list'?: BaseFilterHook;
+  'baseFilter.read'?: BaseFilterHook;
+  'baseFilter.update'?: BaseFilterHook;
+  'baseFilter.delete'?: BaseFilterHook;
+  'overrideFilter.default'?: OverrideFilterHook;
+  'overrideFilter.list'?: OverrideFilterHook;
+  'overrideFilter.read'?: OverrideFilterHook;
+  'overrideFilter.update'?: OverrideFilterHook;
+  'overrideFilter.delete'?: OverrideFilterHook;
+  'decorate.default'?: ModelMiddleware;
+  'decorate.list'?: ModelMiddleware;
+  'decorate.create'?: ModelMiddleware;
+  'decorate.read'?: ModelMiddleware;
+  'decorate.update'?: ModelMiddleware;
+  'decorateAll.default'?: ModelListMiddleware;
+  'decorateAll.list'?: ModelListMiddleware;
+  'validate.default'?: ValidateRule | ValidateHook;
+  'validate.create'?: ValidateRule | ValidateHook;
+  'validate.update'?: ValidateRule | ValidateHook;
+  'prepare.default'?: ModelMiddleware;
+  'prepare.create'?: ModelMiddleware;
+  'prepare.update'?: ModelMiddleware;
+  'transform.default'?: ModelMiddleware;
+  'transform.update'?: ModelMiddleware;
+  'finalize.default'?: ModelMiddleware;
+  'finalize.create'?: ModelMiddleware;
+  'finalize.update'?: ModelMiddleware;
   'defaults.findOneArgs'?: DefaultFindOneArgs;
   'defaults.findOneOptions'?: FindOneOptions;
   'defaults.findByIdArgs'?: DefaultFindByIdArgs;

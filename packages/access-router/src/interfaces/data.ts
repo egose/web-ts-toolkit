@@ -1,6 +1,6 @@
-import { Projection, FindAccess } from './base';
+import { Filter, Projection, FindAccess } from './base';
 
-export type DataFilter = any;
+export type DataFilter = Filter;
 
 export interface DataFindOneArgs {
   select?: Projection;

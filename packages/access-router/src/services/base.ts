@@ -16,9 +16,11 @@ import { getModelOption } from '../options';
 import { iterateQuery, CustomError, setDocValue, genPagination, normalizeSelect, populateDoc } from '../helpers';
 import {
   ErrorResult,
+  Filter,
   Include,
   ListResult,
   MiddlewareContext,
+  Populate,
   Request,
   Projection,
   SelectAccess,
@@ -46,19 +48,23 @@ export class Base {
     this.modelName = modelName;
   }
 
-  public decorate(doc: any, access: DecorateAccess, context: MiddlewareContext): Promise<any> {
+  public decorate<T>(doc: T, access: DecorateAccess, context: MiddlewareContext): Promise<T> {
     return this.req.macl.decorate(this.modelName, doc, access, context);
   }
 
-  public decorateAll(docs: any[], access: DecorateAllAccess, context: MiddlewareContext): Promise<any> {
+  public decorateAll<T>(docs: T[], access: DecorateAllAccess, context: MiddlewareContext): Promise<T[]> {
     return this.req.macl.decorateAll(this.modelName, docs, access, context);
   }
 
-  public genAllowedFields(doc: any, access: SelectAccess, baseFields?: string[]): Promise<string[]> {
+  public genAllowedFields(doc: unknown, access: SelectAccess, baseFields?: string[]): Promise<string[]> {
     return this.req.macl.genAllowedFields(this.modelName, doc, access, baseFields);
   }
 
-  public genDocPermissions(doc: any, access: DocPermissionsAccess, context: MiddlewareContext): Promise<{}> {
+  public genDocPermissions(
+    doc: unknown,
+    access: DocPermissionsAccess,
+    context: MiddlewareContext,
+  ): Promise<Record<string, unknown>> {
     return this.req.macl.genDocPermissions(this.modelName, doc, access, context);
   }
 
@@ -70,12 +76,12 @@ export class Base {
     return this.req.macl.getIdentifier(this.modelName);
   }
 
-  public genIDFilter(id: string): Promise<any> {
+  public genIDFilter(id: string): Promise<Filter> {
     return this.req.macl.genIDFilter(this.modelName, id);
   }
 
-  public genPopulate(access?: SelectAccess, populate?): Promise<any[]> {
-    return this.req.macl.genPopulate(this.modelName, access, populate);
+  public genPopulate(access?: SelectAccess, populate?: Populate | Populate[] | string | null): Promise<Populate[]> {
+    return this.req.macl.genPopulate(this.modelName, access, populate) as Promise<Populate[]>;
   }
 
   public genSelect(
@@ -83,7 +89,7 @@ export class Base {
     targetFields?: Projection,
     skipChecks?: boolean,
     subPaths?: string[],
-  ): Promise<any[]> {
+  ): Promise<string[]> {
     return this.req.macl.genSelect(this.modelName, access, targetFields, skipChecks, subPaths);
   }
 
@@ -92,51 +98,59 @@ export class Base {
     targetFields?: Projection,
     skipChecks?: boolean,
     subPaths?: string[],
-  ): Promise<any[]> {
+  ): Promise<string[]> {
     return this.genSelect(access, targetFields, skipChecks, subPaths);
   }
 
-  public addEmptyPermissions(doc: any): any {
+  public addEmptyPermissions<T>(doc: T): T {
     return this.req.macl.addEmptyPermissions(this.modelName, doc);
   }
 
-  public addDocPermissions(doc: any, access: DocPermissionsAccess, context: MiddlewareContext): Promise<any> {
+  public addDocPermissions<T>(doc: T, access: DocPermissionsAccess, context: MiddlewareContext): Promise<T> {
     return this.req.macl.addDocPermissions(this.modelName, doc, access, context);
   }
 
-  public addFieldPermissions(doc: any, access: DocPermissionsAccess, context: MiddlewareContext): Promise<any> {
+  public addFieldPermissions<T extends { _id?: unknown }>(
+    doc: T,
+    access: DocPermissionsAccess,
+    context: MiddlewareContext,
+  ): Promise<T> {
     return this.req.macl.addFieldPermissions(this.modelName, doc, access, context);
   }
 
-  public pickAllowedFields(doc: any, access: SelectAccess, baseFields?: string[]): Promise<any> {
+  public pickAllowedFields<T>(doc: T, access: SelectAccess, baseFields?: string[]): Promise<T> {
     return this.req.macl.pickAllowedFields(this.modelName, doc, access, baseFields);
   }
 
-  public trimOutputFields(doc: any, access: SelectAccess, baseFields?: string[]): Promise<any> {
+  public trimOutputFields<T>(doc: T, access: SelectAccess, baseFields?: string[]): Promise<T> {
     return this.pickAllowedFields(doc, access, baseFields);
   }
 
-  public prepare(allowedData: any, access: PrepareAccess, context: MiddlewareContext): Promise<any> {
+  public prepare<T>(allowedData: T, access: PrepareAccess, context: MiddlewareContext): Promise<T> {
     return this.req.macl.prepare(this.modelName, allowedData, access, context);
   }
 
-  public runTasks(docObject: any, tasks: Task | Task[]): any {
+  public runTasks<T>(docObject: T, tasks: Task | Task[]): T {
     return this.req.macl.runTasks(this.modelName, docObject, tasks);
   }
 
-  public transform(doc: any, access: TransformAccess, context: MiddlewareContext): Promise<any> {
+  public transform<T>(doc: T, access: TransformAccess, context: MiddlewareContext): Promise<T> {
     return this.req.macl.transform(this.modelName, doc, access, context);
   }
 
-  public finalize(doc: any, access: FinalizeAccess, context: MiddlewareContext): Promise<any> {
+  public finalize<T>(doc: T, access: FinalizeAccess, context: MiddlewareContext): Promise<T> {
     return this.req.macl.finalize(this.modelName, doc, access, context);
   }
 
-  public changes(doc: any, context: MiddlewareContext): Promise<any> {
+  public changes(doc: Record<string, unknown>, context: MiddlewareContext): Promise<void> {
     return this.req.macl.changes(this.modelName, doc, context);
   }
 
-  public validate(allowedData: any, access: ValidateAccess, context: MiddlewareContext): Promise<boolean | any[]> {
+  public validate(
+    allowedData: unknown,
+    access: ValidateAccess,
+    context: MiddlewareContext,
+  ): Promise<boolean | unknown[]> {
     return this.req.macl.validate(this.modelName, allowedData, access, context);
   }
 
@@ -204,7 +218,7 @@ export class Base {
 
     const filter = { ...(_filters ?? {}), [foreignField]: { $in: flatten(includeLocalValues) } };
     const result = await svc.find(filter, args, {
-      ...options,
+      ...(options as Record<string, unknown>),
       lean: true,
       includePermissions: false,
       includeCount: false,

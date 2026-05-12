@@ -17,7 +17,7 @@ export type SortOrder = -1 | 1 | 'asc' | 'ascending' | 'desc' | 'descending';
 
 export type Sort = string | { [key: string]: SortOrder } | [string, SortOrder][] | undefined | null;
 
-export type Filter = false | Record<string, any>;
+export type Filter = false | Record<string, unknown>;
 
 export interface Include {
   model: string;
@@ -26,8 +26,8 @@ export interface Include {
   filter?: Filter;
   localField: string;
   foreignField: string;
-  args?: any;
-  options?: any;
+  args?: unknown;
+  options?: unknown;
 }
 
 export type FindAccess = 'list' | 'read';
@@ -36,7 +36,7 @@ export type PopulateAccess = 'list' | 'read';
 export interface Populate {
   path: string;
   select?: Projection;
-  match?: any;
+  match?: unknown;
   access?: PopulateAccess;
 }
 
@@ -46,20 +46,20 @@ export interface SubPopulate {
 }
 
 interface keyValue {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface MiddlewareContext {
   modelName: string;
-  model: mongoose.Model<any>;
-  originalDocObject?: Record<string, any>;
-  finalDocObject?: Record<string, any>;
+  model: mongoose.Model<unknown>;
+  originalDocObject?: Record<string, unknown>;
+  finalDocObject?: Record<string, unknown>;
   diff?(doc: Document): void;
   currentDoc?: keyValue;
-  originalData?: Record<string, any>;
-  preparedData?: Record<string, any>;
+  originalData?: Record<string, unknown>;
+  preparedData?: Record<string, unknown>;
   modifiedPaths?: string[];
-  changes?: Diff<any>[];
+  changes?: Diff<unknown>[];
   docPermissions?: keyValue;
   fieldPermissionAccess?: {
     readIds?: Set<string>;
@@ -75,9 +75,9 @@ export interface RootQueryEntry {
   id?: string;
   field?: string;
   filter?: Filter;
-  data?: any;
-  args?: any;
-  options?: any;
+  data?: unknown;
+  args?: unknown;
+  options?: unknown;
   order?: number;
 }
 
@@ -90,8 +90,8 @@ export interface SubQueryEntry extends RootQueryEntry {
 
 export interface Task {
   type: string;
-  args: any;
-  options: { [key: string]: any };
+  args: unknown;
+  options: Record<string, unknown>;
 }
 
 export interface Request extends express.Request {

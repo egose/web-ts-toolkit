@@ -10,7 +10,12 @@ import isArray from 'lodash/isArray';
 import forEach from 'lodash/forEach';
 import { addLeadingSlash } from '../lib';
 import { OptionsManager } from './manager';
-import { ModelRouterOptions, DefaultModelRouterOptions, ExtendedModelRouterOptions } from '../interfaces';
+import {
+  ModelRouterOptions,
+  DefaultModelRouterOptions,
+  ExtendedDefaultModelRouterOptions,
+  ExtendedModelRouterOptions,
+} from '../interfaces';
 import { getDefaultModelOption, getDefaultModelOptions } from './default-model-options';
 
 mschema2Jsonschema(mongoose);
@@ -155,7 +160,10 @@ export const getModelOption = <K extends keyof ExtendedModelRouterOptions>(
   defaultValue?: ExtendedModelRouterOptions[K],
 ) => {
   const manager = getOrCreateModelOptions(modelName);
-  const defaultModelValue = getDefaultModelOption(key as keyof DefaultModelRouterOptions, defaultValue);
+  const defaultModelValue = getDefaultModelOption(
+    key as keyof ExtendedDefaultModelRouterOptions,
+    defaultValue as never,
+  );
 
   const keys = key.split('.');
   if (keys.length === 1) return manager.get(key, defaultModelValue);
@@ -172,7 +180,7 @@ export const getModelOption = <K extends keyof ExtendedModelRouterOptions>(
 
 export const getExactModelOption = <K extends keyof ExtendedModelRouterOptions>(modelName: string, key: K | string) => {
   const manager = getOrCreateModelOptions(modelName);
-  const defaultModelValue = getDefaultModelOption(key as keyof DefaultModelRouterOptions);
+  const defaultModelValue = getDefaultModelOption(key as keyof ExtendedDefaultModelRouterOptions);
   return manager.get(key, defaultModelValue);
 };
 

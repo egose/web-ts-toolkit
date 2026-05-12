@@ -16,7 +16,7 @@ export interface UpdateOneArgs extends Omit<PublicUpdateArgs, 'select' | 'tasks'
 export interface UpdateByIdArgs extends Omit<UpdateOneArgs, 'overrides'> {
   overrides?: {
     populate?: Populate[] | string;
-    idFilter?: any;
+    idFilter?: Filter;
   };
 }
 
