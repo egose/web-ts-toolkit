@@ -13,14 +13,28 @@ import { processUrl } from '../lib';
 import { handleResultError } from '../helpers';
 import { ModelRouterOptions, ExtendedModelRouterOptions, Request, Task } from '../interfaces';
 import { logger } from '../logger';
-import {
-  formatCreatedData,
-  formatListResponse,
-  formatUpsertCreatedData,
-  getStringRouteParam,
-  parseBooleanString,
-} from './shared';
+import { formatCreatedData, formatListResponse, formatUpsertCreatedData, parseBooleanString } from './shared';
 import { accessRouterResponseHandler } from './index';
+import {
+  advancedCreateBodySchema,
+  advancedUpdateBodySchema,
+  advancedUpsertBodySchema,
+  countBodySchema,
+  createBodySchema,
+  distinctBodySchema,
+  parseBody,
+  parsePathParam,
+  parseQuery,
+  readByIdBodySchema,
+  readFilterBodySchema,
+  requestSchemas,
+  subListBodySchema,
+  subReadBodySchema,
+  subMutationBodySchema,
+  updateBodySchema,
+  upsertBodySchema,
+  listBodySchema,
+} from './validation';
 
 const clientErrors = JsonRouter.clientErrors;
 const success = JsonRouter.success;
@@ -71,7 +85,7 @@ export class ModelRouter {
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
       const { skip, limit, page, page_size, skim, include_permissions, include_count, include_extra_headers } =
-        req.query;
+        parseQuery(requestSchemas.listQuery, req.query);
 
       const svc = req.macl.getPublicService(this.modelName);
 
@@ -114,7 +128,7 @@ export class ModelRouter {
         page,
         pageSize,
         options = {},
-      } = req.body ?? {};
+      } = parseBody(listBodySchema, req.body);
       const { skim, includePermissions, includeCount, includeExtraHeaders, populateAccess } = options;
 
       const svc = req.macl.getPublicService(this.modelName);
@@ -142,14 +156,11 @@ export class ModelRouter {
       const allowed = await req.macl.isAllowed(this.modelName, 'create');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      const { include_permissions } = req.query;
+      const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
+      const data = parseBody(createBodySchema, req.body);
 
       const svc = req.macl.getPublicService(this.modelName);
-      const result = await svc._create(
-        req.body ?? {},
-        {},
-        { includePermissions: parseBooleanString(include_permissions) },
-      );
+      const result = await svc._create(data, {}, { includePermissions: parseBooleanString(include_permissions) });
 
       handleResultError(result);
 
@@ -163,8 +174,8 @@ export class ModelRouter {
       const allowed = await req.macl.isAllowed(this.modelName, 'create');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      const { include_permissions } = req.query;
-      const { data, select, populate, tasks, options = {} } = req.body ?? {};
+      const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
+      const { data, select, populate, tasks, options = {} } = parseBody(advancedCreateBodySchema, req.body);
       const { includePermissions, populateAccess } = options;
 
       const svc = req.macl.getPublicService(this.modelName);
@@ -216,7 +227,7 @@ export class ModelRouter {
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
       // @Deprecated option 'query'
-      const { query, filter, access } = req.body ?? {};
+      const { query, filter, access } = parseBody(countBodySchema, req.body);
       const svc = req.macl.getPublicService(this.modelName);
       const result = await svc._count(filter ?? query, access);
 
@@ -232,8 +243,8 @@ export class ModelRouter {
       const allowed = await req.macl.isAllowed(this.modelName, 'read');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      const id = getStringRouteParam(req.params[this.options.idParam]);
-      const { include_permissions, try_list } = req.query;
+      const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
+      const { include_permissions, try_list } = parseQuery(requestSchemas.readQuery, req.query);
       const svc = req.macl.getPublicService(this.modelName);
       const result = await svc._read(
         id,
@@ -256,7 +267,7 @@ export class ModelRouter {
       const allowed = await req.macl.isAllowed(this.modelName, 'read');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      let { filter, select, sort, populate, include, tasks, options = {} } = req.body ?? {};
+      let { filter, select, sort, populate, include, tasks, options = {} } = parseBody(readFilterBodySchema, req.body);
       const { skim, includePermissions, tryList, populateAccess } = options;
 
       const svc = req.macl.getPublicService(this.modelName);
@@ -284,8 +295,8 @@ export class ModelRouter {
       const allowed = await req.macl.isAllowed(this.modelName, 'read');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      const id = getStringRouteParam(req.params[this.options.idParam]);
-      let { select, populate, include, tasks, options = {} } = req.body ?? {};
+      const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
+      let { select, populate, include, tasks, options = {} } = parseBody(readByIdBodySchema, req.body);
       const { skim, includePermissions, tryList, populateAccess } = options;
 
       const svc = req.macl.getPublicService(this.modelName);
@@ -312,11 +323,12 @@ export class ModelRouter {
       const allowed = await req.macl.isAllowed(this.modelName, 'update');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      const id = getStringRouteParam(req.params[this.options.idParam]);
-      const { returning_all } = req.query;
+      const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
+      const { returning_all } = parseQuery(requestSchemas.updateQuery, req.query);
+      const data = parseBody(updateBodySchema, req.body);
 
       const svc = req.macl.getPublicService(this.modelName);
-      const result = await svc._update(id, req.body ?? {}, {}, { returningAll: parseBooleanString(returning_all) });
+      const result = await svc._update(id, data, {}, { returningAll: parseBooleanString(returning_all) });
 
       handleResultError(result);
 
@@ -330,9 +342,9 @@ export class ModelRouter {
       const allowed = await req.macl.isAllowed(this.modelName, 'update');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      const id = getStringRouteParam(req.params[this.options.idParam]);
-      const { returning_all } = req.query;
-      const { data, select, populate, tasks, options = {} } = req.body ?? {};
+      const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
+      const { returning_all } = parseQuery(requestSchemas.updateQuery, req.query);
+      const { data, select, populate, tasks, options = {} } = parseBody(advancedUpdateBodySchema, req.body);
       const { returningAll, includePermissions, populateAccess } = options;
 
       const svc = req.macl.getPublicService(this.modelName);
@@ -359,8 +371,9 @@ export class ModelRouter {
       const idKey = svc.getIdentifier();
       if (idKey !== '_id') throw new clientErrors.BadRequestError('not supported identifier');
 
-      const { returning_all, include_permissions } = req.query;
-      const { [idKey]: idVal, ...data } = req.body ?? {};
+      const { returning_all, include_permissions } = parseQuery(requestSchemas.upsertQuery, req.query);
+      const body = parseBody(upsertBodySchema, req.body);
+      const { [idKey]: idVal, ...data } = body;
 
       if (idVal) {
         const existing = await svc.exists({ [idKey]: idVal }, { access: 'update' });
@@ -390,8 +403,8 @@ export class ModelRouter {
       const idKey = svc.getIdentifier();
       if (idKey !== '_id') throw new clientErrors.BadRequestError('not supported identifier');
 
-      const { returning_all, include_permissions } = req.query;
-      const { data, select, populate, tasks, options = {} } = req.body ?? {};
+      const { returning_all, include_permissions } = parseQuery(requestSchemas.upsertQuery, req.query);
+      const { data, select, populate, tasks, options = {} } = parseBody(advancedUpsertBodySchema, req.body);
       const { returningAll, includePermissions, populateAccess } = options;
       const { [idKey]: idVal, ...otherData } = data;
 
@@ -435,7 +448,7 @@ export class ModelRouter {
       const allowed = await req.macl.isAllowed(this.modelName, 'delete');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      const id = getStringRouteParam(req.params[this.options.idParam]);
+      const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
       const svc = req.macl.getPublicService(this.modelName);
       const result = await svc._delete(id);
 
@@ -451,7 +464,7 @@ export class ModelRouter {
       const allowed = await req.macl.isAllowed(this.modelName, 'distinct');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      const field = getStringRouteParam(req.params.field);
+      const field = parsePathParam(req.params.field, 'field');
       const svc = req.macl.getPublicService(this.modelName);
       const result = await svc._distinct(field);
 
@@ -464,9 +477,9 @@ export class ModelRouter {
       const allowed = await req.macl.isAllowed(this.modelName, 'distinct');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      const field = getStringRouteParam(req.params.field);
+      const field = parsePathParam(req.params.field, 'field');
       // @Deprecated option 'query'
-      const { query, filter } = req.body ?? {};
+      const { query, filter } = parseBody(distinctBodySchema, req.body);
 
       const svc = req.macl.getPublicService(this.modelName);
       const result = await svc._distinct(field, { filter: filter ?? query });
@@ -493,7 +506,7 @@ export class ModelRouter {
         const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.list`);
         if (!allowed) throw new clientErrors.UnauthorizedError();
 
-        const id = getStringRouteParam(req.params[this.options.idParam]);
+        const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
         const svc = req.macl.getPublicService(this.modelName);
         const result = await svc.listSub(id, sub);
 
@@ -508,9 +521,10 @@ export class ModelRouter {
         const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.list`);
         if (!allowed) throw new clientErrors.UnauthorizedError();
 
-        const id = getStringRouteParam(req.params[this.options.idParam]);
+        const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
+        const body = parseBody(subListBodySchema, req.body);
         const svc = req.macl.getPublicService(this.modelName);
-        const result = await svc.listSub(id, sub, req.body ?? {});
+        const result = await svc.listSub(id, sub, body);
 
         handleResultError(result);
         return result.data;
@@ -523,9 +537,10 @@ export class ModelRouter {
         const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.update`);
         if (!allowed) throw new clientErrors.UnauthorizedError();
 
-        const id = getStringRouteParam(req.params[this.options.idParam]);
+        const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
+        const data = parseBody(subMutationBodySchema, req.body);
         const svc = req.macl.getPublicService(this.modelName);
-        const result = await svc.bulkUpdateSub(id, sub, req.body ?? {});
+        const result = await svc.bulkUpdateSub(id, sub, data);
 
         handleResultError(result);
         return result.data;
@@ -538,8 +553,8 @@ export class ModelRouter {
         const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.read`);
         if (!allowed) throw new clientErrors.UnauthorizedError();
 
-        const id = getStringRouteParam(req.params[this.options.idParam]);
-        const { subId } = req.params;
+        const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
+        const subId = parsePathParam(req.params.subId, 'subId');
         const svc = req.macl.getPublicService(this.modelName);
         const result = await svc.readSub(id, sub, subId);
 
@@ -554,10 +569,11 @@ export class ModelRouter {
         const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.read`);
         if (!allowed) throw new clientErrors.UnauthorizedError();
 
-        const id = getStringRouteParam(req.params[this.options.idParam]);
-        const { subId } = req.params;
+        const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
+        const subId = parsePathParam(req.params.subId, 'subId');
+        const body = parseBody(subReadBodySchema, req.body);
         const svc = req.macl.getPublicService(this.modelName);
-        const result = await svc.readSub(id, sub, subId, req.body ?? {});
+        const result = await svc.readSub(id, sub, subId, body);
 
         handleResultError(result);
         return result.data;
@@ -570,10 +586,11 @@ export class ModelRouter {
         const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.update`);
         if (!allowed) throw new clientErrors.UnauthorizedError();
 
-        const id = getStringRouteParam(req.params[this.options.idParam]);
-        const { subId } = req.params;
+        const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
+        const subId = parsePathParam(req.params.subId, 'subId');
+        const data = parseBody(subMutationBodySchema, req.body);
         const svc = req.macl.getPublicService(this.modelName);
-        const result = await svc.updateSub(id, sub, subId, req.body ?? {});
+        const result = await svc.updateSub(id, sub, subId, data);
 
         handleResultError(result);
         return result.data;
@@ -586,9 +603,10 @@ export class ModelRouter {
         const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.create`);
         if (!allowed) throw new clientErrors.UnauthorizedError();
 
-        const id = getStringRouteParam(req.params[this.options.idParam]);
+        const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
+        const data = parseBody(subMutationBodySchema, req.body);
         const svc = req.macl.getPublicService(this.modelName);
-        const result = await svc.createSub(id, sub, req.body ?? {});
+        const result = await svc.createSub(id, sub, data);
 
         handleResultError(result);
 
@@ -602,8 +620,8 @@ export class ModelRouter {
         const allowed = await req.macl.isAllowed(this.modelName, `subs.${sub}.delete`);
         if (!allowed) throw new clientErrors.UnauthorizedError();
 
-        const id = getStringRouteParam(req.params[this.options.idParam]);
-        const { subId } = req.params;
+        const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
+        const subId = parsePathParam(req.params.subId, 'subId');
         const svc = req.macl.getPublicService(this.modelName);
         const result = await svc.deleteSub(id, sub, subId);
 

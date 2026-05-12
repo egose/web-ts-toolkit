@@ -89,6 +89,73 @@ And when `include_count=true` is also enabled:
 - `wtt-total-pages`
 - `wtt-has-next-page`
 
+## Request Validation
+
+Public router endpoints now validate request path params, known query params, and top-level request body shapes before calling the service layer.
+
+Examples:
+
+- `GET /users/:id?try_list=false` validates `id` and `try_list`
+- `GET /pets?include_count=true&limit=10` validates boolean and pagination query params
+- `POST /users/__mutation` requires a top-level `data` field
+- `POST /users/__query/:id` validates advanced `select`, `populate`, `include`, and `tasks` shapes
+
+Invalid requests return `400 application/problem+json` with structured `errors` entries using `parameter` or `pointer`:
+
+```json
+{
+  "title": "Bad Request",
+  "detail": "Bad Request",
+  "status": 400,
+  "errors": [
+    {
+      "parameter": "include_count",
+      "detail": "Invalid option: expected one of \"true\"|\"false\""
+    }
+  ]
+}
+```
+
+## Custom Route Validation
+
+The package also exports the same validation helpers used by the built-in public routers:
+
+- `parsePathParam`
+- `parseQuery`
+- `parseBody`
+- `requestSchemas`
+- advanced body schemas such as `listBodySchema`, `readByIdBodySchema`, `advancedCreateBodySchema`, and `advancedUpdateBodySchema`
+
+Example:
+
+```ts
+import acl, {
+  parseBody,
+  parsePathParam,
+  parseQuery,
+  requestSchemas,
+  readByIdBodySchema,
+} from '@web-ts-toolkit/access-router';
+
+const router = acl.createRouter('User', {
+  basePath: '/users',
+});
+
+router.router.post('/custom/:id', async (req) => {
+  const id = parsePathParam(req.params.id, 'id');
+  const { include_permissions } = parseQuery(requestSchemas.readQuery, req.query);
+  const body = parseBody(readByIdBodySchema, req.body);
+
+  return {
+    id,
+    includePermissions: include_permissions === 'true',
+    body,
+  };
+});
+```
+
+These helpers throw the same `BadRequestError` shape as the built-in router endpoints, so custom routes can stay consistent with the package defaults.
+
 ## Hook Signatures
 
 The most common model hooks are called with `this` bound to the current Express request.

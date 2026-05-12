@@ -12,8 +12,17 @@ import { processUrl } from '../lib';
 import { handleResultError } from '../helpers';
 import { DataRouterOptions, Request } from '../interfaces';
 import { logger } from '../logger';
-import { formatListResponse, getStringRouteParam, parseBooleanString } from './shared';
+import { formatListResponse, parseBooleanString } from './shared';
 import { accessRouterResponseHandler } from './index';
+import {
+  dataListBodySchema,
+  dataReadByIdBodySchema,
+  dataReadFilterBodySchema,
+  parseBody,
+  parsePathParam,
+  parseQuery,
+  requestSchemas,
+} from './validation';
 
 const clientErrors = JsonRouter.clientErrors;
 const success = JsonRouter.success;
@@ -59,7 +68,10 @@ export class DataRouter {
       const allowed = await req.dacl.isAllowed(this.dataName, 'list');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      const { skip, limit, page, page_size, include_count, include_extra_headers } = req.query;
+      const { skip, limit, page, page_size, include_count, include_extra_headers } = parseQuery(
+        requestSchemas.listQuery,
+        req.query,
+      );
 
       const svc = req.dacl.getService(this.dataName);
 
@@ -86,7 +98,7 @@ export class DataRouter {
       const allowed = await req.dacl.isAllowed(this.dataName, 'list');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      let { filter, select, sort, skip, limit, page, pageSize, options = {} } = req.body ?? {};
+      let { filter, select, sort, skip, limit, page, pageSize, options = {} } = parseBody(dataListBodySchema, req.body);
       const { includeCount, includeExtraHeaders } = options;
 
       const svc = req.dacl.getService(this.dataName);
@@ -110,7 +122,7 @@ export class DataRouter {
       const allowed = await req.dacl.isAllowed(this.dataName, 'read');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      const id = getStringRouteParam(req.params[this.options.idParam]);
+      const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
       const svc = req.dacl.getService(this.dataName);
       const result = await svc.findById(id, {}, {});
 
@@ -126,7 +138,7 @@ export class DataRouter {
       const allowed = await req.dacl.isAllowed(this.dataName, 'read');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      let { filter, select, options = {} } = req.body ?? {};
+      let { filter, select, options = {} } = parseBody(dataReadFilterBodySchema, req.body);
 
       const svc = req.dacl.getService(this.dataName);
       const result = await svc.findOne(filter, { select }, {});
@@ -143,8 +155,8 @@ export class DataRouter {
       const allowed = await req.dacl.isAllowed(this.dataName, 'read');
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      const id = getStringRouteParam(req.params[this.options.idParam]);
-      let { select, options = {} } = req.body ?? {};
+      const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
+      let { select, options = {} } = parseBody(dataReadByIdBodySchema, req.body);
 
       const svc = req.dacl.getService(this.dataName);
       const result = await svc.findById(id, { select }, {});

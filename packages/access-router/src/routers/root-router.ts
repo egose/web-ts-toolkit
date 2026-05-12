@@ -21,6 +21,7 @@ import {
 } from '../interfaces';
 import { MIDDLEWARE, PERMISSIONS, PERMISSION_KEYS } from '../symbols';
 import { Codes, StatusCodes } from '../enums';
+import { parseBody, rootQuerySchema } from './validation';
 
 const clientErrors = JsonRouter.clientErrors;
 
@@ -118,7 +119,7 @@ export class RootRouter {
       const allowed = await req.macl.canActivate(this.routeGuard);
       if (!allowed) throw new clientErrors.UnauthorizedError();
 
-      const items: RootQueryEntry[] = req.body ?? [];
+      const items: RootQueryEntry[] = parseBody(rootQuerySchema, req.body);
       const groupedItems = this.groupItemsByOrder(items);
 
       const results = [];

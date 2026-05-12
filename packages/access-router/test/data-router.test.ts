@@ -361,6 +361,37 @@ describe('data router', () => {
     });
   });
 
+  it('rejects invalid query params and payload shapes for public data routes', async () => {
+    const app = createPetApp();
+
+    const invalidQuery = await request(app)
+      .get('/pets?include_count=yes')
+      .set('user', 'admin')
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidQuery.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ parameter: 'include_count' }],
+    });
+
+    const invalidBody = await request(app)
+      .post('/pets/__query')
+      .set('user', 'admin')
+      .send([])
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidBody.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#' }],
+    });
+  });
+
   it('supports object-shaped global permissions in data router middleware', async () => {
     setGlobalOptions({
       requestPermissionField: '_permissions',

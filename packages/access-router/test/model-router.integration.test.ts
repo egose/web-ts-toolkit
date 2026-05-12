@@ -378,6 +378,55 @@ describe('model router integration', () => {
     });
   });
 
+  it('rejects invalid query params and payload shapes for public model routes', async () => {
+    const { app } = await createIntegrationApp();
+
+    const invalidQuery = await request(app)
+      .get('/users/user1?try_list=maybe')
+      .set('user', 'admin')
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidQuery.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ parameter: 'try_list' }],
+    });
+
+    const invalidBody = await request(app)
+      .post('/users/__mutation')
+      .set('user', 'admin')
+      .send({ select: 'name' })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidBody.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/data' }],
+    });
+  });
+
+  it('rejects invalid advanced populate payloads for model routes', async () => {
+    const { app } = await createIntegrationApp();
+
+    const invalidPopulate = await request(app)
+      .post('/users/__query/user1')
+      .set('user', 'admin')
+      .send({ populate: [123] })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidPopulate.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/populate' }],
+    });
+  });
+
   it('supports route guards for count, distinct, and upsert routes', async () => {
     const modelName = `AclMongoOpsUser${++modelCounter}`;
     const schema = new mongoose.Schema({
