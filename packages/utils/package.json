@@ -1,0 +1,23 @@
+{
+  "name": "@web-ts-toolkit/utils",
+  "description": "Shared utility helpers used across workspace packages",
+  "version": "0.0.0-PLACEHOLDER",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts"
+  },
+  "files": [
+    "dist",
+    "tsup.config.ts"
+  ]
+}
