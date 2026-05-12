@@ -1,14 +1,8 @@
 import mongoose from 'mongoose';
-import get from 'lodash/get';
-import set from 'lodash/set';
 import isNil from 'lodash/isNil';
-import isBoolean from 'lodash/isBoolean';
-import isFunction from 'lodash/isFunction';
 import isString from 'lodash/isString';
-import isArray from 'lodash/isArray';
-import forEach from 'lodash/forEach';
 import { addLeadingSlash } from '../lib';
-import { OptionsManager } from './manager';
+import { OptionsManager, getNestedOption } from './manager';
 import { DataRouterOptions } from '../interfaces';
 
 const pluralize = mongoose.pluralize();
@@ -20,6 +14,14 @@ const defaultDataOptions: DataRouterOptions = {
   queryPath: '__query',
 };
 
+const normalizeBasePath = (name: string, value: string | null | undefined) => {
+  if (isNil(value)) {
+    return `/${pluralize(name)}`;
+  }
+
+  return isString(value) ? addLeadingSlash(value) : '';
+};
+
 const createDataOptions = (dataName: string) => {
   const manager = new OptionsManager<DataRouterOptions, DataRouterOptions>({
     ...defaultDataOptions,
@@ -28,14 +30,7 @@ const createDataOptions = (dataName: string) => {
 
   manager
     .onchange('basePath', function (newval, key, target, oldval) {
-      let basePath = '';
-      if (isNil(newval)) {
-        basePath = `/${pluralize(dataName)}`;
-      } else if (isString(newval)) {
-        basePath = addLeadingSlash(newval);
-      }
-
-      target[key] = basePath;
+      target[key] = normalizeBasePath(dataName, newval);
     })
     .build();
 
@@ -81,17 +76,7 @@ export const getDataOption = <K extends keyof DataRouterOptions>(
 ) => {
   const manager = getOrCreateDataOptions(dataName);
 
-  const keys = key.split('.');
-  if (keys.length === 1) return manager.get(key, defaultValue);
-
-  let option = manager.get(key, undefined);
-  if (option !== undefined) return option;
-
-  const parentKey = keys.slice(0, -1).join('.') as keyof DataRouterOptions;
-  option = manager.get(`${parentKey}.default`);
-
-  if (option === undefined) option = manager.get(parentKey, defaultValue);
-  return option;
+  return getNestedOption(manager, key, defaultValue);
 };
 
 export const getDataNames = () => {

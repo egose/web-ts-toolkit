@@ -1,7 +1,5 @@
 import mongoose from 'mongoose';
 import mschema2Jsonschema from 'mongoose-schema-jsonschema';
-import get from 'lodash/get';
-import set from 'lodash/set';
 import isNil from 'lodash/isNil';
 import isBoolean from 'lodash/isBoolean';
 import isFunction from 'lodash/isFunction';
@@ -9,7 +7,7 @@ import isString from 'lodash/isString';
 import isArray from 'lodash/isArray';
 import forEach from 'lodash/forEach';
 import { addLeadingSlash } from '../lib';
-import { OptionsManager } from './manager';
+import { OptionsManager, getNestedOption } from './manager';
 import {
   ModelRouterOptions,
   DefaultModelRouterOptions,
@@ -22,6 +20,7 @@ mschema2Jsonschema(mongoose);
 const pluralize = mongoose.pluralize();
 
 type ExtendedModel = mongoose.Model<any> & { jsonSchema: Function };
+type PermissionKeyMap = Record<string, string[]>;
 
 const defaultModelOptions: ModelRouterOptions = {
   basePath: null,
@@ -32,11 +31,80 @@ const modelOptions: Record<string, OptionsManager<ModelRouterOptions, ExtendedMo
 
 const modelJsonSchemas: Record<string, any> = {};
 
+const normalizeBasePath = (name: string, value: string | null | undefined) => {
+  if (isNil(value)) {
+    return `/${pluralize(name)}`;
+  }
+
+  return isString(value) ? addLeadingSlash(value) : '';
+};
+
+const hasModelPermission = (value: unknown, modelPermissionPrefix: string) => {
+  if (!modelPermissionPrefix) {
+    return true;
+  }
+
+  if (isString(value)) {
+    return value
+      .trim()
+      .split(' ')
+      .some((item) => item.startsWith(modelPermissionPrefix));
+  }
+
+  if (isArray(value)) {
+    return value.some((item) => {
+      if (isString(item) || isArray(item)) {
+        return hasModelPermission(item, modelPermissionPrefix);
+      }
+
+      return true;
+    });
+  }
+
+  return isFunction(value);
+};
+
+const classifyPermissionSchema = (
+  permissionSchema: NonNullable<ModelRouterOptions['permissionSchema']>,
+  modelPermissionPrefix: string,
+) => {
+  const schemaKeys = Object.keys(permissionSchema);
+  const globalPermissionKeys: PermissionKeyMap = {};
+  const modelPermissionKeys: PermissionKeyMap = {};
+
+  forEach(schemaKeys, (schemaKey) => {
+    forEach(permissionSchema[schemaKey], (value, accessKey) => {
+      if (!isArray(globalPermissionKeys[accessKey])) {
+        globalPermissionKeys[accessKey] = [];
+      }
+
+      if (!isArray(modelPermissionKeys[accessKey])) {
+        modelPermissionKeys[accessKey] = [];
+      }
+
+      if (isBoolean(value)) {
+        globalPermissionKeys[accessKey].push(schemaKey);
+        return;
+      }
+
+      if (hasModelPermission(value, modelPermissionPrefix)) {
+        modelPermissionKeys[accessKey].push(schemaKey);
+        return;
+      }
+
+      globalPermissionKeys[accessKey].push(schemaKey);
+    });
+  });
+
+  return {
+    schemaKeys,
+    globalPermissionKeys,
+    modelPermissionKeys,
+  };
+};
+
 const createModelOptions = (modelName: string) => {
   const model = mongoose.model(modelName) as ExtendedModel;
-
-  // TODO: display warning that the model does not exist
-  if (!model) return null;
 
   const manager = new OptionsManager<ModelRouterOptions, ExtendedModelRouterOptions>({
     ...defaultModelOptions,
@@ -45,75 +113,17 @@ const createModelOptions = (modelName: string) => {
 
   manager
     .onchange('permissionSchema', function (newval, key, target, oldval) {
-      const schemaKeys = Object.keys(newval);
-
-      const globalPermissionKeys = {};
-      const modelPermissionKeys = {};
-
-      const stringHandler = (str) =>
-        str
-          .trim()
-          .split(' ')
-          .some((v) => v.startsWith(target.modelPermissionPrefix));
-
-      const arrayHandler = (arr) =>
-        arr.some((item) => {
-          if (isString(item)) return stringHandler(item);
-          else if (isArray(item)) return arrayHandler(item);
-          else return true;
-        });
-
-      forEach(schemaKeys, (skey) => {
-        forEach(newval[skey], (val, key) => {
-          if (!isArray(globalPermissionKeys[key])) {
-            globalPermissionKeys[key] = [];
-          }
-
-          if (!isArray(modelPermissionKeys[key])) {
-            modelPermissionKeys[key] = [];
-          }
-
-          if (isBoolean(val)) {
-            globalPermissionKeys[key].push(skey);
-          } else {
-            if (target.modelPermissionPrefix) {
-              if (isString(val)) {
-                const hasModelPermission = stringHandler(val);
-                if (hasModelPermission) {
-                  modelPermissionKeys[key].push(skey);
-                } else {
-                  globalPermissionKeys[key].push(skey);
-                }
-              } else if (isArray(val)) {
-                const hasModelPermission = arrayHandler(val);
-                if (hasModelPermission) {
-                  modelPermissionKeys[key].push(skey);
-                } else {
-                  globalPermissionKeys[key].push(skey);
-                }
-              } else if (isFunction(val)) {
-                modelPermissionKeys[key].push(skey);
-              }
-            } else {
-              modelPermissionKeys[key].push(skey);
-            }
-          }
-        });
-      });
+      const { schemaKeys, globalPermissionKeys, modelPermissionKeys } = classifyPermissionSchema(
+        newval,
+        target.modelPermissionPrefix,
+      );
 
       target._permissionSchemaKeys = schemaKeys;
       target._globalPermissionKeys = globalPermissionKeys;
       target._modelPermissionKeys = modelPermissionKeys;
     })
     .onchange('basePath', function (newval, key, target, oldval) {
-      let basePath = '';
-      if (isNil(newval)) {
-        basePath = `/${pluralize(modelName)}`;
-      } else if (isString(newval)) {
-        basePath = addLeadingSlash(newval);
-      }
-
-      target[key] = basePath;
+      target[key] = normalizeBasePath(modelName, newval);
     })
     .build();
 
@@ -133,10 +143,10 @@ const getOrCreateModelOptions = (modelName: string) => {
 
 export const setModelOptions = (modelName: string, options: ModelRouterOptions) => {
   const manager = getOrCreateModelOptions(modelName);
-  const modelOptions = manager.fetch();
   const defaultOptions = getDefaultModelOptions();
+  const modelOptions = manager.fetch();
 
-  manager.assign({ ...modelOptions, ...defaultOptions, ...options });
+  manager.assign({ ...defaultOptions, ...modelOptions, ...options });
 };
 
 export const setModelOption = <K extends keyof ExtendedModelRouterOptions>(
@@ -165,17 +175,7 @@ export const getModelOption = <K extends keyof ExtendedModelRouterOptions>(
     defaultValue as never,
   );
 
-  const keys = key.split('.');
-  if (keys.length === 1) return manager.get(key, defaultModelValue);
-
-  let option = manager.get(key, undefined);
-  if (option !== undefined) return option;
-
-  const parentKey = keys.slice(0, -1).join('.') as keyof ModelRouterOptions;
-  option = manager.get(`${parentKey}.default`);
-
-  if (option === undefined) option = manager.get(parentKey, defaultModelValue);
-  return option;
+  return getNestedOption(manager, key, defaultModelValue);
 };
 
 export const getExactModelOption = <K extends keyof ExtendedModelRouterOptions>(modelName: string, key: K | string) => {

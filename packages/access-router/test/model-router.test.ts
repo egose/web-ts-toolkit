@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import acl, { setGlobalOptions } from '../dist/index.mjs';
+import acl, { getModelOption, setGlobalOptions } from '../dist/index.mjs';
 
 let modelCounter = 0;
 
@@ -180,5 +180,48 @@ describe('model router', () => {
 
     expect(createSpy).toHaveBeenCalledOnce();
     expect(response.body.role).toBe('user');
+  });
+
+  it('preserves existing model overrides across partial option updates', () => {
+    const modelName = `AclUserModel${++modelCounter}`;
+    mongoose.model(
+      modelName,
+      new mongoose.Schema({
+        name: String,
+      }),
+    );
+
+    acl.setModelOptions(modelName, {
+      identifier: 'name',
+    });
+
+    acl.setModelOptions(modelName, {
+      basePath: '/users',
+    });
+
+    expect(getModelOption(modelName, 'identifier')).toBe('name');
+    expect(getModelOption(modelName, 'basePath')).toBe('/users');
+  });
+
+  it('falls back from nested keys to default and parent option values', () => {
+    const modelName = `AclUserModel${++modelCounter}`;
+    mongoose.model(
+      modelName,
+      new mongoose.Schema({
+        name: String,
+      }),
+    );
+
+    acl.setModelOptions(modelName, {
+      mandatoryFields: {
+        default: ['id'],
+        create: ['email'],
+      } as any,
+      routeGuard: true,
+    });
+
+    expect(getModelOption(modelName, 'mandatoryFields.create')).toEqual(['email']);
+    expect(getModelOption(modelName, 'mandatoryFields.read')).toEqual(['id']);
+    expect(getModelOption(modelName, 'routeGuard.list')).toBe(true);
   });
 });

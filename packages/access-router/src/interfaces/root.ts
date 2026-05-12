@@ -162,8 +162,8 @@ export interface ModelRouterOptions extends DefaultModelRouterOptions {
   basePath?: string;
   permissionSchema?: PermissionSchema;
   _permissionSchemaKeys?: string[];
-  _globalPermissionKeys?: string[];
-  _modelPermissionKeys?: string[];
+  _globalPermissionKeys?: Record<string, string[]>;
+  _modelPermissionKeys?: Record<string, string[]>;
   mandatoryFields?: string[];
   docPermissions?: DocPermissions | DocPermissionsHook;
   baseFilter?: BaseFilterHook | Record<string, BaseFilterHook>;
