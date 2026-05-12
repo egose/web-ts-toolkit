@@ -23,25 +23,8 @@ import {
 
 export class PublicService extends Service {
   async _list(filter: Filter, args?: PublicListArgs, options?: PublicListOptions): Promise<ListResult | ErrorResult> {
-    const {
-      select = this.defaults.publicListArgs?.select,
-      populate = this.defaults.publicListArgs?.populate,
-      include = this.defaults.publicListArgs?.include,
-      sort = this.defaults.publicListArgs?.sort,
-      skip = this.defaults.publicListArgs?.skip,
-      limit = this.defaults.publicListArgs?.limit,
-      page = this.defaults.publicListArgs?.page,
-      pageSize = this.defaults.publicListArgs?.pageSize,
-      tasks = this.defaults.publicListArgs?.tasks ?? [],
-    } = args ?? {};
-
-    const {
-      skim = this.defaults.publicListOptions?.skim ?? true,
-      includePermissions = this.defaults.publicListOptions?.includePermissions ?? false,
-      includeCount = this.defaults.publicListOptions?.includeCount ?? false,
-      populateAccess = this.defaults.publicListOptions?.populateAccess ?? 'read',
-      lean = this.defaults.publicListOptions?.lean ?? true,
-    } = options ?? {};
+    const { select, populate, include, sort, skip, limit, page, pageSize, tasks } = this.resolvePublicListArgs(args);
+    const { skim, includePermissions, includeCount, populateAccess, lean } = this.resolvePublicListOptions(options);
 
     const result = await this.find(
       filter,
@@ -66,17 +49,8 @@ export class PublicService extends Service {
   }
 
   async _create(data, args?: PublicCreateArgs, options?: PublicCreateOptions): Promise<ListResult | ErrorResult> {
-    const {
-      select = this.defaults.publicCreateArgs?.select,
-      populate = this.defaults.publicCreateArgs?.populate,
-      tasks = this.defaults.publicCreateArgs?.tasks ?? [],
-    } = args ?? {};
-
-    const {
-      skim = this.defaults.publicCreateOptions?.skim ?? false,
-      includePermissions = this.defaults.publicCreateOptions?.includePermissions ?? true,
-      populateAccess = this.defaults.publicCreateOptions?.populateAccess ?? 'read',
-    } = options ?? {};
+    const { select, populate, tasks } = this.resolvePublicCreateArgs(args);
+    const { skim, includePermissions, populateAccess } = this.resolvePublicCreateOptions(options);
 
     const result = await this.create(
       data,
@@ -100,20 +74,8 @@ export class PublicService extends Service {
   }
 
   async _read(id: string, args?: PublicReadArgs, options?: PublicReadOptions): Promise<SingleResult | ErrorResult> {
-    const {
-      select = this.defaults.publicReadArgs?.select,
-      populate = this.defaults.publicReadArgs?.populate,
-      include = this.defaults.publicReadArgs?.include,
-      tasks = this.defaults.publicReadArgs?.tasks ?? [],
-    } = args ?? {};
-
-    const {
-      skim = this.defaults.publicReadOptions?.skim ?? false,
-      includePermissions = this.defaults.publicReadOptions?.includePermissions ?? true,
-      tryList = this.defaults.publicReadOptions?.tryList ?? true,
-      populateAccess = this.defaults.publicReadOptions?.populateAccess,
-      lean = this.defaults.publicReadOptions?.lean ?? false,
-    } = options ?? {};
+    const { select, populate, include, tasks } = this.resolvePublicReadArgs(args);
+    const { skim, includePermissions, tryList, populateAccess, lean } = this.resolvePublicReadOptions(options);
 
     let access: FindAccess = 'read';
     const idFilter = await this.genIDFilter(id);
@@ -161,21 +123,8 @@ export class PublicService extends Service {
     args?: PublicReadArgs & { sort?: Sort },
     options?: PublicReadOptions,
   ): Promise<SingleResult | ErrorResult> {
-    const {
-      select = this.defaults.publicReadArgs?.select,
-      sort = this.defaults.publicListArgs?.sort,
-      populate = this.defaults.publicReadArgs?.populate,
-      include = this.defaults.publicReadArgs?.include,
-      tasks = this.defaults.publicReadArgs?.tasks ?? [],
-    } = args ?? {};
-
-    const {
-      skim = this.defaults.publicReadOptions?.skim ?? false,
-      includePermissions = this.defaults.publicReadOptions?.includePermissions ?? true,
-      tryList = this.defaults.publicReadOptions?.tryList ?? true,
-      populateAccess = this.defaults.publicReadOptions?.populateAccess,
-      lean = this.defaults.publicReadOptions?.lean ?? false,
-    } = options ?? {};
+    const { select, sort, populate, include, tasks } = this.resolvePublicReadFilterArgs(args);
+    const { skim, includePermissions, tryList, populateAccess, lean } = this.resolvePublicReadOptions(options);
 
     let access: FindAccess = 'read';
 
@@ -225,18 +174,8 @@ export class PublicService extends Service {
     args?: PublicUpdateArgs,
     options?: PublicUpdateOptions,
   ): Promise<SingleResult | ErrorResult> {
-    const {
-      select = this.defaults.publicUpdateArgs?.select,
-      populate = this.defaults.publicUpdateArgs?.populate,
-      tasks = this.defaults.publicUpdateArgs?.tasks ?? [],
-    } = args ?? {};
-
-    const {
-      skim = this.defaults.publicUpdateOptions?.skim ?? false,
-      returningAll = this.defaults.publicUpdateOptions?.returningAll ?? true,
-      includePermissions = this.defaults.publicUpdateOptions?.includePermissions ?? true,
-      populateAccess = this.defaults.publicUpdateOptions?.populateAccess ?? 'read',
-    } = options ?? {};
+    const { select, populate, tasks } = this.resolvePublicUpdateArgs(args);
+    const { skim, returningAll, includePermissions, populateAccess } = this.resolvePublicUpdateOptions(options);
 
     const result = await this.updateById(
       id,
@@ -271,5 +210,90 @@ export class PublicService extends Service {
   async _count(filter, access: BaseFilterAccess = 'list'): Promise<SingleResult<number> | ErrorResult> {
     const result = await this.count(filter, access);
     return result;
+  }
+
+  private resolvePublicListArgs(args: PublicListArgs = {}) {
+    return {
+      select: args.select ?? this.defaults.publicListArgs?.select,
+      populate: args.populate ?? this.defaults.publicListArgs?.populate,
+      include: args.include ?? this.defaults.publicListArgs?.include,
+      sort: args.sort ?? this.defaults.publicListArgs?.sort,
+      skip: args.skip ?? this.defaults.publicListArgs?.skip,
+      limit: args.limit ?? this.defaults.publicListArgs?.limit,
+      page: args.page ?? this.defaults.publicListArgs?.page,
+      pageSize: args.pageSize ?? this.defaults.publicListArgs?.pageSize,
+      tasks: args.tasks ?? this.defaults.publicListArgs?.tasks ?? [],
+    };
+  }
+
+  private resolvePublicListOptions(options: PublicListOptions = {}) {
+    return {
+      skim: options.skim ?? this.defaults.publicListOptions?.skim ?? true,
+      includePermissions: options.includePermissions ?? this.defaults.publicListOptions?.includePermissions ?? false,
+      includeCount: options.includeCount ?? this.defaults.publicListOptions?.includeCount ?? false,
+      populateAccess: options.populateAccess ?? this.defaults.publicListOptions?.populateAccess ?? 'read',
+      lean: options.lean ?? this.defaults.publicListOptions?.lean ?? true,
+    };
+  }
+
+  private resolvePublicCreateArgs(args: PublicCreateArgs = {}) {
+    return {
+      select: args.select ?? this.defaults.publicCreateArgs?.select,
+      populate: args.populate ?? this.defaults.publicCreateArgs?.populate,
+      tasks: args.tasks ?? this.defaults.publicCreateArgs?.tasks ?? [],
+    };
+  }
+
+  private resolvePublicCreateOptions(options: PublicCreateOptions = {}) {
+    return {
+      skim: options.skim ?? this.defaults.publicCreateOptions?.skim ?? false,
+      includePermissions: options.includePermissions ?? this.defaults.publicCreateOptions?.includePermissions ?? true,
+      populateAccess: options.populateAccess ?? this.defaults.publicCreateOptions?.populateAccess ?? 'read',
+    };
+  }
+
+  private resolvePublicReadArgs(args: PublicReadArgs = {}) {
+    return {
+      select: args.select ?? this.defaults.publicReadArgs?.select,
+      populate: args.populate ?? this.defaults.publicReadArgs?.populate,
+      include: args.include ?? this.defaults.publicReadArgs?.include,
+      tasks: args.tasks ?? this.defaults.publicReadArgs?.tasks ?? [],
+    };
+  }
+
+  private resolvePublicReadFilterArgs(args: PublicReadArgs & { sort?: Sort } = {}) {
+    const resolvedArgs = this.resolvePublicReadArgs(args);
+
+    return {
+      ...resolvedArgs,
+      sort: args.sort ?? this.defaults.publicListArgs?.sort,
+    };
+  }
+
+  private resolvePublicReadOptions(options: PublicReadOptions = {}) {
+    return {
+      skim: options.skim ?? this.defaults.publicReadOptions?.skim ?? false,
+      includePermissions: options.includePermissions ?? this.defaults.publicReadOptions?.includePermissions ?? true,
+      tryList: options.tryList ?? this.defaults.publicReadOptions?.tryList ?? true,
+      populateAccess: options.populateAccess ?? this.defaults.publicReadOptions?.populateAccess,
+      lean: options.lean ?? this.defaults.publicReadOptions?.lean ?? false,
+    };
+  }
+
+  private resolvePublicUpdateArgs(args: PublicUpdateArgs = {}) {
+    return {
+      select: args.select ?? this.defaults.publicUpdateArgs?.select,
+      populate: args.populate ?? this.defaults.publicUpdateArgs?.populate,
+      tasks: args.tasks ?? this.defaults.publicUpdateArgs?.tasks ?? [],
+    };
+  }
+
+  private resolvePublicUpdateOptions(options: PublicUpdateOptions = {}) {
+    return {
+      skim: options.skim ?? this.defaults.publicUpdateOptions?.skim ?? false,
+      returningAll: options.returningAll ?? this.defaults.publicUpdateOptions?.returningAll ?? true,
+      includePermissions: options.includePermissions ?? this.defaults.publicUpdateOptions?.includePermissions ?? true,
+      populateAccess: options.populateAccess ?? this.defaults.publicUpdateOptions?.populateAccess ?? 'read',
+    };
   }
 }
