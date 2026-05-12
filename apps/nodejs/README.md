@@ -1,8 +1,11 @@
 # access-router-nodejs-sample
 
-Small TypeScript Express app for trying `@web-ts-toolkit/access-router` without MongoDB.
+Small TypeScript Express app for trying `@web-ts-toolkit/access-router` with both in-memory and Mongo-backed demos.
 
-It uses an in-memory `DataRouter`, so you can test route guards, field permissions, filtering, and advanced query routes immediately.
+It includes:
+
+- an in-memory `DataRouter` at `/fruit`
+- a `ModelRouter` at `/users` backed by `mongodb-memory-server`
 
 ## Run
 
@@ -23,6 +26,10 @@ The app starts on `http://localhost:3000` by default.
 - `GET /fruit/:id`
 - `POST /fruit/__query`
 - `POST /fruit/__query/:id`
+- `GET /users`
+- `GET /users/:id`
+- `POST /users`
+- `PATCH /users/:id`
 
 ## Try it
 
@@ -54,8 +61,44 @@ curl \
   http://localhost:3000/fruit/__query
 ```
 
+Guest user list:
+
+```sh
+curl http://localhost:3000/users
+```
+
+Admin user list:
+
+```sh
+curl -H 'user: admin' http://localhost:3000/users
+```
+
+Admin create:
+
+```sh
+curl \
+  -H 'content-type: application/json' \
+  -H 'user: admin' \
+  -d '{"name":"carol","role":"user","email":"carol@example.com","public":true}' \
+  http://localhost:3000/users
+```
+
+Admin update:
+
+```sh
+curl \
+  -X PATCH \
+  -H 'content-type: application/json' \
+  -H 'user: admin' \
+  -d '{"public":false}' \
+  http://localhost:3000/users/alice
+```
+
 ## Behavior
 
 - guests only see `public: true` records
 - guests do not see the `stock` field
 - admins see all rows and the `stock` field
+- guests only see public users
+- admins can create and update users
+- `/users` uses an ephemeral MongoDB instance seeded on startup
