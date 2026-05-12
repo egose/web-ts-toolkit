@@ -57,7 +57,7 @@
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
-    "test": "pnpm build && vitest run --config ../../vitest.config.ts --maxWorkers=1"
+    "test": "pnpm --filter @web-ts-toolkit/moo... build && vitest run --config ../../vitest.config.ts --maxWorkers=1"
   },
   "files": [
     "README.md",
