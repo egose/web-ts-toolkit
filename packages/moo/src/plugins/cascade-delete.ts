@@ -1,6 +1,7 @@
 import mongoose, { type Schema } from 'mongoose';
+import { isFunction, isObject, isPlainObject } from '@web-ts-toolkit/utils';
 
-import { isFunction, isObject, isPlainObject, isReference } from '../utils';
+import { isReference } from '../utils';
 
 type QueryOptions = {
   lean?: boolean;
@@ -112,7 +113,7 @@ const mergeResults = <TModelName extends string, TResult>(
   modelName: TModelName,
   currentResults: TResult | null,
 ) => {
-  const resultMap = isPlainObject(previousResults) ? previousResults : {};
+  const resultMap: Record<string, unknown> = isPlainObject(previousResults) ? previousResults : {};
 
   if (currentResults === null) {
     return resultMap;

@@ -1,4 +1,5 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "target": "ES2018",
     "module": "ESNext",
@@ -9,7 +10,8 @@
     "declarationMap": false,
     "sourceMap": false,
     "skipLibCheck": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "types": ["node"]
   },
   "include": ["src/**/*.ts"]
 }

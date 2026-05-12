@@ -45,7 +45,7 @@
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
-    "test": "pnpm build && vitest run --config ../../vitest.config.ts"
+    "test": "pnpm --filter @web-ts-toolkit/express-response-handler... build && vitest run --config ../../vitest.config.ts"
   },
   "files": [
     "README.md",
@@ -54,7 +54,8 @@
   ],
   "dependencies": {
     "@fast-csv/format": "^5.0.5",
-    "@web-ts-toolkit/http-errors": "workspace:*"
+    "@web-ts-toolkit/http-errors": "workspace:*",
+    "@web-ts-toolkit/utils": "workspace:*"
   },
   "devDependencies": {
     "@fast-csv/parse": "^5.0.5",

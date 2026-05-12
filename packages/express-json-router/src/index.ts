@@ -1,8 +1,10 @@
-import apiHandler from '@web-ts-toolkit/express-response-handler';
 import {
   Accepted,
   AlreadyReported,
   Created,
+  createHandler,
+  ErrorFormats,
+  HttpResponse,
   IMUsed,
   MultiStatus,
   NoContent,
@@ -10,10 +12,15 @@ import {
   OK,
   PartialContent,
   ResetContent,
-} from '@web-ts-toolkit/express-response-handler/responses/success';
+  type ExpressResponseHandler,
+} from '@web-ts-toolkit/express-response-handler';
+import apiHandler from '@web-ts-toolkit/express-response-handler';
 import * as clientErrors from '@web-ts-toolkit/http-errors';
+import { addLeadingSlash } from '@web-ts-toolkit/utils';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
+
+const DEFAULT_RESPONSE_HANDLER = apiHandler;
 
 const METHODS = [
   'all',
@@ -51,6 +58,9 @@ type Endpoint = {
   path: string;
 };
 type ExpressRouter = ReturnType<typeof express.Router>;
+type JsonRouterMiddlewares = JsonRouterCallback | JsonRouterCallback[];
+type SharedHandlerProperty = 'errorMessageProvider' | 'preJson' | 'postJson' | 'preError' | 'postError';
+type RouteHandler = (...args: unknown[]) => unknown;
 
 const success = {
   OK,
@@ -64,8 +74,6 @@ const success = {
   AlreadyReported,
   IMUsed,
 };
-
-const addLeadingSlash = (value: string): string => (value.startsWith('/') ? value : `/${value}`);
 
 const normalizeBasePath = (value: string): string => {
   if (!value || value === '/') {
@@ -90,6 +98,7 @@ class JsonRouter {
   readonly endpoints: Endpoint[] = [];
   readonly middlewares: JsonRouterCallback[];
   readonly basePath: string;
+  readonly responseHandler: ExpressResponseHandler;
   all!: RouteRegistrar;
   checkout!: RouteRegistrar;
   copy!: RouteRegistrar;
@@ -116,57 +125,78 @@ class JsonRouter {
   unsubscribe!: RouteRegistrar;
   private readonly _router: ExpressRouter;
 
+  private static getSharedHandlerProperty<Name extends SharedHandlerProperty>(
+    name: Name,
+  ): (typeof DEFAULT_RESPONSE_HANDLER)[Name] {
+    return DEFAULT_RESPONSE_HANDLER[name];
+  }
+
+  private static setSharedHandlerProperty<Name extends SharedHandlerProperty>(
+    name: Name,
+    value: (typeof DEFAULT_RESPONSE_HANDLER)[Name],
+  ): void {
+    DEFAULT_RESPONSE_HANDLER[name] = value;
+  }
+
   static readonly clientErrors = clientErrors;
   static readonly success = success;
-  static readonly HttpResponse = apiHandler.HttpResponse;
+  static readonly defaultHandler = DEFAULT_RESPONSE_HANDLER;
+  static readonly HttpResponse = HttpResponse;
+  static readonly ErrorFormats = ErrorFormats;
+  static readonly createHandler = createHandler;
 
-  static get errorMessageProvider(): typeof apiHandler.errorMessageProvider {
-    return apiHandler.errorMessageProvider;
+  static get errorMessageProvider(): typeof DEFAULT_RESPONSE_HANDLER.errorMessageProvider {
+    return JsonRouter.getSharedHandlerProperty('errorMessageProvider');
   }
 
-  static set errorMessageProvider(customErrorMessageProvider: typeof apiHandler.errorMessageProvider) {
-    apiHandler.errorMessageProvider = customErrorMessageProvider;
+  static set errorMessageProvider(customErrorMessageProvider: typeof DEFAULT_RESPONSE_HANDLER.errorMessageProvider) {
+    JsonRouter.setSharedHandlerProperty('errorMessageProvider', customErrorMessageProvider);
   }
 
-  static get preJson(): typeof apiHandler.preJson {
-    return apiHandler.preJson;
+  static get preJson(): typeof DEFAULT_RESPONSE_HANDLER.preJson {
+    return JsonRouter.getSharedHandlerProperty('preJson');
   }
 
-  static set preJson(preJsonHookFn: typeof apiHandler.preJson) {
-    apiHandler.preJson = preJsonHookFn;
+  static set preJson(preJsonHookFn: typeof DEFAULT_RESPONSE_HANDLER.preJson) {
+    JsonRouter.setSharedHandlerProperty('preJson', preJsonHookFn);
   }
 
-  static get postJson(): typeof apiHandler.postJson {
-    return apiHandler.postJson;
+  static get postJson(): typeof DEFAULT_RESPONSE_HANDLER.postJson {
+    return JsonRouter.getSharedHandlerProperty('postJson');
   }
 
-  static set postJson(postJsonHookFn: typeof apiHandler.postJson) {
-    apiHandler.postJson = postJsonHookFn;
+  static set postJson(postJsonHookFn: typeof DEFAULT_RESPONSE_HANDLER.postJson) {
+    JsonRouter.setSharedHandlerProperty('postJson', postJsonHookFn);
   }
 
-  static get preError(): typeof apiHandler.preError {
-    return apiHandler.preError;
+  static get preError(): typeof DEFAULT_RESPONSE_HANDLER.preError {
+    return JsonRouter.getSharedHandlerProperty('preError');
   }
 
-  static set preError(preErrorHookFn: typeof apiHandler.preError) {
-    apiHandler.preError = preErrorHookFn;
+  static set preError(preErrorHookFn: typeof DEFAULT_RESPONSE_HANDLER.preError) {
+    JsonRouter.setSharedHandlerProperty('preError', preErrorHookFn);
   }
 
-  static get postError(): typeof apiHandler.postError {
-    return apiHandler.postError;
+  static get postError(): typeof DEFAULT_RESPONSE_HANDLER.postError {
+    return JsonRouter.getSharedHandlerProperty('postError');
   }
 
-  static set postError(postErrorHookFn: typeof apiHandler.postError) {
-    apiHandler.postError = postErrorHookFn;
+  static set postError(postErrorHookFn: typeof DEFAULT_RESPONSE_HANDLER.postError) {
+    JsonRouter.setSharedHandlerProperty('postError', postErrorHookFn);
   }
 
-  constructor(basePath = '', middlewares?: JsonRouterCallback | JsonRouterCallback[]) {
+  constructor(
+    basePath = '',
+    middlewares?: JsonRouterMiddlewares,
+    responseHandler: ExpressResponseHandler = DEFAULT_RESPONSE_HANDLER,
+  ) {
     this.basePath = normalizeBasePath(basePath);
     this.middlewares = toMiddlewareList(middlewares);
+    this.responseHandler = responseHandler;
     this._router = express.Router();
 
     for (const method of METHODS) {
-      const routerMethod = this._router[method] as unknown as ((...args: unknown[]) => unknown) | undefined;
+      const routerMethod = this._router[method] as unknown as RouteHandler | undefined;
 
       if (typeof routerMethod !== 'function') {
         continue;
@@ -177,7 +207,7 @@ class JsonRouter {
       Object.defineProperty(this, method, {
         value: (path: string, ...callbacks: JsonRouterCallback[]) => {
           const fullPath = joinRoutePath(this.basePath, path);
-          const handlers = apiHandler.handleResponse([...this.middlewares, ...callbacks]);
+          const handlers = this.responseHandler.handleResponse([...this.middlewares, ...callbacks]);
 
           routerMethod.call(this._router, fullPath, handlers);
           this.addEndpoint(method, fullPath);

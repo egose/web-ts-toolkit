@@ -4,7 +4,7 @@ import express from 'express';
 import request from 'supertest';
 import { afterAll, describe, expect, it } from 'vitest';
 import { BadRequestError, UnauthorizedError } from '@web-ts-toolkit/http-errors';
-import apiHandler from '../dist/index.mjs';
+import apiHandler, { ErrorFormats } from '../dist/index.mjs';
 
 const { handleResponse } = apiHandler;
 
@@ -289,7 +289,7 @@ describe('Invalid handler input', () => {
 
 describe('Configuration accessors', () => {
   it('should expose the configured provider and hooks', () => {
-    const handler = apiHandler.createExpressResponseHandler();
+    const handler = apiHandler.createHandler();
     const provider = function () {
       return 'customError';
     };
@@ -309,8 +309,8 @@ describe('Configuration accessors', () => {
 });
 
 describe('Handler instance isolation', () => {
-  const firstHandler = apiHandler.createExpressResponseHandler();
-  const secondHandler = apiHandler.createExpressResponseHandler();
+  const firstHandler = apiHandler.createHandler();
+  const secondHandler = apiHandler.createHandler();
   const firstKey = 'isolated-handler-first';
   const secondKey = 'isolated-handler-second';
 
@@ -340,8 +340,8 @@ describe('Handler instance isolation', () => {
 });
 
 describe('AIP-193 error format', () => {
-  const structuredHandler = apiHandler.createExpressResponseHandler({
-    errorFormat: 'aip193',
+  const structuredHandler = apiHandler.createHandler({
+    errorFormat: ErrorFormats.aip193,
     errorDomain: 'api.example.com',
   });
   const validationKey = 'aip193-validation-error';
@@ -415,6 +415,146 @@ describe('AIP-193 error format', () => {
   });
 });
 
+describe('RFC 9457 error format', () => {
+  const problemHandler = apiHandler.createHandler({
+    errorFormat: ErrorFormats.rfc9457,
+    errorDomain: 'api.example.com',
+  });
+  const jsonProblemHandler = apiHandler.createHandler({
+    errorFormat: ErrorFormats.rfc9457,
+    errorDomain: 'api.example.com',
+    rfc9457ContentType: 'application/json',
+  });
+  const validationKey = 'rfc9457-validation-error';
+  const genericKey = 'rfc9457-generic-error';
+  const jsonValidationKey = 'rfc9457-json-validation-error';
+  const jsonGenericKey = 'rfc9457-json-generic-error';
+
+  it('should return a problem details payload for HTTP errors', async () => {
+    app.get(`/${validationKey}`, problemHandler.handleResponse(fnDetailedBadRequest));
+
+    const response = await request(app)
+      .get(`/${validationKey}`)
+      .expect('Content-Type', /application\/problem\+json/)
+      .expect(400);
+
+    expect(response.body).toEqual({
+      type: 'https://api.example.com/problems/invalid-email',
+      title: 'Invalid email address',
+      status: 400,
+      detail: 'invalid email',
+      instance: '/problems/invalid-email/123',
+      errors: [
+        {
+          field: 'email',
+          description: 'Email must be a valid address.',
+        },
+      ],
+    });
+  });
+
+  it('should return a problem details payload for generic errors', async () => {
+    problemHandler.errorMessageProvider = function () {
+      return {
+        type: 'https://api.example.com/problems/request-failed',
+        title: 'Request failed',
+        status: 422,
+        detail: 'request failed',
+        instance: '/problems/request-failed/456',
+        errors: [
+          {
+            detail: 'email is required',
+            pointer: '#/email',
+          },
+        ],
+      };
+    };
+
+    app.get(`/${genericKey}`, problemHandler.handleResponse(fnError1));
+
+    const response = await request(app)
+      .get(`/${genericKey}`)
+      .expect('Content-Type', /application\/problem\+json/)
+      .expect(422);
+
+    expect(response.body).toEqual({
+      type: 'https://api.example.com/problems/request-failed',
+      title: 'Request failed',
+      status: 422,
+      detail: 'request failed',
+      instance: '/problems/request-failed/456',
+      errors: [
+        {
+          detail: 'email is required',
+          pointer: '#/email',
+        },
+      ],
+    });
+  });
+
+  it('should allow RFC 9457 payloads to be returned as application/json for HTTP errors', async () => {
+    app.get(`/${jsonValidationKey}`, jsonProblemHandler.handleResponse(fnDetailedBadRequest));
+
+    const response = await request(app)
+      .get(`/${jsonValidationKey}`)
+      .expect('Content-Type', /application\/json/)
+      .expect(400);
+
+    expect(response.body).toEqual({
+      type: 'https://api.example.com/problems/invalid-email',
+      title: 'Invalid email address',
+      status: 400,
+      detail: 'invalid email',
+      instance: '/problems/invalid-email/123',
+      errors: [
+        {
+          field: 'email',
+          description: 'Email must be a valid address.',
+        },
+      ],
+    });
+  });
+
+  it('should allow RFC 9457 payloads to be returned as application/json for generic errors', async () => {
+    jsonProblemHandler.errorMessageProvider = function () {
+      return {
+        type: 'https://api.example.com/problems/request-failed',
+        title: 'Request failed',
+        status: 422,
+        detail: 'request failed',
+        instance: '/problems/request-failed/456',
+        errors: [
+          {
+            detail: 'email is required',
+            pointer: '#/email',
+          },
+        ],
+      };
+    };
+
+    app.get(`/${jsonGenericKey}`, jsonProblemHandler.handleResponse(fnError1));
+
+    const response = await request(app)
+      .get(`/${jsonGenericKey}`)
+      .expect('Content-Type', /application\/json/)
+      .expect(422);
+
+    expect(response.body).toEqual({
+      type: 'https://api.example.com/problems/request-failed',
+      title: 'Request failed',
+      status: 422,
+      detail: 'request failed',
+      instance: '/problems/request-failed/456',
+      errors: [
+        {
+          detail: 'email is required',
+          pointer: '#/email',
+        },
+      ],
+    });
+  });
+});
+
 function fnApple() {
   return 'apple';
 }
@@ -440,6 +580,9 @@ function fnDetailedBadRequest() {
   throw new BadRequestError('invalid email', {
     reason: 'INVALID_EMAIL',
     domain: 'api.example.com',
+    type: 'https://api.example.com/problems/invalid-email',
+    title: 'Invalid email address',
+    instance: '/problems/invalid-email/123',
     metadata: { field: 'email' },
     errors: [{ field: 'email', description: 'Email must be a valid address.' }],
     details: [

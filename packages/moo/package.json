@@ -57,7 +57,7 @@
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
-    "test": "pnpm build && vitest run --config ../../vitest.config.ts --maxWorkers=1"
+    "test": "pnpm --filter @web-ts-toolkit/moo... build && vitest run --config ../../vitest.config.ts --maxWorkers=1"
   },
   "files": [
     "README.md",
@@ -66,6 +66,9 @@
   ],
   "peerDependencies": {
     "mongoose": ">=8.0.0"
+  },
+  "dependencies": {
+    "@web-ts-toolkit/utils": "workspace:*"
   },
   "devDependencies": {
     "mongodb-memory-server": "^11.1.0",

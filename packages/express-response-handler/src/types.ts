@@ -1,8 +1,9 @@
 import type { HttpResponseHelpers } from './http-response';
+import type { ErrorFormats } from './error-formats';
 
 export type ErrorMessageResult = string | Record<string, unknown>;
 export type ErrorMessageProvider = (error: unknown) => ErrorMessageResult;
-export type ErrorFormat = 'simple' | 'aip193';
+export type ErrorFormat = (typeof ErrorFormats)[keyof typeof ErrorFormats];
 export type MaybePromise<T> = T | Promise<T>;
 export type Hook = (value: unknown) => unknown;
 export type AsyncHook = (value: unknown) => Promise<unknown>;
@@ -11,6 +12,7 @@ export type NextFunction = (error?: unknown) => void;
 export type ExpressResponseHandlerOptions = {
   errorFormat?: ErrorFormat;
   errorDomain?: string;
+  rfc9457ContentType?: 'application/problem+json' | 'application/json';
 };
 
 export type ResponseLike = {
@@ -61,16 +63,19 @@ export type ErrorWithPayload = {
   domain?: string;
   metadata?: unknown;
   details?: unknown;
+  type?: string;
+  title?: string;
+  instance?: string;
 };
 
-export type ExpressResponseHandlerFactory = (options?: ExpressResponseHandlerOptions) => ExpressResponseHandler;
+export type CreateHandler = (options?: ExpressResponseHandlerOptions) => ExpressResponseHandler;
 
 export type ExpressResponseHandler = {
   handleResponse: HandleResponse;
   handleResult: (res: ResponseLike, result: unknown, event: EventState) => void;
   handlePromise: (res: ResponseLike, promise: Promise<unknown>, event: EventState) => void;
   HttpResponse: HttpResponseHelpers;
-  createExpressResponseHandler: ExpressResponseHandlerFactory;
+  createHandler: CreateHandler;
   errorMessageProvider: ErrorMessageProvider;
   preJson: Hook | null;
   postJson: Hook | null;

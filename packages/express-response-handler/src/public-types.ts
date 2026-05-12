@@ -1,12 +1,12 @@
 export type {
   AsyncHook,
+  CreateHandler,
   ErrorFormat,
   ErrorMessageProvider,
   ErrorMessageResult,
   ErrorWithPayload,
   EventState,
   ExpressResponseHandler,
-  ExpressResponseHandlerFactory,
   ExpressResponseHandlerOptions,
   HandleResponse,
   Hook,
@@ -16,5 +16,7 @@ export type {
   ResponseLike,
   RouterFunction,
 } from './types';
+
+export { ErrorFormats } from './error-formats';
 
 export type { HttpResponseHelpers } from './http-response';

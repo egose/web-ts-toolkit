@@ -19,11 +19,14 @@
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
-    "test": "pnpm build && vitest run --config ../../vitest.config.ts"
+    "test": "pnpm --filter @web-ts-toolkit/http-errors... build && vitest run --config ../../vitest.config.ts"
   },
   "files": [
     "README.md",
     "dist",
     "tsup.config.ts"
-  ]
+  ],
+  "dependencies": {
+    "@web-ts-toolkit/utils": "workspace:*"
+  }
 }

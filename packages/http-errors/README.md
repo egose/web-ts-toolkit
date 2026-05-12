@@ -69,6 +69,9 @@ import { BadRequestError } from '@web-ts-toolkit/http-errors';
 throw new BadRequestError('invalid email', {
   reason: 'INVALID_EMAIL',
   domain: 'api.example.com',
+  type: 'https://api.example.com/problems/invalid-email',
+  title: 'Invalid email address',
+  instance: '/problems/invalid-email/123',
   metadata: {
     field: 'email',
   },
@@ -92,12 +95,15 @@ throw new BadRequestError('invalid email', {
 });
 ```
 
-The base `HttpError` now carries optional structured fields that are useful when building AIP-193-style error payloads:
+The base `HttpError` now carries optional structured fields that are useful when building AIP-193 and RFC 9457 error payloads:
 
 - `statusCode`: HTTP status code
 - `status`: canonical status string for common HTTP codes, otherwise `UNKNOWN`
 - `reason`: application-specific machine-readable identifier
 - `domain`: logical error domain such as `api.example.com`
+- `type`: RFC 9457 problem type URI
+- `title`: RFC 9457 problem title
+- `instance`: RFC 9457 problem instance URI
 - `metadata`: stringified key-value metadata
 - `details`: structured detail entries
 - `errors`: validation or field-level error payloads
@@ -116,6 +122,50 @@ const error = new BadRequestError('invalid email', {
 });
 
 const payload = toAip193ErrorPayload(error);
+```
+
+### Convert an error to an RFC 9457 payload
+
+```ts
+import { BadRequestError, toRfc9457ErrorPayload } from '@web-ts-toolkit/http-errors';
+
+const error = new BadRequestError('Email must be a valid address.', {
+  type: 'https://api.example.com/problems/invalid-email',
+  title: 'Invalid email address',
+  instance: '/problems/invalid-email/123',
+  errors: [
+    {
+      detail: 'must be a valid email address',
+      pointer: '#/email',
+      parameter: 'email',
+    },
+    {
+      detail: 'x-request-id header is required',
+      header: 'x-request-id',
+    },
+  ],
+});
+
+const payload = toRfc9457ErrorPayload(error);
+```
+
+### Use the typed RFC 9457 validation helper
+
+```ts
+import { BadRequestError, toRfc9457ValidationErrorPayload } from '@web-ts-toolkit/http-errors';
+
+const error = new BadRequestError('Email must be a valid address.', {
+  type: 'https://api.example.com/problems/invalid-email',
+  title: 'Invalid email address',
+  errors: [
+    {
+      detail: 'must be a valid email address',
+      pointer: '#/email',
+    },
+  ],
+});
+
+const payload = toRfc9457ValidationErrorPayload(error);
 ```
 
 ### Express route example

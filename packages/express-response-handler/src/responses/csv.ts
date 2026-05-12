@@ -1,4 +1,5 @@
 import { format } from '@fast-csv/format';
+import { castArray, isBoolean, isPlainObject } from '@web-ts-toolkit/utils';
 
 type CsvProcessor = (value: unknown) => unknown;
 
@@ -14,11 +15,6 @@ type CsvStreamResponse = {
   end(): void;
 };
 
-const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
-
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && value.constructor === Object;
-
 export class CSVResponse {
   readonly dataset: unknown[];
   readonly filename: string;
@@ -26,7 +22,7 @@ export class CSVResponse {
   readonly headers?: boolean;
 
   constructor(dataset: unknown = [], options: CsvResponseOptions = {}) {
-    this.dataset = Array.isArray(dataset) ? dataset : [dataset];
+    this.dataset = castArray(dataset);
     this.filename = options.filename || 'download.csv';
     this.processor = options.processor || ((value) => value);
 
