@@ -1,9 +1,6 @@
 import { Response, NextFunction } from 'express';
 import JsonRouter from '@web-ts-toolkit/express-json-router';
-import isString from 'lodash/isString';
-import isArray from 'lodash/isArray';
-import isFunction from 'lodash/isFunction';
-import isPlainObject from 'lodash/isPlainObject';
+import { isArray, isFunction, isPlainObject, isString } from '@web-ts-toolkit/utils';
 import { setCore } from './core';
 import Permission from './permission';
 import { Request } from './interfaces';
@@ -40,7 +37,7 @@ export function guard(condition: unknown) {
     let phas = (key) => permissions.has(key);
 
     if (isPlainObject(condition)) {
-      const { modelName, id, condition: _cond } = condition as GuardModelCondition;
+      const { modelName, id, condition: _cond } = condition as unknown as GuardModelCondition;
       const svc = req.macl.getPublicService(modelName);
       const select = getModelOption(modelName, `mandatoryFields.read`, undefined);
 
@@ -77,7 +74,7 @@ export function guard(condition: unknown) {
     if (isString(cond)) {
       if (stringHandler(cond)) return next();
     } else if (isArray(cond)) {
-      if (arrayHandler(cond)) return next();
+      if (arrayHandler(cond as string[])) return next();
     } else if (isFunction(cond)) {
       const result = await cond.call(req, permissions);
       if (!!result) return next();

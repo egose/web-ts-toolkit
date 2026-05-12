@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
-import get from 'lodash/get';
-import keys from 'lodash/keys';
+import { get, keys } from '@web-ts-toolkit/utils';
 import { buildRefs, buildSubPaths } from './helpers';
 
 const modelRefs: Record<string, Record<string, unknown>> = {};

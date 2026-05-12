@@ -62,12 +62,12 @@ importers:
       '@web-ts-toolkit/express-json-router':
         specifier: workspace:*
         version: link:../express-json-router
+      '@web-ts-toolkit/utils':
+        specifier: workspace:*
+        version: link:../utils
       deep-diff:
         specifier: ^1.0.2
         version: 1.0.2
-      lodash:
-        specifier: ^4.18.1
-        version: 4.18.1
       mongoose-schema-jsonschema:
         specifier: ^4.0.1
         version: 4.0.1(mongoose@9.6.2(socks@2.8.8))
@@ -87,9 +87,6 @@ importers:
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
-      '@types/lodash':
-        specifier: ^4.17.24
-        version: 4.17.24
       express:
         specifier: ^5.2.1
         version: 5.2.1
@@ -157,6 +154,8 @@ importers:
       mongoose:
         specifier: ^9.6.1
         version: 9.6.1(socks@2.8.8)
+
+  packages/utils: {}
 
 packages:
 
@@ -999,9 +998,6 @@ packages:
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
-
-  '@types/lodash@4.17.24':
-    resolution: {integrity: sha512-gIW7lQLZbue7lRSWEFql49QJJWThrTFFeIMJdp3eH4tKoxm1OvEPg02rm4wCCSHS0cL3/Fizimb35b7k8atwsQ==}
 
   '@types/node@25.6.0':
     resolution: {integrity: sha512-+qIYRKdNYJwY3vRCZMdJbPLJAtGjQBudzZzdzwQYkEPQd+PJGixUL5QfvCLDaULoLv+RhT3LDkwEfKaAkgSmNQ==}
@@ -2249,9 +2245,6 @@ packages:
 
   lodash.uniqby@4.7.0:
     resolution: {integrity: sha512-e/zcLx6CSbmaEgFHCA7BnoQKyCtKMxnuWrJygbwPs/AIn+IMKl66L8/s+wBUn5LRw2pZx3bUHibiV1b6aTWIww==}
-
-  lodash@4.18.1:
-    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
   log-symbols@7.0.1:
     resolution: {integrity: sha512-ja1E3yCr9i/0hmBVaM0bfwDjnGy8I/s6PP4DFp+yP+a+mrHO4Rm7DtmnqROTUkHIkqffC84YY7AeqX6oFk0WFg==}
@@ -3978,8 +3971,6 @@ snapshots:
 
   '@types/json-schema@7.0.15': {}
 
-  '@types/lodash@4.17.24': {}
-
   '@types/node@25.6.0':
     dependencies:
       undici-types: 7.19.2
@@ -5241,8 +5232,6 @@ snapshots:
   lodash.uniq@4.5.0: {}
 
   lodash.uniqby@4.7.0: {}
-
-  lodash@4.18.1: {}
 
   log-symbols@7.0.1:
     dependencies:

@@ -1,8 +1,6 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
-import isString from 'lodash/isString';
-import isPlainObject from 'lodash/isPlainObject';
-import isUndefined from 'lodash/isUndefined';
+import { isPlainObject, isString, isUndefined } from '@web-ts-toolkit/utils';
 import { setDataCore } from '../core-data';
 import { setDataOption, setDataOptions, getDataOptions, getExactDataOption } from '../options';
 import { processUrl } from '../lib';

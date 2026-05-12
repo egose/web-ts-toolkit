@@ -1,10 +1,6 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
-import isString from 'lodash/isString';
-import isPlainObject from 'lodash/isPlainObject';
-import isUndefined from 'lodash/isUndefined';
-import forEach from 'lodash/forEach';
-import padEnd from 'lodash/padEnd';
+import { forEach, isPlainObject, isString, isUndefined, padEnd } from '@web-ts-toolkit/utils';
 import Model from '../model';
 import { getModelSub } from '../meta';
 import { setCore } from '../core';

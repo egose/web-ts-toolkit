@@ -21,7 +21,7 @@ import {
   SingleResult,
 } from '../interfaces';
 import { Codes } from '../enums';
-import { orderBy, pick } from 'lodash';
+import { orderBy, pick } from '@web-ts-toolkit/utils';
 
 export class DataService<T> {
   req: Request;
@@ -56,10 +56,10 @@ export class DataService<T> {
 
     if (_filter === false) return { success: false, code: Codes.Forbidden, query };
 
-    let doc = await findElement(this.data, _filter);
+    let doc = (await findElement(this.data, _filter)) as T | undefined;
     if (!doc) return { success: false, code: Codes.NotFound, query };
-    doc = await this.trimOutputFields(doc, access);
-    if (_select.length > 0) doc = pick(doc, _select);
+    doc = (await this.trimOutputFields(doc, access)) as T;
+    if (_select.length > 0) doc = pick(doc, _select) as T;
 
     return { success: true, kind: 'single', code: Codes.Success, data: doc, query };
   }
@@ -113,14 +113,14 @@ export class DataService<T> {
     docs = await Promise.all(
       docs.map(async (doc) => {
         doc = await this.trimOutputFields(doc, 'list');
-        if (_select.length > 0) doc = pick(doc, _select);
+        if (_select.length > 0) doc = pick(doc, _select) as T;
         return doc;
       }),
     );
 
     if (sort) {
       const { sortKey, sortOrder } = parseSortString(sort);
-      docs = orderBy(docs, [sortKey], [sortOrder]);
+      docs = orderBy(docs, [sortKey], [sortOrder]) as T[];
     }
 
     docs = docs.slice(query.skip, query.limit && query.skip + query.limit);

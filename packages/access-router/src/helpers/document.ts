@@ -1,14 +1,5 @@
 import { Document, Schema } from 'mongoose';
-import isPlainObject from 'lodash/isPlainObject';
-import get from 'lodash/get';
-import set from 'lodash/set';
-import pick from 'lodash/pick';
-import keys from 'lodash/keys';
-import isArray from 'lodash/isArray';
-import filter from 'lodash/filter';
-import find from 'lodash/find';
-import isMatch from 'lodash/isMatch';
-import isString from 'lodash/isString';
+import { get, isArray, isPlainObject, isString, pick, set } from '@web-ts-toolkit/utils';
 import { isDocument, isPromise } from '../lib';
 import { getModelOption } from '../options';
 import { SubPopulate } from '../interfaces';

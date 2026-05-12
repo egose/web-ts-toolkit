@@ -1,4 +1,4 @@
-import pick from 'lodash/pick';
+import { pick } from '@web-ts-toolkit/utils';
 import { normalizeSelect, toObject } from '../helpers';
 import { Service } from './service';
 import {

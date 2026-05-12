@@ -1,7 +1,4 @@
-import isString from 'lodash/isString';
-import isObject from 'lodash/isObject';
-import isPlainObject from 'lodash/isPlainObject';
-import isUndefined from 'lodash/isUndefined';
+import { isPlainObject, isString, isUndefined } from '@web-ts-toolkit/utils';
 import middleware, { guard } from './middleware';
 import { RootRouter, ModelRouter, DataRouter } from './routers';
 import {

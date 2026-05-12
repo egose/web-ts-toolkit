@@ -6,6 +6,7 @@
   "scripts": {
     "lint": "eslint .",
     "publish:all": "node scripts/publish-all.mjs",
+    "build": "pnpm -r --if-present build",
     "test": "pnpm -r --if-present test",
     "release": "release-it",
     "changelog": "node changelog.mjs"

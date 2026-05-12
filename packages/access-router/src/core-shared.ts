@@ -1,11 +1,13 @@
-import castArray from 'lodash/castArray';
-import isArray from 'lodash/isArray';
-import isBoolean from 'lodash/isBoolean';
-import isEmpty from 'lodash/isEmpty';
-import isEqual from 'lodash/isEqual';
-import isFunction from 'lodash/isFunction';
-import isPlainObject from 'lodash/isPlainObject';
-import isString from 'lodash/isString';
+import {
+  castArray,
+  isArray,
+  isBoolean,
+  isEmpty,
+  isEqual,
+  isFunction,
+  isPlainObject,
+  isString,
+} from '@web-ts-toolkit/utils';
 import { Cache } from './cache';
 import { createValidator } from './helpers';
 import { Request, Filter, Validation } from './interfaces';

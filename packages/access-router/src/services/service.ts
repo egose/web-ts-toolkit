@@ -1,19 +1,21 @@
 import mongoose from 'mongoose';
-import castArray from 'lodash/castArray';
-import forEach from 'lodash/forEach';
-import compact from 'lodash/compact';
-import flatten from 'lodash/flatten';
-import get from 'lodash/get';
-import set from 'lodash/set';
-import map from 'lodash/map';
-import isArray from 'lodash/isArray';
-import isBoolean from 'lodash/isBoolean';
-import isFunction from 'lodash/isFunction';
-import isNil from 'lodash/isNil';
-import pick from 'lodash/pick';
-import omit from 'lodash/omit';
-import uniq from 'lodash/uniq';
-import intersectionBy from 'lodash/intersectionBy';
+import {
+  castArray,
+  compact,
+  flatten,
+  forEach,
+  get,
+  intersectionBy,
+  isArray,
+  isBoolean,
+  isFunction,
+  isNil,
+  map,
+  omit,
+  pick,
+  set,
+  uniq,
+} from '@web-ts-toolkit/utils';
 import diff from 'deep-diff';
 import Model from '../model';
 import { getModelOption, getModelOptions } from '../options';
@@ -265,7 +267,7 @@ export class Service extends Base {
       originalDocObject: toObject(doc),
     }));
 
-    const _decorate = isFunction(decorate) ? decorate : (v) => v;
+    const _decorate: (...args: unknown[]) => unknown = isFunction(decorate) ? decorate : (v) => v;
 
     docs = await this.includeDocs(docs, includes);
 
@@ -357,7 +359,7 @@ export class Service extends Base {
 
     if (validationError) return validationError;
 
-    const _decorate = isFunction(decorate) ? decorate : (v) => v;
+    const _decorate: (...args: unknown[]) => unknown = isFunction(decorate) ? decorate : (v) => v;
 
     let docs = await this.model.create(items);
     docs = await Promise.all(

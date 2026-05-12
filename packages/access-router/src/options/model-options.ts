@@ -1,11 +1,6 @@
 import mongoose from 'mongoose';
 import mschema2Jsonschema from 'mongoose-schema-jsonschema';
-import isNil from 'lodash/isNil';
-import isBoolean from 'lodash/isBoolean';
-import isFunction from 'lodash/isFunction';
-import isString from 'lodash/isString';
-import isArray from 'lodash/isArray';
-import forEach from 'lodash/forEach';
+import { forEach, isArray, isBoolean, isFunction, isNil, isString } from '@web-ts-toolkit/utils';
 import { addLeadingSlash } from '../lib';
 import { OptionsManager, getNestedOption } from './manager';
 import {

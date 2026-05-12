@@ -3,13 +3,7 @@ export * from './document';
 export * from './errors';
 export * from './query';
 
-import forEach from 'lodash/forEach';
-import isArray from 'lodash/isArray';
-import isEmpty from 'lodash/isEmpty';
-import isObject from 'lodash/isObject';
-import isPlainObject from 'lodash/isPlainObject';
-import isString from 'lodash/isString';
-import noop from 'lodash/noop';
+import { forEach, isArray, isEmpty, isObject, isPlainObject, isString, noop } from '@web-ts-toolkit/utils';
 import { isSchema, isReference, mapValuesAsync } from '../lib';
 import { FilterOperator } from '../enums';
 

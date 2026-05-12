@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import intersection from 'lodash/intersection';
+import { intersection } from '@web-ts-toolkit/utils';
 import { getDataOption } from './options';
 import {
   Projection,

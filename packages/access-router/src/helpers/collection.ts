@@ -1,14 +1,13 @@
 import { Schema } from 'mongoose';
 import sift from 'sift';
-import filter from 'lodash/filter';
-import find from 'lodash/find';
+import { filter, find } from '@web-ts-toolkit/utils';
 
-export const filterCollection = (collection, predicate) => {
-  return filter(collection, sift(predicate));
+export const filterCollection = <T>(collection: T[], predicate): T[] => {
+  return filter<T>(collection, sift(predicate));
 };
 
-export const findElement = (collection, predicate) => {
-  return find(collection, sift(predicate));
+export const findElement = <T>(collection: T[], predicate): T | undefined => {
+  return find<T>(collection, sift(predicate));
 };
 
 export const matchElement = (element, predicate) => {
@@ -17,6 +16,6 @@ export const matchElement = (element, predicate) => {
 
 type DocId = string | Schema.Types.ObjectId;
 
-export const findElementById = (collection, id: DocId) => {
+export const findElementById = <T>(collection: T[], id: DocId): T | undefined => {
   return findElement(collection, { _id: id });
 };

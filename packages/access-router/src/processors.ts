@@ -1,10 +1,4 @@
-import castArray from 'lodash/castArray';
-import cloneDeep from 'lodash/cloneDeep';
-import forEach from 'lodash/forEach';
-import get from 'lodash/get';
-import isArray from 'lodash/isArray';
-import map from 'lodash/map';
-import set from 'lodash/set';
+import { castArray, cloneDeep, forEach, get, isArray, map, set } from '@web-ts-toolkit/utils';
 
 interface ProcessCopy {
   src: string;
@@ -24,7 +18,7 @@ export const copyAndDepopulate = <T extends object>(
   const obj = (get(options, 'mutable', true) ? docObject : cloneDeep(docObject)) as T;
   const idField = get(options, 'idField', '_id');
 
-  forEach(castArray<ProcessCopy>(operations), (op) => {
+  forEach(castArray<ProcessCopy>(operations), (op: ProcessCopy) => {
     if (!op.src || !op.dest) return;
 
     let targets: unknown[] = [obj];

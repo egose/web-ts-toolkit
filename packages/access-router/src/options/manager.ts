@@ -1,6 +1,4 @@
-import get from 'lodash/get';
-import set from 'lodash/set';
-import assign from 'lodash/assign';
+import { assign, get, set } from '@web-ts-toolkit/utils';
 
 export const getNestedOption = <T extends object, K extends keyof T>(
   manager: OptionsManager<object, T>,

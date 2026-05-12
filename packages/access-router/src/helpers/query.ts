@@ -1,9 +1,4 @@
-import isNaN from 'lodash/isNaN';
-import isPlainObject from 'lodash/isPlainObject';
-import isString from 'lodash/isString';
-import isNil from 'lodash/isNil';
-import flattenDeep from 'lodash/flattenDeep';
-import reduce from 'lodash/reduce';
+import { flattenDeep, isNaN, isNil, isPlainObject, isString, reduce } from '@web-ts-toolkit/utils';
 import { Projection, KeyValueProjection } from '../interfaces';
 
 export function genPagination(

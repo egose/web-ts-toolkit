@@ -1,7 +1,6 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
-import _isNumber from 'lodash/isNumber';
-import _orderBy from 'lodash/orderBy';
+import { isNumber as _isNumber, orderBy as _orderBy } from '@web-ts-toolkit/utils';
 import { setCore } from '../core';
 import { mapCodeToMessage, mapCodeToStatusCode } from '../helpers';
 import { accessRouterResponseHandler } from './index';

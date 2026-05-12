@@ -1,6 +1,5 @@
 import { Document, Schema } from 'mongoose';
-import isFunction from 'lodash/isFunction';
-import isPlainObject from 'lodash/isPlainObject';
+import { isFunction, isPlainObject } from '@web-ts-toolkit/utils';
 
 export class PermissionDoc extends Document {
   _doc: Record<string, unknown>;
