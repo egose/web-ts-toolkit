@@ -33,6 +33,185 @@ const router = acl.createDataRouter('fruit', {
 });
 ```
 
+## TypeScript
+
+Typed routers now carry the model or data shape through filters, selects, defaults, and service accessors.
+
+### Typed Model Routers
+
+Pass a typed `mongoose.Model<T>` to `acl.createRouter()` to get model-aware service and hook types.
+
+```ts
+import mongoose from 'mongoose';
+import acl from '@web-ts-toolkit/access-router';
+
+type User = {
+  name: string;
+  role: string;
+  profile: {
+    city: string;
+  };
+  public: boolean;
+};
+
+const UserModel = mongoose.model<User>(
+  'User',
+  new mongoose.Schema({
+    name: String,
+    role: String,
+    profile: {
+      city: String,
+    },
+    public: Boolean,
+  }),
+);
+
+const userRouter = acl.createRouter(UserModel, {
+  basePath: '/users',
+  baseFilter: {
+    list(permissions) {
+      return permissions.isAdmin ? {} : { public: true };
+    },
+  },
+  defaults: {
+    findOptions: {
+      sort: { name: 1 },
+      select: ['name', 'profile.city'],
+    },
+  },
+});
+
+const service = userRouter.getService(req);
+
+await service.find({
+  filter: { 'profile.city': 'Berlin' },
+  select: ['name', 'profile.city'],
+});
+```
+
+### Typed Data Routers
+
+`acl.createDataRouter()` now carries the in-memory data shape through filters and select-aware results.
+
+```ts
+import acl from '@web-ts-toolkit/access-router';
+
+type Fruit = {
+  id: string;
+  name: string;
+  stock: number;
+  public: boolean;
+};
+
+const fruitRouter = acl.createDataRouter<Fruit>('fruit', {
+  basePath: '/fruit',
+  identifier: 'id',
+  data: [{ id: 'apple', name: 'Apple', stock: 12, public: true }],
+});
+
+const service = fruitRouter.getService(req);
+
+const result = await service.findById({
+  id: 'apple',
+  select: ['id', 'name'],
+});
+
+result.name;
+```
+
+### Typed Filters
+
+`Filter<T>` and `DataFilter<T>` support dotted paths for nested fields.
+
+```ts
+const service = userRouter.getService(req);
+
+await service.find({
+  filter: {
+    role: { $in: ['admin', 'editor'] },
+    'profile.city': 'Berlin',
+  },
+});
+```
+
+When no model or data type is known, filters still fall back to a loose `Record<string, unknown>` shape.
+
+### Typed Select And Populate
+
+Public read and list methods narrow their return types when `select` is positive and simple enough to model.
+
+```ts
+const service = userRouter.getPublicService(req);
+
+const users = await service.find({
+  select: ['name', 'profile.city'],
+  populate: [{ path: 'manager', select: ['name'] }],
+});
+```
+
+The typing is intentionally conservative:
+
+- positive `select` narrows returned fields
+- exclusion-only or complex select shapes fall back to the broader public output type
+- populate merges selected nested paths, but does not infer foreign model types from runtime refs
+
+### Typed Defaults
+
+`defaults` now use the router model type, so common options remain checked.
+
+```ts
+const router = acl.createRouter(UserModel, {
+  defaults: {
+    findOptions: {
+      sort: { name: 1 },
+      filter: { public: true },
+    },
+    findByIdOptions: {
+      select: ['name', 'role'],
+    },
+  },
+});
+```
+
+### Request And Permission Augmentation
+
+The package exposes augmentable interfaces so hooks can use custom request fields and permission names without manual annotations.
+
+```ts
+import '@web-ts-toolkit/access-router';
+
+declare module '@web-ts-toolkit/access-router' {
+  interface AccessRouterPermissionMap {
+    isAdmin?: boolean;
+  }
+
+  interface AccessRouterRequestExtensions {
+    requestId?: string;
+  }
+}
+```
+
+After augmentation, hooks and global permission handlers see those fields automatically:
+
+```ts
+acl.setGlobalOptions({
+  globalPermissions(req) {
+    req.requestId = String(req.headers['x-request-id'] ?? 'request');
+    return req.headers.user === 'admin' ? ['isAdmin'] : [];
+  },
+});
+
+acl.createDataRouter('fruit', {
+  decorate(item, permissions) {
+    if (permissions.isAdmin && this.requestId) {
+      return { ...item, requestId: this.requestId };
+    }
+
+    return item;
+  },
+});
+```
+
 ## List Responses
 
 List endpoints now return a stable envelope:

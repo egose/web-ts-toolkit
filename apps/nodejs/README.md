@@ -102,3 +102,42 @@ curl \
 - guests only see public users
 - admins can create and update users
 - `/users` uses an ephemeral MongoDB instance seeded on startup
+
+## TypeScript Notes
+
+The sample also demonstrates the package's typed router flow:
+
+- `acl.createDataRouter()` carries the `Fruit` shape into `filter`, `select`, and `getService()`
+- `acl.createRouter(UserModel, ...)` carries the `User` shape from the typed Mongoose model into router hooks and services
+- `apps/nodejs/src/access-router.d.ts` augments package-owned interfaces so `permissions.isAdmin` and `req.requestId` are available without extra annotations
+
+Relevant files:
+
+- `src/index.ts`
+- `src/access-router.d.ts`
+
+Example augmentation:
+
+```ts
+import '@web-ts-toolkit/access-router';
+
+declare module '@web-ts-toolkit/access-router' {
+  interface AccessRouterPermissionMap {
+    isAdmin?: boolean;
+  }
+
+  interface AccessRouterRequestExtensions {
+    requestId?: string;
+  }
+}
+```
+
+Example typed advanced query:
+
+```sh
+curl \
+  -H 'content-type: application/json' \
+  -H 'user: admin' \
+  -d '{"filter":{"public":true},"select":["id","name"]}' \
+  http://localhost:3000/fruit/__query
+```
