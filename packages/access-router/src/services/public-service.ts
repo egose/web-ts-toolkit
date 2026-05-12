@@ -4,8 +4,13 @@ import { Service } from './service';
 import {
   Filter,
   Sort,
+  Projection,
+  Populate,
   MiddlewareContext,
   FindAccess,
+  PublicOutput,
+  SelectedPublicOutput,
+  SelectedPopulatedPublicOutput,
   PublicListArgs,
   PublicListOptions,
   PublicReadArgs,
@@ -21,8 +26,15 @@ import {
   SingleResult,
 } from '../interfaces';
 
-export class PublicService extends Service {
-  async _list(filter: Filter, args?: PublicListArgs, options?: PublicListOptions): Promise<ListResult | ErrorResult> {
+export class PublicService<TModel = unknown> extends Service<TModel> {
+  async _list<
+    TSelect extends Projection | undefined = undefined,
+    TPopulate extends Populate[] | string | undefined = undefined,
+  >(
+    filter: Filter<TModel>,
+    args?: Omit<PublicListArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
+    options?: PublicListOptions,
+  ): Promise<ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
     const { select, populate, include, sort, skip, limit, page, pageSize, tasks } = this.resolvePublicListArgs(args);
     const { skim, includePermissions, includeCount, populateAccess, lean } = this.resolvePublicListOptions(options);
 
@@ -37,18 +49,25 @@ export class PublicService extends Service {
     );
 
     if (!result.success) {
-      return result;
+      return result as ErrorResult;
     }
 
-    let docs = result.data;
-    docs = await this.decorateAll(docs, 'list', { model: this.model.model, modelName: this.modelName });
-    docs = docs.map((row) => this.runTasks(row as Record<string, unknown>, tasks));
+    const docs = await this.decorateAll(result.data, 'list', { model: this.model.model, modelName: this.modelName });
+    const transformedDocs = docs.map((row) =>
+      this.runTasks(row as Record<string, unknown>, tasks),
+    ) as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>[];
 
-    result.data = docs;
-    return result;
+    return { ...result, data: transformedDocs };
   }
 
-  async _create(data, args?: PublicCreateArgs, options?: PublicCreateOptions): Promise<ListResult | ErrorResult> {
+  async _create<
+    TSelect extends Projection | undefined = undefined,
+    TPopulate extends Populate[] | string | undefined = undefined,
+  >(
+    data,
+    args?: Omit<PublicCreateArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
+    options?: PublicCreateOptions,
+  ): Promise<ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
     const { select, populate, tasks } = this.resolvePublicCreateArgs(args);
     const { skim, includePermissions, populateAccess } = this.resolvePublicCreateOptions(options);
 
@@ -66,14 +85,25 @@ export class PublicService extends Service {
       },
     );
 
-    return result;
+    if (!result.success) {
+      return result as ErrorResult;
+    }
+
+    return result as ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>>;
   }
 
-  async _new(): Promise<SingleResult> {
-    return this.new();
+  async _new(): Promise<SingleResult<PublicOutput<TModel>>> {
+    return this.new() as Promise<SingleResult<PublicOutput<TModel>>>;
   }
 
-  async _read(id: string, args?: PublicReadArgs, options?: PublicReadOptions): Promise<SingleResult | ErrorResult> {
+  async _read<
+    TSelect extends Projection | undefined = undefined,
+    TPopulate extends Populate[] | string | undefined = undefined,
+  >(
+    id: string,
+    args?: Omit<PublicReadArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
+    options?: PublicReadOptions,
+  ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
     const { select, populate, include, tasks } = this.resolvePublicReadArgs(args);
     const { skim, includePermissions, tryList, populateAccess, lean } = this.resolvePublicReadOptions(options);
 
@@ -107,22 +137,24 @@ export class PublicService extends Service {
     }
 
     if (!result.success) {
-      return result;
+      return result as ErrorResult;
     }
 
     let doc = toObject(result.data);
     doc = await this.decorate(doc, access, result.context);
     doc = this.runTasks(doc as Record<string, unknown>, tasks);
 
-    result.data = doc;
-    return result;
+    return { ...result, data: doc as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate> };
   }
 
-  async _readFilter(
-    filter: Filter,
-    args?: PublicReadArgs & { sort?: Sort },
+  async _readFilter<
+    TSelect extends Projection | undefined = undefined,
+    TPopulate extends Populate[] | string | undefined = undefined,
+  >(
+    filter: Filter<TModel>,
+    args?: Omit<PublicReadArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate; sort?: Sort },
     options?: PublicReadOptions,
-  ): Promise<SingleResult | ErrorResult> {
+  ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
     const { select, sort, populate, include, tasks } = this.resolvePublicReadFilterArgs(args);
     const { skim, includePermissions, tryList, populateAccess, lean } = this.resolvePublicReadOptions(options);
 
@@ -157,23 +189,25 @@ export class PublicService extends Service {
     }
 
     if (!result.success) {
-      return result;
+      return result as ErrorResult;
     }
 
     let doc = toObject(result.data);
     doc = await this.decorate(doc, access, result.context);
     doc = this.runTasks(doc as Record<string, unknown>, tasks);
 
-    result.data = doc;
-    return result;
+    return { ...result, data: doc as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate> };
   }
 
-  async _update(
+  async _update<
+    TSelect extends Projection | undefined = undefined,
+    TPopulate extends Populate[] | string | undefined = undefined,
+  >(
     id: string,
     data,
-    args?: PublicUpdateArgs,
+    args?: Omit<PublicUpdateArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
     options?: PublicUpdateOptions,
-  ): Promise<SingleResult | ErrorResult> {
+  ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
     const { select, populate, tasks } = this.resolvePublicUpdateArgs(args);
     const { skim, returningAll, includePermissions, populateAccess } = this.resolvePublicUpdateOptions(options);
 
@@ -194,20 +228,24 @@ export class PublicService extends Service {
       },
     );
 
-    return result;
+    if (!result.success) {
+      return result as ErrorResult;
+    }
+
+    return result as SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>>;
   }
 
-  async _delete(id: string): Promise<SingleResult | ErrorResult> {
+  async _delete(id: string): Promise<SingleResult<unknown> | ErrorResult> {
     const result = await this.delete(id);
     return result;
   }
 
-  async _distinct(field: string, options: DistinctArgs = {}): Promise<ListResult | ErrorResult> {
+  async _distinct(field: string, options: DistinctArgs<TModel> = {}): Promise<ListResult<unknown> | ErrorResult> {
     const result = await this.distinct(field, options);
     return result;
   }
 
-  async _count(filter, access: BaseFilterAccess = 'list'): Promise<SingleResult<number> | ErrorResult> {
+  async _count(filter: Filter<TModel>, access: BaseFilterAccess = 'list'): Promise<SingleResult<number> | ErrorResult> {
     const result = await this.count(filter, access);
     return result;
   }

@@ -12,9 +12,9 @@ type ListQuery = {
   limit?: number;
 };
 
-export const formatListResponse = (
+export const formatListResponse = <T>(
   req: Request,
-  result: Pick<ListResult, 'data' | 'count' | 'totalCount' | 'query'>,
+  result: Pick<ListResult<T>, 'data' | 'count' | 'totalCount' | 'query'>,
   includeCount?: boolean,
   includeExtraHeaders?: boolean,
 ) => {
@@ -58,10 +58,10 @@ export const formatListResponse = (
   return { data, meta };
 };
 
-export const formatCreatedData = (result: Pick<ListResult, 'count' | 'data'>) => {
+export const formatCreatedData = <T>(result: Pick<ListResult<T>, 'count' | 'data'>) => {
   return result.count === 1 ? result.data[0] : result.data;
 };
 
-export const formatUpsertCreatedData = (result: Pick<ListResult, 'data'>) => {
+export const formatUpsertCreatedData = <T>(result: Pick<ListResult<T>, 'data'>) => {
   return result.data.length > 0 ? result.data[0] : null;
 };

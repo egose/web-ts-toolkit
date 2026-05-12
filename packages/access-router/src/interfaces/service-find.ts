@@ -1,6 +1,6 @@
 import { Include, Projection, Sort, Filter, Populate, PopulateAccess, FindAccess } from './base';
 
-export interface FindArgs {
+export interface FindArgs<T = unknown> {
   select?: Projection;
   populate?: Populate[] | string;
   include?: Include | Include[];
@@ -10,7 +10,7 @@ export interface FindArgs {
   page?: string | number;
   pageSize?: string | number;
   overrides?: {
-    filter?: Filter;
+    filter?: Filter<T>;
     select?: Projection;
     populate?: Populate[] | string;
   };
@@ -24,13 +24,13 @@ export interface FindOptions {
   lean?: boolean;
 }
 
-export interface FindOneArgs {
+export interface FindOneArgs<T = unknown> {
   select?: Projection;
   sort?: Sort;
   populate?: Populate[] | string;
   include?: Include | Include[];
   overrides?: {
-    filter?: Filter;
+    filter?: Filter<T>;
     select?: Projection;
     populate?: Populate[] | string;
   };
@@ -44,14 +44,14 @@ export interface FindOneOptions {
   includePermissions?: boolean;
 }
 
-export interface FindByIdArgs {
+export interface FindByIdArgs<T = unknown> {
   select?: Projection;
   populate?: Populate[] | string;
   include?: Include | Include[];
   overrides?: {
     select?: Projection;
     populate?: Populate[] | string;
-    idFilter?: Filter;
+    idFilter?: Filter<T>;
   };
 }
 

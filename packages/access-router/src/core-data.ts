@@ -41,16 +41,20 @@ export class DataCore {
     };
   }
 
-  async genIDFilter(dataName: string, id: string) {
+  async genIDFilter<TData = unknown>(dataName: string, id: string): Promise<Filter<TData>> {
     const identifier = getDataOption(dataName, 'identifier');
-    return resolveIdentifierFilter(this.req, identifier, id);
+    return resolveIdentifierFilter<TData>(this.req, identifier, id);
   }
 
-  async genFilter(dataName: string, access: BaseFilterAccess = 'read', _filter: Filter = null): Promise<Filter> {
+  async genFilter<TData = unknown>(
+    dataName: string,
+    access: BaseFilterAccess = 'read',
+    _filter: Filter<TData> = null,
+  ): Promise<Filter<TData>> {
     const permissions = this.getGlobalPermissions();
     const cacheKey = `${dataName}_baseFilter_${access}`;
 
-    return resolveAccessFilter({
+    return resolveAccessFilter<TData>({
       req: this.req,
       permissions,
       cache: this.caches.baseFilter,
@@ -148,16 +152,16 @@ export class DataCore {
     return this.canActivate(routeGuard);
   }
 
-  getService(dataName: string) {
-    return new DataService(this.req, dataName);
+  getService<TData = unknown>(dataName: string) {
+    return new DataService<TData>(this.req, dataName);
   }
 
-  service(dataName: string) {
-    return this.getService(dataName);
+  service<TData = unknown>(dataName: string) {
+    return this.getService<TData>(dataName);
   }
 
-  svc(dataName: string) {
-    return this.getService(dataName);
+  svc<TData = unknown>(dataName: string) {
+    return this.getService<TData>(dataName);
   }
 
   private getGlobalPermissions() {

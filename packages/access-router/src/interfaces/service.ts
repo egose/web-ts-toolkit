@@ -1,5 +1,5 @@
 import { Filter } from './base';
 
-export interface DistinctArgs {
-  filter?: Filter;
+export interface DistinctArgs<T = unknown> {
+  filter?: Filter<T>;
 }

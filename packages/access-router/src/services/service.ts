@@ -68,10 +68,10 @@ import { Codes, StatusCodes } from '../enums';
 import { Base } from './base';
 import { logger } from '../logger';
 
-export class Service extends Base {
+export class Service<TModel = unknown> extends Base<TModel> {
   model: Model;
-  options: ModelRouterOptions;
-  defaults: Defaults;
+  options: ModelRouterOptions<TModel>;
+  defaults: Defaults<TModel>;
   baseFields: string[];
   baseFieldsExt: string[];
 
@@ -79,17 +79,17 @@ export class Service extends Base {
     super(req, modelName);
 
     this.model = new Model(modelName);
-    this.options = getModelOptions(modelName);
+    this.options = getModelOptions<TModel>(modelName);
     this.defaults = this.options.defaults || {};
     this.baseFields = ['_id'];
     this.baseFieldsExt = this.baseFields.concat(this.options.documentPermissionField);
   }
 
   public async findOne(
-    filter: Filter,
-    args?: FindOneArgs,
+    filter: Filter<TModel>,
+    args?: FindOneArgs<TModel>,
     options?: FindOneOptions,
-  ): Promise<SingleResult | ErrorResult> {
+  ): Promise<SingleResult<TModel> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
 
@@ -142,14 +142,14 @@ export class Service extends Base {
     );
     if (!includePermissions) doc = this.addEmptyPermissions(doc);
 
-    return { success: true, kind: 'single', code: Codes.Success, data: doc, query, context };
+    return { success: true, kind: 'single', code: Codes.Success, data: doc as TModel, query, context };
   }
 
   public async findById(
     id: string,
-    args?: FindByIdArgs,
+    args?: FindByIdArgs<TModel>,
     options?: FindByIdOptions,
-  ): Promise<SingleResult | ErrorResult> {
+  ): Promise<SingleResult<TModel> | ErrorResult> {
     const { select, populate, include, overrides } = this.resolveFindByIdArgs(args);
     const { skim, includePermissions, access, populateAccess, lean } = this.resolveFindByIdOptions(options);
 
@@ -172,11 +172,11 @@ export class Service extends Base {
   }
 
   public async find(
-    filter: Filter,
-    args?: FindArgs,
+    filter: Filter<TModel>,
+    args?: FindArgs<TModel>,
     options?: FindOptions,
     decorate?: Function,
-  ): Promise<ListResult | ErrorResult> {
+  ): Promise<ListResult<TModel> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
 
@@ -259,7 +259,7 @@ export class Service extends Base {
       success: true,
       kind: 'list',
       code: Codes.Success,
-      data: docs,
+      data: docs as TModel[],
       count: docs.length,
       totalCount: includeCount ? await this.model.countDocuments(_filter) : null,
       query,
@@ -272,7 +272,7 @@ export class Service extends Base {
     args?: CreateArgs,
     options?: CreateOptions,
     decorate?: Function,
-  ): Promise<ListResult | ErrorResult> {
+  ): Promise<ListResult<TModel> | ErrorResult> {
     const { populate } = this.resolveCreateArgs(args);
     const { skim, includePermissions, populateAccess } = this.resolveCreateOptions(options);
 
@@ -339,29 +339,29 @@ export class Service extends Base {
       success: true,
       kind: 'list',
       code: Codes.Created,
-      data: docs,
+      data: docs as TModel[],
       input: items,
       count: docs.length,
     };
   }
 
-  public async new(): Promise<SingleResult> {
+  public async new(): Promise<SingleResult<TModel>> {
     const data = await this.model.new();
     return {
       success: true,
       kind: 'single',
       code: Codes.Success,
-      data,
+      data: data as TModel,
     };
   }
 
   public async updateOne(
-    filter: Filter,
+    filter: Filter<TModel>,
     data,
-    args?: UpdateOneArgs,
+    args?: UpdateOneArgs<TModel>,
     options?: UpdateOneOptions,
     decorate?: Function,
-  ): Promise<SingleResult | ErrorResult> {
+  ): Promise<SingleResult<TModel> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
 
@@ -444,16 +444,16 @@ export class Service extends Base {
     if (isFunction(decorate)) doc = await decorate(doc, context);
     if (!includePermissions) doc = this.addEmptyPermissions(doc);
 
-    return { success: true, kind: 'single', code: Codes.Success, data: doc, input: prepared };
+    return { success: true, kind: 'single', code: Codes.Success, data: doc as TModel, input: prepared };
   }
 
   public async updateById(
     id: string,
     data,
-    args: UpdateByIdArgs = {},
+    args: UpdateByIdArgs<TModel> = {},
     options: UpdateByIdOptions = {},
     decorate?: Function,
-  ): Promise<SingleResult | ErrorResult> {
+  ): Promise<SingleResult<TModel> | ErrorResult> {
     const { populate, overrides } = this.resolveUpdateByIdArgs(args);
     const { skim, includePermissions, populateAccess } = this.resolveUpdateByIdOptions(options);
     const { populate: overridePopulate, idFilter: overrideIdFilter } = overrides;
@@ -474,12 +474,12 @@ export class Service extends Base {
   }
 
   public async upsert(
-    filter: Filter,
+    filter: Filter<TModel>,
     data,
-    args?: UpsertArgs,
+    args?: UpsertArgs<TModel>,
     options?: UpsertOptions,
     decorate?: Function,
-  ): Promise<ServiceResult> {
+  ): Promise<ServiceResult<TModel>> {
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
 
@@ -525,7 +525,7 @@ export class Service extends Base {
     }
   }
 
-  public async delete(id: string): Promise<SingleResult | ErrorResult> {
+  public async delete(id: string): Promise<SingleResult<unknown> | ErrorResult> {
     const filter = await this.genFilter('delete', await this.genIDFilter(id));
 
     const query = { filter };
@@ -544,11 +544,11 @@ export class Service extends Base {
   }
 
   public async exists(
-    filter: Filter,
+    filter: Filter<TModel>,
     options: ExistsOptions & { includeId: true },
-  ): Promise<SingleResult | ErrorResult>;
-  public async exists(filter: Filter, options?: ExistsOptions): Promise<SingleResult<boolean> | ErrorResult>;
-  public async exists(filter: Filter, options?: ExistsOptions): Promise<SingleResult | ErrorResult> {
+  ): Promise<SingleResult<unknown> | ErrorResult>;
+  public async exists(filter: Filter<TModel>, options?: ExistsOptions): Promise<SingleResult<boolean> | ErrorResult>;
+  public async exists(filter: Filter<TModel>, options?: ExistsOptions): Promise<SingleResult<unknown> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
 
@@ -565,7 +565,7 @@ export class Service extends Base {
     };
   }
 
-  public async distinct(field: string, args?: DistinctArgs): Promise<ListResult | ErrorResult> {
+  public async distinct(field: string, args?: DistinctArgs<TModel>): Promise<ListResult<unknown> | ErrorResult> {
     let { filter } = args ?? {};
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
@@ -581,7 +581,10 @@ export class Service extends Base {
     return { success: true, kind: 'list', code: Codes.Success, data: result, count: result.length, query };
   }
 
-  public async count(filter, access: BaseFilterAccess = 'list'): Promise<SingleResult<number> | ErrorResult> {
+  public async count(
+    filter: Filter<TModel>,
+    access: BaseFilterAccess = 'list',
+  ): Promise<SingleResult<number> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
 
@@ -598,7 +601,7 @@ export class Service extends Base {
     return getDocPermissions(this.modelName, doc);
   }
 
-  private resolveFindOneArgs(args: FindOneArgs = {}) {
+  private resolveFindOneArgs(args: FindOneArgs<TModel> = {}) {
     return {
       select: args.select ?? this.defaults.findOneArgs?.select,
       sort: args.sort ?? this.defaults.findOneArgs?.sort,
@@ -618,7 +621,7 @@ export class Service extends Base {
     };
   }
 
-  private resolveFindByIdArgs(args: FindByIdArgs = {}) {
+  private resolveFindByIdArgs(args: FindByIdArgs<TModel> = {}) {
     return {
       select: args.select ?? this.defaults.findByIdArgs?.select,
       populate: args.populate ?? this.defaults.findByIdArgs?.populate,
@@ -637,7 +640,7 @@ export class Service extends Base {
     };
   }
 
-  private resolveFindArgs(args: FindArgs = {}) {
+  private resolveFindArgs(args: FindArgs<TModel> = {}) {
     return {
       select: args.select ?? this.defaults.findArgs?.select,
       populate: args.populate ?? this.defaults.findArgs?.populate,
@@ -675,7 +678,7 @@ export class Service extends Base {
     };
   }
 
-  private resolveUpdateOneArgs(args: UpdateOneArgs = {}) {
+  private resolveUpdateOneArgs(args: UpdateOneArgs<TModel> = {}) {
     return {
       populate: args.populate ?? this.defaults.updateOneArgs?.populate,
       overrides: args.overrides ?? {},
@@ -690,7 +693,7 @@ export class Service extends Base {
     };
   }
 
-  private resolveUpdateByIdArgs(args: UpdateByIdArgs = {}) {
+  private resolveUpdateByIdArgs(args: UpdateByIdArgs<TModel> = {}) {
     return {
       populate: args.populate ?? this.defaults.updateByIdArgs?.populate,
       overrides: args.overrides ?? {},
@@ -705,7 +708,7 @@ export class Service extends Base {
     };
   }
 
-  private resolveUpsertArgs(args: UpsertArgs = {}) {
+  private resolveUpsertArgs(args: UpsertArgs<TModel> = {}) {
     return {
       populate: args.populate ?? this.defaults.upsertArgs?.populate,
       overrides: args.overrides ?? {},
@@ -745,7 +748,8 @@ export class Service extends Base {
   }
 
   private async getAccessibleIdSet(ids: string[], access: BaseFilterAccess) {
-    const filter = await this.genFilter(access, { _id: { $in: ids } });
+    const idFilter = { _id: { $in: ids } } as Filter<TModel>;
+    const filter = await this.genFilter(access, idFilter);
     if (filter === false) return new Set<string>();
 
     const docs = await this.model.find({ filter, select: '_id', lean: true });
@@ -760,7 +764,7 @@ export class Service extends Base {
     let result = get(parentDoc, sub) as Record<string, unknown>[];
 
     const [subFilter, subSelect] = await Promise.all([
-      this.genFilter(`subs.${sub}.list`, ft),
+      this.genFilter(`subs.${sub}.list`, ft as Filter<TModel>),
       this.genQuerySelect('list', fields, false, [sub, 'sub']),
     ]);
 

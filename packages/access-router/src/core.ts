@@ -86,16 +86,20 @@ export class Core {
     return '_id';
   }
 
-  async genIDFilter(modelName: string, id: string) {
+  async genIDFilter<TModel = unknown>(modelName: string, id: string): Promise<Filter<TModel>> {
     const identifier = getModelOption(modelName, 'identifier');
-    return resolveIdentifierFilter(this.req, identifier, id);
+    return resolveIdentifierFilter<TModel>(this.req, identifier, id);
   }
 
-  async genFilter(modelName: string, access: BaseFilterAccess = 'read', _filter: Filter = null): Promise<Filter> {
+  async genFilter<TModel = unknown>(
+    modelName: string,
+    access: BaseFilterAccess = 'read',
+    _filter: Filter<TModel> = null,
+  ): Promise<Filter<TModel>> {
     const permissions = this.getGlobalPermissions();
     const cacheKey = `${modelName}_baseFilter_${access}`;
 
-    return resolveAccessFilter({
+    return resolveAccessFilter<TModel>({
       req: this.req,
       permissions,
       cache: this.caches.baseFilter,
@@ -453,20 +457,20 @@ export class Core {
     return this.canActivate(routeGuard);
   }
 
-  getService(modelName: string) {
-    return new Service(this.req, modelName);
+  getService<TModel = unknown>(modelName: string) {
+    return new Service<TModel>(this.req, modelName);
   }
 
-  getPublicService(modelName: string) {
-    return new PublicService(this.req, modelName);
+  getPublicService<TModel = unknown>(modelName: string) {
+    return new PublicService<TModel>(this.req, modelName);
   }
 
-  service(modelName: string) {
-    return this.getPublicService(modelName);
+  service<TModel = unknown>(modelName: string) {
+    return this.getPublicService<TModel>(modelName);
   }
 
-  svc(modelName: string) {
-    return this.getPublicService(modelName);
+  svc<TModel = unknown>(modelName: string) {
+    return this.getPublicService<TModel>(modelName);
   }
 
   private getGlobalPermissions() {

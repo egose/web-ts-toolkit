@@ -8,6 +8,7 @@ import {
   ListResult,
   Request,
   Projection,
+  SelectedPublicOutput,
   SelectAccess,
   DecorateAccess,
   DecorateAllAccess,
@@ -26,21 +27,21 @@ import { orderBy, pick } from '@web-ts-toolkit/utils';
 export class DataService<T> {
   req: Request;
   dataName: string;
-  options: DataRouterOptions;
+  options: DataRouterOptions<T>;
   data: T[];
 
   constructor(req: Request, dataName: string) {
     this.req = req;
     this.dataName = dataName;
-    this.options = getDataOptions(dataName);
+    this.options = getDataOptions<T>(dataName);
     this.data = (this.options.data ?? []) as T[];
   }
 
-  public async findOne(
-    filter: DataFilter,
-    args?: DataFindOneArgs,
+  public async findOne<TSelect extends Projection | undefined = undefined>(
+    filter: DataFilter<T>,
+    args?: DataFindOneArgs<T, TSelect>,
     options?: DataFindOneOptions,
-  ): Promise<SingleResult<T> | ErrorResult> {
+  ): Promise<SingleResult<SelectedPublicOutput<T, TSelect>> | ErrorResult> {
     const filterErrors = validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
 
@@ -61,14 +62,14 @@ export class DataService<T> {
     doc = (await this.trimOutputFields(doc, access)) as T;
     if (_select.length > 0) doc = pick(doc as object, _select) as T;
 
-    return { success: true, kind: 'single', code: Codes.Success, data: doc, query };
+    return { success: true, kind: 'single', code: Codes.Success, data: doc as SelectedPublicOutput<T, TSelect>, query };
   }
 
-  public async findById(
+  public async findById<TSelect extends Projection | undefined = undefined>(
     id: string,
-    args?: DataFindOneArgs,
+    args?: DataFindOneArgs<T, TSelect>,
     options?: DataFindOneOptions,
-  ): Promise<SingleResult<T> | ErrorResult> {
+  ): Promise<SingleResult<SelectedPublicOutput<T, TSelect>> | ErrorResult> {
     const { select } = args ?? {};
     const { access = 'read' } = options ?? {};
     const filter = await this.genIDFilter(id);
@@ -82,11 +83,11 @@ export class DataService<T> {
     );
   }
 
-  public async find(
-    filter: DataFilter,
-    args?: DataFindArgs,
+  public async find<TSelect extends Projection | undefined = undefined>(
+    filter: DataFilter<T>,
+    args?: DataFindArgs<T, TSelect>,
     options?: DataFindOptions,
-  ): Promise<ListResult<T> | ErrorResult> {
+  ): Promise<ListResult<SelectedPublicOutput<T, TSelect>> | ErrorResult> {
     const filterErrors = validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
 
@@ -129,7 +130,7 @@ export class DataService<T> {
       success: true,
       kind: 'list',
       code: Codes.Success,
-      data: docs,
+      data: docs as SelectedPublicOutput<T, TSelect>[],
       count: docs.length,
       totalCount,
       query,
@@ -148,12 +149,12 @@ export class DataService<T> {
     return this.req.dacl.genAllowedFields(this.dataName, doc, access, baseFields);
   }
 
-  public genFilter(access?: BaseFilterAccess, filter?) {
-    return this.req.dacl.genFilter(this.dataName, access, filter);
+  public genFilter(access?: BaseFilterAccess, filter?: DataFilter<T>): Promise<DataFilter<T>> {
+    return this.req.dacl.genFilter<T>(this.dataName, access, filter);
   }
 
-  public genIDFilter(id: string): Promise<Filter> {
-    return this.req.dacl.genIDFilter(this.dataName, id);
+  public genIDFilter(id: string): Promise<DataFilter<T>> {
+    return this.req.dacl.genIDFilter<T>(this.dataName, id);
   }
 
   public genSelect(

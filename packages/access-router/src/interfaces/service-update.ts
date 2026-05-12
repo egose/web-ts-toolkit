@@ -6,21 +6,21 @@ export interface PublicUpdateArgs {
   tasks?: Task | Task[];
 }
 
-export interface UpdateOneArgs extends Omit<PublicUpdateArgs, 'select' | 'tasks'> {
+export interface UpdateOneArgs<T = unknown> extends Omit<PublicUpdateArgs, 'select' | 'tasks'> {
   overrides?: {
-    filter?: Filter;
+    filter?: Filter<T>;
     populate?: Populate[] | string;
   };
 }
 
-export interface UpdateByIdArgs extends Omit<UpdateOneArgs, 'overrides'> {
+export interface UpdateByIdArgs<T = unknown> extends Omit<UpdateOneArgs<T>, 'overrides'> {
   overrides?: {
     populate?: Populate[] | string;
-    idFilter?: Filter;
+    idFilter?: Filter<T>;
   };
 }
 
-export interface UpsertArgs extends UpdateOneArgs {}
+export interface UpsertArgs<T = unknown> extends UpdateOneArgs<T> {}
 
 export interface PublicUpdateOptions {
   skim?: boolean;
