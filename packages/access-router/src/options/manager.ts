@@ -2,6 +2,31 @@ import get from 'lodash/get';
 import set from 'lodash/set';
 import assign from 'lodash/assign';
 
+export const getNestedOption = <T extends object, K extends keyof T>(
+  manager: OptionsManager<any, T>,
+  key: K | string,
+  defaultValue?: T[K],
+) => {
+  const keys = String(key).split('.');
+  if (keys.length === 1) {
+    return manager.get(key, defaultValue);
+  }
+
+  let option = manager.get(key, undefined);
+  if (option !== undefined) {
+    return option;
+  }
+
+  const parentKey = keys.slice(0, -1).join('.');
+  option = manager.get(`${parentKey}.default`, undefined);
+
+  if (option === undefined) {
+    option = manager.get(parentKey, defaultValue);
+  }
+
+  return option;
+};
+
 export class OptionsManager<T1 extends object, T2 extends object> {
   private readonly defaultOptions: T1;
   private currentOptions: T1;
