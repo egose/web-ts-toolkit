@@ -3,7 +3,7 @@ import { createLogger, format, transports } from 'winston';
 import { getGlobalOption } from './options';
 
 const colorizer = format.colorize();
-const defaultLogLevel = process.env.WTT_LOG_LEVEL || process.env.EGOSE_LOG_LEVEL || 'silent';
+const defaultLogLevel = process.env.WTT_LOG_LEVEL || 'silent';
 
 const inspectValue = (value: unknown) => {
   return typeof value === 'string' ? value : util.inspect(value, { depth: 5, colors: false });
