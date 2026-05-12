@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
-import { isNil, isString } from '@web-ts-toolkit/utils';
-import { addLeadingSlash } from '../lib';
+import { addLeadingSlash, isNil, isString } from '@web-ts-toolkit/utils';
 import { OptionsManager, getNestedOption } from './manager';
 import { DataRouterOptions, ExtendedDataRouterOptions } from '../interfaces';
 

@@ -16,6 +16,7 @@ import {
 } from '@web-ts-toolkit/express-response-handler';
 import apiHandler from '@web-ts-toolkit/express-response-handler';
 import * as clientErrors from '@web-ts-toolkit/http-errors';
+import { addLeadingSlash } from '@web-ts-toolkit/utils';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 
@@ -73,8 +74,6 @@ const success = {
   AlreadyReported,
   IMUsed,
 };
-
-const addLeadingSlash = (value: string): string => (value.startsWith('/') ? value : `/${value}`);
 
 const normalizeBasePath = (value: string): string => {
   if (!value || value === '/') {

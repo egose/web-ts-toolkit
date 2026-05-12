@@ -1,3 +1,4 @@
+import { toStringRecord } from '@web-ts-toolkit/utils';
 import { getDefaultMessage } from './messages';
 import { getCanonicalStatus } from './status';
 import type { HttpErrorOptions } from './types';
@@ -7,19 +8,6 @@ type ErrorWithCaptureStackTrace = ErrorConstructor & {
 };
 
 const ErrorCtor = Error as ErrorWithCaptureStackTrace;
-
-const toMetadata = (metadata: HttpErrorOptions['metadata']): Record<string, string> | undefined => {
-  if (!metadata) {
-    return undefined;
-  }
-
-  const normalizedMetadata = Object.entries(metadata).reduce<Record<string, string>>((result, [key, value]) => {
-    result[key] = String(value);
-    return result;
-  }, {});
-
-  return Object.keys(normalizedMetadata).length > 0 ? normalizedMetadata : undefined;
-};
 
 export class HttpError extends Error {
   readonly statusCode: number;
@@ -56,7 +44,7 @@ export class HttpError extends Error {
       this.domain = domain;
     }
 
-    const normalizedMetadata = toMetadata(metadata);
+    const normalizedMetadata = toStringRecord(metadata);
 
     if (normalizedMetadata !== undefined) {
       this.metadata = normalizedMetadata;

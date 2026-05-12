@@ -1,7 +1,6 @@
 import mongoose from 'mongoose';
 import mschema2Jsonschema from 'mongoose-schema-jsonschema';
-import { forEach, isArray, isBoolean, isFunction, isNil, isString } from '@web-ts-toolkit/utils';
-import { addLeadingSlash } from '../lib';
+import { addLeadingSlash, forEach, isArray, isBoolean, isFunction, isNil, isString } from '@web-ts-toolkit/utils';
 import { OptionsManager, getNestedOption } from './manager';
 import {
   ModelRouterOptions,

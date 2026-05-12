@@ -25,5 +25,8 @@
     "README.md",
     "dist",
     "tsup.config.ts"
-  ]
+  ],
+  "dependencies": {
+    "@web-ts-toolkit/utils": "workspace:*"
+  }
 }

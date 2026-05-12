@@ -108,6 +108,9 @@ importers:
       '@web-ts-toolkit/http-errors':
         specifier: workspace:*
         version: link:../http-errors
+      '@web-ts-toolkit/utils':
+        specifier: workspace:*
+        version: link:../utils
       express:
         specifier: ^5.2.1
         version: 5.2.1
@@ -130,6 +133,9 @@ importers:
       '@web-ts-toolkit/http-errors':
         specifier: workspace:*
         version: link:../http-errors
+      '@web-ts-toolkit/utils':
+        specifier: workspace:*
+        version: link:../utils
     devDependencies:
       '@fast-csv/parse':
         specifier: ^5.0.5
@@ -144,9 +150,17 @@ importers:
         specifier: ^7.2.2
         version: 7.2.2
 
-  packages/http-errors: {}
+  packages/http-errors:
+    dependencies:
+      '@web-ts-toolkit/utils':
+        specifier: workspace:*
+        version: link:../utils
 
   packages/moo:
+    dependencies:
+      '@web-ts-toolkit/utils':
+        specifier: workspace:*
+        version: link:../utils
     devDependencies:
       mongodb-memory-server:
         specifier: ^11.1.0

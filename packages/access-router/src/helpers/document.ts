@@ -1,6 +1,6 @@
 import { Document, Schema } from 'mongoose';
-import { get, isArray, isPlainObject, isString, pick, set } from '@web-ts-toolkit/utils';
-import { isDocument, isPromise } from '../lib';
+import { get, isArray, isPlainObject, isPromise, isString, pick, set } from '@web-ts-toolkit/utils';
+import { isDocument } from '../lib';
 import { getModelOption } from '../options';
 import { SubPopulate } from '../interfaces';
 import { normalizeSelect } from './query';

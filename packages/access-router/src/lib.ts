@@ -1,5 +1,5 @@
 import { Document, Schema } from 'mongoose';
-import { isFunction, isPlainObject } from '@web-ts-toolkit/utils';
+import { addLeadingSlash, isPlainObject, isPromise } from '@web-ts-toolkit/utils';
 
 export class PermissionDoc extends Document {
   _doc: Record<string, unknown>;
@@ -13,10 +13,6 @@ export class PermissionDoc extends Document {
 export const isSchema = (val: unknown): val is Schema => val instanceof Schema;
 export const isObjectIdType = (val: unknown) => val === 'ObjectId' || val === Schema.Types.ObjectId;
 export const isReference = (val: unknown) => isPlainObject(val) && !!val.ref && isObjectIdType(val.type);
-
-export const isPromise = function isPromise<T = unknown>(val: unknown): val is PromiseLike<T> {
-  return !!val && isFunction((val as { then?: unknown }).then);
-};
 
 export const isDocument = function isDocument(doc: unknown): doc is PermissionDoc {
   return doc instanceof Document;
@@ -49,8 +45,6 @@ export const arrToObj = (arr: string[]): Record<string, true> => {
   }
   return obj;
 };
-
-export const addLeadingSlash = (str) => (str.startsWith('/') ? str : `/${str}`);
 
 export const removeConsecutiveSlashesFromUrl = (url) => url.replace(/\/{2,}/g, '/');
 

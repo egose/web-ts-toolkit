@@ -1,4 +1,5 @@
 import assert from 'assert';
+import { isArray, isFunction, isPromise } from '@web-ts-toolkit/utils';
 
 import { CSVResponse } from './responses/csv';
 import { Response } from './responses';
@@ -29,13 +30,10 @@ import type {
   RouterFunction,
 } from './types';
 
-const isFunction = (value: unknown): value is (...args: unknown[]) => unknown => typeof value === 'function';
-const isPromise = <T>(value: unknown): value is Promise<T> => Boolean(value) && isFunction((value as Promise<T>).then);
 const promisify =
   (fn: Hook): AsyncHook =>
   (value) =>
     Promise.resolve().then(() => fn(value));
-const { isArray } = Array;
 
 const invokePostHook = (hook: AsyncHook, value: unknown): void => {
   void hook(value).catch(() => undefined);
@@ -250,8 +248,8 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
     };
   };
 
-  const handlePromise = function (res: ResponseLike, promise: Promise<unknown>, event: EventState) {
-    promise
+  const handlePromise = function (res: ResponseLike, promise: PromiseLike<unknown>, event: EventState) {
+    Promise.resolve(promise)
       .then((data) => {
         if (event.nextError) {
           sendError(res, event.nextError, event);

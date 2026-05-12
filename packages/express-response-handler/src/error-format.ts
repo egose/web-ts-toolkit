@@ -7,12 +7,9 @@ import {
   type HttpErrorShape,
   type Rfc9457ErrorPayload,
 } from '@web-ts-toolkit/http-errors';
+import { isArray, isPlainObject, isString, toStringRecord } from '@web-ts-toolkit/utils';
 
 import type { ErrorMessageProvider, ErrorMessageResult, ErrorWithPayload } from './types';
-
-const isString = (value: unknown): value is string => typeof value === 'string';
-const isPlainObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object';
-const { isArray } = Array;
 
 const toStatusCode = (status: unknown, code: unknown, fallbackStatusCode: number): number => {
   if (typeof status === 'number') {
@@ -25,16 +22,7 @@ const toStatusCode = (status: unknown, code: unknown, fallbackStatusCode: number
 const toOptionalString = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
 
 const toMetadata = (value: unknown): Record<string, string> | undefined => {
-  if (!isPlainObject(value)) {
-    return undefined;
-  }
-
-  const metadata = Object.entries(value).reduce<Record<string, string>>((result, [key, entry]) => {
-    result[key] = String(entry);
-    return result;
-  }, {});
-
-  return Object.keys(metadata).length > 0 ? metadata : undefined;
+  return toStringRecord(value);
 };
 
 const toArray = (value: unknown): unknown[] | undefined => {
