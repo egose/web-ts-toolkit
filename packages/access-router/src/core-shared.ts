@@ -2,6 +2,7 @@ import castArray from 'lodash/castArray';
 import isArray from 'lodash/isArray';
 import isBoolean from 'lodash/isBoolean';
 import isEmpty from 'lodash/isEmpty';
+import isEqual from 'lodash/isEqual';
 import isFunction from 'lodash/isFunction';
 import isPlainObject from 'lodash/isPlainObject';
 import isString from 'lodash/isString';
@@ -14,26 +15,77 @@ import Permission, { Permissions } from './permission';
 
 type OptionGetter = (key: string, defaultValue?: unknown) => unknown;
 
+function isAndFilter(filter: Filter | null | undefined): filter is Record<string, unknown> & { $and: unknown[] } {
+  return !!filter && isPlainObject(filter) && Object.keys(filter).length === 1 && isArray(filter.$and);
+}
+
+function isMergeableClause(filter: Filter | null | undefined): filter is Record<string, unknown> {
+  return !!filter && isPlainObject(filter) && Object.keys(filter).every((key) => !key.startsWith('$'));
+}
+
+function optimizeAndFilter(clausesInput: unknown[]): Filter | null {
+  const clauses: Record<string, unknown>[] = [];
+
+  for (let x = 0; x < clausesInput.length; x++) {
+    const clause = normalizeFilter(clausesInput[x] as Filter | null | undefined);
+    if (clause === false) return false;
+    if (!clause) continue;
+
+    if (isAndFilter(clause)) {
+      clauses.push(...clause.$and);
+    } else {
+      clauses.push(clause);
+    }
+  }
+
+  const dedupedClauses = clauses.filter(
+    (clause, index) => clauses.findIndex((item) => isEqual(item, clause)) === index,
+  );
+
+  const mergedClause: Record<string, unknown> = {};
+  const remainingClauses: Record<string, unknown>[] = [];
+
+  for (let x = 0; x < dedupedClauses.length; x++) {
+    const clause = dedupedClauses[x];
+    if (!isMergeableClause(clause)) {
+      remainingClauses.push(clause);
+      continue;
+    }
+
+    let canMerge = true;
+
+    for (const [key, value] of Object.entries(clause)) {
+      if (Object.prototype.hasOwnProperty.call(mergedClause, key) && !isEqual(mergedClause[key], value)) {
+        canMerge = false;
+        break;
+      }
+    }
+
+    if (!canMerge) {
+      remainingClauses.push(clause);
+      continue;
+    }
+
+    Object.assign(mergedClause, clause);
+  }
+
+  const finalClauses = isEmpty(mergedClause) ? remainingClauses : [mergedClause, ...remainingClauses];
+
+  if (finalClauses.length === 0) return null;
+  if (finalClauses.length === 1) return finalClauses[0];
+
+  return { $and: finalClauses };
+}
+
 function normalizeFilter(filter: Filter | null | undefined): Filter | null {
   if (filter === false) return false;
   if (!filter || !isPlainObject(filter) || isEmpty(filter)) return null;
 
-  if (Object.keys(filter).length !== 1 || !isArray(filter.$and)) {
+  if (!isAndFilter(filter)) {
     return filter;
   }
 
-  const clauses: Record<string, unknown>[] = [];
-
-  for (let x = 0; x < filter.$and.length; x++) {
-    const clause = normalizeFilter(filter.$and[x] as Filter | null | undefined);
-    if (clause === false) return false;
-    if (clause) clauses.push(clause);
-  }
-
-  if (clauses.length === 0) return null;
-  if (clauses.length === 1) return clauses[0];
-
-  return { $and: clauses };
+  return optimizeAndFilter(filter.$and);
 }
 
 export async function resolveIdentifierFilter(req: Request, identifier: string | Function | undefined, id: string) {
@@ -90,7 +142,7 @@ export async function resolveAccessFilter({
   if (!baseFilter) return nextFilter || {};
   if (!nextFilter) return baseFilter;
 
-  return { $and: [baseFilter, nextFilter] };
+  return optimizeAndFilter([baseFilter, nextFilter]);
 }
 
 export function getRequestPermissions(req: Request) {

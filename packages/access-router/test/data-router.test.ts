@@ -59,8 +59,11 @@ const createPetApp = () => {
     const empty = await req.dacl.genFilter('pet-legacy', 'read', {});
     const emptyAnd = await req.dacl.genFilter('pet-legacy', 'read', { $and: [{}] });
     const singleAnd = await req.dacl.genFilter('pet-legacy', 'read', { $and: [{ name: 'Toby' }] });
+    const mergedPlain = await req.dacl.genFilter('pet-legacy', 'read', { name: 'Max' });
+    const deduped = await req.dacl.genFilter('pet-legacy', 'read', { $and: [{ public: true }, { public: true }] });
+    const conflicting = await req.dacl.genFilter('pet-legacy', 'read', { public: false });
 
-    return { first, second, empty, emptyAnd, singleAnd };
+    return { first, second, empty, emptyAnd, singleAnd, mergedPlain, deduped, conflicting };
   });
 
   app.use(express.json());
@@ -314,16 +317,15 @@ describe('data router', () => {
       .expect(200)
       .expect('Content-Type', /json/);
 
-    expect(response.body.first).toEqual({
-      $and: [{ public: true }, { name: 'Max' }],
-    });
-    expect(response.body.second).toEqual({
-      $and: [{ public: true }, { name: 'Bella' }],
-    });
+    expect(response.body.first).toEqual({ public: true, name: 'Max' });
+    expect(response.body.second).toEqual({ public: true, name: 'Bella' });
     expect(response.body.empty).toEqual({ public: true });
     expect(response.body.emptyAnd).toEqual({ public: true });
-    expect(response.body.singleAnd).toEqual({
-      $and: [{ public: true }, { name: 'Toby' }],
+    expect(response.body.singleAnd).toEqual({ public: true, name: 'Toby' });
+    expect(response.body.mergedPlain).toEqual({ public: true, name: 'Max' });
+    expect(response.body.deduped).toEqual({ public: true });
+    expect(response.body.conflicting).toEqual({
+      $and: [{ public: true }, { public: false }],
     });
   });
 

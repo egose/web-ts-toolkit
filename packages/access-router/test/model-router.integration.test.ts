@@ -98,8 +98,13 @@ const createIntegrationApp = async () => {
     const empty = await req.macl.genFilter(modelName, 'read', {});
     const emptyAnd = await req.macl.genFilter(modelName, 'read', { $and: [{}] });
     const singleAnd = await req.macl.genFilter(modelName, 'read', { $and: [{ name: 'user1' }] });
+    const mergedPlain = await req.macl.genFilter(modelName, 'read', { name: 'user1' });
+    const deduped = await req.macl.genFilter(modelName, 'read', {
+      $and: [{ _id: req._user?._id }, { _id: req._user?._id }],
+    });
+    const conflicting = await req.macl.genFilter(modelName, 'read', { _id: 'different-id' });
 
-    return { first, second, empty, emptyAnd, singleAnd };
+    return { first, second, empty, emptyAnd, singleAnd, mergedPlain, deduped, conflicting };
   });
 
   router.router.get(
@@ -322,18 +327,22 @@ describe('model router integration', () => {
       .expect(200)
       .expect('Content-Type', /json/);
 
-    expect(response.body.first).toMatchObject({
-      $and: [{ _id: expect.any(String) }, { name: 'user1' }],
-    });
-    expect(response.body.second).toMatchObject({
-      $and: [{ _id: expect.any(String) }, { name: 'user2' }],
-    });
+    expect(response.body.first).toMatchObject({ _id: expect.any(String), name: 'user1' });
+    expect(response.body.first.$and).toBeUndefined();
+    expect(response.body.second).toMatchObject({ _id: expect.any(String), name: 'user2' });
+    expect(response.body.second.$and).toBeUndefined();
     expect(response.body.empty).toMatchObject({ _id: expect.any(String) });
     expect(response.body.empty.$and).toBeUndefined();
     expect(response.body.emptyAnd).toMatchObject({ _id: expect.any(String) });
     expect(response.body.emptyAnd.$and).toBeUndefined();
-    expect(response.body.singleAnd).toMatchObject({
-      $and: [{ _id: expect.any(String) }, { name: 'user1' }],
+    expect(response.body.singleAnd).toMatchObject({ _id: expect.any(String), name: 'user1' });
+    expect(response.body.singleAnd.$and).toBeUndefined();
+    expect(response.body.mergedPlain).toMatchObject({ _id: expect.any(String), name: 'user1' });
+    expect(response.body.mergedPlain.$and).toBeUndefined();
+    expect(response.body.deduped).toMatchObject({ _id: expect.any(String) });
+    expect(response.body.deduped.$and).toBeUndefined();
+    expect(response.body.conflicting).toMatchObject({
+      $and: [{ _id: expect.any(String) }, { _id: 'different-id' }],
     });
   });
 
