@@ -220,7 +220,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import acl from '@web-ts-toolkit/access-router';\n\nacl.set('globalPermissions', (req) => {\n  return req.headers.user === 'admin' ? ['isAdmin'] : [];\n});\n\nconst router = acl.createDataRouter('fruit', {\n  basePath: '/fruit',\n  data: [{ id: 'apple', name: 'Apple', public: true }],\n  identifier: 'id',\n  routeGuard: {\n    list: true,\n    read: true,\n  },\n  permissionSchema: {\n    id: true,\n    name: 'isAdmin',\n    public: true,\n  },\n});\n"
+        children: "import acl from '@web-ts-toolkit/access-router';\n\nacl.set('globalPermissions', (req) => {\n  return req.headers.user === 'admin' ? ['isAdmin'] : [];\n});\n\nconst router = acl.createDataRouter('fruit', {\n  basePath: '/fruit',\n  data: [{ id: 'apple', name: 'Apple', public: true }],\n  idField: 'id',\n  operationAccess: {\n    list: true,\n    read: true,\n  },\n  permissionSchema: {\n    id: true,\n    name: 'isAdmin',\n    public: true,\n  },\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "typescript-support",
@@ -241,7 +241,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import acl from '@web-ts-toolkit/access-router';\n\ntype Fruit = {\n  id: string;\n  name: string;\n  stock: number;\n  public: boolean;\n};\n\nconst fruitRouter = acl.createDataRouter<Fruit>('fruit', {\n  basePath: '/fruit',\n  identifier: 'id',\n  data: [{ id: 'apple', name: 'Apple', stock: 12, public: true }],\n});\n\nconst service = fruitRouter.getService(req);\n\nconst result = await service.findById({\n  id: 'apple',\n  select: ['id', 'name'],\n});\n\nresult.name;\n"
+        children: "import acl from '@web-ts-toolkit/access-router';\n\ntype Fruit = {\n  id: string;\n  name: string;\n  stock: number;\n  public: boolean;\n};\n\nconst fruitRouter = acl.createDataRouter<Fruit>('fruit', {\n  basePath: '/fruit',\n  idField: 'id',\n  data: [{ id: 'apple', name: 'Apple', stock: 12, public: true }],\n});\n\nconst service = fruitRouter.getService(req);\n\nconst result = await service.findById({\n  id: 'apple',\n  select: ['id', 'name'],\n});\n\nresult.name;\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "typed-filters",
@@ -567,7 +567,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { z } from 'zod';\nimport acl from '@web-ts-toolkit/access-router';\n\nconst router = acl.createRouter('User', {\n  basePath: '/users',\n  identifier: 'name',\n  requestSchemas: {\n    create: z.object({\n      name: z.string().min(3),\n      role: z.string(),\n    }),\n    advancedCreate: {\n      data: z.object({\n        name: z.string().min(3),\n        role: z.literal('user'),\n      }),\n    },\n    advancedUpdate: {\n      data: z.object({\n        role: z.enum(['manager', 'staff']),\n      }),\n    },\n  },\n});\n"
+        children: "import { z } from 'zod';\nimport acl from '@web-ts-toolkit/access-router';\n\nconst router = acl.createRouter('User', {\n  basePath: '/users',\n  idField: 'name',\n  requestSchemas: {\n    create: z.object({\n      name: z.string().min(3),\n      role: z.string(),\n    }),\n    advancedCreate: {\n      data: z.object({\n        name: z.string().min(3),\n        role: z.literal('user'),\n      }),\n    },\n    advancedUpdate: {\n      data: z.object({\n        role: z.enum(['manager', 'staff']),\n      }),\n    },\n  },\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Validation order:"
@@ -635,7 +635,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["access and query shaping: ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "routeGuard"
+          children: "operationAccess"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "overrideFilter"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
@@ -655,7 +655,7 @@ function _createMdxContent(props) {
         })]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["update diff side effects: ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "change"
+          children: "onChange"
         })]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["delete lifecycle: ", (0,jsx_runtime.jsx)(_components.code, {
@@ -677,19 +677,19 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["create: ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "routeGuard -> validate -> prepare -> create -> afterPersist -> docPermissions -> decorate"
+          children: "operationAccess -> validate -> prepare -> create -> afterPersist -> docPermissions -> decorate"
         })]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["update: ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "routeGuard -> overrideFilter/baseFilter -> validate -> prepare -> transform -> save -> afterPersist -> change -> docPermissions -> decorate"
+          children: "operationAccess -> overrideFilter/baseFilter -> validate -> prepare -> transform -> save -> afterPersist -> onChange -> docPermissions -> decorate"
         })]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["delete: ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "routeGuard -> overrideFilter/baseFilter -> beforeDelete -> delete -> afterDelete"
+          children: "operationAccess -> overrideFilter/baseFilter -> beforeDelete -> delete -> afterDelete"
         })]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["read/list: ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "routeGuard -> overrideFilter/baseFilter -> docPermissions -> decorate -> decorateAll"
+          children: "operationAccess -> overrideFilter/baseFilter -> docPermissions -> decorate -> decorateAll"
         })]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
@@ -881,7 +881,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "acl.createModelRouter('Post', {\n  baseFilter: {\n    read(this, permissions) {\n      if (permissions.has('isAdmin')) return true;\n      return { published: true };\n    },\n  },\n  validate: {\n    create(this, data) {\n      if (!data || typeof data !== 'object' || !('title' in data)) {\n        return ['title is required'];\n      }\n\n      return true;\n    },\n  },\n  prepare: {\n    create(this, data) {\n      if (typeof data === 'object' && data) {\n        return { ...data, createdAt: new Date() };\n      }\n\n      return data;\n    },\n  },\n  transform: {\n    update(this, doc) {\n      return doc;\n    },\n  },\n  afterPersist: {\n    update(this, doc) {\n      return doc;\n    },\n  },\n  afterDelete: {\n    delete(this, doc) {\n      console.log('deleted', doc);\n    },\n  },\n  decorate: {\n    read(this, doc) {\n      const record = typeof doc === 'object' && doc ? doc : {};\n      return { ...record, summary: '...' };\n    },\n  },\n  overrideFilter: {\n    read(this, filter) {\n      return filter ?? {};\n    },\n  },\n  docPermissions: {\n    read(this, doc, permissions) {\n      return {\n        canArchive: permissions.has('isAdmin'),\n      };\n    },\n  },\n});\n"
+        children: "acl.createModelRouter('Post', {\n  baseFilter: {\n    read(this, permissions) {\n      if (permissions.has('isAdmin')) return true;\n      return { published: true };\n    },\n  },\n  validate: {\n    create(this, data) {\n      if (!data || typeof data !== 'object' || !('title' in data)) {\n        return ['title is required'];\n      }\n\n      return true;\n    },\n  },\n  prepare: {\n    create(this, data) {\n      if (typeof data === 'object' && data) {\n        return { ...data, createdAt: new Date() };\n      }\n\n      return data;\n    },\n  },\n  transform: {\n    update(this, doc) {\n      return doc;\n    },\n  },\n  afterPersist: {\n    update(this, doc) {\n      return doc;\n    },\n  },\n  afterDelete(this, doc) {\n    console.log('deleted', doc);\n  },\n  decorate: {\n    read(this, doc) {\n      const record = typeof doc === 'object' && doc ? doc : {};\n      return { ...record, summary: '...' };\n    },\n  },\n  overrideFilter: {\n    read(this, filter) {\n      return filter ?? {};\n    },\n  },\n  docPermissions: {\n    read(this, doc, permissions) {\n      return {\n        canArchive: permissions.has('isAdmin'),\n      };\n    },\n  },\n});\n"
       })
     })]
   });
