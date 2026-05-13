@@ -84,6 +84,13 @@ type ChangeHook = (
   context: MiddlewareContext,
 ) => MaybePromise<void>;
 
+type DeleteHook<TValue = unknown> = (
+  this: AccessRouterRequest,
+  value: TValue,
+  permissions: AccessRouterPermissions,
+  context: MiddlewareContext,
+) => MaybePromise<void>;
+
 type ModelHook<TValue = unknown> = HookChain<TValue, MiddlewareContext>;
 type ModelListHook<TValue = unknown> = HookChain<TValue[], MiddlewareContext>;
 type DataHook<TValue = unknown> = HookChain<TValue, DataMiddlewareContext>;
@@ -226,8 +233,10 @@ export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouter
   validate?: ValidateRule | ValidateHook | Record<string, ValidateRule | ValidateHook>;
   prepare?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
   transform?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
-  finalize?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
+  afterPersist?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
   change?: Record<string, ChangeHook>;
+  beforeDelete?: DeleteHook<TModel> | Record<string, DeleteHook<TModel>>;
+  afterDelete?: DeleteHook<TModel> | Record<string, DeleteHook<TModel>>;
   requestSchemas?: RequestSchemas;
   defaults?: Defaults<TModel>;
 }
@@ -287,9 +296,13 @@ export interface ExtendedModelRouterOptions<TModel = unknown>
   'prepare.update'?: ModelHook;
   'transform.default'?: ModelHook;
   'transform.update'?: ModelHook;
-  'finalize.default'?: ModelHook;
-  'finalize.create'?: ModelHook;
-  'finalize.update'?: ModelHook;
+  'afterPersist.default'?: ModelHook;
+  'afterPersist.create'?: ModelHook;
+  'afterPersist.update'?: ModelHook;
+  'beforeDelete.default'?: DeleteHook;
+  'beforeDelete.delete'?: DeleteHook;
+  'afterDelete.default'?: DeleteHook;
+  'afterDelete.delete'?: DeleteHook;
   'requestSchemas.create'?: RequestZodSchema;
   'requestSchemas.update'?: RequestZodSchema;
   'requestSchemas.upsert'?: RequestZodSchema;
@@ -359,4 +372,5 @@ export type DecorateAllAccess = 'list' | string;
 export type ValidateAccess = 'create' | 'update' | string;
 export type PrepareAccess = 'create' | 'update' | string;
 export type TransformAccess = 'update' | string;
-export type FinalizeAccess = 'create' | 'update' | string;
+export type AfterPersistAccess = 'create' | 'update' | string;
+export type DeleteAccess = 'delete' | string;

@@ -318,7 +318,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     let docs = await this.model.create(items);
     docs = await Promise.all(
       docs.map(async (doc, index) => {
-        doc = await this.finalize(doc, 'create', contexts[index]);
+        doc = await this.afterPersist(doc, 'create', contexts[index]);
         contexts[index].finalDocObject = doc.toObject({ virtuals: false });
         let includeDocPermissions = includePermissions;
         if (!includeDocPermissions && !skim) {
@@ -426,7 +426,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
       context.modifiedPaths = uniq(context.changes.map((di) => (di.path.length > 0 ? di.path[0] : '')));
     };
 
-    doc = await this.finalize(doc, 'update', context);
+    doc = await this.afterPersist(doc, 'update', context);
     context.finalDocObject = doc.toObject({ virtuals: false });
     context.diff(doc);
 
@@ -536,10 +536,23 @@ export class Service<TModel = unknown> extends Base<TModel> {
     let doc = await this.model.findOne({ filter });
     if (!doc) return { success: false, code: Codes.NotFound, query };
 
+    const context: MiddlewareContext = {
+      model: this.model.model,
+      modelName: this.modelName,
+      originalDocObject: toObject(doc),
+      currentDoc: toObject(doc),
+    };
+
+    await this.beforeDelete(doc, 'delete', context);
+
     // this function utilizes the 'deleteOne' method to delete the document,
     // triggering 'deleteOne' hooks, as opposed to using 'findOneAndDelete'.
     // see https://mongoosejs.com/docs/api/model.html#Model.prototype.deleteOne()
     await ('deleteOne' in doc ? doc.deleteOne() : doc.remove());
+
+    context.finalDocObject = toObject(doc);
+    await this.afterDelete(doc, 'delete', context);
+
     return { success: true, kind: 'single', code: Codes.Success, data: doc._id, query };
   }
 

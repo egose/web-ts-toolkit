@@ -18,9 +18,11 @@ const resetGlobalOptions = () => {
 const createUserApp = ({
   globalPermissions,
   validate,
+  afterPersist,
 }: {
   globalPermissions: (req: express.Request) => unknown;
   validate?: unknown;
+  afterPersist?: unknown;
 }) => {
   const modelName = `AclUserModel${++modelCounter}`;
   const schema = new mongoose.Schema({
@@ -39,7 +41,7 @@ const createUserApp = ({
     globalPermissions,
   });
 
-  const router = acl.createRouter(modelName, {
+  const options: Record<string, unknown> = {
     basePath: '/users',
     routeGuard: {
       create: 'isAdmin',
@@ -52,7 +54,15 @@ const createUserApp = ({
     validate: {
       create: validate,
     },
-  });
+  };
+
+  if (afterPersist !== undefined) {
+    options.afterPersist = {
+      create: afterPersist,
+    };
+  }
+
+  const router = acl.createRouter(modelName, options as ModelRouterOptions);
 
   const app = express();
   app.use(express.json());
@@ -181,6 +191,24 @@ describe('model router', () => {
 
     expect(createSpy).toHaveBeenCalledOnce();
     expect(response.body.role).toBe('user');
+  });
+
+  it('runs afterPersist hooks on create routes', async () => {
+    const afterPersist = vi.fn((doc) => doc);
+
+    const { app } = createUserApp({
+      globalPermissions: () => ['isAdmin'],
+      validate: true,
+      afterPersist,
+    });
+
+    await request(app)
+      .post('/users?include_permissions=false')
+      .set('user', 'admin')
+      .send({ name: 'user-after-persist', role: 'user', public: false })
+      .expect(201);
+
+    expect(afterPersist).toHaveBeenCalledOnce();
   });
 
   it('preserves existing model overrides across partial option updates', () => {

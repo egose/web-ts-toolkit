@@ -837,7 +837,7 @@ export class ModelRouter<TModel = unknown> {
    * The function called after a new document is created or an updated document is saved.
    * @operation `create`, `update`
    */
-  public finalize: SetTargetOption = setOption.bind(this, 'finalize');
+  public afterPersist: SetTargetOption = setOption.bind(this, 'afterPersist');
 
   /**
    * Hook
@@ -846,6 +846,22 @@ export class ModelRouter<TModel = unknown> {
    * @operation `update`
    */
   public change: SetTargetOption = setOption.bind(this, 'change');
+
+  /**
+   * Hook
+   *
+   * The function called before a document is deleted.
+   * @operation `delete`
+   */
+  public beforeDelete: SetTargetOption = setOption.bind(this, 'beforeDelete');
+
+  /**
+   * Hook
+   *
+   * The function called after a document is deleted.
+   * @operation `delete`
+   */
+  public afterDelete: SetTargetOption = setOption.bind(this, 'afterDelete');
 
   /**
    * Hook

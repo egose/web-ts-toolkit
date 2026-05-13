@@ -33,7 +33,8 @@ import {
   ValidateAccess,
   PrepareAccess,
   TransformAccess,
-  FinalizeAccess,
+  AfterPersistAccess,
+  DeleteAccess,
   BaseFilterAccess,
   SingleResult,
   ServiceResult,
@@ -169,12 +170,20 @@ export class Base<TModel = unknown> {
     return this.req.macl.transform(this.modelName, doc, access, context);
   }
 
-  public finalize<T>(doc: T, access: FinalizeAccess, context: MiddlewareContext): Promise<T> {
-    return this.req.macl.finalize(this.modelName, doc, access, context);
+  public afterPersist<T>(doc: T, access: AfterPersistAccess, context: MiddlewareContext): Promise<T> {
+    return this.req.macl.afterPersist(this.modelName, doc, access, context);
   }
 
   public changes(doc: Record<string, unknown>, context: MiddlewareContext): Promise<void> {
     return this.req.macl.changes(this.modelName, doc, context);
+  }
+
+  public beforeDelete<T>(doc: T, access: DeleteAccess, context: MiddlewareContext): Promise<void> {
+    return this.req.macl.beforeDelete(this.modelName, doc, access, context);
+  }
+
+  public afterDelete<T>(doc: T, access: DeleteAccess, context: MiddlewareContext): Promise<void> {
+    return this.req.macl.afterDelete(this.modelName, doc, access, context);
   }
 
   public validate(

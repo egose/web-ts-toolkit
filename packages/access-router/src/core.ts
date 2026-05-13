@@ -38,7 +38,8 @@ import {
   ValidateAccess,
   PrepareAccess,
   TransformAccess,
-  FinalizeAccess,
+  AfterPersistAccess,
+  DeleteAccess,
   Task,
 } from './interfaces';
 import Permission, { Permissions } from './permission';
@@ -253,10 +254,10 @@ export class Core {
     return callHookChain(this.req, transform, doc, permissions, context);
   }
 
-  async finalize<T>(modelName: string, doc: T, access: FinalizeAccess, context: MiddlewareContext): Promise<T> {
-    const finalize = getModelOption(modelName, `finalize.${access}`, null) as Function | Function[];
+  async afterPersist<T>(modelName: string, doc: T, access: AfterPersistAccess, context: MiddlewareContext): Promise<T> {
+    const afterPersist = getModelOption(modelName, `afterPersist.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
-    return callHookChain(this.req, finalize, doc, permissions, context);
+    return callHookChain(this.req, afterPersist, doc, permissions, context);
   }
 
   async changes(modelName: string, doc: Record<string, unknown>, context: MiddlewareContext) {
@@ -275,6 +276,18 @@ export class Core {
         );
       }
     }
+  }
+
+  async beforeDelete<T>(modelName: string, doc: T, access: DeleteAccess, context: MiddlewareContext): Promise<void> {
+    const beforeDelete = getModelOption(modelName, `beforeDelete.${access}`, null) as Function | Function[];
+    const permissions = this.getGlobalPermissions();
+    await callHookChain(this.req, beforeDelete, doc, permissions, context);
+  }
+
+  async afterDelete<T>(modelName: string, doc: T, access: DeleteAccess, context: MiddlewareContext): Promise<void> {
+    const afterDelete = getModelOption(modelName, `afterDelete.${access}`, null) as Function | Function[];
+    const permissions = this.getGlobalPermissions();
+    await callHookChain(this.req, afterDelete, doc, permissions, context);
   }
 
   async genDocPermissions(modelName: string, doc: unknown, access: DocPermissionsAccess, context: MiddlewareContext) {

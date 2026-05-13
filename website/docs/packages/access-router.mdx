@@ -408,6 +408,24 @@ router.router.post('/custom/:id', async (req) => {
 
 These helpers throw the same `BadRequestError` shape as the built-in router endpoints, so custom routes can stay consistent with the package defaults.
 
+## Lifecycle Phases
+
+Model router hooks are grouped by lifecycle phase:
+
+- access and query shaping: `routeGuard`, `overrideFilter`, `baseFilter`
+- pre-write: `validate`, `prepare`, `transform`
+- post-persist: `afterPersist`
+- update diff side effects: `change`
+- delete lifecycle: `beforeDelete`, `afterDelete`
+- response shaping: `docPermissions`, `decorate`, `decorateAll`
+
+Effective model-router flows:
+
+- create: `routeGuard -> validate -> prepare -> create -> afterPersist -> docPermissions -> decorate`
+- update: `routeGuard -> overrideFilter/baseFilter -> validate -> prepare -> transform -> save -> afterPersist -> change -> docPermissions -> decorate`
+- delete: `routeGuard -> overrideFilter/baseFilter -> beforeDelete -> delete -> afterDelete`
+- read/list: `routeGuard -> overrideFilter/baseFilter -> docPermissions -> decorate -> decorateAll`
+
 ## Hook Signatures
 
 The most common model hooks are called with `this` bound to the current Express request.
@@ -476,7 +494,7 @@ The most common model hooks are called with `this` bound to the current Express 
 - Runs during update flows before the document is saved.
 - Can also be an array of hook functions.
 
-### `finalize`
+### `afterPersist`
 
 ```ts
 (this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>
@@ -485,6 +503,26 @@ The most common model hooks are called with `this` bound to the current Express 
 
 - Runs after create or update persistence work and before response decoration.
 - Can also be an array of hook functions.
+
+### `beforeDelete`
+
+```ts
+(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>
+  void | Promise<void>;
+```
+
+- Runs after the target document has been loaded and authorized, before deletion.
+- Use it for last-minute checks or side effects that need the live document.
+
+### `afterDelete`
+
+```ts
+(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>
+  void | Promise<void>;
+```
+
+- Runs after deletion succeeds.
+- Use it for audit logs, cache invalidation, and external notifications.
 
 ### `docPermissions`
 
@@ -528,9 +566,14 @@ acl.createModelRouter('Post', {
       return doc;
     },
   },
-  finalize: {
+  afterPersist: {
     update(this, doc) {
       return doc;
+    },
+  },
+  afterDelete: {
+    delete(this, doc) {
+      console.log('deleted', doc);
     },
   },
   decorate: {
