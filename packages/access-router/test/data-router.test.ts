@@ -34,8 +34,8 @@ const createPetApp = () => {
   const app = express();
   const router = acl.createDataRouter('pet-legacy', {
     basePath: '/pets',
-    identifier: 'name',
-    routeGuard: {
+    idField: 'name',
+    operationAccess: {
       list: true,
       read: true,
     },
@@ -90,8 +90,8 @@ describe('data router', () => {
     const app = express();
     const router = acl.createDataRouter('fruit', {
       basePath: '/fruit',
-      identifier: 'id',
-      routeGuard: {
+      idField: 'id',
+      operationAccess: {
         list: true,
         read: true,
       },
@@ -405,7 +405,7 @@ describe('data router', () => {
     const app = express();
     const router = acl.createDataRouter('secure-fruit', {
       basePath: '/secure-fruit',
-      routeGuard: { list: 'isAdmin' },
+      operationAccess: { list: 'isAdmin' },
       data: [{ id: 'apple' }],
     });
 
@@ -424,8 +424,8 @@ describe('data router', () => {
     const app = express();
     const router = acl.createDataRouter('schema-fruit', {
       basePath: '/schema-fruit',
-      identifier: 'id',
-      routeGuard: {
+      idField: 'id',
+      operationAccess: {
         list: true,
         read: true,
       },
@@ -515,7 +515,7 @@ describe('data router', () => {
   });
 
   it('creates a root router through the overloaded createRouter API', () => {
-    const router = acl.createRouter({ basePath: '/api', routeGuard: true });
+    const router = acl.createRouter({ basePath: '/api', operationAccess: true });
 
     expect(router).toBeInstanceOf(acl.RootRouter);
     expect(router.routes).toBeDefined();

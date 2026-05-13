@@ -28,7 +28,7 @@ const FIELD_ACCESS_KEYS = ['list', 'create', 'read', 'update'] as const;
 
 const defaultModelOptions: ModelRouterOptions = {
   basePath: null,
-  mandatoryFields: [],
+  alwaysSelectFields: [],
 };
 
 const modelOptions: Record<string, OptionsManager<ModelRouterOptions, ExtendedModelRouterOptions>> = {};
@@ -130,9 +130,9 @@ const createModelOptions = (modelName: string) => {
         target.modelPermissionPrefix ?? '',
       );
 
-      target._permissionSchemaKeys = schemaKeys;
-      target._globalPermissionKeys = globalPermissionKeys;
-      target._modelPermissionKeys = modelPermissionKeys;
+      (target as Record<string, unknown>)._permissionSchemaKeys = schemaKeys;
+      (target as Record<string, unknown>)._globalPermissionKeys = globalPermissionKeys;
+      (target as Record<string, unknown>)._modelPermissionKeys = modelPermissionKeys;
     })
     .onchange('basePath', function (newval, key, target, oldval) {
       (target as Record<string, unknown>)[key] = normalizeBasePath(

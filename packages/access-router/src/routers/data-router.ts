@@ -104,7 +104,7 @@ export class DataRouter<TData = unknown> {
     /////////////////////
     // LIST - Advanced //
     /////////////////////
-    this.router.post(`/${this.options.queryPath}`, async (req: DataRequest) => {
+    this.router.post(`/${this.options.queryRouteSegment}`, async (req: DataRequest) => {
       await this.assertAllowed(req, 'list');
 
       let {
@@ -155,7 +155,7 @@ export class DataRouter<TData = unknown> {
     //////////////////////////////
     // READ - Advanced - Filter //
     //////////////////////////////
-    this.router.post(`/${this.options.queryPath}/__filter`, async (req: DataRequest) => {
+    this.router.post(`/${this.options.queryRouteSegment}/__filter`, async (req: DataRequest) => {
       await this.assertAllowed(req, 'read');
 
       let { filter, select } = parseBodyWithSchema(
@@ -175,7 +175,7 @@ export class DataRouter<TData = unknown> {
     /////////////////////
     // READ - Advanced //
     /////////////////////
-    this.router.post(`/${this.options.queryPath}/:${this.options.idParam}`, async (req: DataRequest) => {
+    this.router.post(`/${this.options.queryRouteSegment}/:${this.options.idParam}`, async (req: DataRequest) => {
       await this.assertAllowed(req, 'read');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -225,10 +225,8 @@ export class DataRouter<TData = unknown> {
   );
   public permissionSchema: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['permissionSchema']> =
     setOption.bind(this, 'permissionSchema');
-  public routeGuard: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['routeGuard']> = setOption.bind(
-    this,
-    'routeGuard',
-  );
+  public operationAccess: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['operationAccess']> =
+    setOption.bind(this, 'operationAccess');
   public baseFilter: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['baseFilter']> = setOption.bind(
     this,
     'baseFilter',
@@ -243,10 +241,14 @@ export class DataRouter<TData = unknown> {
     this,
     'decorateAll',
   );
-  public identifier: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['identifier']> = setOption.bind(
+  public idField: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['idField']> = setOption.bind(
     this,
-    'identifier',
+    'idField',
   );
+  public resolveIdFilter: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['resolveIdFilter']> =
+    setOption.bind(this, 'resolveIdFilter');
+  public queryRouteSegment: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['queryRouteSegment']> =
+    setOption.bind(this, 'queryRouteSegment');
 
   get routes(): Router {
     return this.router.original;

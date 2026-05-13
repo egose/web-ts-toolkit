@@ -194,7 +194,10 @@ export class Base<TModel = unknown> {
   }
 
   public checkIfModelPermissionExists(accesses: DocPermissionsAccess[]) {
-    const modelPermissionKeys = getModelOption(this.modelName, '_modelPermissionKeys');
+    const modelPermissionKeys = getModelOption(this.modelName, '_modelPermissionKeys' as never) as Record<
+      string,
+      string[]
+    >;
     return accesses.some((access) => modelPermissionKeys[access]?.length > 0);
   }
 

@@ -9,7 +9,7 @@ const dataOptions: Record<string, OptionsManager<DataRouterOptions, ExtendedData
 
 const defaultDataOptions: DataRouterOptions = {
   basePath: null,
-  queryPath: '__query',
+  queryRouteSegment: '__query',
 };
 
 const normalizeBasePath = (name: string, value: string | null | undefined) => {

@@ -45,7 +45,7 @@ const createIntegrationApp = async () => {
   const router = acl.createRouter(modelName, {
     basePath: '/users',
     modelPermissionPrefix: 'm::',
-    routeGuard: {
+    operationAccess: {
       list: true,
       read: true,
       create: 'isAdmin',
@@ -83,7 +83,7 @@ const createIntegrationApp = async () => {
         return { _id: currentUser?._id };
       },
     },
-    identifier: function (id: string) {
+    resolveIdFilter: function (id: string) {
       return { name: id };
     },
   });
@@ -172,7 +172,7 @@ const createPopulateIntegrationApp = async () => {
 
   const orgRouter = acl.createRouter(orgModelName, {
     basePath: '/orgs',
-    routeGuard: { list: true, read: true },
+    operationAccess: { list: true, read: true },
     permissionSchema: {
       name: { list: true, read: true },
       secret: { list: 'isAdmin', read: 'isAdmin' },
@@ -182,12 +182,12 @@ const createPopulateIntegrationApp = async () => {
   const userRouter = acl.createRouter(userModelName, {
     basePath: '/members',
     documentPermissionField: '__acl',
-    routeGuard: { list: true, read: true },
+    operationAccess: { list: true, read: true },
     permissionSchema: {
       name: { list: true, read: true },
       org: { list: 'isAdmin', read: 'isAdmin' },
     },
-    identifier(id: string) {
+    resolveIdFilter(id: string) {
       return { name: id };
     },
   });
@@ -226,12 +226,12 @@ const createRequestSchemaApp = async () => {
 
   const router = acl.createRouter(modelName, {
     basePath: '/schema-users',
-    identifier: 'name',
-    routeGuard: {
+    idField: 'name',
+    operationAccess: {
       read: true,
       create: 'isAdmin',
       update: 'isAdmin',
-    } as unknown as ModelRouterOptions['routeGuard'],
+    } as unknown as ModelRouterOptions['operationAccess'],
     permissionSchema: {
       name: { read: true, create: true, update: true },
       role: { read: true, create: true, update: true },
@@ -276,8 +276,8 @@ const createLifecycleApp = async () => {
 
   const router = acl.createRouter(modelName, {
     basePath: '/lifecycle-users',
-    identifier: 'name',
-    routeGuard: {
+    idField: 'name',
+    operationAccess: {
       create: true,
       read: true,
       update: true,
@@ -553,7 +553,7 @@ describe('model router integration', () => {
 
     const router = acl.createRouter(modelName, {
       basePath: '/ops-users',
-      routeGuard: {
+      operationAccess: {
         list: true,
         read: true,
         create: 'isAdmin',
@@ -562,7 +562,7 @@ describe('model router integration', () => {
         distinct: 'isAdmin',
         // `upsert` is supported by the runtime even though it is not yet documented consistently.
         upsert: 'isAdmin',
-      } as unknown as ModelRouterOptions['routeGuard'],
+      } as unknown as ModelRouterOptions['operationAccess'],
       permissionSchema: {
         name: { list: true, read: true, create: true, update: true },
         role: { list: true, read: true, create: true, update: true },

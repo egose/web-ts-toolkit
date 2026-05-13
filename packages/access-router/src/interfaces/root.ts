@@ -184,10 +184,10 @@ export interface GlobalOptions {
 
 export interface RootRouterOptions {
   basePath: string;
-  routeGuard?: Validation;
+  operationAccess?: Validation;
 }
 
-interface Access {
+interface OperationAccess {
   list?: Validation;
   create?: Validation;
   read?: Validation;
@@ -195,10 +195,10 @@ interface Access {
   delete?: Validation;
   distinct?: Validation;
   count?: Validation;
-  sub?: Validation | SubRouteGuardOptions;
+  subs?: Validation | SubRouteGuardOptions;
 }
 
-type PermissionRule = Validation | Access;
+type PermissionRule = Validation | OperationAccess;
 
 export type PermissionSchema<TField extends string = string> = Partial<Record<TField, PermissionRule>>;
 
@@ -213,36 +213,33 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
   listHardLimit?: number;
   documentPermissionField?: string;
   idParam?: string;
-  identifier?: string | ModelIdentifierHook<TModel>;
+  idField?: string;
+  resolveIdFilter?: ModelIdentifierHook<TModel>;
   parentPath?: string;
-  queryPath?: string;
-  mutationPath?: string;
-  routeGuard?: Validation | Access;
+  queryRouteSegment?: string;
+  mutationRouteSegment?: string;
+  operationAccess?: Validation | OperationAccess;
   modelPermissionPrefix?: string;
 }
 
 export interface ExtendedDefaultModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions<TModel> {
-  'routeGuard.default'?: Validation;
-  'routeGuard.new'?: Validation;
-  'routeGuard.list'?: Validation;
-  'routeGuard.read'?: Validation;
-  'routeGuard.update'?: Validation;
-  'routeGuard.delete'?: Validation;
-  'routeGuard.create'?: Validation;
-  'routeGuard.distinct'?: Validation;
-  'routeGuard.count'?: Validation;
-  'routeGuard.subs'?: SubRouteGuardOptions;
+  'operationAccess.default'?: Validation;
+  'operationAccess.new'?: Validation;
+  'operationAccess.list'?: Validation;
+  'operationAccess.read'?: Validation;
+  'operationAccess.update'?: Validation;
+  'operationAccess.delete'?: Validation;
+  'operationAccess.create'?: Validation;
+  'operationAccess.distinct'?: Validation;
+  'operationAccess.count'?: Validation;
+  'operationAccess.subs'?: SubRouteGuardOptions;
 }
 
 export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions<TModel> {
   modelName?: string;
   basePath?: string;
-  identifier?: string | ModelIdentifierHook<TModel>;
   permissionSchema?: PermissionSchema<AccessRouterFieldKey<TModel>>;
-  _permissionSchemaKeys?: string[];
-  _globalPermissionKeys?: Record<string, string[]>;
-  _modelPermissionKeys?: Record<string, string[]>;
-  mandatoryFields?: string[];
+  alwaysSelectFields?: string[];
   docPermissions?: DocPermissions | ModelDocPermissionsHook;
   baseFilter?: ModelBaseFilterHook | Record<string, ModelBaseFilterHook>;
   overrideFilter?: ModelOverrideFilterHook | Record<string, ModelOverrideFilterHook>;
@@ -252,7 +249,7 @@ export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouter
   prepare?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
   transform?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
   afterPersist?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
-  change?: Record<string, ModelChangeHook>;
+  onChange?: Record<string, ModelChangeHook>;
   beforeDelete?: ModelDeleteHook<TModel>;
   afterDelete?: ModelDeleteHook<TModel>;
   requestSchemas?: RequestSchemas;
@@ -263,10 +260,11 @@ export interface DataRouterOptions<TData = unknown> {
   data?: TData[];
   listHardLimit?: number;
   idParam?: string;
-  identifier?: string | DataIdentifierHook<TData>;
+  idField?: string;
+  resolveIdFilter?: DataIdentifierHook<TData>;
   parentPath?: string;
-  queryPath?: string;
-  routeGuard?: Validation | Access;
+  queryRouteSegment?: string;
+  operationAccess?: Validation | OperationAccess;
   dataName?: string;
   basePath?: string;
   permissionSchema?: PermissionSchema<AccessRouterFieldKey<TData>>;
@@ -279,11 +277,11 @@ export interface DataRouterOptions<TData = unknown> {
 
 export interface ExtendedModelRouterOptions<TModel = unknown>
   extends ModelRouterOptions<TModel>, ExtendedDefaultModelRouterOptions<TModel> {
-  'mandatoryFields.default'?: string[];
-  'mandatoryFields.list'?: string[];
-  'mandatoryFields.create'?: string[];
-  'mandatoryFields.read'?: string[];
-  'mandatoryFields.update'?: string[];
+  'alwaysSelectFields.default'?: string[];
+  'alwaysSelectFields.list'?: string[];
+  'alwaysSelectFields.create'?: string[];
+  'alwaysSelectFields.read'?: string[];
+  'alwaysSelectFields.update'?: string[];
   'docPermissions.default'?: ModelDocPermissionsHook;
   'docPermissions.list'?: ModelDocPermissionsHook;
   'docPermissions.create'?: ModelDocPermissionsHook;
@@ -317,6 +315,7 @@ export interface ExtendedModelRouterOptions<TModel = unknown>
   'afterPersist.default'?: ModelHook;
   'afterPersist.create'?: ModelHook;
   'afterPersist.update'?: ModelHook;
+  onChange?: Record<string, ModelChangeHook>;
   'requestSchemas.create'?: RequestZodSchema;
   'requestSchemas.update'?: RequestZodSchema;
   'requestSchemas.upsert'?: RequestZodSchema;

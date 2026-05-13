@@ -8,11 +8,11 @@ const defaultModelOptions = new OptionsManager<DefaultModelRouterOptions, Extend
   listHardLimit: 1000,
   documentPermissionField: '_permissions',
   idParam: 'id',
-  identifier: '_id',
+  idField: '_id',
   parentPath: '/',
-  queryPath: DEFAULT_QUERY_PATH,
-  mutationPath: DEFAULT_MUTATION_PATH,
-  routeGuard: false,
+  queryRouteSegment: DEFAULT_QUERY_PATH,
+  mutationRouteSegment: DEFAULT_MUTATION_PATH,
+  operationAccess: false,
   modelPermissionPrefix: '',
 }).build();
 

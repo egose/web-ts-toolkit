@@ -94,15 +94,16 @@ function normalizeFilter<T = unknown>(filter: Filter<T> | null | undefined): Fil
 
 export async function resolveIdentifierFilter<T = unknown>(
   req: AccessRouterBaseRequest,
-  identifier: string | Function | undefined,
+  idField: string | undefined,
+  resolveIdFilter: ((this: AccessRouterBaseRequest, id: string) => Promise<Filter<T>> | Filter<T>) | undefined,
   id: string,
 ): Promise<Filter<T>> {
-  if (isString(identifier)) {
-    return { [identifier]: id } as Filter<T>;
+  if (isFunction(resolveIdFilter)) {
+    return (await resolveIdFilter.call(req, id)) as Filter<T>;
   }
 
-  if (isFunction(identifier)) {
-    return (await identifier.call(req, id)) as Filter<T>;
+  if (isString(idField)) {
+    return { [idField]: id } as Filter<T>;
   }
 
   return { _id: id } as Filter<T>;

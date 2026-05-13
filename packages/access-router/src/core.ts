@@ -74,22 +74,26 @@ export class Core {
   }
 
   getIdentifier(modelName: string) {
-    const identifier = getModelOption(modelName, 'identifier');
+    const resolveIdFilter = getModelOption(modelName, 'resolveIdFilter');
+    const idField = getModelOption(modelName, 'idField');
 
-    if (isFunction(identifier)) {
+    if (isFunction(resolveIdFilter)) {
       return null;
     }
 
-    if (isString(identifier)) {
-      return identifier;
+    if (isString(idField)) {
+      return idField;
     }
 
     return '_id';
   }
 
   async genIDFilter<TModel = unknown>(modelName: string, id: string): Promise<Filter<TModel>> {
-    const identifier = getModelOption(modelName, 'identifier');
-    return resolveIdentifierFilter<TModel>(this.req, identifier, id);
+    const idField = getModelOption(modelName, 'idField') as string | undefined;
+    const resolveIdFilter = getModelOption(modelName, 'resolveIdFilter') as
+      | ((this: ModelRequest, id: string) => Filter<TModel> | Promise<Filter<TModel>>)
+      | undefined;
+    return resolveIdentifierFilter<TModel>(this.req, idField, resolveIdFilter, id);
   }
 
   async genFilter<TModel = unknown>(
@@ -186,9 +190,9 @@ export class Core {
       }
     }
 
-    const mandatoryFields =
-      subPaths.length > 0 ? [] : (getModelOption(modelName, `mandatoryFields.${access}`, []) as string[]);
-    return fields.concat(mandatoryFields);
+    const alwaysSelectFields =
+      subPaths.length > 0 ? [] : (getModelOption(modelName, `alwaysSelectFields.${access}`, []) as string[]);
+    return fields.concat(alwaysSelectFields);
   }
 
   async genPopulate(
@@ -261,7 +265,7 @@ export class Core {
   }
 
   async changes(modelName: string, doc: Record<string, unknown>, context: MiddlewareContext) {
-    const changeOptions = getModelOption(modelName, `change`, {}) as Record<string, unknown>;
+    const changeOptions = getModelOption(modelName, `onChange`, {}) as Record<string, unknown>;
 
     for (let x = 0; x < context.modifiedPaths.length; x++) {
       const mpath = context.modifiedPaths[x];
@@ -452,11 +456,11 @@ export class Core {
       }
 
       const [, field, op] = keys;
-      const subOption = getExactModelOption(modelName, `routeGuard.${access}`);
+      const subOption = getExactModelOption(modelName, `operationAccess.${access}`);
       if (isUndefined(subOption)) {
-        const subFieldOption = getExactModelOption(modelName, `routeGuard.subs.${field}`);
+        const subFieldOption = getExactModelOption(modelName, `operationAccess.subs.${field}`);
         if (isUndefined(subFieldOption)) {
-          const opOption = getModelOption(modelName, `routeGuard.${op}`) as Validation;
+          const opOption = getModelOption(modelName, `operationAccess.${op}`) as Validation;
           return this.canActivate(opOption);
         }
 
@@ -466,8 +470,8 @@ export class Core {
       return this.canActivate(subOption as Validation);
     }
 
-    const routeGuard = getModelOption(modelName, `routeGuard.${access}`) as Validation;
-    return this.canActivate(routeGuard);
+    const operationAccess = getModelOption(modelName, `operationAccess.${access}`) as Validation;
+    return this.canActivate(operationAccess);
   }
 
   getService<TModel = unknown>(modelName: string) {

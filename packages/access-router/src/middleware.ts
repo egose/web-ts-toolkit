@@ -39,7 +39,7 @@ export function guard(condition: unknown) {
     if (isPlainObject(condition)) {
       const { modelName, id, condition: _cond } = condition as unknown as GuardModelCondition;
       const svc = req.macl.getPublicService(modelName);
-      const select = getModelOption(modelName, `mandatoryFields.read`, undefined);
+      const select = getModelOption(modelName, `alwaysSelectFields.read`, undefined);
 
       let _id: string | null = isString(id) ? id : null;
       if (isPlainObject(id)) {

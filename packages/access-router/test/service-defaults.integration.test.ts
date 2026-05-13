@@ -42,10 +42,10 @@ const createDefaultsApp = async () => {
 
   const router = acl.createRouter(modelName, {
     basePath: '/default-users',
-    identifier(id: string) {
+    resolveIdFilter(id: string) {
       return { name: id };
     },
-    routeGuard: {
+    operationAccess: {
       list: true,
       read: true,
       update: 'isAdmin',

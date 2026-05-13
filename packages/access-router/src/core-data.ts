@@ -43,8 +43,11 @@ export class DataCore {
   }
 
   async genIDFilter<TData = unknown>(dataName: string, id: string): Promise<Filter<TData>> {
-    const identifier = getDataOption(dataName, 'identifier');
-    return resolveIdentifierFilter<TData>(this.req, identifier, id);
+    const idField = getDataOption(dataName, 'idField') as string | undefined;
+    const resolveIdFilter = getDataOption(dataName, 'resolveIdFilter') as
+      | ((this: DataRequest, id: string) => Filter<TData> | Promise<Filter<TData>>)
+      | undefined;
+    return resolveIdentifierFilter<TData>(this.req, idField, resolveIdFilter, id);
   }
 
   async genFilter<TData = unknown>(
@@ -149,8 +152,8 @@ export class DataCore {
   }
 
   async isAllowed(dataName: string, access: RouteGuardAccess | string) {
-    const routeGuard = getDataOption(dataName, `routeGuard.${access}`) as Validation;
-    return this.canActivate(routeGuard);
+    const operationAccess = getDataOption(dataName, `operationAccess.${access}`) as Validation;
+    return this.canActivate(operationAccess);
   }
 
   getService<TData = unknown>(dataName: string) {
