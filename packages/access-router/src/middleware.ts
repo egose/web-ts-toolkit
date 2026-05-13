@@ -3,7 +3,7 @@ import JsonRouter from '@web-ts-toolkit/express-json-router';
 import { isArray, isFunction, isPlainObject, isString } from '@web-ts-toolkit/utils';
 import { setCore } from './core';
 import Permission from './permission';
-import { AccessRouterBaseRequest, ModelRequest } from './interfaces';
+import { AccessRouterBaseRequest, GuardHook, ModelRequest } from './interfaces';
 import { createValidator, getDocPermissions } from './helpers';
 import { getModelOption } from './options';
 import { PERMISSIONS } from './symbols';
@@ -27,7 +27,7 @@ export interface GuardModelCondition {
 
 export function guard(condition: string);
 export function guard(conditions: string[]);
-export function guard(conditionFunc: Function);
+export function guard(conditionFunc: GuardHook<ModelRequest>);
 export function guard(modelCondition: GuardModelCondition);
 
 export function guard(condition: unknown) {

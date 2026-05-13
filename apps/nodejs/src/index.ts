@@ -2,7 +2,6 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import acl, { permissionsPlugin } from '@web-ts-toolkit/access-router';
-import type { ModelRouterOptions } from '@web-ts-toolkit/access-router';
 
 const port = Number(process.env.PORT ?? 3000);
 const modelName = 'SampleUser';
@@ -120,9 +119,9 @@ async function createUserRouter() {
   });
 
   userRouter.afterDelete(function (doc, permissions, context) {
-    doc.name;
-    permissions.isAdmin;
-    context.originalDocObject;
+    console.log(doc.name);
+    console.log(permissions.isAdmin);
+    console.log(context.originalDocObject);
   });
 
   const typedService = userRouter.getService({} as express.Request as Parameters<typeof userRouter.getService>[0]);

@@ -742,6 +742,8 @@ export class ModelRouter<TModel = unknown> {
     });
   }
 
+  set<K extends keyof ExtendedModelRouterOptions<TModel>>(key: K, value: ExtendedModelRouterOptions<TModel>[K]): this;
+  set(options: ModelRouterOptions<TModel>): this;
   set<K extends keyof ExtendedModelRouterOptions<TModel>>(
     keyOrOptions: K | ModelRouterOptions<TModel>,
     value?: unknown,

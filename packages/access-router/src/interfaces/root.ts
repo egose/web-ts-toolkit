@@ -38,6 +38,11 @@ export type AccessRouterRequest = express.Request & AccessRouterRequestExtension
 
 export type AccessRouterFieldKey<T> = [Extract<keyof T, string>] extends [never] ? string : Extract<keyof T, string>;
 
+export type IdentifierHook<TValue, TRequest extends AccessRouterRequest = AccessRouterRequest> = (
+  this: TRequest,
+  id: string,
+) => MaybePromise<Filter<TValue>>;
+
 type GlobalPermissionValue = Record<string, boolean> | string[] | string | null | undefined;
 
 type BaseFilterHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
@@ -97,6 +102,8 @@ type ModelBaseFilterHook = BaseFilterHook<ModelRequest>;
 type DataBaseFilterHook = BaseFilterHook<DataRequest>;
 type ModelOverrideFilterHook = OverrideFilterHook<ModelRequest>;
 type DataOverrideFilterHook = OverrideFilterHook<DataRequest>;
+type ModelIdentifierHook<TValue = unknown> = IdentifierHook<TValue, ModelRequest>;
+type DataIdentifierHook<TValue = unknown> = IdentifierHook<TValue, DataRequest>;
 type ModelValidateHook = ValidateHook<ModelRequest>;
 type ModelDocPermissionsHook = DocPermissionsHook<ModelRequest>;
 type ModelChangeHook = ChangeHook<ModelRequest>;
@@ -202,11 +209,11 @@ interface DocPermissions {
   update?: ModelDocPermissionsHook;
 }
 
-export interface DefaultModelRouterOptions {
+export interface DefaultModelRouterOptions<TModel = unknown> {
   listHardLimit?: number;
   documentPermissionField?: string;
   idParam?: string;
-  identifier?: string | Function;
+  identifier?: string | ModelIdentifierHook<TModel>;
   parentPath?: string;
   queryPath?: string;
   mutationPath?: string;
@@ -214,7 +221,7 @@ export interface DefaultModelRouterOptions {
   modelPermissionPrefix?: string;
 }
 
-export interface ExtendedDefaultModelRouterOptions extends DefaultModelRouterOptions {
+export interface ExtendedDefaultModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions<TModel> {
   'routeGuard.default'?: Validation;
   'routeGuard.new'?: Validation;
   'routeGuard.list'?: Validation;
@@ -227,9 +234,10 @@ export interface ExtendedDefaultModelRouterOptions extends DefaultModelRouterOpt
   'routeGuard.subs'?: SubRouteGuardOptions;
 }
 
-export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions {
+export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions<TModel> {
   modelName?: string;
   basePath?: string;
+  identifier?: string | ModelIdentifierHook<TModel>;
   permissionSchema?: PermissionSchema<AccessRouterFieldKey<TModel>>;
   _permissionSchemaKeys?: string[];
   _globalPermissionKeys?: Record<string, string[]>;
@@ -255,7 +263,7 @@ export interface DataRouterOptions<TData = unknown> {
   data?: TData[];
   listHardLimit?: number;
   idParam?: string;
-  identifier?: string | Function;
+  identifier?: string | DataIdentifierHook<TData>;
   parentPath?: string;
   queryPath?: string;
   routeGuard?: Validation | Access;
@@ -270,7 +278,7 @@ export interface DataRouterOptions<TData = unknown> {
 }
 
 export interface ExtendedModelRouterOptions<TModel = unknown>
-  extends ModelRouterOptions<TModel>, ExtendedDefaultModelRouterOptions {
+  extends ModelRouterOptions<TModel>, ExtendedDefaultModelRouterOptions<TModel> {
   'mandatoryFields.default'?: string[];
   'mandatoryFields.list'?: string[];
   'mandatoryFields.create'?: string[];

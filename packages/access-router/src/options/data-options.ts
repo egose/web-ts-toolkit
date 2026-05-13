@@ -20,7 +20,7 @@ const normalizeBasePath = (name: string, value: string | null | undefined) => {
   return isString(value) ? addLeadingSlash(value) : '';
 };
 
-const createDataOptions = (dataName: string) => {
+const createDataOptions = <TData = unknown>(dataName: string) => {
   const manager = new OptionsManager<DataRouterOptions, ExtendedDataRouterOptions>({
     ...defaultDataOptions,
     dataName,
@@ -38,18 +38,18 @@ const createDataOptions = (dataName: string) => {
   return manager;
 };
 
-const getOrCreateDataOptions = (dataName: string) => {
+const getOrCreateDataOptions = <TData = unknown>(dataName: string) => {
   let manager = dataOptions[dataName];
   if (!manager) {
-    manager = createDataOptions(dataName);
+    manager = createDataOptions<TData>(dataName);
     dataOptions[dataName] = manager;
   }
 
-  return manager;
+  return manager as OptionsManager<DataRouterOptions<TData>, ExtendedDataRouterOptions<TData>>;
 };
 
 export const setDataOptions = <TData = unknown>(dataName: string, options: DataRouterOptions<TData>) => {
-  const manager = getOrCreateDataOptions(dataName);
+  const manager = getOrCreateDataOptions<TData>(dataName);
   const dataOptions = manager.fetch();
 
   manager.assign({ ...dataOptions, ...options });
@@ -60,13 +60,13 @@ export const setDataOption = <K extends keyof DataRouterOptions<TData>, TData = 
   key: K,
   value: DataRouterOptions<TData>[K],
 ) => {
-  const manager = getOrCreateDataOptions(dataName);
+  const manager = getOrCreateDataOptions<TData>(dataName);
 
   manager.set(key, value);
 };
 
 export const getDataOptions = <TData = unknown>(dataName: string) => {
-  const manager = getOrCreateDataOptions(dataName);
+  const manager = getOrCreateDataOptions<TData>(dataName);
   return manager.fetch() as DataRouterOptions<TData>;
 };
 
@@ -75,7 +75,7 @@ export const getDataOption = <K extends keyof DataRouterOptions<TData>, TData = 
   key: K | string,
   defaultValue?: DataRouterOptions<TData>[K],
 ) => {
-  const manager = getOrCreateDataOptions(dataName);
+  const manager = getOrCreateDataOptions<TData>(dataName);
 
   return getNestedOption(manager, key, defaultValue) as DataRouterOptions<TData>[K];
 };
@@ -84,7 +84,7 @@ export const getExactDataOption = <K extends keyof ExtendedDataRouterOptions<TDa
   dataName: string,
   key: K | string,
 ) => {
-  const manager = getOrCreateDataOptions(dataName);
+  const manager = getOrCreateDataOptions<TData>(dataName);
   return manager.get(key) as ExtendedDataRouterOptions<TData>[K];
 };
 

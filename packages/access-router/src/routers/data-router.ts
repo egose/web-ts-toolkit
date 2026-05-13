@@ -194,6 +194,8 @@ export class DataRouter<TData = unknown> {
     });
   }
 
+  set<K extends keyof DataRouterOptions<TData>>(key: K, value: DataRouterOptions<TData>[K]): this;
+  set(options: DataRouterOptions<TData>): this;
   set<K extends keyof DataRouterOptions<TData>>(keyOrOptions: K | DataRouterOptions<TData>, value?: unknown) {
     if (arguments.length === 2 && isString(keyOrOptions)) {
       setDataOption<K, TData>(this.dataName, keyOrOptions as K, value as DataRouterOptions<TData>[K]);
