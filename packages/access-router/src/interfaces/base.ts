@@ -255,7 +255,7 @@ export interface Task {
   options: Record<string, unknown>;
 }
 
-export interface Request extends AccessRouterRequest {
+export interface AccessRouterBaseRequest extends AccessRouterRequest {
   query: Record<
     | 'skip'
     | 'limit'
@@ -269,9 +269,17 @@ export interface Request extends AccessRouterRequest {
     | 'returning_all',
     string
   >;
+}
+
+export interface ModelRequest extends AccessRouterBaseRequest {
   macl: Core;
+}
+
+export interface DataRequest extends AccessRouterBaseRequest {
   dacl: DataCore;
 }
+
+export type Request = AccessRouterBaseRequest;
 
 export interface ErrorResult<TError = unknown, TQuery = unknown> {
   success: false;

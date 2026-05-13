@@ -28,7 +28,8 @@ import {
   Filter,
   MiddlewareContext,
   Validation,
-  Request,
+  AccessRouterBaseRequest,
+  ModelRequest,
   SelectAccess,
   RouteGuardAccess,
   DocPermissionsAccess,
@@ -61,13 +62,13 @@ import {
 } from './core-shared';
 
 export class Core {
-  private req: Request;
+  private req: ModelRequest;
   private caches: {
     baseFilter: Cache<string, unknown>;
   };
 
-  constructor(req: Request) {
-    this.req = req;
+  constructor(req: AccessRouterBaseRequest) {
+    this.req = req as ModelRequest;
     this.caches = {
       baseFilter: new Cache<string, unknown>(),
     };
@@ -491,7 +492,7 @@ export class Core {
   }
 }
 
-export async function setCore(req: Request, res: Response, next: NextFunction) {
+export async function setCore(req: AccessRouterBaseRequest, res: Response, next: NextFunction) {
   if (req[MIDDLEWARE]) return next();
 
   const core = new Core(req);

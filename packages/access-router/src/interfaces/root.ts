@@ -4,7 +4,7 @@ import type { z } from 'zod';
 import type { Core } from '../core';
 import type { DataCore } from '../core-data';
 import type { AccessRouterPermissions } from '../permission';
-import { DataMiddlewareContext, Filter, MiddlewareContext, Validation } from './base';
+import { DataMiddlewareContext, DataRequest, Filter, MiddlewareContext, ModelRequest, Validation } from './base';
 import { PublicCreateArgs, CreateArgs, PublicCreateOptions, CreateOptions } from './service-create';
 import {
   PublicUpdateArgs,
@@ -40,61 +40,71 @@ export type AccessRouterFieldKey<T> = [Extract<keyof T, string>] extends [never]
 
 type GlobalPermissionValue = Record<string, boolean> | string[] | string | null | undefined;
 
-type BaseFilterHook = (
-  this: AccessRouterRequest,
+type BaseFilterHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
+  this: TRequest,
   permissions: AccessRouterPermissions,
 ) => MaybePromise<Filter | true | null | undefined>;
 
-type OverrideFilterHook = (
-  this: AccessRouterRequest,
+type OverrideFilterHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
+  this: TRequest,
   filter: Filter,
   permissions: AccessRouterPermissions,
 ) => MaybePromise<Filter>;
 
-type Hook<TValue, TContext> = (
-  this: AccessRouterRequest,
+type Hook<TValue, TContext, TRequest extends AccessRouterRequest = AccessRouterRequest> = (
+  this: TRequest,
   value: TValue,
   permissions: AccessRouterPermissions,
   context: TContext,
 ) => MaybePromise<TValue>;
 
-type HookChain<TValue, TContext> = Hook<TValue, TContext> | Array<Hook<TValue, TContext>>;
+type HookChain<TValue, TContext, TRequest extends AccessRouterRequest = AccessRouterRequest> =
+  | Hook<TValue, TContext, TRequest>
+  | Array<Hook<TValue, TContext, TRequest>>;
 
 type ValidateRule = boolean | unknown[];
 
-type ValidateHook = (
-  this: AccessRouterRequest,
+type ValidateHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
+  this: TRequest,
   allowedData: unknown,
   permissions: AccessRouterPermissions,
   context: MiddlewareContext,
 ) => MaybePromise<ValidateRule>;
 
-type DocPermissionsHook = (
-  this: AccessRouterRequest,
+type DocPermissionsHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
+  this: TRequest,
   doc: unknown,
   permissions: AccessRouterPermissions,
   context: MiddlewareContext,
 ) => MaybePromise<Record<string, unknown>>;
 
-type ChangeHook = (
-  this: AccessRouterRequest,
+type ChangeHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
+  this: TRequest,
   previousValue: unknown,
   nextValue: unknown,
   changes: Diff<unknown>[],
   context: MiddlewareContext,
 ) => MaybePromise<void>;
 
-type DeleteHook<TValue = unknown> = (
-  this: AccessRouterRequest,
+type DeleteHook<TValue = unknown, TRequest extends AccessRouterRequest = AccessRouterRequest> = (
+  this: TRequest,
   value: TValue,
   permissions: AccessRouterPermissions,
   context: MiddlewareContext,
 ) => MaybePromise<void>;
 
-type ModelHook<TValue = unknown> = HookChain<TValue, MiddlewareContext>;
-type ModelListHook<TValue = unknown> = HookChain<TValue[], MiddlewareContext>;
-type DataHook<TValue = unknown> = HookChain<TValue, DataMiddlewareContext>;
-type DataListHook<TValue = unknown> = HookChain<TValue[], DataMiddlewareContext>;
+type ModelBaseFilterHook = BaseFilterHook<ModelRequest>;
+type DataBaseFilterHook = BaseFilterHook<DataRequest>;
+type ModelOverrideFilterHook = OverrideFilterHook<ModelRequest>;
+type DataOverrideFilterHook = OverrideFilterHook<DataRequest>;
+type ModelValidateHook = ValidateHook<ModelRequest>;
+type ModelDocPermissionsHook = DocPermissionsHook<ModelRequest>;
+type ModelChangeHook = ChangeHook<ModelRequest>;
+type ModelDeleteHook<TValue = unknown> = DeleteHook<TValue, ModelRequest>;
+type ModelHook<TValue = unknown> = HookChain<TValue, MiddlewareContext, ModelRequest>;
+type ModelListHook<TValue = unknown> = HookChain<TValue[], MiddlewareContext, ModelRequest>;
+type DataHook<TValue = unknown> = HookChain<TValue, DataMiddlewareContext, DataRequest>;
+type DataListHook<TValue = unknown> = HookChain<TValue[], DataMiddlewareContext, DataRequest>;
 
 type SubRouteGuardOptions = Record<string, Validation | Record<string, Validation>>;
 
@@ -186,10 +196,10 @@ type PermissionRule = Validation | Access;
 export type PermissionSchema<TField extends string = string> = Partial<Record<TField, PermissionRule>>;
 
 interface DocPermissions {
-  list?: Function;
-  create?: Function;
-  read?: Function;
-  update?: Function;
+  list?: ModelDocPermissionsHook;
+  create?: ModelDocPermissionsHook;
+  read?: ModelDocPermissionsHook;
+  update?: ModelDocPermissionsHook;
 }
 
 export interface DefaultModelRouterOptions {
@@ -225,18 +235,18 @@ export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouter
   _globalPermissionKeys?: Record<string, string[]>;
   _modelPermissionKeys?: Record<string, string[]>;
   mandatoryFields?: string[];
-  docPermissions?: DocPermissions | DocPermissionsHook;
-  baseFilter?: BaseFilterHook | Record<string, BaseFilterHook>;
-  overrideFilter?: OverrideFilterHook | Record<string, OverrideFilterHook>;
+  docPermissions?: DocPermissions | ModelDocPermissionsHook;
+  baseFilter?: ModelBaseFilterHook | Record<string, ModelBaseFilterHook>;
+  overrideFilter?: ModelOverrideFilterHook | Record<string, ModelOverrideFilterHook>;
   decorate?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
   decorateAll?: ModelListHook<TModel> | Record<string, ModelListHook<TModel>>;
-  validate?: ValidateRule | ValidateHook | Record<string, ValidateRule | ValidateHook>;
+  validate?: ValidateRule | ModelValidateHook | Record<string, ValidateRule | ModelValidateHook>;
   prepare?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
   transform?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
   afterPersist?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
-  change?: Record<string, ChangeHook>;
-  beforeDelete?: DeleteHook<TModel> | Record<string, DeleteHook<TModel>>;
-  afterDelete?: DeleteHook<TModel> | Record<string, DeleteHook<TModel>>;
+  change?: Record<string, ModelChangeHook>;
+  beforeDelete?: ModelDeleteHook<TModel> | Record<string, ModelDeleteHook<TModel>>;
+  afterDelete?: ModelDeleteHook<TModel> | Record<string, ModelDeleteHook<TModel>>;
   requestSchemas?: RequestSchemas;
   defaults?: Defaults<TModel>;
 }
@@ -252,8 +262,8 @@ export interface DataRouterOptions<TData = unknown> {
   dataName?: string;
   basePath?: string;
   permissionSchema?: PermissionSchema<AccessRouterFieldKey<TData>>;
-  baseFilter?: BaseFilterHook | Record<string, BaseFilterHook>;
-  overrideFilter?: OverrideFilterHook | Record<string, OverrideFilterHook>;
+  baseFilter?: DataBaseFilterHook | Record<string, DataBaseFilterHook>;
+  overrideFilter?: DataOverrideFilterHook | Record<string, DataOverrideFilterHook>;
   decorate?: DataHook<TData> | Record<string, DataHook<TData>>;
   decorateAll?: DataListHook<TData> | Record<string, DataListHook<TData>>;
   requestSchemas?: DataRequestSchemas;
@@ -266,21 +276,21 @@ export interface ExtendedModelRouterOptions<TModel = unknown>
   'mandatoryFields.create'?: string[];
   'mandatoryFields.read'?: string[];
   'mandatoryFields.update'?: string[];
-  'docPermissions.default'?: DocPermissionsHook;
-  'docPermissions.list'?: DocPermissionsHook;
-  'docPermissions.create'?: DocPermissionsHook;
-  'docPermissions.read'?: DocPermissionsHook;
-  'docPermissions.update'?: DocPermissionsHook;
-  'baseFilter.default'?: BaseFilterHook;
-  'baseFilter.list'?: BaseFilterHook;
-  'baseFilter.read'?: BaseFilterHook;
-  'baseFilter.update'?: BaseFilterHook;
-  'baseFilter.delete'?: BaseFilterHook;
-  'overrideFilter.default'?: OverrideFilterHook;
-  'overrideFilter.list'?: OverrideFilterHook;
-  'overrideFilter.read'?: OverrideFilterHook;
-  'overrideFilter.update'?: OverrideFilterHook;
-  'overrideFilter.delete'?: OverrideFilterHook;
+  'docPermissions.default'?: ModelDocPermissionsHook;
+  'docPermissions.list'?: ModelDocPermissionsHook;
+  'docPermissions.create'?: ModelDocPermissionsHook;
+  'docPermissions.read'?: ModelDocPermissionsHook;
+  'docPermissions.update'?: ModelDocPermissionsHook;
+  'baseFilter.default'?: ModelBaseFilterHook;
+  'baseFilter.list'?: ModelBaseFilterHook;
+  'baseFilter.read'?: ModelBaseFilterHook;
+  'baseFilter.update'?: ModelBaseFilterHook;
+  'baseFilter.delete'?: ModelBaseFilterHook;
+  'overrideFilter.default'?: ModelOverrideFilterHook;
+  'overrideFilter.list'?: ModelOverrideFilterHook;
+  'overrideFilter.read'?: ModelOverrideFilterHook;
+  'overrideFilter.update'?: ModelOverrideFilterHook;
+  'overrideFilter.delete'?: ModelOverrideFilterHook;
   'decorate.default'?: ModelHook;
   'decorate.list'?: ModelHook;
   'decorate.create'?: ModelHook;
@@ -288,9 +298,9 @@ export interface ExtendedModelRouterOptions<TModel = unknown>
   'decorate.update'?: ModelHook;
   'decorateAll.default'?: ModelListHook;
   'decorateAll.list'?: ModelListHook;
-  'validate.default'?: ValidateRule | ValidateHook;
-  'validate.create'?: ValidateRule | ValidateHook;
-  'validate.update'?: ValidateRule | ValidateHook;
+  'validate.default'?: ValidateRule | ModelValidateHook;
+  'validate.create'?: ValidateRule | ModelValidateHook;
+  'validate.update'?: ValidateRule | ModelValidateHook;
   'prepare.default'?: ModelHook;
   'prepare.create'?: ModelHook;
   'prepare.update'?: ModelHook;
@@ -299,10 +309,10 @@ export interface ExtendedModelRouterOptions<TModel = unknown>
   'afterPersist.default'?: ModelHook;
   'afterPersist.create'?: ModelHook;
   'afterPersist.update'?: ModelHook;
-  'beforeDelete.default'?: DeleteHook;
-  'beforeDelete.delete'?: DeleteHook;
-  'afterDelete.default'?: DeleteHook;
-  'afterDelete.delete'?: DeleteHook;
+  'beforeDelete.default'?: ModelDeleteHook;
+  'beforeDelete.delete'?: ModelDeleteHook;
+  'afterDelete.default'?: ModelDeleteHook;
+  'afterDelete.delete'?: ModelDeleteHook;
   'requestSchemas.create'?: RequestZodSchema;
   'requestSchemas.update'?: RequestZodSchema;
   'requestSchemas.upsert'?: RequestZodSchema;

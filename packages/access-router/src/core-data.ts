@@ -6,7 +6,8 @@ import {
   Filter,
   DataMiddlewareContext,
   Validation,
-  Request,
+  AccessRouterBaseRequest,
+  DataRequest,
   SelectAccess,
   RouteGuardAccess,
   BaseFilterAccess,
@@ -29,13 +30,13 @@ import {
 } from './core-shared';
 
 export class DataCore {
-  private req: Request;
+  private req: DataRequest;
   private caches: {
     baseFilter: Cache<string, Filter>;
   };
 
-  constructor(req: Request) {
-    this.req = req;
+  constructor(req: AccessRouterBaseRequest) {
+    this.req = req as DataRequest;
     this.caches = {
       baseFilter: new Cache<string, Filter>(),
     };
@@ -169,7 +170,7 @@ export class DataCore {
   }
 }
 
-export async function setDataCore(req: Request, _res: Response, next: NextFunction) {
+export async function setDataCore(req: AccessRouterBaseRequest, _res: Response, next: NextFunction) {
   if (req[DATA_MIDDLEWARE]) return next();
 
   const core = new DataCore(req);

@@ -11,7 +11,7 @@ import { handleResultError } from '../helpers';
 import {
   ModelRouterOptions,
   ExtendedModelRouterOptions,
-  Request,
+  ModelRequest,
   Filter,
   BaseFilterAccess,
   SubPopulate,
@@ -97,15 +97,15 @@ export class ModelRouter<TModel = unknown> {
     ) as z.ZodTypeAny | undefined;
   }
 
-  getService(req: Request): Service<TModel> {
+  getService(req: ModelRequest): Service<TModel> {
     return req.macl.getService<TModel>(this.modelName);
   }
 
-  getPublicService(req: Request): PublicService<TModel> {
+  getPublicService(req: ModelRequest): PublicService<TModel> {
     return req.macl.getPublicService<TModel>(this.modelName);
   }
 
-  private async assertAllowed(req: Request, access: string) {
+  private async assertAllowed(req: ModelRequest, access: string) {
     const allowed = await req.macl.isAllowed(this.modelName, access);
     if (!allowed) throw new clientErrors.UnauthorizedError();
   }
@@ -117,7 +117,7 @@ export class ModelRouter<TModel = unknown> {
     //////////
     // LIST //
     //////////
-    this.router.get('', async (req: Request) => {
+    this.router.get('', async (req: ModelRequest) => {
       await this.assertAllowed(req, 'list');
 
       const { skip, limit, page, page_size, skim, include_permissions, include_count, include_extra_headers } =
@@ -146,7 +146,7 @@ export class ModelRouter<TModel = unknown> {
     /////////////////////
     // LIST - Advanced //
     /////////////////////
-    this.router.post(`/${this.options.queryPath}`, async (req: Request) => {
+    this.router.post(`/${this.options.queryPath}`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'list');
 
       // @Deprecated option 'query'
@@ -181,7 +181,7 @@ export class ModelRouter<TModel = unknown> {
     ////////////
     // CREATE //
     ////////////
-    this.router.post('', async (req: Request, res) => {
+    this.router.post('', async (req: ModelRequest, res) => {
       await this.assertAllowed(req, 'create');
 
       const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
@@ -198,7 +198,7 @@ export class ModelRouter<TModel = unknown> {
     ///////////////////////
     // CREATE - Advanced //
     ///////////////////////
-    this.router.post(`/${this.options.mutationPath}`, async (req: Request, res) => {
+    this.router.post(`/${this.options.mutationPath}`, async (req: ModelRequest, res) => {
       await this.assertAllowed(req, 'create');
 
       const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
@@ -236,7 +236,7 @@ export class ModelRouter<TModel = unknown> {
     /////////////////
     // NEW - EMPTY //
     /////////////////
-    this.router.get('/new', async (req: Request) => {
+    this.router.get('/new', async (req: ModelRequest) => {
       const svc = this.getPublicService(req);
       const result = await svc._new();
 
@@ -253,7 +253,7 @@ export class ModelRouter<TModel = unknown> {
     ///////////
     // COUNT //
     ///////////
-    this.router.get('/count', async (req: Request) => {
+    this.router.get('/count', async (req: ModelRequest) => {
       await this.assertAllowed(req, 'count');
 
       const svc = this.getPublicService(req);
@@ -264,7 +264,7 @@ export class ModelRouter<TModel = unknown> {
       return result.data;
     });
 
-    this.router.post('/count', async (req: Request) => {
+    this.router.post('/count', async (req: ModelRequest) => {
       await this.assertAllowed(req, 'count');
 
       // @Deprecated option 'query'
@@ -285,7 +285,7 @@ export class ModelRouter<TModel = unknown> {
     //////////
     // READ //
     //////////
-    this.router.get(`/:${this.options.idParam}`, async (req: Request) => {
+    this.router.get(`/:${this.options.idParam}`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'read');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -308,7 +308,7 @@ export class ModelRouter<TModel = unknown> {
     //////////////////////////////
     // READ - Advanced - Filter //
     //////////////////////////////
-    this.router.post(`/${this.options.queryPath}/__filter`, async (req: Request) => {
+    this.router.post(`/${this.options.queryPath}/__filter`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'read');
 
       const body = parseBodyWithSchema(
@@ -341,7 +341,7 @@ export class ModelRouter<TModel = unknown> {
     /////////////////////
     // READ - Advanced //
     /////////////////////
-    this.router.post(`/${this.options.queryPath}/:${this.options.idParam}`, async (req: Request) => {
+    this.router.post(`/${this.options.queryPath}/:${this.options.idParam}`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'read');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -374,7 +374,7 @@ export class ModelRouter<TModel = unknown> {
     ////////////
     // UPDATE //
     ////////////
-    this.router.patch(`/:${this.options.idParam}`, async (req: Request) => {
+    this.router.patch(`/:${this.options.idParam}`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'update');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -392,7 +392,7 @@ export class ModelRouter<TModel = unknown> {
     ///////////////////////
     // UPDATE - Advanced //
     ///////////////////////
-    this.router.patch(`/${this.options.mutationPath}/:${this.options.idParam}`, async (req: Request) => {
+    this.router.patch(`/${this.options.mutationPath}/:${this.options.idParam}`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'update');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -433,7 +433,7 @@ export class ModelRouter<TModel = unknown> {
     ////////////
     // UPSERT //
     ////////////
-    this.router.put(`/`, async (req: Request) => {
+    this.router.put(`/`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'upsert');
 
       const svc = this.getPublicService(req);
@@ -465,7 +465,7 @@ export class ModelRouter<TModel = unknown> {
     ///////////////////////
     // UPSERT - Advanced //
     ///////////////////////
-    this.router.put(`/${this.options.mutationPath}`, async (req: Request) => {
+    this.router.put(`/${this.options.mutationPath}`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'upsert');
 
       const svc = this.getPublicService(req);
@@ -527,7 +527,7 @@ export class ModelRouter<TModel = unknown> {
     ////////////
     // DELETE //
     ////////////
-    this.router.delete(`/:${this.options.idParam}`, async (req: Request) => {
+    this.router.delete(`/:${this.options.idParam}`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'delete');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -542,7 +542,7 @@ export class ModelRouter<TModel = unknown> {
     //////////////
     // DISTINCT //
     //////////////
-    this.router.get('/distinct/:field', async (req: Request) => {
+    this.router.get('/distinct/:field', async (req: ModelRequest) => {
       await this.assertAllowed(req, 'distinct');
 
       const field = parsePathParam(req.params.field, 'field');
@@ -554,7 +554,7 @@ export class ModelRouter<TModel = unknown> {
       return result.data;
     });
 
-    this.router.post('/distinct/:field', async (req: Request) => {
+    this.router.post('/distinct/:field', async (req: ModelRequest) => {
       await this.assertAllowed(req, 'distinct');
 
       const field = parsePathParam(req.params.field, 'field');
@@ -586,7 +586,7 @@ export class ModelRouter<TModel = unknown> {
       //////////
       // LIST //
       //////////
-      this.router.get(`/:${this.options.idParam}/${sub}`, async (req: Request) => {
+      this.router.get(`/:${this.options.idParam}/${sub}`, async (req: ModelRequest) => {
         await this.assertAllowed(req, `subs.${sub}.list`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -600,7 +600,7 @@ export class ModelRouter<TModel = unknown> {
       /////////////////////
       // LIST - Advanced //
       /////////////////////
-      this.router.post(`/:${this.options.idParam}/${sub}/${this.options.queryPath}`, async (req: Request) => {
+      this.router.post(`/:${this.options.idParam}/${sub}/${this.options.queryPath}`, async (req: ModelRequest) => {
         await this.assertAllowed(req, `subs.${sub}.list`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -619,7 +619,7 @@ export class ModelRouter<TModel = unknown> {
       /////////////////
       // BULK UPDATE //
       /////////////////
-      this.router.patch(`/:${this.options.idParam}/${sub}`, async (req: Request) => {
+      this.router.patch(`/:${this.options.idParam}/${sub}`, async (req: ModelRequest) => {
         await this.assertAllowed(req, `subs.${sub}.update`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -638,7 +638,7 @@ export class ModelRouter<TModel = unknown> {
       //////////
       // READ //
       //////////
-      this.router.get(`/:${this.options.idParam}/${sub}/:subId`, async (req: Request) => {
+      this.router.get(`/:${this.options.idParam}/${sub}/:subId`, async (req: ModelRequest) => {
         await this.assertAllowed(req, `subs.${sub}.read`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -653,33 +653,36 @@ export class ModelRouter<TModel = unknown> {
       /////////////////////
       // READ - Advanced //
       /////////////////////
-      this.router.post(`/:${this.options.idParam}/${sub}/:subId/${this.options.queryPath}`, async (req: Request) => {
-        await this.assertAllowed(req, `subs.${sub}.read`);
+      this.router.post(
+        `/:${this.options.idParam}/${sub}/:subId/${this.options.queryPath}`,
+        async (req: ModelRequest) => {
+          await this.assertAllowed(req, `subs.${sub}.read`);
 
-        const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
-        const subId = parsePathParam(req.params.subId, 'subId');
-        const body = parseBodyWithSchema(
-          subReadBodySchema,
-          req.body,
-          this.getRequestSchema('requestSchemas.subRead'),
-        ) as SubReadBody;
-        const populate = body.populate;
-        const normalizedPopulate: SubPopulate | SubPopulate[] = Array.isArray(populate)
-          ? populate.map((item) => (isString(item) ? { path: item } : item))
-          : isString(populate)
-            ? { path: populate }
-            : (populate ?? []);
-        const svc = this.getPublicService(req);
-        const result = await svc.readSub(id, sub, subId, { fields: body.fields ?? [], populate: normalizedPopulate });
+          const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
+          const subId = parsePathParam(req.params.subId, 'subId');
+          const body = parseBodyWithSchema(
+            subReadBodySchema,
+            req.body,
+            this.getRequestSchema('requestSchemas.subRead'),
+          ) as SubReadBody;
+          const populate = body.populate;
+          const normalizedPopulate: SubPopulate | SubPopulate[] = Array.isArray(populate)
+            ? populate.map((item) => (isString(item) ? { path: item } : item))
+            : isString(populate)
+              ? { path: populate }
+              : (populate ?? []);
+          const svc = this.getPublicService(req);
+          const result = await svc.readSub(id, sub, subId, { fields: body.fields ?? [], populate: normalizedPopulate });
 
-        handleResultError(result);
-        return result.data;
-      });
+          handleResultError(result);
+          return result.data;
+        },
+      );
 
       ////////////
       // UPDATE //
       ////////////
-      this.router.patch(`/:${this.options.idParam}/${sub}/:subId`, async (req: Request) => {
+      this.router.patch(`/:${this.options.idParam}/${sub}/:subId`, async (req: ModelRequest) => {
         await this.assertAllowed(req, `subs.${sub}.update`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -699,7 +702,7 @@ export class ModelRouter<TModel = unknown> {
       ////////////
       // CREATE //
       ////////////
-      this.router.post(`/:${this.options.idParam}/${sub}`, async (req: Request) => {
+      this.router.post(`/:${this.options.idParam}/${sub}`, async (req: ModelRequest) => {
         await this.assertAllowed(req, `subs.${sub}.create`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -719,7 +722,7 @@ export class ModelRouter<TModel = unknown> {
       ////////////
       // DELETE //
       ////////////
-      this.router.delete(`/:${this.options.idParam}/${sub}/:subId`, async (req: Request) => {
+      this.router.delete(`/:${this.options.idParam}/${sub}/:subId`, async (req: ModelRequest) => {
         await this.assertAllowed(req, `subs.${sub}.delete`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);

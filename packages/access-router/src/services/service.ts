@@ -40,7 +40,7 @@ import {
   DistinctArgs,
   Defaults,
   Populate,
-  Request,
+  ModelRequest,
   FindArgs,
   FindOptions,
   FindOneArgs,
@@ -75,7 +75,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
   baseFields: string[];
   baseFieldsExt: string[];
 
-  constructor(req: Request, modelName: string) {
+  constructor(req: ModelRequest, modelName: string) {
     super(req, modelName);
 
     this.model = new Model(modelName);

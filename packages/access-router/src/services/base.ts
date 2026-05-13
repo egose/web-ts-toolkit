@@ -23,8 +23,8 @@ import {
   Include,
   ListResult,
   MiddlewareContext,
+  ModelRequest,
   Populate,
-  Request,
   Projection,
   SelectAccess,
   DocPermissionsAccess,
@@ -72,10 +72,10 @@ export function validateClientFilter(filter: Filter | null | undefined): string[
 }
 
 export class Base<TModel = unknown> {
-  req: Request;
+  req: ModelRequest;
   modelName: string;
 
-  constructor(req: Request, modelName: string) {
+  constructor(req: ModelRequest, modelName: string) {
     this.req = req;
     this.modelName = modelName;
   }

@@ -13,7 +13,7 @@ import {
   RootRouterOptions,
   Validation,
   RootQueryEntry,
-  Request,
+  ModelRequest,
   SingleResult,
   ServiceResult,
   RouteGuardAccess,
@@ -57,7 +57,7 @@ export class RootRouter {
     return { success, code, data, message, statusCode, op };
   }
 
-  private async processOp(req: Request, item: RootQueryEntry) {
+  private async processOp(req: ModelRequest, item: RootQueryEntry) {
     if (!mongoose.models[item.model]) {
       return { success: false, code: Codes.BadRequest, data: null, message: `Model ${item.model} not found` };
     }
@@ -115,13 +115,13 @@ export class RootRouter {
     }, []);
   }
 
-  private async assertAllowed(req: Request) {
+  private async assertAllowed(req: ModelRequest) {
     const allowed = await req.macl.canActivate(this.routeGuard);
     if (!allowed) throw new clientErrors.UnauthorizedError();
   }
 
   private setRoutes() {
-    this.router.post('', async (req: Request) => {
+    this.router.post('', async (req: ModelRequest) => {
       await this.assertAllowed(req);
 
       const items: RootQueryEntry[] = parseBody(rootQuerySchema, req.body).map((item) => ({

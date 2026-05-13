@@ -6,7 +6,7 @@ import { setDataCore } from '../core-data';
 import { setDataOption, setDataOptions, getDataOptions, getExactDataOption } from '../options';
 import { processUrl } from '../lib';
 import { handleResultError } from '../helpers';
-import { DataRouterOptions, ExtendedDataRouterOptions, Request, Filter } from '../interfaces';
+import { DataRouterOptions, ExtendedDataRouterOptions, DataRequest, Filter } from '../interfaces';
 import { DataService } from '../services';
 import { formatListResponse, parseBooleanString } from './shared';
 import { accessRouterResponseHandler } from './index';
@@ -59,11 +59,11 @@ export class DataRouter<TData = unknown> {
     ) as z.ZodTypeAny | undefined;
   }
 
-  getService(req: Request): DataService<TData> {
+  getService(req: DataRequest): DataService<TData> {
     return req.dacl.getService<TData>(this.dataName);
   }
 
-  private async assertAllowed(req: Request, access: string) {
+  private async assertAllowed(req: DataRequest, access: string) {
     const allowed = await req.dacl.isAllowed(this.dataName, access);
     if (!allowed) throw new clientErrors.UnauthorizedError();
   }
@@ -75,7 +75,7 @@ export class DataRouter<TData = unknown> {
     //////////
     // LIST //
     //////////
-    this.router.get('', async (req: Request) => {
+    this.router.get('', async (req: DataRequest) => {
       await this.assertAllowed(req, 'list');
 
       const { skip, limit, page, page_size, include_count, include_extra_headers } = parseQuery(
@@ -104,7 +104,7 @@ export class DataRouter<TData = unknown> {
     /////////////////////
     // LIST - Advanced //
     /////////////////////
-    this.router.post(`/${this.options.queryPath}`, async (req: Request) => {
+    this.router.post(`/${this.options.queryPath}`, async (req: DataRequest) => {
       await this.assertAllowed(req, 'list');
 
       let {
@@ -140,7 +140,7 @@ export class DataRouter<TData = unknown> {
     //////////
     // READ //
     //////////
-    this.router.get(`/:${this.options.idParam}`, async (req: Request) => {
+    this.router.get(`/:${this.options.idParam}`, async (req: DataRequest) => {
       await this.assertAllowed(req, 'read');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -155,7 +155,7 @@ export class DataRouter<TData = unknown> {
     //////////////////////////////
     // READ - Advanced - Filter //
     //////////////////////////////
-    this.router.post(`/${this.options.queryPath}/__filter`, async (req: Request) => {
+    this.router.post(`/${this.options.queryPath}/__filter`, async (req: DataRequest) => {
       await this.assertAllowed(req, 'read');
 
       let { filter, select } = parseBodyWithSchema(
@@ -175,7 +175,7 @@ export class DataRouter<TData = unknown> {
     /////////////////////
     // READ - Advanced //
     /////////////////////
-    this.router.post(`/${this.options.queryPath}/:${this.options.idParam}`, async (req: Request) => {
+    this.router.post(`/${this.options.queryPath}/:${this.options.idParam}`, async (req: DataRequest) => {
       await this.assertAllowed(req, 'read');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
