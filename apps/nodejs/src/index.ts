@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import acl, { permissionsPlugin } from '@web-ts-toolkit/access-router';
+import type { ModelRouterOptions } from '@web-ts-toolkit/access-router';
 
 const port = Number(process.env.PORT ?? 3000);
 const modelName = 'SampleUser';
@@ -101,8 +102,13 @@ async function createUserRouter() {
       email: { list: 'isAdmin', read: 'isAdmin', create: 'isAdmin', update: 'isAdmin' },
       public: { list: true, read: true, create: true, update: true },
     },
-    baseFilter(permissions) {
-      return permissions.isAdmin ? {} : { public: true };
+    baseFilter: {
+      list(permissions) {
+        return permissions.isAdmin ? {} : { public: true };
+      },
+      read(permissions) {
+        return permissions.isAdmin ? {} : { public: true };
+      },
     },
     decorate(doc, permissions) {
       if (permissions.isAdmin && this.requestId) {
@@ -111,12 +117,13 @@ async function createUserRouter() {
 
       return doc;
     },
-    afterDelete(aa, bb) {},
   });
 
-  // userRouter.afterDelete(async (contenxt) => {
-  //   contenxt.
-  // });
+  userRouter.afterDelete(function (doc, permissions, context) {
+    doc.name;
+    permissions.isAdmin;
+    context.originalDocObject;
+  });
 
   const typedService = userRouter.getService({} as express.Request as Parameters<typeof userRouter.getService>[0]);
   void typedService;

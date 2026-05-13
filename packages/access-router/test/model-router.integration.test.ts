@@ -297,15 +297,11 @@ const createLifecycleApp = async () => {
         return doc;
       },
     },
-    beforeDelete: {
-      delete(doc) {
-        events.push(`beforeDelete:${String((doc as { name?: string }).name ?? '')}`);
-      },
+    beforeDelete(doc) {
+      events.push(`beforeDelete:${String((doc as { name?: string }).name ?? '')}`);
     },
-    afterDelete: {
-      delete(doc) {
-        events.push(`afterDelete:${String((doc as { name?: string }).name ?? '')}`);
-      },
+    afterDelete(doc) {
+      events.push(`afterDelete:${String((doc as { name?: string }).name ?? '')}`);
     },
   });
 

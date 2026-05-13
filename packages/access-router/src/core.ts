@@ -40,7 +40,6 @@ import {
   PrepareAccess,
   TransformAccess,
   AfterPersistAccess,
-  DeleteAccess,
   Task,
 } from './interfaces';
 import Permission, { Permissions } from './permission';
@@ -279,14 +278,14 @@ export class Core {
     }
   }
 
-  async beforeDelete<T>(modelName: string, doc: T, access: DeleteAccess, context: MiddlewareContext): Promise<void> {
-    const beforeDelete = getModelOption(modelName, `beforeDelete.${access}`, null) as Function | Function[];
+  async beforeDelete<T>(modelName: string, doc: T, context: MiddlewareContext): Promise<void> {
+    const beforeDelete = getModelOption(modelName, 'beforeDelete', null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
     await callHookChain(this.req, beforeDelete, doc, permissions, context);
   }
 
-  async afterDelete<T>(modelName: string, doc: T, access: DeleteAccess, context: MiddlewareContext): Promise<void> {
-    const afterDelete = getModelOption(modelName, `afterDelete.${access}`, null) as Function | Function[];
+  async afterDelete<T>(modelName: string, doc: T, context: MiddlewareContext): Promise<void> {
+    const afterDelete = getModelOption(modelName, 'afterDelete', null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
     await callHookChain(this.req, afterDelete, doc, permissions, context);
   }

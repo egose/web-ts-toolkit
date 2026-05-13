@@ -543,7 +543,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
       currentDoc: toObject(doc),
     };
 
-    await this.beforeDelete(doc, 'delete', context);
+    await this.beforeDelete(doc, context);
 
     // this function utilizes the 'deleteOne' method to delete the document,
     // triggering 'deleteOne' hooks, as opposed to using 'findOneAndDelete'.
@@ -551,7 +551,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     await ('deleteOne' in doc ? doc.deleteOne() : doc.remove());
 
     context.finalDocObject = toObject(doc);
-    await this.afterDelete(doc, 'delete', context);
+    await this.afterDelete(doc, context);
 
     return { success: true, kind: 'single', code: Codes.Success, data: doc._id, query };
   }

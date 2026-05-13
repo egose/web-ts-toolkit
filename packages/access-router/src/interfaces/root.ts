@@ -245,8 +245,8 @@ export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouter
   transform?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
   afterPersist?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
   change?: Record<string, ModelChangeHook>;
-  beforeDelete?: ModelDeleteHook<TModel> | Record<string, ModelDeleteHook<TModel>>;
-  afterDelete?: ModelDeleteHook<TModel> | Record<string, ModelDeleteHook<TModel>>;
+  beforeDelete?: ModelDeleteHook<TModel>;
+  afterDelete?: ModelDeleteHook<TModel>;
   requestSchemas?: RequestSchemas;
   defaults?: Defaults<TModel>;
 }
@@ -309,10 +309,6 @@ export interface ExtendedModelRouterOptions<TModel = unknown>
   'afterPersist.default'?: ModelHook;
   'afterPersist.create'?: ModelHook;
   'afterPersist.update'?: ModelHook;
-  'beforeDelete.default'?: ModelDeleteHook;
-  'beforeDelete.delete'?: ModelDeleteHook;
-  'afterDelete.default'?: ModelDeleteHook;
-  'afterDelete.delete'?: ModelDeleteHook;
   'requestSchemas.create'?: RequestZodSchema;
   'requestSchemas.update'?: RequestZodSchema;
   'requestSchemas.upsert'?: RequestZodSchema;
@@ -383,4 +379,3 @@ export type ValidateAccess = 'create' | 'update' | string;
 export type PrepareAccess = 'create' | 'update' | string;
 export type TransformAccess = 'update' | string;
 export type AfterPersistAccess = 'create' | 'update' | string;
-export type DeleteAccess = 'delete' | string;
