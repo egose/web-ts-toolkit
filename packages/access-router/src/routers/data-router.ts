@@ -22,16 +22,16 @@ import {
 
 const clientErrors = JsonRouter.clientErrors;
 
-type SetTargetOption = {
-  (option: unknown): DataRouter<unknown>;
-  (key: string, option: unknown): DataRouter<unknown>;
+type SetTargetOption<TRouter, TOption> = {
+  (option: TOption): TRouter;
+  (key: string, option: unknown): TRouter;
 };
 
-function setOption(this: DataRouter<unknown>, parentKey: string, optionKey: unknown, option?: unknown) {
+function setOption<TData>(this: DataRouter<TData>, parentKey: string, optionKey: unknown, option?: unknown) {
   const key = isUndefined(option) ? parentKey : `${parentKey}.${optionKey}`;
   const value = isUndefined(option) ? optionKey : option;
 
-  setDataOption(this.dataName, key as keyof DataRouterOptions<unknown>, value);
+  setDataOption(this.dataName, key as keyof DataRouterOptions<TData>, value);
   return this;
 }
 
@@ -216,15 +216,35 @@ export class DataRouter<TData = unknown> {
     return this;
   }
 
-  public data: SetTargetOption = setOption.bind(this, 'data');
-  public listHardLimit: SetTargetOption = setOption.bind(this, 'listHardLimit');
-  public permissionSchema: SetTargetOption = setOption.bind(this, 'permissionSchema');
-  public routeGuard: SetTargetOption = setOption.bind(this, 'routeGuard');
-  public baseFilter: SetTargetOption = setOption.bind(this, 'baseFilter');
-  public overrideFilter: SetTargetOption = setOption.bind(this, 'overrideFilter');
-  public decorate: SetTargetOption = setOption.bind(this, 'decorate');
-  public decorateAll: SetTargetOption = setOption.bind(this, 'decorateAll');
-  public identifier: SetTargetOption = setOption.bind(this, 'identifier');
+  public data: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['data']> = setOption.bind(this, 'data');
+  public listHardLimit: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['listHardLimit']> = setOption.bind(
+    this,
+    'listHardLimit',
+  );
+  public permissionSchema: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['permissionSchema']> =
+    setOption.bind(this, 'permissionSchema');
+  public routeGuard: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['routeGuard']> = setOption.bind(
+    this,
+    'routeGuard',
+  );
+  public baseFilter: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['baseFilter']> = setOption.bind(
+    this,
+    'baseFilter',
+  );
+  public overrideFilter: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['overrideFilter']> =
+    setOption.bind(this, 'overrideFilter');
+  public decorate: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['decorate']> = setOption.bind(
+    this,
+    'decorate',
+  );
+  public decorateAll: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['decorateAll']> = setOption.bind(
+    this,
+    'decorateAll',
+  );
+  public identifier: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['identifier']> = setOption.bind(
+    this,
+    'identifier',
+  );
 
   get routes(): Router {
     return this.router.original;

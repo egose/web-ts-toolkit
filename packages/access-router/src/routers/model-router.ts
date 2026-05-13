@@ -56,16 +56,16 @@ import {
 const clientErrors = JsonRouter.clientErrors;
 const success = JsonRouter.success;
 
-type SetTargetOption = {
-  (option: unknown): ModelRouter<unknown>;
-  (key: string, option: unknown): ModelRouter<unknown>;
+type SetTargetOption<TRouter, TOption> = {
+  (option: TOption): TRouter;
+  (key: string, option: unknown): TRouter;
 };
 
-function setOption(this: ModelRouter<unknown>, parentKey: string, optionKey: unknown, option?: unknown) {
+function setOption<TModel>(this: ModelRouter<TModel>, parentKey: string, optionKey: unknown, option?: unknown) {
   const key = isUndefined(option) ? parentKey : `${parentKey}.${optionKey}`;
   const value = isUndefined(option) ? optionKey : option;
 
-  setModelOption(this.modelName, key as keyof ExtendedModelRouterOptions<unknown>, value);
+  setModelOption(this.modelName, key as keyof ExtendedModelRouterOptions<TModel>, value);
   return this;
 }
 
@@ -770,45 +770,59 @@ export class ModelRouter<TModel = unknown> {
   /**
    * The maximum limit of the number of documents returned from the `list` operation.
    */
-  public listHardLimit: SetTargetOption = setOption.bind(this, 'listHardLimit');
+  public listHardLimit: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['listHardLimit']> =
+    setOption.bind(this, 'listHardLimit');
 
   /**
    * The object schema to define the access control policy for each model field.
    */
-  public permissionSchema: SetTargetOption = setOption.bind(this, 'permissionSchema');
+  public permissionSchema: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['permissionSchema']> =
+    setOption.bind(this, 'permissionSchema');
 
   /**
    * The object field to store the document permissions.
    */
-  public documentPermissionField: SetTargetOption = setOption.bind(this, 'documentPermissionField');
+  public documentPermissionField: SetTargetOption<
+    ModelRouter<TModel>,
+    ModelRouterOptions<TModel>['documentPermissionField']
+  > = setOption.bind(this, 'documentPermissionField');
 
   /**
    * The essential model fields involved in generating document permissions.
    */
-  public mandatoryFields: SetTargetOption = setOption.bind(this, 'mandatoryFields');
+  public mandatoryFields: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['mandatoryFields']> =
+    setOption.bind(this, 'mandatoryFields');
 
   /**
    * The function called in the process of generating document permissions.
    */
-  public docPermissions: SetTargetOption = setOption.bind(this, 'docPermissions');
+  public docPermissions: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['docPermissions']> =
+    setOption.bind(this, 'docPermissions');
 
   /**
    * The access control policy for CRUDL endpoints.
    * @operation `create`, `list`, `read`, `update`, `delete`
    */
-  public routeGuard: SetTargetOption = setOption.bind(this, 'routeGuard');
+  public routeGuard: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['routeGuard']> = setOption.bind(
+    this,
+    'routeGuard',
+  );
 
   /**
    * The base filter definitions applied in every query transaction.
    * @operation `list`, `read`, `update`, `delete`
    */
-  public baseFilter: SetTargetOption = setOption.bind(this, 'baseFilter');
+  public baseFilter: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['baseFilter']> = setOption.bind(
+    this,
+    'baseFilter',
+  );
 
   /**
    * The override filter definitions applied in every query transaction.
    * @operation `list`, `read`, `update`, `delete`
    */
-  public overrideFilter: SetTargetOption = setOption.bind(this, 'overrideFilter');
+  public overrideFilter: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['overrideFilter']> =
+    setOption.bind(this, 'overrideFilter');
 
   /**
    * Hook
@@ -816,7 +830,10 @@ export class ModelRouter<TModel = unknown> {
    * The function called before a new/update document data is processed in `prepare` hooks. This method is used to validate `write data` and throw an error if not valid.
    * @operation `create`, `update`
    */
-  public validate: SetTargetOption = setOption.bind(this, 'validate');
+  public validate: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['validate']> = setOption.bind(
+    this,
+    'validate',
+  );
 
   /**
    * Hook
@@ -824,7 +841,10 @@ export class ModelRouter<TModel = unknown> {
    * The function called before a new document is created or an existing document is updated. This method is used to process raw data passed into the API endpoints.
    * @operation `create`, `update`
    */
-  public prepare: SetTargetOption = setOption.bind(this, 'prepare');
+  public prepare: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['prepare']> = setOption.bind(
+    this,
+    'prepare',
+  );
 
   /**
    * Hook
@@ -832,7 +852,10 @@ export class ModelRouter<TModel = unknown> {
    * The function called before an updated document is saved.
    * @operation `update`
    */
-  public transform: SetTargetOption = setOption.bind(this, 'transform');
+  public transform: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['transform']> = setOption.bind(
+    this,
+    'transform',
+  );
 
   /**
    * Hook
@@ -840,7 +863,8 @@ export class ModelRouter<TModel = unknown> {
    * The function called after a new document is created or an updated document is saved.
    * @operation `create`, `update`
    */
-  public afterPersist: SetTargetOption = setOption.bind(this, 'afterPersist');
+  public afterPersist: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['afterPersist']> =
+    setOption.bind(this, 'afterPersist');
 
   /**
    * Hook
@@ -848,7 +872,10 @@ export class ModelRouter<TModel = unknown> {
    * The function called after a updated document finalized
    * @operation `update`
    */
-  public change: SetTargetOption = setOption.bind(this, 'change');
+  public change: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['change']> = setOption.bind(
+    this,
+    'change',
+  );
 
   /**
    * Hook
@@ -856,7 +883,8 @@ export class ModelRouter<TModel = unknown> {
    * The function called before a document is deleted.
    * @operation `delete`
    */
-  public beforeDelete: SetTargetOption = setOption.bind(this, 'beforeDelete');
+  public beforeDelete: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['beforeDelete']> =
+    setOption.bind(this, 'beforeDelete');
 
   /**
    * Hook
@@ -864,7 +892,10 @@ export class ModelRouter<TModel = unknown> {
    * The function called after a document is deleted.
    * @operation `delete`
    */
-  public afterDelete: SetTargetOption = setOption.bind(this, 'afterDelete');
+  public afterDelete: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['afterDelete']> = setOption.bind(
+    this,
+    'afterDelete',
+  );
 
   /**
    * Hook
@@ -872,7 +903,10 @@ export class ModelRouter<TModel = unknown> {
    * The function called before response data is sent. This method is used to process raw data to apply custom logic before sending the result.
    * @operation `list`, `read`, `create`, `update`
    */
-  public decorate: SetTargetOption = setOption.bind(this, 'decorate');
+  public decorate: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['decorate']> = setOption.bind(
+    this,
+    'decorate',
+  );
 
   /**
    * Hook
@@ -880,19 +914,28 @@ export class ModelRouter<TModel = unknown> {
    * The functions are called before response data is sent and after `decorate` hooks run. This method is used to process and filter multiple document objects before sending the result.
    * @operation `list`
    */
-  public decorateAll: SetTargetOption = setOption.bind(this, 'decorateAll');
+  public decorateAll: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['decorateAll']> = setOption.bind(
+    this,
+    'decorateAll',
+  );
 
   /**
    * The document selector definition with the `id` param.
    * @option `string` | `Function`
    * @operation `read`, `update`, `delete`
    */
-  public identifier: SetTargetOption = setOption.bind(this, 'identifier');
+  public identifier: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['identifier']> = setOption.bind(
+    this,
+    'identifier',
+  );
 
   /**
    * The default values used when missing in the operations.
    */
-  public defaults: SetTargetOption = setOption.bind(this, 'defaults');
+  public defaults: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['defaults']> = setOption.bind(
+    this,
+    'defaults',
+  );
 
   get routes(): Router {
     return this.router.original;
