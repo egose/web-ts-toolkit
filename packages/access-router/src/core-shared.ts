@@ -10,7 +10,7 @@ import {
 } from '@web-ts-toolkit/utils';
 import { Cache } from './cache';
 import { createValidator } from './helpers';
-import { Request, Filter, Validation } from './interfaces';
+import { AccessRouterBaseRequest, Filter, Validation } from './interfaces';
 import { arrToObj } from './lib';
 import { getGlobalOption } from './options';
 import Permission, { Permissions } from './permission';
@@ -93,16 +93,17 @@ function normalizeFilter<T = unknown>(filter: Filter<T> | null | undefined): Fil
 }
 
 export async function resolveIdentifierFilter<T = unknown>(
-  req: Request,
-  identifier: string | Function | undefined,
+  req: AccessRouterBaseRequest,
+  idField: string | undefined,
+  resolveIdFilter: ((this: AccessRouterBaseRequest, id: string) => Promise<Filter<T>> | Filter<T>) | undefined,
   id: string,
 ): Promise<Filter<T>> {
-  if (isString(identifier)) {
-    return { [identifier]: id } as Filter<T>;
+  if (isFunction(resolveIdFilter)) {
+    return (await resolveIdFilter.call(req, id)) as Filter<T>;
   }
 
-  if (isFunction(identifier)) {
-    return (await identifier.call(req, id)) as Filter<T>;
+  if (isString(idField)) {
+    return { [idField]: id } as Filter<T>;
   }
 
   return { _id: id } as Filter<T>;
@@ -117,7 +118,7 @@ export async function resolveAccessFilter<T = unknown>({
   filter = null,
   getOption,
 }: {
-  req: Request;
+  req: AccessRouterBaseRequest;
   permissions: Permissions;
   cache: Cache<string, unknown>;
   cacheKey: string;
@@ -153,12 +154,12 @@ export async function resolveAccessFilter<T = unknown>({
   return optimizeAndFilter<T>([baseFilter, nextFilter]);
 }
 
-export function getRequestPermissions(req: Request) {
+export function getRequestPermissions(req: AccessRouterBaseRequest) {
   const requestPermissionField = getGlobalOption('requestPermissionField');
   return new Permission(req[requestPermissionField] || {});
 }
 
-export async function setRequestPermissions(req: Request) {
+export async function setRequestPermissions(req: AccessRouterBaseRequest) {
   const requestPermissionField = getGlobalOption('requestPermissionField');
   if (req[requestPermissionField]) return;
 
@@ -171,7 +172,11 @@ export async function setRequestPermissions(req: Request) {
   else if (isString(permissions)) req[requestPermissionField] = { [permissions]: true };
 }
 
-export async function evaluateRouteGuard(req: Request, permissions: Permissions, routeGuard: Validation) {
+export async function evaluateRouteGuard(
+  req: AccessRouterBaseRequest,
+  permissions: Permissions,
+  routeGuard: Validation,
+) {
   const phas = (key) => permissions.has(key);
   const { stringHandler, arrayHandler } = createValidator(phas);
 
@@ -195,7 +200,7 @@ export async function evaluateRouteGuard(req: Request, permissions: Permissions,
 }
 
 export async function callHookChain<TDoc, TContext>(
-  req: Request,
+  req: AccessRouterBaseRequest,
   hook: Function | Function[],
   doc: TDoc,
   permissions: Permissions,
@@ -219,7 +224,7 @@ export async function collectSchemaFields({
   hasPermission,
   functionArgs = [],
 }: {
-  req: Request;
+  req: AccessRouterBaseRequest;
   permissionSchema: Record<string, unknown> | null | undefined;
   access: string;
   baseFields?: string[];

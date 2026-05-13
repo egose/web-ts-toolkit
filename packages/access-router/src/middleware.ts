@@ -3,13 +3,13 @@ import JsonRouter from '@web-ts-toolkit/express-json-router';
 import { isArray, isFunction, isPlainObject, isString } from '@web-ts-toolkit/utils';
 import { setCore } from './core';
 import Permission from './permission';
-import { Request } from './interfaces';
+import { AccessRouterBaseRequest, GuardHook, ModelRequest } from './interfaces';
 import { createValidator, getDocPermissions } from './helpers';
 import { getModelOption } from './options';
 import { PERMISSIONS } from './symbols';
 
 export default function macl() {
-  return async function (req: Request, res: Response, next: NextFunction) {
+  return async function (req: AccessRouterBaseRequest, res: Response, next: NextFunction) {
     await setCore(req, res, next);
   };
 }
@@ -27,11 +27,11 @@ export interface GuardModelCondition {
 
 export function guard(condition: string);
 export function guard(conditions: string[]);
-export function guard(conditionFunc: Function);
+export function guard(conditionFunc: GuardHook<ModelRequest>);
 export function guard(modelCondition: GuardModelCondition);
 
 export function guard(condition: unknown) {
-  return async (req: Request, _res: Response, next: NextFunction) => {
+  return async (req: ModelRequest, _res: Response, next: NextFunction) => {
     const permissions = req[PERMISSIONS] as Permission;
     let cond = condition;
     let phas = (key) => permissions.has(key);
@@ -39,7 +39,7 @@ export function guard(condition: unknown) {
     if (isPlainObject(condition)) {
       const { modelName, id, condition: _cond } = condition as unknown as GuardModelCondition;
       const svc = req.macl.getPublicService(modelName);
-      const select = getModelOption(modelName, `mandatoryFields.read`, undefined);
+      const select = getModelOption(modelName, `alwaysSelectFields.read`, undefined);
 
       let _id: string | null = isString(id) ? id : null;
       if (isPlainObject(id)) {

@@ -20,7 +20,7 @@ import acl from '@web-ts-toolkit/access-router';
 
 const router = acl.createDataRouter('fruit', {
   basePath: '/fruit',
-  identifier: 'id',
+  idField: 'id',
   data: [{ id: 'apple', name: 'Apple', public: true }],
 });
 ```

@@ -23,8 +23,8 @@ import {
   Include,
   ListResult,
   MiddlewareContext,
+  ModelRequest,
   Populate,
-  Request,
   Projection,
   SelectAccess,
   DocPermissionsAccess,
@@ -34,7 +34,6 @@ import {
   PrepareAccess,
   TransformAccess,
   AfterPersistAccess,
-  DeleteAccess,
   BaseFilterAccess,
   SingleResult,
   ServiceResult,
@@ -72,10 +71,10 @@ export function validateClientFilter(filter: Filter | null | undefined): string[
 }
 
 export class Base<TModel = unknown> {
-  req: Request;
+  req: ModelRequest;
   modelName: string;
 
-  constructor(req: Request, modelName: string) {
+  constructor(req: ModelRequest, modelName: string) {
     this.req = req;
     this.modelName = modelName;
   }
@@ -178,12 +177,12 @@ export class Base<TModel = unknown> {
     return this.req.macl.changes(this.modelName, doc, context);
   }
 
-  public beforeDelete<T>(doc: T, access: DeleteAccess, context: MiddlewareContext): Promise<void> {
-    return this.req.macl.beforeDelete(this.modelName, doc, access, context);
+  public beforeDelete<T>(doc: T, context: MiddlewareContext): Promise<void> {
+    return this.req.macl.beforeDelete(this.modelName, doc, context);
   }
 
-  public afterDelete<T>(doc: T, access: DeleteAccess, context: MiddlewareContext): Promise<void> {
-    return this.req.macl.afterDelete(this.modelName, doc, access, context);
+  public afterDelete<T>(doc: T, context: MiddlewareContext): Promise<void> {
+    return this.req.macl.afterDelete(this.modelName, doc, context);
   }
 
   public validate(
@@ -195,7 +194,10 @@ export class Base<TModel = unknown> {
   }
 
   public checkIfModelPermissionExists(accesses: DocPermissionsAccess[]) {
-    const modelPermissionKeys = getModelOption(this.modelName, '_modelPermissionKeys');
+    const modelPermissionKeys = getModelOption(this.modelName, '_modelPermissionKeys' as never) as Record<
+      string,
+      string[]
+    >;
     return accesses.some((access) => modelPermissionKeys[access]?.length > 0);
   }
 

@@ -13,7 +13,7 @@ import {
   RootRouterOptions,
   Validation,
   RootQueryEntry,
-  Request,
+  ModelRequest,
   SingleResult,
   ServiceResult,
   RouteGuardAccess,
@@ -28,13 +28,13 @@ const ALL_ROUTES = ['new', 'list', 'read', 'update', 'delete', 'create', 'distin
 export class RootRouter {
   router: JsonRouter;
   basename: string;
-  routeGuard: Validation;
+  operationAccess: Validation;
 
-  constructor(options: RootRouterOptions = { basePath: '', routeGuard: true }) {
-    const { basePath, routeGuard } = options;
+  constructor(options: RootRouterOptions = { basePath: '', operationAccess: true }) {
+    const { basePath, operationAccess } = options;
 
     this.basename = basePath || '';
-    this.routeGuard = routeGuard;
+    this.operationAccess = operationAccess;
     this.router = new JsonRouter(this.basename, setCore, accessRouterResponseHandler);
     this.setRoutes();
   }
@@ -57,7 +57,7 @@ export class RootRouter {
     return { success, code, data, message, statusCode, op };
   }
 
-  private async processOp(req: Request, item: RootQueryEntry) {
+  private async processOp(req: ModelRequest, item: RootQueryEntry) {
     if (!mongoose.models[item.model]) {
       return { success: false, code: Codes.BadRequest, data: null, message: `Model ${item.model} not found` };
     }
@@ -67,8 +67,8 @@ export class RootRouter {
     if (!ALL_ROUTES.includes(item.op))
       return { success: false, code: Codes.BadRequest, data: null, message: `Operation ${item.op} not found` };
 
-    const routeGuard = getModelOption(item.model, `routeGuard.${item.op as RouteGuardAccess}`) as Validation;
-    const allowed = await req.macl.canActivate(routeGuard);
+    const operationAccess = getModelOption(item.model, `operationAccess.${item.op as RouteGuardAccess}`) as Validation;
+    const allowed = await req.macl.canActivate(operationAccess);
     if (!allowed) return { success: false, code: Codes.Unauthorized, data: null, message: 'Unauthorized' };
 
     if (item.op === 'list') {
@@ -115,13 +115,13 @@ export class RootRouter {
     }, []);
   }
 
-  private async assertAllowed(req: Request) {
-    const allowed = await req.macl.canActivate(this.routeGuard);
+  private async assertAllowed(req: ModelRequest) {
+    const allowed = await req.macl.canActivate(this.operationAccess);
     if (!allowed) throw new clientErrors.UnauthorizedError();
   }
 
   private setRoutes() {
-    this.router.post('', async (req: Request) => {
+    this.router.post('', async (req: ModelRequest) => {
       await this.assertAllowed(req);
 
       const items: RootQueryEntry[] = parseBody(rootQuerySchema, req.body).map((item) => ({

@@ -11,7 +11,7 @@ import { handleResultError } from '../helpers';
 import {
   ModelRouterOptions,
   ExtendedModelRouterOptions,
-  Request,
+  ModelRequest,
   Filter,
   BaseFilterAccess,
   SubPopulate,
@@ -56,16 +56,16 @@ import {
 const clientErrors = JsonRouter.clientErrors;
 const success = JsonRouter.success;
 
-type SetTargetOption = {
-  (option: unknown): ModelRouter<unknown>;
-  (key: string, option: unknown): ModelRouter<unknown>;
+type SetTargetOption<TRouter, TOption> = {
+  (option: TOption): TRouter;
+  (key: string, option: unknown): TRouter;
 };
 
-function setOption(this: ModelRouter<unknown>, parentKey: string, optionKey: unknown, option?: unknown) {
+function setOption<TModel>(this: ModelRouter<TModel>, parentKey: string, optionKey: unknown, option?: unknown) {
   const key = isUndefined(option) ? parentKey : `${parentKey}.${optionKey}`;
   const value = isUndefined(option) ? optionKey : option;
 
-  setModelOption(this.modelName, key as keyof ExtendedModelRouterOptions<unknown>, value);
+  setModelOption(this.modelName, key as keyof ExtendedModelRouterOptions<TModel>, value);
   return this;
 }
 
@@ -97,15 +97,15 @@ export class ModelRouter<TModel = unknown> {
     ) as z.ZodTypeAny | undefined;
   }
 
-  getService(req: Request): Service<TModel> {
+  getService(req: ModelRequest): Service<TModel> {
     return req.macl.getService<TModel>(this.modelName);
   }
 
-  getPublicService(req: Request): PublicService<TModel> {
+  getPublicService(req: ModelRequest): PublicService<TModel> {
     return req.macl.getPublicService<TModel>(this.modelName);
   }
 
-  private async assertAllowed(req: Request, access: string) {
+  private async assertAllowed(req: ModelRequest, access: string) {
     const allowed = await req.macl.isAllowed(this.modelName, access);
     if (!allowed) throw new clientErrors.UnauthorizedError();
   }
@@ -117,7 +117,7 @@ export class ModelRouter<TModel = unknown> {
     //////////
     // LIST //
     //////////
-    this.router.get('', async (req: Request) => {
+    this.router.get('', async (req: ModelRequest) => {
       await this.assertAllowed(req, 'list');
 
       const { skip, limit, page, page_size, skim, include_permissions, include_count, include_extra_headers } =
@@ -146,7 +146,7 @@ export class ModelRouter<TModel = unknown> {
     /////////////////////
     // LIST - Advanced //
     /////////////////////
-    this.router.post(`/${this.options.queryPath}`, async (req: Request) => {
+    this.router.post(`/${this.options.queryRouteSegment}`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'list');
 
       // @Deprecated option 'query'
@@ -181,7 +181,7 @@ export class ModelRouter<TModel = unknown> {
     ////////////
     // CREATE //
     ////////////
-    this.router.post('', async (req: Request, res) => {
+    this.router.post('', async (req: ModelRequest, res) => {
       await this.assertAllowed(req, 'create');
 
       const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
@@ -198,7 +198,7 @@ export class ModelRouter<TModel = unknown> {
     ///////////////////////
     // CREATE - Advanced //
     ///////////////////////
-    this.router.post(`/${this.options.mutationPath}`, async (req: Request, res) => {
+    this.router.post(`/${this.options.mutationRouteSegment}`, async (req: ModelRequest, res) => {
       await this.assertAllowed(req, 'create');
 
       const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
@@ -236,7 +236,7 @@ export class ModelRouter<TModel = unknown> {
     /////////////////
     // NEW - EMPTY //
     /////////////////
-    this.router.get('/new', async (req: Request) => {
+    this.router.get('/new', async (req: ModelRequest) => {
       const svc = this.getPublicService(req);
       const result = await svc._new();
 
@@ -253,7 +253,7 @@ export class ModelRouter<TModel = unknown> {
     ///////////
     // COUNT //
     ///////////
-    this.router.get('/count', async (req: Request) => {
+    this.router.get('/count', async (req: ModelRequest) => {
       await this.assertAllowed(req, 'count');
 
       const svc = this.getPublicService(req);
@@ -264,7 +264,7 @@ export class ModelRouter<TModel = unknown> {
       return result.data;
     });
 
-    this.router.post('/count', async (req: Request) => {
+    this.router.post('/count', async (req: ModelRequest) => {
       await this.assertAllowed(req, 'count');
 
       // @Deprecated option 'query'
@@ -285,7 +285,7 @@ export class ModelRouter<TModel = unknown> {
     //////////
     // READ //
     //////////
-    this.router.get(`/:${this.options.idParam}`, async (req: Request) => {
+    this.router.get(`/:${this.options.idParam}`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'read');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -308,7 +308,7 @@ export class ModelRouter<TModel = unknown> {
     //////////////////////////////
     // READ - Advanced - Filter //
     //////////////////////////////
-    this.router.post(`/${this.options.queryPath}/__filter`, async (req: Request) => {
+    this.router.post(`/${this.options.queryRouteSegment}/__filter`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'read');
 
       const body = parseBodyWithSchema(
@@ -341,7 +341,7 @@ export class ModelRouter<TModel = unknown> {
     /////////////////////
     // READ - Advanced //
     /////////////////////
-    this.router.post(`/${this.options.queryPath}/:${this.options.idParam}`, async (req: Request) => {
+    this.router.post(`/${this.options.queryRouteSegment}/:${this.options.idParam}`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'read');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -374,7 +374,7 @@ export class ModelRouter<TModel = unknown> {
     ////////////
     // UPDATE //
     ////////////
-    this.router.patch(`/:${this.options.idParam}`, async (req: Request) => {
+    this.router.patch(`/:${this.options.idParam}`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'update');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -392,7 +392,7 @@ export class ModelRouter<TModel = unknown> {
     ///////////////////////
     // UPDATE - Advanced //
     ///////////////////////
-    this.router.patch(`/${this.options.mutationPath}/:${this.options.idParam}`, async (req: Request) => {
+    this.router.patch(`/${this.options.mutationRouteSegment}/:${this.options.idParam}`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'update');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -433,12 +433,12 @@ export class ModelRouter<TModel = unknown> {
     ////////////
     // UPSERT //
     ////////////
-    this.router.put(`/`, async (req: Request) => {
+    this.router.put(`/`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'upsert');
 
       const svc = this.getPublicService(req);
       const idKey = svc.getIdentifier();
-      if (idKey !== '_id') throw new clientErrors.BadRequestError('not supported identifier');
+      if (idKey !== '_id') throw new clientErrors.BadRequestError('not supported custom id field');
 
       const { returning_all, include_permissions } = parseQuery(requestSchemas.upsertQuery, req.query);
       const body = parseBodyWithSchema(upsertBodySchema, req.body, this.getRequestSchema('requestSchemas.upsert'));
@@ -465,12 +465,12 @@ export class ModelRouter<TModel = unknown> {
     ///////////////////////
     // UPSERT - Advanced //
     ///////////////////////
-    this.router.put(`/${this.options.mutationPath}`, async (req: Request) => {
+    this.router.put(`/${this.options.mutationRouteSegment}`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'upsert');
 
       const svc = this.getPublicService(req);
       const idKey = svc.getIdentifier();
-      if (idKey !== '_id') throw new clientErrors.BadRequestError('not supported identifier');
+      if (idKey !== '_id') throw new clientErrors.BadRequestError('not supported custom id field');
 
       const { returning_all, include_permissions } = parseQuery(requestSchemas.upsertQuery, req.query);
       const body = parseNestedBodyWithSchema(
@@ -527,7 +527,7 @@ export class ModelRouter<TModel = unknown> {
     ////////////
     // DELETE //
     ////////////
-    this.router.delete(`/:${this.options.idParam}`, async (req: Request) => {
+    this.router.delete(`/:${this.options.idParam}`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'delete');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -542,7 +542,7 @@ export class ModelRouter<TModel = unknown> {
     //////////////
     // DISTINCT //
     //////////////
-    this.router.get('/distinct/:field', async (req: Request) => {
+    this.router.get('/distinct/:field', async (req: ModelRequest) => {
       await this.assertAllowed(req, 'distinct');
 
       const field = parsePathParam(req.params.field, 'field');
@@ -554,7 +554,7 @@ export class ModelRouter<TModel = unknown> {
       return result.data;
     });
 
-    this.router.post('/distinct/:field', async (req: Request) => {
+    this.router.post('/distinct/:field', async (req: ModelRequest) => {
       await this.assertAllowed(req, 'distinct');
 
       const field = parsePathParam(req.params.field, 'field');
@@ -586,7 +586,7 @@ export class ModelRouter<TModel = unknown> {
       //////////
       // LIST //
       //////////
-      this.router.get(`/:${this.options.idParam}/${sub}`, async (req: Request) => {
+      this.router.get(`/:${this.options.idParam}/${sub}`, async (req: ModelRequest) => {
         await this.assertAllowed(req, `subs.${sub}.list`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -600,26 +600,29 @@ export class ModelRouter<TModel = unknown> {
       /////////////////////
       // LIST - Advanced //
       /////////////////////
-      this.router.post(`/:${this.options.idParam}/${sub}/${this.options.queryPath}`, async (req: Request) => {
-        await this.assertAllowed(req, `subs.${sub}.list`);
+      this.router.post(
+        `/:${this.options.idParam}/${sub}/${this.options.queryRouteSegment}`,
+        async (req: ModelRequest) => {
+          await this.assertAllowed(req, `subs.${sub}.list`);
 
-        const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
-        const body = parseBodyWithSchema(
-          subListBodySchema,
-          req.body,
-          this.getRequestSchema('requestSchemas.subList'),
-        ) as SubListBody;
-        const svc = this.getPublicService(req);
-        const result = await svc.listSub(id, sub, { filter: body.filter ?? {}, fields: body.fields ?? [] });
+          const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
+          const body = parseBodyWithSchema(
+            subListBodySchema,
+            req.body,
+            this.getRequestSchema('requestSchemas.subList'),
+          ) as SubListBody;
+          const svc = this.getPublicService(req);
+          const result = await svc.listSub(id, sub, { filter: body.filter ?? {}, fields: body.fields ?? [] });
 
-        handleResultError(result);
-        return result.data;
-      });
+          handleResultError(result);
+          return result.data;
+        },
+      );
 
       /////////////////
       // BULK UPDATE //
       /////////////////
-      this.router.patch(`/:${this.options.idParam}/${sub}`, async (req: Request) => {
+      this.router.patch(`/:${this.options.idParam}/${sub}`, async (req: ModelRequest) => {
         await this.assertAllowed(req, `subs.${sub}.update`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -638,7 +641,7 @@ export class ModelRouter<TModel = unknown> {
       //////////
       // READ //
       //////////
-      this.router.get(`/:${this.options.idParam}/${sub}/:subId`, async (req: Request) => {
+      this.router.get(`/:${this.options.idParam}/${sub}/:subId`, async (req: ModelRequest) => {
         await this.assertAllowed(req, `subs.${sub}.read`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -653,33 +656,36 @@ export class ModelRouter<TModel = unknown> {
       /////////////////////
       // READ - Advanced //
       /////////////////////
-      this.router.post(`/:${this.options.idParam}/${sub}/:subId/${this.options.queryPath}`, async (req: Request) => {
-        await this.assertAllowed(req, `subs.${sub}.read`);
+      this.router.post(
+        `/:${this.options.idParam}/${sub}/:subId/${this.options.queryRouteSegment}`,
+        async (req: ModelRequest) => {
+          await this.assertAllowed(req, `subs.${sub}.read`);
 
-        const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
-        const subId = parsePathParam(req.params.subId, 'subId');
-        const body = parseBodyWithSchema(
-          subReadBodySchema,
-          req.body,
-          this.getRequestSchema('requestSchemas.subRead'),
-        ) as SubReadBody;
-        const populate = body.populate;
-        const normalizedPopulate: SubPopulate | SubPopulate[] = Array.isArray(populate)
-          ? populate.map((item) => (isString(item) ? { path: item } : item))
-          : isString(populate)
-            ? { path: populate }
-            : (populate ?? []);
-        const svc = this.getPublicService(req);
-        const result = await svc.readSub(id, sub, subId, { fields: body.fields ?? [], populate: normalizedPopulate });
+          const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
+          const subId = parsePathParam(req.params.subId, 'subId');
+          const body = parseBodyWithSchema(
+            subReadBodySchema,
+            req.body,
+            this.getRequestSchema('requestSchemas.subRead'),
+          ) as SubReadBody;
+          const populate = body.populate;
+          const normalizedPopulate: SubPopulate | SubPopulate[] = Array.isArray(populate)
+            ? populate.map((item) => (isString(item) ? { path: item } : item))
+            : isString(populate)
+              ? { path: populate }
+              : (populate ?? []);
+          const svc = this.getPublicService(req);
+          const result = await svc.readSub(id, sub, subId, { fields: body.fields ?? [], populate: normalizedPopulate });
 
-        handleResultError(result);
-        return result.data;
-      });
+          handleResultError(result);
+          return result.data;
+        },
+      );
 
       ////////////
       // UPDATE //
       ////////////
-      this.router.patch(`/:${this.options.idParam}/${sub}/:subId`, async (req: Request) => {
+      this.router.patch(`/:${this.options.idParam}/${sub}/:subId`, async (req: ModelRequest) => {
         await this.assertAllowed(req, `subs.${sub}.update`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -699,7 +705,7 @@ export class ModelRouter<TModel = unknown> {
       ////////////
       // CREATE //
       ////////////
-      this.router.post(`/:${this.options.idParam}/${sub}`, async (req: Request) => {
+      this.router.post(`/:${this.options.idParam}/${sub}`, async (req: ModelRequest) => {
         await this.assertAllowed(req, `subs.${sub}.create`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -719,7 +725,7 @@ export class ModelRouter<TModel = unknown> {
       ////////////
       // DELETE //
       ////////////
-      this.router.delete(`/:${this.options.idParam}/${sub}/:subId`, async (req: Request) => {
+      this.router.delete(`/:${this.options.idParam}/${sub}/:subId`, async (req: ModelRequest) => {
         await this.assertAllowed(req, `subs.${sub}.delete`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -739,6 +745,8 @@ export class ModelRouter<TModel = unknown> {
     });
   }
 
+  set<K extends keyof ExtendedModelRouterOptions<TModel>>(key: K, value: ExtendedModelRouterOptions<TModel>[K]): this;
+  set(options: ModelRouterOptions<TModel>): this;
   set<K extends keyof ExtendedModelRouterOptions<TModel>>(
     keyOrOptions: K | ModelRouterOptions<TModel>,
     value?: unknown,
@@ -767,45 +775,57 @@ export class ModelRouter<TModel = unknown> {
   /**
    * The maximum limit of the number of documents returned from the `list` operation.
    */
-  public listHardLimit: SetTargetOption = setOption.bind(this, 'listHardLimit');
+  public listHardLimit: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['listHardLimit']> =
+    setOption.bind(this, 'listHardLimit');
 
   /**
    * The object schema to define the access control policy for each model field.
    */
-  public permissionSchema: SetTargetOption = setOption.bind(this, 'permissionSchema');
+  public permissionSchema: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['permissionSchema']> =
+    setOption.bind(this, 'permissionSchema');
 
   /**
    * The object field to store the document permissions.
    */
-  public documentPermissionField: SetTargetOption = setOption.bind(this, 'documentPermissionField');
+  public documentPermissionField: SetTargetOption<
+    ModelRouter<TModel>,
+    ModelRouterOptions<TModel>['documentPermissionField']
+  > = setOption.bind(this, 'documentPermissionField');
 
   /**
-   * The essential model fields involved in generating document permissions.
+   * The model fields always selected for ACL and response shaping.
    */
-  public mandatoryFields: SetTargetOption = setOption.bind(this, 'mandatoryFields');
+  public alwaysSelectFields: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['alwaysSelectFields']> =
+    setOption.bind(this, 'alwaysSelectFields');
 
   /**
    * The function called in the process of generating document permissions.
    */
-  public docPermissions: SetTargetOption = setOption.bind(this, 'docPermissions');
+  public docPermissions: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['docPermissions']> =
+    setOption.bind(this, 'docPermissions');
 
   /**
-   * The access control policy for CRUDL endpoints.
+   * The access control policy for router operations.
    * @operation `create`, `list`, `read`, `update`, `delete`
    */
-  public routeGuard: SetTargetOption = setOption.bind(this, 'routeGuard');
+  public operationAccess: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['operationAccess']> =
+    setOption.bind(this, 'operationAccess');
 
   /**
    * The base filter definitions applied in every query transaction.
    * @operation `list`, `read`, `update`, `delete`
    */
-  public baseFilter: SetTargetOption = setOption.bind(this, 'baseFilter');
+  public baseFilter: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['baseFilter']> = setOption.bind(
+    this,
+    'baseFilter',
+  );
 
   /**
    * The override filter definitions applied in every query transaction.
    * @operation `list`, `read`, `update`, `delete`
    */
-  public overrideFilter: SetTargetOption = setOption.bind(this, 'overrideFilter');
+  public overrideFilter: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['overrideFilter']> =
+    setOption.bind(this, 'overrideFilter');
 
   /**
    * Hook
@@ -813,7 +833,10 @@ export class ModelRouter<TModel = unknown> {
    * The function called before a new/update document data is processed in `prepare` hooks. This method is used to validate `write data` and throw an error if not valid.
    * @operation `create`, `update`
    */
-  public validate: SetTargetOption = setOption.bind(this, 'validate');
+  public validate: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['validate']> = setOption.bind(
+    this,
+    'validate',
+  );
 
   /**
    * Hook
@@ -821,7 +844,10 @@ export class ModelRouter<TModel = unknown> {
    * The function called before a new document is created or an existing document is updated. This method is used to process raw data passed into the API endpoints.
    * @operation `create`, `update`
    */
-  public prepare: SetTargetOption = setOption.bind(this, 'prepare');
+  public prepare: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['prepare']> = setOption.bind(
+    this,
+    'prepare',
+  );
 
   /**
    * Hook
@@ -829,7 +855,10 @@ export class ModelRouter<TModel = unknown> {
    * The function called before an updated document is saved.
    * @operation `update`
    */
-  public transform: SetTargetOption = setOption.bind(this, 'transform');
+  public transform: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['transform']> = setOption.bind(
+    this,
+    'transform',
+  );
 
   /**
    * Hook
@@ -837,15 +866,19 @@ export class ModelRouter<TModel = unknown> {
    * The function called after a new document is created or an updated document is saved.
    * @operation `create`, `update`
    */
-  public afterPersist: SetTargetOption = setOption.bind(this, 'afterPersist');
+  public afterPersist: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['afterPersist']> =
+    setOption.bind(this, 'afterPersist');
 
   /**
    * Hook
    *
-   * The function called after a updated document finalized
+   * The function called after an updated document changes have been finalized.
    * @operation `update`
    */
-  public change: SetTargetOption = setOption.bind(this, 'change');
+  public onChange: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['onChange']> = setOption.bind(
+    this,
+    'onChange',
+  );
 
   /**
    * Hook
@@ -853,7 +886,8 @@ export class ModelRouter<TModel = unknown> {
    * The function called before a document is deleted.
    * @operation `delete`
    */
-  public beforeDelete: SetTargetOption = setOption.bind(this, 'beforeDelete');
+  public beforeDelete: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['beforeDelete']> =
+    setOption.bind(this, 'beforeDelete');
 
   /**
    * Hook
@@ -861,7 +895,10 @@ export class ModelRouter<TModel = unknown> {
    * The function called after a document is deleted.
    * @operation `delete`
    */
-  public afterDelete: SetTargetOption = setOption.bind(this, 'afterDelete');
+  public afterDelete: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['afterDelete']> = setOption.bind(
+    this,
+    'afterDelete',
+  );
 
   /**
    * Hook
@@ -869,7 +906,10 @@ export class ModelRouter<TModel = unknown> {
    * The function called before response data is sent. This method is used to process raw data to apply custom logic before sending the result.
    * @operation `list`, `read`, `create`, `update`
    */
-  public decorate: SetTargetOption = setOption.bind(this, 'decorate');
+  public decorate: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['decorate']> = setOption.bind(
+    this,
+    'decorate',
+  );
 
   /**
    * Hook
@@ -877,19 +917,48 @@ export class ModelRouter<TModel = unknown> {
    * The functions are called before response data is sent and after `decorate` hooks run. This method is used to process and filter multiple document objects before sending the result.
    * @operation `list`
    */
-  public decorateAll: SetTargetOption = setOption.bind(this, 'decorateAll');
+  public decorateAll: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['decorateAll']> = setOption.bind(
+    this,
+    'decorateAll',
+  );
 
   /**
-   * The document selector definition with the `id` param.
-   * @option `string` | `Function`
+   * The field matched against the `id` route param.
    * @operation `read`, `update`, `delete`
    */
-  public identifier: SetTargetOption = setOption.bind(this, 'identifier');
+  public idField: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['idField']> = setOption.bind(
+    this,
+    'idField',
+  );
+
+  /**
+   * The function used to resolve the `id` route param into a document filter.
+   * @operation `read`, `update`, `delete`
+   */
+  public resolveIdFilter: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['resolveIdFilter']> =
+    setOption.bind(this, 'resolveIdFilter');
+
+  /**
+   * The route segment used for advanced query endpoints.
+   */
+  public queryRouteSegment: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['queryRouteSegment']> =
+    setOption.bind(this, 'queryRouteSegment');
+
+  /**
+   * The route segment used for advanced mutation endpoints.
+   */
+  public mutationRouteSegment: SetTargetOption<
+    ModelRouter<TModel>,
+    ModelRouterOptions<TModel>['mutationRouteSegment']
+  > = setOption.bind(this, 'mutationRouteSegment');
 
   /**
    * The default values used when missing in the operations.
    */
-  public defaults: SetTargetOption = setOption.bind(this, 'defaults');
+  public defaults: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['defaults']> = setOption.bind(
+    this,
+    'defaults',
+  );
 
   get routes(): Router {
     return this.router.original;

@@ -17,7 +17,7 @@ const resetGlobalOptions = () => {
   });
 };
 
-const createRootRouterApp = async (rootRouteGuard: true | string = true) => {
+const createRootRouterApp = async (rootOperationAccess: true | string = true) => {
   const modelName = `AclMongoRootUser${++modelCounter}`;
   const schema = new mongoose.Schema({
     name: String,
@@ -38,10 +38,10 @@ const createRootRouterApp = async (rootRouteGuard: true | string = true) => {
 
   acl.createRouter(modelName, {
     basePath: '/users',
-    identifier(id: string) {
+    resolveIdFilter(id: string) {
       return { name: id };
     },
-    routeGuard: {
+    operationAccess: {
       list: true,
       read: true,
       count: 'isAdmin',
@@ -56,7 +56,7 @@ const createRootRouterApp = async (rootRouteGuard: true | string = true) => {
 
   const rootRouter = acl.createRouter({
     basePath: '/root',
-    routeGuard: rootRouteGuard,
+    operationAccess: rootOperationAccess,
   });
 
   await User.create([

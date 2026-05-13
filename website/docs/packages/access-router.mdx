@@ -25,8 +25,8 @@ acl.set('globalPermissions', (req) => {
 const router = acl.createDataRouter('fruit', {
   basePath: '/fruit',
   data: [{ id: 'apple', name: 'Apple', public: true }],
-  identifier: 'id',
-  routeGuard: {
+  idField: 'id',
+  operationAccess: {
     list: true,
     read: true,
   },
@@ -106,7 +106,7 @@ type Fruit = {
 
 const fruitRouter = acl.createDataRouter<Fruit>('fruit', {
   basePath: '/fruit',
-  identifier: 'id',
+  idField: 'id',
   data: [{ id: 'apple', name: 'Apple', stock: 12, public: true }],
 });
 
@@ -341,7 +341,7 @@ import acl from '@web-ts-toolkit/access-router';
 
 const router = acl.createRouter('User', {
   basePath: '/users',
-  identifier: 'name',
+  idField: 'name',
   requestSchemas: {
     create: z.object({
       name: z.string().min(3),
@@ -412,19 +412,19 @@ These helpers throw the same `BadRequestError` shape as the built-in router endp
 
 Model router hooks are grouped by lifecycle phase:
 
-- access and query shaping: `routeGuard`, `overrideFilter`, `baseFilter`
+- access and query shaping: `operationAccess`, `overrideFilter`, `baseFilter`
 - pre-write: `validate`, `prepare`, `transform`
 - post-persist: `afterPersist`
-- update diff side effects: `change`
+- update diff side effects: `onChange`
 - delete lifecycle: `beforeDelete`, `afterDelete`
 - response shaping: `docPermissions`, `decorate`, `decorateAll`
 
 Effective model-router flows:
 
-- create: `routeGuard -> validate -> prepare -> create -> afterPersist -> docPermissions -> decorate`
-- update: `routeGuard -> overrideFilter/baseFilter -> validate -> prepare -> transform -> save -> afterPersist -> change -> docPermissions -> decorate`
-- delete: `routeGuard -> overrideFilter/baseFilter -> beforeDelete -> delete -> afterDelete`
-- read/list: `routeGuard -> overrideFilter/baseFilter -> docPermissions -> decorate -> decorateAll`
+- create: `operationAccess -> validate -> prepare -> create -> afterPersist -> docPermissions -> decorate`
+- update: `operationAccess -> overrideFilter/baseFilter -> validate -> prepare -> transform -> save -> afterPersist -> onChange -> docPermissions -> decorate`
+- delete: `operationAccess -> overrideFilter/baseFilter -> beforeDelete -> delete -> afterDelete`
+- read/list: `operationAccess -> overrideFilter/baseFilter -> docPermissions -> decorate -> decorateAll`
 
 ## Hook Signatures
 
@@ -571,10 +571,8 @@ acl.createModelRouter('Post', {
       return doc;
     },
   },
-  afterDelete: {
-    delete(this, doc) {
-      console.log('deleted', doc);
-    },
+  afterDelete(this, doc) {
+    console.log('deleted', doc);
   },
   decorate: {
     read(this, doc) {

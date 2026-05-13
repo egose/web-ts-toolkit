@@ -6,7 +6,8 @@ import {
   Filter,
   DataMiddlewareContext,
   Validation,
-  Request,
+  AccessRouterBaseRequest,
+  DataRequest,
   SelectAccess,
   RouteGuardAccess,
   BaseFilterAccess,
@@ -29,21 +30,24 @@ import {
 } from './core-shared';
 
 export class DataCore {
-  private req: Request;
+  private req: DataRequest;
   private caches: {
     baseFilter: Cache<string, Filter>;
   };
 
-  constructor(req: Request) {
-    this.req = req;
+  constructor(req: AccessRouterBaseRequest) {
+    this.req = req as DataRequest;
     this.caches = {
       baseFilter: new Cache<string, Filter>(),
     };
   }
 
   async genIDFilter<TData = unknown>(dataName: string, id: string): Promise<Filter<TData>> {
-    const identifier = getDataOption(dataName, 'identifier');
-    return resolveIdentifierFilter<TData>(this.req, identifier, id);
+    const idField = getDataOption(dataName, 'idField') as string | undefined;
+    const resolveIdFilter = getDataOption(dataName, 'resolveIdFilter') as
+      | ((this: DataRequest, id: string) => Filter<TData> | Promise<Filter<TData>>)
+      | undefined;
+    return resolveIdentifierFilter<TData>(this.req, idField, resolveIdFilter, id);
   }
 
   async genFilter<TData = unknown>(
@@ -148,8 +152,8 @@ export class DataCore {
   }
 
   async isAllowed(dataName: string, access: RouteGuardAccess | string) {
-    const routeGuard = getDataOption(dataName, `routeGuard.${access}`) as Validation;
-    return this.canActivate(routeGuard);
+    const operationAccess = getDataOption(dataName, `operationAccess.${access}`) as Validation;
+    return this.canActivate(operationAccess);
   }
 
   getService<TData = unknown>(dataName: string) {
@@ -169,7 +173,7 @@ export class DataCore {
   }
 }
 
-export async function setDataCore(req: Request, _res: Response, next: NextFunction) {
+export async function setDataCore(req: AccessRouterBaseRequest, _res: Response, next: NextFunction) {
   if (req[DATA_MIDDLEWARE]) return next();
 
   const core = new DataCore(req);

@@ -1,12 +1,18 @@
 import express from 'express';
 import mongoose, { Document } from 'mongoose';
 import { Diff } from 'deep-diff';
+import type { AccessRouterPermissions } from '../permission';
 import { Core } from '../core';
 import { DataCore } from '../core-data';
 import { Codes } from '../enums';
 import type { AccessRouterRequest } from './root';
 
-export type Validation = boolean | string | string[] | Function;
+export type GuardHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
+  this: TRequest,
+  permissions: AccessRouterPermissions,
+) => boolean | Promise<boolean>;
+
+export type Validation = boolean | string | string[] | GuardHook;
 
 export interface KeyValueProjection {
   [key: string]: 1 | -1;
@@ -255,7 +261,7 @@ export interface Task {
   options: Record<string, unknown>;
 }
 
-export interface Request extends AccessRouterRequest {
+export interface AccessRouterBaseRequest extends AccessRouterRequest {
   query: Record<
     | 'skip'
     | 'limit'
@@ -269,9 +275,17 @@ export interface Request extends AccessRouterRequest {
     | 'returning_all',
     string
   >;
+}
+
+export interface ModelRequest extends AccessRouterBaseRequest {
   macl: Core;
+}
+
+export interface DataRequest extends AccessRouterBaseRequest {
   dacl: DataCore;
 }
+
+export type Request = AccessRouterBaseRequest;
 
 export interface ErrorResult<TError = unknown, TQuery = unknown> {
   success: false;

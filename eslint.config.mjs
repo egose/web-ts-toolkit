@@ -7,7 +7,7 @@ export default tseslint.config(
     ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'],
   },
   {
-    ignores: ['packages/access-router/_tmp_examples/**'],
+    ignores: ['packages/access-router/_tmp_examples/**', 'website/**'],
   },
   {
     files: ['**/*.{js,mjs,cjs,ts,mts,cts}'],

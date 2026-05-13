@@ -37,8 +37,8 @@ acl.setGlobalOptions({
 
 const fruitRouter = acl.createDataRouter('sample-fruit', {
   basePath: '/fruit',
-  identifier: 'id',
-  routeGuard: {
+  idField: 'id',
+  operationAccess: {
     list: true,
     read: true,
   },
@@ -86,10 +86,10 @@ async function createUserRouter() {
 
   const userRouter = acl.createRouter(UserModel, {
     basePath: '/users',
-    identifier(id: string) {
+    resolveIdFilter(id: string) {
       return { name: id };
     },
-    routeGuard: {
+    operationAccess: {
       list: true,
       read: true,
       create: 'isAdmin',
@@ -116,6 +116,12 @@ async function createUserRouter() {
 
       return doc;
     },
+  });
+
+  userRouter.afterDelete(function (doc, permissions, context) {
+    console.log(doc.name);
+    console.log(permissions.isAdmin);
+    console.log(context.originalDocObject);
   });
 
   const typedService = userRouter.getService({} as express.Request as Parameters<typeof userRouter.getService>[0]);

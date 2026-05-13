@@ -6,7 +6,7 @@ import {
   ErrorResult,
   Filter,
   ListResult,
-  Request,
+  DataRequest,
   Projection,
   SelectedPublicOutput,
   SelectAccess,
@@ -25,12 +25,12 @@ import { Codes } from '../enums';
 import { orderBy, pick } from '@web-ts-toolkit/utils';
 
 export class DataService<T> {
-  req: Request;
+  req: DataRequest;
   dataName: string;
   options: DataRouterOptions<T>;
   data: T[];
 
-  constructor(req: Request, dataName: string) {
+  constructor(req: DataRequest, dataName: string) {
     this.req = req;
     this.dataName = dataName;
     this.options = getDataOptions<T>(dataName);

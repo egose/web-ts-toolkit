@@ -6,7 +6,7 @@ import { setDataCore } from '../core-data';
 import { setDataOption, setDataOptions, getDataOptions, getExactDataOption } from '../options';
 import { processUrl } from '../lib';
 import { handleResultError } from '../helpers';
-import { DataRouterOptions, ExtendedDataRouterOptions, Request, Filter } from '../interfaces';
+import { DataRouterOptions, ExtendedDataRouterOptions, DataRequest, Filter } from '../interfaces';
 import { DataService } from '../services';
 import { formatListResponse, parseBooleanString } from './shared';
 import { accessRouterResponseHandler } from './index';
@@ -22,16 +22,16 @@ import {
 
 const clientErrors = JsonRouter.clientErrors;
 
-type SetTargetOption = {
-  (option: unknown): DataRouter<unknown>;
-  (key: string, option: unknown): DataRouter<unknown>;
+type SetTargetOption<TRouter, TOption> = {
+  (option: TOption): TRouter;
+  (key: string, option: unknown): TRouter;
 };
 
-function setOption(this: DataRouter<unknown>, parentKey: string, optionKey: unknown, option?: unknown) {
+function setOption<TData>(this: DataRouter<TData>, parentKey: string, optionKey: unknown, option?: unknown) {
   const key = isUndefined(option) ? parentKey : `${parentKey}.${optionKey}`;
   const value = isUndefined(option) ? optionKey : option;
 
-  setDataOption(this.dataName, key as keyof DataRouterOptions<unknown>, value);
+  setDataOption(this.dataName, key as keyof DataRouterOptions<TData>, value);
   return this;
 }
 
@@ -59,11 +59,11 @@ export class DataRouter<TData = unknown> {
     ) as z.ZodTypeAny | undefined;
   }
 
-  getService(req: Request): DataService<TData> {
+  getService(req: DataRequest): DataService<TData> {
     return req.dacl.getService<TData>(this.dataName);
   }
 
-  private async assertAllowed(req: Request, access: string) {
+  private async assertAllowed(req: DataRequest, access: string) {
     const allowed = await req.dacl.isAllowed(this.dataName, access);
     if (!allowed) throw new clientErrors.UnauthorizedError();
   }
@@ -75,7 +75,7 @@ export class DataRouter<TData = unknown> {
     //////////
     // LIST //
     //////////
-    this.router.get('', async (req: Request) => {
+    this.router.get('', async (req: DataRequest) => {
       await this.assertAllowed(req, 'list');
 
       const { skip, limit, page, page_size, include_count, include_extra_headers } = parseQuery(
@@ -104,7 +104,7 @@ export class DataRouter<TData = unknown> {
     /////////////////////
     // LIST - Advanced //
     /////////////////////
-    this.router.post(`/${this.options.queryPath}`, async (req: Request) => {
+    this.router.post(`/${this.options.queryRouteSegment}`, async (req: DataRequest) => {
       await this.assertAllowed(req, 'list');
 
       let {
@@ -140,7 +140,7 @@ export class DataRouter<TData = unknown> {
     //////////
     // READ //
     //////////
-    this.router.get(`/:${this.options.idParam}`, async (req: Request) => {
+    this.router.get(`/:${this.options.idParam}`, async (req: DataRequest) => {
       await this.assertAllowed(req, 'read');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -155,7 +155,7 @@ export class DataRouter<TData = unknown> {
     //////////////////////////////
     // READ - Advanced - Filter //
     //////////////////////////////
-    this.router.post(`/${this.options.queryPath}/__filter`, async (req: Request) => {
+    this.router.post(`/${this.options.queryRouteSegment}/__filter`, async (req: DataRequest) => {
       await this.assertAllowed(req, 'read');
 
       let { filter, select } = parseBodyWithSchema(
@@ -175,7 +175,7 @@ export class DataRouter<TData = unknown> {
     /////////////////////
     // READ - Advanced //
     /////////////////////
-    this.router.post(`/${this.options.queryPath}/:${this.options.idParam}`, async (req: Request) => {
+    this.router.post(`/${this.options.queryRouteSegment}/:${this.options.idParam}`, async (req: DataRequest) => {
       await this.assertAllowed(req, 'read');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
@@ -194,6 +194,8 @@ export class DataRouter<TData = unknown> {
     });
   }
 
+  set<K extends keyof DataRouterOptions<TData>>(key: K, value: DataRouterOptions<TData>[K]): this;
+  set(options: DataRouterOptions<TData>): this;
   set<K extends keyof DataRouterOptions<TData>>(keyOrOptions: K | DataRouterOptions<TData>, value?: unknown) {
     if (arguments.length === 2 && isString(keyOrOptions)) {
       setDataOption<K, TData>(this.dataName, keyOrOptions as K, value as DataRouterOptions<TData>[K]);
@@ -216,15 +218,37 @@ export class DataRouter<TData = unknown> {
     return this;
   }
 
-  public data: SetTargetOption = setOption.bind(this, 'data');
-  public listHardLimit: SetTargetOption = setOption.bind(this, 'listHardLimit');
-  public permissionSchema: SetTargetOption = setOption.bind(this, 'permissionSchema');
-  public routeGuard: SetTargetOption = setOption.bind(this, 'routeGuard');
-  public baseFilter: SetTargetOption = setOption.bind(this, 'baseFilter');
-  public overrideFilter: SetTargetOption = setOption.bind(this, 'overrideFilter');
-  public decorate: SetTargetOption = setOption.bind(this, 'decorate');
-  public decorateAll: SetTargetOption = setOption.bind(this, 'decorateAll');
-  public identifier: SetTargetOption = setOption.bind(this, 'identifier');
+  public data: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['data']> = setOption.bind(this, 'data');
+  public listHardLimit: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['listHardLimit']> = setOption.bind(
+    this,
+    'listHardLimit',
+  );
+  public permissionSchema: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['permissionSchema']> =
+    setOption.bind(this, 'permissionSchema');
+  public operationAccess: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['operationAccess']> =
+    setOption.bind(this, 'operationAccess');
+  public baseFilter: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['baseFilter']> = setOption.bind(
+    this,
+    'baseFilter',
+  );
+  public overrideFilter: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['overrideFilter']> =
+    setOption.bind(this, 'overrideFilter');
+  public decorate: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['decorate']> = setOption.bind(
+    this,
+    'decorate',
+  );
+  public decorateAll: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['decorateAll']> = setOption.bind(
+    this,
+    'decorateAll',
+  );
+  public idField: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['idField']> = setOption.bind(
+    this,
+    'idField',
+  );
+  public resolveIdFilter: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['resolveIdFilter']> =
+    setOption.bind(this, 'resolveIdFilter');
+  public queryRouteSegment: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['queryRouteSegment']> =
+    setOption.bind(this, 'queryRouteSegment');
 
   get routes(): Router {
     return this.router.original;

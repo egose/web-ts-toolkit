@@ -43,7 +43,7 @@ const createUserApp = ({
 
   const options: Record<string, unknown> = {
     basePath: '/users',
-    routeGuard: {
+    operationAccess: {
       create: 'isAdmin',
     },
     permissionSchema: {
@@ -221,14 +221,14 @@ describe('model router', () => {
     );
 
     acl.setModelOptions(modelName, {
-      identifier: 'name',
+      idField: 'name',
     });
 
     acl.setModelOptions(modelName, {
       basePath: '/users',
     });
 
-    expect(getModelOption(modelName, 'identifier')).toBe('name');
+    expect(getModelOption(modelName, 'idField')).toBe('name');
     expect(getModelOption(modelName, 'basePath')).toBe('/users');
   });
 
@@ -242,16 +242,16 @@ describe('model router', () => {
     );
 
     acl.setModelOptions(modelName, {
-      mandatoryFields: {
+      alwaysSelectFields: {
         default: ['id'],
         create: ['email'],
-      } as unknown as ModelRouterOptions['mandatoryFields'],
-      routeGuard: true,
+      } as unknown as ModelRouterOptions['alwaysSelectFields'],
+      operationAccess: true,
     });
 
-    expect(getModelOption(modelName, 'mandatoryFields.create')).toEqual(['email']);
-    expect(getModelOption(modelName, 'mandatoryFields.read')).toEqual(['id']);
-    expect(getModelOption(modelName, 'routeGuard.list')).toBe(true);
+    expect(getModelOption(modelName, 'alwaysSelectFields.create')).toEqual(['email']);
+    expect(getModelOption(modelName, 'alwaysSelectFields.read')).toEqual(['id']);
+    expect(getModelOption(modelName, 'operationAccess.list')).toBe(true);
   });
 
   it('uses the injected logger for router endpoint logs', () => {
@@ -273,7 +273,7 @@ describe('model router', () => {
 
     acl.createRouter(modelName, {
       basePath: '/users',
-      routeGuard: { list: true, read: true },
+      operationAccess: { list: true, read: true },
       permissionSchema: {
         name: { list: true, read: true },
       },
