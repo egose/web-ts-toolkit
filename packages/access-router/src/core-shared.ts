@@ -17,19 +17,21 @@ import Permission, { Permissions } from './permission';
 
 type OptionGetter = (key: string, defaultValue?: unknown) => unknown;
 
-function isAndFilter(filter: Filter | null | undefined): filter is Record<string, unknown> & { $and: unknown[] } {
+function isAndFilter<T = unknown>(
+  filter: Filter<T> | null | undefined,
+): filter is Record<string, unknown> & { $and: unknown[] } {
   return !!filter && isPlainObject(filter) && Object.keys(filter).length === 1 && isArray(filter.$and);
 }
 
-function isMergeableClause(filter: Filter | null | undefined): filter is Record<string, unknown> {
+function isMergeableClause<T = unknown>(filter: Filter<T> | null | undefined): filter is Record<string, unknown> {
   return !!filter && isPlainObject(filter) && Object.keys(filter).every((key) => !key.startsWith('$'));
 }
 
-function optimizeAndFilter(clausesInput: unknown[]): Filter | null {
+function optimizeAndFilter<T = unknown>(clausesInput: unknown[]): Filter<T> | null {
   const clauses: Record<string, unknown>[] = [];
 
   for (let x = 0; x < clausesInput.length; x++) {
-    const clause = normalizeFilter(clausesInput[x] as Filter | null | undefined);
+    const clause = normalizeFilter<T>(clausesInput[x] as Filter<T> | null | undefined);
     if (clause === false) return false;
     if (!clause) continue;
 
@@ -76,10 +78,10 @@ function optimizeAndFilter(clausesInput: unknown[]): Filter | null {
   if (finalClauses.length === 0) return null;
   if (finalClauses.length === 1) return finalClauses[0];
 
-  return { $and: finalClauses };
+  return { $and: finalClauses } as Filter<T>;
 }
 
-function normalizeFilter(filter: Filter | null | undefined): Filter | null {
+function normalizeFilter<T = unknown>(filter: Filter<T> | null | undefined): Filter<T> | null {
   if (filter === false) return false;
   if (!filter || !isPlainObject(filter) || isEmpty(filter)) return null;
 
@@ -87,22 +89,26 @@ function normalizeFilter(filter: Filter | null | undefined): Filter | null {
     return filter;
   }
 
-  return optimizeAndFilter(filter.$and);
+  return optimizeAndFilter<T>(filter.$and);
 }
 
-export async function resolveIdentifierFilter(req: Request, identifier: string | Function | undefined, id: string) {
+export async function resolveIdentifierFilter<T = unknown>(
+  req: Request,
+  identifier: string | Function | undefined,
+  id: string,
+): Promise<Filter<T>> {
   if (isString(identifier)) {
-    return { [identifier]: id };
+    return { [identifier]: id } as Filter<T>;
   }
 
   if (isFunction(identifier)) {
-    return identifier.call(req, id);
+    return (await identifier.call(req, id)) as Filter<T>;
   }
 
-  return { _id: id };
+  return { _id: id } as Filter<T>;
 }
 
-export async function resolveAccessFilter({
+export async function resolveAccessFilter<T = unknown>({
   req,
   permissions,
   cache,
@@ -116,22 +122,22 @@ export async function resolveAccessFilter({
   cache: Cache<string, unknown>;
   cacheKey: string;
   access?: string;
-  filter?: Filter;
+  filter?: Filter<T>;
   getOption: OptionGetter;
-}): Promise<Filter> {
-  let nextFilter = normalizeFilter(filter);
+}): Promise<Filter<T>> {
+  let nextFilter = normalizeFilter<T>(filter);
 
   const overrideFilterFn = getOption(`overrideFilter.${access}`, null);
   if (isFunction(overrideFilterFn)) {
-    nextFilter = normalizeFilter(await overrideFilterFn.call(req, nextFilter, permissions));
+    nextFilter = normalizeFilter<T>(await overrideFilterFn.call(req, nextFilter, permissions));
   }
 
   const baseFilterFn = getOption(`baseFilter.${access}`, null);
   if (!isFunction(baseFilterFn)) return nextFilter || {};
 
-  const baseFilter = normalizeFilter(
+  const baseFilter = normalizeFilter<T>(
     (cache.has(cacheKey) ? cache.get(cacheKey) : await baseFilterFn.call(req, permissions)) as
-      | Filter
+      | Filter<T>
       | null
       | undefined,
   );
@@ -144,7 +150,7 @@ export async function resolveAccessFilter({
   if (!baseFilter) return nextFilter || {};
   if (!nextFilter) return baseFilter;
 
-  return optimizeAndFilter([baseFilter, nextFilter]);
+  return optimizeAndFilter<T>([baseFilter, nextFilter]);
 }
 
 export function getRequestPermissions(req: Request) {
@@ -188,17 +194,17 @@ export async function evaluateRouteGuard(req: Request, permissions: Permissions,
   return false;
 }
 
-export async function callMiddlewareChain<TDoc, TContext>(
+export async function callHookChain<TDoc, TContext>(
   req: Request,
-  middleware: Function | Function[],
+  hook: Function | Function[],
   doc: TDoc,
   permissions: Permissions,
   context: TContext,
 ): Promise<TDoc> {
-  const middlewares = castArray(middleware);
-  for (let x = 0; x < middlewares.length; x++) {
-    if (isFunction(middlewares[x])) {
-      doc = (await middlewares[x].call(req, doc, permissions, context)) as TDoc;
+  const hooks = castArray(hook);
+  for (let x = 0; x < hooks.length; x++) {
+    if (isFunction(hooks[x])) {
+      doc = (await hooks[x].call(req, doc, permissions, context)) as TDoc;
     }
   }
 

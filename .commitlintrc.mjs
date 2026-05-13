@@ -32,7 +32,7 @@ const Configuration = {
     ],
     'scope-empty': [Severity.OFF, Option.NEVER],
     'scope-min-length': [Severity.ERROR, Option.ALWAYS, 2],
-    'scope-max-length': [Severity.ERROR, Option.ALWAYS, 25],
+    'scope-max-length': [Severity.ERROR, Option.ALWAYS, 30],
   },
   /*
    * Array of functions that return true if commitlint should ignore the given message.

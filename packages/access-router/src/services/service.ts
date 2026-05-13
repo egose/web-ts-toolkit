@@ -68,10 +68,10 @@ import { Codes, StatusCodes } from '../enums';
 import { Base } from './base';
 import { logger } from '../logger';
 
-export class Service extends Base {
+export class Service<TModel = unknown> extends Base<TModel> {
   model: Model;
-  options: ModelRouterOptions;
-  defaults: Defaults;
+  options: ModelRouterOptions<TModel>;
+  defaults: Defaults<TModel>;
   baseFields: string[];
   baseFieldsExt: string[];
 
@@ -79,35 +79,22 @@ export class Service extends Base {
     super(req, modelName);
 
     this.model = new Model(modelName);
-    this.options = getModelOptions(modelName);
+    this.options = getModelOptions<TModel>(modelName);
     this.defaults = this.options.defaults || {};
     this.baseFields = ['_id'];
     this.baseFieldsExt = this.baseFields.concat(this.options.documentPermissionField);
   }
 
   public async findOne(
-    filter: Filter,
-    args?: FindOneArgs,
+    filter: Filter<TModel>,
+    args?: FindOneArgs<TModel>,
     options?: FindOneOptions,
-  ): Promise<SingleResult | ErrorResult> {
+  ): Promise<SingleResult<TModel> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
 
-    const {
-      select = this.defaults.findOneArgs?.select,
-      sort = this.defaults.findOneArgs?.sort,
-      populate = this.defaults.findOneArgs?.populate,
-      include = this.defaults.findOneArgs?.include,
-      overrides = {},
-    } = args ?? {};
-
-    const {
-      skim = this.defaults.findOneOptions?.skim ?? false,
-      includePermissions = this.defaults.findOneOptions?.includePermissions ?? true,
-      access = this.defaults.findOneOptions?.access ?? 'read',
-      populateAccess = this.defaults.findOneOptions?.populateAccess,
-      lean = this.defaults.findOneOptions?.lean ?? false,
-    } = options ?? {};
+    const { select, sort, populate, include, overrides } = this.resolveFindOneArgs(args);
+    const { skim, includePermissions, access, populateAccess, lean } = this.resolveFindOneOptions(options);
 
     const { filter: overrideFilter, select: overrideSelect, populate: overridePopulate } = overrides ?? {};
 
@@ -155,28 +142,16 @@ export class Service extends Base {
     );
     if (!includePermissions) doc = this.addEmptyPermissions(doc);
 
-    return { success: true, kind: 'single', code: Codes.Success, data: doc, query, context };
+    return { success: true, kind: 'single', code: Codes.Success, data: doc as TModel, query, context };
   }
 
   public async findById(
     id: string,
-    args?: FindByIdArgs,
+    args?: FindByIdArgs<TModel>,
     options?: FindByIdOptions,
-  ): Promise<SingleResult | ErrorResult> {
-    const {
-      select = this.defaults.findByIdArgs?.select,
-      populate = this.defaults.findByIdArgs?.populate,
-      include = this.defaults.findByIdArgs?.include,
-      overrides = {},
-    } = args ?? {};
-
-    const {
-      skim = this.defaults.findOneOptions?.skim ?? false,
-      includePermissions = this.defaults.findOneOptions?.includePermissions ?? true,
-      access = this.defaults.findOneOptions?.access ?? 'read',
-      populateAccess = this.defaults.findOneOptions?.populateAccess,
-      lean = this.defaults.findOneOptions?.lean ?? false,
-    } = options ?? {};
+  ): Promise<SingleResult<TModel> | ErrorResult> {
+    const { select, populate, include, overrides } = this.resolveFindByIdArgs(args);
+    const { skim, includePermissions, access, populateAccess, lean } = this.resolveFindByIdOptions(options);
 
     const { select: overrideSelect, populate: overridePopulate, idFilter: overrideIdFilter } = overrides ?? {};
     const filter = overrideIdFilter || (await this.genIDFilter(id));
@@ -197,33 +172,16 @@ export class Service extends Base {
   }
 
   public async find(
-    filter: Filter,
-    args?: FindArgs,
+    filter: Filter<TModel>,
+    args?: FindArgs<TModel>,
     options?: FindOptions,
     decorate?: Function,
-  ): Promise<ListResult | ErrorResult> {
+  ): Promise<ListResult<TModel> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
 
-    const {
-      select = this.defaults.findArgs?.select,
-      populate = this.defaults.findArgs?.populate,
-      include = this.defaults.findArgs?.include,
-      sort = this.defaults.findArgs?.sort,
-      skip = this.defaults.findArgs?.skip,
-      limit = this.defaults.findArgs?.limit,
-      page = this.defaults.findArgs?.page,
-      pageSize = this.defaults.findArgs?.pageSize,
-      overrides = {},
-    } = args ?? {};
-
-    const {
-      skim = this.defaults.findOptions?.skim ?? false,
-      includePermissions = this.defaults.findOptions?.includePermissions ?? true,
-      includeCount = this.defaults.findOptions?.includeCount ?? false,
-      populateAccess = this.defaults.findOptions?.populateAccess ?? 'read',
-      lean = this.defaults.findOptions?.lean ?? false,
-    } = options ?? {};
+    const { select, populate, include, sort, skip, limit, page, pageSize, overrides } = this.resolveFindArgs(args);
+    const { skim, includePermissions, includeCount, populateAccess, lean } = this.resolveFindOptions(options);
 
     const { filter: overrideFilter, select: overrideSelect, populate: overridePopulate } = overrides ?? {};
 
@@ -301,7 +259,7 @@ export class Service extends Base {
       success: true,
       kind: 'list',
       code: Codes.Success,
-      data: docs,
+      data: docs as TModel[],
       count: docs.length,
       totalCount: includeCount ? await this.model.countDocuments(_filter) : null,
       query,
@@ -314,13 +272,9 @@ export class Service extends Base {
     args?: CreateArgs,
     options?: CreateOptions,
     decorate?: Function,
-  ): Promise<ListResult | ErrorResult> {
-    const { populate = this.defaults.createArgs?.populate } = args ?? {};
-    const {
-      skim = this.defaults.createOptions?.skim ?? false,
-      includePermissions = this.defaults.createOptions?.includePermissions ?? true,
-      populateAccess = this.defaults.createOptions?.populateAccess ?? 'read',
-    } = options ?? {};
+  ): Promise<ListResult<TModel> | ErrorResult> {
+    const { populate } = this.resolveCreateArgs(args);
+    const { skim, includePermissions, populateAccess } = this.resolveCreateOptions(options);
 
     const isArr = Array.isArray(data);
     let dataArr = isArr ? data : [data];
@@ -364,7 +318,7 @@ export class Service extends Base {
     let docs = await this.model.create(items);
     docs = await Promise.all(
       docs.map(async (doc, index) => {
-        doc = await this.finalize(doc, 'create', contexts[index]);
+        doc = await this.afterPersist(doc, 'create', contexts[index]);
         contexts[index].finalDocObject = doc.toObject({ virtuals: false });
         let includeDocPermissions = includePermissions;
         if (!includeDocPermissions && !skim) {
@@ -385,38 +339,34 @@ export class Service extends Base {
       success: true,
       kind: 'list',
       code: Codes.Created,
-      data: docs,
+      data: docs as TModel[],
       input: items,
       count: docs.length,
     };
   }
 
-  public async new(): Promise<SingleResult> {
+  public async new(): Promise<SingleResult<TModel>> {
     const data = await this.model.new();
     return {
       success: true,
       kind: 'single',
       code: Codes.Success,
-      data,
+      data: data as TModel,
     };
   }
 
   public async updateOne(
-    filter: Filter,
+    filter: Filter<TModel>,
     data,
-    args?: UpdateOneArgs,
+    args?: UpdateOneArgs<TModel>,
     options?: UpdateOneOptions,
     decorate?: Function,
-  ): Promise<SingleResult | ErrorResult> {
+  ): Promise<SingleResult<TModel> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
 
-    const { populate = this.defaults.updateOneArgs?.populate, overrides = {} } = args ?? {};
-    const {
-      skim = this.defaults.updateOneOptions?.skim ?? false,
-      includePermissions = this.defaults.updateOneOptions?.includePermissions ?? true,
-      populateAccess = this.defaults.updateOneOptions?.populateAccess ?? 'read',
-    } = options ?? {};
+    const { populate, overrides } = this.resolveUpdateOneArgs(args);
+    const { skim, includePermissions, populateAccess } = this.resolveUpdateOneOptions(options);
     const { filter: overrideFilter, populate: overridePopulate } = overrides ?? {};
 
     const [_filter, _populate] = await Promise.all([
@@ -476,7 +426,7 @@ export class Service extends Base {
       context.modifiedPaths = uniq(context.changes.map((di) => (di.path.length > 0 ? di.path[0] : '')));
     };
 
-    doc = await this.finalize(doc, 'update', context);
+    doc = await this.afterPersist(doc, 'update', context);
     context.finalDocObject = doc.toObject({ virtuals: false });
     context.diff(doc);
 
@@ -494,20 +444,18 @@ export class Service extends Base {
     if (isFunction(decorate)) doc = await decorate(doc, context);
     if (!includePermissions) doc = this.addEmptyPermissions(doc);
 
-    return { success: true, kind: 'single', code: Codes.Success, data: doc, input: prepared };
+    return { success: true, kind: 'single', code: Codes.Success, data: doc as TModel, input: prepared };
   }
 
   public async updateById(
     id: string,
     data,
-    { populate = this.defaults.updateByIdArgs?.populate, overrides = {} }: UpdateByIdArgs = {},
-    {
-      skim = this.defaults.updateByIdOptions?.skim ?? false,
-      includePermissions = this.defaults.updateByIdOptions?.includePermissions ?? true,
-      populateAccess = this.defaults.updateByIdOptions?.populateAccess ?? 'read',
-    }: UpdateByIdOptions = {},
+    args: UpdateByIdArgs<TModel> = {},
+    options: UpdateByIdOptions = {},
     decorate?: Function,
-  ): Promise<SingleResult | ErrorResult> {
+  ): Promise<SingleResult<TModel> | ErrorResult> {
+    const { populate, overrides } = this.resolveUpdateByIdArgs(args);
+    const { skim, includePermissions, populateAccess } = this.resolveUpdateByIdOptions(options);
     const { populate: overridePopulate, idFilter: overrideIdFilter } = overrides;
     const filter = overrideIdFilter || (await this.genIDFilter(id));
 
@@ -526,21 +474,17 @@ export class Service extends Base {
   }
 
   public async upsert(
-    filter: Filter,
+    filter: Filter<TModel>,
     data,
-    args?: UpsertArgs,
+    args?: UpsertArgs<TModel>,
     options?: UpsertOptions,
     decorate?: Function,
-  ): Promise<ServiceResult> {
+  ): Promise<ServiceResult<TModel>> {
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
 
-    const { populate = this.defaults.upsertArgs?.populate, overrides = {} } = args ?? {};
-    const {
-      skim = this.defaults.upsertOptions?.skim ?? false,
-      includePermissions = this.defaults.upsertOptions?.includePermissions ?? true,
-      populateAccess = this.defaults.upsertOptions?.populateAccess ?? 'read',
-    } = options ?? {};
+    const { populate, overrides } = this.resolveUpsertArgs(args);
+    const { skim, includePermissions, populateAccess } = this.resolveUpsertOptions(options);
     const { filter: overrideFilter, populate: overridePopulate } = overrides ?? {};
 
     const theone = await this.model.findOne({ filter });
@@ -581,7 +525,7 @@ export class Service extends Base {
     }
   }
 
-  public async delete(id: string): Promise<SingleResult | ErrorResult> {
+  public async delete(id: string): Promise<SingleResult<unknown> | ErrorResult> {
     const filter = await this.genFilter('delete', await this.genIDFilter(id));
 
     const query = { filter };
@@ -592,26 +536,36 @@ export class Service extends Base {
     let doc = await this.model.findOne({ filter });
     if (!doc) return { success: false, code: Codes.NotFound, query };
 
+    const context: MiddlewareContext = {
+      model: this.model.model,
+      modelName: this.modelName,
+      originalDocObject: toObject(doc),
+      currentDoc: toObject(doc),
+    };
+
+    await this.beforeDelete(doc, 'delete', context);
+
     // this function utilizes the 'deleteOne' method to delete the document,
     // triggering 'deleteOne' hooks, as opposed to using 'findOneAndDelete'.
     // see https://mongoosejs.com/docs/api/model.html#Model.prototype.deleteOne()
     await ('deleteOne' in doc ? doc.deleteOne() : doc.remove());
+
+    context.finalDocObject = toObject(doc);
+    await this.afterDelete(doc, 'delete', context);
+
     return { success: true, kind: 'single', code: Codes.Success, data: doc._id, query };
   }
 
   public async exists(
-    filter: Filter,
+    filter: Filter<TModel>,
     options: ExistsOptions & { includeId: true },
-  ): Promise<SingleResult | ErrorResult>;
-  public async exists(filter: Filter, options?: ExistsOptions): Promise<SingleResult<boolean> | ErrorResult>;
-  public async exists(filter: Filter, options?: ExistsOptions): Promise<SingleResult | ErrorResult> {
+  ): Promise<SingleResult<unknown> | ErrorResult>;
+  public async exists(filter: Filter<TModel>, options?: ExistsOptions): Promise<SingleResult<boolean> | ErrorResult>;
+  public async exists(filter: Filter<TModel>, options?: ExistsOptions): Promise<SingleResult<unknown> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
 
-    const {
-      access = this.defaults.existsOptions?.access ?? 'read',
-      includeId = this.defaults.existsOptions?.includeId ?? false,
-    } = options ?? {};
+    const { access, includeId } = this.resolveExistsOptions(options);
 
     filter = await this.genFilter(access, filter);
     const result = await this.model.exists(filter);
@@ -624,7 +578,7 @@ export class Service extends Base {
     };
   }
 
-  public async distinct(field: string, args?: DistinctArgs): Promise<ListResult | ErrorResult> {
+  public async distinct(field: string, args?: DistinctArgs<TModel>): Promise<ListResult<unknown> | ErrorResult> {
     let { filter } = args ?? {};
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
@@ -640,7 +594,10 @@ export class Service extends Base {
     return { success: true, kind: 'list', code: Codes.Success, data: result, count: result.length, query };
   }
 
-  public async count(filter, access: BaseFilterAccess = 'list'): Promise<SingleResult<number> | ErrorResult> {
+  public async count(
+    filter: Filter<TModel>,
+    access: BaseFilterAccess = 'list',
+  ): Promise<SingleResult<number> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
 
@@ -655,6 +612,135 @@ export class Service extends Base {
 
   public getDocPermissions(doc) {
     return getDocPermissions(this.modelName, doc);
+  }
+
+  private resolveFindOneArgs(args: FindOneArgs<TModel> = {}) {
+    return {
+      select: args.select ?? this.defaults.findOneArgs?.select,
+      sort: args.sort ?? this.defaults.findOneArgs?.sort,
+      populate: args.populate ?? this.defaults.findOneArgs?.populate,
+      include: args.include ?? this.defaults.findOneArgs?.include,
+      overrides: args.overrides ?? {},
+    };
+  }
+
+  private resolveFindOneOptions(options: FindOneOptions = {}) {
+    return {
+      skim: options.skim ?? this.defaults.findOneOptions?.skim ?? false,
+      includePermissions: options.includePermissions ?? this.defaults.findOneOptions?.includePermissions ?? true,
+      access: options.access ?? this.defaults.findOneOptions?.access ?? 'read',
+      populateAccess: options.populateAccess ?? this.defaults.findOneOptions?.populateAccess,
+      lean: options.lean ?? this.defaults.findOneOptions?.lean ?? false,
+    };
+  }
+
+  private resolveFindByIdArgs(args: FindByIdArgs<TModel> = {}) {
+    return {
+      select: args.select ?? this.defaults.findByIdArgs?.select,
+      populate: args.populate ?? this.defaults.findByIdArgs?.populate,
+      include: args.include ?? this.defaults.findByIdArgs?.include,
+      overrides: args.overrides ?? {},
+    };
+  }
+
+  private resolveFindByIdOptions(options: FindByIdOptions = {}) {
+    return {
+      skim: options.skim ?? this.defaults.findByIdOptions?.skim ?? false,
+      includePermissions: options.includePermissions ?? this.defaults.findByIdOptions?.includePermissions ?? true,
+      access: options.access ?? this.defaults.findByIdOptions?.access ?? 'read',
+      populateAccess: options.populateAccess ?? this.defaults.findByIdOptions?.populateAccess,
+      lean: options.lean ?? this.defaults.findByIdOptions?.lean ?? false,
+    };
+  }
+
+  private resolveFindArgs(args: FindArgs<TModel> = {}) {
+    return {
+      select: args.select ?? this.defaults.findArgs?.select,
+      populate: args.populate ?? this.defaults.findArgs?.populate,
+      include: args.include ?? this.defaults.findArgs?.include,
+      sort: args.sort ?? this.defaults.findArgs?.sort,
+      skip: args.skip ?? this.defaults.findArgs?.skip,
+      limit: args.limit ?? this.defaults.findArgs?.limit,
+      page: args.page ?? this.defaults.findArgs?.page,
+      pageSize: args.pageSize ?? this.defaults.findArgs?.pageSize,
+      overrides: args.overrides ?? {},
+    };
+  }
+
+  private resolveFindOptions(options: FindOptions = {}) {
+    return {
+      skim: options.skim ?? this.defaults.findOptions?.skim ?? false,
+      includePermissions: options.includePermissions ?? this.defaults.findOptions?.includePermissions ?? true,
+      includeCount: options.includeCount ?? this.defaults.findOptions?.includeCount ?? false,
+      populateAccess: options.populateAccess ?? this.defaults.findOptions?.populateAccess ?? 'read',
+      lean: options.lean ?? this.defaults.findOptions?.lean ?? false,
+    };
+  }
+
+  private resolveCreateArgs(args: CreateArgs = {}) {
+    return {
+      populate: args.populate ?? this.defaults.createArgs?.populate,
+    };
+  }
+
+  private resolveCreateOptions(options: CreateOptions = {}) {
+    return {
+      skim: options.skim ?? this.defaults.createOptions?.skim ?? false,
+      includePermissions: options.includePermissions ?? this.defaults.createOptions?.includePermissions ?? true,
+      populateAccess: options.populateAccess ?? this.defaults.createOptions?.populateAccess ?? 'read',
+    };
+  }
+
+  private resolveUpdateOneArgs(args: UpdateOneArgs<TModel> = {}) {
+    return {
+      populate: args.populate ?? this.defaults.updateOneArgs?.populate,
+      overrides: args.overrides ?? {},
+    };
+  }
+
+  private resolveUpdateOneOptions(options: UpdateOneOptions = {}) {
+    return {
+      skim: options.skim ?? this.defaults.updateOneOptions?.skim ?? false,
+      includePermissions: options.includePermissions ?? this.defaults.updateOneOptions?.includePermissions ?? true,
+      populateAccess: options.populateAccess ?? this.defaults.updateOneOptions?.populateAccess ?? 'read',
+    };
+  }
+
+  private resolveUpdateByIdArgs(args: UpdateByIdArgs<TModel> = {}) {
+    return {
+      populate: args.populate ?? this.defaults.updateByIdArgs?.populate,
+      overrides: args.overrides ?? {},
+    };
+  }
+
+  private resolveUpdateByIdOptions(options: UpdateByIdOptions = {}) {
+    return {
+      skim: options.skim ?? this.defaults.updateByIdOptions?.skim ?? false,
+      includePermissions: options.includePermissions ?? this.defaults.updateByIdOptions?.includePermissions ?? true,
+      populateAccess: options.populateAccess ?? this.defaults.updateByIdOptions?.populateAccess ?? 'read',
+    };
+  }
+
+  private resolveUpsertArgs(args: UpsertArgs<TModel> = {}) {
+    return {
+      populate: args.populate ?? this.defaults.upsertArgs?.populate,
+      overrides: args.overrides ?? {},
+    };
+  }
+
+  private resolveUpsertOptions(options: UpsertOptions = {}) {
+    return {
+      skim: options.skim ?? this.defaults.upsertOptions?.skim ?? false,
+      includePermissions: options.includePermissions ?? this.defaults.upsertOptions?.includePermissions ?? true,
+      populateAccess: options.populateAccess ?? this.defaults.upsertOptions?.populateAccess ?? 'read',
+    };
+  }
+
+  private resolveExistsOptions(options: ExistsOptions = {}) {
+    return {
+      access: options.access ?? this.defaults.existsOptions?.access ?? 'read',
+      includeId: options.includeId ?? this.defaults.existsOptions?.includeId ?? false,
+    };
   }
 
   private async getFieldPermissionAccess(ids: unknown[]) {
@@ -675,7 +761,8 @@ export class Service extends Base {
   }
 
   private async getAccessibleIdSet(ids: string[], access: BaseFilterAccess) {
-    const filter = await this.genFilter(access, { _id: { $in: ids } });
+    const idFilter = { _id: { $in: ids } } as Filter<TModel>;
+    const filter = await this.genFilter(access, idFilter);
     if (filter === false) return new Set<string>();
 
     const docs = await this.model.find({ filter, select: '_id', lean: true });
@@ -690,7 +777,7 @@ export class Service extends Base {
     let result = get(parentDoc, sub) as Record<string, unknown>[];
 
     const [subFilter, subSelect] = await Promise.all([
-      this.genFilter(`subs.${sub}.list`, ft),
+      this.genFilter(`subs.${sub}.list`, ft as Filter<TModel>),
       this.genQuerySelect('list', fields, false, [sub, 'sub']),
     ]);
 

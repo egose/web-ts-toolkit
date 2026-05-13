@@ -2,6 +2,12 @@ interface BooleanObject {
   [key: string]: boolean;
 }
 
+export interface AccessRouterPermissionMap {}
+
+type AccessRouterPermissionProperties = {
+  [K in keyof AccessRouterPermissionMap]: AccessRouterPermissionMap[K];
+};
+
 class Permission {
   $_permissions: BooleanObject;
   $_permissionKeys: string[];
@@ -51,6 +57,8 @@ class Permission {
 }
 
 export default Permission;
-export interface Permissions extends Permission {
+export interface Permissions extends Permission, AccessRouterPermissionProperties {
   [key: string]: any;
 }
+
+export type AccessRouterPermissions = Permissions;

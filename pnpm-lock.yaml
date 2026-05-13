@@ -57,6 +57,31 @@ importers:
         specifier: ^4.1.5
         version: 4.1.5(@types/node@25.6.0)(vite@8.0.10(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1))
 
+  apps/nodejs:
+    dependencies:
+      '@web-ts-toolkit/access-router':
+        specifier: workspace:*
+        version: link:../../packages/access-router
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
+      mongodb-memory-server:
+        specifier: ^11.1.0
+        version: 11.1.0(socks@2.8.8)
+      mongoose:
+        specifier: ^9.6.2
+        version: 9.6.2(socks@2.8.8)
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.7.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
   packages/access-router:
     dependencies:
       '@web-ts-toolkit/express-json-router':

@@ -7,6 +7,7 @@ import { setDataOption, setDataOptions, getDataOptions, getExactDataOption } fro
 import { processUrl } from '../lib';
 import { handleResultError } from '../helpers';
 import { DataRouterOptions, ExtendedDataRouterOptions, Request, Filter } from '../interfaces';
+import { DataService } from '../services';
 import { formatListResponse, parseBooleanString } from './shared';
 import { accessRouterResponseHandler } from './index';
 import {
@@ -22,27 +23,27 @@ import {
 const clientErrors = JsonRouter.clientErrors;
 
 type SetTargetOption = {
-  (option: unknown): DataRouter;
-  (key: string, option: unknown): DataRouter;
+  (option: unknown): DataRouter<unknown>;
+  (key: string, option: unknown): DataRouter<unknown>;
 };
 
-function setOption(this: DataRouter, parentKey: string, optionKey: unknown, option?: unknown) {
+function setOption(this: DataRouter<unknown>, parentKey: string, optionKey: unknown, option?: unknown) {
   const key = isUndefined(option) ? parentKey : `${parentKey}.${optionKey}`;
   const value = isUndefined(option) ? optionKey : option;
 
-  setDataOption(this.dataName, key as keyof DataRouterOptions, value);
+  setDataOption(this.dataName, key as keyof DataRouterOptions<unknown>, value);
   return this;
 }
 
-export class DataRouter {
+export class DataRouter<TData = unknown> {
   readonly dataName: string;
   readonly router: JsonRouter;
-  readonly options: DataRouterOptions;
+  readonly options: DataRouterOptions<TData>;
   readonly fullBasePath: string;
 
-  constructor(dataName: string, initialOptions: DataRouterOptions) {
+  constructor(dataName: string, initialOptions: DataRouterOptions<TData>) {
     setDataOptions(dataName, initialOptions);
-    this.options = getDataOptions(dataName);
+    this.options = getDataOptions<TData>(dataName);
     this.fullBasePath = processUrl(this.options.parentPath + this.options.basePath);
     this.dataName = dataName;
     this.router = new JsonRouter(this.options.basePath, setDataCore, accessRouterResponseHandler);
@@ -52,7 +53,14 @@ export class DataRouter {
   }
 
   private getRequestSchema(key: string) {
-    return getExactDataOption(this.dataName, key as keyof ExtendedDataRouterOptions) as z.ZodTypeAny | undefined;
+    return getExactDataOption<keyof ExtendedDataRouterOptions<TData>, TData>(
+      this.dataName,
+      key as keyof ExtendedDataRouterOptions<TData>,
+    ) as z.ZodTypeAny | undefined;
+  }
+
+  getService(req: Request): DataService<TData> {
+    return req.dacl.getService<TData>(this.dataName);
   }
 
   private async assertAllowed(req: Request, access: string) {
@@ -75,7 +83,7 @@ export class DataRouter {
         req.query,
       );
 
-      const svc = req.dacl.getService(this.dataName);
+      const svc = this.getService(req);
 
       const includeCount = parseBooleanString(include_count);
       const includeExtraHeaders = parseBooleanString(include_extra_headers);
@@ -111,10 +119,10 @@ export class DataRouter {
       } = parseBodyWithSchema(dataListBodySchema, req.body, this.getRequestSchema('requestSchemas.advancedList'));
       const { includeCount, includeExtraHeaders } = options;
 
-      const svc = req.dacl.getService(this.dataName);
+      const svc = this.getService(req);
 
       const result = await svc.find(
-        (filter ?? {}) as Filter,
+        (filter ?? {}) as Filter<TData>,
         { select, sort: typeof sort === 'string' ? sort : undefined, skip, limit, page, pageSize },
         { includeCount },
       );
@@ -136,7 +144,7 @@ export class DataRouter {
       await this.assertAllowed(req, 'read');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
-      const svc = req.dacl.getService(this.dataName);
+      const svc = this.getService(req);
       const result = await svc.findById(id, {}, {});
 
       handleResultError(result);
@@ -156,8 +164,8 @@ export class DataRouter {
         this.getRequestSchema('requestSchemas.advancedReadFilter'),
       );
 
-      const svc = req.dacl.getService(this.dataName);
-      const result = await svc.findOne((filter ?? {}) as Filter, { select }, {});
+      const svc = this.getService(req);
+      const result = await svc.findOne((filter ?? {}) as Filter<TData>, { select }, {});
 
       handleResultError(result);
 
@@ -177,7 +185,7 @@ export class DataRouter {
         this.getRequestSchema('requestSchemas.advancedRead'),
       );
 
-      const svc = req.dacl.getService(this.dataName);
+      const svc = this.getService(req);
       const result = await svc.findById(id, { select }, {});
 
       handleResultError(result);
@@ -186,25 +194,25 @@ export class DataRouter {
     });
   }
 
-  set<K extends keyof DataRouterOptions>(keyOrOptions: K | DataRouterOptions, value?: unknown) {
+  set<K extends keyof DataRouterOptions<TData>>(keyOrOptions: K | DataRouterOptions<TData>, value?: unknown) {
     if (arguments.length === 2 && isString(keyOrOptions)) {
-      setDataOption(this.dataName, keyOrOptions as K, value as DataRouterOptions[K]);
+      setDataOption<K, TData>(this.dataName, keyOrOptions as K, value as DataRouterOptions<TData>[K]);
     }
 
     if (arguments.length === 1 && isPlainObject(keyOrOptions)) {
-      setDataOptions(this.dataName, keyOrOptions as DataRouterOptions);
+      setDataOptions<TData>(this.dataName, keyOrOptions as DataRouterOptions<TData>);
     }
 
     return this;
   }
 
-  setOption<K extends keyof DataRouterOptions>(key: K, option: DataRouterOptions[K]) {
-    setDataOption(this.dataName, key, option);
+  setOption<K extends keyof DataRouterOptions<TData>>(key: K, option: DataRouterOptions<TData>[K]) {
+    setDataOption<K, TData>(this.dataName, key, option);
     return this;
   }
 
-  setOptions(options: DataRouterOptions) {
-    setDataOptions(this.dataName, options);
+  setOptions(options: DataRouterOptions<TData>) {
+    setDataOptions<TData>(this.dataName, options);
     return this;
   }
 

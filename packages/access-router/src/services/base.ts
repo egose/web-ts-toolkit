@@ -33,7 +33,8 @@ import {
   ValidateAccess,
   PrepareAccess,
   TransformAccess,
-  FinalizeAccess,
+  AfterPersistAccess,
+  DeleteAccess,
   BaseFilterAccess,
   SingleResult,
   ServiceResult,
@@ -70,7 +71,7 @@ export function validateClientFilter(filter: Filter | null | undefined): string[
   return errors;
 }
 
-export class Base {
+export class Base<TModel = unknown> {
   req: Request;
   modelName: string;
 
@@ -99,16 +100,16 @@ export class Base {
     return this.req.macl.genDocPermissions(this.modelName, doc, access, context);
   }
 
-  public genFilter(access?: BaseFilterAccess, filter?) {
-    return this.req.macl.genFilter(this.modelName, access, filter);
+  public genFilter(access?: BaseFilterAccess, filter?: Filter<TModel>): Promise<Filter<TModel>> {
+    return this.req.macl.genFilter<TModel>(this.modelName, access, filter);
   }
 
   public getIdentifier(): string | null {
     return this.req.macl.getIdentifier(this.modelName);
   }
 
-  public genIDFilter(id: string): Promise<Filter> {
-    return this.req.macl.genIDFilter(this.modelName, id);
+  public genIDFilter(id: string): Promise<Filter<TModel>> {
+    return this.req.macl.genIDFilter<TModel>(this.modelName, id);
   }
 
   public genPopulate(access?: SelectAccess, populate?: Populate | Populate[] | string | null): Promise<Populate[]> {
@@ -169,12 +170,20 @@ export class Base {
     return this.req.macl.transform(this.modelName, doc, access, context);
   }
 
-  public finalize<T>(doc: T, access: FinalizeAccess, context: MiddlewareContext): Promise<T> {
-    return this.req.macl.finalize(this.modelName, doc, access, context);
+  public afterPersist<T>(doc: T, access: AfterPersistAccess, context: MiddlewareContext): Promise<T> {
+    return this.req.macl.afterPersist(this.modelName, doc, access, context);
   }
 
   public changes(doc: Record<string, unknown>, context: MiddlewareContext): Promise<void> {
     return this.req.macl.changes(this.modelName, doc, context);
+  }
+
+  public beforeDelete<T>(doc: T, access: DeleteAccess, context: MiddlewareContext): Promise<void> {
+    return this.req.macl.beforeDelete(this.modelName, doc, access, context);
+  }
+
+  public afterDelete<T>(doc: T, access: DeleteAccess, context: MiddlewareContext): Promise<void> {
+    return this.req.macl.afterDelete(this.modelName, doc, access, context);
   }
 
   public validate(
@@ -292,7 +301,7 @@ export class Base {
     return docs;
   }
 
-  protected async parseClientData(filter) {
+  protected async parseClientData<TValue>(filter: TValue): Promise<TValue> {
     const result = await iterateQuery(filter, async (fo: FilterOperator, val: unknown, key: string) => {
       switch (fo) {
         case FilterOperator.SubQuery:
@@ -304,7 +313,7 @@ export class Base {
       }
     });
 
-    return result;
+    return result as TValue;
   }
 
   private async handleSubQuery(sq: SubQueryEntry, key: string) {

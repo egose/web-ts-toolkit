@@ -1,7 +1,9 @@
 import express from 'express';
 import { Diff } from 'deep-diff';
 import type { z } from 'zod';
-import type { Permissions } from '../permission';
+import type { Core } from '../core';
+import type { DataCore } from '../core-data';
+import type { AccessRouterPermissions } from '../permission';
 import { DataMiddlewareContext, Filter, MiddlewareContext, Validation } from './base';
 import { PublicCreateArgs, CreateArgs, PublicCreateOptions, CreateOptions } from './service-create';
 import {
@@ -20,59 +22,79 @@ import { FindArgs, FindOptions, FindOneArgs, FindOneOptions, FindByIdArgs, FindB
 import { ExistsOptions } from './service-exists';
 import { DistinctArgs } from './service';
 
-interface DefaultFindOneArgs extends Omit<FindOneArgs, 'overrides'> {}
-interface DefaultFindByIdArgs extends Omit<FindByIdArgs, 'overrides'> {}
-interface DefaultFindArgs extends Omit<FindArgs, 'overrides'> {}
+interface DefaultFindOneArgs<TModel = unknown> extends Omit<FindOneArgs<TModel>, 'overrides'> {}
+interface DefaultFindByIdArgs<TModel = unknown> extends Omit<FindByIdArgs<TModel>, 'overrides'> {}
+interface DefaultFindArgs<TModel = unknown> extends Omit<FindArgs<TModel>, 'overrides'> {}
 
 type MaybePromise<T> = T | Promise<T>;
 type RequestZodSchema = z.ZodTypeAny;
 
+export interface AccessRouterRequestExtensions {
+  macl?: Core;
+  dacl?: DataCore;
+}
+
+export type AccessRouterRequest = express.Request & AccessRouterRequestExtensions;
+
+export type AccessRouterFieldKey<T> = [Extract<keyof T, string>] extends [never] ? string : Extract<keyof T, string>;
+
 type GlobalPermissionValue = Record<string, boolean> | string[] | string | null | undefined;
 
 type BaseFilterHook = (
-  this: express.Request,
-  permissions: Permissions,
+  this: AccessRouterRequest,
+  permissions: AccessRouterPermissions,
 ) => MaybePromise<Filter | true | null | undefined>;
 
-type OverrideFilterHook = (this: express.Request, filter: Filter, permissions: Permissions) => MaybePromise<Filter>;
+type OverrideFilterHook = (
+  this: AccessRouterRequest,
+  filter: Filter,
+  permissions: AccessRouterPermissions,
+) => MaybePromise<Filter>;
 
-type MiddlewareHook<TValue, TContext> = (
-  this: express.Request,
+type Hook<TValue, TContext> = (
+  this: AccessRouterRequest,
   value: TValue,
-  permissions: Permissions,
+  permissions: AccessRouterPermissions,
   context: TContext,
 ) => MaybePromise<TValue>;
 
-type MiddlewareChain<TValue, TContext> = MiddlewareHook<TValue, TContext> | Array<MiddlewareHook<TValue, TContext>>;
+type HookChain<TValue, TContext> = Hook<TValue, TContext> | Array<Hook<TValue, TContext>>;
 
 type ValidateRule = boolean | unknown[];
 
 type ValidateHook = (
-  this: express.Request,
+  this: AccessRouterRequest,
   allowedData: unknown,
-  permissions: Permissions,
+  permissions: AccessRouterPermissions,
   context: MiddlewareContext,
 ) => MaybePromise<ValidateRule>;
 
 type DocPermissionsHook = (
-  this: express.Request,
+  this: AccessRouterRequest,
   doc: unknown,
-  permissions: Permissions,
+  permissions: AccessRouterPermissions,
   context: MiddlewareContext,
 ) => MaybePromise<Record<string, unknown>>;
 
 type ChangeHook = (
-  this: express.Request,
+  this: AccessRouterRequest,
   previousValue: unknown,
   nextValue: unknown,
   changes: Diff<unknown>[],
   context: MiddlewareContext,
 ) => MaybePromise<void>;
 
-type ModelMiddleware = MiddlewareChain<unknown, MiddlewareContext>;
-type ModelListMiddleware = MiddlewareChain<unknown[], MiddlewareContext>;
-type DataMiddleware = MiddlewareChain<unknown, DataMiddlewareContext>;
-type DataListMiddleware = MiddlewareChain<unknown[], DataMiddlewareContext>;
+type DeleteHook<TValue = unknown> = (
+  this: AccessRouterRequest,
+  value: TValue,
+  permissions: AccessRouterPermissions,
+  context: MiddlewareContext,
+) => MaybePromise<void>;
+
+type ModelHook<TValue = unknown> = HookChain<TValue, MiddlewareContext>;
+type ModelListHook<TValue = unknown> = HookChain<TValue[], MiddlewareContext>;
+type DataHook<TValue = unknown> = HookChain<TValue, DataMiddlewareContext>;
+type DataListHook<TValue = unknown> = HookChain<TValue[], DataMiddlewareContext>;
 
 type SubRouteGuardOptions = Record<string, Validation | Record<string, Validation>>;
 
@@ -104,20 +126,20 @@ export interface DataRequestSchemas {
   advancedRead?: RequestZodSchema;
 }
 
-export interface Defaults {
-  findOneArgs?: DefaultFindOneArgs;
+export interface Defaults<TModel = unknown> {
+  findOneArgs?: DefaultFindOneArgs<TModel>;
   findOneOptions?: FindOneOptions;
-  findByIdArgs?: DefaultFindByIdArgs;
+  findByIdArgs?: DefaultFindByIdArgs<TModel>;
   findByIdOptions?: FindByIdOptions;
-  findArgs?: DefaultFindArgs;
+  findArgs?: DefaultFindArgs<TModel>;
   findOptions?: FindOptions;
   createArgs?: CreateArgs;
   createOptions?: CreateOptions;
-  updateOneArgs?: UpdateOneArgs;
+  updateOneArgs?: UpdateOneArgs<TModel>;
   updateOneOptions?: UpdateOneOptions;
   upsertOptions?: UpsertOptions;
-  updateByIdArgs?: UpdateByIdArgs;
-  upsertArgs?: UpsertArgs;
+  updateByIdArgs?: UpdateByIdArgs<TModel>;
+  upsertArgs?: UpsertArgs<TModel>;
   updateByIdOptions?: UpdateByIdOptions;
   existsOptions?: ExistsOptions;
   publicListArgs?: PublicListArgs;
@@ -139,7 +161,7 @@ export interface AccessRouterLogger {
 
 export interface GlobalOptions {
   requestPermissionField?: string;
-  globalPermissions?: (this: express.Request, req: express.Request) => MaybePromise<GlobalPermissionValue>;
+  globalPermissions?: (this: AccessRouterRequest, req: AccessRouterRequest) => MaybePromise<GlobalPermissionValue>;
   logger?: AccessRouterLogger;
 }
 
@@ -159,9 +181,9 @@ interface Access {
   sub?: Validation | SubRouteGuardOptions;
 }
 
-interface PermissionSchema {
-  [key: string]: Access;
-}
+type PermissionRule = Validation | Access;
+
+export type PermissionSchema<TField extends string = string> = Partial<Record<TField, PermissionRule>>;
 
 interface DocPermissions {
   list?: Function;
@@ -195,10 +217,10 @@ export interface ExtendedDefaultModelRouterOptions extends DefaultModelRouterOpt
   'routeGuard.subs'?: SubRouteGuardOptions;
 }
 
-export interface ModelRouterOptions extends DefaultModelRouterOptions {
+export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions {
   modelName?: string;
   basePath?: string;
-  permissionSchema?: PermissionSchema;
+  permissionSchema?: PermissionSchema<AccessRouterFieldKey<TModel>>;
   _permissionSchemaKeys?: string[];
   _globalPermissionKeys?: Record<string, string[]>;
   _modelPermissionKeys?: Record<string, string[]>;
@@ -206,19 +228,21 @@ export interface ModelRouterOptions extends DefaultModelRouterOptions {
   docPermissions?: DocPermissions | DocPermissionsHook;
   baseFilter?: BaseFilterHook | Record<string, BaseFilterHook>;
   overrideFilter?: OverrideFilterHook | Record<string, OverrideFilterHook>;
-  decorate?: ModelMiddleware | Record<string, ModelMiddleware>;
-  decorateAll?: ModelListMiddleware | Record<string, ModelListMiddleware>;
+  decorate?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
+  decorateAll?: ModelListHook<TModel> | Record<string, ModelListHook<TModel>>;
   validate?: ValidateRule | ValidateHook | Record<string, ValidateRule | ValidateHook>;
-  prepare?: ModelMiddleware | Record<string, ModelMiddleware>;
-  transform?: ModelMiddleware | Record<string, ModelMiddleware>;
-  finalize?: ModelMiddleware | Record<string, ModelMiddleware>;
+  prepare?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
+  transform?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
+  afterPersist?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
   change?: Record<string, ChangeHook>;
+  beforeDelete?: DeleteHook<TModel> | Record<string, DeleteHook<TModel>>;
+  afterDelete?: DeleteHook<TModel> | Record<string, DeleteHook<TModel>>;
   requestSchemas?: RequestSchemas;
-  defaults?: Defaults;
+  defaults?: Defaults<TModel>;
 }
 
-export interface DataRouterOptions {
-  data?: unknown[];
+export interface DataRouterOptions<TData = unknown> {
+  data?: TData[];
   listHardLimit?: number;
   idParam?: string;
   identifier?: string | Function;
@@ -227,15 +251,16 @@ export interface DataRouterOptions {
   routeGuard?: Validation | Access;
   dataName?: string;
   basePath?: string;
-  permissionSchema?: PermissionSchema;
+  permissionSchema?: PermissionSchema<AccessRouterFieldKey<TData>>;
   baseFilter?: BaseFilterHook | Record<string, BaseFilterHook>;
   overrideFilter?: OverrideFilterHook | Record<string, OverrideFilterHook>;
-  decorate?: DataMiddleware | Record<string, DataMiddleware>;
-  decorateAll?: DataListMiddleware | Record<string, DataListMiddleware>;
+  decorate?: DataHook<TData> | Record<string, DataHook<TData>>;
+  decorateAll?: DataListHook<TData> | Record<string, DataListHook<TData>>;
   requestSchemas?: DataRequestSchemas;
 }
 
-export interface ExtendedModelRouterOptions extends ModelRouterOptions, ExtendedDefaultModelRouterOptions {
+export interface ExtendedModelRouterOptions<TModel = unknown>
+  extends ModelRouterOptions<TModel>, ExtendedDefaultModelRouterOptions {
   'mandatoryFields.default'?: string[];
   'mandatoryFields.list'?: string[];
   'mandatoryFields.create'?: string[];
@@ -256,24 +281,28 @@ export interface ExtendedModelRouterOptions extends ModelRouterOptions, Extended
   'overrideFilter.read'?: OverrideFilterHook;
   'overrideFilter.update'?: OverrideFilterHook;
   'overrideFilter.delete'?: OverrideFilterHook;
-  'decorate.default'?: ModelMiddleware;
-  'decorate.list'?: ModelMiddleware;
-  'decorate.create'?: ModelMiddleware;
-  'decorate.read'?: ModelMiddleware;
-  'decorate.update'?: ModelMiddleware;
-  'decorateAll.default'?: ModelListMiddleware;
-  'decorateAll.list'?: ModelListMiddleware;
+  'decorate.default'?: ModelHook;
+  'decorate.list'?: ModelHook;
+  'decorate.create'?: ModelHook;
+  'decorate.read'?: ModelHook;
+  'decorate.update'?: ModelHook;
+  'decorateAll.default'?: ModelListHook;
+  'decorateAll.list'?: ModelListHook;
   'validate.default'?: ValidateRule | ValidateHook;
   'validate.create'?: ValidateRule | ValidateHook;
   'validate.update'?: ValidateRule | ValidateHook;
-  'prepare.default'?: ModelMiddleware;
-  'prepare.create'?: ModelMiddleware;
-  'prepare.update'?: ModelMiddleware;
-  'transform.default'?: ModelMiddleware;
-  'transform.update'?: ModelMiddleware;
-  'finalize.default'?: ModelMiddleware;
-  'finalize.create'?: ModelMiddleware;
-  'finalize.update'?: ModelMiddleware;
+  'prepare.default'?: ModelHook;
+  'prepare.create'?: ModelHook;
+  'prepare.update'?: ModelHook;
+  'transform.default'?: ModelHook;
+  'transform.update'?: ModelHook;
+  'afterPersist.default'?: ModelHook;
+  'afterPersist.create'?: ModelHook;
+  'afterPersist.update'?: ModelHook;
+  'beforeDelete.default'?: DeleteHook;
+  'beforeDelete.delete'?: DeleteHook;
+  'afterDelete.default'?: DeleteHook;
+  'afterDelete.delete'?: DeleteHook;
   'requestSchemas.create'?: RequestZodSchema;
   'requestSchemas.update'?: RequestZodSchema;
   'requestSchemas.upsert'?: RequestZodSchema;
@@ -294,18 +323,19 @@ export interface ExtendedModelRouterOptions extends ModelRouterOptions, Extended
   'requestSchemas.subCreate'?: RequestZodSchema;
   'requestSchemas.subUpdate'?: RequestZodSchema;
   'requestSchemas.subBulkUpdate'?: RequestZodSchema;
-  'defaults.findOneArgs'?: DefaultFindOneArgs;
+  'defaults.findOneArgs'?: DefaultFindOneArgs<TModel>;
   'defaults.findOneOptions'?: FindOneOptions;
-  'defaults.findByIdArgs'?: DefaultFindByIdArgs;
+  'defaults.findByIdArgs'?: DefaultFindByIdArgs<TModel>;
   'defaults.findByIdOptions'?: FindByIdOptions;
-  'defaults.findArgs'?: DefaultFindArgs;
+  'defaults.findArgs'?: DefaultFindArgs<TModel>;
   'defaults.findOptions'?: FindOptions;
   'defaults.createArgs'?: CreateArgs;
   'defaults.createOptions'?: CreateOptions;
-  'defaults.updateOneArgs'?: UpdateOneArgs;
+  'defaults.updateOneArgs'?: UpdateOneArgs<TModel>;
   'defaults.updateOneOptions'?: UpdateOneOptions;
-  'defaults.updateByIdArgs'?: UpdateByIdArgs;
+  'defaults.updateByIdArgs'?: UpdateByIdArgs<TModel>;
   'defaults.updateByIdOptions'?: UpdateByIdOptions;
+  'defaults.upsertArgs'?: UpsertArgs<TModel>;
   'defaults.existsOptions'?: ExistsOptions;
   'defaults.publicListArgs'?: PublicListArgs;
   'defaults.publicListOptions'?: PublicListOptions;
@@ -317,7 +347,7 @@ export interface ExtendedModelRouterOptions extends ModelRouterOptions, Extended
   'defaults.publicUpdateOptions'?: PublicUpdateOptions;
 }
 
-export interface ExtendedDataRouterOptions extends DataRouterOptions {
+export interface ExtendedDataRouterOptions<TData = unknown> extends DataRouterOptions<TData> {
   'requestSchemas.advancedList'?: RequestZodSchema;
   'requestSchemas.advancedReadFilter'?: RequestZodSchema;
   'requestSchemas.advancedRead'?: RequestZodSchema;
@@ -342,4 +372,5 @@ export type DecorateAllAccess = 'list' | string;
 export type ValidateAccess = 'create' | 'update' | string;
 export type PrepareAccess = 'create' | 'update' | string;
 export type TransformAccess = 'update' | string;
-export type FinalizeAccess = 'create' | 'update' | string;
+export type AfterPersistAccess = 'create' | 'update' | string;
+export type DeleteAccess = 'delete' | string;

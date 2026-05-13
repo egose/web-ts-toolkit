@@ -38,7 +38,8 @@ import {
   ValidateAccess,
   PrepareAccess,
   TransformAccess,
-  FinalizeAccess,
+  AfterPersistAccess,
+  DeleteAccess,
   Task,
 } from './interfaces';
 import Permission, { Permissions } from './permission';
@@ -50,7 +51,7 @@ import { MIDDLEWARE, PERMISSIONS, PERMISSION_KEYS } from './symbols';
 import { Cache } from './cache';
 import { logger } from './logger';
 import {
-  callMiddlewareChain,
+  callHookChain,
   collectSchemaFields,
   evaluateRouteGuard,
   getRequestPermissions,
@@ -86,16 +87,20 @@ export class Core {
     return '_id';
   }
 
-  async genIDFilter(modelName: string, id: string) {
+  async genIDFilter<TModel = unknown>(modelName: string, id: string): Promise<Filter<TModel>> {
     const identifier = getModelOption(modelName, 'identifier');
-    return resolveIdentifierFilter(this.req, identifier, id);
+    return resolveIdentifierFilter<TModel>(this.req, identifier, id);
   }
 
-  async genFilter(modelName: string, access: BaseFilterAccess = 'read', _filter: Filter = null): Promise<Filter> {
+  async genFilter<TModel = unknown>(
+    modelName: string,
+    access: BaseFilterAccess = 'read',
+    _filter: Filter<TModel> = null,
+  ): Promise<Filter<TModel>> {
     const permissions = this.getGlobalPermissions();
     const cacheKey = `${modelName}_baseFilter_${access}`;
 
-    return resolveAccessFilter({
+    return resolveAccessFilter<TModel>({
       req: this.req,
       permissions,
       cache: this.caches.baseFilter,
@@ -240,19 +245,19 @@ export class Core {
   async prepare<T>(modelName: string, allowedData: T, access: PrepareAccess, context: MiddlewareContext): Promise<T> {
     const prepare = getModelOption(modelName, `prepare.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
-    return callMiddlewareChain(this.req, prepare, allowedData, permissions, context);
+    return callHookChain(this.req, prepare, allowedData, permissions, context);
   }
 
   async transform<T>(modelName: string, doc: T, access: TransformAccess, context: MiddlewareContext): Promise<T> {
     const transform = getModelOption(modelName, `transform.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
-    return callMiddlewareChain(this.req, transform, doc, permissions, context);
+    return callHookChain(this.req, transform, doc, permissions, context);
   }
 
-  async finalize<T>(modelName: string, doc: T, access: FinalizeAccess, context: MiddlewareContext): Promise<T> {
-    const finalize = getModelOption(modelName, `finalize.${access}`, null) as Function | Function[];
+  async afterPersist<T>(modelName: string, doc: T, access: AfterPersistAccess, context: MiddlewareContext): Promise<T> {
+    const afterPersist = getModelOption(modelName, `afterPersist.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
-    return callMiddlewareChain(this.req, finalize, doc, permissions, context);
+    return callHookChain(this.req, afterPersist, doc, permissions, context);
   }
 
   async changes(modelName: string, doc: Record<string, unknown>, context: MiddlewareContext) {
@@ -271,6 +276,18 @@ export class Core {
         );
       }
     }
+  }
+
+  async beforeDelete<T>(modelName: string, doc: T, access: DeleteAccess, context: MiddlewareContext): Promise<void> {
+    const beforeDelete = getModelOption(modelName, `beforeDelete.${access}`, null) as Function | Function[];
+    const permissions = this.getGlobalPermissions();
+    await callHookChain(this.req, beforeDelete, doc, permissions, context);
+  }
+
+  async afterDelete<T>(modelName: string, doc: T, access: DeleteAccess, context: MiddlewareContext): Promise<void> {
+    const afterDelete = getModelOption(modelName, `afterDelete.${access}`, null) as Function | Function[];
+    const permissions = this.getGlobalPermissions();
+    await callHookChain(this.req, afterDelete, doc, permissions, context);
   }
 
   async genDocPermissions(modelName: string, doc: unknown, access: DocPermissionsAccess, context: MiddlewareContext) {
@@ -378,7 +395,7 @@ export class Core {
     const permissions = this.getGlobalPermissions();
     context.docPermissions = getDocPermissions(modelName, doc) as Record<string, unknown>;
 
-    return callMiddlewareChain(this.req, decorate, doc, permissions, context);
+    return callHookChain(this.req, decorate, doc, permissions, context);
   }
 
   async decorateAll<T>(
@@ -390,7 +407,7 @@ export class Core {
     const decorateAll = getModelOption(modelName, `decorateAll.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
 
-    return callMiddlewareChain(this.req, decorateAll, docs, permissions, context);
+    return callHookChain(this.req, decorateAll, docs, permissions, context);
   }
 
   runTasks<T extends object>(modelName: string, docObject: T, task: Task | Task[]): T {
@@ -453,20 +470,20 @@ export class Core {
     return this.canActivate(routeGuard);
   }
 
-  getService(modelName: string) {
-    return new Service(this.req, modelName);
+  getService<TModel = unknown>(modelName: string) {
+    return new Service<TModel>(this.req, modelName);
   }
 
-  getPublicService(modelName: string) {
-    return new PublicService(this.req, modelName);
+  getPublicService<TModel = unknown>(modelName: string) {
+    return new PublicService<TModel>(this.req, modelName);
   }
 
-  service(modelName: string) {
-    return this.getPublicService(modelName);
+  service<TModel = unknown>(modelName: string) {
+    return this.getPublicService<TModel>(modelName);
   }
 
-  svc(modelName: string) {
-    return this.getPublicService(modelName);
+  svc<TModel = unknown>(modelName: string) {
+    return this.getPublicService<TModel>(modelName);
   }
 
   private getGlobalPermissions() {

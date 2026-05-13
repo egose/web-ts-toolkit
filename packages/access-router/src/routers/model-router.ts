@@ -18,6 +18,7 @@ import {
   PopulateAccess,
 } from '../interfaces';
 import { logger } from '../logger';
+import { PublicService, Service } from '../services';
 import { formatCreatedData, formatListResponse, formatUpsertCreatedData, parseBooleanString } from './shared';
 import { accessRouterResponseHandler } from './index';
 import {
@@ -56,28 +57,28 @@ const clientErrors = JsonRouter.clientErrors;
 const success = JsonRouter.success;
 
 type SetTargetOption = {
-  (option: unknown): ModelRouter;
-  (key: string, option: unknown): ModelRouter;
+  (option: unknown): ModelRouter<unknown>;
+  (key: string, option: unknown): ModelRouter<unknown>;
 };
 
-function setOption(this: ModelRouter, parentKey: string, optionKey: unknown, option?: unknown) {
+function setOption(this: ModelRouter<unknown>, parentKey: string, optionKey: unknown, option?: unknown) {
   const key = isUndefined(option) ? parentKey : `${parentKey}.${optionKey}`;
   const value = isUndefined(option) ? optionKey : option;
 
-  setModelOption(this.modelName, key as keyof ExtendedModelRouterOptions, value);
+  setModelOption(this.modelName, key as keyof ExtendedModelRouterOptions<unknown>, value);
   return this;
 }
 
-export class ModelRouter {
+export class ModelRouter<TModel = unknown> {
   readonly modelName: string;
   readonly router: JsonRouter;
   readonly model: Model;
-  readonly options: ModelRouterOptions;
+  readonly options: ModelRouterOptions<TModel>;
   readonly fullBasePath: string;
 
-  constructor(modelName: string, initialOptions: ModelRouterOptions) {
+  constructor(modelName: string, initialOptions: ModelRouterOptions<TModel>) {
     setModelOptions(modelName, initialOptions);
-    this.options = getModelOptions(modelName);
+    this.options = getModelOptions<TModel>(modelName);
     this.fullBasePath = processUrl(this.options.parentPath + this.options.basePath);
     this.modelName = modelName;
     this.router = new JsonRouter(this.options.basePath, setCore, accessRouterResponseHandler);
@@ -90,7 +91,18 @@ export class ModelRouter {
   }
 
   private getRequestSchema(key: string) {
-    return getExactModelOption(this.modelName, key as keyof ExtendedModelRouterOptions) as z.ZodTypeAny | undefined;
+    return getExactModelOption<keyof ExtendedModelRouterOptions<TModel>, TModel>(
+      this.modelName,
+      key as keyof ExtendedModelRouterOptions<TModel>,
+    ) as z.ZodTypeAny | undefined;
+  }
+
+  getService(req: Request): Service<TModel> {
+    return req.macl.getService<TModel>(this.modelName);
+  }
+
+  getPublicService(req: Request): PublicService<TModel> {
+    return req.macl.getPublicService<TModel>(this.modelName);
   }
 
   private async assertAllowed(req: Request, access: string) {
@@ -111,7 +123,7 @@ export class ModelRouter {
       const { skip, limit, page, page_size, skim, include_permissions, include_count, include_extra_headers } =
         parseQuery(requestSchemas.listQuery, req.query);
 
-      const svc = req.macl.getPublicService(this.modelName);
+      const svc = this.getPublicService(req);
 
       const includeCount = parseBooleanString(include_count);
       const includeExtraHeaders = parseBooleanString(include_extra_headers);
@@ -147,8 +159,8 @@ export class ModelRouter {
       const options: NonNullable<AdvancedListBody['options']> = body.options ?? {};
       const { skim, includePermissions, includeCount, includeExtraHeaders, populateAccess } = options;
 
-      const svc = req.macl.getPublicService(this.modelName);
-      const listFilter = (filter ?? query ?? {}) as Filter;
+      const svc = this.getPublicService(req);
+      const listFilter = (filter ?? query ?? {}) as Filter<TModel>;
 
       const result = await svc._list(
         listFilter,
@@ -175,7 +187,7 @@ export class ModelRouter {
       const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
       const data = parseBodyWithSchema(createBodySchema, req.body, this.getRequestSchema('requestSchemas.create'));
 
-      const svc = req.macl.getPublicService(this.modelName);
+      const svc = this.getPublicService(req);
       const result = await svc._create(data, {}, { includePermissions: parseBooleanString(include_permissions) });
 
       handleResultError(result);
@@ -206,7 +218,7 @@ export class ModelRouter {
       );
       const { includePermissions, populateAccess } = options;
 
-      const svc = req.macl.getPublicService(this.modelName);
+      const svc = this.getPublicService(req);
       const result = await svc._create(
         data,
         { select, populate, tasks },
@@ -225,7 +237,7 @@ export class ModelRouter {
     // NEW - EMPTY //
     /////////////////
     this.router.get('/new', async (req: Request) => {
-      const svc = req.macl.getPublicService(this.modelName);
+      const svc = this.getPublicService(req);
       const result = await svc._new();
 
       handleResultError(result);
@@ -244,7 +256,7 @@ export class ModelRouter {
     this.router.get('/count', async (req: Request) => {
       await this.assertAllowed(req, 'count');
 
-      const svc = req.macl.getPublicService(this.modelName);
+      const svc = this.getPublicService(req);
       const result = await svc._count({});
 
       handleResultError(result);
@@ -261,8 +273,8 @@ export class ModelRouter {
         req.body,
         this.getRequestSchema('requestSchemas.count'),
       );
-      const svc = req.macl.getPublicService(this.modelName);
-      const countFilter = (filter ?? query ?? {}) as Filter;
+      const svc = this.getPublicService(req);
+      const countFilter = (filter ?? query ?? {}) as Filter<TModel>;
       const result = await svc._count(countFilter, access as BaseFilterAccess | undefined);
 
       handleResultError(result);
@@ -278,7 +290,7 @@ export class ModelRouter {
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
       const { include_permissions, try_list } = parseQuery(requestSchemas.readQuery, req.query);
-      const svc = req.macl.getPublicService(this.modelName);
+      const svc = this.getPublicService(req);
       const result = await svc._read(
         id,
         {},
@@ -308,9 +320,9 @@ export class ModelRouter {
       const options: NonNullable<AdvancedReadFilterBody['options']> = body.options ?? {};
       const { skim, includePermissions, tryList, populateAccess } = options;
 
-      const svc = req.macl.getPublicService(this.modelName);
+      const svc = this.getPublicService(req);
       const result = await svc._readFilter(
-        (filter ?? {}) as Filter,
+        (filter ?? {}) as Filter<TModel>,
         {
           select,
           sort,
@@ -342,7 +354,7 @@ export class ModelRouter {
       const options: NonNullable<AdvancedReadBody['options']> = body.options ?? {};
       const { skim, includePermissions, tryList, populateAccess } = options;
 
-      const svc = req.macl.getPublicService(this.modelName);
+      const svc = this.getPublicService(req);
       const result = await svc._read(
         id,
         {
@@ -369,7 +381,7 @@ export class ModelRouter {
       const { returning_all } = parseQuery(requestSchemas.updateQuery, req.query);
       const data = parseBodyWithSchema(updateBodySchema, req.body, this.getRequestSchema('requestSchemas.update'));
 
-      const svc = req.macl.getPublicService(this.modelName);
+      const svc = this.getPublicService(req);
       const result = await svc._update(id, data, {}, { returningAll: parseBooleanString(returning_all) });
 
       handleResultError(result);
@@ -401,7 +413,7 @@ export class ModelRouter {
       );
       const { returningAll, includePermissions, populateAccess } = options;
 
-      const svc = req.macl.getPublicService(this.modelName);
+      const svc = this.getPublicService(req);
       const result = await svc._update(
         id,
         data,
@@ -424,7 +436,7 @@ export class ModelRouter {
     this.router.put(`/`, async (req: Request) => {
       await this.assertAllowed(req, 'upsert');
 
-      const svc = req.macl.getPublicService(this.modelName);
+      const svc = this.getPublicService(req);
       const idKey = svc.getIdentifier();
       if (idKey !== '_id') throw new clientErrors.BadRequestError('not supported identifier');
 
@@ -434,7 +446,7 @@ export class ModelRouter {
       const upsertId = idVal as string | undefined;
 
       if (upsertId) {
-        const existing = await svc.exists({ [idKey]: upsertId }, { access: 'update' });
+        const existing = await svc.exists({ [idKey]: upsertId } as Filter<TModel>, { access: 'update' });
         handleResultError(existing);
         if (!existing.data) throw new clientErrors.UnauthorizedError();
 
@@ -456,7 +468,7 @@ export class ModelRouter {
     this.router.put(`/${this.options.mutationPath}`, async (req: Request) => {
       await this.assertAllowed(req, 'upsert');
 
-      const svc = req.macl.getPublicService(this.modelName);
+      const svc = this.getPublicService(req);
       const idKey = svc.getIdentifier();
       if (idKey !== '_id') throw new clientErrors.BadRequestError('not supported identifier');
 
@@ -480,7 +492,7 @@ export class ModelRouter {
       const upsertId = idVal as string | undefined;
 
       if (upsertId) {
-        const existing = await svc.exists({ [idKey]: upsertId }, { access: 'update' });
+        const existing = await svc.exists({ [idKey]: upsertId } as Filter<TModel>, { access: 'update' });
         handleResultError(existing);
         if (!existing.data) throw new clientErrors.UnauthorizedError();
 
@@ -519,7 +531,7 @@ export class ModelRouter {
       await this.assertAllowed(req, 'delete');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
-      const svc = req.macl.getPublicService(this.modelName);
+      const svc = this.getPublicService(req);
       const result = await svc._delete(id);
 
       handleResultError(result);
@@ -534,7 +546,7 @@ export class ModelRouter {
       await this.assertAllowed(req, 'distinct');
 
       const field = parsePathParam(req.params.field, 'field');
-      const svc = req.macl.getPublicService(this.modelName);
+      const svc = this.getPublicService(req);
       const result = await svc._distinct(field);
 
       handleResultError(result);
@@ -578,7 +590,7 @@ export class ModelRouter {
         await this.assertAllowed(req, `subs.${sub}.list`);
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
-        const svc = req.macl.getPublicService(this.modelName);
+        const svc = this.getPublicService(req);
         const result = await svc.listSub(id, sub);
 
         handleResultError(result);
@@ -597,7 +609,7 @@ export class ModelRouter {
           req.body,
           this.getRequestSchema('requestSchemas.subList'),
         ) as SubListBody;
-        const svc = req.macl.getPublicService(this.modelName);
+        const svc = this.getPublicService(req);
         const result = await svc.listSub(id, sub, { filter: body.filter ?? {}, fields: body.fields ?? [] });
 
         handleResultError(result);
@@ -616,7 +628,7 @@ export class ModelRouter {
           req.body,
           this.getRequestSchema('requestSchemas.subBulkUpdate'),
         );
-        const svc = req.macl.getPublicService(this.modelName);
+        const svc = this.getPublicService(req);
         const result = await svc.bulkUpdateSub(id, sub, data);
 
         handleResultError(result);
@@ -631,7 +643,7 @@ export class ModelRouter {
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
         const subId = parsePathParam(req.params.subId, 'subId');
-        const svc = req.macl.getPublicService(this.modelName);
+        const svc = this.getPublicService(req);
         const result = await svc.readSub(id, sub, subId);
 
         handleResultError(result);
@@ -657,7 +669,7 @@ export class ModelRouter {
           : isString(populate)
             ? { path: populate }
             : (populate ?? []);
-        const svc = req.macl.getPublicService(this.modelName);
+        const svc = this.getPublicService(req);
         const result = await svc.readSub(id, sub, subId, { fields: body.fields ?? [], populate: normalizedPopulate });
 
         handleResultError(result);
@@ -677,7 +689,7 @@ export class ModelRouter {
           req.body,
           this.getRequestSchema('requestSchemas.subUpdate'),
         );
-        const svc = req.macl.getPublicService(this.modelName);
+        const svc = this.getPublicService(req);
         const result = await svc.updateSub(id, sub, subId, data);
 
         handleResultError(result);
@@ -696,7 +708,7 @@ export class ModelRouter {
           req.body,
           this.getRequestSchema('requestSchemas.subCreate'),
         );
-        const svc = req.macl.getPublicService(this.modelName);
+        const svc = this.getPublicService(req);
         const result = await svc.createSub(id, sub, data);
 
         handleResultError(result);
@@ -712,7 +724,7 @@ export class ModelRouter {
 
         const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
         const subId = parsePathParam(req.params.subId, 'subId');
-        const svc = req.macl.getPublicService(this.modelName);
+        const svc = this.getPublicService(req);
         const result = await svc.deleteSub(id, sub, subId);
 
         handleResultError(result);
@@ -727,25 +739,28 @@ export class ModelRouter {
     });
   }
 
-  set<K extends keyof ExtendedModelRouterOptions>(keyOrOptions: K | ModelRouterOptions, value?: unknown) {
+  set<K extends keyof ExtendedModelRouterOptions<TModel>>(
+    keyOrOptions: K | ModelRouterOptions<TModel>,
+    value?: unknown,
+  ) {
     if (arguments.length === 2 && isString(keyOrOptions)) {
-      setModelOption(this.modelName, keyOrOptions as K, value as ExtendedModelRouterOptions[K]);
+      setModelOption<K, TModel>(this.modelName, keyOrOptions as K, value as ExtendedModelRouterOptions<TModel>[K]);
     }
 
     if (arguments.length === 1 && isPlainObject(keyOrOptions)) {
-      setModelOptions(this.modelName, keyOrOptions as ModelRouterOptions);
+      setModelOptions<TModel>(this.modelName, keyOrOptions as ModelRouterOptions<TModel>);
     }
 
     return this;
   }
 
-  setOption<K extends keyof ExtendedModelRouterOptions>(key: K, option: ExtendedModelRouterOptions[K]) {
-    setModelOption(this.modelName, key, option);
+  setOption<K extends keyof ExtendedModelRouterOptions<TModel>>(key: K, option: ExtendedModelRouterOptions<TModel>[K]) {
+    setModelOption<K, TModel>(this.modelName, key, option);
     return this;
   }
 
-  setOptions(options: ModelRouterOptions) {
-    setModelOptions(this.modelName, options);
+  setOptions(options: ModelRouterOptions<TModel>) {
+    setModelOptions<TModel>(this.modelName, options);
     return this;
   }
 
@@ -793,7 +808,7 @@ export class ModelRouter {
   public overrideFilter: SetTargetOption = setOption.bind(this, 'overrideFilter');
 
   /**
-   * Middleware
+   * Hook
    *
    * The function called before a new/update document data is processed in `prepare` hooks. This method is used to validate `write data` and throw an error if not valid.
    * @operation `create`, `update`
@@ -801,7 +816,7 @@ export class ModelRouter {
   public validate: SetTargetOption = setOption.bind(this, 'validate');
 
   /**
-   * Middleware
+   * Hook
    *
    * The function called before a new document is created or an existing document is updated. This method is used to process raw data passed into the API endpoints.
    * @operation `create`, `update`
@@ -809,7 +824,7 @@ export class ModelRouter {
   public prepare: SetTargetOption = setOption.bind(this, 'prepare');
 
   /**
-   * Middleware
+   * Hook
    *
    * The function called before an updated document is saved.
    * @operation `update`
@@ -817,15 +832,15 @@ export class ModelRouter {
   public transform: SetTargetOption = setOption.bind(this, 'transform');
 
   /**
-   * Middleware
+   * Hook
    *
    * The function called after a new document is created or an updated document is saved.
    * @operation `create`, `update`
    */
-  public finalize: SetTargetOption = setOption.bind(this, 'finalize');
+  public afterPersist: SetTargetOption = setOption.bind(this, 'afterPersist');
 
   /**
-   * Middleware
+   * Hook
    *
    * The function called after a updated document finalized
    * @operation `update`
@@ -833,7 +848,23 @@ export class ModelRouter {
   public change: SetTargetOption = setOption.bind(this, 'change');
 
   /**
-   * Middleware
+   * Hook
+   *
+   * The function called before a document is deleted.
+   * @operation `delete`
+   */
+  public beforeDelete: SetTargetOption = setOption.bind(this, 'beforeDelete');
+
+  /**
+   * Hook
+   *
+   * The function called after a document is deleted.
+   * @operation `delete`
+   */
+  public afterDelete: SetTargetOption = setOption.bind(this, 'afterDelete');
+
+  /**
+   * Hook
    *
    * The function called before response data is sent. This method is used to process raw data to apply custom logic before sending the result.
    * @operation `list`, `read`, `create`, `update`
@@ -841,9 +872,9 @@ export class ModelRouter {
   public decorate: SetTargetOption = setOption.bind(this, 'decorate');
 
   /**
-   * Middleware
+   * Hook
    *
-   * The function are called before response data is sent and after `decorate` middleware runs. This method is used to process and filter multiple document objects before sending the result.
+   * The functions are called before response data is sent and after `decorate` hooks run. This method is used to process and filter multiple document objects before sending the result.
    * @operation `list`
    */
   public decorateAll: SetTargetOption = setOption.bind(this, 'decorateAll');

@@ -257,9 +257,68 @@ const createRequestSchemaApp = async () => {
   return { app };
 };
 
+const createLifecycleApp = async () => {
+  const modelName = `AclMongoLifecycleUser${++modelCounter}`;
+  const schema = new mongoose.Schema({
+    name: String,
+    role: String,
+  });
+
+  const User = mongoose.model(modelName, schema);
+  const events: string[] = [];
+
+  setGlobalOptions({
+    requestPermissionField: '_permissions',
+    globalPermissions() {
+      return ['isAdmin'];
+    },
+  });
+
+  const router = acl.createRouter(modelName, {
+    basePath: '/lifecycle-users',
+    identifier: 'name',
+    routeGuard: {
+      create: true,
+      read: true,
+      update: true,
+      delete: true,
+    },
+    permissionSchema: {
+      name: { create: true, read: true, update: true },
+      role: { create: true, read: true, update: true },
+    },
+    afterPersist: {
+      create(doc) {
+        events.push(`afterPersist:create:${String((doc as { name?: string }).name ?? '')}`);
+        return doc;
+      },
+      update(doc) {
+        events.push(`afterPersist:update:${String((doc as { name?: string }).name ?? '')}`);
+        return doc;
+      },
+    },
+    beforeDelete: {
+      delete(doc) {
+        events.push(`beforeDelete:${String((doc as { name?: string }).name ?? '')}`);
+      },
+    },
+    afterDelete: {
+      delete(doc) {
+        events.push(`afterDelete:${String((doc as { name?: string }).name ?? '')}`);
+      },
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router.routes);
+
+  return { app, events, User };
+};
+
 afterEach(() => {
   resetGlobalOptions();
-  mongoose.deleteModel(/AclMongo(User|OpsUser|Org|PopulateUser).*/);
+  mongoose.deleteModel(/AclMongo(User|OpsUser|Org|PopulateUser|SchemaUser|LifecycleUser).*/);
 });
 
 describe('model router integration', () => {
@@ -663,5 +722,31 @@ describe('model router integration', () => {
       .send({ data: { role: 'manager' } })
       .expect(200)
       .expect('Content-Type', /json/);
+  });
+
+  it('runs afterPersist hooks for create and update and delete lifecycle hooks around deletion', async () => {
+    const { app, events, User } = await createLifecycleApp();
+
+    await request(app)
+      .post('/lifecycle-users?include_permissions=false')
+      .send({ name: 'user1', role: 'user' })
+      .expect(201)
+      .expect('Content-Type', /json/);
+
+    await request(app)
+      .patch('/lifecycle-users/user1?include_permissions=false')
+      .send({ role: 'manager' })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    await request(app).delete('/lifecycle-users/user1').expect(200);
+
+    expect(events).toEqual([
+      'afterPersist:create:user1',
+      'afterPersist:update:user1',
+      'beforeDelete:user1',
+      'afterDelete:user1',
+    ]);
+    expect(await User.exists({ name: 'user1' })).toBeNull();
   });
 });

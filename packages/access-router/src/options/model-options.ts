@@ -1,6 +1,15 @@
 import mongoose from 'mongoose';
 import mschema2Jsonschema from 'mongoose-schema-jsonschema';
-import { addLeadingSlash, forEach, isArray, isBoolean, isFunction, isNil, isString } from '@web-ts-toolkit/utils';
+import {
+  addLeadingSlash,
+  forEach,
+  isArray,
+  isBoolean,
+  isFunction,
+  isNil,
+  isPlainObject,
+  isString,
+} from '@web-ts-toolkit/utils';
 import { OptionsManager, getNestedOption } from './manager';
 import {
   ModelRouterOptions,
@@ -15,6 +24,7 @@ const pluralize = mongoose.pluralize();
 
 type ExtendedModel = mongoose.Model<unknown> & { jsonSchema: () => Record<string, unknown> };
 type PermissionKeyMap = Record<string, string[]>;
+const FIELD_ACCESS_KEYS = ['list', 'create', 'read', 'update'] as const;
 
 const defaultModelOptions: ModelRouterOptions = {
   basePath: null,
@@ -67,7 +77,14 @@ const classifyPermissionSchema = (
   const modelPermissionKeys: PermissionKeyMap = {};
 
   forEach(schemaKeys, (schemaKey) => {
-    forEach(permissionSchema[schemaKey], (value, accessKey) => {
+    const schemaRule = permissionSchema[schemaKey];
+    const ruleEntries = isPlainObject(schemaRule)
+      ? Object.entries(schemaRule)
+      : FIELD_ACCESS_KEYS.map((accessKey) => [accessKey, schemaRule] as const);
+
+    for (let x = 0; x < ruleEntries.length; x++) {
+      const [accessKey, value] = ruleEntries[x];
+
       if (!isArray(globalPermissionKeys[accessKey])) {
         globalPermissionKeys[accessKey] = [];
       }
@@ -87,7 +104,7 @@ const classifyPermissionSchema = (
       }
 
       globalPermissionKeys[accessKey].push(schemaKey);
-    });
+    }
   });
 
   return {
@@ -129,57 +146,60 @@ const createModelOptions = (modelName: string) => {
   return manager;
 };
 
-const getOrCreateModelOptions = (modelName: string) => {
+const getOrCreateModelOptions = <TModel = unknown>(modelName: string) => {
   let manager = modelOptions[modelName];
   if (!manager) {
     manager = createModelOptions(modelName);
     modelOptions[modelName] = manager;
   }
 
-  return manager;
+  return manager as OptionsManager<ModelRouterOptions<TModel>, ExtendedModelRouterOptions<TModel>>;
 };
 
-export const setModelOptions = (modelName: string, options: ModelRouterOptions) => {
-  const manager = getOrCreateModelOptions(modelName);
-  const defaultOptions = getDefaultModelOptions();
+export const setModelOptions = <TModel = unknown>(modelName: string, options: ModelRouterOptions<TModel>) => {
+  const manager = getOrCreateModelOptions<TModel>(modelName);
+  const defaultOptions = getDefaultModelOptions() as ModelRouterOptions<TModel>;
   const modelOptions = manager.fetch();
 
   manager.assign({ ...defaultOptions, ...modelOptions, ...options });
 };
 
-export const setModelOption = <K extends keyof ExtendedModelRouterOptions>(
+export const setModelOption = <K extends keyof ExtendedModelRouterOptions<TModel>, TModel = unknown>(
   modelName: string,
   key: K,
-  value: ExtendedModelRouterOptions[K],
+  value: ExtendedModelRouterOptions<TModel>[K],
 ) => {
-  const manager = getOrCreateModelOptions(modelName);
+  const manager = getOrCreateModelOptions<TModel>(modelName);
 
   manager.set(key, value);
 };
 
-export const getModelOptions = (modelName: string) => {
-  const manager = getOrCreateModelOptions(modelName);
-  return manager.fetch();
+export const getModelOptions = <TModel = unknown>(modelName: string) => {
+  const manager = getOrCreateModelOptions<TModel>(modelName);
+  return manager.fetch() as ModelRouterOptions<TModel>;
 };
 
-export const getModelOption = <K extends keyof ExtendedModelRouterOptions>(
+export const getModelOption = <K extends keyof ExtendedModelRouterOptions<TModel>, TModel = unknown>(
   modelName: string,
   key: K | string,
-  defaultValue?: ExtendedModelRouterOptions[K],
+  defaultValue?: ExtendedModelRouterOptions<TModel>[K],
 ) => {
-  const manager = getOrCreateModelOptions(modelName);
+  const manager = getOrCreateModelOptions<TModel>(modelName);
   const defaultModelValue = getDefaultModelOption(
     key as keyof ExtendedDefaultModelRouterOptions,
     defaultValue as never,
   );
 
-  return getNestedOption(manager, key, defaultModelValue as never) as ExtendedModelRouterOptions[K];
+  return getNestedOption(manager, key, defaultModelValue as never) as ExtendedModelRouterOptions<TModel>[K];
 };
 
-export const getExactModelOption = <K extends keyof ExtendedModelRouterOptions>(modelName: string, key: K | string) => {
-  const manager = getOrCreateModelOptions(modelName);
+export const getExactModelOption = <K extends keyof ExtendedModelRouterOptions<TModel>, TModel = unknown>(
+  modelName: string,
+  key: K | string,
+) => {
+  const manager = getOrCreateModelOptions<TModel>(modelName);
   const defaultModelValue = getDefaultModelOption(key as keyof ExtendedDefaultModelRouterOptions);
-  return manager.get(key, defaultModelValue as never) as ExtendedModelRouterOptions[K];
+  return manager.get(key, defaultModelValue as never) as ExtendedModelRouterOptions<TModel>[K];
 };
 
 export const getModelNames = () => {

@@ -1,3 +1,5 @@
+import mongoose from 'mongoose';
+import type {} from './filter-type-tests';
 import { isPlainObject, isString, isUndefined } from '@web-ts-toolkit/utils';
 import middleware, { guard } from './middleware';
 import { RootRouter, ModelRouter, DataRouter } from './routers';
@@ -17,10 +19,19 @@ import {
   getDefaultModelOptions,
   getDefaultModelOption,
 } from './options';
-import { GlobalOptions, RootRouterOptions, ModelRouterOptions, DataRouterOptions } from './interfaces';
+import {
+  GlobalOptions,
+  RootRouterOptions,
+  ModelRouterOptions,
+  DataRouterOptions,
+  AccessRouterRequest,
+  AccessRouterRequestExtensions,
+} from './interfaces';
+import { AccessRouterPermissions, AccessRouterPermissionMap } from './permission';
 export {
   RootRouter,
   ModelRouter,
+  DataRouter,
   guard,
   setGlobalOptions,
   setGlobalOption,
@@ -37,6 +48,7 @@ export {
   getDefaultModelOptions,
   getDefaultModelOption,
 };
+export type { AccessRouterPermissions, AccessRouterPermissionMap, AccessRouterRequest, AccessRouterRequestExtensions };
 export * from './permission';
 export * from './plugins';
 export * from './interfaces';
@@ -45,12 +57,13 @@ export * from './enums';
 export * from './routers/validation';
 
 type CreateRouter = {
-  (modelName: string, options: ModelRouterOptions): ModelRouter;
+  <TModel>(model: mongoose.Model<TModel>, options: ModelRouterOptions<TModel>): ModelRouter<TModel>;
+  <TModel>(modelName: string, options: ModelRouterOptions<TModel>): ModelRouter<TModel>;
   (options: RootRouterOptions): RootRouter;
 };
 
 type CreateDataRouter = {
-  (dataName: string, options: DataRouterOptions): DataRouter;
+  <TData>(dataName: string, options: DataRouterOptions<TData>): DataRouter<TData>;
 };
 
 type WttSet = {
@@ -83,13 +96,19 @@ interface Wtt {
 
 const wtt = middleware as typeof middleware & Wtt;
 
-wtt.createRouter = function (modelName: string | RootRouterOptions, options: ModelRouterOptions | undefined) {
+wtt.createRouter = function (
+  modelName: string | mongoose.Model<unknown> | RootRouterOptions,
+  options: ModelRouterOptions | undefined,
+) {
+  const resolvedModelName =
+    typeof modelName === 'string' ? modelName : modelName && 'modelName' in modelName ? modelName.modelName : modelName;
+
   return isUndefined(options)
     ? new RootRouter(modelName as RootRouterOptions)
-    : new ModelRouter(modelName as string, options);
+    : new ModelRouter(resolvedModelName as string, options);
 } as CreateRouter;
 
-wtt.createDataRouter = function (dataName: string, options: DataRouterOptions) {
+wtt.createDataRouter = function <TData>(dataName: string, options: DataRouterOptions<TData>) {
   return new DataRouter(dataName, options);
 };
 
@@ -119,4 +138,6 @@ wtt.RootRouter = RootRouter;
 wtt.ModelRouter = ModelRouter;
 wtt.DataRouter = DataRouter;
 
-export default wtt;
+export const acl = wtt;
+
+export default acl;
