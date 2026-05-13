@@ -101,13 +101,8 @@ async function createUserRouter() {
       email: { list: 'isAdmin', read: 'isAdmin', create: 'isAdmin', update: 'isAdmin' },
       public: { list: true, read: true, create: true, update: true },
     },
-    baseFilter: {
-      list(permissions) {
-        return permissions.isAdmin ? {} : { public: true };
-      },
-      read(permissions) {
-        return permissions.isAdmin ? {} : { public: true };
-      },
+    baseFilter(permissions) {
+      return permissions.isAdmin ? {} : { public: true };
     },
     decorate(doc, permissions) {
       if (permissions.isAdmin && this.requestId) {
@@ -116,7 +111,12 @@ async function createUserRouter() {
 
       return doc;
     },
+    afterDelete(aa, bb) {},
   });
+
+  // userRouter.afterDelete(async (contenxt) => {
+  //   contenxt.
+  // });
 
   const typedService = userRouter.getService({} as express.Request as Parameters<typeof userRouter.getService>[0]);
   void typedService;
