@@ -537,6 +537,21 @@ The most common model hooks are called with `this` bound to the current Express 
 
 - Returns the document-level permission object written to the configured permission field.
 
+## Hook Context
+
+`ModelHookContext` now exposes a bit more of the router's resolved state:
+
+- `operation`: the active lifecycle operation such as `list`, `read`, `create`, `update`, or `delete`
+- `allowedFields`: the field names that survived permission-based input filtering for create and update flows
+- `allowedData`: the raw input after permission-based filtering and before `prepare`
+- `resolvedQuery`: the resolved filter/select/populate/sort/pagination values for the current flow
+
+`DataHookContext` now includes:
+
+- `dataName`: the current data-router name
+- `operation`: the active decorate/decorateAll access value
+- `resolvedQuery`: the resolved filter/select/sort/pagination values passed through built-in data read/list routes
+
 ### Example
 
 ```ts
