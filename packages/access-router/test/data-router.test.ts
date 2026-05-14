@@ -1,6 +1,6 @@
 import express from 'express';
 import request from 'supertest';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import acl, { getGlobalOptions, setGlobalOptions } from '../dist/index.mjs';
@@ -328,6 +328,138 @@ describe('data router', () => {
     expect(response.body.deduped).toEqual({ public: true });
     expect(response.body.conflicting).toEqual({
       $and: [{ public: true }, { public: false }],
+    });
+  });
+
+  it('injects data hook context metadata for decorate and decorateAll hooks', async () => {
+    const decorate = vi.fn((doc) => doc);
+    const decorateAll = vi.fn((docs) => docs);
+
+    const app = express();
+    const router = acl.createDataRouter('hook-fruit', {
+      basePath: '/hook-fruit',
+      idField: 'id',
+      operationAccess: {
+        list: true,
+      },
+      data: [{ id: 'apple', name: 'Apple' }],
+      permissionSchema: {
+        id: true,
+        name: true,
+      },
+      decorate: {
+        list: decorate,
+      },
+      decorateAll: {
+        list: decorateAll,
+      },
+    });
+
+    router.router.get('/custom/context', async (req) => {
+      const svc = router.getService(req);
+      await svc.decorate({ id: 'apple', name: 'Apple' }, 'list');
+      await svc.decorateAll([{ id: 'apple', name: 'Apple' }], 'list');
+
+      return {
+        decorateContext: decorate.mock.calls[0]?.[2],
+        decorateAllContext: decorateAll.mock.calls[0]?.[2],
+      };
+    });
+
+    app.use(express.json());
+    app.use(router.routes);
+
+    const response = await request(app).get('/hook-fruit/custom/context').expect(200).expect('Content-Type', /json/);
+
+    expect(response.body).toEqual({
+      decorateContext: {
+        dataName: 'hook-fruit',
+        operation: 'list',
+      },
+      decorateAllContext: {
+        dataName: 'hook-fruit',
+        operation: 'list',
+      },
+    });
+  });
+
+  it('applies built-in data route decorate hooks with resolved query metadata', async () => {
+    const app = express();
+    const router = acl.createDataRouter('route-hook-fruit', {
+      basePath: '/route-hook-fruit',
+      idField: 'id',
+      operationAccess: {
+        list: true,
+        read: true,
+      },
+      data: [
+        { id: 'apple', name: 'Apple' },
+        { id: 'pear', name: 'Pear' },
+      ],
+      permissionSchema: {
+        id: true,
+        name: true,
+      },
+      decorate: {
+        list(doc, _permissions, context) {
+          return {
+            ...doc,
+            decoratedOperation: context.operation,
+            queryLimit: context.resolvedQuery?.limit ?? null,
+          };
+        },
+        read(doc, _permissions, context) {
+          return {
+            ...doc,
+            decoratedOperation: context.operation,
+            queryFilter: context.resolvedQuery?.filter ?? null,
+          };
+        },
+      },
+      decorateAll: {
+        list(docs, _permissions, context) {
+          return docs.map((doc) => ({
+            ...doc,
+            decoratedAllOperation: context.operation,
+            querySkip: context.resolvedQuery?.skip ?? null,
+          }));
+        },
+      },
+    });
+
+    app.use(express.json());
+    app.use(router.routes);
+
+    const listResponse = await request(app).get('/route-hook-fruit?limit=1').expect(200).expect('Content-Type', /json/);
+
+    const readResponse = await request(app).get('/route-hook-fruit/apple').expect(200).expect('Content-Type', /json/);
+
+    expect(listResponse.body).toEqual({
+      data: [
+        {
+          id: 'apple',
+          name: 'Apple',
+          decoratedOperation: 'list',
+          decoratedAllOperation: 'list',
+          queryLimit: 1,
+          querySkip: 0,
+        },
+      ],
+      meta: {
+        returnedCount: 1,
+        skip: 0,
+        limit: 1,
+        page: 1,
+        pageSize: 1,
+        hasPreviousPage: false,
+      },
+    });
+
+    expect(readResponse.body).toEqual({
+      id: 'apple',
+      name: 'Apple',
+      decoratedOperation: 'read',
+      queryFilter: { id: 'apple' },
     });
   });
 

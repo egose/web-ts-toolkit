@@ -141,8 +141,8 @@ export class DataService<T> {
     return this.req.dacl.decorate(this.dataName, doc, access, context);
   }
 
-  public decorateAll<TDoc>(docs: TDoc[], access: DecorateAllAccess): Promise<TDoc[]> {
-    return this.req.dacl.decorateAll(this.dataName, docs, access);
+  public decorateAll<TDoc>(docs: TDoc[], access: DecorateAllAccess, context?: DataHookContext): Promise<TDoc[]> {
+    return this.req.dacl.decorateAll(this.dataName, docs, access, context);
   }
 
   public genAllowedFields(doc: unknown, access: SelectAccess, baseFields?: string[]): Promise<string[]> {

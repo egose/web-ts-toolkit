@@ -55,6 +55,8 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     const docs = await this.decorateAll(result.data, 'list', {
       mongooseModel: this.model.model,
       modelName: this.modelName,
+      operation: 'list',
+      resolvedQuery: result.query,
     });
     const transformedDocs = docs.map((row) =>
       this.runTasks(row as Record<string, unknown>, tasks),

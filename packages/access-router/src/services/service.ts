@@ -150,7 +150,9 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const context: ModelHookContext = {
       mongooseModel: this.model.model,
       modelName: this.modelName,
+      operation: access,
       originalDocumentSnapshot: toObject(doc),
+      resolvedQuery: query,
     };
 
     doc = await this.includeDocs(doc, includes);
@@ -248,7 +250,9 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const contexts: ModelHookContext[] = docs.map((doc) => ({
       mongooseModel: this.model.model,
       modelName: this.modelName,
+      operation: 'list',
       originalDocumentSnapshot: toObject(doc),
+      resolvedQuery: query,
     }));
 
     const _decorate: (...args: unknown[]) => unknown = isFunction(decorate) ? decorate : (v) => v;
@@ -306,6 +310,8 @@ export class Service<TModel = unknown> extends Base<TModel> {
     let dataArr = isArr ? data : [data];
     dataArr = await Promise.all(dataArr.map((d) => this.parseClientData(d)));
 
+    const resolvedPopulate = populate ? await this.genPopulate(populateAccess, populate) : [];
+
     const contexts: ModelHookContext[] = [];
 
     let validationError = null;
@@ -314,11 +320,15 @@ export class Service<TModel = unknown> extends Base<TModel> {
         const context: ModelHookContext = {
           mongooseModel: this.model.model,
           modelName: this.modelName,
+          operation: 'create',
           originalData: item,
+          resolvedQuery: resolvedPopulate.length > 0 ? { populate: resolvedPopulate } : {},
         };
 
         const allowedFields = await this.genAllowedFields(item, 'create');
         const allowedData = pick(item, allowedFields);
+        context.allowedFields = allowedFields;
+        context.allowedData = allowedData;
 
         const validated = await this.validate(allowedData, 'create', context);
         if (isBoolean(validated)) {
@@ -336,7 +346,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
         const preparedData = await this.prepare(allowedData, 'create', context);
 
         context.preparedData = preparedData;
-        contexts.push(context);
+        contexts[index] = context;
         return preparedData;
       }),
     );
@@ -362,7 +372,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
         }
         if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'create', contexts[index]);
         if (includePermissions) doc = await this.addFieldPermissions(doc, 'read', contexts[index]);
-        if (populate) await populateDoc(doc as Document, await this.genPopulate(populateAccess, populate));
+        if (resolvedPopulate.length > 0) await populateDoc(doc as Document, resolvedPopulate);
         doc = await this.trimOutputFields(doc, 'read', this.baseFieldsExt);
         let outputDoc = await _decorate(doc, contexts[index]);
         if (!includePermissions) outputDoc = this.addEmptyPermissions(outputDoc);
@@ -419,7 +429,12 @@ export class Service<TModel = unknown> extends Base<TModel> {
     let doc = (await this.model.findOne({ filter: _filter })) as ModelDocument<TModel> | null;
     if (!doc) return { success: false, code: Codes.NotFound, query };
 
-    const context: ModelHookContext = { mongooseModel: this.model.model, modelName: this.modelName };
+    const context: ModelHookContext = {
+      mongooseModel: this.model.model,
+      modelName: this.modelName,
+      operation: 'update',
+      resolvedQuery: query,
+    };
 
     data = await this.parseClientData(data);
 
@@ -434,6 +449,8 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const allowedFields = await this.genAllowedFields(doc, 'update');
     const allowedData = pick(data, allowedFields);
+    context.allowedFields = allowedFields;
+    context.allowedData = allowedData;
 
     const validated = await this.validate(allowedData, 'update', context);
     if (isBoolean(validated)) {
@@ -578,8 +595,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const context: ModelHookContext = {
       mongooseModel: this.model.model,
       modelName: this.modelName,
+      operation: 'delete',
       originalDocumentSnapshot: toObject(doc) as Record<string, unknown>,
       currentDocument: doc as unknown as ModelDocument<TModel>,
+      resolvedQuery: query,
     };
 
     await this.beforeDelete(doc, context);

@@ -220,17 +220,38 @@ interface KeyValue {
 export interface ModelHookContext {
   modelName: string;
   mongooseModel: mongoose.Model<unknown>;
+  operation?: string;
   originalDocumentSnapshot?: Record<string, unknown>;
   finalDocumentSnapshot?: Record<string, unknown>;
   currentDocument?: ModelDocument;
   originalData?: Record<string, unknown>;
+  allowedData?: Record<string, unknown>;
   preparedData?: Record<string, unknown>;
+  allowedFields?: string[];
   modifiedPaths?: string[];
   changes?: Diff<unknown>[];
   docPermissions?: KeyValue;
+  resolvedQuery?: {
+    filter?: Filter;
+    select?: string[];
+    populate?: Populate[] | string;
+    sort?: Sort;
+    skip?: number;
+    limit?: number;
+  };
 }
 
-export interface DataHookContext {}
+export interface DataHookContext {
+  dataName?: string;
+  operation?: string;
+  resolvedQuery?: {
+    filter?: Filter;
+    select?: string[];
+    sort?: Sort;
+    skip?: number;
+    limit?: number;
+  };
+}
 
 export interface RootQueryEntry {
   model: string;

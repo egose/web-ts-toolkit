@@ -98,7 +98,11 @@ export class DataRouter<TData = unknown> {
 
       handleResultError(result);
 
-      return formatListResponse(req, result, includeCount, includeExtraHeaders);
+      const decorateContext = { resolvedQuery: result.query };
+      const decoratedDocs = await Promise.all(result.data.map((doc) => svc.decorate(doc, 'list', decorateContext)));
+      const data = await svc.decorateAll(decoratedDocs, 'list', decorateContext);
+
+      return formatListResponse(req, { ...result, data }, includeCount, includeExtraHeaders);
     });
 
     /////////////////////
@@ -129,7 +133,11 @@ export class DataRouter<TData = unknown> {
 
       handleResultError(result);
 
-      return formatListResponse(req, result, includeCount, includeExtraHeaders);
+      const decorateContext = { resolvedQuery: result.query };
+      const decoratedDocs = await Promise.all(result.data.map((doc) => svc.decorate(doc, 'list', decorateContext)));
+      const data = await svc.decorateAll(decoratedDocs, 'list', decorateContext);
+
+      return formatListResponse(req, { ...result, data }, includeCount, includeExtraHeaders);
     });
   }
 
@@ -149,7 +157,9 @@ export class DataRouter<TData = unknown> {
 
       handleResultError(result);
 
-      return result.data;
+      const data = await svc.decorate(result.data, 'read', { resolvedQuery: result.query });
+
+      return data;
     });
 
     //////////////////////////////
@@ -169,7 +179,9 @@ export class DataRouter<TData = unknown> {
 
       handleResultError(result);
 
-      return result.data;
+      const data = await svc.decorate(result.data, 'read', { resolvedQuery: result.query });
+
+      return data;
     });
 
     /////////////////////
@@ -190,7 +202,9 @@ export class DataRouter<TData = unknown> {
 
       handleResultError(result);
 
-      return result.data;
+      const data = await svc.decorate(result.data, 'read', { resolvedQuery: result.query });
+
+      return data;
     });
   }
 

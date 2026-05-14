@@ -176,6 +176,42 @@ describe('model router', () => {
     });
   });
 
+  it('passes create hook context with operation and allowed input metadata', async () => {
+    let receivedContext: Record<string, unknown> | undefined;
+
+    const validate = vi.fn((_data, _permissions, context) => {
+      receivedContext = {
+        operation: context.operation,
+        originalData: context.originalData,
+        allowedData: context.allowedData,
+        allowedFields: context.allowedFields,
+        resolvedQuery: context.resolvedQuery,
+      };
+
+      return true;
+    });
+
+    const { app } = createUserApp({
+      globalPermissions: () => ['isAdmin'],
+      validate,
+    });
+
+    await request(app)
+      .post('/users?include_permissions=false')
+      .set('user', 'admin')
+      .send({ name: 'user-context', role: 'user', public: false, ignored: 'value' })
+      .expect(201);
+
+    expect(validate).toHaveBeenCalledOnce();
+    expect(receivedContext).toEqual({
+      operation: 'create',
+      originalData: { name: 'user-context', role: 'user', public: false, ignored: 'value' },
+      allowedData: { name: 'user-context', role: 'user', public: false },
+      allowedFields: ['name', 'role', 'public'],
+      resolvedQuery: {},
+    });
+  });
+
   it.each([true, [], null])('allows create requests for pass-through validators: %j', async (validate) => {
     const { app, createSpy } = createUserApp({
       globalPermissions: () => ({ isAdmin: true }),

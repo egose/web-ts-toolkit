@@ -356,9 +356,66 @@ const createInvalidTransformApp = async () => {
   return { app };
 };
 
+const createListContextApp = async () => {
+  const modelName = `AclMongoListContextUser${++modelCounter}`;
+  const User = mongoose.model(
+    modelName,
+    new mongoose.Schema({
+      name: String,
+      role: String,
+    }),
+  );
+
+  let listContext: Record<string, unknown> | undefined;
+
+  setGlobalOptions({
+    requestPermissionField: '_permissions',
+    globalPermissions() {
+      return ['isAdmin'];
+    },
+  });
+
+  const router = acl.createRouter(modelName, {
+    basePath: '/list-context-users',
+    operationAccess: {
+      list: true,
+    },
+    permissionSchema: {
+      name: { list: true },
+      role: { list: true },
+    },
+    decorateAll: {
+      list(docs, _permissions, context) {
+        listContext = {
+          operation: context.operation,
+          resolvedQuery: context.resolvedQuery,
+        };
+        return docs;
+      },
+    },
+  });
+
+  router.router.get('/custom/context', () => {
+    return listContext ?? null;
+  });
+
+  await User.create([
+    { name: 'user1', role: 'admin' },
+    { name: 'user2', role: 'user' },
+  ]);
+
+  const app = express();
+  app.use(express.json());
+  app.use(router.routes);
+
+  return { app };
+};
+
 afterEach(() => {
   resetGlobalOptions();
-  mongoose.deleteModel(/AclMongo(User|OpsUser|Org|PopulateUser|SchemaUser|LifecycleUser|TransformUser).*/);
+  mongoose.deleteModel(
+    /AclMongo(User|OpsUser|Org|PopulateUser|SchemaUser|LifecycleUser|TransformUser|ListContextUser).*/,
+  );
 });
 
 describe('model router integration', () => {
@@ -801,5 +858,26 @@ describe('model router integration', () => {
 
     expect(response.body.detail).toContain('transform hook');
     expect(response.body.detail).toContain('Mongoose document instance');
+  });
+
+  it('passes list hook context with operation and resolved query metadata', async () => {
+    const { app } = await createListContextApp();
+
+    await request(app).get('/list-context-users?limit=1').expect(200).expect('Content-Type', /json/);
+
+    const response = await request(app)
+      .get('/list-context-users/custom/context')
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    expect(response.body).toMatchObject({
+      operation: 'list',
+      resolvedQuery: {
+        filter: {},
+        skip: 0,
+        limit: 1,
+      },
+    });
+    expect(Array.isArray(response.body.resolvedQuery.select)).toBe(true);
   });
 });
