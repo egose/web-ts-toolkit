@@ -312,9 +312,53 @@ const createLifecycleApp = async () => {
   return { app, events, User };
 };
 
+const createInvalidTransformApp = async () => {
+  const modelName = `AclMongoTransformUser${++modelCounter}`;
+  const User = mongoose.model(
+    modelName,
+    new mongoose.Schema({
+      name: String,
+      role: String,
+    }),
+  );
+
+  setGlobalOptions({
+    requestPermissionField: '_permissions',
+    globalPermissions() {
+      return ['isAdmin'];
+    },
+  });
+
+  const router = acl.createRouter(modelName, {
+    basePath: '/transform-users',
+    idField: 'name',
+    operationAccess: {
+      read: true,
+      update: true,
+    },
+    permissionSchema: {
+      name: { read: true, update: true },
+      role: { read: true, update: true },
+    },
+    transform: {
+      update() {
+        return { invalid: true } as never;
+      },
+    },
+  });
+
+  await User.create({ name: 'user1', role: 'user' });
+
+  const app = express();
+  app.use(express.json());
+  app.use(router.routes);
+
+  return { app };
+};
+
 afterEach(() => {
   resetGlobalOptions();
-  mongoose.deleteModel(/AclMongo(User|OpsUser|Org|PopulateUser|SchemaUser|LifecycleUser).*/);
+  mongoose.deleteModel(/AclMongo(User|OpsUser|Org|PopulateUser|SchemaUser|LifecycleUser|TransformUser).*/);
 });
 
 describe('model router integration', () => {
@@ -744,5 +788,18 @@ describe('model router integration', () => {
       'afterDelete:user1',
     ]);
     expect(await User.exists({ name: 'user1' })).toBeNull();
+  });
+
+  it('returns an internal error when transform.update returns a plain object', async () => {
+    const { app } = await createInvalidTransformApp();
+
+    const response = await request(app)
+      .patch('/transform-users/user1?include_permissions=false')
+      .send({ role: 'manager' })
+      .expect(422)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(response.body.detail).toContain('transform hook');
+    expect(response.body.detail).toContain('Mongoose document instance');
   });
 });

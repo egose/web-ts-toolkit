@@ -4,7 +4,7 @@ import { getDataOption } from './options';
 import {
   Projection,
   Filter,
-  DataMiddlewareContext,
+  DataHookContext,
   Validation,
   AccessRouterBaseRequest,
   DataRequest,
@@ -124,7 +124,7 @@ export class DataCore {
     return fields;
   }
 
-  async decorate<TDoc>(dataName: string, doc: TDoc, access: DecorateAccess, context: DataMiddlewareContext = {}) {
+  async decorate<TDoc>(dataName: string, doc: TDoc, access: DecorateAccess, context: DataHookContext = {}) {
     const decorate = getDataOption(dataName, `decorate.${access}`, null) as Function | Function[];
 
     const permissions = this.getGlobalPermissions();

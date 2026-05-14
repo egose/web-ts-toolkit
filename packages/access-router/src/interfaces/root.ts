@@ -4,7 +4,15 @@ import type { z } from 'zod';
 import type { Core } from '../core';
 import type { DataCore } from '../core-data';
 import type { AccessRouterPermissions } from '../permission';
-import { DataMiddlewareContext, DataRequest, Filter, MiddlewareContext, ModelRequest, Validation } from './base';
+import {
+  DataHookContext,
+  DataRequest,
+  Filter,
+  ModelDocument,
+  ModelHookContext,
+  ModelRequest,
+  Validation,
+} from './base';
 import { PublicCreateArgs, CreateArgs, PublicCreateOptions, CreateOptions } from './service-create';
 import {
   PublicUpdateArgs,
@@ -73,14 +81,14 @@ type ValidateHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = 
   this: TRequest,
   allowedData: unknown,
   permissions: AccessRouterPermissions,
-  context: MiddlewareContext,
+  context: ModelHookContext,
 ) => MaybePromise<ValidateRule>;
 
 type DocPermissionsHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
   this: TRequest,
   doc: unknown,
   permissions: AccessRouterPermissions,
-  context: MiddlewareContext,
+  context: ModelHookContext,
 ) => MaybePromise<Record<string, unknown>>;
 
 type ChangeHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
@@ -88,15 +96,26 @@ type ChangeHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
   previousValue: unknown,
   nextValue: unknown,
   changes: Diff<unknown>[],
-  context: MiddlewareContext,
+  context: ModelHookContext,
 ) => MaybePromise<void>;
 
 type DeleteHook<TValue = unknown, TRequest extends AccessRouterRequest = AccessRouterRequest> = (
   this: TRequest,
   value: TValue,
   permissions: AccessRouterPermissions,
-  context: MiddlewareContext,
+  context: ModelHookContext,
 ) => MaybePromise<void>;
+
+type DocumentHook<TValue, TRequest extends AccessRouterRequest = AccessRouterRequest> = (
+  this: TRequest,
+  value: ModelDocument<TValue>,
+  permissions: AccessRouterPermissions,
+  context: ModelHookContext,
+) => MaybePromise<ModelDocument<TValue>>;
+
+type DocumentHookChain<TValue, TRequest extends AccessRouterRequest = AccessRouterRequest> =
+  | DocumentHook<TValue, TRequest>
+  | Array<DocumentHook<TValue, TRequest>>;
 
 type ModelBaseFilterHook = BaseFilterHook<ModelRequest>;
 type DataBaseFilterHook = BaseFilterHook<DataRequest>;
@@ -107,11 +126,12 @@ type DataIdentifierHook<TValue = unknown> = IdentifierHook<TValue, DataRequest>;
 type ModelValidateHook = ValidateHook<ModelRequest>;
 type ModelDocPermissionsHook = DocPermissionsHook<ModelRequest>;
 type ModelChangeHook = ChangeHook<ModelRequest>;
-type ModelDeleteHook<TValue = unknown> = DeleteHook<TValue, ModelRequest>;
-type ModelHook<TValue = unknown> = HookChain<TValue, MiddlewareContext, ModelRequest>;
-type ModelListHook<TValue = unknown> = HookChain<TValue[], MiddlewareContext, ModelRequest>;
-type DataHook<TValue = unknown> = HookChain<TValue, DataMiddlewareContext, DataRequest>;
-type DataListHook<TValue = unknown> = HookChain<TValue[], DataMiddlewareContext, DataRequest>;
+type ModelDocumentHook<TValue = unknown> = DocumentHookChain<TValue, ModelRequest>;
+type ModelDeleteHook<TValue = unknown> = DeleteHook<ModelDocument<TValue>, ModelRequest>;
+type ModelHook<TValue = unknown> = HookChain<TValue, ModelHookContext, ModelRequest>;
+type ModelListHook<TValue = unknown> = HookChain<TValue[], ModelHookContext, ModelRequest>;
+type DataHook<TValue = unknown> = HookChain<TValue, DataHookContext, DataRequest>;
+type DataListHook<TValue = unknown> = HookChain<TValue[], DataHookContext, DataRequest>;
 
 type SubRouteGuardOptions = Record<string, Validation | Record<string, Validation>>;
 
@@ -247,8 +267,8 @@ export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouter
   decorateAll?: ModelListHook<TModel> | Record<string, ModelListHook<TModel>>;
   validate?: ValidateRule | ModelValidateHook | Record<string, ValidateRule | ModelValidateHook>;
   prepare?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
-  transform?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
-  afterPersist?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
+  transform?: ModelDocumentHook<TModel> | Record<string, ModelDocumentHook<TModel>>;
+  afterPersist?: ModelDocumentHook<TModel> | Record<string, ModelDocumentHook<TModel>>;
   onChange?: Record<string, ModelChangeHook>;
   beforeDelete?: ModelDeleteHook<TModel>;
   afterDelete?: ModelDeleteHook<TModel>;
@@ -310,11 +330,11 @@ export interface ExtendedModelRouterOptions<TModel = unknown>
   'prepare.default'?: ModelHook;
   'prepare.create'?: ModelHook;
   'prepare.update'?: ModelHook;
-  'transform.default'?: ModelHook;
-  'transform.update'?: ModelHook;
-  'afterPersist.default'?: ModelHook;
-  'afterPersist.create'?: ModelHook;
-  'afterPersist.update'?: ModelHook;
+  'transform.default'?: ModelDocumentHook;
+  'transform.update'?: ModelDocumentHook;
+  'afterPersist.default'?: ModelDocumentHook;
+  'afterPersist.create'?: ModelDocumentHook;
+  'afterPersist.update'?: ModelDocumentHook;
   onChange?: Record<string, ModelChangeHook>;
   'requestSchemas.create'?: RequestZodSchema;
   'requestSchemas.update'?: RequestZodSchema;

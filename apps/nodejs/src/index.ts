@@ -121,7 +121,7 @@ async function createUserRouter() {
   userRouter.afterDelete(function (doc, permissions, context) {
     console.log(doc.name);
     console.log(permissions.isAdmin);
-    console.log(context.originalDocObject);
+    console.log(context.originalDocumentSnapshot);
   });
 
   const typedService = userRouter.getService({} as express.Request as Parameters<typeof userRouter.getService>[0]);

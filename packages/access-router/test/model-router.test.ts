@@ -211,6 +211,24 @@ describe('model router', () => {
     expect(afterPersist).toHaveBeenCalledOnce();
   });
 
+  it('returns an internal error when afterPersist.create returns a plain object', async () => {
+    const { app } = createUserApp({
+      globalPermissions: () => ['isAdmin'],
+      validate: true,
+      afterPersist: () => ({ invalid: true }),
+    });
+
+    const response = await request(app)
+      .post('/users?include_permissions=false')
+      .set('user', 'admin')
+      .send({ name: 'user-after-persist-invalid', role: 'user', public: false })
+      .expect(422)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(response.body.detail).toContain('afterPersist hook');
+    expect(response.body.detail).toContain('Mongoose document instance');
+  });
+
   it('preserves existing model overrides across partial option updates', () => {
     const modelName = `AclUserModel${++modelCounter}`;
     mongoose.model(

@@ -6,7 +6,7 @@ import {
   Sort,
   Projection,
   Populate,
-  MiddlewareContext,
+  ModelHookContext,
   FindAccess,
   PublicOutput,
   SelectedPublicOutput,
@@ -42,7 +42,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
       filter,
       { select, populate, include, sort, skip, limit, page, pageSize },
       { skim, includePermissions, includeCount, populateAccess, lean },
-      async (doc, context: MiddlewareContext) => {
+      async (doc, context: ModelHookContext) => {
         doc = toObject(doc);
         return this.decorate(doc, 'list', context);
       },
@@ -52,7 +52,10 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
       return result as ErrorResult;
     }
 
-    const docs = await this.decorateAll(result.data, 'list', { model: this.model.model, modelName: this.modelName });
+    const docs = await this.decorateAll(result.data, 'list', {
+      mongooseModel: this.model.model,
+      modelName: this.modelName,
+    });
     const transformedDocs = docs.map((row) =>
       this.runTasks(row as Record<string, unknown>, tasks),
     ) as SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>[];
@@ -75,7 +78,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
       data,
       { populate },
       { skim, includePermissions, populateAccess },
-      async (doc, context: MiddlewareContext) => {
+      async (doc, context: ModelHookContext) => {
         doc = toObject(doc);
         doc = await this.decorate(doc, 'create', context);
         doc = this.runTasks(doc as Record<string, unknown>, tasks);
@@ -216,7 +219,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
       data,
       { populate },
       { skim, includePermissions, populateAccess },
-      async (doc, context: MiddlewareContext) => {
+      async (doc, context: ModelHookContext) => {
         doc = toObject(doc);
         doc = await this.decorate(doc, 'update', context);
         doc = this.runTasks(doc, tasks);

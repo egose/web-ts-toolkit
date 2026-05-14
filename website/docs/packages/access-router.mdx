@@ -448,8 +448,8 @@ The most common model hooks are called with `this` bound to the current Express 
 ### `decorate`
 
 ```ts
-(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>
-  unknown | Promise<unknown>;
+(this: express.Request, value: ModelDocument<unknown>, permissions: Permissions, context: ModelHookContext) =>
+  ModelDocument<unknown> | Promise<ModelDocument<unknown>>;
 ```
 
 - Runs after a document has been loaded and trimmed.
@@ -467,7 +467,7 @@ The most common model hooks are called with `this` bound to the current Express 
 ### `validate`
 
 ```ts
-(this: express.Request, allowedData: unknown, permissions: Permissions, context: MiddlewareContext) => boolean | unknown[] | Promise<boolean | unknown[]>
+(this: express.Request, allowedData: unknown, permissions: Permissions, context: ModelHookContext) => boolean | unknown[] | Promise<boolean | unknown[]>
 ```
 
 - Return `true` to allow the write.
@@ -477,7 +477,7 @@ The most common model hooks are called with `this` bound to the current Express 
 ### `prepare`
 
 ```ts
-(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>
+(this: express.Request, value: unknown, permissions: Permissions, context: ModelHookContext) =>
   unknown | Promise<unknown>;
 ```
 
@@ -487,47 +487,51 @@ The most common model hooks are called with `this` bound to the current Express 
 ### `transform`
 
 ```ts
-(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>
+(this: express.Request, value: unknown, permissions: Permissions, context: ModelHookContext) =>
   unknown | Promise<unknown>;
 ```
 
 - Runs during update flows before the document is saved.
 - Can also be an array of hook functions.
+- Must return a live Mongoose document instance.
 
 ### `afterPersist`
 
 ```ts
-(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>
-  unknown | Promise<unknown>;
+(this: express.Request, value: ModelDocument<unknown>, permissions: Permissions, context: ModelHookContext) =>
+  ModelDocument<unknown> | Promise<ModelDocument<unknown>>;
 ```
 
 - Runs after create or update persistence work and before response decoration.
 - Can also be an array of hook functions.
+- Must return a live Mongoose document instance.
 
 ### `beforeDelete`
 
 ```ts
-(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>
+(this: express.Request, value: ModelDocument<unknown>, permissions: Permissions, context: ModelHookContext) =>
   void | Promise<void>;
 ```
 
 - Runs after the target document has been loaded and authorized, before deletion.
 - Use it for last-minute checks or side effects that need the live document.
+- Use `context.currentDocument` for the live Mongoose document instance.
 
 ### `afterDelete`
 
 ```ts
-(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>
+(this: express.Request, value: ModelDocument<unknown>, permissions: Permissions, context: ModelHookContext) =>
   void | Promise<void>;
 ```
 
 - Runs after deletion succeeds.
 - Use it for audit logs, cache invalidation, and external notifications.
+- Use `context.originalDocumentSnapshot` and `context.finalDocumentSnapshot` for plain-object snapshots.
 
 ### `docPermissions`
 
 ```ts
-(this: express.Request, doc: unknown, permissions: Permissions, context: MiddlewareContext) =>
+(this: express.Request, doc: unknown, permissions: Permissions, context: ModelHookContext) =>
   Record<string, unknown> | Promise<Record<string, unknown>>;
 ```
 

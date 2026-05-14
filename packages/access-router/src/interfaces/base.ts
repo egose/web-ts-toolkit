@@ -1,5 +1,5 @@
 import express from 'express';
-import mongoose, { Document } from 'mongoose';
+import mongoose from 'mongoose';
 import { Diff } from 'deep-diff';
 import type { AccessRouterPermissions } from '../permission';
 import { Core } from '../core';
@@ -35,6 +35,7 @@ type ComparableValue = string | number | bigint | Date;
 
 type WithDefaultId<T> = T extends object ? T & { _id?: unknown } : { _id?: unknown };
 export type PublicOutput<T> = T extends object ? T & Record<string, unknown> : Record<string, unknown>;
+export type ModelDocument<TModel = unknown> = mongoose.Document & TModel;
 
 type TrimLeft<S extends string> = S extends ` ${infer Rest}` ? TrimLeft<Rest> : S;
 type TrimRight<S extends string> = S extends `${infer Rest} ` ? TrimRight<Rest> : S;
@@ -212,29 +213,24 @@ export interface SubPopulate {
   select?: Projection;
 }
 
-interface keyValue {
+interface KeyValue {
   [key: string]: unknown;
 }
 
-export interface MiddlewareContext {
+export interface ModelHookContext {
   modelName: string;
-  model: mongoose.Model<unknown>;
-  originalDocObject?: Record<string, unknown>;
-  finalDocObject?: Record<string, unknown>;
-  diff?(doc: Document): void;
-  currentDoc?: keyValue;
+  mongooseModel: mongoose.Model<unknown>;
+  originalDocumentSnapshot?: Record<string, unknown>;
+  finalDocumentSnapshot?: Record<string, unknown>;
+  currentDocument?: ModelDocument;
   originalData?: Record<string, unknown>;
   preparedData?: Record<string, unknown>;
   modifiedPaths?: string[];
   changes?: Diff<unknown>[];
-  docPermissions?: keyValue;
-  fieldPermissionAccess?: {
-    readIds?: Set<string>;
-    updateIds?: Set<string>;
-  };
+  docPermissions?: KeyValue;
 }
 
-export interface DataMiddlewareContext {}
+export interface DataHookContext {}
 
 export interface RootQueryEntry {
   model: string;
@@ -301,7 +297,7 @@ export interface SingleResult<T = unknown, TInput = unknown, TQuery = unknown> {
   data: T;
   input?: TInput;
   query?: TQuery;
-  context?: MiddlewareContext;
+  context?: ModelHookContext;
 }
 
 export interface ListResult<T = unknown, TInput = unknown, TQuery = unknown> {
@@ -313,7 +309,7 @@ export interface ListResult<T = unknown, TInput = unknown, TQuery = unknown> {
   totalCount?: number | null;
   input?: TInput;
   query?: TQuery;
-  contexts?: MiddlewareContext[];
+  contexts?: ModelHookContext[];
 }
 
 export type ServiceResult<T = unknown, TError = unknown, TInput = unknown, TQuery = unknown> =

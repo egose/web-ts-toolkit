@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import { Document } from 'mongoose';
 import {
   castArray,
   compact,
@@ -34,8 +34,9 @@ import {
 import {
   Filter,
   Include,
+  ModelDocument,
   ModelRouterOptions,
-  MiddlewareContext,
+  ModelHookContext,
   SubPopulate,
   DistinctArgs,
   Defaults,
@@ -67,6 +68,27 @@ import {
 import { Codes, StatusCodes } from '../enums';
 import { Base } from './base';
 import { logger } from '../logger';
+import { isDocument } from '../lib';
+
+type ServiceHookContext = ModelHookContext & {
+  diff?(doc: Document): void;
+  fieldPermissionAccess?: {
+    readIds?: Set<string>;
+    updateIds?: Set<string>;
+  };
+};
+
+const assertModelDocument = <TModel>(
+  value: unknown,
+  modelName: string,
+  hookName: 'transform' | 'afterPersist',
+): ModelDocument<TModel> => {
+  if (isDocument(value)) {
+    return value as unknown as ModelDocument<TModel>;
+  }
+
+  throw new Error(`${hookName} hook for model=${modelName} must return a Mongoose document instance`);
+};
 
 export class Service<TModel = unknown> extends Base<TModel> {
   model: Model;
@@ -74,6 +96,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
   defaults: Defaults<TModel>;
   baseFields: string[];
   baseFieldsExt: string[];
+
+  private asServiceHookContext(context: ModelHookContext): ServiceHookContext {
+    return context as ServiceHookContext;
+  }
 
   constructor(req: ModelRequest, modelName: string) {
     super(req, modelName);
@@ -121,10 +147,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
     let doc = await this.model.findOne({ ...query, lean });
     if (!doc) return { success: false, code: Codes.NotFound, query };
 
-    const context: MiddlewareContext = {
-      model: this.model.model,
+    const context: ModelHookContext = {
+      mongooseModel: this.model.model,
       modelName: this.modelName,
-      originalDocObject: toObject(doc),
+      originalDocumentSnapshot: toObject(doc),
     };
 
     doc = await this.includeDocs(doc, includes);
@@ -219,10 +245,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
       lean,
     });
 
-    const contexts: MiddlewareContext[] = docs.map((doc) => ({
-      model: this.model.model,
+    const contexts: ModelHookContext[] = docs.map((doc) => ({
+      mongooseModel: this.model.model,
       modelName: this.modelName,
-      originalDocObject: toObject(doc),
+      originalDocumentSnapshot: toObject(doc),
     }));
 
     const _decorate: (...args: unknown[]) => unknown = isFunction(decorate) ? decorate : (v) => v;
@@ -235,7 +261,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     docs = await Promise.all(
       docs.map(async (doc, i) => {
-        contexts[i].fieldPermissionAccess = fieldPermissionAccess;
+        this.asServiceHookContext(contexts[i]).fieldPermissionAccess = fieldPermissionAccess;
 
         let includeDocPermissions = includePermissions;
         if (!includeDocPermissions && !skim) {
@@ -280,12 +306,16 @@ export class Service<TModel = unknown> extends Base<TModel> {
     let dataArr = isArr ? data : [data];
     dataArr = await Promise.all(dataArr.map((d) => this.parseClientData(d)));
 
-    const contexts: MiddlewareContext[] = [];
+    const contexts: ModelHookContext[] = [];
 
     let validationError = null;
     const items = await Promise.all(
       dataArr.map(async (item, index) => {
-        const context: MiddlewareContext = { model: this.model.model, modelName: this.modelName, originalData: item };
+        const context: ModelHookContext = {
+          mongooseModel: this.model.model,
+          modelName: this.modelName,
+          originalData: item,
+        };
 
         const allowedFields = await this.genAllowedFields(item, 'create');
         const allowedData = pick(item, allowedFields);
@@ -315,23 +345,29 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const _decorate: (...args: unknown[]) => unknown = isFunction(decorate) ? decorate : (v) => v;
 
-    let docs = await this.model.create(items);
-    docs = await Promise.all(
-      docs.map(async (doc, index) => {
-        doc = await this.afterPersist(doc, 'create', contexts[index]);
-        contexts[index].finalDocObject = doc.toObject({ virtuals: false });
+    const createdDocs = (await this.model.create(items)) as unknown as Array<ModelDocument<TModel>>;
+    const docs = await Promise.all(
+      createdDocs.map(async (doc, index) => {
+        contexts[index].currentDocument = doc as unknown as ModelDocument<TModel>;
+        doc = assertModelDocument<TModel>(
+          await this.afterPersist(doc, 'create', contexts[index]),
+          this.modelName,
+          'afterPersist',
+        );
+        contexts[index].currentDocument = doc;
+        contexts[index].finalDocumentSnapshot = doc.toObject({ virtuals: false }) as Record<string, unknown>;
         let includeDocPermissions = includePermissions;
         if (!includeDocPermissions && !skim) {
           includeDocPermissions = this.checkIfModelPermissionExists(['create', 'read', 'update']);
         }
         if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'create', contexts[index]);
         if (includePermissions) doc = await this.addFieldPermissions(doc, 'read', contexts[index]);
-        if (populate) await populateDoc(doc, await this.genPopulate(populateAccess, populate));
+        if (populate) await populateDoc(doc as Document, await this.genPopulate(populateAccess, populate));
         doc = await this.trimOutputFields(doc, 'read', this.baseFieldsExt);
-        doc = await _decorate(doc, contexts[index]);
-        if (!includePermissions) doc = this.addEmptyPermissions(doc);
+        let outputDoc = await _decorate(doc, contexts[index]);
+        if (!includePermissions) outputDoc = this.addEmptyPermissions(outputDoc);
 
-        return doc;
+        return outputDoc;
       }),
     );
 
@@ -380,21 +416,21 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     if (_filter === false) return { success: false, code: Codes.Forbidden, query };
 
-    let doc = await this.model.findOne({ filter: _filter });
+    let doc = (await this.model.findOne({ filter: _filter })) as ModelDocument<TModel> | null;
     if (!doc) return { success: false, code: Codes.NotFound, query };
 
-    const context: MiddlewareContext = { model: this.model.model, modelName: this.modelName };
+    const context: ModelHookContext = { mongooseModel: this.model.model, modelName: this.modelName };
 
     data = await this.parseClientData(data);
 
     // see https://mongoosejs.com/docs/api/document.html#Document.prototype.toObject()
-    context.originalDocObject = doc.toObject({ virtuals: false });
+    context.originalDocumentSnapshot = doc.toObject({ virtuals: false }) as Record<string, unknown>;
     context.originalData = data;
 
     doc = await this.addDocPermissions(doc, 'update', context);
 
     context.docPermissions = this.getDocPermissions(doc) as Record<string, unknown>;
-    context.currentDoc = doc;
+    context.currentDocument = doc as unknown as ModelDocument<TModel>;
 
     const allowedFields = await this.genAllowedFields(doc, 'update');
     const allowedData = pick(data, allowedFields);
@@ -412,25 +448,27 @@ export class Service<TModel = unknown> extends Base<TModel> {
     Object.assign(doc, prepared);
 
     context.modifiedPaths = doc.modifiedPaths();
-    doc = await this.transform(doc, 'update', context);
+    doc = assertModelDocument<TModel>(await this.transform(doc, 'update', context), this.modelName, 'transform');
+    context.currentDocument = doc;
     doc = await doc.save();
 
     const diffExcludeFields = [this.options.documentPermissionField, '__v'];
-    context.diff = (d) => {
+    this.asServiceHookContext(context).diff = (d) => {
       context.changes =
         diff(
-          omit(context.originalDocObject, diffExcludeFields),
+          omit(context.originalDocumentSnapshot, diffExcludeFields),
           omit(d.toObject({ virtuals: false }), diffExcludeFields),
         ) || [];
 
       context.modifiedPaths = uniq(context.changes.map((di) => (di.path.length > 0 ? di.path[0] : '')));
     };
 
-    doc = await this.afterPersist(doc, 'update', context);
-    context.finalDocObject = doc.toObject({ virtuals: false });
-    context.diff(doc);
+    doc = assertModelDocument<TModel>(await this.afterPersist(doc, 'update', context), this.modelName, 'afterPersist');
+    context.currentDocument = doc;
+    context.finalDocumentSnapshot = doc.toObject({ virtuals: false }) as Record<string, unknown>;
+    this.asServiceHookContext(context).diff(doc);
 
-    await this.changes(doc, context);
+    await this.changes(doc.toObject({ virtuals: false }) as Record<string, unknown>, context);
 
     let includeDocPermissions = includePermissions;
     if (!includeDocPermissions && !skim) {
@@ -438,13 +476,14 @@ export class Service<TModel = unknown> extends Base<TModel> {
     }
     if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'update', context);
     if (includePermissions) doc = await this.addFieldPermissions(doc, 'update', context);
-    if (_populate) await populateDoc(doc, _populate);
+    if (_populate) await populateDoc(doc as Document, _populate);
     doc = await this.trimOutputFields(doc, 'read', this.baseFieldsExt);
 
-    if (isFunction(decorate)) doc = await decorate(doc, context);
-    if (!includePermissions) doc = this.addEmptyPermissions(doc);
+    let outputDoc: unknown = doc;
+    if (isFunction(decorate)) outputDoc = await decorate(outputDoc, context);
+    if (!includePermissions) outputDoc = this.addEmptyPermissions(outputDoc);
 
-    return { success: true, kind: 'single', code: Codes.Success, data: doc as TModel, input: prepared };
+    return { success: true, kind: 'single', code: Codes.Success, data: outputDoc as TModel, input: prepared };
   }
 
   public async updateById(
@@ -533,14 +572,14 @@ export class Service<TModel = unknown> extends Base<TModel> {
     logger.debug(JSON.stringify({ op: 'delete', query }));
 
     if (filter === false) return { success: false, code: Codes.Forbidden, query };
-    let doc = await this.model.findOne({ filter });
+    let doc = (await this.model.findOne({ filter })) as ModelDocument<TModel> | null;
     if (!doc) return { success: false, code: Codes.NotFound, query };
 
-    const context: MiddlewareContext = {
-      model: this.model.model,
+    const context: ModelHookContext = {
+      mongooseModel: this.model.model,
       modelName: this.modelName,
-      originalDocObject: toObject(doc),
-      currentDoc: toObject(doc),
+      originalDocumentSnapshot: toObject(doc) as Record<string, unknown>,
+      currentDocument: doc as unknown as ModelDocument<TModel>,
     };
 
     await this.beforeDelete(doc, context);
@@ -548,9 +587,9 @@ export class Service<TModel = unknown> extends Base<TModel> {
     // this function utilizes the 'deleteOne' method to delete the document,
     // triggering 'deleteOne' hooks, as opposed to using 'findOneAndDelete'.
     // see https://mongoosejs.com/docs/api/model.html#Model.prototype.deleteOne()
-    await ('deleteOne' in doc ? doc.deleteOne() : doc.remove());
+    await ('deleteOne' in doc ? doc.deleteOne() : (doc as Document & { remove: () => Promise<unknown> }).remove());
 
-    context.finalDocObject = toObject(doc);
+    context.finalDocumentSnapshot = toObject(doc) as Record<string, unknown>;
     await this.afterDelete(doc, context);
 
     return { success: true, kind: 'single', code: Codes.Success, data: doc._id, query };

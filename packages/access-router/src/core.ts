@@ -26,7 +26,7 @@ import {
   Populate,
   Projection,
   Filter,
-  MiddlewareContext,
+  ModelHookContext,
   Validation,
   AccessRouterBaseRequest,
   ModelRequest,
@@ -59,6 +59,13 @@ import {
   resolveIdentifierFilter,
   setRequestPermissions,
 } from './core-shared';
+
+type InternalModelHookContext = ModelHookContext & {
+  fieldPermissionAccess?: {
+    readIds?: Set<string>;
+    updateIds?: Set<string>;
+  };
+};
 
 export class Core {
   private req: ModelRequest;
@@ -233,7 +240,7 @@ export class Core {
     return populate;
   }
 
-  async validate(modelName: string, allowedData: unknown, access: ValidateAccess, context: MiddlewareContext) {
+  async validate(modelName: string, allowedData: unknown, access: ValidateAccess, context: ModelHookContext) {
     const validate = getModelOption(modelName, `validate.${access}`, null);
 
     if (isFunction(validate)) {
@@ -246,25 +253,25 @@ export class Core {
     }
   }
 
-  async prepare<T>(modelName: string, allowedData: T, access: PrepareAccess, context: MiddlewareContext): Promise<T> {
+  async prepare<T>(modelName: string, allowedData: T, access: PrepareAccess, context: ModelHookContext): Promise<T> {
     const prepare = getModelOption(modelName, `prepare.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
     return callHookChain(this.req, prepare, allowedData, permissions, context);
   }
 
-  async transform<T>(modelName: string, doc: T, access: TransformAccess, context: MiddlewareContext): Promise<T> {
+  async transform<T>(modelName: string, doc: T, access: TransformAccess, context: ModelHookContext): Promise<T> {
     const transform = getModelOption(modelName, `transform.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
     return callHookChain(this.req, transform, doc, permissions, context);
   }
 
-  async afterPersist<T>(modelName: string, doc: T, access: AfterPersistAccess, context: MiddlewareContext): Promise<T> {
+  async afterPersist<T>(modelName: string, doc: T, access: AfterPersistAccess, context: ModelHookContext): Promise<T> {
     const afterPersist = getModelOption(modelName, `afterPersist.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
     return callHookChain(this.req, afterPersist, doc, permissions, context);
   }
 
-  async changes(modelName: string, doc: Record<string, unknown>, context: MiddlewareContext) {
+  async changes(modelName: string, doc: Record<string, unknown>, context: ModelHookContext) {
     const changeOptions = getModelOption(modelName, `onChange`, {}) as Record<string, unknown>;
 
     for (let x = 0; x < context.modifiedPaths.length; x++) {
@@ -273,7 +280,7 @@ export class Core {
       if (isFunction(changeOptions[mpath])) {
         await changeOptions[mpath].call(
           this.req,
-          context.originalDocObject[mpath],
+          context.originalDocumentSnapshot[mpath],
           doc[mpath],
           context.changes.filter((di) => di.path.length > 0 && di.path[0] === mpath),
           context,
@@ -282,19 +289,19 @@ export class Core {
     }
   }
 
-  async beforeDelete<T>(modelName: string, doc: T, context: MiddlewareContext): Promise<void> {
+  async beforeDelete<T>(modelName: string, doc: T, context: ModelHookContext): Promise<void> {
     const beforeDelete = getModelOption(modelName, 'beforeDelete', null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
     await callHookChain(this.req, beforeDelete, doc, permissions, context);
   }
 
-  async afterDelete<T>(modelName: string, doc: T, context: MiddlewareContext): Promise<void> {
+  async afterDelete<T>(modelName: string, doc: T, context: ModelHookContext): Promise<void> {
     const afterDelete = getModelOption(modelName, 'afterDelete', null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
     await callHookChain(this.req, afterDelete, doc, permissions, context);
   }
 
-  async genDocPermissions(modelName: string, doc: unknown, access: DocPermissionsAccess, context: MiddlewareContext) {
+  async genDocPermissions(modelName: string, doc: unknown, access: DocPermissionsAccess, context: ModelHookContext) {
     const docPermissionsFn = getModelOption(modelName, `docPermissions.${access}`, null);
     let docPermissions = {};
 
@@ -323,7 +330,7 @@ export class Core {
     modelName: string,
     doc: T,
     access: DocPermissionsAccess,
-    context: MiddlewareContext,
+    context: ModelHookContext,
   ): Promise<T> {
     const docPermissionField = getModelOption(modelName, 'documentPermissionField');
     const docPermissions = await this.genDocPermissions(modelName, doc, access, context);
@@ -335,7 +342,7 @@ export class Core {
     modelName: string,
     doc: T,
     access: DocPermissionsAccess,
-    context: MiddlewareContext,
+    context: InternalModelHookContext,
   ): Promise<T> {
     const docPermissionField = getModelOption(modelName, 'documentPermissionField');
     const docId = String(doc._id);
@@ -393,7 +400,7 @@ export class Core {
     return doc;
   }
 
-  async decorate<T>(modelName: string, doc: T, access: DecorateAccess, context: MiddlewareContext): Promise<T> {
+  async decorate<T>(modelName: string, doc: T, access: DecorateAccess, context: ModelHookContext): Promise<T> {
     const decorate = getModelOption(modelName, `decorate.${access}`, null) as Function | Function[];
 
     const permissions = this.getGlobalPermissions();
@@ -406,7 +413,7 @@ export class Core {
     modelName: string,
     docs: T[],
     access: DecorateAllAccess,
-    context: MiddlewareContext,
+    context: ModelHookContext,
   ): Promise<T[]> {
     const decorateAll = getModelOption(modelName, `decorateAll.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
