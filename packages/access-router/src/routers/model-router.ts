@@ -149,18 +149,17 @@ export class ModelRouter<TModel = unknown> {
     this.router.post(`/${this.options.queryRouteSegment}`, async (req: ModelRequest) => {
       await this.assertAllowed(req, 'list');
 
-      // @Deprecated option 'query'
       const body = parseBodyWithSchema(
         listBodySchema,
         req.body,
         this.getRequestSchema('requestSchemas.advancedList'),
       ) as AdvancedListBody;
-      let { query, filter, select, sort, populate, include, tasks, skip, limit, page, pageSize } = body;
+      let { filter, select, sort, populate, include, tasks, skip, limit, page, pageSize } = body;
       const options: NonNullable<AdvancedListBody['options']> = body.options ?? {};
       const { skim, includePermissions, includeCount, includeExtraHeaders, populateAccess } = options;
 
       const svc = this.getPublicService(req);
-      const listFilter = (filter ?? query ?? {}) as Filter<TModel>;
+      const listFilter = (filter ?? {}) as Filter<TModel>;
 
       const result = await svc._list(
         listFilter,
@@ -267,15 +266,13 @@ export class ModelRouter<TModel = unknown> {
     this.router.post('/count', async (req: ModelRequest) => {
       await this.assertAllowed(req, 'count');
 
-      // @Deprecated option 'query'
-      const { query, filter, access }: CountBody = parseBodyWithSchema(
+      const { filter, options = {} }: CountBody = parseBodyWithSchema(
         countBodySchema,
         req.body,
         this.getRequestSchema('requestSchemas.count'),
       );
       const svc = this.getPublicService(req);
-      const countFilter = (filter ?? query ?? {}) as Filter<TModel>;
-      const result = await svc._count(countFilter, access as BaseFilterAccess | undefined);
+      const result = await svc._count((filter ?? {}) as Filter<TModel>, options.access as BaseFilterAccess | undefined);
 
       handleResultError(result);
 
@@ -378,11 +375,19 @@ export class ModelRouter<TModel = unknown> {
       await this.assertAllowed(req, 'update');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
-      const { returning_all } = parseQuery(requestSchemas.updateQuery, req.query);
+      const { returning_all, include_permissions } = parseQuery(requestSchemas.updateQuery, req.query);
       const data = parseBodyWithSchema(updateBodySchema, req.body, this.getRequestSchema('requestSchemas.update'));
 
       const svc = this.getPublicService(req);
-      const result = await svc._update(id, data, {}, { returningAll: parseBooleanString(returning_all) });
+      const result = await svc._update(
+        id,
+        data,
+        {},
+        {
+          returningAll: parseBooleanString(returning_all),
+          includePermissions: parseBooleanString(include_permissions),
+        },
+      );
 
       handleResultError(result);
 
@@ -396,7 +401,7 @@ export class ModelRouter<TModel = unknown> {
       await this.assertAllowed(req, 'update');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
-      const { returning_all } = parseQuery(requestSchemas.updateQuery, req.query);
+      const { returning_all, include_permissions } = parseQuery(requestSchemas.updateQuery, req.query);
       const body = parseNestedBodyWithSchema(
         advancedUpdateBodySchema,
         req.body,
@@ -420,7 +425,7 @@ export class ModelRouter<TModel = unknown> {
         { select, populate, tasks },
         {
           returningAll: returningAll ?? parseBooleanString(returning_all),
-          includePermissions,
+          includePermissions: includePermissions ?? parseBooleanString(include_permissions),
           populateAccess: populateAccess as PopulateAccess | undefined,
         },
       );
@@ -450,7 +455,15 @@ export class ModelRouter<TModel = unknown> {
         handleResultError(existing);
         if (!existing.data) throw new clientErrors.UnauthorizedError();
 
-        const result = await svc._update(upsertId, data, {}, { returningAll: parseBooleanString(returning_all) });
+        const result = await svc._update(
+          upsertId,
+          data,
+          {},
+          {
+            returningAll: parseBooleanString(returning_all),
+            includePermissions: parseBooleanString(include_permissions),
+          },
+        );
 
         handleResultError(result);
         return result.data;
@@ -558,15 +571,14 @@ export class ModelRouter<TModel = unknown> {
       await this.assertAllowed(req, 'distinct');
 
       const field = parsePathParam(req.params.field, 'field');
-      // @Deprecated option 'query'
-      const { query, filter }: DistinctBody = parseBodyWithSchema(
+      const { filter }: DistinctBody = parseBodyWithSchema(
         distinctBodySchema,
         req.body,
         this.getRequestSchema('requestSchemas.distinct'),
       );
 
       const svc = req.macl.getPublicService(this.modelName);
-      const result = await svc._distinct(field, { filter: (filter ?? query ?? {}) as Filter });
+      const result = await svc._distinct(field, { filter: (filter ?? {}) as Filter });
 
       handleResultError(result);
 
@@ -612,7 +624,7 @@ export class ModelRouter<TModel = unknown> {
             this.getRequestSchema('requestSchemas.subList'),
           ) as SubListBody;
           const svc = this.getPublicService(req);
-          const result = await svc.listSub(id, sub, { filter: body.filter ?? {}, fields: body.fields ?? [] });
+          const result = await svc.listSub(id, sub, { filter: body.filter ?? {}, select: body.select ?? [] });
 
           handleResultError(result);
           return result.data;
@@ -675,7 +687,7 @@ export class ModelRouter<TModel = unknown> {
               ? { path: populate }
               : (populate ?? []);
           const svc = this.getPublicService(req);
-          const result = await svc.readSub(id, sub, subId, { fields: body.fields ?? [], populate: normalizedPopulate });
+          const result = await svc.readSub(id, sub, subId, { select: body.select ?? [], populate: normalizedPopulate });
 
           handleResultError(result);
           return result.data;

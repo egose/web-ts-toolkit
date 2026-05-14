@@ -524,6 +524,34 @@ describe('data router', () => {
       status: 400,
       errors: [{ pointer: '#' }],
     });
+
+    const invalidSort = await request(app)
+      .post('/pets/__query')
+      .set('user', 'admin')
+      .send({ sort: { name: 1 } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidSort.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/sort' }],
+    });
+
+    const deadReadOptions = await request(app)
+      .post('/pets/__query/Max')
+      .set('user', 'admin')
+      .send({ options: {} })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(deadReadOptions.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/options' }],
+    });
   });
 
   it('supports object-shaped global permissions in data router middleware', async () => {

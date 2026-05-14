@@ -615,6 +615,34 @@ describe('model router integration', () => {
       status: 400,
       errors: [{ pointer: '#/data' }],
     });
+
+    const invalidPagination = await request(app)
+      .post('/users/__query')
+      .set('user', 'admin')
+      .send({ limit: -1 })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidPagination.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/limit' }],
+    });
+
+    const deprecatedQueryAlias = await request(app)
+      .post('/users/__query')
+      .set('user', 'admin')
+      .send({ query: { name: 'user1' } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(deprecatedQueryAlias.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/query' }],
+    });
   });
 
   it('rejects invalid advanced populate payloads for model routes', async () => {

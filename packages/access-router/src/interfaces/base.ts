@@ -260,8 +260,8 @@ export interface RootQueryEntry {
   field?: string;
   filter?: Filter;
   data?: unknown;
-  args?: unknown;
-  options?: unknown;
+  args?: Record<string, unknown>;
+  options?: Record<string, unknown>;
   order?: number;
 }
 

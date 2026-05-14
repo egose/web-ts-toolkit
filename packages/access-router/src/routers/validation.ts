@@ -1,5 +1,5 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
-import { z } from 'zod';
+import { z, type RefinementCtx } from 'zod';
 import type { Filter, Include, Populate, Projection, Sort, SubPopulate, Task } from '../interfaces';
 
 type ValidationError = {
@@ -38,7 +38,6 @@ export type UpsertQueryInput = {
 };
 
 export type AdvancedListBody = {
-  query?: Filter | unknown[];
   filter?: Filter | unknown[];
   select?: Projection;
   sort?: Sort;
@@ -59,9 +58,10 @@ export type AdvancedListBody = {
 };
 
 export type CountBody = {
-  query?: Filter | unknown[];
   filter?: Filter | unknown[];
-  access?: unknown;
+  options?: {
+    access?: unknown;
+  };
 };
 
 export type AdvancedReadFilterBody = {
@@ -128,17 +128,16 @@ export type AdvancedUpsertBody = {
 };
 
 export type DistinctBody = {
-  query?: Filter | unknown[];
   filter?: Filter | unknown[];
 };
 
 export type SubListBody = {
   filter?: Filter;
-  fields?: string[];
+  select?: string[];
 };
 
 export type SubReadBody = {
-  fields?: string[];
+  select?: string[];
   populate?: SubPopulate | SubPopulate[] | string | string[];
 };
 
@@ -148,6 +147,7 @@ const stringOrStringArray = z.union([z.string(), z.array(z.string())]);
 
 const queryBooleanString = z.enum(['true', 'false']);
 const positiveIntegerString = z.string().regex(/^\d+$/, 'Expected a non-negative integer');
+const nonNegativeIntegerSchema = z.number().int().min(0);
 
 const unknownRecord = z.record(z.string(), z.unknown());
 const projectionObjectSchema = z.record(z.string(), z.union([z.literal(1), z.literal(-1)]));
@@ -263,6 +263,7 @@ const readQuerySchema = z
 const updateQuerySchema = z
   .object({
     returning_all: queryBooleanString.optional(),
+    include_permissions: queryBooleanString.optional(),
   })
   .passthrough();
 
@@ -281,8 +282,8 @@ const rootQueryEntrySchema = z
     field: z.string().min(1).optional(),
     filter: objectOrArraySchema.optional(),
     data: z.unknown().optional(),
-    args: z.unknown().optional(),
-    options: z.unknown().optional(),
+    args: unknownRecord.optional(),
+    options: unknownRecord.optional(),
     order: z.number().int().optional(),
   })
   .passthrough();
@@ -291,17 +292,16 @@ export const rootQuerySchema = z.array(rootQueryEntrySchema);
 
 export const listBodySchema = z
   .object({
-    query: objectOrArraySchema.optional(),
     filter: objectOrArraySchema.optional(),
     select: projectionSchema.optional(),
     sort: sortSchema.optional(),
     populate: populateSchema.optional(),
     include: includeSchema.optional(),
     tasks: tasksSchema.optional(),
-    skip: z.union([z.number(), positiveIntegerString]).optional(),
-    limit: z.union([z.number(), positiveIntegerString]).optional(),
-    page: z.union([z.number(), positiveIntegerString]).optional(),
-    pageSize: z.union([z.number(), positiveIntegerString]).optional(),
+    skip: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    limit: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    page: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    pageSize: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
     options: z
       .object({
         skim: z.boolean().optional(),
@@ -313,17 +313,18 @@ export const listBodySchema = z
       .passthrough()
       .optional(),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine((body, ctx) => rejectKeys(body, ctx, ['query']));
 
 export const dataListBodySchema = z
   .object({
     filter: objectOrArraySchema.optional(),
     select: projectionSchema.optional(),
-    sort: sortSchema.optional(),
-    skip: z.union([z.number(), positiveIntegerString]).optional(),
-    limit: z.union([z.number(), positiveIntegerString]).optional(),
-    page: z.union([z.number(), positiveIntegerString]).optional(),
-    pageSize: z.union([z.number(), positiveIntegerString]).optional(),
+    sort: z.string().optional(),
+    skip: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    limit: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    page: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    pageSize: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
     options: z
       .object({
         includeCount: z.boolean().optional(),
@@ -336,11 +337,16 @@ export const dataListBodySchema = z
 
 export const countBodySchema = z
   .object({
-    query: objectOrArraySchema.optional(),
     filter: objectOrArraySchema.optional(),
-    access: z.unknown().optional(),
+    options: z
+      .object({
+        access: z.unknown().optional(),
+      })
+      .passthrough()
+      .optional(),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine((body, ctx) => rejectKeys(body, ctx, ['query', 'access']));
 
 export const readFilterBodySchema = z
   .object({
@@ -366,9 +372,9 @@ export const dataReadFilterBodySchema = z
   .object({
     filter: objectOrArraySchema.optional(),
     select: projectionSchema.optional(),
-    options: z.object({}).passthrough().optional(),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine((body, ctx) => rejectKeys(body, ctx, ['options']));
 
 export const readByIdBodySchema = z
   .object({
@@ -391,9 +397,9 @@ export const readByIdBodySchema = z
 export const dataReadByIdBodySchema = z
   .object({
     select: projectionSchema.optional(),
-    options: z.object({}).passthrough().optional(),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine((body, ctx) => rejectKeys(body, ctx, ['options']));
 
 export const advancedCreateBodySchema = z
   .object({
@@ -455,27 +461,29 @@ export const advancedUpsertBodySchema = z
 
 export const distinctBodySchema = z
   .object({
-    query: objectOrArraySchema.optional(),
     filter: objectOrArraySchema.optional(),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine((body, ctx) => rejectKeys(body, ctx, ['query']));
 
 export const subListBodySchema = z
   .object({
     filter: z.record(z.string(), z.unknown()).optional(),
-    fields: fieldsSchema.optional(),
+    select: fieldsSchema.optional(),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine((body, ctx) => rejectKeys(body, ctx, ['fields']));
 export const subMutationBodySchema = z.union([
   z.record(z.string(), z.unknown()),
   z.array(z.record(z.string(), z.unknown())),
 ]);
 export const subReadBodySchema = z
   .object({
-    fields: fieldsSchema.optional(),
+    select: fieldsSchema.optional(),
     populate: subPopulateSchema.optional(),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine((body, ctx) => rejectKeys(body, ctx, ['fields']));
 
 export function parsePathParam(value: string | string[] | undefined, parameter: string) {
   const result = stringOrStringArray.safeParse(value);
@@ -583,6 +591,18 @@ function formatIssue(issue: z.ZodIssue, key?: string, location: 'pointer' | 'par
 
 function buildPointer(path: string[]) {
   return path.length === 0 ? '#' : `#/${path.join('/')}`;
+}
+
+function rejectKeys(body: Record<string, unknown>, ctx: RefinementCtx, keys: string[]) {
+  for (const key of keys) {
+    if (key in body) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Unsupported field: ${key}`,
+        path: [key],
+      });
+    }
+  }
 }
 
 export const requestSchemas = {

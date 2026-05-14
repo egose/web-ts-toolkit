@@ -827,8 +827,8 @@ export class Service<TModel = unknown> extends Base<TModel> {
     return new Set(docs.map((doc) => String(doc._id)));
   }
 
-  async listSub(id, sub, options?: { filter: Filter; fields: string[] }): Promise<ListResult | ErrorResult> {
-    let { filter: ft, fields } = options ?? {};
+  async listSub(id, sub, options?: { filter: Filter; select: string[] }): Promise<ListResult | ErrorResult> {
+    let { filter: ft, select } = options ?? {};
 
     const parentDoc = await this.getParentDoc(id, sub, null, { access: 'read' });
     if (!parentDoc) return { success: false, code: Codes.NotFound };
@@ -836,7 +836,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const [subFilter, subSelect] = await Promise.all([
       this.genFilter(`subs.${sub}.list`, ft as Filter<TModel>),
-      this.genQuerySelect('list', fields, false, [sub, 'sub']),
+      this.genQuerySelect('list', select, false, [sub, 'sub']),
     ]);
 
     if (subFilter === false) return { success: false, code: Codes.Forbidden };
@@ -851,9 +851,9 @@ export class Service<TModel = unknown> extends Base<TModel> {
     id,
     sub,
     subId,
-    options?: { fields: string[]; populate: SubPopulate | SubPopulate[] },
+    options?: { select: string[]; populate: SubPopulate | SubPopulate[] },
   ): Promise<SingleResult | ErrorResult> {
-    let { fields, populate } = options ?? {};
+    let { select, populate } = options ?? {};
 
     const parentDoc = await this.getParentDoc(id, sub, { populate }, { access: 'read' });
     if (!parentDoc) return { success: false, code: Codes.NotFound };
@@ -861,7 +861,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const [subFilter, subSelect] = await Promise.all([
       this.genFilter(`subs.${sub}.read`, { _id: subId }),
-      this.genQuerySelect('read', fields, false, [sub, 'sub']),
+      this.genQuerySelect('read', select, false, [sub, 'sub']),
     ]);
 
     if (subFilter === false) return { success: false, code: Codes.Forbidden };

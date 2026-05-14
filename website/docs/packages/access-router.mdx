@@ -271,6 +271,12 @@ When `include_count=true` is also enabled:
 
 Public router endpoints validate request path params, known query params, and top-level request body shapes before calling the service layer.
 
+Naming conventions:
+
+- plain query params use snake_case, such as `page_size`, `include_count`, `include_permissions`, `returning_all`, and `try_list`
+- advanced route request bodies use camelCase, such as `pageSize`, `includeCount`, `includePermissions`, `returningAll`, and `tryList`
+- advanced route bodies use `filter` and `select`; deprecated aliases like `query` and `fields` are not supported
+
 Examples:
 
 - `GET /users/:id?try_list=false` validates `id` and `try_list`
@@ -297,6 +303,55 @@ Invalid requests return `400 application/problem+json` with structured `errors` 
 ## User-Defined Request Schemas
 
 Model and data routers can add route-specific Zod validation through the `requestSchemas` option.
+
+## Root Batch Route
+
+`RootRouter` accepts a batch array where each entry follows the same broad conventions as the dedicated public routes:
+
+- top-level identifiers stay top-level: `model`, `op`, `id`, `field`, `filter`, `data`
+- query-like structured arguments go in `args`
+- behavior switches go in `options`
+- `args` and `options` must be objects when present
+
+Examples:
+
+```json
+[
+  {
+    "model": "User",
+    "op": "list",
+    "filter": { "public": true },
+    "args": { "select": ["name"], "pageSize": 10 },
+    "options": { "includeCount": true }
+  },
+  {
+    "model": "User",
+    "op": "read",
+    "id": "user1",
+    "args": { "select": ["name", "role"] },
+    "options": { "tryList": false }
+  },
+  {
+    "model": "User",
+    "op": "create",
+    "data": { "name": "user3", "role": "user" },
+    "options": { "includePermissions": false }
+  },
+  {
+    "model": "User",
+    "op": "count",
+    "filter": { "public": false },
+    "options": { "access": "read" }
+  }
+]
+```
+
+Notes:
+
+- `filter` stays top-level for `list`, `read`-by-filter, `count`, and `distinct`
+- `create`, `list`, `read`, and `update` forward both `args` and `options` to the corresponding public service methods
+- `count` uses `options.access`, matching the dedicated advanced count route
+- there is no separate query-string layer on the root batch route, so it always uses the camelCase body naming style
 
 Use this when you want stricter application-level request validation on top of the built-in router boundary validation.
 

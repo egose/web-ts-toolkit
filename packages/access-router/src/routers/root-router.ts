@@ -17,6 +17,7 @@ import {
   SingleResult,
   ServiceResult,
   RouteGuardAccess,
+  BaseFilterAccess,
 } from '../interfaces';
 import { Codes } from '../enums';
 import { parseBody, rootQuerySchema } from './validation';
@@ -74,7 +75,7 @@ export class RootRouter {
     if (item.op === 'list') {
       return this.processResult(item.op, await svc._list(item.filter, item.args, item.options));
     } else if (item.op === 'create') {
-      return this.processResult(item.op, await svc._create(item.data, item.args));
+      return this.processResult(item.op, await svc._create(item.data, item.args, item.options));
     } else if (item.op === 'new') {
       return this.processResult(item.op, await svc._new());
     } else if (item.op === 'read') {
@@ -92,7 +93,10 @@ export class RootRouter {
     } else if (item.op === 'distinct') {
       return this.processResult(item.op, await svc._distinct(item.field, { filter: item.filter }));
     } else if (item.op === 'count') {
-      return this.processResult(item.op, await svc._count(item.filter));
+      return this.processResult(
+        item.op,
+        await svc._count(item.filter, item.options?.access as BaseFilterAccess | undefined),
+      );
     } else {
       return { success: false, code: Codes.BadRequest, data: null, message: `operation ${item.op} not found` };
     }
