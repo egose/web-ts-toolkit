@@ -111,7 +111,7 @@ export class DataCore {
       permissionSchema,
       access,
       hasPermission: (key) => {
-        if (permissions.prop(key)) {
+        if (permissions.hasKey(key)) {
           return permissions.has(key);
         }
 
@@ -194,7 +194,7 @@ export async function setDataCore(req: AccessRouterBaseRequest, _res: Response, 
 
   req.dacl = core;
   req[PERMISSIONS] = core.getPermissions();
-  req[PERMISSION_KEYS] = req[PERMISSIONS].$_permissionKeys;
+  req[PERMISSION_KEYS] = req[PERMISSIONS].keys;
   req[DATA_MIDDLEWARE] = true;
 
   next();

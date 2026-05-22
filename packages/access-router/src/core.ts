@@ -176,7 +176,7 @@ export class Core {
       permissionSchema,
       access,
       hasPermission: (key) => {
-        if (permissions.prop(key)) {
+        if (permissions.hasKey(key)) {
           return permissions.has(key);
         }
 
@@ -510,7 +510,7 @@ export async function setCore(req: AccessRouterBaseRequest, res: Response, next:
 
   req.macl = core;
   req[PERMISSIONS] = core.getPermissions();
-  req[PERMISSION_KEYS] = req[PERMISSIONS].$_permissionKeys;
+  req[PERMISSION_KEYS] = req[PERMISSIONS].keys;
   req[MIDDLEWARE] = true;
 
   next();

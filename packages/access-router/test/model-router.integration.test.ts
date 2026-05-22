@@ -61,24 +61,24 @@ const createIntegrationApp = async () => {
       const isMe = String(doc._id) === String(currentUser?._id);
 
       return {
-        'edit.name': permissions.isAdmin || isMe,
-        'edit.role': permissions.isAdmin,
-        'edit.public': permissions.isAdmin,
+        'edit.name': permissions.has('isAdmin') || isMe,
+        'edit.role': permissions.has('isAdmin'),
+        'edit.public': permissions.has('isAdmin'),
       };
     },
     baseFilter: {
       list: function (permissions) {
-        if (permissions.isAdmin) return {};
+        if (permissions.has('isAdmin')) return {};
         const currentUser = (this as express.Request & { _user?: { _id?: mongoose.Types.ObjectId } })._user;
         return { $or: [{ _id: currentUser?._id }, { public: true }] };
       },
       read: function (permissions) {
-        if (permissions.isAdmin) return {};
+        if (permissions.has('isAdmin')) return {};
         const currentUser = (this as express.Request & { _user?: { _id?: mongoose.Types.ObjectId } })._user;
         return { _id: currentUser?._id };
       },
       update: function (permissions) {
-        if (permissions.isAdmin) return {};
+        if (permissions.has('isAdmin')) return {};
         const currentUser = (this as express.Request & { _user?: { _id?: mongoose.Types.ObjectId } })._user;
         return { _id: currentUser?._id };
       },
@@ -493,7 +493,7 @@ describe('model router integration', () => {
       public: false,
     });
     expect(selfRead.body._permissions['edit.name']).toBe(true);
-    expect(selfRead.body._permissions['edit.role']).toBeUndefined();
+    expect(selfRead.body._permissions['edit.role']).toBe(false);
     expect(selfRead.body._permissions._edit.name).toBe(true);
     expect(selfRead.body._permissions._edit.role).toBeUndefined();
 
