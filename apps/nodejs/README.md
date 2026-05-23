@@ -7,6 +7,7 @@ It includes:
 - an in-memory `DataRouter` at `/fruit`
 - a `ModelRouter` at `/users` backed by `mongodb-memory-server`
 - a root batching router at `/batch`
+- a `combineRoutes(...)` example so the app mounts one merged router instead of calling `app.use(...)` per router
 
 ## Run
 

@@ -1,7 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import acl, { permissionsPlugin } from '@web-ts-toolkit/access-router';
+import acl, { combineRoutes, permissionsPlugin } from '@web-ts-toolkit/access-router';
 
 const port = Number(process.env.PORT ?? 3000);
 const modelName = 'SampleUser';
@@ -187,9 +187,7 @@ async function start() {
     });
   });
 
-  app.use(fruitRouter.routes);
-  app.use(userRouter.routes);
-  app.use(rootRouter.routes);
+  app.use(combineRoutes(fruitRouter, userRouter, rootRouter));
 
   app.listen(port, () => {
     console.log(`access-router sample listening on http://localhost:${port}`);
