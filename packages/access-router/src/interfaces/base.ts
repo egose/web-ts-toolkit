@@ -5,7 +5,12 @@ import type { AccessRouterPermissions } from '../permission';
 import { Core } from '../core';
 import { DataCore } from '../core-data';
 import { Codes } from '../enums';
-import type { AccessRouterRequest } from './root';
+import type { AccessRouterRequest, BaseFilterAccess } from './root';
+import type { PublicCreateArgs, PublicCreateOptions } from './service-create';
+import type { PublicListArgs, PublicListOptions } from './service-list';
+import type { PublicReadArgs, PublicReadOptions } from './service-read';
+import type { PublicUpdateArgs, PublicUpdateOptions, PublicUpsertArgs, PublicUpsertOptions } from './service-update';
+import type { DataFindArgs, DataFindOneArgs } from './data';
 
 export type GuardHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
   this: TRequest,
@@ -253,19 +258,133 @@ export interface DataHookContext {
   };
 }
 
-export interface RootQueryEntry {
-  model: string;
-  op: string;
-  id?: string;
-  field?: string;
-  filter?: Filter;
-  data?: unknown;
-  args?: Record<string, unknown>;
-  options?: Record<string, unknown>;
+export type RootTarget = 'model' | 'data';
+export type RootModelOperation =
+  | 'new'
+  | 'list'
+  | 'read'
+  | 'create'
+  | 'update'
+  | 'upsert'
+  | 'delete'
+  | 'distinct'
+  | 'count';
+export type RootDataOperation = 'list' | 'read';
+
+interface RootQueryEntryBase<TTarget extends RootTarget, TOp extends string> {
+  target: TTarget;
+  name: string;
+  op: TOp;
   order?: number;
 }
 
-export interface SubQueryEntry extends RootQueryEntry {
+export interface RootModelNewQueryEntry extends RootQueryEntryBase<'model', 'new'> {}
+
+export interface RootModelListQueryEntry extends RootQueryEntryBase<'model', 'list'> {
+  filter?: Filter;
+  args?: PublicListArgs;
+  options?: PublicListOptions;
+}
+
+export interface RootModelReadByIdQueryEntry extends RootQueryEntryBase<'model', 'read'> {
+  id: string;
+  args?: PublicReadArgs;
+  options?: PublicReadOptions;
+}
+
+export interface RootModelReadByFilterQueryEntry extends RootQueryEntryBase<'model', 'read'> {
+  filter: Filter;
+  args?: PublicReadArgs & { sort?: Sort };
+  options?: PublicReadOptions;
+}
+
+export interface RootModelCreateQueryEntry extends RootQueryEntryBase<'model', 'create'> {
+  data: unknown;
+  args?: PublicCreateArgs;
+  options?: PublicCreateOptions;
+}
+
+export interface RootModelUpdateQueryEntry extends RootQueryEntryBase<'model', 'update'> {
+  id: string;
+  data: unknown;
+  args?: PublicUpdateArgs;
+  options?: PublicUpdateOptions;
+}
+
+export interface RootModelUpsertQueryEntry extends RootQueryEntryBase<'model', 'upsert'> {
+  data: Record<string, unknown>;
+  args?: PublicUpsertArgs;
+  options?: PublicUpsertOptions;
+}
+
+export interface RootModelDeleteQueryEntry extends RootQueryEntryBase<'model', 'delete'> {
+  id: string;
+}
+
+export interface RootModelDistinctQueryEntry extends RootQueryEntryBase<'model', 'distinct'> {
+  field: string;
+  filter?: Filter;
+}
+
+export interface RootModelCountQueryEntry extends RootQueryEntryBase<'model', 'count'> {
+  filter?: Filter;
+  options?: {
+    access?: BaseFilterAccess;
+    [key: string]: unknown;
+  };
+}
+
+export interface RootDataListQueryEntry extends RootQueryEntryBase<'data', 'list'> {
+  filter?: Filter;
+  args?: DataFindArgs;
+  options?: {
+    includeCount?: boolean;
+    [key: string]: unknown;
+  };
+}
+
+export interface RootDataReadByIdQueryEntry extends RootQueryEntryBase<'data', 'read'> {
+  id: string;
+  args?: DataFindOneArgs;
+}
+
+export interface RootDataReadByFilterQueryEntry extends RootQueryEntryBase<'data', 'read'> {
+  filter: Filter;
+  args?: DataFindOneArgs;
+}
+
+export type RootQueryEntry =
+  | RootModelNewQueryEntry
+  | RootModelListQueryEntry
+  | RootModelReadByIdQueryEntry
+  | RootModelReadByFilterQueryEntry
+  | RootModelCreateQueryEntry
+  | RootModelUpdateQueryEntry
+  | RootModelUpsertQueryEntry
+  | RootModelDeleteQueryEntry
+  | RootModelDistinctQueryEntry
+  | RootModelCountQueryEntry
+  | RootDataListQueryEntry
+  | RootDataReadByIdQueryEntry
+  | RootDataReadByFilterQueryEntry;
+
+export interface RootOperationResult<T = unknown, TError = unknown, TInput = unknown, TQuery = unknown> {
+  index: number;
+  target: RootTarget;
+  name: string;
+  op: RootModelOperation | RootDataOperation;
+  result: ServiceResult<T, TError, TInput, TQuery>;
+  statusCode: number;
+  message: string;
+}
+
+export interface SubQueryEntry {
+  model: string;
+  op: 'list' | 'read' | string;
+  id?: string;
+  filter?: Filter;
+  args?: Record<string, unknown>;
+  options?: Record<string, unknown>;
   sqOptions?: {
     path?: string;
     compact?: boolean;

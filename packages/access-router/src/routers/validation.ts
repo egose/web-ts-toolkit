@@ -274,21 +274,242 @@ const upsertQuerySchema = z
   })
   .passthrough();
 
-const rootQueryEntrySchema = z
+const rootEntryBaseSchema = {
+  target: z.enum(['model', 'data']),
+  name: z.string().min(1),
+  order: z.number().int().optional(),
+};
+
+const rootModelListArgsSchema = z
   .object({
-    model: z.string().min(1),
-    op: z.string().min(1),
-    id: z.string().min(1).optional(),
-    field: z.string().min(1).optional(),
-    filter: objectOrArraySchema.optional(),
-    data: z.unknown().optional(),
-    args: unknownRecord.optional(),
-    options: unknownRecord.optional(),
-    order: z.number().int().optional(),
+    select: projectionSchema.optional(),
+    populate: populateSchema.optional(),
+    include: includeSchema.optional(),
+    sort: sortSchema.optional(),
+    skip: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    limit: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    page: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    pageSize: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    tasks: tasksSchema.optional(),
   })
   .passthrough();
 
-export const rootQuerySchema = z.array(rootQueryEntrySchema);
+const rootModelListOptionsSchema = z
+  .object({
+    skim: z.boolean().optional(),
+    includePermissions: z.boolean().optional(),
+    includeCount: z.boolean().optional(),
+    populateAccess: z.unknown().optional(),
+    lean: z.boolean().optional(),
+  })
+  .passthrough();
+
+const rootModelReadArgsSchema = z
+  .object({
+    select: projectionSchema.optional(),
+    populate: populateSchema.optional(),
+    include: includeSchema.optional(),
+    tasks: tasksSchema.optional(),
+  })
+  .passthrough();
+
+const rootModelReadFilterArgsSchema = rootModelReadArgsSchema.extend({
+  sort: sortSchema.optional(),
+});
+
+const rootModelReadOptionsSchema = z
+  .object({
+    skim: z.boolean().optional(),
+    includePermissions: z.boolean().optional(),
+    tryList: z.boolean().optional(),
+    populateAccess: z.unknown().optional(),
+    lean: z.boolean().optional(),
+  })
+  .passthrough();
+
+const rootModelCreateArgsSchema = z
+  .object({
+    select: projectionSchema.optional(),
+    populate: populateSchema.optional(),
+    tasks: tasksSchema.optional(),
+  })
+  .passthrough();
+
+const rootModelCreateOptionsSchema = z
+  .object({
+    skim: z.boolean().optional(),
+    includePermissions: z.boolean().optional(),
+    populateAccess: z.unknown().optional(),
+  })
+  .passthrough();
+
+const rootModelUpdateArgsSchema = z
+  .object({
+    select: projectionSchema.optional(),
+    populate: populateSchema.optional(),
+    tasks: tasksSchema.optional(),
+  })
+  .passthrough();
+
+const rootModelUpdateOptionsSchema = z
+  .object({
+    skim: z.boolean().optional(),
+    returningAll: z.boolean().optional(),
+    includePermissions: z.boolean().optional(),
+    populateAccess: z.unknown().optional(),
+  })
+  .passthrough();
+
+const rootModelUpsertArgsSchema = rootModelUpdateArgsSchema;
+const rootModelUpsertOptionsSchema = rootModelUpdateOptionsSchema;
+
+const rootModelCountOptionsSchema = z
+  .object({
+    access: z.unknown().optional(),
+  })
+  .passthrough();
+
+const rootDataListArgsSchema = z
+  .object({
+    select: projectionSchema.optional(),
+    sort: z.string().optional(),
+    skip: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    limit: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    page: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    pageSize: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+  })
+  .passthrough();
+
+const rootDataListOptionsSchema = z
+  .object({
+    includeCount: z.boolean().optional(),
+  })
+  .passthrough();
+
+const rootDataReadArgsSchema = z
+  .object({
+    select: projectionSchema.optional(),
+  })
+  .passthrough();
+
+const rootModelQueryEntrySchema = z.union([
+  z.object({ ...rootEntryBaseSchema, target: z.literal('model'), op: z.literal('new') }).passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('model'),
+      op: z.literal('list'),
+      filter: objectOrArraySchema.optional(),
+      args: rootModelListArgsSchema.optional(),
+      options: rootModelListOptionsSchema.optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('model'),
+      op: z.literal('read'),
+      id: z.string().min(1),
+      args: rootModelReadArgsSchema.optional(),
+      options: rootModelReadOptionsSchema.optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('model'),
+      op: z.literal('read'),
+      filter: objectOrArraySchema,
+      args: rootModelReadFilterArgsSchema.optional(),
+      options: rootModelReadOptionsSchema.optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('model'),
+      op: z.literal('create'),
+      data: z.unknown(),
+      args: rootModelCreateArgsSchema.optional(),
+      options: rootModelCreateOptionsSchema.optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('model'),
+      op: z.literal('update'),
+      id: z.string().min(1),
+      data: z.unknown(),
+      args: rootModelUpdateArgsSchema.optional(),
+      options: rootModelUpdateOptionsSchema.optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('model'),
+      op: z.literal('upsert'),
+      data: z.record(z.string(), z.unknown()),
+      args: rootModelUpsertArgsSchema.optional(),
+      options: rootModelUpsertOptionsSchema.optional(),
+    })
+    .passthrough(),
+  z
+    .object({ ...rootEntryBaseSchema, target: z.literal('model'), op: z.literal('delete'), id: z.string().min(1) })
+    .passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('model'),
+      op: z.literal('distinct'),
+      field: z.string().min(1),
+      filter: objectOrArraySchema.optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('model'),
+      op: z.literal('count'),
+      filter: objectOrArraySchema.optional(),
+      options: rootModelCountOptionsSchema.optional(),
+    })
+    .passthrough(),
+]);
+
+const rootDataQueryEntrySchema = z.union([
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('data'),
+      op: z.literal('list'),
+      filter: objectOrArraySchema.optional(),
+      args: rootDataListArgsSchema.optional(),
+      options: rootDataListOptionsSchema.optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('data'),
+      op: z.literal('read'),
+      id: z.string().min(1),
+      args: rootDataReadArgsSchema.optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('data'),
+      op: z.literal('read'),
+      filter: objectOrArraySchema,
+      args: rootDataReadArgsSchema.optional(),
+    })
+    .passthrough(),
+]);
+
+export const rootQuerySchema = z.array(z.union([rootModelQueryEntrySchema, rootDataQueryEntrySchema]));
 
 export const listBodySchema = z
   .object({

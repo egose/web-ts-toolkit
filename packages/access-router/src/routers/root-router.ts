@@ -3,107 +3,195 @@ import type { Router } from 'express';
 import mongoose from 'mongoose';
 import { isNumber as _isNumber, orderBy as _orderBy } from '@web-ts-toolkit/utils';
 import { setCore } from '../core';
+import { setDataCore } from '../core-data';
 import { mapCodeToMessage, mapCodeToStatusCode } from '../helpers';
 import { accessRouterResponseHandler } from './index';
-import { getModelOption } from '../options';
+import { getDataNames } from '../options';
 import {
   ErrorResult,
   Filter,
-  ListResult,
   RootRouterOptions,
   Validation,
   RootQueryEntry,
   ModelRequest,
-  SingleResult,
+  DataRequest,
   ServiceResult,
-  RouteGuardAccess,
   BaseFilterAccess,
+  RootOperationResult,
+  RootModelOperation,
+  RootDataOperation,
+  RootModelNewQueryEntry,
+  RootModelListQueryEntry,
+  RootModelReadByIdQueryEntry,
+  RootModelReadByFilterQueryEntry,
+  RootModelCreateQueryEntry,
+  RootModelUpdateQueryEntry,
+  RootModelUpsertQueryEntry,
+  RootModelDeleteQueryEntry,
+  RootModelDistinctQueryEntry,
+  RootModelCountQueryEntry,
+  RootDataListQueryEntry,
+  RootDataReadByIdQueryEntry,
+  RootDataReadByFilterQueryEntry,
 } from '../interfaces';
 import { Codes } from '../enums';
 import { parseBody, rootQuerySchema } from './validation';
 
 const clientErrors = JsonRouter.clientErrors;
 
-const ALL_ROUTES = ['new', 'list', 'read', 'update', 'delete', 'create', 'distinct', 'count'];
+type RootRequest = ModelRequest & DataRequest;
+type IndexedRootQueryEntry = { item: RootQueryEntry; index: number };
+type ModelOperationHandler<TEntry extends RootQueryEntry> = (req: RootRequest, item: TEntry) => Promise<ServiceResult>;
+type DataOperationHandler<TEntry extends RootQueryEntry> = (req: RootRequest, item: TEntry) => Promise<ServiceResult>;
+
+const createErrorResult = (code: ErrorResult['code'], detail: string): ErrorResult<{ detail: string }> => ({
+  success: false,
+  code,
+  errors: [{ detail }],
+});
 
 export class RootRouter {
   router: JsonRouter;
   basename: string;
   operationAccess: Validation;
 
+  private readonly modelOperations: Record<RootModelOperation, ModelOperationHandler<any>> = {
+    new: async (req, item: RootModelNewQueryEntry) => req.macl.getPublicService(item.name)._new(),
+    list: async (req, item: RootModelListQueryEntry) =>
+      req.macl.getPublicService(item.name)._list((item.filter ?? {}) as Filter, item.args, item.options),
+    read: async (req, item: RootModelReadByIdQueryEntry | RootModelReadByFilterQueryEntry) => {
+      const svc = req.macl.getPublicService(item.name);
+      return 'id' in item
+        ? svc._read(item.id, item.args, item.options)
+        : svc._readFilter(item.filter, item.args, item.options);
+    },
+    create: async (req, item: RootModelCreateQueryEntry) =>
+      req.macl.getPublicService(item.name)._create(item.data, item.args, item.options),
+    update: async (req, item: RootModelUpdateQueryEntry) =>
+      req.macl.getPublicService(item.name)._update(item.id, item.data, item.args, item.options),
+    upsert: async (req, item: RootModelUpsertQueryEntry) =>
+      req.macl.getPublicService(item.name)._upsert(item.data, item.args, item.options),
+    delete: async (req, item: RootModelDeleteQueryEntry) => req.macl.getPublicService(item.name)._delete(item.id),
+    distinct: async (req, item: RootModelDistinctQueryEntry) =>
+      req.macl.getPublicService(item.name)._distinct(item.field, { filter: item.filter }),
+    count: async (req, item: RootModelCountQueryEntry) =>
+      req.macl
+        .getPublicService(item.name)
+        ._count((item.filter ?? {}) as Filter, item.options?.access as BaseFilterAccess | undefined),
+  };
+
+  private readonly dataOperations: Record<RootDataOperation, DataOperationHandler<any>> = {
+    list: async (req, item: RootDataListQueryEntry) => {
+      const svc = req.dacl.getService(item.name);
+      const result = await svc.find(
+        (item.filter ?? {}) as Filter,
+        {
+          select: item.args?.select,
+          sort: item.args?.sort,
+          skip: item.args?.skip,
+          limit: item.args?.limit,
+          page: item.args?.page,
+          pageSize: item.args?.pageSize,
+        },
+        {},
+      );
+
+      if (!result.success) {
+        return result;
+      }
+
+      const decorateContext = {
+        dataName: item.name,
+        operation: 'list',
+        resolvedQuery: result.query,
+      };
+      const decoratedDocs = await Promise.all(result.data.map((doc) => svc.decorate(doc, 'list', decorateContext)));
+      const data = await svc.decorateAll(decoratedDocs, 'list', decorateContext);
+
+      return {
+        ...result,
+        data,
+        totalCount: item.options?.includeCount ? result.totalCount : null,
+      };
+    },
+    read: async (req, item: RootDataReadByIdQueryEntry | RootDataReadByFilterQueryEntry) => {
+      const svc = req.dacl.getService(item.name);
+      const result = await ('id' in item
+        ? svc.findById(item.id, item.args, {})
+        : svc.findOne(item.filter, item.args, {}));
+
+      if (!result.success) {
+        return result;
+      }
+
+      const data = await svc.decorate(result.data, 'read', {
+        dataName: item.name,
+        operation: 'read',
+        resolvedQuery: result.query,
+      });
+
+      return { ...result, data };
+    },
+  };
+
   constructor(options: RootRouterOptions = { basePath: '', operationAccess: true }) {
     const { basePath, operationAccess } = options;
 
     this.basename = basePath || '';
     this.operationAccess = operationAccess;
-    this.router = new JsonRouter(this.basename, setCore, accessRouterResponseHandler);
+    this.router = new JsonRouter(this.basename, [setCore, setDataCore], accessRouterResponseHandler);
     this.setRoutes();
   }
 
-  private processResult(op: string, result: ServiceResult) {
-    const message = mapCodeToMessage(result.code);
-    const statusCode = mapCodeToStatusCode(result.code);
-
-    if (!result.success) {
-      const { success, code, errors } = result as ErrorResult;
-      return { success, code, errors, message, statusCode, op };
-    }
-
-    if (result.kind === 'list') {
-      const { success, code, data, count, totalCount } = result as ListResult;
-      return { success, code, data, count, totalCount, message, statusCode, op };
-    }
-
-    const { success, code, data } = result as SingleResult;
-    return { success, code, data, message, statusCode, op };
+  private wrapResult(index: number, item: RootQueryEntry, result: ServiceResult): RootOperationResult {
+    return {
+      index,
+      target: item.target,
+      name: item.name,
+      op: item.op,
+      result,
+      message: mapCodeToMessage(result.code),
+      statusCode: mapCodeToStatusCode(result.code),
+    };
   }
 
-  private async processOp(req: ModelRequest, item: RootQueryEntry) {
-    if (!mongoose.models[item.model]) {
-      return { success: false, code: Codes.BadRequest, data: null, message: `Model ${item.model} not found` };
+  private hasTarget(item: RootQueryEntry) {
+    if (item.target === 'model') {
+      return !!mongoose.models[item.name];
     }
 
-    const svc = req.macl.getPublicService(item.model);
+    return getDataNames().includes(item.name);
+  }
 
-    if (!ALL_ROUTES.includes(item.op))
-      return { success: false, code: Codes.BadRequest, data: null, message: `Operation ${item.op} not found` };
+  private async isAllowed(req: RootRequest, item: RootQueryEntry) {
+    return item.target === 'model' ? req.macl.isAllowed(item.name, item.op) : req.dacl.isAllowed(item.name, item.op);
+  }
 
-    const operationAccess = getModelOption(item.model, `operationAccess.${item.op as RouteGuardAccess}`) as Validation;
-    const allowed = await req.macl.canActivate(operationAccess);
-    if (!allowed) return { success: false, code: Codes.Unauthorized, data: null, message: 'Unauthorized' };
+  private async processOp(req: RootRequest, item: RootQueryEntry, index: number): Promise<RootOperationResult> {
+    if (!this.hasTarget(item)) {
+      const label = item.target === 'model' ? 'Model' : 'Data';
+      return this.wrapResult(index, item, createErrorResult(Codes.BadRequest, `${label} ${item.name} not found`));
+    }
 
-    if (item.op === 'list') {
-      return this.processResult(item.op, await svc._list(item.filter, item.args, item.options));
-    } else if (item.op === 'create') {
-      return this.processResult(item.op, await svc._create(item.data, item.args, item.options));
-    } else if (item.op === 'new') {
-      return this.processResult(item.op, await svc._new());
-    } else if (item.op === 'read') {
-      if (item.id) {
-        return this.processResult(item.op, await svc._read(item.id, item.args, item.options));
-      }
-      if (item.filter) {
-        return this.processResult(item.op, await svc._readFilter(item.filter, item.args, item.options));
-      }
-      return { success: false, code: Codes.BadRequest, data: null, message: `Operation ${item.op} invalid` };
-    } else if (item.op === 'update') {
-      return this.processResult(item.op, await svc._update(item.id, item.data, item.args, item.options));
-    } else if (item.op === 'delete') {
-      return this.processResult(item.op, await svc._delete(item.id));
-    } else if (item.op === 'distinct') {
-      return this.processResult(item.op, await svc._distinct(item.field, { filter: item.filter }));
-    } else if (item.op === 'count') {
-      return this.processResult(
-        item.op,
-        await svc._count(item.filter, item.options?.access as BaseFilterAccess | undefined),
+    const allowed = await this.isAllowed(req, item);
+    if (!allowed) {
+      return this.wrapResult(index, item, createErrorResult(Codes.Unauthorized, 'Unauthorized'));
+    }
+
+    const handler = item.target === 'model' ? this.modelOperations[item.op] : this.dataOperations[item.op];
+    if (!handler) {
+      return this.wrapResult(
+        index,
+        item,
+        createErrorResult(Codes.BadRequest, `Operation ${item.target}.${item.op} not found`),
       );
-    } else {
-      return { success: false, code: Codes.BadRequest, data: null, message: `operation ${item.op} not found` };
     }
+
+    return this.wrapResult(index, item, await handler(req, item as never));
   }
 
   private groupItemsByOrder(items: RootQueryEntry[]) {
-    return items.reduce((acc: { item: RootQueryEntry; index: number }[][], item: RootQueryEntry, index: number) => {
+    return items.reduce((acc: IndexedRootQueryEntry[][], item: RootQueryEntry, index: number) => {
       let order = 0;
 
       if (_isNumber(item.order)) {
@@ -119,34 +207,25 @@ export class RootRouter {
     }, []);
   }
 
-  private async assertAllowed(req: ModelRequest) {
+  private async assertAllowed(req: RootRequest) {
     const allowed = await req.macl.canActivate(this.operationAccess);
     if (!allowed) throw new clientErrors.UnauthorizedError();
   }
 
   private setRoutes() {
-    this.router.post('', async (req: ModelRequest) => {
+    this.router.post('', async (req: RootRequest) => {
       await this.assertAllowed(req);
 
-      const items: RootQueryEntry[] = parseBody(rootQuerySchema, req.body).map((item) => ({
-        ...item,
-        filter: (item.filter ?? {}) as Filter,
-      }));
+      const items = parseBody(rootQuerySchema, req.body) as RootQueryEntry[];
       const groupedItems = this.groupItemsByOrder(items);
 
-      const results = [];
+      const results: RootOperationResult[] = [];
       for (let x = 0; x < groupedItems.length; x++) {
-        const arrResult = await Promise.all(
-          groupedItems[x].map(async ({ item, index }) => {
-            const ret = await this.processOp(req, item);
-            return { ret, index };
-          }),
-        );
-
+        const arrResult = await Promise.all(groupedItems[x].map(({ item, index }) => this.processOp(req, item, index)));
         results.push(...arrResult);
       }
 
-      return _orderBy(results, ['index'], ['asc']).map(({ ret }) => ret);
+      return _orderBy(results, ['index'], ['asc']);
     });
   }
 
