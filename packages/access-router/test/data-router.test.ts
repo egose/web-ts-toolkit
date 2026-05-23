@@ -680,4 +680,54 @@ describe('data router', () => {
     expect(router).toBeInstanceOf(acl.RootRouter);
     expect(router.routes).toBeDefined();
   });
+
+  it('combines router instances and express routers in the passed order', async () => {
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => [],
+    });
+
+    const healthRouter = express.Router();
+    healthRouter.get('/health', (_req, res) => {
+      res.json({ ok: true });
+    });
+
+    const firstOverlapRouter = express.Router();
+    firstOverlapRouter.get('/overlap', (_req, res) => {
+      res.json({ source: 'first' });
+    });
+
+    const secondOverlapRouter = express.Router();
+    secondOverlapRouter.get('/overlap', (_req, res) => {
+      res.json({ source: 'second' });
+    });
+
+    const fruitRouter = acl.createDataRouter('combined-fruit', {
+      basePath: '/fruit',
+      idField: 'name',
+      operationAccess: {
+        list: true,
+        read: true,
+      },
+      data: [{ name: 'apple', color: 'red', public: true }],
+      permissionSchema: {
+        name: true,
+        color: true,
+        public: true,
+      },
+    });
+
+    const app = express();
+    app.use(acl.combineRoutes(healthRouter, firstOverlapRouter, fruitRouter, secondOverlapRouter));
+
+    await request(app).get('/health').expect(200, { ok: true });
+    await request(app)
+      .get('/fruit')
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.data).toHaveLength(1);
+        expect(body.data[0]).toMatchObject({ name: 'apple', color: 'red', public: true });
+      });
+    await request(app).get('/overlap').expect(200, { source: 'first' });
+  });
 });

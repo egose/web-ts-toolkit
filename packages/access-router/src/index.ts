@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import type {} from './filter-type-tests';
 import { isPlainObject, isString, isUndefined } from '@web-ts-toolkit/utils';
 import middleware, { guard } from './middleware';
-import { RootRouter, ModelRouter, DataRouter } from './routers';
+import { RootRouter, ModelRouter, DataRouter, combineRoutes } from './routers';
 import {
   setGlobalOptions,
   setGlobalOption,
@@ -32,6 +32,7 @@ export {
   RootRouter,
   ModelRouter,
   DataRouter,
+  combineRoutes,
   guard,
   setGlobalOptions,
   setGlobalOption,
@@ -49,6 +50,7 @@ export {
   getDefaultModelOption,
 };
 export type { AccessRouterPermissions, AccessRouterPermissionMap, AccessRouterRequest, AccessRouterRequestExtensions };
+export type { CombinedRouteInput } from './routers';
 export * from './permission';
 export * from './plugins';
 export * from './interfaces';
@@ -74,6 +76,7 @@ type WttSet = {
 interface Wtt {
   createRouter: CreateRouter;
   createDataRouter: CreateDataRouter;
+  combineRoutes: typeof combineRoutes;
   set: WttSet;
   setGlobalOptions: typeof setGlobalOptions;
   setGlobalOption: typeof setGlobalOption;
@@ -111,6 +114,8 @@ wtt.createRouter = function (
 wtt.createDataRouter = function <TData>(dataName: string, options: DataRouterOptions<TData>) {
   return new DataRouter(dataName, options);
 };
+
+wtt.combineRoutes = combineRoutes;
 
 wtt.set = function <K extends keyof GlobalOptions>(keyOrOptions: K | GlobalOptions, value?: unknown) {
   if (arguments.length === 2 && isString(keyOrOptions)) {

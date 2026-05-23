@@ -38,6 +38,43 @@ const router = acl.createDataRouter('fruit', {
 });
 ```
 
+## Combining Routers
+
+When you want to mount several access-router instances together, use `combineRoutes(...)`.
+
+```ts
+import express from 'express';
+import acl, { combineRoutes } from '@web-ts-toolkit/access-router';
+
+const fruitRouter = acl.createDataRouter('fruit', {
+  basePath: '/fruit',
+  data: [{ id: 'apple', name: 'Apple', public: true }],
+  idField: 'id',
+});
+
+const userRouter = acl.createRouter('User', {
+  basePath: '/users',
+});
+
+const rootRouter = acl.createRouter({
+  basePath: '/batch',
+  operationAccess: true,
+});
+
+const app = express();
+app.use(combineRoutes(fruitRouter, userRouter, rootRouter));
+
+// Equivalent:
+app.use(acl.combineRoutes(fruitRouter, userRouter, rootRouter));
+```
+
+Notes:
+
+- `combineRoutes(...)` accepts `ModelRouter`, `DataRouter`, `RootRouter`, or a plain Express `Router`
+- routers are mounted in the exact order passed to `combineRoutes(...)`
+- if two routers match the same path, the earlier router handles the request first
+- this is only a mounting helper; it does not merge service access, metadata, or router configuration
+
 ## TypeScript Support
 
 Typed routers carry the model or data shape through filters, selects, defaults, and service accessors.
