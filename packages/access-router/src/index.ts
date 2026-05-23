@@ -52,14 +52,19 @@ export {
   getDefaultModelOptions,
   getDefaultModelOption,
 };
-export type { AccessRouterPermissions, AccessRouterPermissionMap, AccessRouterRequest, AccessRouterRequestExtensions };
+export type {
+  AccessRouterPermissions,
+  AccessRouterPermissionMap,
+  AccessRouterRequest,
+  AccessRouterRequestExtensions,
+  GlobalOptions,
+  RootRouterOptions,
+  ModelRouterOptions,
+  DataRouterOptions,
+};
 export type { CombinedRouteInput } from './routers';
 export * from './permission';
 export * from './plugins';
-export * from './interfaces';
-export * from './symbols';
-export * from './enums';
-export * from './routers/validation';
 
 type CreateRouter = {
   <TModel>(model: mongoose.Model<TModel>, options: ModelRouterOptions<TModel>): ModelRouter<TModel>;

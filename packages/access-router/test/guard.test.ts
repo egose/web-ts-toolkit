@@ -2,7 +2,8 @@ import type { Response } from 'express';
 import mongoose from 'mongoose';
 import { describe, expect, it, vi } from 'vitest';
 
-import { PERMISSIONS, guard } from '../dist/index.mjs';
+import { guard } from '../dist/index.mjs';
+import { PERMISSIONS } from '../dist/advanced.mjs';
 import type { Request as AccessRequest } from '../src/interfaces';
 
 const createRequest = ({

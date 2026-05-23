@@ -711,10 +711,14 @@ describe('data router', () => {
 
   it('exposes low-level APIs through the advanced subpath', async () => {
     const advanced = await import('../dist/advanced.mjs');
+    const main = await import('../dist/index.mjs');
 
     expect(advanced).toHaveProperty('parseBody');
     expect(advanced).toHaveProperty('MIDDLEWARE');
     expect(advanced).toHaveProperty('Codes');
+    expect(main).not.toHaveProperty('parseBody');
+    expect(main).not.toHaveProperty('MIDDLEWARE');
+    expect(main).not.toHaveProperty('Codes');
   });
 
   it('creates a root router through the overloaded createRouter API', () => {
