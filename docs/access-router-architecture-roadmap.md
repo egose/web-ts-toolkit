@@ -389,6 +389,21 @@ Goal:
 
 - remove duplicated logic before bigger structural changes
 
+Status:
+
+- completed
+
+Completed so far:
+
+1. extracted shared data decoration helpers into:
+   - `src/http/response-pipelines/data-response.ts`
+2. wired both direct data-router endpoints and root batch data operations to the same shared data decoration helpers
+3. extracted shared list-envelope and created/upsert response helpers into:
+   - `src/http/response-pipelines/list-response.ts`
+4. extracted shared model response helpers into:
+   - `src/http/response-pipelines/model-response.ts`
+5. kept router-level compatibility wrappers where useful so existing imports continue to work during the refactor
+
 Suggested work:
 
 1. extract shared list response helpers
@@ -404,6 +419,11 @@ Candidate modules:
 Exit criteria:
 
 - root and direct routes use the same output shaping rules where applicable
+
+Verification:
+
+- `pnpm --filter @web-ts-toolkit/access-router test`
+- latest result after Phase 2 extraction work: `9 passed`, `69 passed`
 
 ### Phase 3: introduce `createAccessRuntime()` behind the current API
 
@@ -482,6 +502,10 @@ Exit criteria:
 5. Phase 5: public API and configuration cleanup
 
 This order keeps risk low by improving readability first, then removing duplication, then changing ownership boundaries.
+
+Current next step:
+
+- move into Phase 3 and introduce `createAccessRuntime()` behind the current exports
 
 ## Recommended First Milestone
 
