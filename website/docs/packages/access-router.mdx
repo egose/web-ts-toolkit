@@ -75,6 +75,30 @@ Notes:
 - if two routers match the same path, the earlier router handles the request first
 - this is only a mounting helper; it does not merge service access, metadata, or router configuration
 
+## Router Mutability
+
+Routers support runtime updates for request-time behavior such as hooks, filters, permissions, and defaults.
+
+Build-time route-shape options are intentionally immutable after construction.
+
+Examples of build-time options:
+
+- model router: `basePath`, `parentPath`, `idParam`, `queryRouteSegment`, `mutationRouteSegment`
+- data router: `basePath`, `parentPath`, `idParam`, `queryRouteSegment`
+
+This means code like this is rejected after the router has already been created:
+
+```ts
+const router = acl.createRouter('User', {
+  basePath: '/users',
+});
+
+router.set('queryRouteSegment', '__custom');
+// Error: Cannot change queryRouteSegment after router construction because it is a build-time option
+```
+
+Use router construction for route shape, and use setters only for behavior that is meant to vary after construction.
+
 ## TypeScript Support
 
 Typed routers carry the model or data shape through filters, selects, defaults, and service accessors.
@@ -577,6 +601,25 @@ router.router.post('/custom/:id', async (req) => {
 ```
 
 These helpers throw the same `BadRequestError` shape as the built-in router endpoints, so custom routes can stay consistent with the package defaults.
+
+## Advanced Exports
+
+The main package entry keeps the common router/runtime API easy to discover.
+
+For lower-level extension points, prefer the `advanced` subpath:
+
+```ts
+import { parseBody, requestSchemas, MIDDLEWARE, Codes } from '@web-ts-toolkit/access-router/advanced';
+```
+
+Use `@web-ts-toolkit/access-router/advanced` when you specifically need low-level items such as:
+
+- validation helpers and schemas
+- low-level symbols
+- enum exports
+- deeper TypeScript contract types
+
+The main entrypoint still re-exports many of these for compatibility, but the `advanced` subpath is the clearer long-term import location for low-level usage.
 
 ## Lifecycle Phases
 

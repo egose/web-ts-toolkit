@@ -10,6 +10,7 @@ import { processUrl } from '../lib';
 import { handleResultError } from '../helpers';
 import { DataRouterOptions, ExtendedDataRouterOptions, DataRequest, Filter } from '../interfaces';
 import { DataService } from '../services';
+import { assertMutableRouterOption, assertMutableRouterOptions } from './router-mutation';
 import { formatListResponse, parseBooleanString } from './shared';
 import { accessRouterResponseHandler } from './index';
 import {
@@ -33,6 +34,7 @@ function setOption<TData>(this: DataRouter<TData>, parentKey: string, optionKey:
   const key = isUndefined(option) ? parentKey : `${parentKey}.${optionKey}`;
   const value = isUndefined(option) ? optionKey : option;
 
+  assertMutableRouterOption('data', key);
   this.runtime.setDataOption(this.dataName, key as keyof DataRouterOptions<TData>, value);
   return this;
 }
@@ -212,10 +214,12 @@ export class DataRouter<TData = unknown> {
   set(options: DataRouterOptions<TData>): this;
   set<K extends keyof DataRouterOptions<TData>>(keyOrOptions: K | DataRouterOptions<TData>, value?: unknown) {
     if (arguments.length === 2 && isString(keyOrOptions)) {
+      assertMutableRouterOption('data', keyOrOptions as string);
       this.runtime.setDataOption<K, TData>(this.dataName, keyOrOptions as K, value as DataRouterOptions<TData>[K]);
     }
 
     if (arguments.length === 1 && isPlainObject(keyOrOptions)) {
+      assertMutableRouterOptions('data', keyOrOptions as Record<string, unknown>);
       this.runtime.setDataOptions<TData>(this.dataName, keyOrOptions as DataRouterOptions<TData>);
     }
 
@@ -223,11 +227,13 @@ export class DataRouter<TData = unknown> {
   }
 
   setOption<K extends keyof DataRouterOptions<TData>>(key: K, option: DataRouterOptions<TData>[K]) {
+    assertMutableRouterOption('data', key as string);
     this.runtime.setDataOption<K, TData>(this.dataName, key, option);
     return this;
   }
 
   setOptions(options: DataRouterOptions<TData>) {
+    assertMutableRouterOptions('data', options as Record<string, unknown>);
     this.runtime.setDataOptions<TData>(this.dataName, options);
     return this;
   }

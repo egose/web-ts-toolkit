@@ -335,4 +335,29 @@ describe('model router', () => {
 
     expect(info).toHaveBeenCalled();
   });
+
+  it('rejects changing build-time model route options after construction', () => {
+    const modelName = `AclUserModel${++modelCounter}`;
+    mongoose.model(
+      modelName,
+      new mongoose.Schema({
+        name: String,
+      }),
+    );
+
+    const router = acl.createRouter(modelName, {
+      basePath: '/users',
+      operationAccess: { read: true },
+      permissionSchema: {
+        name: { read: true },
+      },
+    });
+
+    expect(() => router.set('queryRouteSegment', '__custom')).toThrow(
+      'Cannot change queryRouteSegment after router construction because it is a build-time option',
+    );
+    expect(() => router.setOptions({ mutationRouteSegment: '__mut' })).toThrow(
+      'Cannot change mutationRouteSegment after router construction because it is a build-time option',
+    );
+  });
 });

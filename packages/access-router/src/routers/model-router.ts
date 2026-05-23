@@ -11,6 +11,7 @@ import type { AccessRuntime } from '../runtime';
 import { defaultRuntime } from '../runtime';
 import { attachRuntimeToModel, runWithRuntime } from '../runtime-context';
 import { PublicService, Service } from '../services';
+import { assertMutableRouterOption, assertMutableRouterOptions } from './router-mutation';
 import { accessRouterResponseHandler } from './index';
 import { setModelCollectionRoutes } from './model-router-collection';
 import { setModelDocumentRoutes } from './model-router-document';
@@ -27,6 +28,7 @@ function setOption<TModel>(this: ModelRouter<TModel>, parentKey: string, optionK
   const key = isUndefined(option) ? parentKey : `${parentKey}.${optionKey}`;
   const value = isUndefined(option) ? optionKey : option;
 
+  assertMutableRouterOption('model', key);
   this.runtime.setModelOption(this.modelName, key as keyof ExtendedModelRouterOptions<TModel>, value);
   return this;
 }
@@ -132,6 +134,7 @@ export class ModelRouter<TModel = unknown> {
     value?: unknown,
   ) {
     if (arguments.length === 2 && isString(keyOrOptions)) {
+      assertMutableRouterOption('model', keyOrOptions as string);
       this.runtime.setModelOption<K, TModel>(
         this.modelName,
         keyOrOptions as K,
@@ -140,6 +143,7 @@ export class ModelRouter<TModel = unknown> {
     }
 
     if (arguments.length === 1 && isPlainObject(keyOrOptions)) {
+      assertMutableRouterOptions('model', keyOrOptions as Record<string, unknown>);
       this.runtime.setModelOptions<TModel>(this.modelName, keyOrOptions as ModelRouterOptions<TModel>);
     }
 
@@ -147,11 +151,13 @@ export class ModelRouter<TModel = unknown> {
   }
 
   setOption<K extends keyof ExtendedModelRouterOptions<TModel>>(key: K, option: ExtendedModelRouterOptions<TModel>[K]) {
+    assertMutableRouterOption('model', key as string);
     this.runtime.setModelOption<K, TModel>(this.modelName, key, option);
     return this;
   }
 
   setOptions(options: ModelRouterOptions<TModel>) {
+    assertMutableRouterOptions('model', options as Record<string, unknown>);
     this.runtime.setModelOptions<TModel>(this.modelName, options);
     return this;
   }

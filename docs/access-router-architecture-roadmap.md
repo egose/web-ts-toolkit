@@ -524,6 +524,24 @@ Goal:
 
 - make the package easier to consume and safer to extend
 
+Status:
+
+- completed
+
+Completed so far:
+
+1. made route-shape/build-time router options explicitly immutable after construction
+2. preserved runtime mutation for request-time behavior options such as hooks, filters, access rules, data, and defaults
+3. added an explicit advanced export surface:
+   - `@web-ts-toolkit/access-router/advanced`
+4. kept the main entrypoint compatibility-preserving while documenting the clearer long-term boundary between common and low-level APIs
+5. added verification coverage for:
+   - rejected post-construction mutation of build-time router options
+   - availability of low-level exports through the advanced subpath
+6. updated package docs to explain:
+   - build-time versus runtime-mutable router options
+   - when to use the advanced subpath
+
 Suggested work:
 
 1. classify options as build-time or runtime-mutable
@@ -535,6 +553,11 @@ Exit criteria:
 
 - consumers can tell which APIs are stable and which are advanced
 - router mutability behavior is explicit
+
+Verification:
+
+- `pnpm --filter @web-ts-toolkit/access-router test`
+- latest result after Phase 5 API/configuration work: `9 passed`, `74 passed`
 
 ## Recommended Implementation Order
 
@@ -548,7 +571,7 @@ This order keeps risk low by improving readability first, then removing duplicat
 
 Current next step:
 
-- move into Phase 5 and clarify configuration/public API semantics
+- all planned phases in this roadmap are complete
 
 ## Recommended First Milestone
 

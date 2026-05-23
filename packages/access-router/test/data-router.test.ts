@@ -687,6 +687,36 @@ describe('data router', () => {
     expect(getGlobalOptions().requestPermissionField).not.toBe('__b');
   });
 
+  it('rejects changing build-time data route options after construction', () => {
+    const router = acl.createDataRouter('immutable-fruit', {
+      basePath: '/fruit',
+      idField: 'id',
+      operationAccess: {
+        list: true,
+      },
+      data: [{ id: 'apple', name: 'Apple' }],
+      permissionSchema: {
+        id: true,
+        name: true,
+      },
+    });
+
+    expect(() => router.set('queryRouteSegment', '__custom')).toThrow(
+      'Cannot change queryRouteSegment after router construction because it is a build-time option',
+    );
+    expect(() => router.setOptions({ basePath: '/other-fruit' })).toThrow(
+      'Cannot change basePath after router construction because it is a build-time option',
+    );
+  });
+
+  it('exposes low-level APIs through the advanced subpath', async () => {
+    const advanced = await import('../dist/advanced.mjs');
+
+    expect(advanced).toHaveProperty('parseBody');
+    expect(advanced).toHaveProperty('MIDDLEWARE');
+    expect(advanced).toHaveProperty('Codes');
+  });
+
   it('creates a root router through the overloaded createRouter API', () => {
     const router = acl.createRouter({ basePath: '/api', operationAccess: true });
 
