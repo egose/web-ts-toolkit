@@ -51,7 +51,7 @@ const fruitRouter = acl.createDataRouter('sample-fruit', {
     public: true,
   },
   decorate(item, permissions) {
-    if (permissions.isAdmin && this.requestId) {
+    if (permissions.has('isAdmin') && this.requestId) {
       return { ...item, requestId: this.requestId };
     }
 
@@ -59,10 +59,10 @@ const fruitRouter = acl.createDataRouter('sample-fruit', {
   },
   baseFilter: {
     list(permissions) {
-      return permissions.isAdmin ? {} : { public: true };
+      return permissions.has('isAdmin') ? {} : { public: true };
     },
     read(permissions) {
-      return permissions.isAdmin ? {} : { public: true };
+      return permissions.has('isAdmin') ? {} : { public: true };
     },
   },
 });
@@ -71,6 +71,11 @@ const fruitServiceTypecheck = fruitRouter.getService(
   {} as express.Request as Parameters<typeof fruitRouter.getService>[0],
 );
 void fruitServiceTypecheck;
+
+const rootRouter = acl.createRouter({
+  basePath: '/batch',
+  operationAccess: true,
+});
 
 async function createUserRouter() {
   const schema = new mongoose.Schema({
@@ -103,14 +108,14 @@ async function createUserRouter() {
     },
     baseFilter: {
       list(permissions) {
-        return permissions.isAdmin ? {} : { public: true };
+        return permissions.has('isAdmin') ? {} : { public: true };
       },
       read(permissions) {
-        return permissions.isAdmin ? {} : { public: true };
+        return permissions.has('isAdmin') ? {} : { public: true };
       },
     },
     decorate(doc, permissions) {
-      if (permissions.isAdmin && this.requestId) {
+      if (permissions.has('isAdmin') && this.requestId) {
         return { ...doc, requestId: this.requestId };
       }
 
@@ -120,7 +125,7 @@ async function createUserRouter() {
 
   userRouter.afterDelete(function (doc, permissions, context) {
     console.log(doc.name);
-    console.log(permissions.isAdmin);
+    console.log(permissions.has('isAdmin'));
     console.log(context.originalDocumentSnapshot);
   });
 
@@ -163,6 +168,7 @@ async function start() {
       name: 'nodejs-sample',
       description: 'TypeScript Express sample app for trying @web-ts-toolkit packages',
       endpoints: {
+        batch: 'POST /batch',
         fruitList: 'GET /fruit',
         fruitRead: 'GET /fruit/:id',
         fruitAdvancedList: 'POST /fruit/__query',
@@ -176,16 +182,18 @@ async function start() {
         'Send the header user: admin to view admin-only fields and non-public rows.',
         'Guests only see public fruit and public users.',
         'The /users routes are backed by mongodb-memory-server and seeded on startup.',
+        'The /batch route shows the root router batching model and data operations.',
       ],
     });
   });
 
   app.use(fruitRouter.routes);
   app.use(userRouter.routes);
+  app.use(rootRouter.routes);
 
   app.listen(port, () => {
     console.log(`access-router sample listening on http://localhost:${port}`);
-    console.log('Try GET /fruit, GET /users, and GET /users/alice');
+    console.log('Try GET /fruit, GET /users, GET /users/alice, and POST /batch');
     console.log('Send header user: admin to see admin-only fields and private records.');
   });
 }
