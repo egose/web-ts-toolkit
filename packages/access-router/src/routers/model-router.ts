@@ -442,37 +442,20 @@ export class ModelRouter<TModel = unknown> {
       await this.assertAllowed(req, 'upsert');
 
       const svc = this.getPublicService(req);
-      const idKey = svc.getIdentifier();
-      if (idKey !== '_id') throw new clientErrors.BadRequestError('not supported custom id field');
-
       const { returning_all, include_permissions } = parseQuery(requestSchemas.upsertQuery, req.query);
       const body = parseBodyWithSchema(upsertBodySchema, req.body, this.getRequestSchema('requestSchemas.upsert'));
-      const { [idKey]: idVal, ...data } = body;
-      const upsertId = idVal as string | undefined;
+      const result = await svc._upsert(
+        body,
+        {},
+        {
+          returningAll: parseBooleanString(returning_all),
+          includePermissions: parseBooleanString(include_permissions),
+        },
+      );
 
-      if (upsertId) {
-        const existing = await svc.exists({ [idKey]: upsertId } as Filter<TModel>, { access: 'update' });
-        handleResultError(existing);
-        if (!existing.data) throw new clientErrors.UnauthorizedError();
+      handleResultError(result);
 
-        const result = await svc._update(
-          upsertId,
-          data,
-          {},
-          {
-            returningAll: parseBooleanString(returning_all),
-            includePermissions: parseBooleanString(include_permissions),
-          },
-        );
-
-        handleResultError(result);
-        return result.data;
-      } else {
-        const result = await svc._create(data, {}, { includePermissions: parseBooleanString(include_permissions) });
-
-        handleResultError(result);
-        return new success.Created(formatUpsertCreatedData(result));
-      }
+      return result.kind === 'list' ? new success.Created(formatUpsertCreatedData(result)) : result.data;
     });
 
     ///////////////////////
@@ -482,9 +465,6 @@ export class ModelRouter<TModel = unknown> {
       await this.assertAllowed(req, 'upsert');
 
       const svc = this.getPublicService(req);
-      const idKey = svc.getIdentifier();
-      if (idKey !== '_id') throw new clientErrors.BadRequestError('not supported custom id field');
-
       const { returning_all, include_permissions } = parseQuery(requestSchemas.upsertQuery, req.query);
       const body = parseNestedBodyWithSchema(
         advancedUpsertBodySchema,
@@ -501,40 +481,18 @@ export class ModelRouter<TModel = unknown> {
           this.getRequestSchema('requestSchemas.advancedUpsert'),
       );
       const { returningAll, includePermissions, populateAccess } = options;
-      const { [idKey]: idVal, ...otherData } = data;
-      const upsertId = idVal as string | undefined;
+      const result = await svc._upsert(
+        data,
+        { select, populate, tasks },
+        {
+          returningAll: returningAll ?? parseBooleanString(returning_all),
+          includePermissions: includePermissions ?? parseBooleanString(include_permissions),
+          populateAccess: populateAccess as PopulateAccess | undefined,
+        },
+      );
 
-      if (upsertId) {
-        const existing = await svc.exists({ [idKey]: upsertId } as Filter<TModel>, { access: 'update' });
-        handleResultError(existing);
-        if (!existing.data) throw new clientErrors.UnauthorizedError();
-
-        const result = await svc._update(
-          upsertId,
-          otherData,
-          { select, populate, tasks },
-          {
-            returningAll: returningAll ?? parseBooleanString(returning_all),
-            includePermissions: includePermissions ?? parseBooleanString(include_permissions),
-            populateAccess: populateAccess as PopulateAccess | undefined,
-          },
-        );
-
-        handleResultError(result);
-        return result.data;
-      } else {
-        const result = await svc._create(
-          otherData,
-          { select, populate, tasks },
-          {
-            includePermissions: includePermissions ?? parseBooleanString(include_permissions),
-            populateAccess: populateAccess as PopulateAccess | undefined,
-          },
-        );
-
-        handleResultError(result);
-        return new success.Created(formatUpsertCreatedData(result));
-      }
+      handleResultError(result);
+      return result.kind === 'list' ? new success.Created(formatUpsertCreatedData(result)) : result.data;
     });
 
     ////////////

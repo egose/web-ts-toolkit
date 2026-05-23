@@ -19,12 +19,16 @@ import {
   PublicCreateOptions,
   PublicUpdateArgs,
   PublicUpdateOptions,
+  PublicUpsertArgs,
+  PublicUpsertOptions,
   DistinctArgs,
   ErrorResult,
   ListResult,
   BaseFilterAccess,
   SingleResult,
+  ServiceResult,
 } from '../interfaces';
+import { Codes } from '../enums';
 
 export class PublicService<TModel = unknown> extends Service<TModel> {
   async _list<
@@ -238,6 +242,42 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     }
 
     return result as SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>>;
+  }
+
+  async _upsert<
+    TSelect extends Projection | undefined = undefined,
+    TPopulate extends Populate[] | string | undefined = undefined,
+  >(
+    data: Record<string, unknown>,
+    args?: Omit<PublicUpsertArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
+    options?: PublicUpsertOptions,
+  ): Promise<ServiceResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
+    const idKey = this.getIdentifier();
+    if (idKey !== '_id') {
+      return { success: false, code: Codes.BadRequest, errors: ['not supported custom id field'] };
+    }
+
+    const { [idKey]: idVal, ...otherData } = data;
+    const upsertId = typeof idVal === 'string' ? idVal : undefined;
+
+    if (upsertId) {
+      const existing = await this.exists({ [idKey]: upsertId } as Filter<TModel>, { access: 'update' });
+      if (!existing.success) {
+        return existing as ErrorResult;
+      }
+
+      if (!existing.data) {
+        return { success: false, code: Codes.Unauthorized, errors: ['Unauthorized'] };
+      }
+
+      return this._update(upsertId, otherData, args, options);
+    }
+
+    return this._create(otherData, args, {
+      skim: options?.skim,
+      includePermissions: options?.includePermissions,
+      populateAccess: options?.populateAccess,
+    });
   }
 
   async _delete(id: string): Promise<SingleResult<unknown> | ErrorResult> {

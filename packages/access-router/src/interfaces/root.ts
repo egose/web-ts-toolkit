@@ -208,10 +208,12 @@ export interface RootRouterOptions {
 }
 
 interface OperationAccess {
+  new?: Validation;
   list?: Validation;
   create?: Validation;
   read?: Validation;
   update?: Validation;
+  upsert?: Validation;
   delete?: Validation;
   distinct?: Validation;
   count?: Validation;
@@ -392,6 +394,7 @@ export type RouteGuardAccess =
   | 'list'
   | 'read'
   | 'update'
+  | 'upsert'
   | 'delete'
   | 'create'
   | 'distinct'
