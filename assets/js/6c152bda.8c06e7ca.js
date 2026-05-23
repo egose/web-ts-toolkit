@@ -53,6 +53,14 @@ const toc = [{
   "id": "quick-start",
   "level": 2
 }, {
+  "value": "Combining Routers",
+  "id": "combining-routers",
+  "level": 2
+}, {
+  "value": "Router Mutability",
+  "id": "router-mutability",
+  "level": 2
+}, {
   "value": "TypeScript Support",
   "id": "typescript-support",
   "level": 2
@@ -81,6 +89,10 @@ const toc = [{
   "id": "request-and-permission-augmentation",
   "level": 3
 }, {
+  "value": "Permission Helpers",
+  "id": "permission-helpers",
+  "level": 3
+}, {
   "value": "List Responses",
   "id": "list-responses",
   "level": 2
@@ -93,8 +105,16 @@ const toc = [{
   "id": "user-defined-request-schemas",
   "level": 2
 }, {
+  "value": "Root Batch Route",
+  "id": "root-batch-route",
+  "level": 2
+}, {
   "value": "Custom Route Validation",
   "id": "custom-route-validation",
+  "level": 2
+}, {
+  "value": "Advanced Exports",
+  "id": "advanced-exports",
   "level": 2
 }, {
   "value": "Lifecycle Phases",
@@ -144,6 +164,10 @@ const toc = [{
   "value": "<code>docPermissions</code>",
   "id": "docpermissions",
   "level": 3
+}, {
+  "value": "Hook Context",
+  "id": "hook-context",
+  "level": 2
 }, {
   "value": "Example",
   "id": "example",
@@ -223,6 +247,84 @@ function _createMdxContent(props) {
         children: "import acl from '@web-ts-toolkit/access-router';\n\nacl.set('globalPermissions', (req) => {\n  return req.headers.user === 'admin' ? ['isAdmin'] : [];\n});\n\nconst router = acl.createDataRouter('fruit', {\n  basePath: '/fruit',\n  data: [{ id: 'apple', name: 'Apple', public: true }],\n  idField: 'id',\n  operationAccess: {\n    list: true,\n    read: true,\n  },\n  permissionSchema: {\n    id: true,\n    name: 'isAdmin',\n    public: true,\n  },\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "combining-routers",
+      children: "Combining Routers"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["When you want to mount several access-router instances together, use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "combineRoutes(...)"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import express from 'express';\nimport acl, { combineRoutes } from '@web-ts-toolkit/access-router';\n\nconst fruitRouter = acl.createDataRouter('fruit', {\n  basePath: '/fruit',\n  data: [{ id: 'apple', name: 'Apple', public: true }],\n  idField: 'id',\n});\n\nconst userRouter = acl.createRouter('User', {\n  basePath: '/users',\n});\n\nconst rootRouter = acl.createRouter({\n  basePath: '/batch',\n  operationAccess: true,\n});\n\nconst app = express();\napp.use(combineRoutes(fruitRouter, userRouter, rootRouter));\n\n// Equivalent:\napp.use(acl.combineRoutes(fruitRouter, userRouter, rootRouter));\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Notes:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "combineRoutes(...)"
+        }), " accepts ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ModelRouter"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DataRouter"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "RootRouter"
+        }), ", or a plain Express ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Router"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["routers are mounted in the exact order passed to ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "combineRoutes(...)"
+        })]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "if two routers match the same path, the earlier router handles the request first"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "this is only a mounting helper; it does not merge service access, metadata, or router configuration"
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "router-mutability",
+      children: "Router Mutability"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Routers support runtime updates for request-time behavior such as hooks, filters, permissions, and defaults."
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Build-time route-shape options are intentionally immutable after construction."
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Examples of build-time options:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["model router: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "basePath"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "parentPath"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "idParam"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "queryRouteSegment"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "mutationRouteSegment"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["data router: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "basePath"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "parentPath"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "idParam"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "queryRouteSegment"
+        })]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "This means code like this is rejected after the router has already been created:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "const router = acl.createRouter('User', {\n  basePath: '/users',\n});\n\nrouter.set('queryRouteSegment', '__custom');\n// Error: Cannot change queryRouteSegment after router construction because it is a build-time option\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Use router construction for route shape, and use setters only for behavior that is meant to vary after construction."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "typescript-support",
       children: "TypeScript Support"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
@@ -233,7 +335,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import mongoose from 'mongoose';\nimport acl from '@web-ts-toolkit/access-router';\n\ntype User = {\n  name: string;\n  role: string;\n  profile: {\n    city: string;\n  };\n  public: boolean;\n};\n\nconst UserModel = mongoose.model<User>(\n  'User',\n  new mongoose.Schema({\n    name: String,\n    role: String,\n    profile: {\n      city: String,\n    },\n    public: Boolean,\n  }),\n);\n\nconst userRouter = acl.createRouter(UserModel, {\n  basePath: '/users',\n  baseFilter: {\n    list(permissions) {\n      return permissions.isAdmin ? {} : { public: true };\n    },\n  },\n  defaults: {\n    findOptions: {\n      sort: { name: 1 },\n      select: ['name', 'profile.city'],\n    },\n  },\n});\n\nconst service = userRouter.getService(req);\n\nawait service.find({\n  filter: { 'profile.city': 'Berlin' },\n  select: ['name', 'profile.city'],\n});\n"
+        children: "import mongoose from 'mongoose';\nimport acl from '@web-ts-toolkit/access-router';\n\ntype User = {\n  name: string;\n  role: string;\n  profile: {\n    city: string;\n  };\n  public: boolean;\n};\n\nconst UserModel = mongoose.model<User>(\n  'User',\n  new mongoose.Schema({\n    name: String,\n    role: String,\n    profile: {\n      city: String,\n    },\n    public: Boolean,\n  }),\n);\n\nconst userRouter = acl.createRouter(UserModel, {\n  basePath: '/users',\n  baseFilter: {\n    list(permissions) {\n      return permissions.has('isAdmin') ? {} : { public: true };\n    },\n  },\n  defaults: {\n    findOptions: {\n      sort: { name: 1 },\n      select: ['name', 'profile.city'],\n    },\n  },\n});\n\nconst service = userRouter.getService(req);\n\nawait service.find({\n  filter: { 'profile.city': 'Berlin' },\n  select: ['name', 'profile.city'],\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "typed-data-routers",
@@ -308,8 +410,46 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "acl.setGlobalOptions({\n  globalPermissions(req) {\n    req.requestId = String(req.headers['x-request-id'] ?? 'request');\n    return req.headers.user === 'admin' ? ['isAdmin'] : [];\n  },\n});\n\nacl.createDataRouter('fruit', {\n  decorate(item, permissions) {\n    if (permissions.isAdmin && this.requestId) {\n      return { ...item, requestId: this.requestId };\n    }\n\n    return item;\n  },\n});\n"
+        children: "acl.setGlobalOptions({\n  globalPermissions(req) {\n    req.requestId = String(req.headers['x-request-id'] ?? 'request');\n    return req.headers.user === 'admin' ? ['isAdmin'] : [];\n  },\n});\n\nacl.createDataRouter('fruit', {\n  decorate(item, permissions) {\n    if (permissions.has('isAdmin') && this.requestId) {\n      return { ...item, requestId: this.requestId };\n    }\n\n    return item;\n  },\n});\n"
       })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "permission-helpers",
+      children: "Permission Helpers"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The exported ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "AccessRouterPermissions"
+      }), " type is method-based."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Use this style in hooks, guards, and decorators:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "permissions.has('isAdmin');\npermissions.hasAny('posts.read', 'posts.write');\npermissions.hasAll(['posts.read', 'posts.write']);\npermissions.keys;\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Notes:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "has(name)"
+        }), " returns ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "true"
+        }), " only when that permission is explicitly enabled."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "hasAny(...)"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "hasAll(...)"
+        }), " accept either variadic permission names or a single array."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "keys"
+        }), " returns the known permission names for the current request."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Property-style access such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "permissions.isAdmin"
+        }), " is no longer part of the public API."]
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "list-responses",
       children: "List Responses"
@@ -395,6 +535,44 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Public router endpoints validate request path params, known query params, and top-level request body shapes before calling the service layer."
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Naming conventions:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["plain query params use snake_case, such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "page_size"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "include_count"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "include_permissions"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "returning_all"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "try_list"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["advanced route request bodies use camelCase, such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "pageSize"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "includeCount"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "includePermissions"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "returningAll"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "tryList"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["advanced route bodies use ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "filter"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "select"
+        }), "; deprecated aliases like ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "query"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "fields"
+        }), " are not supported"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Examples:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
@@ -450,6 +628,155 @@ function _createMdxContent(props) {
       children: ["Model and data routers can add route-specific Zod validation through the ", (0,jsx_runtime.jsx)(_components.code, {
         children: "requestSchemas"
       }), " option."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "root-batch-route",
+      children: "Root Batch Route"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "RootRouter"
+      }), " accepts a batch array where each entry declares a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "target"
+      }), ", a router ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "name"
+      }), ", and an operation-specific payload:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["route identity stays top-level: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "target"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "name"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "op"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["operation inputs stay top-level when they are required by that operation: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "id"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "field"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "filter"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "data"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["query-like structured arguments go in ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "args"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["behavior switches go in ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "options"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "args"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "options"
+        }), " must be objects when present"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["the batch schema now validates required fields per operation, so invalid ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "update"
+        }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "distinct"
+        }), " entries fail before dispatch"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Examples:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-json",
+        children: "[\n  {\n    \"target\": \"model\",\n    \"name\": \"User\",\n    \"op\": \"list\",\n    \"filter\": { \"public\": true },\n    \"args\": { \"select\": [\"name\"], \"pageSize\": 10 },\n    \"options\": { \"includeCount\": true }\n  },\n  {\n    \"target\": \"model\",\n    \"name\": \"User\",\n    \"op\": \"read\",\n    \"id\": \"user1\",\n    \"args\": { \"select\": [\"name\", \"role\"] },\n    \"options\": { \"tryList\": false }\n  },\n  {\n    \"target\": \"model\",\n    \"name\": \"User\",\n    \"op\": \"create\",\n    \"data\": { \"name\": \"user3\", \"role\": \"user\" },\n    \"options\": { \"includePermissions\": false }\n  },\n  {\n    \"target\": \"data\",\n    \"name\": \"FeaturedUsers\",\n    \"op\": \"list\",\n    \"filter\": { \"public\": true },\n    \"options\": { \"includeCount\": true }\n  },\n  {\n    \"target\": \"model\",\n    \"name\": \"User\",\n    \"op\": \"upsert\",\n    \"data\": { \"_id\": \"664c4f...\", \"role\": \"admin\" },\n    \"options\": { \"returningAll\": true, \"includePermissions\": false }\n  },\n  {\n    \"target\": \"model\",\n    \"name\": \"User\",\n    \"op\": \"subList\",\n    \"id\": \"664c4f...\",\n    \"sub\": \"comments\",\n    \"args\": { \"select\": [\"body\", \"votes\"] }\n  },\n  {\n    \"target\": \"model\",\n    \"name\": \"User\",\n    \"op\": \"subUpdate\",\n    \"id\": \"664c4f...\",\n    \"sub\": \"comments\",\n    \"subId\": \"664c51...\",\n    \"data\": { \"votes\": 10 }\n  },\n  {\n    \"target\": \"model\",\n    \"name\": \"User\",\n    \"op\": \"count\",\n    \"filter\": { \"public\": false },\n    \"options\": { \"access\": \"read\" }\n  }\n]\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Notes:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "filter"
+        }), " stays top-level for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "list"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "read"
+        }), "-by-filter, ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "count"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "distinct"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "target: \"model\""
+        }), " dispatches through model public services"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "target: \"data\""
+        }), " dispatches through the data-router service flow for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "list"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "read"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "create"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "list"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "read"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "update"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "upsert"
+        }), " forward both ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "args"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "options"
+        }), " to the corresponding service methods when that operation supports them"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["model sub-document batching uses explicit ops: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "subList"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "subRead"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "subCreate"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "subUpdate"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "subBulkUpdate"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "subDelete"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["sub-document entries use top-level ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "id"
+        }), " for the parent document, ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sub"
+        }), " for the sub-collection path, and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "subId"
+        }), " when targeting a single nested document"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "count"
+        }), " uses ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "options.access"
+        }), ", matching the dedicated advanced count route"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["model ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "upsert"
+        }), " currently follows the same runtime limitation as the dedicated route: it only supports the default ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "_id"
+        }), " identifier"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "there is no separate query-string layer on the root batch route, so it always uses the camelCase body naming style"
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Each batch item returns a wrapper object:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "{\n  index: number;\n  target: 'model' | 'data';\n  name: string;\n  op: string;\n  statusCode: number;\n  message: string;\n  result: ServiceResult;\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "result"
+      }), " preserves the underlying service-layer response shape instead of flattening it into a second root-only format."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Use this when you want stricter application-level request validation on top of the built-in router boundary validation."
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
@@ -586,8 +913,10 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "custom-route-validation",
       children: "Custom Route Validation"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "The package also exports the same validation helpers used by the built-in public routers:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "advanced"
+      }), " subpath exports the same validation helpers used by the built-in public routers:"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
@@ -621,12 +950,44 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import acl, {\n  parseBody,\n  parsePathParam,\n  parseQuery,\n  requestSchemas,\n  readByIdBodySchema,\n} from '@web-ts-toolkit/access-router';\n\nconst router = acl.createRouter('User', {\n  basePath: '/users',\n});\n\nrouter.router.post('/custom/:id', async (req) => {\n  const id = parsePathParam(req.params.id, 'id');\n  const { include_permissions } = parseQuery(requestSchemas.readQuery, req.query);\n  const body = parseBody(readByIdBodySchema, req.body);\n\n  return {\n    id,\n    includePermissions: include_permissions === 'true',\n    body,\n  };\n});\n"
+        children: "import acl from '@web-ts-toolkit/access-router';\nimport {\n  parseBody,\n  parsePathParam,\n  parseQuery,\n  requestSchemas,\n  readByIdBodySchema,\n} from '@web-ts-toolkit/access-router/advanced';\n\nconst router = acl.createRouter('User', {\n  basePath: '/users',\n});\n\nrouter.router.post('/custom/:id', async (req) => {\n  const id = parsePathParam(req.params.id, 'id');\n  const { include_permissions } = parseQuery(requestSchemas.readQuery, req.query);\n  const body = parseBody(readByIdBodySchema, req.body);\n\n  return {\n    id,\n    includePermissions: include_permissions === 'true',\n    body,\n  };\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["These helpers throw the same ", (0,jsx_runtime.jsx)(_components.code, {
         children: "BadRequestError"
       }), " shape as the built-in router endpoints, so custom routes can stay consistent with the package defaults."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "advanced-exports",
+      children: "Advanced Exports"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "The main package entry keeps the common router/runtime API easy to discover."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["For lower-level extension points, prefer the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "advanced"
+      }), " subpath:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { parseBody, requestSchemas, MIDDLEWARE, Codes } from '@web-ts-toolkit/access-router/advanced';\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/access-router/advanced"
+      }), " when you specifically need low-level items such as:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "validation helpers and schemas"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "low-level symbols"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "enum exports"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "deeper TypeScript contract types"
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The main entrypoint stays focused on the common router/runtime API, while the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "advanced"
+      }), " subpath is the intended import location for low-level usage."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "lifecycle-phases",
       children: "Lifecycle Phases"
@@ -699,6 +1060,12 @@ function _createMdxContent(props) {
       children: ["The most common model hooks are called with ", (0,jsx_runtime.jsx)(_components.code, {
         children: "this"
       }), " bound to the current Express request."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Examples below use the exported ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "AccessRouterPermissions"
+      }), " type for the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "permissions"
+      }), " argument."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "basefilter",
       children: (0,jsx_runtime.jsx)(_components.code, {
@@ -707,7 +1074,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "(this: express.Request, permissions: Permissions) =>\n  | Filter\n  | true\n  | null\n  | undefined\n  | Promise<Filter | true | null | undefined>\n"
+        children: "(this: express.Request, permissions: AccessRouterPermissions) =>\n  | Filter\n  | true\n  | null\n  | undefined\n  | Promise<Filter | true | null | undefined>\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
@@ -735,7 +1102,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>\n  unknown | Promise<unknown>;\n"
+        children: "(this: express.Request, value: ModelDocument<unknown>, permissions: AccessRouterPermissions, context: ModelHookContext) =>\n  ModelDocument<unknown> | Promise<ModelDocument<unknown>>;\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
@@ -751,7 +1118,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "(this: express.Request, filter: Filter, permissions: Permissions) => Filter | Promise<Filter>;\n"
+        children: "(this: express.Request, filter: Filter, permissions: AccessRouterPermissions) => Filter | Promise<Filter>;\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
@@ -767,7 +1134,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "(this: express.Request, allowedData: unknown, permissions: Permissions, context: MiddlewareContext) => boolean | unknown[] | Promise<boolean | unknown[]>\n"
+        children: "(this: express.Request, allowedData: unknown, permissions: AccessRouterPermissions, context: ModelHookContext) => boolean | unknown[] | Promise<boolean | unknown[]>\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
@@ -789,7 +1156,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>\n  unknown | Promise<unknown>;\n"
+        children: "(this: express.Request, value: unknown, permissions: AccessRouterPermissions, context: ModelHookContext) =>\n  unknown | Promise<unknown>;\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
@@ -805,13 +1172,15 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>\n  unknown | Promise<unknown>;\n"
+        children: "(this: express.Request, value: unknown, permissions: AccessRouterPermissions, context: ModelHookContext) =>\n  unknown | Promise<unknown>;\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "Runs during update flows before the document is saved."
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "Can also be an array of hook functions."
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Must return a live Mongoose document instance."
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "afterpersist",
@@ -821,13 +1190,15 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>\n  unknown | Promise<unknown>;\n"
+        children: "(this: express.Request, value: ModelDocument<unknown>, permissions: AccessRouterPermissions, context: ModelHookContext) =>\n  ModelDocument<unknown> | Promise<ModelDocument<unknown>>;\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "Runs after create or update persistence work and before response decoration."
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "Can also be an array of hook functions."
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Must return a live Mongoose document instance."
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "beforedelete",
@@ -837,13 +1208,17 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>\n  void | Promise<void>;\n"
+        children: "(this: express.Request, value: ModelDocument<unknown>, permissions: AccessRouterPermissions, context: ModelHookContext) =>\n  void | Promise<void>;\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "Runs after the target document has been loaded and authorized, before deletion."
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "Use it for last-minute checks or side effects that need the live document."
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "context.currentDocument"
+        }), " for the live Mongoose document instance."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "afterdelete",
@@ -853,13 +1228,19 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>\n  void | Promise<void>;\n"
+        children: "(this: express.Request, value: ModelDocument<unknown>, permissions: AccessRouterPermissions, context: ModelHookContext) =>\n  void | Promise<void>;\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "Runs after deletion succeeds."
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "Use it for audit logs, cache invalidation, and external notifications."
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "context.originalDocumentSnapshot"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "context.finalDocumentSnapshot"
+        }), " for plain-object snapshots."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "docpermissions",
@@ -869,11 +1250,66 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "(this: express.Request, doc: unknown, permissions: Permissions, context: MiddlewareContext) =>\n  Record<string, unknown> | Promise<Record<string, unknown>>;\n"
+        children: "(this: express.Request, doc: unknown, permissions: AccessRouterPermissions, context: ModelHookContext) =>\n  Record<string, unknown> | Promise<Record<string, unknown>>;\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "Returns the document-level permission object written to the configured permission field."
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "hook-context",
+      children: "Hook Context"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelHookContext"
+      }), " now exposes a bit more of the router's resolved state:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "operation"
+        }), ": the active lifecycle operation such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "list"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "read"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "create"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "update"
+        }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "delete"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "allowedFields"
+        }), ": the field names that survived permission-based input filtering for create and update flows"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "allowedData"
+        }), ": the raw input after permission-based filtering and before ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "prepare"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "resolvedQuery"
+        }), ": the resolved filter/select/populate/sort/pagination values for the current flow"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "DataHookContext"
+      }), " now includes:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "dataName"
+        }), ": the current data-router name"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "operation"
+        }), ": the active decorate/decorateAll access value"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "resolvedQuery"
+        }), ": the resolved filter/select/sort/pagination values passed through built-in data read/list routes"]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "example",
