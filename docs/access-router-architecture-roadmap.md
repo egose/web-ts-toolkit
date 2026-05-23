@@ -321,6 +321,34 @@ Goal:
 
 - improve readability first
 
+Status:
+
+- in progress
+- current Phase 1 structural slices are complete and verified with the package test suite
+
+Completed so far:
+
+1. split `src/routers/validation.ts` into focused modules under `src/validation/`
+2. split `ModelRouter` route registration into focused modules:
+   - `src/routers/model-router-collection.ts`
+   - `src/routers/model-router-document.ts`
+   - `src/routers/model-router-subdocument.ts`
+   - `src/routers/model-router-context.ts`
+3. split `Service` defaults and subdocument workflows into focused modules:
+   - `src/services/service-defaults.ts`
+   - `src/services/service-subdocuments.ts`
+4. extracted foundational interface groups into focused modules:
+   - `src/interfaces/request.ts`
+   - `src/interfaces/access.ts`
+   - `src/interfaces/query-types.ts`
+   - `src/interfaces/router-hooks.ts`
+
+Compatibility notes:
+
+- `src/routers/validation.ts` remains as a compatibility re-export of `src/validation/`
+- `src/services/service.ts` remains the stable public class boundary and delegates to extracted helpers
+- `src/interfaces/base.ts` and `src/interfaces/root.ts` preserve existing export expectations by composing from the extracted modules
+
 Suggested work:
 
 1. split `src/routers/validation.ts`
@@ -349,6 +377,11 @@ Exit criteria:
 - tests stay green
 - no intended API change
 - file ownership becomes easier to explain
+
+Verification so far:
+
+- `pnpm --filter @web-ts-toolkit/access-router test`
+- latest result after the current Phase 1 slices: `9 passed`, `69 passed`
 
 ### Phase 2: introduce shared response and orchestration helpers
 
@@ -456,8 +489,13 @@ If the cleanup should start with the highest payoff and lowest risk, use this mi
 
 1. split `src/routers/validation.ts`
 2. split `src/routers/model-router.ts`
-3. extract shared result formatting and data decoration helpers
-4. add a non-breaking `createAccessRuntime()` skeleton wired to a default runtime
+3. extract `Service` defaults and subdocument workflows into focused modules
+4. split the foundational interface/type families while preserving current exports
+
+Current status:
+
+- completed
+- the next recommended step is to move into Phase 2 shared response and orchestration helpers
 
 Why this first:
 
@@ -490,3 +528,4 @@ The refactor should be considered successful when:
 
 - The existing `docs/acl-architecture-review.md` is a historical review and should not be treated as the current source of truth for the upcoming refactor plan.
 - This roadmap should be updated as each phase is completed.
+- Phase 1 was intentionally implemented as compatibility-preserving structural extraction rather than a public API redesign.
