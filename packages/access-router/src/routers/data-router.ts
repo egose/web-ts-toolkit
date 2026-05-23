@@ -1,12 +1,11 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
 import type { z } from 'zod';
-import { isPlainObject, isString, isUndefined } from '@web-ts-toolkit/utils';
+import { isPlainObject, isString, isUndefined, normalizeUrlPath } from '@web-ts-toolkit/utils';
 import { createSetDataCore } from '../core-data';
 import { decorateDataListResult, decorateDataSingleResult } from '../http/response-pipelines/data-response';
 import type { AccessRuntime } from '../runtime';
 import { defaultRuntime } from '../runtime';
-import { processUrl } from '../lib';
 import { handleResultError } from '../helpers';
 import { DataRouterOptions, ExtendedDataRouterOptions, DataRequest, Filter } from '../interfaces';
 import { DataService } from '../services';
@@ -50,7 +49,7 @@ export class DataRouter<TData = unknown> {
     this.runtime = runtime;
     this.runtime.setDataOptions(dataName, initialOptions);
     this.options = this.runtime.getDataOptions<TData>(dataName);
-    this.fullBasePath = processUrl(this.options.parentPath + this.options.basePath);
+    this.fullBasePath = normalizeUrlPath(this.options.parentPath + this.options.basePath);
     this.dataName = dataName;
     this.router = new JsonRouter(this.options.basePath, createSetDataCore(this.runtime), accessRouterResponseHandler);
 

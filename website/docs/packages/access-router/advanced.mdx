@@ -1,0 +1,41 @@
+---
+sidebar_label: Advanced
+sidebar_position: 7
+---
+
+# Advanced
+
+Use `@web-ts-toolkit/access-router/advanced` when you need the lower-level contract surface.
+
+## What It Exports
+
+- validation helpers and schemas from `validation/*`
+- enums such as `Codes`, `StatusCodes`, `CustomHeaders`, and `FilterOperator`
+- symbols such as `MIDDLEWARE`, `DATA_MIDDLEWARE`, `CORE`, `PERMISSIONS`, and `PERMISSION_KEYS`
+- the full interface/type surface from `interfaces/*`
+
+## Common Validation Imports
+
+```ts
+import {
+  parseBody,
+  parsePathParam,
+  parseQuery,
+  requestSchemas,
+  readByIdBodySchema,
+} from '@web-ts-toolkit/access-router/advanced';
+```
+
+Use these helpers in custom routes when you want the same request validation behavior as the built-in endpoints.
+
+## Example
+
+```ts
+router.router.post('/custom/:id', async (req) => {
+  const id = parsePathParam(req.params.id, 'id');
+  const query = parseQuery(requestSchemas.readQuery, req.query);
+  const body = parseBody(readByIdBodySchema, req.body);
+
+  return { id, query, body };
+});
+```

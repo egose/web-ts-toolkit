@@ -1,0 +1,65 @@
+---
+sidebar_label: Services
+sidebar_position: 4
+---
+
+# Services
+
+Routers expose service access for custom routes and tests.
+
+## Model Router Services
+
+`ModelRouter.getService(req)` returns the internal model service.
+`ModelRouter.getPublicService(req)` returns the public wrapper used by the built-in routes.
+
+Common public methods:
+
+- `_new()`
+- `_list(filter, args?, options?)`
+- `_read(id, args?, options?)`
+- `_readFilter(filter, args?, options?)`
+- `_create(data, args?, options?)`
+- `_update(id, data, args?, options?)`
+- `_upsert(data, args?, options?)`
+- `_delete(id)`
+- `_distinct(field, options?)`
+- `_count(filter, access?)`
+
+These methods are what the built-in HTTP routes call internally.
+
+### Important behavior
+
+- `_read(..., { tryList: true })` can fall back from `read` access to `list` access
+- `_update(..., { returningAll: false })` trims the response to the updated fields
+- `_upsert(...)` only supports the default `_id` identifier
+
+## Data Router Services
+
+`DataRouter.getService(req)` returns a `DataService`.
+
+Methods:
+
+- `find(filter, args?, options?)`
+- `findOne(filter, args?, options?)`
+- `findById(id, args?, options?)`
+
+## Result Shapes
+
+Service methods return one of these shapes:
+
+- `SingleResult`
+- `ListResult`
+- `ErrorResult`
+
+List results include `count`, and may include `totalCount` when count support is enabled.
+
+## Permissions Helper
+
+`AccessRouterPermissions` is method-based:
+
+```ts
+permissions.has('isAdmin');
+permissions.hasAny('posts.read', 'posts.write');
+permissions.hasAll(['posts.read', 'posts.write']);
+permissions.keys;
+```

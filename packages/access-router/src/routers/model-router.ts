@@ -1,10 +1,9 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
 import type { z } from 'zod';
-import { forEach, isPlainObject, isString, isUndefined, padEnd } from '@web-ts-toolkit/utils';
+import { forEach, isPlainObject, isString, isUndefined, normalizeUrlPath, padEnd } from '@web-ts-toolkit/utils';
 import Model from '../model';
 import { createSetCore } from '../core';
-import { processUrl } from '../lib';
 import { ModelRouterOptions, ExtendedModelRouterOptions, ModelRequest } from '../interfaces';
 import { logger } from '../logger';
 import type { AccessRuntime } from '../runtime';
@@ -46,7 +45,7 @@ export class ModelRouter<TModel = unknown> {
     this.runtime.setModelOptions(modelName, initialOptions);
     attachRuntimeToModel(modelName, this.runtime);
     this.options = this.runtime.getModelOptions<TModel>(modelName);
-    this.fullBasePath = processUrl(this.options.parentPath + this.options.basePath);
+    this.fullBasePath = normalizeUrlPath(this.options.parentPath + this.options.basePath);
     this.modelName = modelName;
     this.router = new JsonRouter(this.options.basePath, createSetCore(this.runtime), accessRouterResponseHandler);
     this.model = new Model(modelName);
@@ -122,7 +121,7 @@ export class ModelRouter<TModel = unknown> {
   private logEndpoints() {
     runWithRuntime(this.runtime, () => {
       forEach(this.router.endpoints, ({ method, path }) => {
-        logger.info(`${padEnd(method, 6)} ${processUrl(this.options.parentPath + path)}`);
+        logger.info(`${padEnd(method, 6)} ${normalizeUrlPath(this.options.parentPath + path)}`);
       });
     });
   }

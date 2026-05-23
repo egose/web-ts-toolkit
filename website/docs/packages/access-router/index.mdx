@@ -1,0 +1,71 @@
+---
+sidebar_label: Overview
+sidebar_position: 1
+---
+
+# `@web-ts-toolkit/access-router`
+
+ACL-aware Express routers and in-memory data services for Mongoose-backed APIs.
+
+## Install
+
+```bash npm2yarn
+npm install @web-ts-toolkit/access-router express mongoose
+```
+
+## What It Exposes
+
+Main entrypoint:
+
+- default export `acl`
+- named export `acl`
+- `createAccessRuntime()` for isolated runtime state
+- `combineRoutes(...)` for mounting multiple routers together
+- `guard(...)` for route guards
+- `permissionsPlugin` for schema-based permission access
+- `RootRouter`, `ModelRouter`, `DataRouter`
+- option getters and setters for global, model, and data options
+
+Low-level entrypoints:
+
+- `@web-ts-toolkit/access-router/advanced`
+- `@web-ts-toolkit/access-router/processors`
+
+## Quick Start
+
+```ts
+import acl from '@web-ts-toolkit/access-router';
+
+acl.setGlobalOptions({
+  globalPermissions(req) {
+    return req.headers.user === 'admin' ? ['isAdmin'] : [];
+  },
+});
+
+const fruitRouter = acl.createDataRouter('fruit', {
+  basePath: '/fruit',
+  data: [{ id: 'apple', name: 'Apple', public: true }],
+  idField: 'id',
+  operationAccess: { list: true, read: true },
+  permissionSchema: {
+    id: true,
+    name: 'isAdmin',
+    public: true,
+  },
+});
+
+const userRouter = acl.createRouter('User', {
+  basePath: '/users',
+});
+```
+
+## When To Use It
+
+Use `access-router` when you want:
+
+- model-backed CRUD routers with ACL-aware filtering and field selection
+- in-memory data routers with the same request/permission model
+- root batch routes for grouped operations
+- reusable permission helpers, hooks, and request validation
+
+If you only need low-level validation schemas, symbols, or enums, import from the `advanced` subpath instead.
