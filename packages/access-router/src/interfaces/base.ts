@@ -259,6 +259,7 @@ export interface DataHookContext {
 }
 
 export type RootTarget = 'model' | 'data';
+export type RootSubOperation = 'subList' | 'subRead' | 'subCreate' | 'subUpdate' | 'subBulkUpdate' | 'subDelete';
 export type RootModelOperation =
   | 'new'
   | 'list'
@@ -268,7 +269,8 @@ export type RootModelOperation =
   | 'upsert'
   | 'delete'
   | 'distinct'
-  | 'count';
+  | 'count'
+  | RootSubOperation;
 export type RootDataOperation = 'list' | 'read';
 
 interface RootQueryEntryBase<TTarget extends RootTarget, TOp extends string> {
@@ -321,6 +323,50 @@ export interface RootModelDeleteQueryEntry extends RootQueryEntryBase<'model', '
   id: string;
 }
 
+export interface RootModelSubListQueryEntry extends RootQueryEntryBase<'model', 'subList'> {
+  id: string;
+  sub: string;
+  filter?: Filter;
+  args?: {
+    select?: string[];
+  };
+}
+
+export interface RootModelSubReadQueryEntry extends RootQueryEntryBase<'model', 'subRead'> {
+  id: string;
+  sub: string;
+  subId: string;
+  args?: {
+    select?: string[];
+    populate?: SubPopulate | SubPopulate[] | string | string[];
+  };
+}
+
+export interface RootModelSubCreateQueryEntry extends RootQueryEntryBase<'model', 'subCreate'> {
+  id: string;
+  sub: string;
+  data: unknown;
+}
+
+export interface RootModelSubUpdateQueryEntry extends RootQueryEntryBase<'model', 'subUpdate'> {
+  id: string;
+  sub: string;
+  subId: string;
+  data: unknown;
+}
+
+export interface RootModelSubBulkUpdateQueryEntry extends RootQueryEntryBase<'model', 'subBulkUpdate'> {
+  id: string;
+  sub: string;
+  data: unknown;
+}
+
+export interface RootModelSubDeleteQueryEntry extends RootQueryEntryBase<'model', 'subDelete'> {
+  id: string;
+  sub: string;
+  subId: string;
+}
+
 export interface RootModelDistinctQueryEntry extends RootQueryEntryBase<'model', 'distinct'> {
   field: string;
   filter?: Filter;
@@ -362,6 +408,12 @@ export type RootQueryEntry =
   | RootModelUpdateQueryEntry
   | RootModelUpsertQueryEntry
   | RootModelDeleteQueryEntry
+  | RootModelSubListQueryEntry
+  | RootModelSubReadQueryEntry
+  | RootModelSubCreateQueryEntry
+  | RootModelSubUpdateQueryEntry
+  | RootModelSubBulkUpdateQueryEntry
+  | RootModelSubDeleteQueryEntry
   | RootModelDistinctQueryEntry
   | RootModelCountQueryEntry
   | RootDataListQueryEntry

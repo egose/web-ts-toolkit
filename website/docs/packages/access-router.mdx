@@ -379,6 +379,23 @@ Examples:
   {
     "target": "model",
     "name": "User",
+    "op": "subList",
+    "id": "664c4f...",
+    "sub": "comments",
+    "args": { "select": ["body", "votes"] }
+  },
+  {
+    "target": "model",
+    "name": "User",
+    "op": "subUpdate",
+    "id": "664c4f...",
+    "sub": "comments",
+    "subId": "664c51...",
+    "data": { "votes": 10 }
+  },
+  {
+    "target": "model",
+    "name": "User",
     "op": "count",
     "filter": { "public": false },
     "options": { "access": "read" }
@@ -392,6 +409,8 @@ Notes:
 - `target: "model"` dispatches through model public services
 - `target: "data"` dispatches through the data-router service flow for `list` and `read`
 - `create`, `list`, `read`, `update`, and `upsert` forward both `args` and `options` to the corresponding service methods when that operation supports them
+- model sub-document batching uses explicit ops: `subList`, `subRead`, `subCreate`, `subUpdate`, `subBulkUpdate`, `subDelete`
+- sub-document entries use top-level `id` for the parent document, `sub` for the sub-collection path, and `subId` when targeting a single nested document
 - `count` uses `options.access`, matching the dedicated advanced count route
 - model `upsert` currently follows the same runtime limitation as the dedicated route: it only supports the default `_id` identifier
 - there is no separate query-string layer on the root batch route, so it always uses the camelCase body naming style

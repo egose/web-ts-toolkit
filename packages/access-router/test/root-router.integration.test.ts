@@ -227,11 +227,86 @@ const createRootRouterUpsertApp = async () => {
   return { app, modelName, existingId: String(existingUser._id) };
 };
 
+const createRootRouterSubApp = async () => {
+  const modelName = `AclMongoRootSubPost${++modelCounter}`;
+  const commentSchema = new mongoose.Schema({
+    body: String,
+    votes: Number,
+  });
+  const schema = new mongoose.Schema({
+    title: String,
+    comments: [commentSchema],
+  });
+
+  schema.plugin(permissionsPlugin, { modelName });
+
+  const Post = mongoose.model(modelName, schema);
+
+  setGlobalOptions({
+    requestPermissionField: '_permissions',
+    globalPermissions(req: express.Request) {
+      return req.headers.user === 'admin' ? ['isAdmin'] : [];
+    },
+  });
+
+  acl.createRouter(modelName, {
+    basePath: '/sub-posts',
+    operationAccess: {
+      read: true,
+      update: true,
+      subs: {
+        comments: {
+          list: true,
+          read: true,
+          create: 'isAdmin',
+          update: 'isAdmin',
+          delete: 'isAdmin',
+        },
+      },
+    },
+    permissionSchema: {
+      title: { read: true },
+      comments: {
+        sub: {
+          body: { list: true, read: true, create: true, update: true },
+          votes: { list: true, read: true, create: true, update: true },
+        },
+      },
+    },
+  });
+
+  const post = await Post.create({
+    title: 'post-1',
+    comments: [
+      { body: 'first', votes: 1 },
+      { body: 'second', votes: 2 },
+    ],
+  });
+
+  const rootRouter = acl.createRouter({
+    basePath: '/root-subs',
+    operationAccess: true,
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(rootRouter.routes);
+
+  return {
+    app,
+    modelName,
+    postId: String(post._id),
+    firstCommentId: String(post.comments[0]._id),
+    secondCommentId: String(post.comments[1]._id),
+  };
+};
+
 afterEach(() => {
   resetGlobalOptions();
   mongoose.deleteModel(/AclMongoRootUser.*/);
   mongoose.deleteModel(/AclMongoRootCountUser.*/);
   mongoose.deleteModel(/AclMongoRootUpsertUser.*/);
+  mongoose.deleteModel(/AclMongoRootSubPost.*/);
 });
 
 describe('root router integration', () => {
@@ -585,6 +660,151 @@ describe('root router integration', () => {
     });
     expect(response.body[1].result.data).toHaveLength(1);
     expect(response.body[1].result.data[0]).toMatchObject({ name: 'user4', role: 'user', public: true });
+  });
+
+  it('supports batched model sub-document operations', async () => {
+    const { app, modelName, postId, firstCommentId, secondCommentId } = await createRootRouterSubApp();
+
+    const response = await request(app)
+      .post('/root-subs')
+      .set('user', 'admin')
+      .send([
+        {
+          target: 'model',
+          name: modelName,
+          op: 'subList',
+          id: postId,
+          sub: 'comments',
+          args: { select: ['body', 'votes'] },
+          order: 0,
+        },
+        {
+          target: 'model',
+          name: modelName,
+          op: 'subRead',
+          id: postId,
+          sub: 'comments',
+          subId: firstCommentId,
+          args: { select: ['body'] },
+          order: 0,
+        },
+        {
+          target: 'model',
+          name: modelName,
+          op: 'subCreate',
+          id: postId,
+          sub: 'comments',
+          data: { body: 'third', votes: 3 },
+          order: 1,
+        },
+        {
+          target: 'model',
+          name: modelName,
+          op: 'subUpdate',
+          id: postId,
+          sub: 'comments',
+          subId: firstCommentId,
+          data: { votes: 10 },
+          order: 2,
+        },
+        {
+          target: 'model',
+          name: modelName,
+          op: 'subBulkUpdate',
+          id: postId,
+          sub: 'comments',
+          data: [{ _id: secondCommentId, votes: 20 }],
+          order: 3,
+        },
+        {
+          target: 'model',
+          name: modelName,
+          op: 'subDelete',
+          id: postId,
+          sub: 'comments',
+          subId: secondCommentId,
+          order: 4,
+        },
+      ])
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    expect(response.body[0]).toMatchObject({
+      target: 'model',
+      name: modelName,
+      op: 'subList',
+      statusCode: 200,
+      result: {
+        success: true,
+        kind: 'list',
+        code: 'success',
+        count: 2,
+      },
+    });
+    expect(response.body[0].result.data).toHaveLength(2);
+    expect(response.body[0].result.data[0]).toMatchObject({ body: 'first', votes: 1 });
+    expect(response.body[1]).toMatchObject({
+      target: 'model',
+      name: modelName,
+      op: 'subRead',
+      statusCode: 200,
+      result: {
+        success: true,
+        kind: 'single',
+        code: 'success',
+        data: { body: 'first' },
+      },
+    });
+    expect(response.body[2]).toMatchObject({
+      target: 'model',
+      name: modelName,
+      op: 'subCreate',
+      statusCode: 201,
+      result: {
+        success: true,
+        kind: 'list',
+        code: 'created',
+        count: 3,
+      },
+    });
+    expect(response.body[2].result.data[2]).toMatchObject({ body: 'third', votes: 3 });
+    expect(response.body[3]).toMatchObject({
+      target: 'model',
+      name: modelName,
+      op: 'subUpdate',
+      statusCode: 200,
+      result: {
+        success: true,
+        kind: 'single',
+        code: 'success',
+        data: { body: 'first', votes: 10 },
+      },
+    });
+    expect(response.body[4]).toMatchObject({
+      target: 'model',
+      name: modelName,
+      op: 'subBulkUpdate',
+      statusCode: 200,
+      result: {
+        success: true,
+        kind: 'list',
+        code: 'success',
+        count: 1,
+      },
+    });
+    expect(response.body[4].result.data[0]).toMatchObject({ body: 'second', votes: 20 });
+    expect(response.body[5]).toMatchObject({
+      target: 'model',
+      name: modelName,
+      op: 'subDelete',
+      statusCode: 200,
+      result: {
+        success: true,
+        kind: 'single',
+        code: 'success',
+        data: secondCommentId,
+      },
+    });
   });
 
   it('rejects root entries that omit operation-specific required fields', async () => {

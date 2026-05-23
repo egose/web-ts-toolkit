@@ -363,6 +363,19 @@ const rootModelUpdateOptionsSchema = z
 const rootModelUpsertArgsSchema = rootModelUpdateArgsSchema;
 const rootModelUpsertOptionsSchema = rootModelUpdateOptionsSchema;
 
+const rootModelSubListArgsSchema = z
+  .object({
+    select: fieldsSchema.optional(),
+  })
+  .passthrough();
+
+const rootModelSubReadArgsSchema = z
+  .object({
+    select: fieldsSchema.optional(),
+    populate: subPopulateSchema.optional(),
+  })
+  .passthrough();
+
 const rootModelCountOptionsSchema = z
   .object({
     access: z.unknown().optional(),
@@ -457,6 +470,69 @@ const rootModelQueryEntrySchema = z.union([
     .passthrough(),
   z
     .object({ ...rootEntryBaseSchema, target: z.literal('model'), op: z.literal('delete'), id: z.string().min(1) })
+    .passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('model'),
+      op: z.literal('subList'),
+      id: z.string().min(1),
+      sub: z.string().min(1),
+      filter: z.record(z.string(), z.unknown()).optional(),
+      args: rootModelSubListArgsSchema.optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('model'),
+      op: z.literal('subRead'),
+      id: z.string().min(1),
+      sub: z.string().min(1),
+      subId: z.string().min(1),
+      args: rootModelSubReadArgsSchema.optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('model'),
+      op: z.literal('subCreate'),
+      id: z.string().min(1),
+      sub: z.string().min(1),
+      data: z.union([z.record(z.string(), z.unknown()), z.array(z.record(z.string(), z.unknown()))]),
+    })
+    .passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('model'),
+      op: z.literal('subUpdate'),
+      id: z.string().min(1),
+      sub: z.string().min(1),
+      subId: z.string().min(1),
+      data: z.union([z.record(z.string(), z.unknown()), z.array(z.record(z.string(), z.unknown()))]),
+    })
+    .passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('model'),
+      op: z.literal('subBulkUpdate'),
+      id: z.string().min(1),
+      sub: z.string().min(1),
+      data: z.union([z.record(z.string(), z.unknown()), z.array(z.record(z.string(), z.unknown()))]),
+    })
+    .passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('model'),
+      op: z.literal('subDelete'),
+      id: z.string().min(1),
+      sub: z.string().min(1),
+      subId: z.string().min(1),
+    })
     .passthrough(),
   z
     .object({

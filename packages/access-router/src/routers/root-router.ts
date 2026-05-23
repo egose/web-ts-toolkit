@@ -1,7 +1,7 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
 import mongoose from 'mongoose';
-import { isNumber as _isNumber, orderBy as _orderBy } from '@web-ts-toolkit/utils';
+import { isNumber as _isNumber, isString, orderBy as _orderBy } from '@web-ts-toolkit/utils';
 import { setCore } from '../core';
 import { setDataCore } from '../core-data';
 import { mapCodeToMessage, mapCodeToStatusCode } from '../helpers';
@@ -28,6 +28,12 @@ import {
   RootModelUpdateQueryEntry,
   RootModelUpsertQueryEntry,
   RootModelDeleteQueryEntry,
+  RootModelSubListQueryEntry,
+  RootModelSubReadQueryEntry,
+  RootModelSubCreateQueryEntry,
+  RootModelSubUpdateQueryEntry,
+  RootModelSubBulkUpdateQueryEntry,
+  RootModelSubDeleteQueryEntry,
   RootModelDistinctQueryEntry,
   RootModelCountQueryEntry,
   RootDataListQueryEntry,
@@ -49,6 +55,15 @@ const createErrorResult = (code: ErrorResult['code'], detail: string): ErrorResu
   code,
   errors: [{ detail }],
 });
+
+const normalizeSubPopulate = (
+  populate: RootModelSubReadQueryEntry['args'] extends { populate?: infer TPopulate } ? TPopulate : never,
+) =>
+  Array.isArray(populate)
+    ? populate.map((item) => (isString(item) ? { path: item } : item))
+    : isString(populate)
+      ? { path: populate }
+      : (populate ?? []);
 
 export class RootRouter {
   router: JsonRouter;
@@ -72,6 +87,24 @@ export class RootRouter {
     upsert: async (req, item: RootModelUpsertQueryEntry) =>
       req.macl.getPublicService(item.name)._upsert(item.data, item.args, item.options),
     delete: async (req, item: RootModelDeleteQueryEntry) => req.macl.getPublicService(item.name)._delete(item.id),
+    subList: async (req, item: RootModelSubListQueryEntry) =>
+      req.macl.getPublicService(item.name).listSub(item.id, item.sub, {
+        filter: (item.filter ?? {}) as Filter,
+        select: item.args?.select ?? [],
+      }),
+    subRead: async (req, item: RootModelSubReadQueryEntry) =>
+      req.macl.getPublicService(item.name).readSub(item.id, item.sub, item.subId, {
+        select: item.args?.select ?? [],
+        populate: normalizeSubPopulate(item.args?.populate),
+      }),
+    subCreate: async (req, item: RootModelSubCreateQueryEntry) =>
+      req.macl.getPublicService(item.name).createSub(item.id, item.sub, item.data),
+    subUpdate: async (req, item: RootModelSubUpdateQueryEntry) =>
+      req.macl.getPublicService(item.name).updateSub(item.id, item.sub, item.subId, item.data),
+    subBulkUpdate: async (req, item: RootModelSubBulkUpdateQueryEntry) =>
+      req.macl.getPublicService(item.name).bulkUpdateSub(item.id, item.sub, item.data),
+    subDelete: async (req, item: RootModelSubDeleteQueryEntry) =>
+      req.macl.getPublicService(item.name).deleteSub(item.id, item.sub, item.subId),
     distinct: async (req, item: RootModelDistinctQueryEntry) =>
       req.macl.getPublicService(item.name)._distinct(item.field, { filter: item.filter }),
     count: async (req, item: RootModelCountQueryEntry) =>
@@ -164,7 +197,25 @@ export class RootRouter {
   }
 
   private async isAllowed(req: RootRequest, item: RootQueryEntry) {
-    return item.target === 'model' ? req.macl.isAllowed(item.name, item.op) : req.dacl.isAllowed(item.name, item.op);
+    if (item.target === 'data') {
+      return req.dacl.isAllowed(item.name, item.op);
+    }
+
+    switch (item.op) {
+      case 'subList':
+        return req.macl.isAllowed(item.name, `subs.${item.sub}.list`);
+      case 'subRead':
+        return req.macl.isAllowed(item.name, `subs.${item.sub}.read`);
+      case 'subCreate':
+        return req.macl.isAllowed(item.name, `subs.${item.sub}.create`);
+      case 'subUpdate':
+      case 'subBulkUpdate':
+        return req.macl.isAllowed(item.name, `subs.${item.sub}.update`);
+      case 'subDelete':
+        return req.macl.isAllowed(item.name, `subs.${item.sub}.delete`);
+      default:
+        return req.macl.isAllowed(item.name, item.op);
+    }
   }
 
   private async processOp(req: RootRequest, item: RootQueryEntry, index: number): Promise<RootOperationResult> {
