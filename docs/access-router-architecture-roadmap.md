@@ -431,6 +431,22 @@ Goal:
 
 - make ownership explicit without forcing a breaking API change first
 
+Status:
+
+- completed
+
+Completed so far:
+
+1. introduced runtime storage and active-runtime context plumbing
+2. added `createAccessRuntime()` and runtime-bound API objects
+3. bound router factories to runtime instances so `ModelRouter`, `DataRouter`, and `RootRouter` are created against a specific runtime
+4. switched default package exports to a default runtime-backed API so the existing public package surface still works
+5. moved root batch target discovery off hidden process-global lookup and onto the runtime registries
+6. made option/meta lookups runtime-aware so request execution can resolve against the active runtime
+7. added runtime-isolation coverage proving:
+   - separate runtime APIs keep separate global options
+   - `RootRouter` target discovery is isolated per runtime
+
 Suggested work:
 
 1. create a runtime object that owns options and registries
@@ -449,6 +465,11 @@ Exit criteria:
 
 - `RootRouter` no longer needs hidden global discovery for targets
 - package can support isolated runtime instances
+
+Verification:
+
+- `pnpm --filter @web-ts-toolkit/access-router test`
+- latest result after Phase 3 runtime work: `9 passed`, `71 passed`
 
 ### Phase 4: tighten ACL boundaries and remove duplication in request-scoped logic
 
@@ -505,7 +526,7 @@ This order keeps risk low by improving readability first, then removing duplicat
 
 Current next step:
 
-- move into Phase 3 and introduce `createAccessRuntime()` behind the current exports
+- move into Phase 4 and consolidate ACL request-scoped logic further
 
 ## Recommended First Milestone
 
