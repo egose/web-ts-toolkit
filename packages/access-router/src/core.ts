@@ -4,10 +4,8 @@ import {
   assign,
   castArray,
   compact,
-  difference,
   forEach,
   get,
-  intersection,
   isArray,
   isBoolean,
   isFunction,
@@ -50,18 +48,24 @@ import { isDocument } from './lib';
 import { MIDDLEWARE, PERMISSIONS, PERMISSION_KEYS } from './symbols';
 import { Cache } from './cache';
 import { logger } from './logger';
+import {
+  canActivateRequest,
+  getGlobalPermissions,
+  getResolvedRequestPermissions,
+  initializeAclRequest,
+  setResolvedRequestPermissions,
+} from './acl/request-context';
+import { resolveAccessFilterForRequest, resolveIdentifierFilterForRequest } from './acl/filter-resolution';
+import { runDecorateAllHook, runDecorateHook } from './acl/hook-runner';
+import {
+  collectAllowedFieldsForRequest,
+  pickAllowedFieldsForRequest,
+  resolveSelectForRequest,
+} from './acl/select-resolution';
 import type { AccessRuntime } from './runtime';
 import { defaultRuntime } from './runtime';
 import { runWithRuntime } from './runtime-context';
-import {
-  callHookChain,
-  collectSchemaFields,
-  evaluateRouteGuard,
-  getRequestPermissions,
-  resolveAccessFilter,
-  resolveIdentifierFilter,
-  setRequestPermissions,
-} from './core-shared';
+import { callHookChain } from './core-shared';
 
 type InternalModelHookContext = ModelHookContext & {
   fieldPermissionAccess?: {
@@ -103,7 +107,7 @@ export class Core {
     const resolveIdFilter = getModelOption(modelName, 'resolveIdFilter') as
       | ((this: ModelRequest, id: string) => Filter<TModel> | Promise<Filter<TModel>>)
       | undefined;
-    return resolveIdentifierFilter<TModel>(this.req, idField, resolveIdFilter, id);
+    return resolveIdentifierFilterForRequest<TModel>({ req: this.req, idField, resolveIdFilter, id });
   }
 
   async genFilter<TModel = unknown>(
@@ -114,7 +118,7 @@ export class Core {
     const permissions = this.getGlobalPermissions();
     const cacheKey = `${modelName}_baseFilter_${access}`;
 
-    return resolveAccessFilter<TModel>({
+    return resolveAccessFilterForRequest<TModel>({
       req: this.req,
       permissions,
       cache: this.caches.baseFilter,
@@ -142,7 +146,7 @@ export class Core {
     const permissions = this.getGlobalPermissions();
     const docPermissions = getDocPermissions(modelName, doc);
 
-    return collectSchemaFields({
+    return collectAllowedFieldsForRequest({
       req: this.req,
       permissionSchema,
       access,
@@ -153,8 +157,23 @@ export class Core {
   }
 
   async pickAllowedFields<T>(modelName: string, doc: T, access: SelectAccess, baseFields = []) {
-    const allowed = await this.genAllowedFields(modelName, doc, access, baseFields);
-    return pickDocFields(doc, allowed) as T;
+    const permissionSchema = getModelOption(modelName, 'permissionSchema') as
+      | Record<string, unknown>
+      | null
+      | undefined;
+    const modelPermissionPrefix = getModelOption(modelName, 'modelPermissionPrefix', '');
+    const permissions = this.getGlobalPermissions();
+    const docPermissions = getDocPermissions(modelName, doc);
+
+    return pickAllowedFieldsForRequest({
+      req: this.req,
+      doc,
+      permissionSchema,
+      access,
+      baseFields,
+      hasPermission: (key) => permissions.has(key) || docPermissions[this.removePrefix(key, modelPermissionPrefix)],
+      functionArgs: [permissions, docPermissions],
+    });
   }
 
   async genSelect(
@@ -164,45 +183,26 @@ export class Core {
     skipChecks = true,
     subPaths = [],
   ) {
-    let normalizedSelect = normalizeSelect(targetFields);
-
     const permissionSchema = getModelOption(modelName, ['permissionSchema'].concat(subPaths).join('.')) as
       | Record<string, unknown>
       | null
       | undefined;
-    if (!permissionSchema) return [];
 
     const permissions = this.getGlobalPermissions();
 
-    let fields = await collectSchemaFields({
+    const alwaysSelectFields =
+      subPaths.length > 0 ? [] : (getModelOption(modelName, `alwaysSelectFields.${access}`, []) as string[]);
+    return resolveSelectForRequest({
       req: this.req,
       permissionSchema,
       access,
-      hasPermission: (key) => {
-        if (permissions.hasKey(key)) {
-          return permissions.has(key);
-        }
-
-        return !!skipChecks;
-      },
+      targetFields,
+      skipChecks,
+      hasPermission: (key) => permissions.hasKey(key) && permissions.has(key),
       functionArgs: [permissions],
+      mode: 'model',
+      alwaysSelectFields,
     });
-
-    if (normalizedSelect.length > 0) {
-      const excludeid = normalizedSelect.includes('-_id');
-      const excludeall = normalizedSelect.every((v) => v.startsWith('-'));
-      if (excludeall) {
-        normalizedSelect = normalizedSelect.map((v) => v.substring(1));
-        fields = difference(fields, normalizedSelect);
-        if (excludeid) fields.push('-_id');
-      } else {
-        fields = intersection(normalizedSelect, fields.concat(excludeid ? '-_id' : '_id'));
-      }
-    }
-
-    const alwaysSelectFields =
-      subPaths.length > 0 ? [] : (getModelOption(modelName, `alwaysSelectFields.${access}`, []) as string[]);
-    return fields.concat(alwaysSelectFields);
   }
 
   async genPopulate(
@@ -409,7 +409,7 @@ export class Core {
     const permissions = this.getGlobalPermissions();
     context.docPermissions = getDocPermissions(modelName, doc) as Record<string, unknown>;
 
-    return callHookChain(this.req, decorate, doc, permissions, context);
+    return runDecorateHook({ req: this.req, hook: decorate, doc, permissions, context });
   }
 
   async decorateAll<T>(
@@ -421,7 +421,7 @@ export class Core {
     const decorateAll = getModelOption(modelName, `decorateAll.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
 
-    return callHookChain(this.req, decorateAll, docs, permissions, context);
+    return runDecorateAllHook({ req: this.req, hook: decorateAll, docs, permissions, context });
   }
 
   runTasks<T extends object>(modelName: string, docObject: T, task: Task | Task[]): T {
@@ -446,16 +446,15 @@ export class Core {
   }
 
   getPermissions() {
-    return getRequestPermissions(this.req);
+    return getResolvedRequestPermissions(this.req);
   }
 
   async setPermissions() {
-    await setRequestPermissions(this.req);
+    await setResolvedRequestPermissions(this.req);
   }
 
   async canActivate(routeGuard: Validation) {
-    const permissions = this.getGlobalPermissions();
-    return evaluateRouteGuard(this.req, permissions, routeGuard);
+    return canActivateRequest(this.req, routeGuard);
   }
 
   async isAllowed(modelName: string, access: RouteGuardAccess | string) {
@@ -501,22 +500,21 @@ export class Core {
   }
 
   private getGlobalPermissions() {
-    return this.req[PERMISSIONS] as Permission;
+    return getGlobalPermissions(this.req);
   }
 }
 
 export const createSetCore = (runtime: AccessRuntime = defaultRuntime) => {
   return async function setCoreMiddleware(req: AccessRouterBaseRequest, _res: Response, next: NextFunction) {
     return runWithRuntime(runtime, async () => {
-      if (req[MIDDLEWARE]) return next();
-
-      const core = new Core(req);
-      await core.setPermissions();
-
-      req.macl = core;
-      req[PERMISSIONS] = core.getPermissions();
-      req[PERMISSION_KEYS] = req[PERMISSIONS].keys;
-      req[MIDDLEWARE] = true;
+      await initializeAclRequest({
+        req,
+        flag: MIDDLEWARE,
+        createCore: (request) => new Core(request),
+        assignCore: (core) => {
+          req.macl = core;
+        },
+      });
 
       next();
     });
