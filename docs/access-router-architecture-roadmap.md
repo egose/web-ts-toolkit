@@ -323,20 +323,19 @@ Goal:
 
 Status:
 
-- in progress
-- current Phase 1 structural slices are complete and verified with the package test suite
+- completed
 
 Completed so far:
 
 1. split `src/routers/validation.ts` into focused modules under `src/validation/`
 2. split `ModelRouter` route registration into focused modules:
-   - `src/routers/model-router-collection.ts`
-   - `src/routers/model-router-document.ts`
-   - `src/routers/model-router-subdocument.ts`
-   - `src/routers/model-router-context.ts`
+   - `src/routers/model-router-collection-routes.ts`
+   - `src/routers/model-router-document-routes.ts`
+   - `src/routers/model-router-subdocument-routes.ts`
+   - `src/routers/model-router-route-context.ts`
 3. split `Service` defaults and subdocument workflows into focused modules:
-   - `src/services/service-defaults.ts`
-   - `src/services/service-subdocuments.ts`
+   - `src/services/model-service-defaults.ts`
+   - `src/services/model-subdocument-service.ts`
 4. extracted foundational interface groups into focused modules:
    - `src/interfaces/request.ts`
    - `src/interfaces/access.ts`
@@ -541,6 +540,7 @@ Completed so far:
 6. updated package docs to explain:
    - build-time versus runtime-mutable router options
    - when to use the advanced subpath
+7. narrowed the main entrypoint to the stable/common API surface and moved low-level validation/symbol/enum usage to `@web-ts-toolkit/access-router/advanced`
 
 Suggested work:
 

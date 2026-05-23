@@ -564,7 +564,7 @@ Validation order:
 
 ## Custom Route Validation
 
-The package also exports the same validation helpers used by the built-in public routers:
+The `advanced` subpath exports the same validation helpers used by the built-in public routers:
 
 - `parsePathParam`
 - `parseQuery`
@@ -575,13 +575,14 @@ The package also exports the same validation helpers used by the built-in public
 Example:
 
 ```ts
-import acl, {
+import acl from '@web-ts-toolkit/access-router';
+import {
   parseBody,
   parsePathParam,
   parseQuery,
   requestSchemas,
   readByIdBodySchema,
-} from '@web-ts-toolkit/access-router';
+} from '@web-ts-toolkit/access-router/advanced';
 
 const router = acl.createRouter('User', {
   basePath: '/users',
@@ -619,7 +620,7 @@ Use `@web-ts-toolkit/access-router/advanced` when you specifically need low-leve
 - enum exports
 - deeper TypeScript contract types
 
-The main entrypoint still re-exports many of these for compatibility, but the `advanced` subpath is the clearer long-term import location for low-level usage.
+The main entrypoint stays focused on the common router/runtime API, while the `advanced` subpath is the intended import location for low-level usage.
 
 ## Lifecycle Phases
 
