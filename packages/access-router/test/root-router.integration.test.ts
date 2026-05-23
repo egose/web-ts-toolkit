@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import acl, { permissionsPlugin, setGlobalOptions } from '../dist/index.mjs';
+import acl, { createAccessRuntime, permissionsPlugin, setGlobalOptions } from '../dist/index.mjs';
 import { useMongoTestDatabase } from './setup';
 
 useMongoTestDatabase();
@@ -600,6 +600,84 @@ describe('root router integration', () => {
         kind: 'single',
         code: 'success',
         data: { id: 'user-2', name: 'user2', public: false },
+      },
+    });
+  });
+
+  it('isolates root batch target discovery per runtime', async () => {
+    const runtimeA = createAccessRuntime();
+    const runtimeB = createAccessRuntime();
+    const dataName = `AclRuntimeData${++modelCounter}`;
+
+    runtimeA.setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => [],
+    });
+    runtimeB.setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => [],
+    });
+
+    runtimeA.createDataRouter(dataName, {
+      basePath: '/runtime-data',
+      data: [{ id: 'user-1', name: 'user1', public: true }],
+      idField: 'id',
+      operationAccess: {
+        list: true,
+        read: true,
+      },
+      permissionSchema: {
+        id: true,
+        name: true,
+        public: true,
+      },
+    });
+
+    const rootRouterA = runtimeA.createRouter({
+      basePath: '/root-runtime-a',
+      operationAccess: true,
+    });
+    const rootRouterB = runtimeB.createRouter({
+      basePath: '/root-runtime-b',
+      operationAccess: true,
+    });
+
+    const appA = express();
+    appA.use(express.json());
+    appA.use(rootRouterA.routes);
+
+    const appB = express();
+    appB.use(express.json());
+    appB.use(rootRouterB.routes);
+
+    const runtimeAResponse = await request(appA)
+      .post('/root-runtime-a')
+      .send([{ target: 'data', name: dataName, op: 'list' }])
+      .expect(200);
+
+    expect(runtimeAResponse.body[0]).toMatchObject({
+      target: 'data',
+      name: dataName,
+      op: 'list',
+      statusCode: 200,
+      result: {
+        success: true,
+      },
+    });
+
+    const runtimeBResponse = await request(appB)
+      .post('/root-runtime-b')
+      .send([{ target: 'data', name: dataName, op: 'list' }])
+      .expect(200);
+
+    expect(runtimeBResponse.body[0]).toMatchObject({
+      target: 'data',
+      name: dataName,
+      op: 'list',
+      statusCode: 400,
+      result: {
+        success: false,
+        errors: [{ detail: `Data ${dataName} not found` }],
       },
     });
   });

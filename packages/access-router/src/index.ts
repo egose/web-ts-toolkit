@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import type {} from './filter-type-tests';
 import { isPlainObject, isString, isUndefined } from '@web-ts-toolkit/utils';
 import middleware, { guard } from './middleware';
+import { createSetCore } from './core';
 import { RootRouter, ModelRouter, DataRouter, combineRoutes } from './routers';
 import {
   setGlobalOptions,
@@ -28,11 +29,13 @@ import {
   AccessRouterRequestExtensions,
 } from './interfaces';
 import { AccessRouterPermissions, AccessRouterPermissionMap } from './permission';
+import { AccessRuntime, defaultRuntime } from './runtime';
 export {
   RootRouter,
   ModelRouter,
   DataRouter,
   combineRoutes,
+  AccessRuntime,
   guard,
   setGlobalOptions,
   setGlobalOption,
@@ -74,6 +77,7 @@ type WttSet = {
 };
 
 interface Wtt {
+  runtime: AccessRuntime;
   createRouter: CreateRouter;
   createDataRouter: CreateDataRouter;
   combineRoutes: typeof combineRoutes;
@@ -97,51 +101,75 @@ interface Wtt {
   DataRouter: typeof DataRouter;
 }
 
-const wtt = middleware as typeof middleware & Wtt;
+export type AccessRuntimeApi = typeof middleware & Wtt;
 
-wtt.createRouter = function (
-  modelName: string | mongoose.Model<unknown> | RootRouterOptions,
-  options: ModelRouterOptions | undefined,
-) {
-  const resolvedModelName =
-    typeof modelName === 'string' ? modelName : modelName && 'modelName' in modelName ? modelName.modelName : modelName;
+function createRuntimeApi(runtime: AccessRuntime): AccessRuntimeApi {
+  const runtimeMiddleware = function () {
+    return createSetCore(runtime);
+  } as typeof middleware;
 
-  return isUndefined(options)
-    ? new RootRouter(modelName as RootRouterOptions)
-    : new ModelRouter(resolvedModelName as string, options);
-} as CreateRouter;
+  const wtt = runtimeMiddleware as typeof middleware & Wtt;
 
-wtt.createDataRouter = function <TData>(dataName: string, options: DataRouterOptions<TData>) {
-  return new DataRouter(dataName, options);
-};
+  wtt.runtime = runtime;
 
-wtt.combineRoutes = combineRoutes;
+  wtt.createRouter = function (
+    modelName: string | mongoose.Model<unknown> | RootRouterOptions,
+    options: ModelRouterOptions | undefined,
+  ) {
+    const resolvedModelName =
+      typeof modelName === 'string'
+        ? modelName
+        : modelName && 'modelName' in modelName
+          ? modelName.modelName
+          : modelName;
 
-wtt.set = function <K extends keyof GlobalOptions>(keyOrOptions: K | GlobalOptions, value?: unknown) {
-  if (arguments.length === 2 && isString(keyOrOptions)) {
-    return setGlobalOption(keyOrOptions as K, value as GlobalOptions[K]);
-  }
+    return isUndefined(options)
+      ? new RootRouter(modelName as RootRouterOptions, runtime)
+      : new ModelRouter(resolvedModelName as string, options, runtime);
+  } as CreateRouter;
 
-  if (arguments.length === 1 && isPlainObject(keyOrOptions)) {
-    return setGlobalOptions(keyOrOptions as GlobalOptions);
-  }
-};
+  wtt.createDataRouter = function <TData>(dataName: string, options: DataRouterOptions<TData>) {
+    return new DataRouter(dataName, options, runtime);
+  };
 
-wtt.setGlobalOptions = setGlobalOptions;
-wtt.setGlobalOption = setGlobalOption;
-wtt.getGlobalOptions = getGlobalOptions;
-wtt.getGlobalOption = getGlobalOption;
-wtt.setModelOptions = setModelOptions;
-wtt.setModelOption = setModelOption;
-wtt.getModelOptions = getModelOptions;
-wtt.getModelOption = getModelOption;
-wtt.setDefaultModelOptions = setDefaultModelOptions;
-wtt.setDefaultModelOption = setDefaultModelOption;
-wtt.getDefaultModelOptions = getDefaultModelOptions;
-wtt.getDefaultModelOption = getDefaultModelOption;
-wtt.RootRouter = RootRouter;
-wtt.ModelRouter = ModelRouter;
-wtt.DataRouter = DataRouter;
+  wtt.combineRoutes = combineRoutes;
+
+  wtt.set = function <K extends keyof GlobalOptions>(keyOrOptions: K | GlobalOptions, value?: unknown) {
+    if (arguments.length === 2 && isString(keyOrOptions)) {
+      return runtime.setGlobalOption(keyOrOptions as K, value as GlobalOptions[K]);
+    }
+
+    if (arguments.length === 1 && isPlainObject(keyOrOptions)) {
+      return runtime.setGlobalOptions(keyOrOptions as GlobalOptions);
+    }
+  };
+
+  wtt.setGlobalOptions = runtime.setGlobalOptions.bind(runtime);
+  wtt.setGlobalOption = runtime.setGlobalOption.bind(runtime);
+  wtt.getGlobalOptions = runtime.getGlobalOptions.bind(runtime);
+  wtt.getGlobalOption = runtime.getGlobalOption.bind(runtime);
+  wtt.setModelOptions = runtime.setModelOptions.bind(runtime);
+  wtt.setModelOption = runtime.setModelOption.bind(runtime);
+  wtt.getModelOptions = runtime.getModelOptions.bind(runtime);
+  wtt.getModelOption = runtime.getModelOption.bind(runtime);
+  wtt.getModelNames = runtime.getModelNames.bind(runtime);
+  wtt.getModelJsonSchema = runtime.getModelJsonSchema.bind(runtime);
+  wtt.setDefaultModelOptions = runtime.setDefaultModelOptions.bind(runtime);
+  wtt.setDefaultModelOption = runtime.setDefaultModelOption.bind(runtime);
+  wtt.getDefaultModelOptions = runtime.getDefaultModelOptions.bind(runtime);
+  wtt.getDefaultModelOption = runtime.getDefaultModelOption.bind(runtime);
+  wtt.RootRouter = RootRouter;
+  wtt.ModelRouter = ModelRouter;
+  wtt.DataRouter = DataRouter;
+
+  return wtt as AccessRuntimeApi;
+}
+
+export function createAccessRuntime() {
+  return createRuntimeApi(new AccessRuntime());
+}
+
+const wtt = createRuntimeApi(defaultRuntime);
 
 export const acl = wtt;
 

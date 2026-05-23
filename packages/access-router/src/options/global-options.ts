@@ -1,25 +1,21 @@
-import { OptionsManager } from './manager';
 import { GlobalOptions } from '../interfaces';
-import { defaultLogger } from '../logger';
+import { defaultRuntime } from '../runtime';
+import { getActiveRuntime } from '../runtime-context';
 
-const globalOptions = new OptionsManager<GlobalOptions, GlobalOptions>({
-  requestPermissionField: '_permissions',
-  globalPermissions: () => ({}),
-  logger: defaultLogger,
-}).build();
+const getRuntime = () => getActiveRuntime() ?? defaultRuntime;
 
 export const setGlobalOptions = (options: GlobalOptions) => {
-  globalOptions.assign(options);
+  getRuntime().setGlobalOptions(options);
 };
 
 export const setGlobalOption = <K extends keyof GlobalOptions>(key: K, value: GlobalOptions[K]) => {
-  globalOptions.set(key, value);
+  getRuntime().setGlobalOption(key, value);
 };
 
 export const getGlobalOptions = () => {
-  return globalOptions.fetch();
+  return getRuntime().getGlobalOptions();
 };
 
 export const getGlobalOption = <K extends keyof GlobalOptions>(key: K, defaultValue?: GlobalOptions[K]) => {
-  return globalOptions.get(key, defaultValue);
+  return getRuntime().getGlobalOption(key, defaultValue);
 };

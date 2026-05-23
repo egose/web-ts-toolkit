@@ -3,11 +3,13 @@ import type { Router } from 'express';
 import type { z } from 'zod';
 import { forEach, isPlainObject, isString, isUndefined, padEnd } from '@web-ts-toolkit/utils';
 import Model from '../model';
-import { setCore } from '../core';
-import { setModelOptions, setModelOption, getModelOptions, getExactModelOption } from '../options';
+import { createSetCore } from '../core';
 import { processUrl } from '../lib';
 import { ModelRouterOptions, ExtendedModelRouterOptions, ModelRequest } from '../interfaces';
 import { logger } from '../logger';
+import type { AccessRuntime } from '../runtime';
+import { defaultRuntime } from '../runtime';
+import { attachRuntimeToModel, runWithRuntime } from '../runtime-context';
 import { PublicService, Service } from '../services';
 import { accessRouterResponseHandler } from './index';
 import { setModelCollectionRoutes } from './model-router-collection';
@@ -25,23 +27,26 @@ function setOption<TModel>(this: ModelRouter<TModel>, parentKey: string, optionK
   const key = isUndefined(option) ? parentKey : `${parentKey}.${optionKey}`;
   const value = isUndefined(option) ? optionKey : option;
 
-  setModelOption(this.modelName, key as keyof ExtendedModelRouterOptions<TModel>, value);
+  this.runtime.setModelOption(this.modelName, key as keyof ExtendedModelRouterOptions<TModel>, value);
   return this;
 }
 
 export class ModelRouter<TModel = unknown> {
+  readonly runtime: AccessRuntime;
   readonly modelName: string;
   readonly router: JsonRouter;
   readonly model: Model;
   readonly options: ModelRouterOptions<TModel>;
   readonly fullBasePath: string;
 
-  constructor(modelName: string, initialOptions: ModelRouterOptions<TModel>) {
-    setModelOptions(modelName, initialOptions);
-    this.options = getModelOptions<TModel>(modelName);
+  constructor(modelName: string, initialOptions: ModelRouterOptions<TModel>, runtime: AccessRuntime = defaultRuntime) {
+    this.runtime = runtime;
+    this.runtime.setModelOptions(modelName, initialOptions);
+    attachRuntimeToModel(modelName, this.runtime);
+    this.options = this.runtime.getModelOptions<TModel>(modelName);
     this.fullBasePath = processUrl(this.options.parentPath + this.options.basePath);
     this.modelName = modelName;
-    this.router = new JsonRouter(this.options.basePath, setCore, accessRouterResponseHandler);
+    this.router = new JsonRouter(this.options.basePath, createSetCore(this.runtime), accessRouterResponseHandler);
     this.model = new Model(modelName);
 
     this.setCollectionRoutes();
@@ -51,7 +56,7 @@ export class ModelRouter<TModel = unknown> {
   }
 
   private getRequestSchema(key: string) {
-    return getExactModelOption<keyof ExtendedModelRouterOptions<TModel>, TModel>(
+    return this.runtime.getExactModelOption<keyof ExtendedModelRouterOptions<TModel>, TModel>(
       this.modelName,
       key as keyof ExtendedModelRouterOptions<TModel>,
     ) as z.ZodTypeAny | undefined;
@@ -113,8 +118,10 @@ export class ModelRouter<TModel = unknown> {
   }
 
   private logEndpoints() {
-    forEach(this.router.endpoints, ({ method, path }) => {
-      logger.info(`${padEnd(method, 6)} ${processUrl(this.options.parentPath + path)}`);
+    runWithRuntime(this.runtime, () => {
+      forEach(this.router.endpoints, ({ method, path }) => {
+        logger.info(`${padEnd(method, 6)} ${processUrl(this.options.parentPath + path)}`);
+      });
     });
   }
 
@@ -125,23 +132,27 @@ export class ModelRouter<TModel = unknown> {
     value?: unknown,
   ) {
     if (arguments.length === 2 && isString(keyOrOptions)) {
-      setModelOption<K, TModel>(this.modelName, keyOrOptions as K, value as ExtendedModelRouterOptions<TModel>[K]);
+      this.runtime.setModelOption<K, TModel>(
+        this.modelName,
+        keyOrOptions as K,
+        value as ExtendedModelRouterOptions<TModel>[K],
+      );
     }
 
     if (arguments.length === 1 && isPlainObject(keyOrOptions)) {
-      setModelOptions<TModel>(this.modelName, keyOrOptions as ModelRouterOptions<TModel>);
+      this.runtime.setModelOptions<TModel>(this.modelName, keyOrOptions as ModelRouterOptions<TModel>);
     }
 
     return this;
   }
 
   setOption<K extends keyof ExtendedModelRouterOptions<TModel>>(key: K, option: ExtendedModelRouterOptions<TModel>[K]) {
-    setModelOption<K, TModel>(this.modelName, key, option);
+    this.runtime.setModelOption<K, TModel>(this.modelName, key, option);
     return this;
   }
 
   setOptions(options: ModelRouterOptions<TModel>) {
-    setModelOptions<TModel>(this.modelName, options);
+    this.runtime.setModelOptions<TModel>(this.modelName, options);
     return this;
   }
 

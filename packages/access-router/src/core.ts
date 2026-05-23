@@ -50,6 +50,9 @@ import { isDocument } from './lib';
 import { MIDDLEWARE, PERMISSIONS, PERMISSION_KEYS } from './symbols';
 import { Cache } from './cache';
 import { logger } from './logger';
+import type { AccessRuntime } from './runtime';
+import { defaultRuntime } from './runtime';
+import { runWithRuntime } from './runtime-context';
 import {
   callHookChain,
   collectSchemaFields,
@@ -502,16 +505,22 @@ export class Core {
   }
 }
 
-export async function setCore(req: AccessRouterBaseRequest, res: Response, next: NextFunction) {
-  if (req[MIDDLEWARE]) return next();
+export const createSetCore = (runtime: AccessRuntime = defaultRuntime) => {
+  return async function setCoreMiddleware(req: AccessRouterBaseRequest, _res: Response, next: NextFunction) {
+    return runWithRuntime(runtime, async () => {
+      if (req[MIDDLEWARE]) return next();
 
-  const core = new Core(req);
-  await core.setPermissions();
+      const core = new Core(req);
+      await core.setPermissions();
 
-  req.macl = core;
-  req[PERMISSIONS] = core.getPermissions();
-  req[PERMISSION_KEYS] = req[PERMISSIONS].keys;
-  req[MIDDLEWARE] = true;
+      req.macl = core;
+      req[PERMISSIONS] = core.getPermissions();
+      req[PERMISSION_KEYS] = req[PERMISSIONS].keys;
+      req[MIDDLEWARE] = true;
 
-  next();
-}
+      next();
+    });
+  };
+};
+
+export const setCore = createSetCore(defaultRuntime);

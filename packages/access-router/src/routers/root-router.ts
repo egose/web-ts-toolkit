@@ -1,13 +1,13 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
-import mongoose from 'mongoose';
 import { isNumber as _isNumber, isString, orderBy as _orderBy } from '@web-ts-toolkit/utils';
-import { setCore } from '../core';
-import { setDataCore } from '../core-data';
+import { createSetCore } from '../core';
+import { createSetDataCore } from '../core-data';
 import { decorateDataListResult, decorateDataSingleResult } from '../http/response-pipelines/data-response';
 import { mapCodeToMessage, mapCodeToStatusCode } from '../helpers';
 import { accessRouterResponseHandler } from './index';
-import { getDataNames } from '../options';
+import type { AccessRuntime } from '../runtime';
+import { defaultRuntime } from '../runtime';
 import {
   ErrorResult,
   Filter,
@@ -67,6 +67,7 @@ const normalizeSubPopulate = (
       : (populate ?? []);
 
 export class RootRouter {
+  readonly runtime: AccessRuntime;
   router: JsonRouter;
   basename: string;
   operationAccess: Validation;
@@ -155,12 +156,20 @@ export class RootRouter {
     },
   };
 
-  constructor(options: RootRouterOptions = { basePath: '', operationAccess: true }) {
+  constructor(
+    options: RootRouterOptions = { basePath: '', operationAccess: true },
+    runtime: AccessRuntime = defaultRuntime,
+  ) {
     const { basePath, operationAccess } = options;
 
+    this.runtime = runtime;
     this.basename = basePath || '';
     this.operationAccess = operationAccess;
-    this.router = new JsonRouter(this.basename, [setCore, setDataCore], accessRouterResponseHandler);
+    this.router = new JsonRouter(
+      this.basename,
+      [createSetCore(this.runtime), createSetDataCore(this.runtime)],
+      accessRouterResponseHandler,
+    );
     this.setRoutes();
   }
 
@@ -178,10 +187,10 @@ export class RootRouter {
 
   private hasTarget(item: RootQueryEntry) {
     if (item.target === 'model') {
-      return !!mongoose.models[item.name];
+      return this.runtime.hasModel(item.name);
     }
 
-    return getDataNames().includes(item.name);
+    return this.runtime.getDataNames().includes(item.name);
   }
 
   private async isAllowed(req: RootRequest, item: RootQueryEntry) {

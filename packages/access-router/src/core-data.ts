@@ -19,6 +19,9 @@ import { DataService } from './services';
 import { normalizeSelect, pickDocFields } from './helpers';
 import { DATA_MIDDLEWARE, PERMISSIONS, PERMISSION_KEYS } from './symbols';
 import { Cache } from './cache';
+import type { AccessRuntime } from './runtime';
+import { defaultRuntime } from './runtime';
+import { runWithRuntime } from './runtime-context';
 import {
   callHookChain,
   collectSchemaFields,
@@ -186,16 +189,22 @@ export class DataCore {
   }
 }
 
-export async function setDataCore(req: AccessRouterBaseRequest, _res: Response, next: NextFunction) {
-  if (req[DATA_MIDDLEWARE]) return next();
+export const createSetDataCore = (runtime: AccessRuntime = defaultRuntime) => {
+  return async function setDataCoreMiddleware(req: AccessRouterBaseRequest, _res: Response, next: NextFunction) {
+    return runWithRuntime(runtime, async () => {
+      if (req[DATA_MIDDLEWARE]) return next();
 
-  const core = new DataCore(req);
-  await core.setPermissions();
+      const core = new DataCore(req);
+      await core.setPermissions();
 
-  req.dacl = core;
-  req[PERMISSIONS] = core.getPermissions();
-  req[PERMISSION_KEYS] = req[PERMISSIONS].keys;
-  req[DATA_MIDDLEWARE] = true;
+      req.dacl = core;
+      req[PERMISSIONS] = core.getPermissions();
+      req[PERMISSION_KEYS] = req[PERMISSIONS].keys;
+      req[DATA_MIDDLEWARE] = true;
 
-  next();
-}
+      next();
+    });
+  };
+};
+
+export const setDataCore = createSetDataCore(defaultRuntime);

@@ -3,7 +3,7 @@ import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import acl, { getGlobalOptions, setGlobalOptions } from '../dist/index.mjs';
+import acl, { createAccessRuntime, getGlobalOptions, setGlobalOptions } from '../dist/index.mjs';
 import type { Request as AccessRequest } from '../src/interfaces';
 
 const resetGlobalOptions = () => {
@@ -672,6 +672,19 @@ describe('data router', () => {
     acl.set({ logger: injectedLogger });
 
     expect(getGlobalOptions().logger).toBe(injectedLogger);
+  });
+
+  it('creates isolated runtime APIs with separate global options', () => {
+    const runtimeA = createAccessRuntime();
+    const runtimeB = createAccessRuntime();
+
+    runtimeA.set({ requestPermissionField: '__a' });
+    runtimeB.set({ requestPermissionField: '__b' });
+
+    expect(runtimeA.getGlobalOptions().requestPermissionField).toBe('__a');
+    expect(runtimeB.getGlobalOptions().requestPermissionField).toBe('__b');
+    expect(getGlobalOptions().requestPermissionField).not.toBe('__a');
+    expect(getGlobalOptions().requestPermissionField).not.toBe('__b');
   });
 
   it('creates a root router through the overloaded createRouter API', () => {
