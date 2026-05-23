@@ -1,0 +1,145 @@
+---
+sidebar_label: Routing
+sidebar_position: 2
+---
+
+# Routing
+
+`access-router` gives you three router classes:
+
+- `RootRouter` for batch requests
+- `ModelRouter` for Mongoose models
+- `DataRouter` for in-memory collections
+
+The main factory is `acl.createRouter(...)`.
+
+## Router Factories
+
+```ts
+import mongoose from 'mongoose';
+import acl from '@web-ts-toolkit/access-router';
+
+const modelRouter = acl.createRouter('User', { basePath: '/users' });
+const dataRouter = acl.createDataRouter('fruit', { basePath: '/fruit', data: [] });
+const rootRouter = acl.createRouter({ basePath: '/batch', operationAccess: true });
+
+const typedRouter = acl.createRouter(
+  mongoose.model('User', new mongoose.Schema({ name: String })),
+  { basePath: '/users' },
+);
+```
+
+`createAccessRuntime()` returns a fresh `acl` instance with isolated runtime state.
+
+## Mounting
+
+Each router exposes:
+
+- `router` for the internal JsonRouter instance
+- `routes` for the underlying Express router
+- `fullBasePath` for the normalized mounted path
+
+Use `combineRoutes(...)` to mount several routers at once.
+
+```ts
+import express from 'express';
+import acl, { combineRoutes } from '@web-ts-toolkit/access-router';
+
+app.use(combineRoutes(fruitRouter, userRouter, rootRouter));
+app.use(acl.combineRoutes(fruitRouter, userRouter, rootRouter));
+```
+
+`combineRoutes(...)` accepts `ModelRouter`, `DataRouter`, `RootRouter`, or a plain Express `Router`.
+
+## Model Router Routes
+
+Default route segments are `__query` and `__mutation`.
+
+- `GET /base`
+- `POST /base`
+- `POST /base/__query`
+- `POST /base/__mutation`
+- `GET /base/new`
+- `GET /base/:id`
+- `POST /base/__query/:id`
+- `PATCH /base/:id`
+- `PATCH /base/__mutation/:id`
+- `PUT /base`
+- `PUT /base/__mutation`
+- `DELETE /base/:id`
+- `GET /base/count`
+- `POST /base/count`
+- `GET /base/distinct/:field`
+- `POST /base/distinct/:field`
+
+Sub-document routes are generated for every referenced subpath discovered on the model schema.
+
+## Data Router Routes
+
+Default route segment is `__query`.
+
+- `GET /base`
+- `POST /base/__query`
+- `GET /base/:id`
+- `POST /base/__query/__filter`
+- `POST /base/__query/:id`
+
+## Root Router
+
+`RootRouter` handles batch payloads that dispatch to model or data operations.
+
+Use it when you want a single request to run multiple operations in order.
+
+Each batch item uses:
+
+- `target`: `model` or `data`
+- `name`: the model or data router name
+- `op`: the operation name
+- `order`: optional execution bucket
+
+Operation-specific fields are kept at the top level:
+
+- `id` for single-document operations
+- `sub` and `subId` for sub-document operations
+- `field` for `distinct`
+- `filter` for query-based lookups
+- `data` for writes
+- `args` for selection, populate, paging, and task inputs
+- `options` for behavior switches such as permissions and counts
+
+The response wraps each operation as:
+
+```ts
+{
+  index: number;
+  target: 'model' | 'data';
+  name: string;
+  op: string;
+  statusCode: number;
+  message: string;
+  result: unknown;
+}
+```
+
+`result` keeps the underlying service response instead of flattening it into a second batch-only format.
+
+## Mutability
+
+Build-time route-shape options are immutable after router construction.
+
+Model router build-time options:
+
+- `basePath`
+- `parentPath`
+- `idParam`
+- `queryRouteSegment`
+- `mutationRouteSegment`
+
+Data router build-time options:
+
+- `basePath`
+- `parentPath`
+- `idParam`
+- `queryRouteSegment`
+
+Behavior options such as filters, hooks, permissions, and defaults can be changed later with `set(...)`, `setOption(...)`, or `setOptions(...)`.

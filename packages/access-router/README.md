@@ -10,7 +10,7 @@ pnpm add @web-ts-toolkit/access-router express mongoose
 
 ## Documentation
 
-- Full package documentation lives in `website/docs/packages/access-router.mdx`.
+- Full package documentation lives in `website/docs/packages/access-router/`.
 - Browse the docs site from `website` to read the full guide alongside the rest of the workspace packages.
 
 ## Minimal Example

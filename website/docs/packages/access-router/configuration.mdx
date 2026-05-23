@@ -1,0 +1,104 @@
+---
+sidebar_label: Configuration
+sidebar_position: 3
+---
+
+# Configuration
+
+## Global Options
+
+Set once per runtime with `acl.setGlobalOptions(...)`.
+
+- `requestPermissionField` defaults to `_permissions`
+- `globalPermissions(req)` returns the permission set for the current request
+- `logger` receives `debug`, `info`, `warn`, and `error` calls
+
+```ts
+acl.setGlobalOptions({
+  requestPermissionField: '_permissions',
+  globalPermissions(req) {
+    return req.headers.user === 'admin' ? ['isAdmin'] : [];
+  },
+});
+```
+
+## Default Model Options
+
+These values are inherited by every model router unless overridden.
+
+- `listHardLimit` defaults to `1000`
+- `documentPermissionField` defaults to `_permissions`
+- `idParam` defaults to `id`
+- `idField` defaults to `_id`
+- `parentPath` defaults to `/`
+- `queryRouteSegment` defaults to `__query`
+- `mutationRouteSegment` defaults to `__mutation`
+- `operationAccess` defaults to `false`
+- `modelPermissionPrefix` defaults to an empty string
+
+## Model Router Options
+
+Common model options:
+
+- `basePath`
+- `permissionSchema` accepts booleans, permission names, or per-operation rule objects
+- `alwaysSelectFields`
+- `docPermissions`
+- `baseFilter`
+- `overrideFilter`
+- `decorate`
+- `decorateAll`
+- `validate`
+- `prepare`
+- `transform`
+- `afterPersist`
+- `onChange`
+- `beforeDelete`
+- `afterDelete`
+- `requestSchemas`
+- `defaults`
+
+Router-specific options are also available through the mutable property helpers:
+
+- `listHardLimit`
+- `documentPermissionField`
+- `idParam`
+- `idField`
+- `resolveIdFilter`
+- `parentPath`
+- `queryRouteSegment`
+- `mutationRouteSegment`
+
+## Data Router Options
+
+Common data options:
+
+- `data`
+- `basePath`
+- `permissionSchema` accepts booleans, permission names, or per-operation rule objects
+- `baseFilter`
+- `overrideFilter`
+- `decorate`
+- `decorateAll`
+- `requestSchemas`
+
+Router-specific options:
+
+- `listHardLimit`
+- `idParam`
+- `idField`
+- `resolveIdFilter`
+- `parentPath`
+- `queryRouteSegment`
+- `operationAccess`
+- `dataName`
+
+## Option APIs
+
+The runtime exposes getter/setter pairs for each option group:
+
+- `acl.setGlobalOptions(...)`, `acl.setGlobalOption(...)`, `acl.getGlobalOptions()`, `acl.getGlobalOption(...)`
+- `acl.setModelOptions(...)`, `acl.setModelOption(...)`, `acl.getModelOptions()`, `acl.getModelOption(...)`
+- `acl.setDefaultModelOptions(...)`, `acl.setDefaultModelOption(...)`, `acl.getDefaultModelOptions()`, `acl.getDefaultModelOption(...)`
+
+Use router instance methods when you want to mutate one router in place.

@@ -1,0 +1,82 @@
+---
+sidebar_label: Validation
+sidebar_position: 6
+---
+
+# Validation
+
+`access-router` validates requests before the service layer runs.
+
+## Built-in Validation
+
+The routers validate:
+
+- path params such as `id`, `subId`, and `field`
+- query params such as `page_size`, `include_count`, `include_permissions`, and `try_list`
+- body shapes for list, read, create, update, upsert, distinct, count, and sub-document routes
+
+Naming conventions:
+
+- query-string routes use snake_case
+- advanced body payloads use camelCase
+- advanced body payloads use `filter` and `select`
+
+## Request Schemas
+
+Model routers support `requestSchemas` for stricter application-level validation.
+
+Useful keys include:
+
+- `create`
+- `update`
+- `upsert`
+- `count`
+- `distinct`
+- `advancedList`
+- `advancedReadFilter`
+- `advancedRead`
+- `advancedCreate`
+- `advancedCreateData`
+- `advancedUpdate`
+- `advancedUpdateData`
+- `advancedUpsert`
+- `advancedUpsertData`
+- `subList`
+- `subRead`
+- `subCreate`
+- `subUpdate`
+- `subBulkUpdate`
+
+Data routers support:
+
+- `advancedList`
+- `advancedReadFilter`
+- `advancedRead`
+
+## Root Batch Validation
+
+`RootRouter` validates each batch entry by operation before dispatch.
+
+That means required fields such as `id`, `data`, `field`, or `subId` fail early with a bad request response.
+
+## Custom Routes
+
+Use the `advanced` subpath when you want the same validation helpers in your own routes.
+
+```ts
+import {
+  parseBody,
+  parsePathParam,
+  parseQuery,
+  requestSchemas,
+  readByIdBodySchema,
+} from '@web-ts-toolkit/access-router/advanced';
+
+router.router.post('/custom/:id', async (req) => {
+  const id = parsePathParam(req.params.id, 'id');
+  const query = parseQuery(requestSchemas.readQuery, req.query);
+  const body = parseBody(readByIdBodySchema, req.body);
+
+  return { id, query, body };
+});
+```

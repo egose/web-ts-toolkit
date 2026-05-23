@@ -1,0 +1,25 @@
+---
+sidebar_label: Processors
+sidebar_position: 8
+---
+
+# Processors
+
+`@web-ts-toolkit/access-router/processors` currently exposes `copyAndDepopulate(...)`.
+
+## `copyAndDepopulate`
+
+Copies selected nested values to new destinations and replaces the source value with IDs.
+
+```ts
+import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';
+
+const result = copyAndDepopulate(doc, [
+  { src: 'author', dest: 'authorSnapshot' },
+]);
+```
+
+Options:
+
+- `mutable` defaults to `true`
+- `idField` defaults to `_id`

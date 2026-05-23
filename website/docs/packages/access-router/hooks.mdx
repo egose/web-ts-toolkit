@@ -1,0 +1,107 @@
+---
+sidebar_label: Hooks
+sidebar_position: 5
+---
+
+# Hooks
+
+Model and data routers support request-time hooks for ACL decisions, filtering, decoration, and persistence side effects.
+
+## Lifecycle
+
+Model router flow:
+
+- access and query shaping: `operationAccess`, `overrideFilter`, `baseFilter`
+- pre-write: `validate`, `prepare`, `transform`
+- post-persist: `afterPersist`
+- update diff side effects: `onChange`
+- delete flow: `beforeDelete`, `afterDelete`
+- response shaping: `docPermissions`, `decorate`, `decorateAll`
+
+Data router flow is simpler and mainly uses `operationAccess`, `baseFilter`, `overrideFilter`, `decorate`, and `decorateAll`.
+
+## Common Hook Signatures
+
+All of these hooks run with `this` bound to the current Express request.
+
+### `baseFilter`
+
+Return a filter, or `true` / `null` / `undefined` to leave the query unmodified.
+
+### `overrideFilter`
+
+Rewrite the caller-provided filter before the base filter is applied.
+
+### `validate`
+
+Return `true` to allow the write, `false` to reject it, or an error array to surface validation errors.
+
+### `prepare`
+
+Normalize incoming data before it is written.
+
+### `transform`
+
+Mutate the live Mongoose document before save.
+
+### `afterPersist`
+
+Run after persistence and before response shaping.
+
+### `beforeDelete` / `afterDelete`
+
+Use these for audit logs, cache invalidation, and external side effects.
+
+### `docPermissions`
+
+Return the document-level permission object stored on the configured permission field.
+
+### `decorate` / `decorateAll`
+
+Use these to shape the response payload before it is returned.
+
+## Request Augmentation
+
+Augment the package types when you want custom request fields or permission names:
+
+```ts
+import '@web-ts-toolkit/access-router';
+
+declare module '@web-ts-toolkit/access-router' {
+  interface AccessRouterPermissionMap {
+    isAdmin?: boolean;
+  }
+
+  interface AccessRouterRequestExtensions {
+    requestId?: string;
+  }
+}
+```
+
+## Guard Helper
+
+`guard(...)` is a route middleware helper.
+
+It accepts:
+
+- a permission string
+- a permission string array
+- a hook function
+- a model condition object
+
+```ts
+router.router.get('/admin', guard('isAdmin'), async () => {
+  return { ok: true };
+});
+```
+
+## Permissions Plugin
+
+`permissionsPlugin` adds a virtual permission field to a schema and reads the configured document permission field from the active router options.
+
+```ts
+schema.plugin(permissionsPlugin, {
+  modelName: 'User',
+  virtualPermissionField: 'permissions',
+});
+```
