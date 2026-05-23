@@ -477,6 +477,23 @@ Goal:
 
 - make ACL resolution easier to follow and easier to reuse
 
+Status:
+
+- completed
+
+Completed so far:
+
+1. extracted shared request-scoped ACL initialization into:
+   - `src/acl/request-context.ts`
+2. extracted shared identifier and access-filter resolution into:
+   - `src/acl/filter-resolution.ts`
+3. extracted shared field/select resolution helpers into:
+   - `src/acl/select-resolution.ts`
+4. extracted shared decorate/decorateAll hook execution helpers into:
+   - `src/acl/hook-runner.ts`
+5. rewired both `Core` and `DataCore` through those shared ACL modules
+6. reduced `Core` and `DataCore` duplication so the remaining differences are mostly model-specific concerns such as populate, document permissions, and write lifecycle behavior
+
 Suggested work:
 
 1. consolidate shared logic from `core.ts` and `core-data.ts`
@@ -495,6 +512,11 @@ Candidate modules:
 Exit criteria:
 
 - model and data ACL flows share more infrastructure without forcing identical behavior
+
+Verification:
+
+- `pnpm --filter @web-ts-toolkit/access-router test`
+- latest result after Phase 4 ACL consolidation: `9 passed`, `71 passed`
 
 ### Phase 5: clarify configuration and public API semantics
 
@@ -526,7 +548,7 @@ This order keeps risk low by improving readability first, then removing duplicat
 
 Current next step:
 
-- move into Phase 4 and consolidate ACL request-scoped logic further
+- move into Phase 5 and clarify configuration/public API semantics
 
 ## Recommended First Milestone
 
