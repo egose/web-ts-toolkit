@@ -57,6 +57,15 @@ import { Base } from './base';
 import { logger } from '../logger';
 import { isDocument } from '../lib';
 import {
+  bulkUpdateSub as bulkUpdateSubImpl,
+  createSub as createSubImpl,
+  deleteSub as deleteSubImpl,
+  getParentDoc as getParentDocImpl,
+  listSub as listSubImpl,
+  readSub as readSubImpl,
+  updateSub as updateSubImpl,
+} from './model-subdocument-service';
+import {
   resolveCreateArgs,
   resolveCreateOptions,
   resolveExistsOptions,
@@ -72,16 +81,7 @@ import {
   resolveUpdateOneOptions,
   resolveUpsertArgs,
   resolveUpsertOptions,
-} from './service-defaults';
-import {
-  bulkUpdateSub as bulkUpdateSubImpl,
-  createSub as createSubImpl,
-  deleteSub as deleteSubImpl,
-  getParentDoc as getParentDocImpl,
-  listSub as listSubImpl,
-  readSub as readSubImpl,
-  updateSub as updateSubImpl,
-} from './service-subdocuments';
+} from './model-service-defaults';
 
 type ServiceHookContext = ModelHookContext & {
   diff?(doc: Document): void;

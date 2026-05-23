@@ -12,7 +12,7 @@ import {
   subReadBodySchema,
 } from './validation';
 import { handleResultError } from '../helpers';
-import type { ModelRouterRouteContext } from './model-router-context';
+import type { ModelRouterRouteContext } from './model-router-route-context';
 
 export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteContext<TModel>) {
   const subs = getModelSub(context.modelName);

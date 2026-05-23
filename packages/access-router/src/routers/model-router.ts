@@ -13,9 +13,9 @@ import { attachRuntimeToModel, runWithRuntime } from '../runtime-context';
 import { PublicService, Service } from '../services';
 import { assertMutableRouterOption, assertMutableRouterOptions } from './router-mutation';
 import { accessRouterResponseHandler } from './index';
-import { setModelCollectionRoutes } from './model-router-collection';
-import { setModelDocumentRoutes } from './model-router-document';
-import { setModelSubDocumentRoutes } from './model-router-subdocument';
+import { setModelCollectionRoutes } from './model-router-collection-routes';
+import { setModelDocumentRoutes } from './model-router-document-routes';
+import { setModelSubDocumentRoutes } from './model-router-subdocument-routes';
 
 const clientErrors = JsonRouter.clientErrors;
 

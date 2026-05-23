@@ -17,7 +17,7 @@ import {
 } from './validation';
 import { handleResultError } from '../helpers';
 import { parseBooleanString } from './shared';
-import type { ModelRouterRouteContext } from './model-router-context';
+import type { ModelRouterRouteContext } from './model-router-route-context';
 
 export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContext<TModel>) {
   const { router, options } = context;
