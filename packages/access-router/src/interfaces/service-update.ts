@@ -6,6 +6,8 @@ export interface PublicUpdateArgs {
   tasks?: Task | Task[];
 }
 
+export interface PublicUpsertArgs extends PublicUpdateArgs {}
+
 export interface UpdateOneArgs<T = unknown> extends Omit<PublicUpdateArgs, 'select' | 'tasks'> {
   overrides?: {
     filter?: Filter<T>;
@@ -28,6 +30,8 @@ export interface PublicUpdateOptions {
   includePermissions?: boolean;
   populateAccess?: PopulateAccess;
 }
+
+export interface PublicUpsertOptions extends PublicUpdateOptions {}
 
 export interface UpdateOneOptions extends Omit<PublicUpdateOptions, 'returningAll'> {}
 export interface UpdateByIdOptions extends UpdateOneOptions {}

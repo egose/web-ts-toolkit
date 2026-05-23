@@ -1,10 +1,8 @@
-import mongoose from 'mongoose';
+import { Document } from 'mongoose';
 import {
   castArray,
   compact,
   flatten,
-  forEach,
-  get,
   intersectionBy,
   isArray,
   isBoolean,
@@ -19,23 +17,13 @@ import {
 import diff from 'deep-diff';
 import Model from '../model';
 import { getModelOption, getModelOptions } from '../options';
-import {
-  getDocPermissions,
-  genPagination,
-  normalizeSelect,
-  populateDoc,
-  filterCollection,
-  findElement,
-  findElementById,
-  matchElement,
-  toObject,
-  genSubPopulate,
-} from '../helpers';
+import { getDocPermissions, genPagination, normalizeSelect, populateDoc, matchElement, toObject } from '../helpers';
 import {
   Filter,
   Include,
+  ModelDocument,
   ModelRouterOptions,
-  MiddlewareContext,
+  ModelHookContext,
   SubPopulate,
   DistinctArgs,
   Defaults,
@@ -67,6 +55,53 @@ import {
 import { Codes, StatusCodes } from '../enums';
 import { Base } from './base';
 import { logger } from '../logger';
+import { isDocument } from '../lib';
+import {
+  bulkUpdateSub as bulkUpdateSubImpl,
+  createSub as createSubImpl,
+  deleteSub as deleteSubImpl,
+  getParentDoc as getParentDocImpl,
+  listSub as listSubImpl,
+  readSub as readSubImpl,
+  updateSub as updateSubImpl,
+} from './model-subdocument-service';
+import {
+  resolveCreateArgs,
+  resolveCreateOptions,
+  resolveExistsOptions,
+  resolveFindArgs,
+  resolveFindByIdArgs,
+  resolveFindByIdOptions,
+  resolveFindOneArgs,
+  resolveFindOneOptions,
+  resolveFindOptions,
+  resolveUpdateByIdArgs,
+  resolveUpdateByIdOptions,
+  resolveUpdateOneArgs,
+  resolveUpdateOneOptions,
+  resolveUpsertArgs,
+  resolveUpsertOptions,
+} from './model-service-defaults';
+
+type ServiceHookContext = ModelHookContext & {
+  diff?(doc: Document): void;
+  fieldPermissionAccess?: {
+    readIds?: Set<string>;
+    updateIds?: Set<string>;
+  };
+};
+
+const assertModelDocument = <TModel>(
+  value: unknown,
+  modelName: string,
+  hookName: 'transform' | 'afterPersist',
+): ModelDocument<TModel> => {
+  if (isDocument(value)) {
+    return value as unknown as ModelDocument<TModel>;
+  }
+
+  throw new Error(`${hookName} hook for model=${modelName} must return a Mongoose document instance`);
+};
 
 export class Service<TModel = unknown> extends Base<TModel> {
   model: Model;
@@ -74,6 +109,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
   defaults: Defaults<TModel>;
   baseFields: string[];
   baseFieldsExt: string[];
+
+  private asServiceHookContext(context: ModelHookContext): ServiceHookContext {
+    return context as ServiceHookContext;
+  }
 
   constructor(req: ModelRequest, modelName: string) {
     super(req, modelName);
@@ -121,10 +160,12 @@ export class Service<TModel = unknown> extends Base<TModel> {
     let doc = await this.model.findOne({ ...query, lean });
     if (!doc) return { success: false, code: Codes.NotFound, query };
 
-    const context: MiddlewareContext = {
-      model: this.model.model,
+    const context: ModelHookContext = {
+      mongooseModel: this.model.model,
       modelName: this.modelName,
-      originalDocObject: toObject(doc),
+      operation: access,
+      originalDocumentSnapshot: toObject(doc),
+      resolvedQuery: query,
     };
 
     doc = await this.includeDocs(doc, includes);
@@ -219,10 +260,12 @@ export class Service<TModel = unknown> extends Base<TModel> {
       lean,
     });
 
-    const contexts: MiddlewareContext[] = docs.map((doc) => ({
-      model: this.model.model,
+    const contexts: ModelHookContext[] = docs.map((doc) => ({
+      mongooseModel: this.model.model,
       modelName: this.modelName,
-      originalDocObject: toObject(doc),
+      operation: 'list',
+      originalDocumentSnapshot: toObject(doc),
+      resolvedQuery: query,
     }));
 
     const _decorate: (...args: unknown[]) => unknown = isFunction(decorate) ? decorate : (v) => v;
@@ -235,7 +278,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     docs = await Promise.all(
       docs.map(async (doc, i) => {
-        contexts[i].fieldPermissionAccess = fieldPermissionAccess;
+        this.asServiceHookContext(contexts[i]).fieldPermissionAccess = fieldPermissionAccess;
 
         let includeDocPermissions = includePermissions;
         if (!includeDocPermissions && !skim) {
@@ -280,15 +323,25 @@ export class Service<TModel = unknown> extends Base<TModel> {
     let dataArr = isArr ? data : [data];
     dataArr = await Promise.all(dataArr.map((d) => this.parseClientData(d)));
 
-    const contexts: MiddlewareContext[] = [];
+    const resolvedPopulate = populate ? await this.genPopulate(populateAccess, populate) : [];
+
+    const contexts: ModelHookContext[] = [];
 
     let validationError = null;
     const items = await Promise.all(
       dataArr.map(async (item, index) => {
-        const context: MiddlewareContext = { model: this.model.model, modelName: this.modelName, originalData: item };
+        const context: ModelHookContext = {
+          mongooseModel: this.model.model,
+          modelName: this.modelName,
+          operation: 'create',
+          originalData: item,
+          resolvedQuery: resolvedPopulate.length > 0 ? { populate: resolvedPopulate } : {},
+        };
 
         const allowedFields = await this.genAllowedFields(item, 'create');
         const allowedData = pick(item, allowedFields);
+        context.allowedFields = allowedFields;
+        context.allowedData = allowedData;
 
         const validated = await this.validate(allowedData, 'create', context);
         if (isBoolean(validated)) {
@@ -306,7 +359,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
         const preparedData = await this.prepare(allowedData, 'create', context);
 
         context.preparedData = preparedData;
-        contexts.push(context);
+        contexts[index] = context;
         return preparedData;
       }),
     );
@@ -315,23 +368,29 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const _decorate: (...args: unknown[]) => unknown = isFunction(decorate) ? decorate : (v) => v;
 
-    let docs = await this.model.create(items);
-    docs = await Promise.all(
-      docs.map(async (doc, index) => {
-        doc = await this.afterPersist(doc, 'create', contexts[index]);
-        contexts[index].finalDocObject = doc.toObject({ virtuals: false });
+    const createdDocs = (await this.model.create(items)) as unknown as Array<ModelDocument<TModel>>;
+    const docs = await Promise.all(
+      createdDocs.map(async (doc, index) => {
+        contexts[index].currentDocument = doc as unknown as ModelDocument<TModel>;
+        doc = assertModelDocument<TModel>(
+          await this.afterPersist(doc, 'create', contexts[index]),
+          this.modelName,
+          'afterPersist',
+        );
+        contexts[index].currentDocument = doc;
+        contexts[index].finalDocumentSnapshot = doc.toObject({ virtuals: false }) as Record<string, unknown>;
         let includeDocPermissions = includePermissions;
         if (!includeDocPermissions && !skim) {
           includeDocPermissions = this.checkIfModelPermissionExists(['create', 'read', 'update']);
         }
         if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'create', contexts[index]);
         if (includePermissions) doc = await this.addFieldPermissions(doc, 'read', contexts[index]);
-        if (populate) await populateDoc(doc, await this.genPopulate(populateAccess, populate));
+        if (resolvedPopulate.length > 0) await populateDoc(doc as Document, resolvedPopulate);
         doc = await this.trimOutputFields(doc, 'read', this.baseFieldsExt);
-        doc = await _decorate(doc, contexts[index]);
-        if (!includePermissions) doc = this.addEmptyPermissions(doc);
+        let outputDoc = await _decorate(doc, contexts[index]);
+        if (!includePermissions) outputDoc = this.addEmptyPermissions(outputDoc);
 
-        return doc;
+        return outputDoc;
       }),
     );
 
@@ -380,24 +439,31 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     if (_filter === false) return { success: false, code: Codes.Forbidden, query };
 
-    let doc = await this.model.findOne({ filter: _filter });
+    let doc = (await this.model.findOne({ filter: _filter })) as ModelDocument<TModel> | null;
     if (!doc) return { success: false, code: Codes.NotFound, query };
 
-    const context: MiddlewareContext = { model: this.model.model, modelName: this.modelName };
+    const context: ModelHookContext = {
+      mongooseModel: this.model.model,
+      modelName: this.modelName,
+      operation: 'update',
+      resolvedQuery: query,
+    };
 
     data = await this.parseClientData(data);
 
     // see https://mongoosejs.com/docs/api/document.html#Document.prototype.toObject()
-    context.originalDocObject = doc.toObject({ virtuals: false });
+    context.originalDocumentSnapshot = doc.toObject({ virtuals: false }) as Record<string, unknown>;
     context.originalData = data;
 
     doc = await this.addDocPermissions(doc, 'update', context);
 
     context.docPermissions = this.getDocPermissions(doc) as Record<string, unknown>;
-    context.currentDoc = doc;
+    context.currentDocument = doc as unknown as ModelDocument<TModel>;
 
     const allowedFields = await this.genAllowedFields(doc, 'update');
     const allowedData = pick(data, allowedFields);
+    context.allowedFields = allowedFields;
+    context.allowedData = allowedData;
 
     const validated = await this.validate(allowedData, 'update', context);
     if (isBoolean(validated)) {
@@ -412,25 +478,27 @@ export class Service<TModel = unknown> extends Base<TModel> {
     Object.assign(doc, prepared);
 
     context.modifiedPaths = doc.modifiedPaths();
-    doc = await this.transform(doc, 'update', context);
+    doc = assertModelDocument<TModel>(await this.transform(doc, 'update', context), this.modelName, 'transform');
+    context.currentDocument = doc;
     doc = await doc.save();
 
     const diffExcludeFields = [this.options.documentPermissionField, '__v'];
-    context.diff = (d) => {
+    this.asServiceHookContext(context).diff = (d) => {
       context.changes =
         diff(
-          omit(context.originalDocObject, diffExcludeFields),
+          omit(context.originalDocumentSnapshot, diffExcludeFields),
           omit(d.toObject({ virtuals: false }), diffExcludeFields),
         ) || [];
 
       context.modifiedPaths = uniq(context.changes.map((di) => (di.path.length > 0 ? di.path[0] : '')));
     };
 
-    doc = await this.afterPersist(doc, 'update', context);
-    context.finalDocObject = doc.toObject({ virtuals: false });
-    context.diff(doc);
+    doc = assertModelDocument<TModel>(await this.afterPersist(doc, 'update', context), this.modelName, 'afterPersist');
+    context.currentDocument = doc;
+    context.finalDocumentSnapshot = doc.toObject({ virtuals: false }) as Record<string, unknown>;
+    this.asServiceHookContext(context).diff(doc);
 
-    await this.changes(doc, context);
+    await this.changes(doc.toObject({ virtuals: false }) as Record<string, unknown>, context);
 
     let includeDocPermissions = includePermissions;
     if (!includeDocPermissions && !skim) {
@@ -438,13 +506,14 @@ export class Service<TModel = unknown> extends Base<TModel> {
     }
     if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'update', context);
     if (includePermissions) doc = await this.addFieldPermissions(doc, 'update', context);
-    if (_populate) await populateDoc(doc, _populate);
+    if (_populate) await populateDoc(doc as Document, _populate);
     doc = await this.trimOutputFields(doc, 'read', this.baseFieldsExt);
 
-    if (isFunction(decorate)) doc = await decorate(doc, context);
-    if (!includePermissions) doc = this.addEmptyPermissions(doc);
+    let outputDoc: unknown = doc;
+    if (isFunction(decorate)) outputDoc = await decorate(outputDoc, context);
+    if (!includePermissions) outputDoc = this.addEmptyPermissions(outputDoc);
 
-    return { success: true, kind: 'single', code: Codes.Success, data: doc as TModel, input: prepared };
+    return { success: true, kind: 'single', code: Codes.Success, data: outputDoc as TModel, input: prepared };
   }
 
   public async updateById(
@@ -533,14 +602,16 @@ export class Service<TModel = unknown> extends Base<TModel> {
     logger.debug(JSON.stringify({ op: 'delete', query }));
 
     if (filter === false) return { success: false, code: Codes.Forbidden, query };
-    let doc = await this.model.findOne({ filter });
+    let doc = (await this.model.findOne({ filter })) as ModelDocument<TModel> | null;
     if (!doc) return { success: false, code: Codes.NotFound, query };
 
-    const context: MiddlewareContext = {
-      model: this.model.model,
+    const context: ModelHookContext = {
+      mongooseModel: this.model.model,
       modelName: this.modelName,
-      originalDocObject: toObject(doc),
-      currentDoc: toObject(doc),
+      operation: 'delete',
+      originalDocumentSnapshot: toObject(doc) as Record<string, unknown>,
+      currentDocument: doc as unknown as ModelDocument<TModel>,
+      resolvedQuery: query,
     };
 
     await this.beforeDelete(doc, context);
@@ -548,9 +619,9 @@ export class Service<TModel = unknown> extends Base<TModel> {
     // this function utilizes the 'deleteOne' method to delete the document,
     // triggering 'deleteOne' hooks, as opposed to using 'findOneAndDelete'.
     // see https://mongoosejs.com/docs/api/model.html#Model.prototype.deleteOne()
-    await ('deleteOne' in doc ? doc.deleteOne() : doc.remove());
+    await ('deleteOne' in doc ? doc.deleteOne() : (doc as Document & { remove: () => Promise<unknown> }).remove());
 
-    context.finalDocObject = toObject(doc);
+    context.finalDocumentSnapshot = toObject(doc) as Record<string, unknown>;
     await this.afterDelete(doc, context);
 
     return { success: true, kind: 'single', code: Codes.Success, data: doc._id, query };
@@ -615,132 +686,63 @@ export class Service<TModel = unknown> extends Base<TModel> {
   }
 
   private resolveFindOneArgs(args: FindOneArgs<TModel> = {}) {
-    return {
-      select: args.select ?? this.defaults.findOneArgs?.select,
-      sort: args.sort ?? this.defaults.findOneArgs?.sort,
-      populate: args.populate ?? this.defaults.findOneArgs?.populate,
-      include: args.include ?? this.defaults.findOneArgs?.include,
-      overrides: args.overrides ?? {},
-    };
+    return resolveFindOneArgs(this, args);
   }
 
   private resolveFindOneOptions(options: FindOneOptions = {}) {
-    return {
-      skim: options.skim ?? this.defaults.findOneOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.findOneOptions?.includePermissions ?? true,
-      access: options.access ?? this.defaults.findOneOptions?.access ?? 'read',
-      populateAccess: options.populateAccess ?? this.defaults.findOneOptions?.populateAccess,
-      lean: options.lean ?? this.defaults.findOneOptions?.lean ?? false,
-    };
+    return resolveFindOneOptions(this, options);
   }
 
   private resolveFindByIdArgs(args: FindByIdArgs<TModel> = {}) {
-    return {
-      select: args.select ?? this.defaults.findByIdArgs?.select,
-      populate: args.populate ?? this.defaults.findByIdArgs?.populate,
-      include: args.include ?? this.defaults.findByIdArgs?.include,
-      overrides: args.overrides ?? {},
-    };
+    return resolveFindByIdArgs(this, args);
   }
 
   private resolveFindByIdOptions(options: FindByIdOptions = {}) {
-    return {
-      skim: options.skim ?? this.defaults.findByIdOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.findByIdOptions?.includePermissions ?? true,
-      access: options.access ?? this.defaults.findByIdOptions?.access ?? 'read',
-      populateAccess: options.populateAccess ?? this.defaults.findByIdOptions?.populateAccess,
-      lean: options.lean ?? this.defaults.findByIdOptions?.lean ?? false,
-    };
+    return resolveFindByIdOptions(this, options);
   }
 
   private resolveFindArgs(args: FindArgs<TModel> = {}) {
-    return {
-      select: args.select ?? this.defaults.findArgs?.select,
-      populate: args.populate ?? this.defaults.findArgs?.populate,
-      include: args.include ?? this.defaults.findArgs?.include,
-      sort: args.sort ?? this.defaults.findArgs?.sort,
-      skip: args.skip ?? this.defaults.findArgs?.skip,
-      limit: args.limit ?? this.defaults.findArgs?.limit,
-      page: args.page ?? this.defaults.findArgs?.page,
-      pageSize: args.pageSize ?? this.defaults.findArgs?.pageSize,
-      overrides: args.overrides ?? {},
-    };
+    return resolveFindArgs(this, args);
   }
 
   private resolveFindOptions(options: FindOptions = {}) {
-    return {
-      skim: options.skim ?? this.defaults.findOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.findOptions?.includePermissions ?? true,
-      includeCount: options.includeCount ?? this.defaults.findOptions?.includeCount ?? false,
-      populateAccess: options.populateAccess ?? this.defaults.findOptions?.populateAccess ?? 'read',
-      lean: options.lean ?? this.defaults.findOptions?.lean ?? false,
-    };
+    return resolveFindOptions(this, options);
   }
 
   private resolveCreateArgs(args: CreateArgs = {}) {
-    return {
-      populate: args.populate ?? this.defaults.createArgs?.populate,
-    };
+    return resolveCreateArgs(this, args);
   }
 
   private resolveCreateOptions(options: CreateOptions = {}) {
-    return {
-      skim: options.skim ?? this.defaults.createOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.createOptions?.includePermissions ?? true,
-      populateAccess: options.populateAccess ?? this.defaults.createOptions?.populateAccess ?? 'read',
-    };
+    return resolveCreateOptions(this, options);
   }
 
   private resolveUpdateOneArgs(args: UpdateOneArgs<TModel> = {}) {
-    return {
-      populate: args.populate ?? this.defaults.updateOneArgs?.populate,
-      overrides: args.overrides ?? {},
-    };
+    return resolveUpdateOneArgs(this, args);
   }
 
   private resolveUpdateOneOptions(options: UpdateOneOptions = {}) {
-    return {
-      skim: options.skim ?? this.defaults.updateOneOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.updateOneOptions?.includePermissions ?? true,
-      populateAccess: options.populateAccess ?? this.defaults.updateOneOptions?.populateAccess ?? 'read',
-    };
+    return resolveUpdateOneOptions(this, options);
   }
 
   private resolveUpdateByIdArgs(args: UpdateByIdArgs<TModel> = {}) {
-    return {
-      populate: args.populate ?? this.defaults.updateByIdArgs?.populate,
-      overrides: args.overrides ?? {},
-    };
+    return resolveUpdateByIdArgs(this, args);
   }
 
   private resolveUpdateByIdOptions(options: UpdateByIdOptions = {}) {
-    return {
-      skim: options.skim ?? this.defaults.updateByIdOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.updateByIdOptions?.includePermissions ?? true,
-      populateAccess: options.populateAccess ?? this.defaults.updateByIdOptions?.populateAccess ?? 'read',
-    };
+    return resolveUpdateByIdOptions(this, options);
   }
 
   private resolveUpsertArgs(args: UpsertArgs<TModel> = {}) {
-    return {
-      populate: args.populate ?? this.defaults.upsertArgs?.populate,
-      overrides: args.overrides ?? {},
-    };
+    return resolveUpsertArgs(this, args);
   }
 
   private resolveUpsertOptions(options: UpsertOptions = {}) {
-    return {
-      skim: options.skim ?? this.defaults.upsertOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.upsertOptions?.includePermissions ?? true,
-      populateAccess: options.populateAccess ?? this.defaults.upsertOptions?.populateAccess ?? 'read',
-    };
+    return resolveUpsertOptions(this, options);
   }
 
   private resolveExistsOptions(options: ExistsOptions = {}) {
-    return {
-      access: options.access ?? this.defaults.existsOptions?.access ?? 'read',
-      includeId: options.includeId ?? this.defaults.existsOptions?.includeId ?? false,
-    };
+    return resolveExistsOptions(this, options);
   }
 
   private async getFieldPermissionAccess(ids: unknown[]) {
@@ -769,149 +771,33 @@ export class Service<TModel = unknown> extends Base<TModel> {
     return new Set(docs.map((doc) => String(doc._id)));
   }
 
-  async listSub(id, sub, options?: { filter: Filter; fields: string[] }): Promise<ListResult | ErrorResult> {
-    let { filter: ft, fields } = options ?? {};
-
-    const parentDoc = await this.getParentDoc(id, sub, null, { access: 'read' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound };
-    let result = get(parentDoc, sub) as Record<string, unknown>[];
-
-    const [subFilter, subSelect] = await Promise.all([
-      this.genFilter(`subs.${sub}.list`, ft as Filter<TModel>),
-      this.genQuerySelect('list', fields, false, [sub, 'sub']),
-    ]);
-
-    if (subFilter === false) return { success: false, code: Codes.Forbidden };
-
-    result = filterCollection(result, subFilter);
-    if (subSelect) result = result.map((v) => pick(toObject(v), subSelect.concat('_id')));
-
-    return { success: true, kind: 'list', code: Codes.Success, data: result, count: result.length };
+  async listSub(id, sub, options?: { filter: Filter; select: string[] }): Promise<ListResult | ErrorResult> {
+    return listSubImpl(this, id, sub, options);
   }
 
   public async readSub(
     id,
     sub,
     subId,
-    options?: { fields: string[]; populate: SubPopulate | SubPopulate[] },
+    options?: { select: string[]; populate: SubPopulate | SubPopulate[] },
   ): Promise<SingleResult | ErrorResult> {
-    let { fields, populate } = options ?? {};
-
-    const parentDoc = await this.getParentDoc(id, sub, { populate }, { access: 'read' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound };
-    const result = get(parentDoc, sub) as Record<string, unknown>[];
-
-    const [subFilter, subSelect] = await Promise.all([
-      this.genFilter(`subs.${sub}.read`, { _id: subId }),
-      this.genQuerySelect('read', fields, false, [sub, 'sub']),
-    ]);
-
-    if (subFilter === false) return { success: false, code: Codes.Forbidden };
-
-    let subdoc = findElement(result, subFilter) as Record<string, unknown> | undefined;
-    if (!subdoc) return { success: false, code: Codes.NotFound };
-
-    if (subSelect) subdoc = pick(toObject(subdoc), subSelect.concat(['_id']));
-    return { success: true, kind: 'single', code: Codes.Success, data: subdoc };
+    return readSubImpl(this, id, sub, subId, options);
   }
 
   public async updateSub(id, sub, subId, data): Promise<SingleResult | ErrorResult> {
-    const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound };
-    const result = get(parentDoc, sub) as Record<string, unknown>[];
-
-    const [subFilter, subReadSelect, subUpdateSelect] = await Promise.all([
-      this.genFilter(`subs.${sub}.update`, { _id: subId }),
-      this.genQuerySelect('read', null, false, [sub, 'sub']),
-      this.genQuerySelect('update', null, false, [sub, 'sub']),
-    ]);
-
-    if (subFilter === false) return { success: false, code: Codes.Forbidden };
-
-    let subdoc = findElement(result, subFilter) as Record<string, unknown> | undefined;
-    if (!subdoc) return { success: false, code: Codes.NotFound };
-
-    const allowedData = pick(data, subUpdateSelect);
-    Object.assign(subdoc, allowedData);
-
-    await parentDoc.save();
-    if (subReadSelect) subdoc = pick(toObject(subdoc), subReadSelect.concat(['_id']));
-    return { success: true, kind: 'single', code: Codes.Success, data: subdoc };
+    return updateSubImpl(this, id, sub, subId, data);
   }
 
   public async bulkUpdateSub(id, sub, data): Promise<ListResult | ErrorResult> {
-    const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound };
-    let result = get(parentDoc, sub) as Array<Record<string, unknown> & { _id?: unknown }>;
-
-    data = castArray(data);
-
-    const [subFilter, subReadSelect, subUpdateSelect] = await Promise.all([
-      this.genFilter(`subs.${sub}.update`, { _id: { $in: data.map((v) => v._id) } }),
-      this.genQuerySelect('read', null, false, [sub, 'sub']),
-      this.genQuerySelect('update', null, false, [sub, 'sub']),
-    ]);
-
-    if (subFilter === false) return { success: false, code: Codes.Forbidden };
-
-    result = filterCollection(result, subFilter);
-    forEach(result, (subdoc: Record<string, unknown> & { _id?: unknown }) => {
-      const tdata = findElementById(data, subdoc._id as string);
-      if (!tdata) return;
-
-      const allowedData = pick(tdata as object, subUpdateSelect);
-      Object.assign(subdoc, allowedData);
-    });
-
-    await parentDoc.save();
-    if (subReadSelect) result = result.map((v) => pick(toObject(v), subReadSelect.concat(['_id'])));
-    return { success: true, kind: 'list', code: Codes.Success, data: result, count: result.length };
+    return bulkUpdateSubImpl(this, id, sub, castArray(data));
   }
 
   public async createSub(id, sub, data, options?: { addFirst: boolean }): Promise<ListResult | ErrorResult> {
-    const { addFirst } = options ?? {};
-
-    const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound };
-    let result = get(parentDoc, sub) as Record<string, unknown>[];
-
-    const [subCreateSelect, subReadSelect] = await Promise.all([
-      this.genQuerySelect('create', null, false, [sub, 'sub']),
-      this.genQuerySelect('read', null, false, [sub, 'sub']),
-    ]);
-
-    const allowedData = pick(data, subCreateSelect);
-    addFirst === true ? result.unshift(allowedData) : result.push(allowedData);
-
-    await parentDoc.save();
-    if (subReadSelect) result = result.map((v) => pick(toObject(v), subReadSelect.concat(['_id'])));
-    return { success: true, kind: 'list', code: Codes.Created, data: result, count: result.length };
+    return createSubImpl(this, id, sub, data, options);
   }
 
   public async deleteSub(id, sub, subId): Promise<SingleResult | ErrorResult> {
-    const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound };
-    const result = get(parentDoc, sub) as Array<
-      Record<string, unknown> & { _id?: unknown; deleteOne?: () => Promise<unknown>; remove?: () => Promise<unknown> }
-    >;
-
-    const subFilter = await this.genFilter(`subs.${sub}.delete`, { _id: subId });
-    if (subFilter === false) return { success: false, code: Codes.Forbidden };
-
-    const subdoc = findElement(result, subFilter) as
-      | (Record<string, unknown> & {
-          _id?: unknown;
-          deleteOne?: () => Promise<unknown>;
-          remove?: () => Promise<unknown>;
-        })
-      | undefined;
-    if (!subdoc) return { success: false, code: Codes.NotFound };
-
-    // starting from version 7.x, the 'deleteOne' method replaces the 'remove' method for subdocuments.
-    // see https://mongoosejs.com/docs/subdocs.html#removing-subdocs
-    await ('deleteOne' in subdoc ? subdoc.deleteOne?.() : subdoc.remove?.());
-    await parentDoc.save();
-    return { success: true, kind: 'single', code: Codes.Success, data: subdoc._id };
+    return deleteSubImpl(this, id, sub, subId);
   }
 
   public async getParentDoc(
@@ -920,12 +806,6 @@ export class Service<TModel = unknown> extends Base<TModel> {
     args?: { populate?: SubPopulate | SubPopulate[] },
     options?: { access?: BaseFilterAccess; lean?: boolean },
   ) {
-    const { populate } = args ?? {};
-    const { access = 'read', lean = false } = options ?? {};
-
-    const parentFilter = await this.genFilter(access, await this.genIDFilter(id));
-
-    if (parentFilter === false) return null;
-    return this.model.findOne({ filter: parentFilter, select: sub, populate: genSubPopulate(sub, populate), lean });
+    return getParentDocImpl(this, id, sub, args, options);
   }
 }

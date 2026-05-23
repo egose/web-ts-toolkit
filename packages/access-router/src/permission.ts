@@ -4,61 +4,54 @@ interface BooleanObject {
 
 export interface AccessRouterPermissionMap {}
 
-type AccessRouterPermissionProperties = {
-  [K in keyof AccessRouterPermissionMap]: AccessRouterPermissionMap[K];
-};
+type AccessRouterPermissionKey = Extract<keyof AccessRouterPermissionMap, string>;
+type PermissionName = AccessRouterPermissionKey | (string & {});
 
 class Permission {
-  $_permissions: BooleanObject;
-  $_permissionKeys: string[];
+  private readonly permissions: BooleanObject;
+  private readonly permissionKeys: string[];
 
   constructor(permissions: BooleanObject) {
-    this.$_permissions = permissions;
-    this.$_permissionKeys = Object.keys(permissions);
+    this.permissions = { ...permissions };
+    this.permissionKeys = Object.keys(this.permissions);
+  }
 
-    for (let x = 0; x < this.$_permissionKeys.length; x++) {
-      const key = this.$_permissionKeys[x];
-      Object.defineProperty(this, key, {
-        enumerable: true,
-        get: function () {
-          return this.has(key);
-        },
-      });
+  get keys(): readonly string[] {
+    return this.permissionKeys;
+  }
+
+  private normalizePermissionArgs(
+    permissionOrPermissions: PermissionName | readonly PermissionName[],
+    permissions: readonly PermissionName[],
+  ) {
+    if (Array.isArray(permissionOrPermissions)) {
+      return permissionOrPermissions;
     }
+
+    return [permissionOrPermissions].concat(permissions);
   }
 
-  prop(permission: string) {
-    return this.$_permissions.hasOwnProperty(permission);
+  hasKey(permission: PermissionName) {
+    return Object.prototype.hasOwnProperty.call(this.permissions, permission);
   }
 
-  has(permission: string) {
-    return this.$_permissions[permission] || false;
+  has(permission: PermissionName) {
+    return this.permissions[permission] === true;
   }
 
-  hasAny(permissions: string[]) {
-    return permissions.some((permission) => {
+  hasAny(permissionOrPermissions: PermissionName | readonly PermissionName[], ...permissions: PermissionName[]) {
+    return this.normalizePermissionArgs(permissionOrPermissions, permissions).some((permission) => {
       return this.has(permission);
     });
   }
 
-  hasAll(permissions: string[]) {
-    return permissions.every((permission) => {
+  hasAll(permissionOrPermissions: PermissionName | readonly PermissionName[], ...permissions: PermissionName[]) {
+    return this.normalizePermissionArgs(permissionOrPermissions, permissions).every((permission) => {
       return this.has(permission);
     });
-  }
-
-  any(permissions: string[]) {
-    return this.hasAny(permissions);
-  }
-
-  all(permissions: string[]) {
-    return this.hasAll(permissions);
   }
 }
 
 export default Permission;
-export interface Permissions extends Permission, AccessRouterPermissionProperties {
-  [key: string]: any;
-}
-
-export type AccessRouterPermissions = Permissions;
+export type Permissions = Permission;
+export type AccessRouterPermissions = Permission;

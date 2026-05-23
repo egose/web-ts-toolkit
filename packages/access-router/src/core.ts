@@ -4,10 +4,8 @@ import {
   assign,
   castArray,
   compact,
-  difference,
   forEach,
   get,
-  intersection,
   isArray,
   isBoolean,
   isFunction,
@@ -26,7 +24,7 @@ import {
   Populate,
   Projection,
   Filter,
-  MiddlewareContext,
+  ModelHookContext,
   Validation,
   AccessRouterBaseRequest,
   ModelRequest,
@@ -51,14 +49,30 @@ import { MIDDLEWARE, PERMISSIONS, PERMISSION_KEYS } from './symbols';
 import { Cache } from './cache';
 import { logger } from './logger';
 import {
-  callHookChain,
-  collectSchemaFields,
-  evaluateRouteGuard,
-  getRequestPermissions,
-  resolveAccessFilter,
-  resolveIdentifierFilter,
-  setRequestPermissions,
-} from './core-shared';
+  canActivateRequest,
+  getGlobalPermissions,
+  getResolvedRequestPermissions,
+  initializeAclRequest,
+  setResolvedRequestPermissions,
+} from './acl/request-context';
+import { resolveAccessFilterForRequest, resolveIdentifierFilterForRequest } from './acl/filter-resolution';
+import { runDecorateAllHook, runDecorateHook } from './acl/hook-runner';
+import {
+  collectAllowedFieldsForRequest,
+  pickAllowedFieldsForRequest,
+  resolveSelectForRequest,
+} from './acl/select-resolution';
+import type { AccessRuntime } from './runtime';
+import { defaultRuntime } from './runtime';
+import { runWithRuntime } from './runtime-context';
+import { callHookChain } from './core-shared';
+
+type InternalModelHookContext = ModelHookContext & {
+  fieldPermissionAccess?: {
+    readIds?: Set<string>;
+    updateIds?: Set<string>;
+  };
+};
 
 export class Core {
   private req: ModelRequest;
@@ -93,7 +107,7 @@ export class Core {
     const resolveIdFilter = getModelOption(modelName, 'resolveIdFilter') as
       | ((this: ModelRequest, id: string) => Filter<TModel> | Promise<Filter<TModel>>)
       | undefined;
-    return resolveIdentifierFilter<TModel>(this.req, idField, resolveIdFilter, id);
+    return resolveIdentifierFilterForRequest<TModel>({ req: this.req, idField, resolveIdFilter, id });
   }
 
   async genFilter<TModel = unknown>(
@@ -104,7 +118,7 @@ export class Core {
     const permissions = this.getGlobalPermissions();
     const cacheKey = `${modelName}_baseFilter_${access}`;
 
-    return resolveAccessFilter<TModel>({
+    return resolveAccessFilterForRequest<TModel>({
       req: this.req,
       permissions,
       cache: this.caches.baseFilter,
@@ -132,7 +146,7 @@ export class Core {
     const permissions = this.getGlobalPermissions();
     const docPermissions = getDocPermissions(modelName, doc);
 
-    return collectSchemaFields({
+    return collectAllowedFieldsForRequest({
       req: this.req,
       permissionSchema,
       access,
@@ -143,8 +157,23 @@ export class Core {
   }
 
   async pickAllowedFields<T>(modelName: string, doc: T, access: SelectAccess, baseFields = []) {
-    const allowed = await this.genAllowedFields(modelName, doc, access, baseFields);
-    return pickDocFields(doc, allowed) as T;
+    const permissionSchema = getModelOption(modelName, 'permissionSchema') as
+      | Record<string, unknown>
+      | null
+      | undefined;
+    const modelPermissionPrefix = getModelOption(modelName, 'modelPermissionPrefix', '');
+    const permissions = this.getGlobalPermissions();
+    const docPermissions = getDocPermissions(modelName, doc);
+
+    return pickAllowedFieldsForRequest({
+      req: this.req,
+      doc,
+      permissionSchema,
+      access,
+      baseFields,
+      hasPermission: (key) => permissions.has(key) || docPermissions[this.removePrefix(key, modelPermissionPrefix)],
+      functionArgs: [permissions, docPermissions],
+    });
   }
 
   async genSelect(
@@ -154,45 +183,26 @@ export class Core {
     skipChecks = true,
     subPaths = [],
   ) {
-    let normalizedSelect = normalizeSelect(targetFields);
-
     const permissionSchema = getModelOption(modelName, ['permissionSchema'].concat(subPaths).join('.')) as
       | Record<string, unknown>
       | null
       | undefined;
-    if (!permissionSchema) return [];
 
     const permissions = this.getGlobalPermissions();
 
-    let fields = await collectSchemaFields({
+    const alwaysSelectFields =
+      subPaths.length > 0 ? [] : (getModelOption(modelName, `alwaysSelectFields.${access}`, []) as string[]);
+    return resolveSelectForRequest({
       req: this.req,
       permissionSchema,
       access,
-      hasPermission: (key) => {
-        if (permissions.prop(key)) {
-          return permissions.has(key);
-        }
-
-        return !!skipChecks;
-      },
+      targetFields,
+      skipChecks,
+      hasPermission: (key) => permissions.hasKey(key) && permissions.has(key),
       functionArgs: [permissions],
+      mode: 'model',
+      alwaysSelectFields,
     });
-
-    if (normalizedSelect.length > 0) {
-      const excludeid = normalizedSelect.includes('-_id');
-      const excludeall = normalizedSelect.every((v) => v.startsWith('-'));
-      if (excludeall) {
-        normalizedSelect = normalizedSelect.map((v) => v.substring(1));
-        fields = difference(fields, normalizedSelect);
-        if (excludeid) fields.push('-_id');
-      } else {
-        fields = intersection(normalizedSelect, fields.concat(excludeid ? '-_id' : '_id'));
-      }
-    }
-
-    const alwaysSelectFields =
-      subPaths.length > 0 ? [] : (getModelOption(modelName, `alwaysSelectFields.${access}`, []) as string[]);
-    return fields.concat(alwaysSelectFields);
   }
 
   async genPopulate(
@@ -233,7 +243,7 @@ export class Core {
     return populate;
   }
 
-  async validate(modelName: string, allowedData: unknown, access: ValidateAccess, context: MiddlewareContext) {
+  async validate(modelName: string, allowedData: unknown, access: ValidateAccess, context: ModelHookContext) {
     const validate = getModelOption(modelName, `validate.${access}`, null);
 
     if (isFunction(validate)) {
@@ -246,25 +256,25 @@ export class Core {
     }
   }
 
-  async prepare<T>(modelName: string, allowedData: T, access: PrepareAccess, context: MiddlewareContext): Promise<T> {
+  async prepare<T>(modelName: string, allowedData: T, access: PrepareAccess, context: ModelHookContext): Promise<T> {
     const prepare = getModelOption(modelName, `prepare.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
     return callHookChain(this.req, prepare, allowedData, permissions, context);
   }
 
-  async transform<T>(modelName: string, doc: T, access: TransformAccess, context: MiddlewareContext): Promise<T> {
+  async transform<T>(modelName: string, doc: T, access: TransformAccess, context: ModelHookContext): Promise<T> {
     const transform = getModelOption(modelName, `transform.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
     return callHookChain(this.req, transform, doc, permissions, context);
   }
 
-  async afterPersist<T>(modelName: string, doc: T, access: AfterPersistAccess, context: MiddlewareContext): Promise<T> {
+  async afterPersist<T>(modelName: string, doc: T, access: AfterPersistAccess, context: ModelHookContext): Promise<T> {
     const afterPersist = getModelOption(modelName, `afterPersist.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
     return callHookChain(this.req, afterPersist, doc, permissions, context);
   }
 
-  async changes(modelName: string, doc: Record<string, unknown>, context: MiddlewareContext) {
+  async changes(modelName: string, doc: Record<string, unknown>, context: ModelHookContext) {
     const changeOptions = getModelOption(modelName, `onChange`, {}) as Record<string, unknown>;
 
     for (let x = 0; x < context.modifiedPaths.length; x++) {
@@ -273,7 +283,7 @@ export class Core {
       if (isFunction(changeOptions[mpath])) {
         await changeOptions[mpath].call(
           this.req,
-          context.originalDocObject[mpath],
+          context.originalDocumentSnapshot[mpath],
           doc[mpath],
           context.changes.filter((di) => di.path.length > 0 && di.path[0] === mpath),
           context,
@@ -282,19 +292,19 @@ export class Core {
     }
   }
 
-  async beforeDelete<T>(modelName: string, doc: T, context: MiddlewareContext): Promise<void> {
+  async beforeDelete<T>(modelName: string, doc: T, context: ModelHookContext): Promise<void> {
     const beforeDelete = getModelOption(modelName, 'beforeDelete', null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
     await callHookChain(this.req, beforeDelete, doc, permissions, context);
   }
 
-  async afterDelete<T>(modelName: string, doc: T, context: MiddlewareContext): Promise<void> {
+  async afterDelete<T>(modelName: string, doc: T, context: ModelHookContext): Promise<void> {
     const afterDelete = getModelOption(modelName, 'afterDelete', null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
     await callHookChain(this.req, afterDelete, doc, permissions, context);
   }
 
-  async genDocPermissions(modelName: string, doc: unknown, access: DocPermissionsAccess, context: MiddlewareContext) {
+  async genDocPermissions(modelName: string, doc: unknown, access: DocPermissionsAccess, context: ModelHookContext) {
     const docPermissionsFn = getModelOption(modelName, `docPermissions.${access}`, null);
     let docPermissions = {};
 
@@ -323,7 +333,7 @@ export class Core {
     modelName: string,
     doc: T,
     access: DocPermissionsAccess,
-    context: MiddlewareContext,
+    context: ModelHookContext,
   ): Promise<T> {
     const docPermissionField = getModelOption(modelName, 'documentPermissionField');
     const docPermissions = await this.genDocPermissions(modelName, doc, access, context);
@@ -335,7 +345,7 @@ export class Core {
     modelName: string,
     doc: T,
     access: DocPermissionsAccess,
-    context: MiddlewareContext,
+    context: InternalModelHookContext,
   ): Promise<T> {
     const docPermissionField = getModelOption(modelName, 'documentPermissionField');
     const docId = String(doc._id);
@@ -393,25 +403,25 @@ export class Core {
     return doc;
   }
 
-  async decorate<T>(modelName: string, doc: T, access: DecorateAccess, context: MiddlewareContext): Promise<T> {
+  async decorate<T>(modelName: string, doc: T, access: DecorateAccess, context: ModelHookContext): Promise<T> {
     const decorate = getModelOption(modelName, `decorate.${access}`, null) as Function | Function[];
 
     const permissions = this.getGlobalPermissions();
     context.docPermissions = getDocPermissions(modelName, doc) as Record<string, unknown>;
 
-    return callHookChain(this.req, decorate, doc, permissions, context);
+    return runDecorateHook({ req: this.req, hook: decorate, doc, permissions, context });
   }
 
   async decorateAll<T>(
     modelName: string,
     docs: T[],
     access: DecorateAllAccess,
-    context: MiddlewareContext,
+    context: ModelHookContext,
   ): Promise<T[]> {
     const decorateAll = getModelOption(modelName, `decorateAll.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
 
-    return callHookChain(this.req, decorateAll, docs, permissions, context);
+    return runDecorateAllHook({ req: this.req, hook: decorateAll, docs, permissions, context });
   }
 
   runTasks<T extends object>(modelName: string, docObject: T, task: Task | Task[]): T {
@@ -436,16 +446,15 @@ export class Core {
   }
 
   getPermissions() {
-    return getRequestPermissions(this.req);
+    return getResolvedRequestPermissions(this.req);
   }
 
   async setPermissions() {
-    await setRequestPermissions(this.req);
+    await setResolvedRequestPermissions(this.req);
   }
 
   async canActivate(routeGuard: Validation) {
-    const permissions = this.getGlobalPermissions();
-    return evaluateRouteGuard(this.req, permissions, routeGuard);
+    return canActivateRequest(this.req, routeGuard);
   }
 
   async isAllowed(modelName: string, access: RouteGuardAccess | string) {
@@ -491,20 +500,25 @@ export class Core {
   }
 
   private getGlobalPermissions() {
-    return this.req[PERMISSIONS] as Permission;
+    return getGlobalPermissions(this.req);
   }
 }
 
-export async function setCore(req: AccessRouterBaseRequest, res: Response, next: NextFunction) {
-  if (req[MIDDLEWARE]) return next();
+export const createSetCore = (runtime: AccessRuntime = defaultRuntime) => {
+  return async function setCoreMiddleware(req: AccessRouterBaseRequest, _res: Response, next: NextFunction) {
+    return runWithRuntime(runtime, async () => {
+      await initializeAclRequest({
+        req,
+        flag: MIDDLEWARE,
+        createCore: (request) => new Core(request),
+        assignCore: (core) => {
+          req.macl = core;
+        },
+      });
 
-  const core = new Core(req);
-  await core.setPermissions();
+      next();
+    });
+  };
+};
 
-  req.macl = core;
-  req[PERMISSIONS] = core.getPermissions();
-  req[PERMISSION_KEYS] = req[PERMISSIONS].$_permissionKeys;
-  req[MIDDLEWARE] = true;
-
-  next();
-}
+export const setCore = createSetCore(defaultRuntime);

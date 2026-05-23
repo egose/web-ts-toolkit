@@ -1,39 +1,30 @@
-import { OptionsManager } from './manager';
 import { DefaultModelRouterOptions, ExtendedDefaultModelRouterOptions } from '../interfaces';
+import { defaultRuntime } from '../runtime';
+import { getActiveRuntime } from '../runtime-context';
 
 export const DEFAULT_QUERY_PATH = '__query';
 export const DEFAULT_MUTATION_PATH = '__mutation';
 
-const defaultModelOptions = new OptionsManager<DefaultModelRouterOptions, ExtendedDefaultModelRouterOptions>({
-  listHardLimit: 1000,
-  documentPermissionField: '_permissions',
-  idParam: 'id',
-  idField: '_id',
-  parentPath: '/',
-  queryRouteSegment: DEFAULT_QUERY_PATH,
-  mutationRouteSegment: DEFAULT_MUTATION_PATH,
-  operationAccess: false,
-  modelPermissionPrefix: '',
-}).build();
+const getRuntime = () => getActiveRuntime() ?? defaultRuntime;
 
 export const setDefaultModelOptions = (options: DefaultModelRouterOptions) => {
-  defaultModelOptions.assign(options);
+  getRuntime().setDefaultModelOptions(options);
 };
 
 export const setDefaultModelOption = <K extends keyof ExtendedDefaultModelRouterOptions>(
   key: K,
   value: ExtendedDefaultModelRouterOptions[K],
 ) => {
-  defaultModelOptions.set(key, value);
+  getRuntime().setDefaultModelOption(key, value);
 };
 
 export const getDefaultModelOptions = () => {
-  return defaultModelOptions.fetch();
+  return getRuntime().getDefaultModelOptions();
 };
 
 export const getDefaultModelOption = <K extends keyof ExtendedDefaultModelRouterOptions>(
   key: K,
   defaultValue?: ExtendedDefaultModelRouterOptions[K],
 ) => {
-  return defaultModelOptions.get(key, defaultValue);
+  return getRuntime().getDefaultModelOption(key, defaultValue);
 };

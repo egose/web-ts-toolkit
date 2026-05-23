@@ -57,12 +57,12 @@ const createDefaultsApp = async () => {
     },
     baseFilter: {
       list: function (permissions) {
-        if (permissions.isAdmin) return {};
+        if (permissions.has('isAdmin')) return {};
         const currentUser = (this as express.Request & { _user?: { _id?: mongoose.Types.ObjectId } })._user;
         return { $or: [{ _id: currentUser?._id }, { public: true }] };
       },
       read: function (permissions) {
-        if (permissions.isAdmin) return {};
+        if (permissions.has('isAdmin')) return {};
         const currentUser = (this as express.Request & { _user?: { _id?: mongoose.Types.ObjectId } })._user;
         return { _id: currentUser?._id };
       },

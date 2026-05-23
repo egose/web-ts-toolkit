@@ -38,6 +38,67 @@ const router = acl.createDataRouter('fruit', {
 });
 ```
 
+## Combining Routers
+
+When you want to mount several access-router instances together, use `combineRoutes(...)`.
+
+```ts
+import express from 'express';
+import acl, { combineRoutes } from '@web-ts-toolkit/access-router';
+
+const fruitRouter = acl.createDataRouter('fruit', {
+  basePath: '/fruit',
+  data: [{ id: 'apple', name: 'Apple', public: true }],
+  idField: 'id',
+});
+
+const userRouter = acl.createRouter('User', {
+  basePath: '/users',
+});
+
+const rootRouter = acl.createRouter({
+  basePath: '/batch',
+  operationAccess: true,
+});
+
+const app = express();
+app.use(combineRoutes(fruitRouter, userRouter, rootRouter));
+
+// Equivalent:
+app.use(acl.combineRoutes(fruitRouter, userRouter, rootRouter));
+```
+
+Notes:
+
+- `combineRoutes(...)` accepts `ModelRouter`, `DataRouter`, `RootRouter`, or a plain Express `Router`
+- routers are mounted in the exact order passed to `combineRoutes(...)`
+- if two routers match the same path, the earlier router handles the request first
+- this is only a mounting helper; it does not merge service access, metadata, or router configuration
+
+## Router Mutability
+
+Routers support runtime updates for request-time behavior such as hooks, filters, permissions, and defaults.
+
+Build-time route-shape options are intentionally immutable after construction.
+
+Examples of build-time options:
+
+- model router: `basePath`, `parentPath`, `idParam`, `queryRouteSegment`, `mutationRouteSegment`
+- data router: `basePath`, `parentPath`, `idParam`, `queryRouteSegment`
+
+This means code like this is rejected after the router has already been created:
+
+```ts
+const router = acl.createRouter('User', {
+  basePath: '/users',
+});
+
+router.set('queryRouteSegment', '__custom');
+// Error: Cannot change queryRouteSegment after router construction because it is a build-time option
+```
+
+Use router construction for route shape, and use setters only for behavior that is meant to vary after construction.
+
 ## TypeScript Support
 
 Typed routers carry the model or data shape through filters, selects, defaults, and service accessors.
@@ -73,7 +134,7 @@ const userRouter = acl.createRouter(UserModel, {
   basePath: '/users',
   baseFilter: {
     list(permissions) {
-      return permissions.isAdmin ? {} : { public: true };
+      return permissions.has('isAdmin') ? {} : { public: true };
     },
   },
   defaults: {
@@ -202,7 +263,7 @@ acl.setGlobalOptions({
 
 acl.createDataRouter('fruit', {
   decorate(item, permissions) {
-    if (permissions.isAdmin && this.requestId) {
+    if (permissions.has('isAdmin') && this.requestId) {
       return { ...item, requestId: this.requestId };
     }
 
@@ -210,6 +271,26 @@ acl.createDataRouter('fruit', {
   },
 });
 ```
+
+### Permission Helpers
+
+The exported `AccessRouterPermissions` type is method-based.
+
+Use this style in hooks, guards, and decorators:
+
+```ts
+permissions.has('isAdmin');
+permissions.hasAny('posts.read', 'posts.write');
+permissions.hasAll(['posts.read', 'posts.write']);
+permissions.keys;
+```
+
+Notes:
+
+- `has(name)` returns `true` only when that permission is explicitly enabled.
+- `hasAny(...)` and `hasAll(...)` accept either variadic permission names or a single array.
+- `keys` returns the known permission names for the current request.
+- Property-style access such as `permissions.isAdmin` is no longer part of the public API.
 
 ## List Responses
 
@@ -271,6 +352,12 @@ When `include_count=true` is also enabled:
 
 Public router endpoints validate request path params, known query params, and top-level request body shapes before calling the service layer.
 
+Naming conventions:
+
+- plain query params use snake_case, such as `page_size`, `include_count`, `include_permissions`, `returning_all`, and `try_list`
+- advanced route request bodies use camelCase, such as `pageSize`, `includeCount`, `includePermissions`, `returningAll`, and `tryList`
+- advanced route bodies use `filter` and `select`; deprecated aliases like `query` and `fields` are not supported
+
 Examples:
 
 - `GET /users/:id?try_list=false` validates `id` and `try_list`
@@ -297,6 +384,113 @@ Invalid requests return `400 application/problem+json` with structured `errors` 
 ## User-Defined Request Schemas
 
 Model and data routers can add route-specific Zod validation through the `requestSchemas` option.
+
+## Root Batch Route
+
+`RootRouter` accepts a batch array where each entry declares a `target`, a router `name`, and an operation-specific payload:
+
+- route identity stays top-level: `target`, `name`, `op`
+- operation inputs stay top-level when they are required by that operation: `id`, `field`, `filter`, `data`
+- query-like structured arguments go in `args`
+- behavior switches go in `options`
+- `args` and `options` must be objects when present
+- the batch schema now validates required fields per operation, so invalid `update` or `distinct` entries fail before dispatch
+
+Examples:
+
+```json
+[
+  {
+    "target": "model",
+    "name": "User",
+    "op": "list",
+    "filter": { "public": true },
+    "args": { "select": ["name"], "pageSize": 10 },
+    "options": { "includeCount": true }
+  },
+  {
+    "target": "model",
+    "name": "User",
+    "op": "read",
+    "id": "user1",
+    "args": { "select": ["name", "role"] },
+    "options": { "tryList": false }
+  },
+  {
+    "target": "model",
+    "name": "User",
+    "op": "create",
+    "data": { "name": "user3", "role": "user" },
+    "options": { "includePermissions": false }
+  },
+  {
+    "target": "data",
+    "name": "FeaturedUsers",
+    "op": "list",
+    "filter": { "public": true },
+    "options": { "includeCount": true }
+  },
+  {
+    "target": "model",
+    "name": "User",
+    "op": "upsert",
+    "data": { "_id": "664c4f...", "role": "admin" },
+    "options": { "returningAll": true, "includePermissions": false }
+  },
+  {
+    "target": "model",
+    "name": "User",
+    "op": "subList",
+    "id": "664c4f...",
+    "sub": "comments",
+    "args": { "select": ["body", "votes"] }
+  },
+  {
+    "target": "model",
+    "name": "User",
+    "op": "subUpdate",
+    "id": "664c4f...",
+    "sub": "comments",
+    "subId": "664c51...",
+    "data": { "votes": 10 }
+  },
+  {
+    "target": "model",
+    "name": "User",
+    "op": "count",
+    "filter": { "public": false },
+    "options": { "access": "read" }
+  }
+]
+```
+
+Notes:
+
+- `filter` stays top-level for `list`, `read`-by-filter, `count`, and `distinct`
+- `target: "model"` dispatches through model public services
+- `target: "data"` dispatches through the data-router service flow for `list` and `read`
+- `create`, `list`, `read`, `update`, and `upsert` forward both `args` and `options` to the corresponding service methods when that operation supports them
+- model sub-document batching uses explicit ops: `subList`, `subRead`, `subCreate`, `subUpdate`, `subBulkUpdate`, `subDelete`
+- sub-document entries use top-level `id` for the parent document, `sub` for the sub-collection path, and `subId` when targeting a single nested document
+- `count` uses `options.access`, matching the dedicated advanced count route
+- model `upsert` currently follows the same runtime limitation as the dedicated route: it only supports the default `_id` identifier
+- there is no separate query-string layer on the root batch route, so it always uses the camelCase body naming style
+
+Each batch item returns a wrapper object:
+
+```ts
+{
+  index: number;
+  target: 'model' | 'data';
+  name: string;
+  op: string;
+  statusCode: number;
+  message: string;
+  result: ServiceResult;
+}
+```
+
+`result` preserves the underlying service-layer response shape instead of flattening it into a second root-only format.
 
 Use this when you want stricter application-level request validation on top of the built-in router boundary validation.
 
@@ -370,7 +564,7 @@ Validation order:
 
 ## Custom Route Validation
 
-The package also exports the same validation helpers used by the built-in public routers:
+The `advanced` subpath exports the same validation helpers used by the built-in public routers:
 
 - `parsePathParam`
 - `parseQuery`
@@ -381,13 +575,14 @@ The package also exports the same validation helpers used by the built-in public
 Example:
 
 ```ts
-import acl, {
+import acl from '@web-ts-toolkit/access-router';
+import {
   parseBody,
   parsePathParam,
   parseQuery,
   requestSchemas,
   readByIdBodySchema,
-} from '@web-ts-toolkit/access-router';
+} from '@web-ts-toolkit/access-router/advanced';
 
 const router = acl.createRouter('User', {
   basePath: '/users',
@@ -407,6 +602,25 @@ router.router.post('/custom/:id', async (req) => {
 ```
 
 These helpers throw the same `BadRequestError` shape as the built-in router endpoints, so custom routes can stay consistent with the package defaults.
+
+## Advanced Exports
+
+The main package entry keeps the common router/runtime API easy to discover.
+
+For lower-level extension points, prefer the `advanced` subpath:
+
+```ts
+import { parseBody, requestSchemas, MIDDLEWARE, Codes } from '@web-ts-toolkit/access-router/advanced';
+```
+
+Use `@web-ts-toolkit/access-router/advanced` when you specifically need low-level items such as:
+
+- validation helpers and schemas
+- low-level symbols
+- enum exports
+- deeper TypeScript contract types
+
+The main entrypoint stays focused on the common router/runtime API, while the `advanced` subpath is the intended import location for low-level usage.
 
 ## Lifecycle Phases
 
@@ -430,10 +644,12 @@ Effective model-router flows:
 
 The most common model hooks are called with `this` bound to the current Express request.
 
+Examples below use the exported `AccessRouterPermissions` type for the `permissions` argument.
+
 ### `baseFilter`
 
 ```ts
-(this: express.Request, permissions: Permissions) =>
+(this: express.Request, permissions: AccessRouterPermissions) =>
   | Filter
   | true
   | null
@@ -448,8 +664,8 @@ The most common model hooks are called with `this` bound to the current Express 
 ### `decorate`
 
 ```ts
-(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>
-  unknown | Promise<unknown>;
+(this: express.Request, value: ModelDocument<unknown>, permissions: AccessRouterPermissions, context: ModelHookContext) =>
+  ModelDocument<unknown> | Promise<ModelDocument<unknown>>;
 ```
 
 - Runs after a document has been loaded and trimmed.
@@ -458,7 +674,7 @@ The most common model hooks are called with `this` bound to the current Express 
 ### `overrideFilter`
 
 ```ts
-(this: express.Request, filter: Filter, permissions: Permissions) => Filter | Promise<Filter>;
+(this: express.Request, filter: Filter, permissions: AccessRouterPermissions) => Filter | Promise<Filter>;
 ```
 
 - Runs before the base filter is applied.
@@ -467,7 +683,7 @@ The most common model hooks are called with `this` bound to the current Express 
 ### `validate`
 
 ```ts
-(this: express.Request, allowedData: unknown, permissions: Permissions, context: MiddlewareContext) => boolean | unknown[] | Promise<boolean | unknown[]>
+(this: express.Request, allowedData: unknown, permissions: AccessRouterPermissions, context: ModelHookContext) => boolean | unknown[] | Promise<boolean | unknown[]>
 ```
 
 - Return `true` to allow the write.
@@ -477,7 +693,7 @@ The most common model hooks are called with `this` bound to the current Express 
 ### `prepare`
 
 ```ts
-(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>
+(this: express.Request, value: unknown, permissions: AccessRouterPermissions, context: ModelHookContext) =>
   unknown | Promise<unknown>;
 ```
 
@@ -487,51 +703,70 @@ The most common model hooks are called with `this` bound to the current Express 
 ### `transform`
 
 ```ts
-(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>
+(this: express.Request, value: unknown, permissions: AccessRouterPermissions, context: ModelHookContext) =>
   unknown | Promise<unknown>;
 ```
 
 - Runs during update flows before the document is saved.
 - Can also be an array of hook functions.
+- Must return a live Mongoose document instance.
 
 ### `afterPersist`
 
 ```ts
-(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>
-  unknown | Promise<unknown>;
+(this: express.Request, value: ModelDocument<unknown>, permissions: AccessRouterPermissions, context: ModelHookContext) =>
+  ModelDocument<unknown> | Promise<ModelDocument<unknown>>;
 ```
 
 - Runs after create or update persistence work and before response decoration.
 - Can also be an array of hook functions.
+- Must return a live Mongoose document instance.
 
 ### `beforeDelete`
 
 ```ts
-(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>
+(this: express.Request, value: ModelDocument<unknown>, permissions: AccessRouterPermissions, context: ModelHookContext) =>
   void | Promise<void>;
 ```
 
 - Runs after the target document has been loaded and authorized, before deletion.
 - Use it for last-minute checks or side effects that need the live document.
+- Use `context.currentDocument` for the live Mongoose document instance.
 
 ### `afterDelete`
 
 ```ts
-(this: express.Request, value: unknown, permissions: Permissions, context: MiddlewareContext) =>
+(this: express.Request, value: ModelDocument<unknown>, permissions: AccessRouterPermissions, context: ModelHookContext) =>
   void | Promise<void>;
 ```
 
 - Runs after deletion succeeds.
 - Use it for audit logs, cache invalidation, and external notifications.
+- Use `context.originalDocumentSnapshot` and `context.finalDocumentSnapshot` for plain-object snapshots.
 
 ### `docPermissions`
 
 ```ts
-(this: express.Request, doc: unknown, permissions: Permissions, context: MiddlewareContext) =>
+(this: express.Request, doc: unknown, permissions: AccessRouterPermissions, context: ModelHookContext) =>
   Record<string, unknown> | Promise<Record<string, unknown>>;
 ```
 
 - Returns the document-level permission object written to the configured permission field.
+
+## Hook Context
+
+`ModelHookContext` now exposes a bit more of the router's resolved state:
+
+- `operation`: the active lifecycle operation such as `list`, `read`, `create`, `update`, or `delete`
+- `allowedFields`: the field names that survived permission-based input filtering for create and update flows
+- `allowedData`: the raw input after permission-based filtering and before `prepare`
+- `resolvedQuery`: the resolved filter/select/populate/sort/pagination values for the current flow
+
+`DataHookContext` now includes:
+
+- `dataName`: the current data-router name
+- `operation`: the active decorate/decorateAll access value
+- `resolvedQuery`: the resolved filter/select/sort/pagination values passed through built-in data read/list routes
 
 ### Example
 

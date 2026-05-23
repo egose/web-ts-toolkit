@@ -1,58 +1,11 @@
-import mongoose from 'mongoose';
-import { addLeadingSlash, isNil, isString } from '@web-ts-toolkit/utils';
-import { OptionsManager, getNestedOption } from './manager';
 import { DataRouterOptions, ExtendedDataRouterOptions } from '../interfaces';
+import { defaultRuntime } from '../runtime';
+import { getActiveRuntime } from '../runtime-context';
 
-const pluralize = mongoose.pluralize();
-
-const dataOptions: Record<string, OptionsManager<DataRouterOptions, ExtendedDataRouterOptions>> = {};
-
-const defaultDataOptions: DataRouterOptions = {
-  basePath: null,
-  queryRouteSegment: '__query',
-};
-
-const normalizeBasePath = (name: string, value: string | null | undefined) => {
-  if (isNil(value)) {
-    return `/${pluralize(name)}`;
-  }
-
-  return isString(value) ? addLeadingSlash(value) : '';
-};
-
-const createDataOptions = <TData = unknown>(dataName: string) => {
-  const manager = new OptionsManager<DataRouterOptions, ExtendedDataRouterOptions>({
-    ...defaultDataOptions,
-    dataName,
-  });
-
-  manager
-    .onchange('basePath', function (newval, key, target, oldval) {
-      (target as Record<string, unknown>)[key] = normalizeBasePath(
-        dataName,
-        isString(newval) || isNil(newval) ? newval : undefined,
-      );
-    })
-    .build();
-
-  return manager;
-};
-
-const getOrCreateDataOptions = <TData = unknown>(dataName: string) => {
-  let manager = dataOptions[dataName];
-  if (!manager) {
-    manager = createDataOptions<TData>(dataName);
-    dataOptions[dataName] = manager;
-  }
-
-  return manager as OptionsManager<DataRouterOptions<TData>, ExtendedDataRouterOptions<TData>>;
-};
+const getRuntime = () => getActiveRuntime() ?? defaultRuntime;
 
 export const setDataOptions = <TData = unknown>(dataName: string, options: DataRouterOptions<TData>) => {
-  const manager = getOrCreateDataOptions<TData>(dataName);
-  const dataOptions = manager.fetch();
-
-  manager.assign({ ...dataOptions, ...options });
+  getRuntime().setDataOptions(dataName, options);
 };
 
 export const setDataOption = <K extends keyof DataRouterOptions<TData>, TData = unknown>(
@@ -60,14 +13,11 @@ export const setDataOption = <K extends keyof DataRouterOptions<TData>, TData = 
   key: K,
   value: DataRouterOptions<TData>[K],
 ) => {
-  const manager = getOrCreateDataOptions<TData>(dataName);
-
-  manager.set(key, value);
+  getRuntime().setDataOption(dataName, key, value);
 };
 
 export const getDataOptions = <TData = unknown>(dataName: string) => {
-  const manager = getOrCreateDataOptions<TData>(dataName);
-  return manager.fetch() as DataRouterOptions<TData>;
+  return getRuntime().getDataOptions<TData>(dataName);
 };
 
 export const getDataOption = <K extends keyof DataRouterOptions<TData>, TData = unknown>(
@@ -75,19 +25,16 @@ export const getDataOption = <K extends keyof DataRouterOptions<TData>, TData = 
   key: K | string,
   defaultValue?: DataRouterOptions<TData>[K],
 ) => {
-  const manager = getOrCreateDataOptions<TData>(dataName);
-
-  return getNestedOption(manager, key, defaultValue) as DataRouterOptions<TData>[K];
+  return getRuntime().getDataOption(dataName, key, defaultValue);
 };
 
 export const getExactDataOption = <K extends keyof ExtendedDataRouterOptions<TData>, TData = unknown>(
   dataName: string,
   key: K | string,
 ) => {
-  const manager = getOrCreateDataOptions<TData>(dataName);
-  return manager.get(key) as ExtendedDataRouterOptions<TData>[K];
+  return getRuntime().getExactDataOption(dataName, key);
 };
 
 export const getDataNames = () => {
-  return Object.keys(dataOptions);
+  return getRuntime().getDataNames();
 };

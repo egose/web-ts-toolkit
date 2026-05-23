@@ -1,10 +1,9 @@
 import { Response, NextFunction } from 'express';
-import { intersection } from '@web-ts-toolkit/utils';
 import { getDataOption } from './options';
 import {
   Projection,
   Filter,
-  DataMiddlewareContext,
+  DataHookContext,
   Validation,
   AccessRouterBaseRequest,
   DataRequest,
@@ -20,14 +19,23 @@ import { normalizeSelect, pickDocFields } from './helpers';
 import { DATA_MIDDLEWARE, PERMISSIONS, PERMISSION_KEYS } from './symbols';
 import { Cache } from './cache';
 import {
-  callHookChain,
-  collectSchemaFields,
-  evaluateRouteGuard,
-  getRequestPermissions,
-  resolveAccessFilter,
-  resolveIdentifierFilter,
-  setRequestPermissions,
-} from './core-shared';
+  canActivateRequest,
+  getGlobalPermissions,
+  getResolvedRequestPermissions,
+  initializeAclRequest,
+  setResolvedRequestPermissions,
+} from './acl/request-context';
+import { resolveAccessFilterForRequest, resolveIdentifierFilterForRequest } from './acl/filter-resolution';
+import { runDecorateAllHook, runDecorateHook } from './acl/hook-runner';
+import {
+  collectAllowedFieldsForRequest,
+  pickAllowedFieldsForRequest,
+  resolveSelectForRequest,
+} from './acl/select-resolution';
+import type { AccessRuntime } from './runtime';
+import { defaultRuntime } from './runtime';
+import { runWithRuntime } from './runtime-context';
+import {} from './core-shared';
 
 export class DataCore {
   private req: DataRequest;
@@ -47,7 +55,7 @@ export class DataCore {
     const resolveIdFilter = getDataOption(dataName, 'resolveIdFilter') as
       | ((this: DataRequest, id: string) => Filter<TData> | Promise<Filter<TData>>)
       | undefined;
-    return resolveIdentifierFilter<TData>(this.req, idField, resolveIdFilter, id);
+    return resolveIdentifierFilterForRequest<TData>({ req: this.req, idField, resolveIdFilter, id });
   }
 
   async genFilter<TData = unknown>(
@@ -58,7 +66,7 @@ export class DataCore {
     const permissions = this.getGlobalPermissions();
     const cacheKey = `${dataName}_baseFilter_${access}`;
 
-    return resolveAccessFilter<TData>({
+    return resolveAccessFilterForRequest<TData>({
       req: this.req,
       permissions,
       cache: this.caches.baseFilter,
@@ -74,7 +82,7 @@ export class DataCore {
 
     const permissions = this.getGlobalPermissions();
 
-    return collectSchemaFields({
+    return collectAllowedFieldsForRequest({
       req: this.req,
       permissionSchema,
       access,
@@ -85,8 +93,18 @@ export class DataCore {
   }
 
   async pickAllowedFields<TDoc>(dataName: string, doc: TDoc, access: SelectAccess, baseFields = []): Promise<TDoc> {
-    const allowed = await this.genAllowedFields(dataName, doc, access, baseFields);
-    return pickDocFields(doc, allowed) as TDoc;
+    const permissionSchema = getDataOption(dataName, 'permissionSchema') as Record<string, unknown> | null | undefined;
+    const permissions = this.getGlobalPermissions();
+
+    return pickAllowedFieldsForRequest({
+      req: this.req,
+      doc,
+      permissionSchema,
+      access,
+      baseFields,
+      hasPermission: (key) => permissions.has(key),
+      functionArgs: [permissions],
+    });
   }
 
   async genSelect(
@@ -96,59 +114,74 @@ export class DataCore {
     skipChecks = true,
     subPaths = [],
   ) {
-    let normalizedSelect = normalizeSelect(targetFields);
-
     const permissionSchema = getDataOption(dataName, ['permissionSchema'].concat(subPaths).join('.')) as
       | Record<string, unknown>
       | null
       | undefined;
-    if (!permissionSchema) return [];
 
     const permissions = this.getGlobalPermissions();
 
-    let fields = await collectSchemaFields({
+    return resolveSelectForRequest({
       req: this.req,
       permissionSchema,
       access,
-      hasPermission: (key) => {
-        if (permissions.prop(key)) {
-          return permissions.has(key);
-        }
-
-        return !!skipChecks;
-      },
+      targetFields,
+      skipChecks,
+      hasPermission: (key) => permissions.hasKey(key) && permissions.has(key),
       functionArgs: [permissions],
+      mode: 'data',
     });
-
-    fields = intersection(normalizedSelect, fields);
-    return fields;
   }
 
-  async decorate<TDoc>(dataName: string, doc: TDoc, access: DecorateAccess, context: DataMiddlewareContext = {}) {
+  async decorate<TDoc>(dataName: string, doc: TDoc, access: DecorateAccess, context: DataHookContext = {}) {
     const decorate = getDataOption(dataName, `decorate.${access}`, null) as Function | Function[];
 
     const permissions = this.getGlobalPermissions();
-    return callHookChain(this.req, decorate, doc, permissions, context);
+    return runDecorateHook({
+      req: this.req,
+      hook: decorate,
+      doc,
+      permissions,
+      context: {
+        dataName,
+        operation: access,
+        ...context,
+      },
+    });
   }
 
-  async decorateAll<TDoc>(dataName: string, docs: TDoc[], access: DecorateAllAccess): Promise<TDoc[]> {
+  async decorateAll<TDoc>(
+    dataName: string,
+    docs: TDoc[],
+    access: DecorateAllAccess,
+    context: DataHookContext = {},
+  ): Promise<TDoc[]> {
     const decorateAll = getDataOption(dataName, `decorateAll.${access}`, null) as Function | Function[];
     const permissions = this.getGlobalPermissions();
 
-    return callHookChain(this.req, decorateAll, docs, permissions, {});
+    return runDecorateAllHook({
+      req: this.req,
+      hook: decorateAll,
+      docs,
+      permissions,
+      context: {
+        dataName,
+        operation: access,
+        ...context,
+      },
+    });
   }
 
   getPermissions() {
-    return getRequestPermissions(this.req);
+    return getResolvedRequestPermissions(this.req);
   }
 
   async setPermissions() {
-    await setRequestPermissions(this.req);
+    await setResolvedRequestPermissions(this.req);
   }
 
   async canActivate(routeGuard: Validation) {
-    const permissions = this.getGlobalPermissions();
-    return evaluateRouteGuard(this.req, permissions, routeGuard);
+    return canActivateRequest(this.req, routeGuard);
   }
 
   async isAllowed(dataName: string, access: RouteGuardAccess | string) {
@@ -169,20 +202,25 @@ export class DataCore {
   }
 
   private getGlobalPermissions() {
-    return this.req[PERMISSIONS] as Permission;
+    return getGlobalPermissions(this.req);
   }
 }
 
-export async function setDataCore(req: AccessRouterBaseRequest, _res: Response, next: NextFunction) {
-  if (req[DATA_MIDDLEWARE]) return next();
+export const createSetDataCore = (runtime: AccessRuntime = defaultRuntime) => {
+  return async function setDataCoreMiddleware(req: AccessRouterBaseRequest, _res: Response, next: NextFunction) {
+    return runWithRuntime(runtime, async () => {
+      await initializeAclRequest({
+        req,
+        flag: DATA_MIDDLEWARE,
+        createCore: (request) => new DataCore(request),
+        assignCore: (core) => {
+          req.dacl = core;
+        },
+      });
 
-  const core = new DataCore(req);
-  await core.setPermissions();
+      next();
+    });
+  };
+};
 
-  req.dacl = core;
-  req[PERMISSIONS] = core.getPermissions();
-  req[PERMISSION_KEYS] = req[PERMISSIONS].$_permissionKeys;
-  req[DATA_MIDDLEWARE] = true;
-
-  next();
-}
+export const setDataCore = createSetDataCore(defaultRuntime);

@@ -6,6 +6,8 @@ It includes:
 
 - an in-memory `DataRouter` at `/fruit`
 - a `ModelRouter` at `/users` backed by `mongodb-memory-server`
+- a root batching router at `/batch`
+- a `combineRoutes(...)` example so the app mounts one merged router instead of calling `app.use(...)` per router
 
 ## Run
 
@@ -30,6 +32,7 @@ The app starts on `http://localhost:3000` by default.
 - `GET /users/:id`
 - `POST /users`
 - `PATCH /users/:id`
+- `POST /batch`
 
 ## Try it
 
@@ -94,6 +97,16 @@ curl \
   http://localhost:3000/users/alice
 ```
 
+Batch request:
+
+```sh
+curl \
+  -H 'content-type: application/json' \
+  -H 'user: admin' \
+  -d '[{"target":"data","name":"sample-fruit","op":"list"},{"target":"model","name":"SampleUser","op":"list"}]' \
+  http://localhost:3000/batch
+```
+
 ## Behavior
 
 - guests only see `public: true` records
@@ -102,6 +115,7 @@ curl \
 - guests only see public users
 - admins can create and update users
 - `/users` uses an ephemeral MongoDB instance seeded on startup
+- `/batch` can mix model and data operations in one request
 
 ## TypeScript Notes
 
@@ -109,7 +123,7 @@ The sample also demonstrates the package's typed router flow:
 
 - `acl.createDataRouter()` carries the `Fruit` shape into `filter`, `select`, and `getService()`
 - `acl.createRouter(UserModel, ...)` carries the `User` shape from the typed Mongoose model into router hooks and services
-- `apps/nodejs/src/access-router.d.ts` augments package-owned interfaces so `permissions.isAdmin` and `req.requestId` are available without extra annotations
+- `apps/nodejs/src/access-router.d.ts` augments package-owned interfaces so `permissions.has('isAdmin')` and `req.requestId` are available without extra annotations
 
 Relevant files:
 

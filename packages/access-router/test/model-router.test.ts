@@ -176,6 +176,42 @@ describe('model router', () => {
     });
   });
 
+  it('passes create hook context with operation and allowed input metadata', async () => {
+    let receivedContext: Record<string, unknown> | undefined;
+
+    const validate = vi.fn((_data, _permissions, context) => {
+      receivedContext = {
+        operation: context.operation,
+        originalData: context.originalData,
+        allowedData: context.allowedData,
+        allowedFields: context.allowedFields,
+        resolvedQuery: context.resolvedQuery,
+      };
+
+      return true;
+    });
+
+    const { app } = createUserApp({
+      globalPermissions: () => ['isAdmin'],
+      validate,
+    });
+
+    await request(app)
+      .post('/users?include_permissions=false')
+      .set('user', 'admin')
+      .send({ name: 'user-context', role: 'user', public: false, ignored: 'value' })
+      .expect(201);
+
+    expect(validate).toHaveBeenCalledOnce();
+    expect(receivedContext).toEqual({
+      operation: 'create',
+      originalData: { name: 'user-context', role: 'user', public: false, ignored: 'value' },
+      allowedData: { name: 'user-context', role: 'user', public: false },
+      allowedFields: ['name', 'role', 'public'],
+      resolvedQuery: {},
+    });
+  });
+
   it.each([true, [], null])('allows create requests for pass-through validators: %j', async (validate) => {
     const { app, createSpy } = createUserApp({
       globalPermissions: () => ({ isAdmin: true }),
@@ -209,6 +245,24 @@ describe('model router', () => {
       .expect(201);
 
     expect(afterPersist).toHaveBeenCalledOnce();
+  });
+
+  it('returns an internal error when afterPersist.create returns a plain object', async () => {
+    const { app } = createUserApp({
+      globalPermissions: () => ['isAdmin'],
+      validate: true,
+      afterPersist: () => ({ invalid: true }),
+    });
+
+    const response = await request(app)
+      .post('/users?include_permissions=false')
+      .set('user', 'admin')
+      .send({ name: 'user-after-persist-invalid', role: 'user', public: false })
+      .expect(422)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(response.body.detail).toContain('afterPersist hook');
+    expect(response.body.detail).toContain('Mongoose document instance');
   });
 
   it('preserves existing model overrides across partial option updates', () => {
@@ -280,5 +334,30 @@ describe('model router', () => {
     });
 
     expect(info).toHaveBeenCalled();
+  });
+
+  it('rejects changing build-time model route options after construction', () => {
+    const modelName = `AclUserModel${++modelCounter}`;
+    mongoose.model(
+      modelName,
+      new mongoose.Schema({
+        name: String,
+      }),
+    );
+
+    const router = acl.createRouter(modelName, {
+      basePath: '/users',
+      operationAccess: { read: true },
+      permissionSchema: {
+        name: { read: true },
+      },
+    });
+
+    expect(() => router.set('queryRouteSegment', '__custom')).toThrow(
+      'Cannot change queryRouteSegment after router construction because it is a build-time option',
+    );
+    expect(() => router.setOptions({ mutationRouteSegment: '__mut' })).toThrow(
+      'Cannot change mutationRouteSegment after router construction because it is a build-time option',
+    );
   });
 });

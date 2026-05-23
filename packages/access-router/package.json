@@ -19,6 +19,12 @@
       "require": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./advanced": {
+      "types": "./dist/advanced.d.ts",
+      "import": "./dist/advanced.mjs",
+      "require": "./dist/advanced.js",
+      "default": "./dist/advanced.js"
+    },
     "./processors": {
       "types": "./dist/processors.d.ts",
       "import": "./dist/processors.mjs",

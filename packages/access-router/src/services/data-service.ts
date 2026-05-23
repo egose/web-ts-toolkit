@@ -2,7 +2,7 @@ import { getDataOptions } from '../options';
 import { findElement, filterCollection, genPagination, parseSortString } from '../helpers';
 import { validateClientFilter } from './base';
 import {
-  DataMiddlewareContext,
+  DataHookContext,
   ErrorResult,
   Filter,
   ListResult,
@@ -137,12 +137,12 @@ export class DataService<T> {
     };
   }
 
-  public decorate<TDoc>(doc: TDoc, access: DecorateAccess, context?: DataMiddlewareContext): Promise<TDoc> {
+  public decorate<TDoc>(doc: TDoc, access: DecorateAccess, context?: DataHookContext): Promise<TDoc> {
     return this.req.dacl.decorate(this.dataName, doc, access, context);
   }
 
-  public decorateAll<TDoc>(docs: TDoc[], access: DecorateAllAccess): Promise<TDoc[]> {
-    return this.req.dacl.decorateAll(this.dataName, docs, access);
+  public decorateAll<TDoc>(docs: TDoc[], access: DecorateAllAccess, context?: DataHookContext): Promise<TDoc[]> {
+    return this.req.dacl.decorateAll(this.dataName, docs, access, context);
   }
 
   public genAllowedFields(doc: unknown, access: SelectAccess, baseFields?: string[]): Promise<string[]> {

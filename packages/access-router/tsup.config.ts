@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/processors.ts'],
+  entry: ['src/index.ts', 'src/advanced.ts', 'src/processors.ts'],
   format: ['cjs', 'esm'],
   dts: true,
   target: 'node20',

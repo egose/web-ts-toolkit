@@ -1,41 +1,20 @@
-import mongoose from 'mongoose';
-import { get, keys } from '@web-ts-toolkit/utils';
-import { buildRefs, buildSubPaths } from './helpers';
+import { defaultRuntime } from './runtime';
+import { getActiveRuntime, getRuntimeForModelName } from './runtime-context';
 
-const modelRefs: Record<string, Record<string, unknown>> = {};
-const modelSubs: { [key: string]: string[] } = {};
-const modelAtts: Record<string, string[]> = {};
+const getRuntime = (modelName: string) => getRuntimeForModelName(modelName) ?? getActiveRuntime() ?? defaultRuntime;
 
 export const ensureModelMeta = (modelName: string) => {
-  if (modelName in modelRefs && modelName in modelSubs && modelName in modelAtts) {
-    return;
-  }
-
-  const model = mongoose.models[modelName];
-  if (!model) {
-    modelRefs[modelName] = modelRefs[modelName] ?? {};
-    modelSubs[modelName] = modelSubs[modelName] ?? [];
-    modelAtts[modelName] = modelAtts[modelName] ?? [];
-    return;
-  }
-
-  const schema = model.schema;
-  modelRefs[modelName] = buildRefs(schema.tree);
-  modelSubs[modelName] = buildSubPaths(schema.tree);
-  modelAtts[modelName] = keys(schema.obj);
+  getRuntime(modelName).ensureModelMeta(modelName);
 };
 
 export const getModelRef = (modelName: string, refPath: string) => {
-  ensureModelMeta(modelName);
-  return get(modelRefs, `${modelName}.${refPath}`, null);
+  return getRuntime(modelName).getModelRef(modelName, refPath);
 };
 
 export const getModelSub = (modelName: string) => {
-  ensureModelMeta(modelName);
-  return get(modelSubs, modelName, []) as string[];
+  return getRuntime(modelName).getModelSub(modelName);
 };
 
 export const getModelAtt = (modelName: string) => {
-  ensureModelMeta(modelName);
-  return get(modelAtts, modelName, []);
+  return getRuntime(modelName).getModelAtt(modelName);
 };

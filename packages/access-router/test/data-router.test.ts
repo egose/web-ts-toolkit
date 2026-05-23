@@ -1,9 +1,9 @@
 import express from 'express';
 import request from 'supertest';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import acl, { getGlobalOptions, setGlobalOptions } from '../dist/index.mjs';
+import acl, { createAccessRuntime, getGlobalOptions, setGlobalOptions } from '../dist/index.mjs';
 import type { Request as AccessRequest } from '../src/interfaces';
 
 const resetGlobalOptions = () => {
@@ -331,6 +331,138 @@ describe('data router', () => {
     });
   });
 
+  it('injects data hook context metadata for decorate and decorateAll hooks', async () => {
+    const decorate = vi.fn((doc) => doc);
+    const decorateAll = vi.fn((docs) => docs);
+
+    const app = express();
+    const router = acl.createDataRouter('hook-fruit', {
+      basePath: '/hook-fruit',
+      idField: 'id',
+      operationAccess: {
+        list: true,
+      },
+      data: [{ id: 'apple', name: 'Apple' }],
+      permissionSchema: {
+        id: true,
+        name: true,
+      },
+      decorate: {
+        list: decorate,
+      },
+      decorateAll: {
+        list: decorateAll,
+      },
+    });
+
+    router.router.get('/custom/context', async (req) => {
+      const svc = router.getService(req);
+      await svc.decorate({ id: 'apple', name: 'Apple' }, 'list');
+      await svc.decorateAll([{ id: 'apple', name: 'Apple' }], 'list');
+
+      return {
+        decorateContext: decorate.mock.calls[0]?.[2],
+        decorateAllContext: decorateAll.mock.calls[0]?.[2],
+      };
+    });
+
+    app.use(express.json());
+    app.use(router.routes);
+
+    const response = await request(app).get('/hook-fruit/custom/context').expect(200).expect('Content-Type', /json/);
+
+    expect(response.body).toEqual({
+      decorateContext: {
+        dataName: 'hook-fruit',
+        operation: 'list',
+      },
+      decorateAllContext: {
+        dataName: 'hook-fruit',
+        operation: 'list',
+      },
+    });
+  });
+
+  it('applies built-in data route decorate hooks with resolved query metadata', async () => {
+    const app = express();
+    const router = acl.createDataRouter('route-hook-fruit', {
+      basePath: '/route-hook-fruit',
+      idField: 'id',
+      operationAccess: {
+        list: true,
+        read: true,
+      },
+      data: [
+        { id: 'apple', name: 'Apple' },
+        { id: 'pear', name: 'Pear' },
+      ],
+      permissionSchema: {
+        id: true,
+        name: true,
+      },
+      decorate: {
+        list(doc, _permissions, context) {
+          return {
+            ...doc,
+            decoratedOperation: context.operation,
+            queryLimit: context.resolvedQuery?.limit ?? null,
+          };
+        },
+        read(doc, _permissions, context) {
+          return {
+            ...doc,
+            decoratedOperation: context.operation,
+            queryFilter: context.resolvedQuery?.filter ?? null,
+          };
+        },
+      },
+      decorateAll: {
+        list(docs, _permissions, context) {
+          return docs.map((doc) => ({
+            ...doc,
+            decoratedAllOperation: context.operation,
+            querySkip: context.resolvedQuery?.skip ?? null,
+          }));
+        },
+      },
+    });
+
+    app.use(express.json());
+    app.use(router.routes);
+
+    const listResponse = await request(app).get('/route-hook-fruit?limit=1').expect(200).expect('Content-Type', /json/);
+
+    const readResponse = await request(app).get('/route-hook-fruit/apple').expect(200).expect('Content-Type', /json/);
+
+    expect(listResponse.body).toEqual({
+      data: [
+        {
+          id: 'apple',
+          name: 'Apple',
+          decoratedOperation: 'list',
+          decoratedAllOperation: 'list',
+          queryLimit: 1,
+          querySkip: 0,
+        },
+      ],
+      meta: {
+        returnedCount: 1,
+        skip: 0,
+        limit: 1,
+        page: 1,
+        pageSize: 1,
+        hasPreviousPage: false,
+      },
+    });
+
+    expect(readResponse.body).toEqual({
+      id: 'apple',
+      name: 'Apple',
+      decoratedOperation: 'read',
+      queryFilter: { id: 'apple' },
+    });
+  });
+
   it('rejects unsupported client filter operators for in-memory data queries', async () => {
     const app = createPetApp();
 
@@ -391,6 +523,34 @@ describe('data router', () => {
       detail: 'Bad Request',
       status: 400,
       errors: [{ pointer: '#' }],
+    });
+
+    const invalidSort = await request(app)
+      .post('/pets/__query')
+      .set('user', 'admin')
+      .send({ sort: { name: 1 } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidSort.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/sort' }],
+    });
+
+    const deadReadOptions = await request(app)
+      .post('/pets/__query/Max')
+      .set('user', 'admin')
+      .send({ options: {} })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(deadReadOptions.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/options' }],
     });
   });
 
@@ -514,10 +674,107 @@ describe('data router', () => {
     expect(getGlobalOptions().logger).toBe(injectedLogger);
   });
 
+  it('creates isolated runtime APIs with separate global options', () => {
+    const runtimeA = createAccessRuntime();
+    const runtimeB = createAccessRuntime();
+
+    runtimeA.set({ requestPermissionField: '__a' });
+    runtimeB.set({ requestPermissionField: '__b' });
+
+    expect(runtimeA.getGlobalOptions().requestPermissionField).toBe('__a');
+    expect(runtimeB.getGlobalOptions().requestPermissionField).toBe('__b');
+    expect(getGlobalOptions().requestPermissionField).not.toBe('__a');
+    expect(getGlobalOptions().requestPermissionField).not.toBe('__b');
+  });
+
+  it('rejects changing build-time data route options after construction', () => {
+    const router = acl.createDataRouter('immutable-fruit', {
+      basePath: '/fruit',
+      idField: 'id',
+      operationAccess: {
+        list: true,
+      },
+      data: [{ id: 'apple', name: 'Apple' }],
+      permissionSchema: {
+        id: true,
+        name: true,
+      },
+    });
+
+    expect(() => router.set('queryRouteSegment', '__custom')).toThrow(
+      'Cannot change queryRouteSegment after router construction because it is a build-time option',
+    );
+    expect(() => router.setOptions({ basePath: '/other-fruit' })).toThrow(
+      'Cannot change basePath after router construction because it is a build-time option',
+    );
+  });
+
+  it('exposes low-level APIs through the advanced subpath', async () => {
+    const advanced = await import('../dist/advanced.mjs');
+    const main = await import('../dist/index.mjs');
+
+    expect(advanced).toHaveProperty('parseBody');
+    expect(advanced).toHaveProperty('MIDDLEWARE');
+    expect(advanced).toHaveProperty('Codes');
+    expect(main).not.toHaveProperty('parseBody');
+    expect(main).not.toHaveProperty('MIDDLEWARE');
+    expect(main).not.toHaveProperty('Codes');
+  });
+
   it('creates a root router through the overloaded createRouter API', () => {
     const router = acl.createRouter({ basePath: '/api', operationAccess: true });
 
     expect(router).toBeInstanceOf(acl.RootRouter);
     expect(router.routes).toBeDefined();
+  });
+
+  it('combines router instances and express routers in the passed order', async () => {
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => [],
+    });
+
+    const healthRouter = express.Router();
+    healthRouter.get('/health', (_req, res) => {
+      res.json({ ok: true });
+    });
+
+    const firstOverlapRouter = express.Router();
+    firstOverlapRouter.get('/overlap', (_req, res) => {
+      res.json({ source: 'first' });
+    });
+
+    const secondOverlapRouter = express.Router();
+    secondOverlapRouter.get('/overlap', (_req, res) => {
+      res.json({ source: 'second' });
+    });
+
+    const fruitRouter = acl.createDataRouter('combined-fruit', {
+      basePath: '/fruit',
+      idField: 'name',
+      operationAccess: {
+        list: true,
+        read: true,
+      },
+      data: [{ name: 'apple', color: 'red', public: true }],
+      permissionSchema: {
+        name: true,
+        color: true,
+        public: true,
+      },
+    });
+
+    const app = express();
+    app.use(acl.combineRoutes(healthRouter, firstOverlapRouter, fruitRouter, secondOverlapRouter));
+
+    await request(app).get('/health').expect(200, { ok: true });
+    await request(app)
+      .get('/fruit')
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.data).toHaveLength(1);
+        expect(body.data[0]).toMatchObject({ name: 'apple', color: 'red', public: true });
+      });
+    await request(app).get('/overlap').expect(200, { source: 'first' });
   });
 });

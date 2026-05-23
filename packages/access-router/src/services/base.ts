@@ -22,7 +22,7 @@ import {
   Filter,
   Include,
   ListResult,
-  MiddlewareContext,
+  ModelHookContext,
   ModelRequest,
   Populate,
   Projection,
@@ -79,11 +79,11 @@ export class Base<TModel = unknown> {
     this.modelName = modelName;
   }
 
-  public decorate<T>(doc: T, access: DecorateAccess, context: MiddlewareContext): Promise<T> {
+  public decorate<T>(doc: T, access: DecorateAccess, context: ModelHookContext): Promise<T> {
     return this.req.macl.decorate(this.modelName, doc, access, context);
   }
 
-  public decorateAll<T>(docs: T[], access: DecorateAllAccess, context: MiddlewareContext): Promise<T[]> {
+  public decorateAll<T>(docs: T[], access: DecorateAllAccess, context: ModelHookContext): Promise<T[]> {
     return this.req.macl.decorateAll(this.modelName, docs, access, context);
   }
 
@@ -94,7 +94,7 @@ export class Base<TModel = unknown> {
   public genDocPermissions(
     doc: unknown,
     access: DocPermissionsAccess,
-    context: MiddlewareContext,
+    context: ModelHookContext,
   ): Promise<Record<string, unknown>> {
     return this.req.macl.genDocPermissions(this.modelName, doc, access, context);
   }
@@ -137,14 +137,14 @@ export class Base<TModel = unknown> {
     return this.req.macl.addEmptyPermissions(this.modelName, doc);
   }
 
-  public addDocPermissions<T>(doc: T, access: DocPermissionsAccess, context: MiddlewareContext): Promise<T> {
+  public addDocPermissions<T>(doc: T, access: DocPermissionsAccess, context: ModelHookContext): Promise<T> {
     return this.req.macl.addDocPermissions(this.modelName, doc, access, context);
   }
 
   public addFieldPermissions<T extends { _id?: unknown }>(
     doc: T,
     access: DocPermissionsAccess,
-    context: MiddlewareContext,
+    context: ModelHookContext,
   ): Promise<T> {
     return this.req.macl.addFieldPermissions(this.modelName, doc, access, context);
   }
@@ -157,7 +157,7 @@ export class Base<TModel = unknown> {
     return this.pickAllowedFields(doc, access, baseFields);
   }
 
-  public prepare<T>(allowedData: T, access: PrepareAccess, context: MiddlewareContext): Promise<T> {
+  public prepare<T>(allowedData: T, access: PrepareAccess, context: ModelHookContext): Promise<T> {
     return this.req.macl.prepare(this.modelName, allowedData, access, context);
   }
 
@@ -165,30 +165,30 @@ export class Base<TModel = unknown> {
     return this.req.macl.runTasks(this.modelName, docObject, tasks);
   }
 
-  public transform<T>(doc: T, access: TransformAccess, context: MiddlewareContext): Promise<T> {
+  public transform<T>(doc: T, access: TransformAccess, context: ModelHookContext): Promise<T> {
     return this.req.macl.transform(this.modelName, doc, access, context);
   }
 
-  public afterPersist<T>(doc: T, access: AfterPersistAccess, context: MiddlewareContext): Promise<T> {
+  public afterPersist<T>(doc: T, access: AfterPersistAccess, context: ModelHookContext): Promise<T> {
     return this.req.macl.afterPersist(this.modelName, doc, access, context);
   }
 
-  public changes(doc: Record<string, unknown>, context: MiddlewareContext): Promise<void> {
+  public changes(doc: Record<string, unknown>, context: ModelHookContext): Promise<void> {
     return this.req.macl.changes(this.modelName, doc, context);
   }
 
-  public beforeDelete<T>(doc: T, context: MiddlewareContext): Promise<void> {
+  public beforeDelete<T>(doc: T, context: ModelHookContext): Promise<void> {
     return this.req.macl.beforeDelete(this.modelName, doc, context);
   }
 
-  public afterDelete<T>(doc: T, context: MiddlewareContext): Promise<void> {
+  public afterDelete<T>(doc: T, context: ModelHookContext): Promise<void> {
     return this.req.macl.afterDelete(this.modelName, doc, context);
   }
 
   public validate(
     allowedData: unknown,
     access: ValidateAccess,
-    context: MiddlewareContext,
+    context: ModelHookContext,
   ): Promise<boolean | unknown[]> {
     return this.req.macl.validate(this.modelName, allowedData, access, context);
   }

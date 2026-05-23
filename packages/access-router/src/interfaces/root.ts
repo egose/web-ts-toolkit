@@ -1,10 +1,15 @@
 import express from 'express';
-import { Diff } from 'deep-diff';
 import type { z } from 'zod';
-import type { Core } from '../core';
-import type { DataCore } from '../core-data';
-import type { AccessRouterPermissions } from '../permission';
-import { DataMiddlewareContext, DataRequest, Filter, MiddlewareContext, ModelRequest, Validation } from './base';
+import {
+  DataHookContext,
+  DataRequest,
+  Filter,
+  ModelDocument,
+  ModelHookContext,
+  ModelRequest,
+  Validation,
+} from './base';
+import type { AccessRouterRequest } from './request';
 import { PublicCreateArgs, CreateArgs, PublicCreateOptions, CreateOptions } from './service-create';
 import {
   PublicUpdateArgs,
@@ -21,97 +26,36 @@ import { PublicReadArgs, PublicReadOptions } from './service-read';
 import { FindArgs, FindOptions, FindOneArgs, FindOneOptions, FindByIdArgs, FindByIdOptions } from './service-find';
 import { ExistsOptions } from './service-exists';
 import { DistinctArgs } from './service';
+import type {
+  AccessRouterFieldKey,
+  DataBaseFilterHook,
+  DataHook,
+  DataIdentifierHook,
+  DataListHook,
+  DataOverrideFilterHook,
+  GlobalPermissionValue,
+  MaybePromise,
+  ModelBaseFilterHook,
+  ModelChangeHook,
+  ModelDeleteHook,
+  ModelDocPermissionsHook,
+  ModelDocumentHook,
+  ModelHook,
+  ModelIdentifierHook,
+  ModelListHook,
+  ModelOverrideFilterHook,
+  ModelValidateHook,
+  ValidateRule,
+} from './router-hooks';
+export * from './request';
+export * from './access';
+export * from './router-hooks';
 
 interface DefaultFindOneArgs<TModel = unknown> extends Omit<FindOneArgs<TModel>, 'overrides'> {}
 interface DefaultFindByIdArgs<TModel = unknown> extends Omit<FindByIdArgs<TModel>, 'overrides'> {}
 interface DefaultFindArgs<TModel = unknown> extends Omit<FindArgs<TModel>, 'overrides'> {}
 
-type MaybePromise<T> = T | Promise<T>;
 type RequestZodSchema = z.ZodTypeAny;
-
-export interface AccessRouterRequestExtensions {
-  macl?: Core;
-  dacl?: DataCore;
-}
-
-export type AccessRouterRequest = express.Request & AccessRouterRequestExtensions;
-
-export type AccessRouterFieldKey<T> = [Extract<keyof T, string>] extends [never] ? string : Extract<keyof T, string>;
-
-export type IdentifierHook<TValue, TRequest extends AccessRouterRequest = AccessRouterRequest> = (
-  this: TRequest,
-  id: string,
-) => MaybePromise<Filter<TValue>>;
-
-type GlobalPermissionValue = Record<string, boolean> | string[] | string | null | undefined;
-
-type BaseFilterHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
-  this: TRequest,
-  permissions: AccessRouterPermissions,
-) => MaybePromise<Filter | true | null | undefined>;
-
-type OverrideFilterHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
-  this: TRequest,
-  filter: Filter,
-  permissions: AccessRouterPermissions,
-) => MaybePromise<Filter>;
-
-type Hook<TValue, TContext, TRequest extends AccessRouterRequest = AccessRouterRequest> = (
-  this: TRequest,
-  value: TValue,
-  permissions: AccessRouterPermissions,
-  context: TContext,
-) => MaybePromise<TValue>;
-
-type HookChain<TValue, TContext, TRequest extends AccessRouterRequest = AccessRouterRequest> =
-  | Hook<TValue, TContext, TRequest>
-  | Array<Hook<TValue, TContext, TRequest>>;
-
-type ValidateRule = boolean | unknown[];
-
-type ValidateHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
-  this: TRequest,
-  allowedData: unknown,
-  permissions: AccessRouterPermissions,
-  context: MiddlewareContext,
-) => MaybePromise<ValidateRule>;
-
-type DocPermissionsHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
-  this: TRequest,
-  doc: unknown,
-  permissions: AccessRouterPermissions,
-  context: MiddlewareContext,
-) => MaybePromise<Record<string, unknown>>;
-
-type ChangeHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
-  this: TRequest,
-  previousValue: unknown,
-  nextValue: unknown,
-  changes: Diff<unknown>[],
-  context: MiddlewareContext,
-) => MaybePromise<void>;
-
-type DeleteHook<TValue = unknown, TRequest extends AccessRouterRequest = AccessRouterRequest> = (
-  this: TRequest,
-  value: TValue,
-  permissions: AccessRouterPermissions,
-  context: MiddlewareContext,
-) => MaybePromise<void>;
-
-type ModelBaseFilterHook = BaseFilterHook<ModelRequest>;
-type DataBaseFilterHook = BaseFilterHook<DataRequest>;
-type ModelOverrideFilterHook = OverrideFilterHook<ModelRequest>;
-type DataOverrideFilterHook = OverrideFilterHook<DataRequest>;
-type ModelIdentifierHook<TValue = unknown> = IdentifierHook<TValue, ModelRequest>;
-type DataIdentifierHook<TValue = unknown> = IdentifierHook<TValue, DataRequest>;
-type ModelValidateHook = ValidateHook<ModelRequest>;
-type ModelDocPermissionsHook = DocPermissionsHook<ModelRequest>;
-type ModelChangeHook = ChangeHook<ModelRequest>;
-type ModelDeleteHook<TValue = unknown> = DeleteHook<TValue, ModelRequest>;
-type ModelHook<TValue = unknown> = HookChain<TValue, MiddlewareContext, ModelRequest>;
-type ModelListHook<TValue = unknown> = HookChain<TValue[], MiddlewareContext, ModelRequest>;
-type DataHook<TValue = unknown> = HookChain<TValue, DataMiddlewareContext, DataRequest>;
-type DataListHook<TValue = unknown> = HookChain<TValue[], DataMiddlewareContext, DataRequest>;
 
 type SubRouteGuardOptions = Record<string, Validation | Record<string, Validation>>;
 
@@ -188,10 +132,12 @@ export interface RootRouterOptions {
 }
 
 interface OperationAccess {
+  new?: Validation;
   list?: Validation;
   create?: Validation;
   read?: Validation;
   update?: Validation;
+  upsert?: Validation;
   delete?: Validation;
   distinct?: Validation;
   count?: Validation;
@@ -247,8 +193,8 @@ export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouter
   decorateAll?: ModelListHook<TModel> | Record<string, ModelListHook<TModel>>;
   validate?: ValidateRule | ModelValidateHook | Record<string, ValidateRule | ModelValidateHook>;
   prepare?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
-  transform?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
-  afterPersist?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
+  transform?: ModelDocumentHook<TModel> | Record<string, ModelDocumentHook<TModel>>;
+  afterPersist?: ModelDocumentHook<TModel> | Record<string, ModelDocumentHook<TModel>>;
   onChange?: Record<string, ModelChangeHook>;
   beforeDelete?: ModelDeleteHook<TModel>;
   afterDelete?: ModelDeleteHook<TModel>;
@@ -310,11 +256,11 @@ export interface ExtendedModelRouterOptions<TModel = unknown>
   'prepare.default'?: ModelHook;
   'prepare.create'?: ModelHook;
   'prepare.update'?: ModelHook;
-  'transform.default'?: ModelHook;
-  'transform.update'?: ModelHook;
-  'afterPersist.default'?: ModelHook;
-  'afterPersist.create'?: ModelHook;
-  'afterPersist.update'?: ModelHook;
+  'transform.default'?: ModelDocumentHook;
+  'transform.update'?: ModelDocumentHook;
+  'afterPersist.default'?: ModelDocumentHook;
+  'afterPersist.create'?: ModelDocumentHook;
+  'afterPersist.update'?: ModelDocumentHook;
   onChange?: Record<string, ModelChangeHook>;
   'requestSchemas.create'?: RequestZodSchema;
   'requestSchemas.update'?: RequestZodSchema;
@@ -365,24 +311,3 @@ export interface ExtendedDataRouterOptions<TData = unknown> extends DataRouterOp
   'requestSchemas.advancedReadFilter'?: RequestZodSchema;
   'requestSchemas.advancedRead'?: RequestZodSchema;
 }
-
-export type SelectAccess = 'list' | 'create' | 'read' | 'update' | string;
-export type RouteGuardAccess =
-  | 'new'
-  | 'list'
-  | 'read'
-  | 'update'
-  | 'delete'
-  | 'create'
-  | 'distinct'
-  | 'count'
-  | 'subs'
-  | string;
-export type DocPermissionsAccess = 'list' | 'create' | 'read' | 'update' | string;
-export type BaseFilterAccess = 'list' | 'read' | 'update' | 'delete' | string;
-export type DecorateAccess = 'list' | 'create' | 'read' | 'update' | string;
-export type DecorateAllAccess = 'list' | string;
-export type ValidateAccess = 'create' | 'update' | string;
-export type PrepareAccess = 'create' | 'update' | string;
-export type TransformAccess = 'update' | string;
-export type AfterPersistAccess = 'create' | 'update' | string;

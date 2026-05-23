@@ -2,12 +2,15 @@ import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
 import type { z } from 'zod';
 import { isPlainObject, isString, isUndefined } from '@web-ts-toolkit/utils';
-import { setDataCore } from '../core-data';
-import { setDataOption, setDataOptions, getDataOptions, getExactDataOption } from '../options';
+import { createSetDataCore } from '../core-data';
+import { decorateDataListResult, decorateDataSingleResult } from '../http/response-pipelines/data-response';
+import type { AccessRuntime } from '../runtime';
+import { defaultRuntime } from '../runtime';
 import { processUrl } from '../lib';
 import { handleResultError } from '../helpers';
 import { DataRouterOptions, ExtendedDataRouterOptions, DataRequest, Filter } from '../interfaces';
 import { DataService } from '../services';
+import { assertMutableRouterOption, assertMutableRouterOptions } from './router-mutation';
 import { formatListResponse, parseBooleanString } from './shared';
 import { accessRouterResponseHandler } from './index';
 import {
@@ -31,29 +34,32 @@ function setOption<TData>(this: DataRouter<TData>, parentKey: string, optionKey:
   const key = isUndefined(option) ? parentKey : `${parentKey}.${optionKey}`;
   const value = isUndefined(option) ? optionKey : option;
 
-  setDataOption(this.dataName, key as keyof DataRouterOptions<TData>, value);
+  assertMutableRouterOption('data', key);
+  this.runtime.setDataOption(this.dataName, key as keyof DataRouterOptions<TData>, value);
   return this;
 }
 
 export class DataRouter<TData = unknown> {
+  readonly runtime: AccessRuntime;
   readonly dataName: string;
   readonly router: JsonRouter;
   readonly options: DataRouterOptions<TData>;
   readonly fullBasePath: string;
 
-  constructor(dataName: string, initialOptions: DataRouterOptions<TData>) {
-    setDataOptions(dataName, initialOptions);
-    this.options = getDataOptions<TData>(dataName);
+  constructor(dataName: string, initialOptions: DataRouterOptions<TData>, runtime: AccessRuntime = defaultRuntime) {
+    this.runtime = runtime;
+    this.runtime.setDataOptions(dataName, initialOptions);
+    this.options = this.runtime.getDataOptions<TData>(dataName);
     this.fullBasePath = processUrl(this.options.parentPath + this.options.basePath);
     this.dataName = dataName;
-    this.router = new JsonRouter(this.options.basePath, setDataCore, accessRouterResponseHandler);
+    this.router = new JsonRouter(this.options.basePath, createSetDataCore(this.runtime), accessRouterResponseHandler);
 
     this.setCollectionRoutes();
     this.setDocumentRoutes();
   }
 
   private getRequestSchema(key: string) {
-    return getExactDataOption<keyof ExtendedDataRouterOptions<TData>, TData>(
+    return this.runtime.getExactDataOption<keyof ExtendedDataRouterOptions<TData>, TData>(
       this.dataName,
       key as keyof ExtendedDataRouterOptions<TData>,
     ) as z.ZodTypeAny | undefined;
@@ -98,7 +104,9 @@ export class DataRouter<TData = unknown> {
 
       handleResultError(result);
 
-      return formatListResponse(req, result, includeCount, includeExtraHeaders);
+      const decoratedResult = await decorateDataListResult(svc, result);
+
+      return formatListResponse(req, decoratedResult, includeCount, includeExtraHeaders);
     });
 
     /////////////////////
@@ -129,7 +137,9 @@ export class DataRouter<TData = unknown> {
 
       handleResultError(result);
 
-      return formatListResponse(req, result, includeCount, includeExtraHeaders);
+      const decoratedResult = await decorateDataListResult(svc, result);
+
+      return formatListResponse(req, decoratedResult, includeCount, includeExtraHeaders);
     });
   }
 
@@ -149,7 +159,9 @@ export class DataRouter<TData = unknown> {
 
       handleResultError(result);
 
-      return result.data;
+      const decoratedResult = await decorateDataSingleResult(svc, result);
+
+      return decoratedResult.data;
     });
 
     //////////////////////////////
@@ -169,7 +181,9 @@ export class DataRouter<TData = unknown> {
 
       handleResultError(result);
 
-      return result.data;
+      const decoratedResult = await decorateDataSingleResult(svc, result);
+
+      return decoratedResult.data;
     });
 
     /////////////////////
@@ -190,7 +204,9 @@ export class DataRouter<TData = unknown> {
 
       handleResultError(result);
 
-      return result.data;
+      const decoratedResult = await decorateDataSingleResult(svc, result);
+
+      return decoratedResult.data;
     });
   }
 
@@ -198,23 +214,27 @@ export class DataRouter<TData = unknown> {
   set(options: DataRouterOptions<TData>): this;
   set<K extends keyof DataRouterOptions<TData>>(keyOrOptions: K | DataRouterOptions<TData>, value?: unknown) {
     if (arguments.length === 2 && isString(keyOrOptions)) {
-      setDataOption<K, TData>(this.dataName, keyOrOptions as K, value as DataRouterOptions<TData>[K]);
+      assertMutableRouterOption('data', keyOrOptions as string);
+      this.runtime.setDataOption<K, TData>(this.dataName, keyOrOptions as K, value as DataRouterOptions<TData>[K]);
     }
 
     if (arguments.length === 1 && isPlainObject(keyOrOptions)) {
-      setDataOptions<TData>(this.dataName, keyOrOptions as DataRouterOptions<TData>);
+      assertMutableRouterOptions('data', keyOrOptions as Record<string, unknown>);
+      this.runtime.setDataOptions<TData>(this.dataName, keyOrOptions as DataRouterOptions<TData>);
     }
 
     return this;
   }
 
   setOption<K extends keyof DataRouterOptions<TData>>(key: K, option: DataRouterOptions<TData>[K]) {
-    setDataOption<K, TData>(this.dataName, key, option);
+    assertMutableRouterOption('data', key as string);
+    this.runtime.setDataOption<K, TData>(this.dataName, key, option);
     return this;
   }
 
   setOptions(options: DataRouterOptions<TData>) {
-    setDataOptions<TData>(this.dataName, options);
+    assertMutableRouterOptions('data', options as Record<string, unknown>);
+    this.runtime.setDataOptions<TData>(this.dataName, options);
     return this;
   }
 
