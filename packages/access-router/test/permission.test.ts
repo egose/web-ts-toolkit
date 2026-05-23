@@ -13,6 +13,8 @@ describe('Permission', () => {
     expect(permissions.keys).toEqual(['read']);
     expect(permissions.has('read')).toBe(true);
     expect(permissions.has('edit')).toBe(false);
+    expect(permissions.hasKey('read')).toBe(true);
+    expect(permissions.hasKey('edit')).toBe(false);
   });
 
   it('supports both variadic and array-based checks', () => {
