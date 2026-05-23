@@ -18,7 +18,7 @@ __webpack_require__.d(__webpack_exports__, {
 });
 
 ;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-index-md-24b.json
-const site_docs_packages_index_md_24b_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/index","title":"Package Documentation","description":"This site is the primary documentation home for the current web-ts-toolkit workspace packages.","source":"@site/docs/packages/index.md","sourceDirName":"packages","slug":"/packages/","permalink":"/docs/packages/","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":0,"frontMatter":{"sidebar_label":"Overview","sidebar_position":0},"sidebar":"packagesSidebar","next":{"title":"Access Router","permalink":"/docs/packages/access-router"}}');
+const site_docs_packages_index_md_24b_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/index","title":"Package Documentation","description":"This site is the primary documentation home for the current web-ts-toolkit workspace packages.","source":"@site/docs/packages/index.md","sourceDirName":"packages","slug":"/packages/","permalink":"/docs/packages/","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":0,"frontMatter":{"sidebar_label":"Overview","sidebar_position":0},"sidebar":"packagesSidebar","next":{"title":"Overview","permalink":"/docs/packages/access-router/"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
