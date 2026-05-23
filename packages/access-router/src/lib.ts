@@ -1,5 +1,5 @@
 import { Document, Schema } from 'mongoose';
-import { addLeadingSlash, isPlainObject, isPromise } from '@web-ts-toolkit/utils';
+import { isPlainObject } from '@web-ts-toolkit/utils';
 
 export class PermissionDoc extends Document {
   _doc: Record<string, unknown>;
@@ -17,35 +17,3 @@ export const isReference = (val: unknown) => isPlainObject(val) && !!val.ref && 
 export const isDocument = function isDocument(doc: unknown): doc is PermissionDoc {
   return doc instanceof Document;
 };
-
-export const toAsyncFn = function toAsyncFn<TArgs extends unknown[], TResult>(
-  fn?: ((this: unknown, ...args: TArgs) => TResult | PromiseLike<TResult>) | null,
-  defaultValue?: TResult,
-) {
-  if (!fn) return () => Promise.resolve(defaultValue);
-  return function asyncFn(this: unknown, ...args: TArgs) {
-    const ret = fn.apply(this, args);
-    return isPromise(ret) ? ret : Promise.resolve(ret);
-  };
-};
-
-export const mapValuesAsync = async function mapValuesAsync<TObject extends Record<string, unknown>, TResult>(
-  object: TObject,
-  asyncFn: (value: TObject[keyof TObject], key: string, object: TObject) => Promise<TResult> | TResult,
-) {
-  return Object.fromEntries(
-    await Promise.all(Object.entries(object).map(async ([key, value]) => [key, await asyncFn(value, key, object)])),
-  );
-};
-
-export const arrToObj = (arr: string[]): Record<string, true> => {
-  const obj: Record<string, true> = {};
-  for (let x = 0; x < arr.length; x++) {
-    obj[arr[x]] = true;
-  }
-  return obj;
-};
-
-export const removeConsecutiveSlashesFromUrl = (url) => url.replace(/\/{2,}/g, '/');
-
-export const processUrl = (url) => addLeadingSlash(removeConsecutiveSlashesFromUrl(url));

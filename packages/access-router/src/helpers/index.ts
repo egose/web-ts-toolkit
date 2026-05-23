@@ -3,8 +3,8 @@ export * from './document';
 export * from './errors';
 export * from './query';
 
-import { forEach, isArray, isEmpty, isObject, isPlainObject, isString, noop } from '@web-ts-toolkit/utils';
-import { isSchema, isReference, mapValuesAsync } from '../lib';
+import { forEach, isArray, isEmpty, isObject, isPlainObject, isString, mapValuesAsync, noop } from '@web-ts-toolkit/utils';
+import { isSchema, isReference } from '../lib';
 import { FilterOperator } from '../enums';
 
 type SchemaTree = Record<string, unknown>;

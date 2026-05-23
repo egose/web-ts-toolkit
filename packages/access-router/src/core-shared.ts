@@ -1,5 +1,6 @@
 import {
   castArray,
+  arrayToRecord,
   isArray,
   isBoolean,
   isEmpty,
@@ -11,7 +12,6 @@ import {
 import { Cache } from './cache';
 import { createValidator } from './helpers';
 import { AccessRouterBaseRequest, Filter, Validation } from './interfaces';
-import { arrToObj } from './lib';
 import { getGlobalOption } from './options';
 import Permission, { Permissions } from './permission';
 
@@ -168,7 +168,7 @@ export async function setRequestPermissions(req: AccessRouterBaseRequest) {
 
   const permissions = await globalPermissions.call(req, req);
   if (isPlainObject(permissions)) req[requestPermissionField] = permissions;
-  else if (isArray(permissions)) req[requestPermissionField] = arrToObj(permissions);
+  else if (isArray(permissions)) req[requestPermissionField] = arrayToRecord(permissions);
   else if (isString(permissions)) req[requestPermissionField] = { [permissions]: true };
 }
 
