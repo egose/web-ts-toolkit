@@ -1,4 +1,4 @@
-import JsonRouter from '@web-ts-toolkit/express-json-router';
+import { formatModelUpsertResponse, unwrapServiceData } from '../http/response-pipelines/model-response';
 import type { BaseFilterAccess, Filter, ModelRequest, PopulateAccess } from '../interfaces';
 import {
   type AdvancedReadBody,
@@ -22,10 +22,8 @@ import {
   upsertBodySchema,
 } from './validation';
 import { handleResultError } from '../helpers';
-import { formatUpsertCreatedData, parseBooleanString } from './shared';
+import { parseBooleanString } from './shared';
 import type { ModelRouterRouteContext } from './model-router-context';
-
-const success = JsonRouter.success;
 
 export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<TModel>) {
   const { router, options, modelName } = context;
@@ -38,7 +36,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     handleResultError(result);
 
-    return result.data;
+    return unwrapServiceData(result);
   });
 
   router.post('/count', async (req: ModelRequest) => {
@@ -57,7 +55,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     handleResultError(result);
 
-    return result.data;
+    return unwrapServiceData(result);
   });
 
   router.get(`/:${options.idParam}`, async (req: ModelRequest) => {
@@ -77,7 +75,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     handleResultError(result);
 
-    return result.data;
+    return unwrapServiceData(result);
   });
 
   router.post(`/${options.queryRouteSegment}/__filter`, async (req: ModelRequest) => {
@@ -101,7 +99,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     handleResultError(result);
 
-    return result.data;
+    return unwrapServiceData(result);
   });
 
   router.post(`/${options.queryRouteSegment}/:${options.idParam}`, async (req: ModelRequest) => {
@@ -126,7 +124,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     handleResultError(result);
 
-    return result.data;
+    return unwrapServiceData(result);
   });
 
   router.patch(`/:${options.idParam}`, async (req: ModelRequest) => {
@@ -149,7 +147,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     handleResultError(result);
 
-    return result.data;
+    return unwrapServiceData(result);
   });
 
   router.patch(`/${options.mutationRouteSegment}/:${options.idParam}`, async (req: ModelRequest) => {
@@ -187,7 +185,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     handleResultError(result);
 
-    return result.data;
+    return unwrapServiceData(result);
   });
 
   router.put(`/`, async (req: ModelRequest) => {
@@ -207,7 +205,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     handleResultError(result);
 
-    return result.kind === 'list' ? new success.Created(formatUpsertCreatedData(result)) : result.data;
+    return formatModelUpsertResponse(result);
   });
 
   router.put(`/${options.mutationRouteSegment}`, async (req: ModelRequest) => {
@@ -241,7 +239,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     );
 
     handleResultError(result);
-    return result.kind === 'list' ? new success.Created(formatUpsertCreatedData(result)) : result.data;
+    return formatModelUpsertResponse(result);
   });
 
   router.delete(`/:${options.idParam}`, async (req: ModelRequest) => {
@@ -253,7 +251,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     handleResultError(result);
 
-    return result.data;
+    return unwrapServiceData(result);
   });
 
   router.get('/distinct/:field', async (req: ModelRequest) => {
@@ -265,7 +263,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     handleResultError(result);
 
-    return result.data;
+    return unwrapServiceData(result);
   });
 
   router.post('/distinct/:field', async (req: ModelRequest) => {
@@ -283,6 +281,6 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     handleResultError(result);
 
-    return result.data;
+    return unwrapServiceData(result);
   });
 }

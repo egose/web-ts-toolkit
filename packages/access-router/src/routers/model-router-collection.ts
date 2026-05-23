@@ -1,4 +1,8 @@
-import JsonRouter from '@web-ts-toolkit/express-json-router';
+import {
+  formatModelCreatedResponse,
+  formatModelListResponse,
+  unwrapServiceData,
+} from '../http/response-pipelines/model-response';
 import type { Filter, ModelRequest, PopulateAccess } from '../interfaces';
 import {
   type AdvancedCreateBody,
@@ -12,10 +16,8 @@ import {
   requestSchemas,
 } from './validation';
 import { handleResultError } from '../helpers';
-import { formatCreatedData, formatListResponse, parseBooleanString } from './shared';
+import { parseBooleanString } from './shared';
 import type { ModelRouterRouteContext } from './model-router-context';
-
-const success = JsonRouter.success;
 
 export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContext<TModel>) {
   const { router, options } = context;
@@ -43,7 +45,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
 
     handleResultError(result);
 
-    return formatListResponse(req, result, includeCount, includeExtraHeaders);
+    return formatModelListResponse(req, result, includeCount, includeExtraHeaders);
   });
 
   router.post(`/${options.queryRouteSegment}`, async (req: ModelRequest) => {
@@ -74,7 +76,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
 
     handleResultError(result);
 
-    return formatListResponse(req, result, includeCount, includeExtraHeaders);
+    return formatModelListResponse(req, result, includeCount, includeExtraHeaders);
   });
 
   router.post('', async (req: ModelRequest) => {
@@ -88,7 +90,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
 
     handleResultError(result);
 
-    return new success.Created(formatCreatedData(result));
+    return formatModelCreatedResponse(result);
   });
 
   router.post(`/${options.mutationRouteSegment}`, async (req: ModelRequest) => {
@@ -123,7 +125,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
 
     handleResultError(result);
 
-    return new success.Created(formatCreatedData(result));
+    return formatModelCreatedResponse(result);
   });
 
   router.get('/new', async (req: ModelRequest) => {
@@ -132,6 +134,6 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
 
     handleResultError(result);
 
-    return result.data;
+    return unwrapServiceData(result);
   });
 }

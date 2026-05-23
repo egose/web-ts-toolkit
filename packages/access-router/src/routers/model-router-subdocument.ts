@@ -1,5 +1,5 @@
-import JsonRouter from '@web-ts-toolkit/express-json-router';
 import { isString } from '@web-ts-toolkit/utils';
+import { formatModelCreatedResponse, unwrapServiceData } from '../http/response-pipelines/model-response';
 import { getModelSub } from '../meta';
 import type { ModelRequest, SubPopulate } from '../interfaces';
 import {
@@ -13,8 +13,6 @@ import {
 } from './validation';
 import { handleResultError } from '../helpers';
 import type { ModelRouterRouteContext } from './model-router-context';
-
-const success = JsonRouter.success;
 
 export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteContext<TModel>) {
   const subs = getModelSub(context.modelName);
@@ -30,7 +28,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
       const result = await svc.listSub(id, sub);
 
       handleResultError(result);
-      return result.data;
+      return unwrapServiceData(result);
     });
 
     context.router.post(
@@ -48,7 +46,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
         const result = await svc.listSub(id, sub, { filter: body.filter ?? {}, select: body.select ?? [] });
 
         handleResultError(result);
-        return result.data;
+        return unwrapServiceData(result);
       },
     );
 
@@ -65,7 +63,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
       const result = await svc.bulkUpdateSub(id, sub, data);
 
       handleResultError(result);
-      return result.data;
+      return unwrapServiceData(result);
     });
 
     context.router.get(`/:${context.options.idParam}/${sub}/:subId`, async (req: ModelRequest) => {
@@ -77,7 +75,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
       const result = await svc.readSub(id, sub, subId);
 
       handleResultError(result);
-      return result.data;
+      return unwrapServiceData(result);
     });
 
     context.router.post(
@@ -102,7 +100,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
         const result = await svc.readSub(id, sub, subId, { select: body.select ?? [], populate: normalizedPopulate });
 
         handleResultError(result);
-        return result.data;
+        return unwrapServiceData(result);
       },
     );
 
@@ -120,7 +118,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
       const result = await svc.updateSub(id, sub, subId, data);
 
       handleResultError(result);
-      return result.data;
+      return unwrapServiceData(result);
     });
 
     context.router.post(`/:${context.options.idParam}/${sub}`, async (req: ModelRequest) => {
@@ -137,7 +135,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
 
       handleResultError(result);
 
-      return new success.Created(result.data);
+      return formatModelCreatedResponse(result);
     });
 
     context.router.delete(`/:${context.options.idParam}/${sub}/:subId`, async (req: ModelRequest) => {
@@ -149,7 +147,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
       const result = await svc.deleteSub(id, sub, subId);
 
       handleResultError(result);
-      return result.data;
+      return unwrapServiceData(result);
     });
   }
 }

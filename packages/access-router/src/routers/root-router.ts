@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import { isNumber as _isNumber, isString, orderBy as _orderBy } from '@web-ts-toolkit/utils';
 import { setCore } from '../core';
 import { setDataCore } from '../core-data';
+import { decorateDataListResult, decorateDataSingleResult } from '../http/response-pipelines/data-response';
 import { mapCodeToMessage, mapCodeToStatusCode } from '../helpers';
 import { accessRouterResponseHandler } from './index';
 import { getDataNames } from '../options';
@@ -133,18 +134,11 @@ export class RootRouter {
         return result;
       }
 
-      const decorateContext = {
-        dataName: item.name,
-        operation: 'list',
-        resolvedQuery: result.query,
-      };
-      const decoratedDocs = await Promise.all(result.data.map((doc) => svc.decorate(doc, 'list', decorateContext)));
-      const data = await svc.decorateAll(decoratedDocs, 'list', decorateContext);
+      const decoratedResult = await decorateDataListResult(svc, result, { dataName: item.name });
 
       return {
-        ...result,
-        data,
-        totalCount: item.options?.includeCount ? result.totalCount : null,
+        ...decoratedResult,
+        totalCount: item.options?.includeCount ? decoratedResult.totalCount : null,
       };
     },
     read: async (req, item: RootDataReadByIdQueryEntry | RootDataReadByFilterQueryEntry) => {
@@ -157,13 +151,7 @@ export class RootRouter {
         return result;
       }
 
-      const data = await svc.decorate(result.data, 'read', {
-        dataName: item.name,
-        operation: 'read',
-        resolvedQuery: result.query,
-      });
-
-      return { ...result, data };
+      return decorateDataSingleResult(svc, result, { dataName: item.name });
     },
   };
 

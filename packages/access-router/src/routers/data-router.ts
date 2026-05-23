@@ -3,6 +3,7 @@ import type { Router } from 'express';
 import type { z } from 'zod';
 import { isPlainObject, isString, isUndefined } from '@web-ts-toolkit/utils';
 import { setDataCore } from '../core-data';
+import { decorateDataListResult, decorateDataSingleResult } from '../http/response-pipelines/data-response';
 import { setDataOption, setDataOptions, getDataOptions, getExactDataOption } from '../options';
 import { processUrl } from '../lib';
 import { handleResultError } from '../helpers';
@@ -98,11 +99,9 @@ export class DataRouter<TData = unknown> {
 
       handleResultError(result);
 
-      const decorateContext = { resolvedQuery: result.query };
-      const decoratedDocs = await Promise.all(result.data.map((doc) => svc.decorate(doc, 'list', decorateContext)));
-      const data = await svc.decorateAll(decoratedDocs, 'list', decorateContext);
+      const decoratedResult = await decorateDataListResult(svc, result);
 
-      return formatListResponse(req, { ...result, data }, includeCount, includeExtraHeaders);
+      return formatListResponse(req, decoratedResult, includeCount, includeExtraHeaders);
     });
 
     /////////////////////
@@ -133,11 +132,9 @@ export class DataRouter<TData = unknown> {
 
       handleResultError(result);
 
-      const decorateContext = { resolvedQuery: result.query };
-      const decoratedDocs = await Promise.all(result.data.map((doc) => svc.decorate(doc, 'list', decorateContext)));
-      const data = await svc.decorateAll(decoratedDocs, 'list', decorateContext);
+      const decoratedResult = await decorateDataListResult(svc, result);
 
-      return formatListResponse(req, { ...result, data }, includeCount, includeExtraHeaders);
+      return formatListResponse(req, decoratedResult, includeCount, includeExtraHeaders);
     });
   }
 
@@ -157,9 +154,9 @@ export class DataRouter<TData = unknown> {
 
       handleResultError(result);
 
-      const data = await svc.decorate(result.data, 'read', { resolvedQuery: result.query });
+      const decoratedResult = await decorateDataSingleResult(svc, result);
 
-      return data;
+      return decoratedResult.data;
     });
 
     //////////////////////////////
@@ -179,9 +176,9 @@ export class DataRouter<TData = unknown> {
 
       handleResultError(result);
 
-      const data = await svc.decorate(result.data, 'read', { resolvedQuery: result.query });
+      const decoratedResult = await decorateDataSingleResult(svc, result);
 
-      return data;
+      return decoratedResult.data;
     });
 
     /////////////////////
@@ -202,9 +199,9 @@ export class DataRouter<TData = unknown> {
 
       handleResultError(result);
 
-      const data = await svc.decorate(result.data, 'read', { resolvedQuery: result.query });
+      const decoratedResult = await decorateDataSingleResult(svc, result);
 
-      return data;
+      return decoratedResult.data;
     });
   }
 
