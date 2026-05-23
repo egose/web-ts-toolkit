@@ -3,8 +3,6 @@ import {
   castArray,
   compact,
   flatten,
-  forEach,
-  get,
   intersectionBy,
   isArray,
   isBoolean,
@@ -19,18 +17,7 @@ import {
 import diff from 'deep-diff';
 import Model from '../model';
 import { getModelOption, getModelOptions } from '../options';
-import {
-  getDocPermissions,
-  genPagination,
-  normalizeSelect,
-  populateDoc,
-  filterCollection,
-  findElement,
-  findElementById,
-  matchElement,
-  toObject,
-  genSubPopulate,
-} from '../helpers';
+import { getDocPermissions, genPagination, normalizeSelect, populateDoc, matchElement, toObject } from '../helpers';
 import {
   Filter,
   Include,
@@ -69,6 +56,32 @@ import { Codes, StatusCodes } from '../enums';
 import { Base } from './base';
 import { logger } from '../logger';
 import { isDocument } from '../lib';
+import {
+  resolveCreateArgs,
+  resolveCreateOptions,
+  resolveExistsOptions,
+  resolveFindArgs,
+  resolveFindByIdArgs,
+  resolveFindByIdOptions,
+  resolveFindOneArgs,
+  resolveFindOneOptions,
+  resolveFindOptions,
+  resolveUpdateByIdArgs,
+  resolveUpdateByIdOptions,
+  resolveUpdateOneArgs,
+  resolveUpdateOneOptions,
+  resolveUpsertArgs,
+  resolveUpsertOptions,
+} from './service-defaults';
+import {
+  bulkUpdateSub as bulkUpdateSubImpl,
+  createSub as createSubImpl,
+  deleteSub as deleteSubImpl,
+  getParentDoc as getParentDocImpl,
+  listSub as listSubImpl,
+  readSub as readSubImpl,
+  updateSub as updateSubImpl,
+} from './service-subdocuments';
 
 type ServiceHookContext = ModelHookContext & {
   diff?(doc: Document): void;
@@ -673,132 +686,63 @@ export class Service<TModel = unknown> extends Base<TModel> {
   }
 
   private resolveFindOneArgs(args: FindOneArgs<TModel> = {}) {
-    return {
-      select: args.select ?? this.defaults.findOneArgs?.select,
-      sort: args.sort ?? this.defaults.findOneArgs?.sort,
-      populate: args.populate ?? this.defaults.findOneArgs?.populate,
-      include: args.include ?? this.defaults.findOneArgs?.include,
-      overrides: args.overrides ?? {},
-    };
+    return resolveFindOneArgs(this, args);
   }
 
   private resolveFindOneOptions(options: FindOneOptions = {}) {
-    return {
-      skim: options.skim ?? this.defaults.findOneOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.findOneOptions?.includePermissions ?? true,
-      access: options.access ?? this.defaults.findOneOptions?.access ?? 'read',
-      populateAccess: options.populateAccess ?? this.defaults.findOneOptions?.populateAccess,
-      lean: options.lean ?? this.defaults.findOneOptions?.lean ?? false,
-    };
+    return resolveFindOneOptions(this, options);
   }
 
   private resolveFindByIdArgs(args: FindByIdArgs<TModel> = {}) {
-    return {
-      select: args.select ?? this.defaults.findByIdArgs?.select,
-      populate: args.populate ?? this.defaults.findByIdArgs?.populate,
-      include: args.include ?? this.defaults.findByIdArgs?.include,
-      overrides: args.overrides ?? {},
-    };
+    return resolveFindByIdArgs(this, args);
   }
 
   private resolveFindByIdOptions(options: FindByIdOptions = {}) {
-    return {
-      skim: options.skim ?? this.defaults.findByIdOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.findByIdOptions?.includePermissions ?? true,
-      access: options.access ?? this.defaults.findByIdOptions?.access ?? 'read',
-      populateAccess: options.populateAccess ?? this.defaults.findByIdOptions?.populateAccess,
-      lean: options.lean ?? this.defaults.findByIdOptions?.lean ?? false,
-    };
+    return resolveFindByIdOptions(this, options);
   }
 
   private resolveFindArgs(args: FindArgs<TModel> = {}) {
-    return {
-      select: args.select ?? this.defaults.findArgs?.select,
-      populate: args.populate ?? this.defaults.findArgs?.populate,
-      include: args.include ?? this.defaults.findArgs?.include,
-      sort: args.sort ?? this.defaults.findArgs?.sort,
-      skip: args.skip ?? this.defaults.findArgs?.skip,
-      limit: args.limit ?? this.defaults.findArgs?.limit,
-      page: args.page ?? this.defaults.findArgs?.page,
-      pageSize: args.pageSize ?? this.defaults.findArgs?.pageSize,
-      overrides: args.overrides ?? {},
-    };
+    return resolveFindArgs(this, args);
   }
 
   private resolveFindOptions(options: FindOptions = {}) {
-    return {
-      skim: options.skim ?? this.defaults.findOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.findOptions?.includePermissions ?? true,
-      includeCount: options.includeCount ?? this.defaults.findOptions?.includeCount ?? false,
-      populateAccess: options.populateAccess ?? this.defaults.findOptions?.populateAccess ?? 'read',
-      lean: options.lean ?? this.defaults.findOptions?.lean ?? false,
-    };
+    return resolveFindOptions(this, options);
   }
 
   private resolveCreateArgs(args: CreateArgs = {}) {
-    return {
-      populate: args.populate ?? this.defaults.createArgs?.populate,
-    };
+    return resolveCreateArgs(this, args);
   }
 
   private resolveCreateOptions(options: CreateOptions = {}) {
-    return {
-      skim: options.skim ?? this.defaults.createOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.createOptions?.includePermissions ?? true,
-      populateAccess: options.populateAccess ?? this.defaults.createOptions?.populateAccess ?? 'read',
-    };
+    return resolveCreateOptions(this, options);
   }
 
   private resolveUpdateOneArgs(args: UpdateOneArgs<TModel> = {}) {
-    return {
-      populate: args.populate ?? this.defaults.updateOneArgs?.populate,
-      overrides: args.overrides ?? {},
-    };
+    return resolveUpdateOneArgs(this, args);
   }
 
   private resolveUpdateOneOptions(options: UpdateOneOptions = {}) {
-    return {
-      skim: options.skim ?? this.defaults.updateOneOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.updateOneOptions?.includePermissions ?? true,
-      populateAccess: options.populateAccess ?? this.defaults.updateOneOptions?.populateAccess ?? 'read',
-    };
+    return resolveUpdateOneOptions(this, options);
   }
 
   private resolveUpdateByIdArgs(args: UpdateByIdArgs<TModel> = {}) {
-    return {
-      populate: args.populate ?? this.defaults.updateByIdArgs?.populate,
-      overrides: args.overrides ?? {},
-    };
+    return resolveUpdateByIdArgs(this, args);
   }
 
   private resolveUpdateByIdOptions(options: UpdateByIdOptions = {}) {
-    return {
-      skim: options.skim ?? this.defaults.updateByIdOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.updateByIdOptions?.includePermissions ?? true,
-      populateAccess: options.populateAccess ?? this.defaults.updateByIdOptions?.populateAccess ?? 'read',
-    };
+    return resolveUpdateByIdOptions(this, options);
   }
 
   private resolveUpsertArgs(args: UpsertArgs<TModel> = {}) {
-    return {
-      populate: args.populate ?? this.defaults.upsertArgs?.populate,
-      overrides: args.overrides ?? {},
-    };
+    return resolveUpsertArgs(this, args);
   }
 
   private resolveUpsertOptions(options: UpsertOptions = {}) {
-    return {
-      skim: options.skim ?? this.defaults.upsertOptions?.skim ?? false,
-      includePermissions: options.includePermissions ?? this.defaults.upsertOptions?.includePermissions ?? true,
-      populateAccess: options.populateAccess ?? this.defaults.upsertOptions?.populateAccess ?? 'read',
-    };
+    return resolveUpsertOptions(this, options);
   }
 
   private resolveExistsOptions(options: ExistsOptions = {}) {
-    return {
-      access: options.access ?? this.defaults.existsOptions?.access ?? 'read',
-      includeId: options.includeId ?? this.defaults.existsOptions?.includeId ?? false,
-    };
+    return resolveExistsOptions(this, options);
   }
 
   private async getFieldPermissionAccess(ids: unknown[]) {
@@ -828,23 +772,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
   }
 
   async listSub(id, sub, options?: { filter: Filter; select: string[] }): Promise<ListResult | ErrorResult> {
-    let { filter: ft, select } = options ?? {};
-
-    const parentDoc = await this.getParentDoc(id, sub, null, { access: 'read' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound };
-    let result = get(parentDoc, sub) as Record<string, unknown>[];
-
-    const [subFilter, subSelect] = await Promise.all([
-      this.genFilter(`subs.${sub}.list`, ft as Filter<TModel>),
-      this.genQuerySelect('list', select, false, [sub, 'sub']),
-    ]);
-
-    if (subFilter === false) return { success: false, code: Codes.Forbidden };
-
-    result = filterCollection(result, subFilter);
-    if (subSelect) result = result.map((v) => pick(toObject(v), subSelect.concat('_id')));
-
-    return { success: true, kind: 'list', code: Codes.Success, data: result, count: result.length };
+    return listSubImpl(this, id, sub, options);
   }
 
   public async readSub(
@@ -853,123 +781,23 @@ export class Service<TModel = unknown> extends Base<TModel> {
     subId,
     options?: { select: string[]; populate: SubPopulate | SubPopulate[] },
   ): Promise<SingleResult | ErrorResult> {
-    let { select, populate } = options ?? {};
-
-    const parentDoc = await this.getParentDoc(id, sub, { populate }, { access: 'read' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound };
-    const result = get(parentDoc, sub) as Record<string, unknown>[];
-
-    const [subFilter, subSelect] = await Promise.all([
-      this.genFilter(`subs.${sub}.read`, { _id: subId }),
-      this.genQuerySelect('read', select, false, [sub, 'sub']),
-    ]);
-
-    if (subFilter === false) return { success: false, code: Codes.Forbidden };
-
-    let subdoc = findElement(result, subFilter) as Record<string, unknown> | undefined;
-    if (!subdoc) return { success: false, code: Codes.NotFound };
-
-    if (subSelect) subdoc = pick(toObject(subdoc), subSelect.concat(['_id']));
-    return { success: true, kind: 'single', code: Codes.Success, data: subdoc };
+    return readSubImpl(this, id, sub, subId, options);
   }
 
   public async updateSub(id, sub, subId, data): Promise<SingleResult | ErrorResult> {
-    const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound };
-    const result = get(parentDoc, sub) as Record<string, unknown>[];
-
-    const [subFilter, subReadSelect, subUpdateSelect] = await Promise.all([
-      this.genFilter(`subs.${sub}.update`, { _id: subId }),
-      this.genQuerySelect('read', null, false, [sub, 'sub']),
-      this.genQuerySelect('update', null, false, [sub, 'sub']),
-    ]);
-
-    if (subFilter === false) return { success: false, code: Codes.Forbidden };
-
-    let subdoc = findElement(result, subFilter) as Record<string, unknown> | undefined;
-    if (!subdoc) return { success: false, code: Codes.NotFound };
-
-    const allowedData = pick(data, subUpdateSelect);
-    Object.assign(subdoc, allowedData);
-
-    await parentDoc.save();
-    if (subReadSelect) subdoc = pick(toObject(subdoc), subReadSelect.concat(['_id']));
-    return { success: true, kind: 'single', code: Codes.Success, data: subdoc };
+    return updateSubImpl(this, id, sub, subId, data);
   }
 
   public async bulkUpdateSub(id, sub, data): Promise<ListResult | ErrorResult> {
-    const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound };
-    let result = get(parentDoc, sub) as Array<Record<string, unknown> & { _id?: unknown }>;
-
-    data = castArray(data);
-
-    const [subFilter, subReadSelect, subUpdateSelect] = await Promise.all([
-      this.genFilter(`subs.${sub}.update`, { _id: { $in: data.map((v) => v._id) } }),
-      this.genQuerySelect('read', null, false, [sub, 'sub']),
-      this.genQuerySelect('update', null, false, [sub, 'sub']),
-    ]);
-
-    if (subFilter === false) return { success: false, code: Codes.Forbidden };
-
-    result = filterCollection(result, subFilter);
-    forEach(result, (subdoc: Record<string, unknown> & { _id?: unknown }) => {
-      const tdata = findElementById(data, subdoc._id as string);
-      if (!tdata) return;
-
-      const allowedData = pick(tdata as object, subUpdateSelect);
-      Object.assign(subdoc, allowedData);
-    });
-
-    await parentDoc.save();
-    if (subReadSelect) result = result.map((v) => pick(toObject(v), subReadSelect.concat(['_id'])));
-    return { success: true, kind: 'list', code: Codes.Success, data: result, count: result.length };
+    return bulkUpdateSubImpl(this, id, sub, castArray(data));
   }
 
   public async createSub(id, sub, data, options?: { addFirst: boolean }): Promise<ListResult | ErrorResult> {
-    const { addFirst } = options ?? {};
-
-    const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound };
-    let result = get(parentDoc, sub) as Record<string, unknown>[];
-
-    const [subCreateSelect, subReadSelect] = await Promise.all([
-      this.genQuerySelect('create', null, false, [sub, 'sub']),
-      this.genQuerySelect('read', null, false, [sub, 'sub']),
-    ]);
-
-    const allowedData = pick(data, subCreateSelect);
-    addFirst === true ? result.unshift(allowedData) : result.push(allowedData);
-
-    await parentDoc.save();
-    if (subReadSelect) result = result.map((v) => pick(toObject(v), subReadSelect.concat(['_id'])));
-    return { success: true, kind: 'list', code: Codes.Created, data: result, count: result.length };
+    return createSubImpl(this, id, sub, data, options);
   }
 
   public async deleteSub(id, sub, subId): Promise<SingleResult | ErrorResult> {
-    const parentDoc = await this.getParentDoc(id, sub, null, { access: 'update' });
-    if (!parentDoc) return { success: false, code: Codes.NotFound };
-    const result = get(parentDoc, sub) as Array<
-      Record<string, unknown> & { _id?: unknown; deleteOne?: () => Promise<unknown>; remove?: () => Promise<unknown> }
-    >;
-
-    const subFilter = await this.genFilter(`subs.${sub}.delete`, { _id: subId });
-    if (subFilter === false) return { success: false, code: Codes.Forbidden };
-
-    const subdoc = findElement(result, subFilter) as
-      | (Record<string, unknown> & {
-          _id?: unknown;
-          deleteOne?: () => Promise<unknown>;
-          remove?: () => Promise<unknown>;
-        })
-      | undefined;
-    if (!subdoc) return { success: false, code: Codes.NotFound };
-
-    // starting from version 7.x, the 'deleteOne' method replaces the 'remove' method for subdocuments.
-    // see https://mongoosejs.com/docs/subdocs.html#removing-subdocs
-    await ('deleteOne' in subdoc ? subdoc.deleteOne?.() : subdoc.remove?.());
-    await parentDoc.save();
-    return { success: true, kind: 'single', code: Codes.Success, data: subdoc._id };
+    return deleteSubImpl(this, id, sub, subId);
   }
 
   public async getParentDoc(
@@ -978,12 +806,6 @@ export class Service<TModel = unknown> extends Base<TModel> {
     args?: { populate?: SubPopulate | SubPopulate[] },
     options?: { access?: BaseFilterAccess; lean?: boolean },
   ) {
-    const { populate } = args ?? {};
-    const { access = 'read', lean = false } = options ?? {};
-
-    const parentFilter = await this.genFilter(access, await this.genIDFilter(id));
-
-    if (parentFilter === false) return null;
-    return this.model.findOne({ filter: parentFilter, select: sub, populate: genSubPopulate(sub, populate), lean });
+    return getParentDocImpl(this, id, sub, args, options);
   }
 }
