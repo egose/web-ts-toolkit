@@ -6,6 +6,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+import type { ModelRouterOptions } from '@web-ts-toolkit/access-router';
 
 import { createAdapter, DataService, Model, ModelService, ServiceError } from '../src';
 
@@ -82,10 +83,10 @@ const endpoints = {} as {
 };
 
 const seedState = {} as {
-  admin: mongoose.Document<unknown, {}, User> & User;
-  lucy2: mongoose.Document<unknown, {}, User> & User;
-  org1: mongoose.Document<unknown, {}, Org> & Org;
-  org2: mongoose.Document<unknown, {}, Org> & Org;
+  admin: mongoose.HydratedDocument<User>;
+  lucy2: mongoose.HydratedDocument<User>;
+  org1: mongoose.HydratedDocument<Org>;
+  org2: mongoose.HydratedDocument<Org>;
 };
 
 async function listen(app: express.Express) {
@@ -124,6 +125,18 @@ async function seedDatabase() {
 
   Object.assign(seedState, { admin, lucy2, org1, org2 });
 }
+
+const requestSchemas = {
+  advancedCreate: {
+    data: z.object({ name: z.string().min(3), role: z.string().min(2), public: z.boolean().optional() }).passthrough(),
+  },
+  advancedUpdate: {
+    data: z.object({ role: z.string().min(2) }).passthrough(),
+  },
+  advancedUpsert: {
+    data: z.record(z.string(), z.unknown()),
+  },
+} as unknown as NonNullable<ModelRouterOptions<User>['requestSchemas']>;
 
 beforeAll(async () => {
   mongoServer = await MongoMemoryServer.create();
@@ -167,19 +180,7 @@ beforeAll(async () => {
       orgs: true,
       statusHistory: true,
     },
-    requestSchemas: {
-      advancedCreate: {
-        data: z
-          .object({ name: z.string().min(3), role: z.string().min(2), public: z.boolean().optional() })
-          .passthrough(),
-      },
-      advancedUpdate: {
-        data: z.object({ role: z.string().min(2) }).passthrough(),
-      },
-      advancedUpsert: {
-        data: z.record(z.string(), z.unknown()),
-      },
-    } as any,
+    requestSchemas,
   });
 
   const orgRouter = runtime.createRouter(ORG_MODEL_NAME, {
@@ -218,7 +219,7 @@ beforeAll(async () => {
   });
 
   const rootRouter = runtime.createRouter({
-    basePath: '/api/macl',
+    basePath: '/api/root',
     operationAccess: true,
   });
 

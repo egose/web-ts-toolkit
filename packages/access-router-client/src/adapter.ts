@@ -2,7 +2,7 @@ import axios, { mergeConfig, AxiosRequestConfig } from 'axios';
 import { castArray, isEmpty, set } from '@web-ts-toolkit/utils';
 import { ModelService, DataService } from './services';
 import { Model } from './model';
-import { DataPromiseMeta, ModelPromiseMeta, ResponseCallback, RootQueryMeta, WrapOptions } from './types';
+import { DataPromiseMeta, Document, ModelPromiseMeta, ResponseCallback, RootQueryMeta, WrapOptions } from './types';
 import { Defaults, DataDefaults } from './interface';
 import { useCacheInterceptors } from './services/interceptors';
 import { getWrapContext } from './helpers';
@@ -22,25 +22,43 @@ const defaultAxiosConfig = Object.freeze({
 const isModelQuery = (query: RootQueryMeta): query is Extract<RootQueryMeta, { target: 'model' }> =>
   query.target === 'model';
 
-export function createAdapter(
-  axiosConfig?: AxiosRequestConfig,
-  egoseOptions?: {
-    rootRouterPath?: string;
-    onSuccess?: ResponseCallback;
-    onFailure?: ResponseCallback;
-    throwOnError?: boolean;
-    cacheTTL?: number;
-  },
-) {
+interface AdapterOptions {
+  rootRouterPath?: string;
+  onSuccess?: ResponseCallback;
+  onFailure?: ResponseCallback;
+  throwOnError?: boolean;
+  cacheTTL?: number;
+}
+
+interface ModelServiceOptions {
+  modelName: string;
+  basePath: string;
+  queryPath?: string;
+  mutationPath?: string;
+  onSuccess?: ResponseCallback;
+  onFailure?: ResponseCallback;
+  throwOnError?: boolean;
+}
+
+interface DataServiceOptions {
+  dataName: string;
+  basePath: string;
+  queryPath?: string;
+  onSuccess?: ResponseCallback;
+  onFailure?: ResponseCallback;
+  throwOnError?: boolean;
+}
+
+export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?: AdapterOptions) {
   const merged = mergeConfig(defaultAxiosConfig, axiosConfig ?? {});
   const instance = axios.create(merged);
   const {
-    rootRouterPath = 'macl',
+    rootRouterPath = 'root',
     onSuccess: onSuccessRoot,
     onFailure: onFailureRoot,
     throwOnError: throwOnErrorRoot,
     cacheTTL = 0,
-  } = egoseOptions ?? {};
+  } = adapterOptions ?? {};
 
   if (cacheTTL > 0) useCacheInterceptors(instance, cacheTTL);
 
@@ -55,15 +73,7 @@ export function createAdapter(
         onSuccess,
         onFailure,
         throwOnError,
-      }: {
-        modelName: string;
-        basePath: string;
-        queryPath?: string;
-        mutationPath?: string;
-        onSuccess?: ResponseCallback;
-        onFailure?: ResponseCallback;
-        throwOnError?: boolean;
-      },
+      }: ModelServiceOptions,
       defaults?: Defaults,
     ) => {
       return new ModelService<T>(
@@ -81,22 +91,7 @@ export function createAdapter(
       );
     },
     createDataService: <T>(
-      {
-        dataName,
-        basePath,
-        queryPath = '__query',
-        onSuccess,
-        onFailure,
-        throwOnError,
-      }: {
-        dataName: string;
-        basePath: string;
-        queryPath?: string;
-        mutationPath?: string;
-        onSuccess?: ResponseCallback;
-        onFailure?: ResponseCallback;
-        throwOnError?: boolean;
-      },
+      { dataName, basePath, queryPath = '__query', onSuccess, onFailure, throwOnError }: DataServiceOptions,
       defaults?: DataDefaults,
     ) => {
       return new DataService<T>(
@@ -112,7 +107,7 @@ export function createAdapter(
         defaults,
       );
     },
-    wrapGet: <T = any>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) => {
+    wrapGet: <T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) => {
       set(defaultAxiosRequestConfig, `headers.${CACHE_HEADER}`, 'true');
       return (options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
         const { finalUrl, finalConfig } = getWrapContext(
@@ -124,9 +119,9 @@ export function createAdapter(
         return instance.get<T>(finalUrl, finalConfig);
       };
     },
-    wrapPost: <T = any>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) => {
+    wrapPost: <T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) => {
       set(defaultAxiosRequestConfig, `headers.${CACHE_HEADER}`, 'false');
-      return (data?: any, options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
+      return (data?: unknown, options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
         const { finalUrl, finalConfig } = getWrapContext(
           url,
           options,
@@ -136,9 +131,9 @@ export function createAdapter(
         return instance.post<T>(finalUrl, data, finalConfig);
       };
     },
-    wrapPut: <T = any>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) => {
+    wrapPut: <T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) => {
       set(defaultAxiosRequestConfig, `headers.${CACHE_HEADER}`, 'false');
-      return (data?: any, options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
+      return (data?: unknown, options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
         const { finalUrl, finalConfig } = getWrapContext(
           url,
           options,
@@ -148,9 +143,9 @@ export function createAdapter(
         return instance.put<T>(finalUrl, data, finalConfig);
       };
     },
-    wrapPatch: <T = any>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) => {
+    wrapPatch: <T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) => {
       set(defaultAxiosRequestConfig, `headers.${CACHE_HEADER}`, 'false');
-      return (data?: any, options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
+      return (data?: unknown, options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
         const { finalUrl, finalConfig } = getWrapContext(
           url,
           options,
@@ -160,7 +155,7 @@ export function createAdapter(
         return instance.patch<T>(finalUrl, data, finalConfig);
       };
     },
-    wrapDelete: <T = any>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) => {
+    wrapDelete: <T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) => {
       set(defaultAxiosRequestConfig, `headers.${CACHE_HEADER}`, 'false');
       return (options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
         const { finalUrl, finalConfig } = getWrapContext(
@@ -192,7 +187,7 @@ export function createAdapter(
           if (!success) {
             _data = null;
           } else if (isModelQuery(query)) {
-            const modelService = service as ModelService<any>;
+            const modelService = service as ModelService<Document>;
 
             if (result.kind === 'list' && Array.isArray(result.data)) {
               if (op === 'create' && result.data.length === 1) {
@@ -224,33 +219,3 @@ export function createAdapter(
     },
   });
 }
-
-// TYPE TESTS
-
-// const __adapter = createAdapter({ baseURL: 'http://127.0.0.1:3000/api' });
-
-// interface User {
-//   name?: string;
-//   role?: string;
-//   statusHistory?: any[];
-//   public?: boolean;
-//   [key: string]: any;
-// }
-
-// interface Org {
-//   name?: string;
-//   locations?: any[];
-//   [key: string]: any;
-// }
-
-// const __userService = __adapter.createModelService<User>({ modelName: 'User', basePath: 'users' });
-// const __orgService = __adapter.createModelService<Org>({ modelName: 'Org', basePath: 'orgs' });
-
-// __userService.update('123456789', {}).then((data) => {
-//   data.data.role;
-// });
-
-// __adapter.group(__userService.update('123456789', {}), __orgService.updateAdvanced('123456789', {})).then((data) => {
-//   data[0].data.role;
-//   data[1].data.locations;
-// });
