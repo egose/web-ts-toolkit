@@ -3,7 +3,7 @@ export type AnyArray<T> = T[] | ReadonlyArray<T>;
 
 type Unpacked<T> = T extends (infer U)[] ? U : T extends ReadonlyArray<infer U> ? U : T;
 
-export type ApplyBasicQueryCasting<T> = T | T[] | (T extends (infer U)[] ? U : any) | any;
+export type ApplyBasicQueryCasting<T> = T | T[] | (T extends (infer U)[] ? U : unknown) | unknown;
 type Condition<T> = ApplyBasicQueryCasting<T> | QuerySelector<ApplyBasicQueryCasting<T>>;
 
 export type _FilterQuery<T> = {
@@ -25,12 +25,12 @@ type RootQuerySelector<T> = {
     $diacriticSensitive?: boolean;
   };
   /** @see https://www.mongodb.com/docs/manual/reference/operator/query/where/#op._S_where */
-  $where?: string | Function;
+  $where?: string | ((...args: never[]) => unknown);
   /** @see https://www.mongodb.com/docs/manual/reference/operator/query/comment/#op._S_comment */
   $comment?: string;
   // we could not find a proper TypeScript generic to support nested queries e.g. 'user.friends.name'
   // this will mark all unrecognized properties as any (including nested queries)
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 type QuerySelector<T> = {
@@ -38,11 +38,11 @@ type QuerySelector<T> = {
   $eq?: T;
   $gt?: T;
   $gte?: T;
-  $in?: [T] extends AnyArray<any> ? Unpacked<T>[] : T[];
+  $in?: [T] extends AnyArray<unknown> ? Unpacked<T>[] : T[];
   $lt?: T;
   $lte?: T;
   $ne?: T;
-  $nin?: [T] extends AnyArray<any> ? Unpacked<T>[] : T[];
+  $nin?: [T] extends AnyArray<unknown> ? Unpacked<T>[] : T[];
   // Logical
   $not?: T extends string ? QuerySelector<T> | RegExp : QuerySelector<T>;
   // Element
@@ -53,8 +53,8 @@ type QuerySelector<T> = {
   $exists?: boolean;
   $type?: string | number;
   // Evaluation
-  $expr?: any;
-  $jsonSchema?: any;
+  $expr?: unknown;
+  $jsonSchema?: unknown;
   $mod?: T extends number ? [number, number] : never;
   $regex?: T extends string ? RegExp | string : never;
   $options?: T extends string ? string : never;

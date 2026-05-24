@@ -56,9 +56,10 @@ export function useCacheInterceptors(instance: AxiosInstance, cacheTTL: number) 
 
       if (store.has(key)) {
         const prevConfig = store.get(key);
+        if (!prevConfig) return config;
         prevConfig.headers[CACHE_HEADER] = 'true';
         config.adapter = function (_config) {
-          return new Promise((resolve, reject) => {
+          return new Promise((resolve) => {
             return resolve({ ...prevConfig, config: _config });
           });
         };
@@ -92,12 +93,12 @@ function generateCacheKey(config: InternalAxiosRequestConfig) {
   return encodeURI(key);
 }
 
-function generateParamKey(params: Record<string, any>) {
+function generateParamKey(params?: Record<string, unknown>) {
   if (!params) return '';
   return JSON.stringify(params);
 }
 
-function generateDataKey(data: string) {
+function generateDataKey(data: unknown) {
   if (!data) return '';
-  return data;
+  return typeof data === 'string' ? data : JSON.stringify(data);
 }

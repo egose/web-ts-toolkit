@@ -1,9 +1,7 @@
-import { AxiosResponse, AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
+import { AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
 import { get, noop, set } from '@web-ts-toolkit/utils';
 import {
   FilterQuery,
-  Document,
-  Response,
   DataResponse,
   ListDataResponse,
   wrapLazyPromise,
@@ -27,7 +25,7 @@ import { CustomHeaders } from '../enums';
 import { Service, ServiceError, ResultError } from './service';
 import { replaceSubQuery } from '../helpers';
 
-const setIfNotFound = (obj: object, key: string, value: any) => {
+const setIfNotFound = (obj: object, key: string, value: unknown) => {
   if (!get(obj, key)) set(obj, key, value);
 };
 
@@ -48,7 +46,7 @@ interface Props {
   throwOnError: boolean;
 }
 
-export class DataService<T> extends Service<T> {
+export class DataService<T> extends Service {
   private _dataName!: string;
   private _queryPath!: string;
   private _handleCallbacks!: <T extends { success: boolean }>(res: T, throwOnError?: boolean) => T;

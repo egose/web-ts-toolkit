@@ -1,9 +1,11 @@
 import { Projection, Sort, Populate, PopulateAccess, Include, Task } from './types';
 
-export interface sqOptions {
+export interface SubQueryOptions {
   path?: string;
   compact?: boolean;
 }
+
+export type sqOptions = SubQueryOptions;
 
 export interface ListArgs {
   skip?: number;
@@ -18,7 +20,7 @@ export interface ListOptions {
   includeCount?: boolean;
   includeExtraHeaders?: boolean;
   ignoreCache?: boolean;
-  sq?: sqOptions;
+  sq?: SubQueryOptions;
 }
 
 export interface ListAdvancedArgs {
@@ -40,14 +42,14 @@ export interface ListAdvancedOptions {
   includeExtraHeaders?: boolean;
   ignoreCache?: boolean;
   populateAccess?: PopulateAccess;
-  sq?: sqOptions;
+  sq?: SubQueryOptions;
 }
 
 export interface ReadOptions {
   includePermissions?: boolean;
   tryList?: boolean;
   ignoreCache?: boolean;
-  sq?: sqOptions;
+  sq?: SubQueryOptions;
 }
 
 export interface ReadAdvancedArgs {
@@ -64,7 +66,7 @@ export interface ReadAdvancedOptions {
   tryList?: boolean;
   populateAccess?: PopulateAccess;
   ignoreCache?: boolean;
-  sq?: sqOptions;
+  sq?: SubQueryOptions;
 }
 
 export interface CreateOptions {
@@ -98,9 +100,9 @@ export interface UpdateAdvancedOptions {
   populateAccess?: PopulateAccess;
 }
 
-export interface UpsertOptions extends UpdateOptions {}
-export interface UpsertAdvancedArgs extends UpdateAdvancedArgs {}
-export interface UpsertAdvancedOptions extends UpdateAdvancedOptions {}
+export type UpsertOptions = UpdateOptions;
+export type UpsertAdvancedArgs = UpdateAdvancedArgs;
+export type UpsertAdvancedOptions = UpdateAdvancedOptions;
 
 export interface Defaults {
   listArgs?: ListArgs;

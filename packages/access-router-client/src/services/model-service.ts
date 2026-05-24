@@ -1,10 +1,7 @@
-import { AxiosResponse, AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
+import { AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
 import { get, noop, set } from '@web-ts-toolkit/utils';
 import {
   FilterQuery,
-  Projection,
-  Populate,
-  PopulateAccess,
   Document,
   Response,
   ModelResponse,
@@ -41,7 +38,7 @@ import { Service, ServiceError, ResultError } from './service';
 import { replaceSubQuery } from '../helpers';
 import { CACHE_HEADER } from '../constants';
 
-const setIfNotFound = (obj: object, key: string, value: any) => {
+const setIfNotFound = (obj: object, key: string, value: unknown) => {
   if (!get(obj, key)) set(obj, key, value);
 };
 
@@ -63,7 +60,7 @@ interface Props {
   throwOnError: boolean;
 }
 
-export class ModelService<T extends Document> extends Service<T> {
+export class ModelService<T extends Document> extends Service {
   private _modelName!: string;
   private _queryPath!: string;
   private _mutationPath!: string;
@@ -1073,7 +1070,7 @@ export class ModelService<T extends Document> extends Service<T> {
 
             return result;
           },
-          listAdvanced: (filter?: any, args?: { select: string[] }, axiosRequestConfig?: RequestConfig) => {
+          listAdvanced: (filter?: FilterQuery<S>, args?: { select: string[] }, axiosRequestConfig?: RequestConfig) => {
             const { select } = args ?? {};
             const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
@@ -1156,7 +1153,7 @@ export class ModelService<T extends Document> extends Service<T> {
           },
           readAdvanced: (
             subId: string,
-            args?: { select?: string[]; populate?: any },
+            args?: { select?: string[]; populate?: unknown },
             axiosRequestConfig?: RequestConfig,
           ) => {
             const { select, populate } = args ?? {};
@@ -1252,8 +1249,7 @@ export class ModelService<T extends Document> extends Service<T> {
 
             return result;
           },
-          bulkUpdate: (data: object[], options?: {}, axiosRequestConfig?: RequestConfig) => {
-            const {} = options ?? {};
+          bulkUpdate: (data: object[], _options?: object, axiosRequestConfig?: RequestConfig) => {
             const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
             const result: ModelPromiseMeta & Promise<ListModelResponse<S>> = wrapLazyPromise<

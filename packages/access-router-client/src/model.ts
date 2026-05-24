@@ -22,9 +22,9 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
   async save(reqConfig?: AxiosRequestConfig) {
     let result;
     if (this._data._id) {
-      result = await this._service.update(this._data._id, this.prepareDate(), { returningAll: false }, reqConfig);
+      result = await this._service.update(this._data._id, this.prepareData(), { returningAll: false }, reqConfig);
     } else {
-      result = await this._service.create(this.prepareDate(), null, reqConfig);
+      result = await this._service.create(this.prepareData(), null, reqConfig);
     }
 
     if (result.success) {
@@ -47,18 +47,17 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     this.definePublicDataProps();
   }
 
-  private prepareDate() {
+  private prepareData() {
     return omit(pick(this._data, Array.from(this.modifiedPaths).map(String)), ['_id']);
   }
 
-  private defineHiddenDataProp(initialValue) {
-    const _this = this;
-    Object.defineProperty(_this, '_data', {
+  private defineHiddenDataProp(initialValue: TData) {
+    Object.defineProperty(this, '_data', {
       value: new Proxy(initialValue, {
-        set(target, key, value) {
+        set: (target, key, value) => {
           const keystr = String(key);
-          if (!_this.modifiedPaths.has(keystr)) _this.modifiedPaths.add(keystr);
-          target[key] = value;
+          if (!this.modifiedPaths.has(keystr)) this.modifiedPaths.add(keystr);
+          target[key as keyof TData] = value as TData[keyof TData];
           return true;
         },
       }),
@@ -68,7 +67,7 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     });
   }
 
-  private defineHiddenAdapterProp(initialValue) {
+  private defineHiddenAdapterProp(initialValue: ModelService<T>) {
     Object.defineProperty(this, '_service', {
       value: initialValue,
       enumerable: false,
@@ -83,12 +82,12 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
 
     for (let x = 0; x < keycnt; x++) {
       const key = keys[x];
-      if (this.hasOwnProperty(key)) continue;
+      if (Object.prototype.hasOwnProperty.call(this, key)) continue;
 
       Object.defineProperty(this, key, {
         enumerable: true,
-        get: () => (this._data.hasOwnProperty(key) ? this._data[key] : null),
-        set: (value) => (this._data[key] = value),
+        get: () => (Object.prototype.hasOwnProperty.call(this._data, key) ? this._data[key as keyof TData] : null),
+        set: (value) => (this._data[key as keyof TData] = value),
       });
     }
   }

@@ -1,7 +1,7 @@
 import { AxiosRequestConfig } from 'axios';
 import { Model } from './model';
 import { ModelService, DataService } from './services';
-import { sqOptions } from './interface';
+import { SubQueryOptions } from './interface';
 import { _FilterQuery } from './mongoose/types';
 
 export interface KeyValueProjection {
@@ -22,9 +22,9 @@ export interface Include {
   path: string;
   localField: string;
   foreignField: string;
-  filter?: FilterQuery<any>;
-  args?: any;
-  options?: any;
+  filter?: FilterQuery<unknown>;
+  args?: Record<string, unknown>;
+  options?: Record<string, unknown>;
 }
 
 export type PopulateAccess = 'list' | 'read';
@@ -32,7 +32,7 @@ export type PopulateAccess = 'list' | 'read';
 export interface Populate {
   path: string;
   select?: Projection;
-  match?: any;
+  match?: Record<string, unknown> | null;
   access?: PopulateAccess;
 }
 
@@ -87,11 +87,11 @@ export interface RootModelQueryMeta {
   sub?: string;
   subId?: string;
   field?: string;
-  filter?: any;
-  data?: any;
-  args?: any;
-  options?: any;
-  sqOptions?: sqOptions;
+  filter?: unknown;
+  data?: unknown;
+  args?: Record<string, unknown>;
+  options?: Record<string, unknown>;
+  sqOptions?: SubQueryOptions;
 }
 
 export interface RootDataQueryMeta {
@@ -99,10 +99,10 @@ export interface RootDataQueryMeta {
   name: string;
   op: RootDataOperation;
   id?: string;
-  filter?: any;
-  data?: any;
-  args?: any;
-  options?: any;
+  filter?: unknown;
+  data?: unknown;
+  args?: Record<string, unknown>;
+  options?: Record<string, unknown>;
 }
 
 export type RootQueryMeta = RootModelQueryMeta | RootDataQueryMeta;
@@ -111,17 +111,17 @@ export interface SubQueryMeta {
   model: string;
   op: 'list' | 'read';
   id?: string;
-  filter?: any;
-  args?: any;
-  options?: any;
-  sqOptions?: sqOptions;
+  filter?: unknown;
+  args?: Record<string, unknown>;
+  options?: Record<string, unknown>;
+  sqOptions?: SubQueryOptions;
 }
 
 export interface ModelPromiseMeta {
   __op: string;
   __query: RootModelQueryMeta;
   __requestConfig?: AxiosRequestConfig;
-  __service?: ModelService<any>;
+  __service?: ModelService<Document>;
 }
 
 export type DataResponse<T> = Response<T, T>;
@@ -132,18 +132,21 @@ export interface DataPromiseMeta {
   __op: string;
   __query: RootDataQueryMeta;
   __requestConfig?: AxiosRequestConfig;
-  __service?: DataService<any>;
+  __service?: DataService<unknown>;
 }
 
 export const wrapLazyPromise = <T, M = undefined>(promiseFn: () => Promise<T>, meta?: M): M & Promise<T> => {
   let isThenCalled = false;
 
   const prom = {
-    then(onFulfilled: any, onRejected?: any) {
+    then<TResult1 = T, TResult2 = never>(
+      onFulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
+      onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+    ) {
       isThenCalled = true;
       return promiseFn().then(onFulfilled, onRejected);
     },
-    finally(onFinally: any) {
+    finally(onFinally?: (() => void) | null) {
       if (isThenCalled) {
         return Promise.resolve().then(onFinally);
       }
@@ -167,9 +170,9 @@ export const wrapLazyPromise = <T, M = undefined>(promiseFn: () => Promise<T>, m
   return prom as M & Promise<T>;
 };
 
-export type ResponseCallback = <R>(res: R) => void;
+export type ResponseCallback = (res: unknown) => void;
 
 export interface WrapOptions {
-  queryParams?: { [key: string]: any };
-  pathParams?: { [key: string]: any };
+  queryParams?: Record<string, unknown>;
+  pathParams?: Record<string, string | number>;
 }

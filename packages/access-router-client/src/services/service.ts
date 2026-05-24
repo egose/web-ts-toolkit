@@ -1,4 +1,4 @@
-import { AxiosResponse, AxiosRequestConfig, AxiosInstance, AxiosHeaders, mergeConfig } from 'axios';
+import { AxiosHeaders, AxiosResponse, AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
 import { set } from '@web-ts-toolkit/utils';
 import { Response, WrapOptions } from '../types';
 import { CACHE_HEADER } from '../constants';
@@ -6,17 +6,17 @@ import { getWrapContext } from '../helpers';
 
 export interface ResultError {
   success: boolean;
-  raw: any;
-  data: any;
+  raw: unknown;
+  data: unknown;
   message: string;
   status: number;
-  headers: { [key: string]: any };
+  headers: Record<string, unknown>;
 }
 
-const removeTrailingSlash = (inputString) => inputString.replace(/\/$/, '');
-const removeLeadingSlash = (inputString) => inputString.replace(/^\/+/g, '');
+const removeTrailingSlash = (inputString: string) => inputString.replace(/\/$/, '');
+const removeLeadingSlash = (inputString: string) => inputString.replace(/^\/+/g, '');
 
-export class Service<T> {
+export class Service {
   protected _axios!: AxiosInstance;
   protected _basePath!: string;
 
@@ -25,13 +25,17 @@ export class Service<T> {
     this._basePath = basePath;
   }
 
-  protected handleSuccess(res: AxiosResponse<any, any>, extra = {}) {
+  protected handleSuccess(res: AxiosResponse<unknown, unknown>, extra = {}) {
     // console.table(res.headers);
-    return { success: true, raw: res.data, status: res.status, headers: res.headers, ...extra } as Response<any, any>;
+    return { success: true, raw: res.data, status: res.status, headers: res.headers, ...extra } as Response<unknown>;
   }
 
   // See https://axios-http.com/docs/handling_errors
-  protected handleError<T extends ResultError>(error) {
+  protected handleError<T extends ResultError>(error: {
+    response?: { status: number; headers: Record<string, unknown>; data: unknown };
+    request?: unknown;
+    message?: string;
+  }) {
     const result = {
       success: false,
       raw: null,
@@ -46,7 +50,11 @@ export class Service<T> {
       // that falls out of the range of 2xx
       result.status = error.response.status;
       result.headers = error.response.headers;
-      result.message = error.response.data.message ?? error.response.data;
+      const responseData = error.response.data;
+      result.message =
+        responseData && typeof responseData === 'object' && 'message' in responseData
+          ? String(responseData.message)
+          : String(responseData);
     } else if (error.request) {
       // The request was made but no response was received
       // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
@@ -60,7 +68,7 @@ export class Service<T> {
     return result as T;
   }
 
-  wrapGet<T = any>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) {
+  wrapGet<T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) {
     const _url = `${removeTrailingSlash(this._basePath)}/${removeLeadingSlash(url)}`;
     set(defaultAxiosRequestConfig, `headers.${CACHE_HEADER}`, 'true');
     return (options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
@@ -74,10 +82,10 @@ export class Service<T> {
     };
   }
 
-  wrapPost<T = any>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) {
+  wrapPost<T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) {
     const _url = `${removeTrailingSlash(this._basePath)}/${removeLeadingSlash(url)}`;
     set(defaultAxiosRequestConfig, `headers.${CACHE_HEADER}`, 'false');
-    return (data?: any, options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
+    return (data?: unknown, options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
       const { finalUrl, finalConfig } = getWrapContext(
         _url,
         options,
@@ -88,10 +96,10 @@ export class Service<T> {
     };
   }
 
-  wrapPut<T = any>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) {
+  wrapPut<T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) {
     const _url = `${removeTrailingSlash(this._basePath)}/${removeLeadingSlash(url)}`;
     set(defaultAxiosRequestConfig, `headers.${CACHE_HEADER}`, 'false');
-    return (data?: any, options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
+    return (data?: unknown, options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
       const { finalUrl, finalConfig } = getWrapContext(
         _url,
         options,
@@ -102,10 +110,10 @@ export class Service<T> {
     };
   }
 
-  wrapPatch<T = any>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) {
+  wrapPatch<T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) {
     const _url = `${removeTrailingSlash(this._basePath)}/${removeLeadingSlash(url)}`;
     set(defaultAxiosRequestConfig, `headers.${CACHE_HEADER}`, 'false');
-    return (data?: any, options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
+    return (data?: unknown, options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
       const { finalUrl, finalConfig } = getWrapContext(
         _url,
         options,
@@ -116,7 +124,7 @@ export class Service<T> {
     };
   }
 
-  wrapDelete<T = any>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) {
+  wrapDelete<T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) {
     const _url = `${removeTrailingSlash(this._basePath)}/${removeLeadingSlash(url)}`;
     set(defaultAxiosRequestConfig, `headers.${CACHE_HEADER}`, 'false');
     return (options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
@@ -130,20 +138,34 @@ export class Service<T> {
     };
   }
 
-  updateHeaders(headers, { ignoreCache }) {
-    if (!headers || headers[CACHE_HEADER]) return headers;
+  updateHeaders(headers: AxiosRequestConfig['headers'], { ignoreCache }: { ignoreCache?: boolean }) {
+    const cacheValue = ignoreCache ? 'false' : 'true';
 
-    headers[CACHE_HEADER] = ignoreCache ? 'false' : 'true';
-    return headers;
+    if (!headers) {
+      return { [CACHE_HEADER]: cacheValue };
+    }
+
+    if (headers instanceof AxiosHeaders) {
+      if (headers.has(CACHE_HEADER)) return headers;
+      headers.set(CACHE_HEADER, cacheValue);
+      return headers;
+    }
+
+    if (CACHE_HEADER in headers) return headers;
+
+    return {
+      ...headers,
+      [CACHE_HEADER]: cacheValue,
+    };
   }
 }
 
 export class ServiceError extends Error {
   success: boolean;
-  raw: any;
-  data: any;
+  raw: unknown;
+  data: unknown;
   status: number;
-  headers: { [key: string]: any };
+  headers: Record<string, unknown>;
 
   constructor(result: ResultError) {
     super(result.message);
