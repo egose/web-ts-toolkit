@@ -1,7 +1,7 @@
 "use strict";
-(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[743],{
+(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[726],{
 
-/***/ 2792
+/***/ 5801
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 // ESM COMPAT FLAG
@@ -13,12 +13,12 @@ __webpack_require__.d(__webpack_exports__, {
   contentTitle: () => (/* binding */ contentTitle),
   "default": () => (/* binding */ MDXContent),
   frontMatter: () => (/* binding */ frontMatter),
-  metadata: () => (/* reexport */ site_docs_packages_moo_md_b16_namespaceObject),
+  metadata: () => (/* reexport */ site_docs_packages_access_router_client_index_md_cb3_namespaceObject),
   toc: () => (/* binding */ toc)
 });
 
-;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-moo-md-b16.json
-const site_docs_packages_moo_md_b16_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/moo","title":"@web-ts-toolkit/moo","description":"Helpers for common Mongoose patterns.","source":"@site/docs/packages/moo.md","sourceDirName":"packages","slug":"/packages/moo","permalink":"/docs/packages/moo","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":5,"frontMatter":{"sidebar_label":"Moo","sidebar_position":5},"sidebar":"packagesSidebar","previous":{"title":"HTTP Errors","permalink":"/docs/packages/http-errors"}}');
+;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-access-router-client-index-md-cb3.json
+const site_docs_packages_access_router_client_index_md_cb3_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router-client/index","title":"@web-ts-toolkit/access-router-client","description":"@web-ts-toolkit/access-router-client is a TypeScript/JavaScript client for @web-ts-toolkit/access-router APIs.","source":"@site/docs/packages/access-router-client/index.md","sourceDirName":"packages/access-router-client","slug":"/packages/access-router-client/","permalink":"/docs/packages/access-router-client/","draft":false,"unlisted":false,"tags":[],"version":"current","frontMatter":{"sidebar_label":"Access Router Client"},"sidebar":"packagesSidebar","previous":{"title":"Moo","permalink":"/docs/packages/moo"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -27,14 +27,13 @@ var lib = __webpack_require__(1982);
 var Tabs = __webpack_require__(5250);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@docusaurus+theme-classic@3.10.1_@types+react@19.2.14_react-dom@19.2.6_react@19.2.6__react@19.2.6_typescript@6.0.3/node_modules/@docusaurus/theme-classic/lib/theme/TabItem/index.js + 1 modules
 var TabItem = __webpack_require__(6574);
-;// ./docs/packages/moo.md
+;// ./docs/packages/access-router-client/index.md
 
 
 const frontMatter = {
-	sidebar_label: 'Moo',
-	sidebar_position: 5
+	sidebar_label: 'Access Router Client'
 };
-const contentTitle = '@web-ts-toolkit/moo';
+const contentTitle = '@web-ts-toolkit/access-router-client';
 
 const assets = {
 
@@ -52,29 +51,12 @@ const toc = [{
   "value": "Usage",
   "id": "usage",
   "level": 2
-}, {
-  "value": "Schema helpers",
-  "id": "schema-helpers",
-  "level": 3
-}, {
-  "value": "ObjectId checks",
-  "id": "objectid-checks",
-  "level": 3
-}, {
-  "value": "Model function plugin",
-  "id": "model-function-plugin",
-  "level": 3
-}, {
-  "value": "Cascade delete plugin",
-  "id": "cascade-delete-plugin",
-  "level": 3
 }];
 function _createMdxContent(props) {
   const _components = {
     code: "code",
     h1: "h1",
     h2: "h2",
-    h3: "h3",
     header: "header",
     li: "li",
     p: "p",
@@ -86,25 +68,17 @@ function _createMdxContent(props) {
   return (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, {
     children: [(0,jsx_runtime.jsx)(_components.header, {
       children: (0,jsx_runtime.jsx)(_components.h1, {
-        id: "web-ts-toolkitmoo",
+        id: "web-ts-toolkitaccess-router-client",
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/moo"
+          children: "@web-ts-toolkit/access-router-client"
         })
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Helpers for common Mongoose patterns."
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "This package includes:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "partial-index helpers for nullable or empty string fields"
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["an ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isObjectId(...)"
-        }), " guard for strict ObjectId checks"]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "document plugins for model-bound helper functions and cascade deletes"
-      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/access-router-client"
+      }), " is a TypeScript/JavaScript client for ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/access-router"
+      }), " APIs."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
       children: "Installation"
@@ -115,7 +89,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install mongoose @web-ts-toolkit/moo\n"
+            children: "npm install @web-ts-toolkit/access-router-client\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -124,7 +98,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add mongoose @web-ts-toolkit/moo\n"
+            children: "yarn add @web-ts-toolkit/access-router-client\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -133,7 +107,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add mongoose @web-ts-toolkit/moo\n"
+            children: "pnpm add @web-ts-toolkit/access-router-client\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -142,45 +116,43 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add mongoose @web-ts-toolkit/moo\n"
+            children: "bun add @web-ts-toolkit/access-router-client\n"
           })
         })
       })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-bash",
+        children: "pnpm add @web-ts-toolkit/access-router-client\n"
+      })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "usage",
       children: "Usage"
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "schema-helpers",
-      children: "Schema helpers"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { Schema } from 'mongoose';\nimport { uniqueEmptiableString, uniqueNullableString } from '@web-ts-toolkit/moo';\n\nconst userSchema = new Schema({\n  email: uniqueNullableString('email'),\n  username: uniqueEmptiableString('username'),\n});\n"
+        children: "import { createAdapter } from '@web-ts-toolkit/access-router-client';\n\nconst adapter = createAdapter({\n  baseURL: 'http://localhost:3000/api',\n});\n\nconst userService = adapter.createModelService<{ _id?: string; name: string; role: string }>({\n  modelName: 'User',\n  basePath: 'users',\n});\n\nconst listResponse = await userService.listAdvanced(\n  { role: 'admin' },\n  { select: ['name', 'role'], limit: 10 },\n  { includeCount: true },\n);\n\nconst grouped = await adapter.group(\n  userService.readAdvanced('user-id-1', { select: ['name'] }),\n  userService.countAdvanced({ role: 'admin' }),\n);\n"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "objectid-checks",
-      children: "ObjectId checks"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import { isObjectId } from '@web-ts-toolkit/moo';\n\nif (!isObjectId(value)) {\n  throw new Error('expected a valid MongoDB ObjectId');\n}\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "model-function-plugin",
-      children: "Model function plugin"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import mongoose, { type Model } from 'mongoose';\nimport {\n  type ModelDocument,\n  type ModelFunctionInstanceMethods,\n  type ModelFunctionStaticMethods,\n  modelFunctionPlugin,\n} from '@web-ts-toolkit/moo';\n\ntype Cart = {\n  name: string;\n  price: number;\n};\n\ntype CartDocument = ModelDocument<Cart, CartMethods>;\n\ntype CartMethods = ModelFunctionInstanceMethods<'applyDiscount', [suffix: string, priceChange: number], CartDocument>;\n\ntype CartModel = Model<Cart, {}, CartMethods> &\n  ModelFunctionStaticMethods<'applyDiscount', CartDocument, [suffix: string, priceChange: number], CartDocument>;\n\nconst cartSchema = new mongoose.Schema<Cart, CartModel, CartMethods>({\n  name: { type: String, required: true },\n  price: { type: Number, required: true },\n});\n\ncartSchema.plugin(modelFunctionPlugin, {\n  fnName: 'applyDiscount',\n  fn: (cart: CartDocument, suffix: string, priceChange: number) => {\n    cart.name = `${cart.name}-${suffix}`;\n    cart.price += priceChange;\n    return cart;\n  },\n});\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "cascade-delete-plugin",
-      children: "Cascade delete plugin"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import mongoose, { type Model, type Types } from 'mongoose';\nimport {\n  type CascadeDeleteDependencyMap,\n  type CascadeDeleteDocumentMethods,\n  type CascadeDeleteModelStatics,\n  cascadeDeletePlugin,\n} from '@web-ts-toolkit/moo/plugins';\n\nconst referenceModelName = 'Reference';\n\ntype Reference = {\n  name: string;\n};\n\ntype File = {\n  refs: Types.ObjectId[];\n};\n\ntype FileMethods = CascadeDeleteDocumentMethods<typeof referenceModelName, Reference>;\n\ntype FileModel = Model<File, {}, FileMethods> & CascadeDeleteModelStatics<typeof referenceModelName, Reference>;\n\ntype FileDependents = CascadeDeleteDependencyMap<typeof referenceModelName, Reference>;\n\nconst fileSchema = new mongoose.Schema<File, FileModel, FileMethods>({\n  refs: [{ type: mongoose.Schema.Types.ObjectId, ref: referenceModelName }],\n});\n\nfileSchema.plugin(cascadeDeletePlugin, {\n  model: referenceModelName,\n  localField: 'refs',\n  foreignField: '_id',\n});\n\nconst File = mongoose.model<File, FileModel>('File', fileSchema);\n\nasync function example(file: mongoose.HydratedDocument<File, FileMethods>) {\n  const dependents = (await file.findDependents()) as FileDependents;\n  const references = await file.findDependents(referenceModelName);\n  const orphans = await File.findOrphans(referenceModelName);\n\n  dependents.Reference;\n  references?.[0]?.name;\n  orphans?.[0]?.name;\n}\n"
-      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Notes:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["model and data service requests use the router paths you configure in ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "basePath"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["grouped ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "adapter.group(...)"
+        }), " requests target the root router path, which defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "root"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["if your root router uses another path, pass ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "rootRouterPath"
+        }), " as the second ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "createAdapter(...)"
+        }), " argument"]
+      }), "\n"]
     })]
   });
 }
