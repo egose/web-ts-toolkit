@@ -29,6 +29,7 @@ export { default as isString } from './isString';
 export { default as isUndefined } from './isUndefined';
 export { default as keys } from './keys';
 export { default as map } from './map';
+export { default as mapValues } from './mapValues';
 export { default as mapValuesAsync } from './mapValuesAsync';
 export { default as noop } from './noop';
 export { default as omit } from './omit';

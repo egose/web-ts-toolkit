@@ -1,0 +1,442 @@
+import { AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
+import { get, noop, set } from '@web-ts-toolkit/utils';
+import {
+  FilterQuery,
+  DataResponse,
+  ListDataResponse,
+  wrapLazyPromise,
+  DataPromiseMeta,
+  ResponseCallback,
+} from '../types';
+
+import {
+  DataListArgs,
+  DataListOptions,
+  DataListAdvancedArgs,
+  DataListAdvancedOptions,
+  DataReadOptions,
+  DataReadAdvancedArgs,
+  DataReadAdvancedOptions,
+  DataDefaults,
+  AdditionalReqConfig,
+} from '../interface';
+import { CustomHeaders } from '../enums';
+
+import { Service, ServiceError, ResultError } from './service';
+import { replaceSubQuery } from '../helpers';
+
+const setIfNotFound = (obj: object, key: string, value: unknown) => {
+  if (!get(obj, key)) set(obj, key, value);
+};
+
+interface ListData<T> {
+  count: number;
+  rows: T[];
+}
+
+type RequestConfig = AxiosRequestConfig & AdditionalReqConfig;
+
+interface Props {
+  axios: AxiosInstance;
+  dataName: string;
+  basePath: string;
+  queryPath: string;
+  onSuccess: ResponseCallback;
+  onFailure: ResponseCallback;
+  throwOnError: boolean;
+}
+
+export class DataService<T> extends Service {
+  private _dataName!: string;
+  private _queryPath!: string;
+  private _handleCallbacks!: <T extends { success: boolean }>(res: T, throwOnError?: boolean) => T;
+  private _defaults!: DataDefaults;
+
+  constructor(
+    { axios, dataName, basePath, queryPath, onSuccess, onFailure, throwOnError }: Props,
+    defaults?: DataDefaults,
+  ) {
+    super(axios, basePath);
+
+    this._dataName = dataName;
+    this._queryPath = queryPath;
+    this._defaults = defaults ?? {};
+
+    const _onSuccess = onSuccess ?? noop;
+    const _onFailure = onFailure ?? noop;
+    this._handleCallbacks = <T extends { success: boolean }>(res: T, _throwOnError = throwOnError) => {
+      if (res.success) {
+        _onSuccess(res);
+        return res;
+      }
+
+      _onFailure(res);
+      if (_throwOnError) {
+        throw new ServiceError(res as unknown as ResultError);
+      }
+      return res;
+    };
+
+    [
+      'listArgs',
+      'listOptions',
+      'listAdvancedArgs',
+      'listAdvancedOptions',
+      'readOptions',
+      'readAdvancedArgs',
+      'readAdvancedOptions',
+    ].forEach((key) => setIfNotFound(this._defaults, key, {}));
+  }
+
+  list<TData extends Partial<T> = T>(
+    args?: DataListArgs,
+    options?: DataListOptions,
+    axiosRequestConfig?: RequestConfig,
+  ) {
+    const {
+      skip = this._defaults.listArgs.skip,
+      limit = this._defaults.listArgs.limit,
+      page = this._defaults.listArgs.page,
+      pageSize = this._defaults.listArgs.pageSize,
+    } = args ?? {};
+
+    const {
+      includePermissions = this._defaults.listOptions.includePermissions ?? false,
+      includeCount = this._defaults.listOptions.includeCount ?? false,
+      includeExtraHeaders = this._defaults.listOptions.includeExtraHeaders ?? false,
+      ignoreCache = this._defaults.listOptions.ignoreCache ?? false,
+    } = options ?? {};
+
+    const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
+    reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
+
+    const result: DataPromiseMeta & Promise<ListDataResponse<TData>> = wrapLazyPromise<
+      ListDataResponse<TData>,
+      DataPromiseMeta
+    >(
+      () =>
+        this._axios
+          .get(
+            this._basePath,
+            mergeConfig(reqConfig, {
+              params: {
+                skip,
+                limit,
+                page,
+                page_size: pageSize,
+                include_permissions: includePermissions,
+                include_count: includeCount,
+                include_extra_headers: includeExtraHeaders,
+              },
+            }),
+          )
+          .then(this.handleSuccess)
+          .then((result: ListDataResponse<TData>) => {
+            return this.processListResult(result, { includeCount, includeExtraHeaders });
+          })
+          .catch(this.handleError<ListDataResponse<TData>>)
+          .then((res) => this._handleCallbacks<ListDataResponse<TData>>(res, throwOnError)),
+      {
+        __op: 'list',
+        __query: {
+          target: 'data',
+          name: this._dataName,
+          op: 'list',
+          filter: {},
+          args: { skip, limit, page, pageSize },
+          options: {
+            includePermissions,
+            includeCount,
+            includeExtraHeaders,
+          },
+        },
+        __requestConfig: reqConfig,
+        __service: this,
+      },
+    );
+
+    return result;
+  }
+
+  listAdvanced<TData extends Partial<T> = T>(
+    filter: FilterQuery<T>,
+    args?: DataListAdvancedArgs,
+    options?: DataListAdvancedOptions,
+    axiosRequestConfig?: RequestConfig,
+  ) {
+    const {
+      select = this._defaults.listAdvancedArgs.select,
+      sort = this._defaults.listAdvancedArgs.sort,
+      skip = this._defaults.listAdvancedArgs.skip,
+      limit = this._defaults.listAdvancedArgs.limit,
+      page = this._defaults.listAdvancedArgs.page,
+      pageSize = this._defaults.listAdvancedArgs.pageSize,
+    } = args ?? {};
+
+    const {
+      includePermissions = this._defaults.listAdvancedOptions.includePermissions ?? false,
+      includeCount = this._defaults.listAdvancedOptions.includeCount ?? false,
+      includeExtraHeaders = this._defaults.listAdvancedOptions.includeExtraHeaders ?? false,
+      ignoreCache = this._defaults.listAdvancedOptions.ignoreCache ?? false,
+    } = options ?? {};
+
+    const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
+    reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
+
+    const _filter = replaceSubQuery<T>(filter);
+    const result: DataPromiseMeta & Promise<ListDataResponse<TData>> = wrapLazyPromise<
+      ListDataResponse<TData>,
+      DataPromiseMeta
+    >(
+      () =>
+        this._axios
+          .post(
+            `${this._basePath}/${this._queryPath}`,
+            {
+              filter: _filter,
+              select,
+              sort,
+              skip,
+              limit,
+              page,
+              pageSize,
+              options: {
+                includePermissions,
+                includeCount,
+                includeExtraHeaders,
+              },
+            },
+            reqConfig,
+          )
+          .then(this.handleSuccess)
+          .then((result: ListDataResponse<TData>) => {
+            return this.processListResult(result, { includeCount, includeExtraHeaders });
+          })
+          .catch(this.handleError<ListDataResponse<TData>>)
+          .then((res) => this._handleCallbacks<ListDataResponse<TData>>(res, throwOnError)),
+      {
+        __op: 'listAdvanced',
+        __query: {
+          target: 'data',
+          name: this._dataName,
+          op: 'list',
+          filter: _filter,
+          args: { select, sort, skip, limit, page, pageSize },
+          options: {
+            includePermissions,
+            includeCount,
+            includeExtraHeaders,
+          },
+        },
+        __requestConfig: reqConfig,
+        __service: this,
+      },
+    );
+
+    return result;
+  }
+
+  read<TData extends Partial<T> = T>(
+    identifier: string,
+    options?: DataReadOptions,
+    axiosRequestConfig?: RequestConfig,
+  ) {
+    const {
+      includePermissions = this._defaults.readOptions.includePermissions ?? true,
+      ignoreCache = this._defaults.readOptions.ignoreCache ?? false,
+    } = options ?? {};
+
+    const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
+    reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
+
+    const result: DataPromiseMeta & Promise<DataResponse<TData>> = wrapLazyPromise<
+      DataResponse<TData>,
+      DataPromiseMeta
+    >(
+      () =>
+        this._axios
+          .get(
+            `${this._basePath}/${identifier}`,
+            mergeConfig(reqConfig, {
+              params: {
+                include_permissions: includePermissions,
+              },
+            }),
+          )
+          .then(this.handleSuccess)
+          .then((result: DataResponse<TData>) => {
+            result.data = result.raw;
+            return result;
+          })
+          .catch(this.handleError<DataResponse<TData>>)
+          .then((res) => this._handleCallbacks<DataResponse<TData>>(res, throwOnError)),
+      {
+        __op: 'read',
+        __query: {
+          target: 'data',
+          name: this._dataName,
+          op: 'read',
+          id: identifier,
+          args: {},
+          options: {
+            includePermissions,
+          },
+        },
+        __requestConfig: reqConfig,
+        __service: this,
+      },
+    );
+
+    return result;
+  }
+
+  readAdvanced<TData extends Partial<T> = T>(
+    identifier: string,
+    args?: DataReadAdvancedArgs,
+    options?: DataReadAdvancedOptions,
+    axiosRequestConfig?: RequestConfig,
+  ) {
+    const {
+      select = this._defaults.readAdvancedArgs.select,
+      ignoreCache = this._defaults.readAdvancedArgs.ignoreCache ?? false,
+    } = args ?? {};
+
+    const { includePermissions = this._defaults.readAdvancedOptions.includePermissions ?? true } = options ?? {};
+
+    const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
+    reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
+
+    const result: DataPromiseMeta & Promise<DataResponse<TData>> = wrapLazyPromise<
+      DataResponse<TData>,
+      DataPromiseMeta
+    >(
+      () =>
+        this._axios
+          .post(
+            `${this._basePath}/${this._queryPath}/${identifier}`,
+            {
+              select,
+              options: {
+                includePermissions,
+              },
+            },
+            reqConfig,
+          )
+          .then(this.handleSuccess)
+          .then((result: DataResponse<TData>) => {
+            result.data = result.raw;
+            return result;
+          })
+          .catch(this.handleError<DataResponse<TData>>)
+          .then((res) => this._handleCallbacks<DataResponse<TData>>(res, throwOnError)),
+      {
+        __op: 'readAdvanced',
+        __query: {
+          target: 'data',
+          name: this._dataName,
+          op: 'read',
+          id: identifier,
+          args: { select },
+          options: {
+            includePermissions,
+          },
+        },
+        __requestConfig: reqConfig,
+        __service: this,
+      },
+    );
+
+    return result;
+  }
+
+  readAdvancedFilter<TData extends Partial<T> = T>(
+    filter: FilterQuery<T>,
+    args?: DataReadAdvancedArgs,
+    options?: DataReadAdvancedOptions,
+    axiosRequestConfig?: RequestConfig,
+  ) {
+    const { select = this._defaults.readAdvancedArgs.select } = args ?? {};
+
+    const {
+      includePermissions = this._defaults.readAdvancedOptions.includePermissions ?? true,
+      ignoreCache = this._defaults.readAdvancedOptions.ignoreCache ?? false,
+    } = options ?? {};
+
+    const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
+    reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
+
+    const _filter = replaceSubQuery<T>(filter);
+    const result: DataPromiseMeta & Promise<DataResponse<TData>> = wrapLazyPromise<
+      DataResponse<TData>,
+      DataPromiseMeta
+    >(
+      () =>
+        this._axios
+          .post(
+            `${this._basePath}/${this._queryPath}/__filter`,
+            {
+              filter: _filter,
+              select,
+              options: {
+                includePermissions,
+              },
+            },
+            reqConfig,
+          )
+          .then(this.handleSuccess)
+          .then((result: DataResponse<TData>) => {
+            result.data = result.raw;
+            return result;
+          })
+          .catch(this.handleError<DataResponse<TData>>)
+          .then((res) => this._handleCallbacks<DataResponse<TData>>(res, throwOnError)),
+      {
+        __op: 'readAdvancedFilter',
+        __query: {
+          target: 'data',
+          name: this._dataName,
+          op: 'read',
+          filter: _filter,
+          args: { select },
+          options: {
+            includePermissions,
+          },
+        },
+        __requestConfig: reqConfig,
+        __service: this,
+      },
+    );
+
+    return result;
+  }
+
+  private processListResult<TData>(result: ListDataResponse<TData>, { includeCount, includeExtraHeaders }) {
+    const wrappedRows = get(result, 'raw.data');
+    const wrappedTotalCount = get(result, 'raw.meta.totalCount');
+
+    if (Array.isArray(wrappedRows)) {
+      const rows = wrappedRows as TData[];
+      result.raw = wrappedRows;
+
+      if (includeCount) {
+        if (includeExtraHeaders) {
+          const totalCount = get(result, `headers.${CustomHeaders.TotalCount}`, 0);
+          result.totalCount = Number(totalCount);
+        } else {
+          result.totalCount = Number(wrappedTotalCount ?? rows.length);
+        }
+      }
+    } else if (includeCount) {
+      if (includeExtraHeaders) {
+        const totalCount = get(result, `headers.${CustomHeaders.TotalCount}`, 0);
+        result.totalCount = Number(totalCount);
+      } else {
+        result.totalCount = (result.raw as never as ListData<TData>).count;
+        result.raw = (result.raw as never as ListData<TData>).rows;
+      }
+    }
+
+    result.data = result.raw;
+    return result;
+  }
+}
