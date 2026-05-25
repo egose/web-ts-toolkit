@@ -230,6 +230,28 @@ beforeAll(async () => {
     res.json({ name: 'chairman', flag: req.body.flag });
   });
 
+  // Routes for testing group partial failure
+  app.get('/api/root/group-success', (req, res) => {
+    res.json({ success: true, message: 'success' });
+  });
+
+  app.get('/api/root/group-fail', (req, res) => {
+    res.status(500).json({ success: false, message: 'internal error' });
+  });
+
+  // Routes for testing wrap methods error
+  app.get('/api/test/wrap-error-404/:name', (req, res) => {
+    res.status(404).json({ error: 'not found' });
+  });
+
+  app.get('/api/test/wrap-error-500/:name', (req, res) => {
+    res.status(500).json({ error: 'internal server error' });
+  });
+
+  app.post('/api/test/wrap-error-500/:name', (req, res) => {
+    res.status(500).json({ error: 'internal server error' });
+  });
+
   app.use(userRouter.routes);
   app.use(orgRouter.routes);
   app.use(petRouter.routes);
@@ -417,5 +439,54 @@ describe('access-router-client', () => {
 
     const chairman = await endpoints.chairman({ flag: 'pencil' });
     expect(chairman.data).toEqual({ name: 'chairman', flag: 'pencil' });
+  });
+
+  it('handles group partial failures gracefully', async () => {
+    // One successful request: read an existing user
+    const successful = services.userService.readAdvanced(String(seedState.admin._id), { select: ['name'] }, undefined, {
+      headers: { user: 'admin' },
+    });
+    // One failed request: read a non-existent user
+    const failed = services.userService.readAdvanced('000000000000000000000000', { select: ['name'] }, undefined, {
+      headers: { user: 'admin' },
+    });
+
+    const result = await adapter.group(successful, failed);
+
+    expect(result).toHaveLength(2);
+    expect(result[0].success).toBe(true);
+    expect(result[0].data.name).toBe('admin-user');
+    expect(result[1].success).toBe(false);
+    expect(result[1].data).toBeNull();
+    // The failed request should have a non-2xx status and a message
+    expect(result[1].status).toBeGreaterThanOrEqual(400);
+    expect(typeof result[1].message).toBe('string');
+  });
+
+  it('handles wrapGet 404 errors appropriately', async () => {
+    const wrapGet404 = adapter.wrapGet('test/wrap-error-404/test');
+    await expect(wrapGet404({})).rejects.toMatchObject({
+      response: {
+        status: 404,
+      },
+    });
+  });
+
+  it('handles wrapGet 500 errors appropriately', async () => {
+    const wrapGet500 = adapter.wrapGet('test/wrap-error-500/test');
+    await expect(wrapGet500({})).rejects.toMatchObject({
+      response: {
+        status: 500,
+      },
+    });
+  });
+
+  it('handles wrapPost errors appropriately', async () => {
+    const wrapPost500 = adapter.wrapPost('test/wrap-error-500/test');
+    await expect(wrapPost500({})).rejects.toMatchObject({
+      response: {
+        status: 500,
+      },
+    });
   });
 });
