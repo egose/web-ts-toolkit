@@ -1,5 +1,5 @@
 import { AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
-import { get, noop, set } from '@web-ts-toolkit/utils';
+import { get, set } from '@web-ts-toolkit/utils';
 import {
   FilterQuery,
   DataResponse,
@@ -22,12 +22,9 @@ import {
 } from '../interface';
 import { CustomHeaders } from '../enums';
 
-import { Service, ServiceError, ResultError } from './service';
+import { Service } from './service';
 import { replaceSubQuery } from '../helpers';
-
-const setIfNotFound = (obj: object, key: string, value: unknown) => {
-  if (!get(obj, key)) set(obj, key, value);
-};
+import { createResponseHandler, setDefaultObjectProp } from './shared';
 
 interface ListData<T> {
   count: number;
@@ -61,21 +58,7 @@ export class DataService<T> extends Service {
     this._dataName = dataName;
     this._queryPath = queryPath;
     this._defaults = defaults ?? {};
-
-    const _onSuccess = onSuccess ?? noop;
-    const _onFailure = onFailure ?? noop;
-    this._handleCallbacks = <T extends { success: boolean }>(res: T, _throwOnError = throwOnError) => {
-      if (res.success) {
-        _onSuccess(res);
-        return res;
-      }
-
-      _onFailure(res);
-      if (_throwOnError) {
-        throw new ServiceError(res as unknown as ResultError);
-      }
-      return res;
-    };
+    this._handleCallbacks = createResponseHandler(onSuccess, onFailure, throwOnError);
 
     [
       'listArgs',
@@ -85,7 +68,7 @@ export class DataService<T> extends Service {
       'readOptions',
       'readAdvancedArgs',
       'readAdvancedOptions',
-    ].forEach((key) => setIfNotFound(this._defaults, key, {}));
+    ].forEach((key) => setDefaultObjectProp(this._defaults, key, {}));
   }
 
   list<TData extends Partial<T> = T>(

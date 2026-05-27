@@ -1,5 +1,5 @@
 import { AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
-import { get, noop, set } from '@web-ts-toolkit/utils';
+import { get, set } from '@web-ts-toolkit/utils';
 import {
   FilterQuery,
   Document,
@@ -37,10 +37,7 @@ import { Model } from '../model';
 import { Service, ServiceError, ResultError } from './service';
 import { replaceSubQuery } from '../helpers';
 import { CACHE_HEADER } from '../constants';
-
-const setIfNotFound = (obj: object, key: string, value: unknown) => {
-  if (!get(obj, key)) set(obj, key, value);
-};
+import { createResponseHandler, setDefaultObjectProp } from './shared';
 
 interface ListData<T> {
   count: number;
@@ -77,22 +74,7 @@ export class ModelService<T extends Document> extends Service {
     this._queryPath = queryPath;
     this._mutationPath = mutationPath;
     this._defaults = defaults ?? {};
-
-    const _onSuccess = onSuccess ?? noop;
-    const _onFailure = onFailure ?? noop;
-
-    this._handleCallbacks = <T extends { success: boolean }>(res: T, _throwOnError = throwOnError) => {
-      if (res.success) {
-        _onSuccess(res);
-        return res;
-      }
-
-      _onFailure(res);
-      if (_throwOnError) {
-        throw new ServiceError(res as unknown as ResultError);
-      }
-      return res;
-    };
+    this._handleCallbacks = createResponseHandler(onSuccess, onFailure, throwOnError);
 
     [
       'listArgs',
@@ -111,7 +93,7 @@ export class ModelService<T extends Document> extends Service {
       'upsertOptions',
       'upsertAdvancedArgs',
       'upsertAdvancedOptions',
-    ].forEach((key) => setIfNotFound(this._defaults, key, {}));
+    ].forEach((key) => setDefaultObjectProp(this._defaults, key, {}));
   }
 
   list<TData extends Partial<T> = T>(args?: ListArgs, options?: ListOptions, axiosRequestConfig?: RequestConfig) {
@@ -1080,7 +1062,7 @@ export class ModelService<T extends Document> extends Service {
             >(
               () =>
                 this._axios
-                  .post(`${this._basePath}/${id}/${sub}/${this._queryPath}`, { filter, fields: select }, reqConfig)
+                  .post(`${this._basePath}/${id}/${sub}/${this._queryPath}`, { filter, select }, reqConfig)
                   .then(this.handleSuccess)
                   .then((result: ListModelResponse<S>) => {
                     result.totalCount = result.raw.length;
@@ -1168,7 +1150,7 @@ export class ModelService<T extends Document> extends Service {
                   .post(
                     `${this._basePath}/${id}/${sub}/${subId}/${this._queryPath}`,
                     {
-                      fields: select,
+                      select,
                       populate,
                     },
                     reqConfig,
@@ -1200,13 +1182,7 @@ export class ModelService<T extends Document> extends Service {
 
             return result;
           },
-          update: (
-            subId: string,
-            data: object,
-            options?: { returningSub: boolean },
-            axiosRequestConfig?: RequestConfig,
-          ) => {
-            const { returningSub } = options ?? {};
+          update: (subId: string, data: object, axiosRequestConfig?: RequestConfig) => {
             const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
             const result: ModelPromiseMeta & Promise<ModelResponse<S>> = wrapLazyPromise<
@@ -1215,11 +1191,7 @@ export class ModelService<T extends Document> extends Service {
             >(
               () =>
                 this._axios
-                  .patch(
-                    `${this._basePath}/${id}/${sub}/${subId}`,
-                    data,
-                    mergeConfig(reqConfig, { params: { returning_sub: returningSub === true } }),
-                  )
+                  .patch(`${this._basePath}/${id}/${sub}/${subId}`, data, mergeConfig(reqConfig, { params: {} }))
                   .then(this.handleSuccess)
                   .then((result: ModelResponse<S>) => {
                     result.data = null;
@@ -1238,9 +1210,7 @@ export class ModelService<T extends Document> extends Service {
                   sub,
                   subId,
                   data,
-                  options: {
-                    returningSub,
-                  },
+                  options: {},
                 },
                 __requestConfig: reqConfig,
                 __service: this,
