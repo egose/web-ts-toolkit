@@ -1,0 +1,279 @@
+---
+sidebar_label: Adapter And Setup
+sidebar_position: 2
+---
+
+# Adapter And Setup
+
+`createAdapter(...)` is the entrypoint for this package.
+
+It creates:
+
+- a configured Axios instance
+- factory methods for model and data services
+- generic `wrapGet` / `wrapPost` / `wrapPut` / `wrapPatch` / `wrapDelete` helpers
+- `group(...)` for root-router batching
+
+## Basic Setup
+
+```ts
+import { createAdapter } from '@web-ts-toolkit/access-router-client';
+
+const adapter = createAdapter(
+  {
+    baseURL: 'http://localhost:3000/api',
+    withCredentials: true,
+    headers: {
+      Authorization: 'Bearer token',
+    },
+  },
+  {
+    rootRouterPath: 'root',
+    throwOnError: false,
+    cacheTTL: 30_000,
+  },
+);
+```
+
+Default Axios config applied by the adapter:
+
+- `baseURL: '/api'`
+- `timeout: 0`
+- `withCredentials: true`
+- `Cache-Control: no-cache`
+- `Pragma: no-cache`
+- `Expires: 0`
+
+Your `axiosConfig` is merged on top of those defaults.
+
+## Adapter Options
+
+`createAdapter(axiosConfig?, adapterOptions?)`
+
+Supported adapter options:
+
+- `rootRouterPath?: string`
+- `onSuccess?: (res) => void`
+- `onFailure?: (res) => void`
+- `throwOnError?: boolean`
+- `cacheTTL?: number`
+
+Behavior notes:
+
+- `rootRouterPath` must match the path used by your server-side root router
+- `throwOnError` becomes the default for services created by this adapter
+- `onSuccess` and `onFailure` run after the client normalizes the response
+- `cacheTTL > 0` installs in-memory Axios interceptors for cacheable requests
+
+## Matching Server Paths
+
+The adapter itself only knows the API root. Individual services provide the router-relative paths.
+
+Example:
+
+```ts
+// server routes
+// /api/users
+// /api/users/__query
+// /api/users/__mutation
+// /api/root
+
+const adapter = createAdapter(
+  { baseURL: 'http://localhost:3000/api' },
+  { rootRouterPath: 'root' },
+);
+
+const userService = adapter.createModelService({
+  modelName: 'User',
+  basePath: 'users',
+  queryPath: '__query',
+  mutationPath: '__mutation',
+});
+```
+
+If those paths are out of sync with the server, the client will fail in ways that look like missing-route or invalid-body errors.
+
+## Creating Services
+
+### Model services
+
+```ts
+interface User {
+  _id?: string;
+  name: string;
+  role: string;
+  public: boolean;
+}
+
+const userService = adapter.createModelService<User>({
+  modelName: 'User',
+  basePath: 'users',
+});
+```
+
+Model service options:
+
+- `modelName: string`
+- `basePath: string`
+- `queryPath?: string` defaults to `__query`
+- `mutationPath?: string` defaults to `__mutation`
+- `onSuccess?: ResponseCallback`
+- `onFailure?: ResponseCallback`
+- `throwOnError?: boolean`
+
+Use custom `queryPath` or `mutationPath` only when your server uses non-default route segments.
+
+### Data services
+
+```ts
+interface Fruit {
+  id: string;
+  name: string;
+  public: boolean;
+}
+
+const fruitService = adapter.createDataService<Fruit>({
+  dataName: 'fruit',
+  basePath: 'fruit',
+});
+```
+
+Data service options:
+
+- `dataName: string`
+- `basePath: string`
+- `queryPath?: string` defaults to `__query`
+- `onSuccess?: ResponseCallback`
+- `onFailure?: ResponseCallback`
+- `throwOnError?: boolean`
+
+## Service Defaults
+
+Both service factories accept a second `defaults` argument.
+
+That lets you centralize common args and options instead of repeating them on every call.
+
+```ts
+const userService = adapter.createModelService<User>(
+  {
+    modelName: 'User',
+    basePath: 'users',
+  },
+  {
+    listAdvancedArgs: {
+      select: ['name', 'role'],
+      limit: 25,
+    },
+    listAdvancedOptions: {
+      includeCount: true,
+      skim: true,
+    },
+    readOptions: {
+      includePermissions: true,
+    },
+  },
+);
+```
+
+The service method call still wins if you pass explicit values later.
+
+Defaults are most useful when:
+
+- every list should include counts
+- every read should include permissions
+- most advanced reads share the same default projection
+- you want one service instance tuned for admin flows and another for public flows
+
+## Root Batching With `group(...)`
+
+`adapter.group(...)` batches multiple lazy requests into one root-router request.
+
+```ts
+const grouped = await adapter.group(
+  userService.readAdvanced('user-1', { select: ['name'] }),
+  userService.countAdvanced({ public: true }),
+  fruitService.list({ limit: 5 }),
+);
+```
+
+Important rules:
+
+- only pass lazy requests returned from this client package
+- every grouped request must share the same Axios request config
+- the requests are serialized into root-router query metadata and sent to `rootRouterPath`
+
+Practical consequences:
+
+- if one grouped request uses `headers: { user: 'admin' }`, every grouped request should use that same config
+- mixing different auth headers or different request-scoped permission headers in one batch will throw before the request is sent
+- grouped requests preserve order, so `group(a, b, c)` returns results for `a`, `b`, then `c`
+
+The grouped result is an array of normalized response objects in the same order as the input requests.
+
+## Wrapped Endpoints
+
+The adapter can also wrap arbitrary endpoints that are not part of a model or data service.
+
+```ts
+const getApple = adapter.wrapGet<{ name: string }>('/apple/{{name}}');
+
+const result = await getApple({
+  pathParams: { name: 'green' },
+  queryParams: { includeSeeds: true },
+});
+```
+
+Supported methods:
+
+- `wrapGet(url, defaultAxiosRequestConfig?)`
+- `wrapPost(url, defaultAxiosRequestConfig?)`
+- `wrapPut(url, defaultAxiosRequestConfig?)`
+- `wrapPatch(url, defaultAxiosRequestConfig?)`
+- `wrapDelete(url, defaultAxiosRequestConfig?)`
+
+Path and query behavior:
+
+- `{{token}}` placeholders in the URL are replaced from `pathParams`
+- `queryParams` become Axios `params`
+- per-call Axios config is merged with the wrapper default config
+
+This is useful when:
+
+- your API mostly uses `access-router`, but still exposes a few custom endpoints
+- you want to keep one shared Axios instance and auth setup
+- you want cache handling and base URL behavior to stay consistent across all requests
+
+## Cache Behavior
+
+When `cacheTTL > 0`, the adapter installs a simple in-memory cache for requests whose internal cache header is not disabled.
+
+Practical behavior:
+
+- read-style wrappers default to cacheable requests
+- mutation-style wrappers default to cache-disabled requests
+- service methods can opt out of cache by passing `ignoreCache: true`
+- cache keys include URL, method, params, body, and non-ignored headers
+
+The cache is scoped to the Axios instance created by that adapter. Two adapters do not share a cache.
+
+Headers matter intentionally here. If your app varies results by headers such as `Authorization` or `user`, those headers participate in the cache key unless they are part of the small ignored-header set.
+
+This keeps cached admin and non-admin reads from being treated as the same response.
+
+## Adapter-Level vs Service-Level Wrap Helpers
+
+You can wrap endpoints from the adapter or from a service.
+
+Use adapter-level wrap helpers when the path is already rooted from the adapter base URL:
+
+```ts
+adapter.wrapGet('reports/{{id}}');
+```
+
+Use service-level wrap helpers when the endpoint should be relative to a service base path:
+
+```ts
+userService.wrapPost('chairman');
+```
+
+For service-level wrappers, the service base path is prepended automatically.
