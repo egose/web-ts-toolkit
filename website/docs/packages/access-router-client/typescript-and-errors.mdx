@@ -1,0 +1,220 @@
+---
+sidebar_label: TypeScript And Errors
+sidebar_position: 5
+---
+
+# TypeScript And Errors
+
+This package is strongly typed around your document and data shapes.
+
+## Generic Model And Data Types
+
+You usually start by providing a document shape when you create a service.
+
+```ts
+interface User {
+  _id?: string;
+  name: string;
+  role: string;
+  public: boolean;
+}
+
+const userService = adapter.createModelService<User>({
+  modelName: 'User',
+  basePath: 'users',
+});
+```
+
+That type then flows through:
+
+- `ModelService<User>` methods
+- `Model<User>` wrappers
+- response `raw` and `data` types
+
+For model services, there are usually two useful layers of typing:
+
+- the raw server document shape
+- the wrapped client-facing `Model<T> & TData` shape in `data`
+
+## Selected Field Inference
+
+Advanced methods infer narrower response shapes when `select` is precise enough.
+
+```ts
+const user = await userService.readAdvanced('user-1', {
+  select: ['name', 'role'] as const,
+});
+
+user.raw;
+// Pick<User, 'name' | 'role'>
+```
+
+Projection styles that participate in inference:
+
+- readonly tuple arrays such as `['name', 'role'] as const`
+- exact string literals such as `'name'`
+- exact projection objects such as `{ name: 1, role: 1 } as const`
+
+If the projection is too wide, the client falls back to a looser `Partial<T>`-style shape.
+
+That fallback is intentional. The client only narrows types when the projection is specific enough to be trustworthy at compile time.
+
+## Overriding The Inferred Shape
+
+You can provide an explicit result type if you want something narrower than the inferred selection.
+
+```ts
+const user = await userService.readAdvanced<{ name: string }>('user-1', {
+  select: { name: 1, role: 1 } as const,
+});
+```
+
+That is most useful when:
+
+- the server adds derived fields
+- you intentionally want to hide part of the selected type at the call site
+- you are bridging older code that expects a custom shape
+
+## Important Response Types
+
+Common exported types include:
+
+- `Response<TRaw, TData = TRaw>`
+- `ModelResponse<T, TData = T>`
+- `ListModelResponse<T, TData = T>`
+- `DataResponse<T>`
+- `ListDataResponse<T>`
+- `Projection`
+- `FilterQuery<T>`
+- `Populate`
+- `Include`
+- `WrapOptions`
+
+`WrapOptions` is used by wrapped endpoints:
+
+```ts
+interface WrapOptions {
+  queryParams?: Record<string, unknown>;
+  pathParams?: Record<string, string | number>;
+}
+```
+
+Two practical distinctions matter a lot:
+
+- for `ModelService` reads, `raw` is usually plain selected document data while `data` is usually a `Model<T>` wrapper
+- for `DataService` reads, `raw` and `data` are usually the same plain value
+
+## Error Handling Modes
+
+By default, service methods resolve to normalized failure objects instead of throwing.
+
+```ts
+const result = await userService.read('missing-id');
+
+if (!result.success) {
+  console.log(result.status, result.message);
+}
+```
+
+If you prefer exceptions, enable `throwOnError`:
+
+```ts
+const userService = adapter.createModelService<User>({
+  modelName: 'User',
+  basePath: 'users',
+  throwOnError: true,
+});
+```
+
+Or per request:
+
+```ts
+await userService.read('missing-id', undefined, {
+  throwOnError: true,
+});
+```
+
+In that mode, failed requests reject with `ServiceError`.
+
+This gives you two consistent styles:
+
+- result-oriented control flow with `if (!result.success)`
+- exception-oriented control flow with `try/catch`
+
+## `ServiceError`
+
+`ServiceError` extends `Error` and keeps the normalized response fields:
+
+- `success`
+- `raw`
+- `data`
+- `status`
+- `headers`
+
+Example:
+
+```ts
+import { ServiceError } from '@web-ts-toolkit/access-router-client';
+
+try {
+  await userService.read('missing-id', undefined, { throwOnError: true });
+} catch (error) {
+  if (error instanceof ServiceError) {
+    console.log(error.status);
+    console.log(error.message);
+    console.log(error.raw);
+  }
+}
+```
+
+The `message` is extracted from structured server payloads in this order when available:
+
+- `detail`
+- `message`
+- `title`
+- nested entries inside `errors`
+
+That makes validation and problem-detail responses much easier to log and display than raw Axios errors.
+
+If the response payload is not structured, the client falls back to stringifying the payload or using the underlying Axios error message.
+
+## Lazy Request Type
+
+Service methods return a promise-like `LazyRequest<T>`.
+
+```ts
+interface LazyRequest<T> extends Promise<T> {
+  exec(): Promise<T>;
+}
+```
+
+This matters for two reasons:
+
+- you can force execution with `.exec()`
+- `adapter.group(...)` relies on the lazy request metadata attached to these objects
+
+Treat them like promises in normal code, but remember they also carry batching metadata internally.
+
+## One Practical Rule
+
+If you plan to batch requests with `adapter.group(...)`, keep them as client-returned lazy requests until the group call.
+
+This works:
+
+```ts
+const readUser = userService.read('user-1');
+const countUsers = userService.count();
+
+const [user, count] = await adapter.group(readUser, countUsers);
+```
+
+This does not:
+
+```ts
+const user = await userService.read('user-1');
+const count = await userService.count();
+
+await adapter.group(user, count);
+```
+
+Once awaited, the lazy request metadata is gone and you no longer have a batchable request object.

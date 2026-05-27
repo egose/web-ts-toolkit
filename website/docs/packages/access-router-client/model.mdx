@@ -1,0 +1,201 @@
+---
+sidebar_label: Model
+sidebar_position: 4
+---
+
+# Model
+
+Model reads and writes return `Model<T>` instances.
+
+`Model<T>` is a mutable client-side wrapper around a document snapshot plus the `ModelService<T>` that loaded it.
+
+## Why `Model<T>` Exists
+
+It solves three common client problems:
+
+- mutate a loaded document locally without immediately sending a request
+- track which top-level fields changed
+- persist the changes back to the same service through `save()`
+
+## Basic Usage
+
+```ts
+const read = await userService.read('user-id-1');
+
+read.data.name = 'new-name';
+read.data.role = 'owner';
+
+if (read.data.isDirty()) {
+  await read.data.save();
+}
+```
+
+You can also construct a model directly when you want a client-side draft before calling the server:
+
+```ts
+import { Model } from '@web-ts-toolkit/access-router-client';
+
+const draft = new Model(
+  {
+    name: 'draft-user',
+    role: 'author',
+    public: true,
+  },
+  userService,
+);
+
+await draft.save();
+```
+
+## Property Access
+
+The model exposes document keys directly when they do not collide with model methods.
+
+```ts
+read.data.name;
+read.data.role = 'owner';
+```
+
+For paths and collision-safe access, use `get(...)` and `set(...)`.
+
+```ts
+read.data.get('statusHistory.0.label');
+read.data.set('statusHistory.0.label', 'approved');
+```
+
+## Dirty Tracking
+
+`Model<T>` tracks modified top-level paths.
+
+Available helpers:
+
+- `isDirty()`
+- `isDirty(path)`
+- `markModified(path)`
+- `assign(partial)`
+- `set(path, value)`
+
+Behavior notes:
+
+- unchanged writes do not mark a field dirty
+- nested path tracking is normalized to the top-level field
+- direct mutation of deeply nested objects is not automatically tracked unless it passes through `set(...)` or `markModified(...)`
+
+This top-level normalization is intentional. The client ultimately sends modified top-level fields back to the server, not path-by-path Mongo update operators.
+
+Example:
+
+```ts
+read.data.statusHistory[0].label = 'approved';
+
+read.data.isDirty('statusHistory');
+// false
+
+read.data.set('statusHistory.0.label', 'approved');
+
+read.data.isDirty('statusHistory');
+// true
+```
+
+## `save()`
+
+`save()` persists only the tracked modified top-level fields.
+
+Behavior:
+
+- if `_id` exists, `save()` calls `service.update(...)`
+- if `_id` is missing, `save()` calls `service.create(...)`
+- on success, the model snapshot is replaced with the latest persisted state and the dirty set is cleared
+- on failure, the model remains dirty so you can correct and retry
+
+`save()` returns the normalized service response shape, not just the raw document. That means you can inspect `success`, `status`, `message`, `raw`, and `data` just like other client calls.
+
+Example:
+
+```ts
+const draft = await userService.new();
+
+draft.data.assign({
+  name: 'draft-user',
+  role: 'author',
+  public: true,
+});
+
+const saved = await draft.data.save();
+```
+
+## `reset()`
+
+`reset()` restores the last loaded or successfully saved snapshot.
+
+```ts
+const user = await userService.read('user-id-1');
+
+user.data.role = 'owner';
+user.data.reset();
+```
+
+After `reset()`:
+
+- current mutable data is restored from the snapshot
+- deleted keys are restored if they existed in the snapshot
+- extra keys added after load are removed
+- dirty tracking is cleared
+
+## `assign(...)`, `toObject()`, and `toJSON()`
+
+`assign(...)` mutates the live model in place:
+
+```ts
+user.data.assign({ role: 'admin', public: true });
+```
+
+`toObject()` and `toJSON()` return deep-cloned plain data.
+
+That is useful when:
+
+- you need to serialize safely
+- you want to compare snapshots
+- you do not want accidental mutation to change the live model state
+
+`toJSON()` makes `JSON.stringify(model)` behave like `JSON.stringify(model.toObject())`.
+
+## Field Name Collisions
+
+Some document keys can collide with model methods such as `save`, `set`, or `reset`.
+
+The model avoids defining direct properties for keys that already exist on the instance or its prototype.
+
+That means this is safe:
+
+```ts
+const doc = await weirdService.read('1');
+
+typeof doc.data.save;
+// 'function'
+
+doc.data.get('save');
+doc.data.set('save', 'field-value');
+```
+
+If a document field collides with a method name, access it with `get(...)` and `set(...)` instead of direct property syntax.
+
+## Practical Guidance
+
+Use direct property syntax for simple top-level fields.
+
+Use `set(...)` when:
+
+- the path is nested
+- the field name collides with a method
+- you want dirty tracking to reflect the change immediately
+
+Use `markModified(...)` when you mutate nested data outside `set(...)` and still want `save()` to include the top-level field.
+
+Recommended editing pattern:
+
+1. read the model
+2. use direct property writes for simple top-level fields
+3. use `set(...)` for nested fields
+4. check `isDirty()` before saving if you want to skip no-op writes
+5. call `reset()` when the user cancels local edits

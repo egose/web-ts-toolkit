@@ -1,0 +1,231 @@
+---
+sidebar_label: Services
+sidebar_position: 3
+---
+
+# Services
+
+`access-router-client` exposes two service classes:
+
+- `ModelService<T>` for model routers
+- `DataService<T>` for data routers
+
+They share the same response normalization and lazy-request behavior, but their method sets are different.
+
+## `ModelService<T>`
+
+Use `ModelService<T>` against a server-side model router.
+
+Model reads usually return `data` as `Model<T>` wrappers. That means read results are both typed data and persistence-aware editing objects.
+
+### Standard model methods
+
+- `list(args?, options?, axiosRequestConfig?)`
+- `read(id, options?, axiosRequestConfig?)`
+- `new(axiosRequestConfig?)`
+- `create(data, options?, axiosRequestConfig?)`
+- `update(id, data, options?, axiosRequestConfig?)`
+- `upsert(data, options?, axiosRequestConfig?)`
+- `delete(id, axiosRequestConfig?)`
+- `distinct(field, axiosRequestConfig?)`
+- `distinctAdvanced(field, filter, axiosRequestConfig?)`
+- `count(axiosRequestConfig?)`
+- `countAdvanced(filter, args?, axiosRequestConfig?)`
+
+These methods map closely to the server-side model router operations.
+
+In broad terms:
+
+- `list(...)` is the simple GET-based list route
+- `listAdvanced(...)` is the richer POST-based query route
+- `read(...)` is the simple GET-by-id route
+- `readAdvanced(...)` and `readAdvancedFilter(...)` are richer POST-based read routes
+- `create(...)` / `update(...)` / `upsert(...)` are the simpler mutation helpers
+- `createAdvanced(...)` / `updateAdvanced(...)` / `upsertAdvanced(...)` expose richer mutation arguments such as `select`, `populate`, and task execution
+
+### Advanced query and mutation methods
+
+- `listAdvanced(filter, args?, options?, axiosRequestConfig?)`
+- `readAdvanced(id, args?, options?, axiosRequestConfig?)`
+- `readAdvancedFilter(filter, args?, options?, axiosRequestConfig?)`
+- `createAdvanced(data, args?, options?, axiosRequestConfig?)`
+- `updateAdvanced(id, data, args?, options?, axiosRequestConfig?)`
+- `upsertAdvanced(data, args?, options?, axiosRequestConfig?)`
+
+### Common advanced args and options
+
+Advanced methods can use combinations of:
+
+- `select`
+- `populate`
+- `include`
+- `sort`
+- `skip`
+- `limit`
+- `page`
+- `pageSize`
+- `tasks`
+- `skim`
+- `includePermissions`
+- `includeCount`
+- `includeExtraHeaders`
+- `populateAccess`
+- `tryList`
+- `ignoreCache`
+
+The exact shape depends on the specific method, but the names mirror the `access-router` request contract.
+
+Rules of thumb:
+
+- use non-advanced methods for straightforward CRUD by id
+- use advanced methods when you need projection, populate, includes, server tasks, or filter-based reads
+- use `includeCount` only when you actually need total counts, since it may add work on the server side
+- use `includeExtraHeaders` when the server exposes count metadata through headers rather than body metadata
+
+### Example
+
+```ts
+const users = await userService.listAdvanced(
+  { public: true },
+  {
+    select: ['name', 'role'],
+    sort: { name: 1 },
+    limit: 20,
+  },
+  {
+    includeCount: true,
+    includePermissions: true,
+  },
+  {
+    headers: { user: 'admin' },
+  },
+);
+```
+
+## Subqueries
+
+Many model methods accept `sq` in their options.
+
+That is a client-side way to embed another lazy request into a filter, so the server can resolve it as an `access-router` subquery.
+
+```ts
+const orgs = await orgService.listAdvanced(
+  {
+    _id: userService.readAdvancedFilter(
+      { name: 'lucy2' },
+      undefined,
+      { sq: { path: 'orgs', compact: true } },
+    ),
+  },
+  { select: ['name'] },
+);
+```
+
+This works because the client replaces embedded lazy requests with the special `$$sq` root-query metadata expected by the server.
+
+That gives you a way to express server-side dependent queries without manually constructing the low-level root-router payload.
+
+## Subdocument Helpers
+
+`ModelService<T>` also exposes subdocument helpers from `id(id)`:
+
+```ts
+const statusHistory = userService.id(userId).subs('statusHistory');
+```
+
+Available methods:
+
+- `list(axiosRequestConfig?)`
+- `listAdvanced(filter?, args?, axiosRequestConfig?)`
+- `read(subId, axiosRequestConfig?)`
+- `readAdvanced(subId, args?, axiosRequestConfig?)`
+- `create(data, axiosRequestConfig?)`
+- `update(subId, data, axiosRequestConfig?)`
+- `bulkUpdate(data[], options?, axiosRequestConfig?)`
+- `delete(subId, axiosRequestConfig?)`
+
+Also available:
+
+- `id(id).fetch(args?, options?, axiosRequestConfig?)` as a convenience alias for `readAdvanced(id, ...)`
+
+These helpers are only as capable as the matching subdocument operations exposed by the server router. If the server did not enable `subs.someField.create`, the client helper exists but the request will still be rejected by the server.
+
+### Important return-shape note for subdocument helpers
+
+Subdocument helpers intentionally expose more of the raw route payload.
+
+In practice:
+
+- `subs(...).list(...)` and `listAdvanced(...)` return data in `raw`, and `data` is not wrapped into `Model` instances
+- `subs(...).read(...)`, `readAdvanced(...)`, `create(...)`, `update(...)`, and `delete(...)` also keep the useful payload in `raw`
+
+If you are handling subdocument routes, prefer reading from `raw` unless you have verified the higher-level `data` shape you want.
+
+### Example
+
+```ts
+const statusHistory = userService.id(userId).subs('statusHistory');
+
+const created = await statusHistory.create({
+  label: 'queued',
+  flag: 'orange',
+});
+
+const listed = await statusHistory.list();
+
+const bulkUpdated = await statusHistory.bulkUpdate([
+  { _id: 'sub-1', label: 'approved', flag: 'green' },
+  { _id: 'sub-2', label: 'rejected', flag: 'red' },
+]);
+```
+
+## `DataService<T>`
+
+Use `DataService<T>` against a server-side data router.
+
+Supported methods:
+
+- `list(args?, options?, axiosRequestConfig?)`
+- `listAdvanced(filter, args?, options?, axiosRequestConfig?)`
+- `read(id, options?, axiosRequestConfig?)`
+- `readAdvanced(id, args?, options?, axiosRequestConfig?)`
+- `readAdvancedFilter(filter, args?, options?, axiosRequestConfig?)`
+
+Unlike `ModelService<T>`, `DataService<T>` is read-only from the client’s point of view.
+
+It returns plain data objects rather than `Model<T>` wrappers.
+
+Use it when the server data source is not a Mongoose model router and does not need client-side persistence helpers.
+
+### Example
+
+```ts
+const fruits = await fruitService.listAdvanced(
+  { public: true },
+  { select: ['id', 'name'], limit: 10 },
+  { includeCount: true },
+);
+
+const apple = await fruitService.readAdvanced('apple', { select: ['name'] });
+```
+
+## Request Config And Errors
+
+Every service method accepts an Axios request config as its last argument.
+
+Common patterns:
+
+- pass `headers` for auth or request-scoped permissions
+- pass `throwOnError: true` to convert a failed normalized response into `ServiceError`
+- pass `ignoreCache: true` in supported method options when you need a fresh read
+
+Request-scoped permissions are especially common with `access-router` setups. For example, if the server derives permissions from `req.headers.user`, the same header needs to be sent from the client for reads, writes, and grouped requests.
+
+Example:
+
+```ts
+const user = await userService.read('user-1', undefined, {
+  headers: { user: 'admin' },
+  throwOnError: true,
+});
+```
