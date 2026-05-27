@@ -69,6 +69,7 @@ const UserModel =
 let mongoServer: MongoMemoryServer;
 let server: Server;
 let adapter: ReturnType<typeof createAdapter>;
+let cacheRouteRequestCount = 0;
 
 const services = {} as {
   userService: ModelService<User>;
@@ -252,6 +253,11 @@ beforeAll(async () => {
     res.status(500).json({ error: 'internal server error' });
   });
 
+  app.get('/api/test/cache-user', (req, res) => {
+    cacheRouteRequestCount += 1;
+    res.json({ user: req.headers.user ?? 'anonymous', requestCount: cacheRouteRequestCount });
+  });
+
   app.use(userRouter.routes);
   app.use(orgRouter.routes);
   app.use(petRouter.routes);
@@ -278,6 +284,7 @@ beforeAll(async () => {
 }, MONGO_TIMEOUT);
 
 beforeEach(async () => {
+  cacheRouteRequestCount = 0;
   await seedDatabase();
 });
 
@@ -382,11 +389,16 @@ describe('access-router-client', () => {
     );
     expect(counted.data).toBeGreaterThanOrEqual(2);
 
-    await expect(
-      services.userServiceWithError.createAdvanced({ name: 'no', role: 'x', public: true }, undefined, undefined, {
+    const invalidCreateError = await services.userServiceWithError
+      .createAdvanced({ name: 'no', role: 'x', public: true }, undefined, undefined, {
         headers: { user: 'admin' },
-      }),
-    ).rejects.toBeInstanceOf(ServiceError);
+      })
+      .catch((error) => error);
+
+    expect(invalidCreateError).toBeInstanceOf(ServiceError);
+    expect(invalidCreateError.message).not.toBe('[object Object]');
+    expect(invalidCreateError.message.length).toBeGreaterThan(0);
+    expect(invalidCreateError.raw).toBeTruthy();
   });
 
   it('supports subqueries and subdocument routes without an external backend', async () => {
@@ -415,6 +427,23 @@ describe('access-router-client', () => {
     const read = await subService.read(existingSubId, { headers: { user: 'admin' } });
     expect(read.success).toBe(true);
     expect(read.raw).toMatchObject({ _id: existingSubId });
+
+    const advancedListed = await subService.listAdvanced(
+      { flag: 'green' },
+      { select: ['label', 'flag'] },
+      { headers: { user: 'admin' } },
+    );
+    expect(advancedListed.success).toBe(true);
+    expect(advancedListed.raw).toHaveLength(1);
+    expect(String(advancedListed.raw[0]._id)).toBe(existingSubId);
+
+    const advancedRead = await subService.readAdvanced(
+      existingSubId,
+      { select: ['label'], populate: [] },
+      { headers: { user: 'admin' } },
+    );
+    expect(advancedRead.success).toBe(true);
+    expect(String(advancedRead.raw._id)).toBe(existingSubId);
   });
 
   it('supports data services and custom wrapped endpoints', async () => {
@@ -441,6 +470,18 @@ describe('access-router-client', () => {
     expect(chairman.data).toEqual({ name: 'chairman', flag: 'pencil' });
   });
 
+  it('reads totalCount from access-router extra headers', async () => {
+    const list = await services.petService.list(
+      { limit: 1 },
+      { includeCount: true, includeExtraHeaders: true },
+      { headers: { user: 'admin' } },
+    );
+
+    expect(list.success).toBe(true);
+    expect(list.raw).toHaveLength(1);
+    expect(list.totalCount).toBe(3);
+  });
+
   it('handles group partial failures gracefully', async () => {
     // One successful request: read an existing user
     const successful = services.userService.readAdvanced(String(seedState.admin._id), { select: ['name'] }, undefined, {
@@ -461,6 +502,15 @@ describe('access-router-client', () => {
     // The failed request should have a non-2xx status and a message
     expect(result[1].status).toBeGreaterThanOrEqual(400);
     expect(typeof result[1].message).toBe('string');
+  });
+
+  it('rejects grouped requests with conflicting axios configs', async () => {
+    const first = services.userService.read(String(seedState.admin._id), undefined, { headers: { user: 'admin' } });
+    const second = services.userService.read(String(seedState.lucy2._id), undefined, { headers: { user: 'guest' } });
+
+    await expect(adapter.group(first, second)).rejects.toThrow(
+      'Grouped requests must share the same axios request config',
+    );
   });
 
   it('handles wrapGet 404 errors appropriately', async () => {
@@ -488,5 +538,39 @@ describe('access-router-client', () => {
         status: 500,
       },
     });
+  });
+
+  it('supports lazy request catch and finally semantics', async () => {
+    let finalized = false;
+
+    const finalizedResult = await services.userService
+      .read(String(seedState.admin._id), undefined, { headers: { user: 'admin' } })
+      .finally(() => {
+        finalized = true;
+      });
+
+    expect(finalized).toBe(true);
+    expect(finalizedResult.success).toBe(true);
+    expect(finalizedResult.data.name).toBe('admin-user');
+
+    const error = await services.userService
+      .read('000000000000000000000000', undefined, { headers: { user: 'admin' }, throwOnError: true })
+      .catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(ServiceError);
+    expect(error).toMatchObject({ status: 404 });
+  });
+
+  it('scopes cached responses to each adapter instance and request headers', async () => {
+    const cachedAdapter = createAdapter({ baseURL: adapter.axios.defaults.baseURL }, { cacheTTL: 60_000 });
+    const getCachedUser = cachedAdapter.wrapGet<{ user: string; requestCount: number }>('test/cache-user');
+
+    const adminFirst = await getCachedUser(undefined, { headers: { user: 'admin' } });
+    const adminSecond = await getCachedUser(undefined, { headers: { user: 'admin' } });
+    const guestFirst = await getCachedUser(undefined, { headers: { user: 'guest' } });
+
+    expect(adminFirst.data).toEqual({ user: 'admin', requestCount: 1 });
+    expect(adminSecond.data).toEqual({ user: 'admin', requestCount: 1 });
+    expect(guestFirst.data).toEqual({ user: 'guest', requestCount: 2 });
   });
 });

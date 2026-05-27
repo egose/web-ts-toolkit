@@ -1,8 +1,16 @@
-import axios, { mergeConfig, AxiosRequestConfig } from 'axios';
+import axios, { AxiosHeaders, mergeConfig, AxiosRequestConfig } from 'axios';
 import { castArray, isEmpty, set } from '@web-ts-toolkit/utils';
 import { ModelService, DataService } from './services';
 import { Model } from './model';
-import { DataPromiseMeta, Document, ModelPromiseMeta, ResponseCallback, RootQueryMeta, WrapOptions } from './types';
+import {
+  DataPromiseMeta,
+  Document,
+  LazyRequest,
+  ModelPromiseMeta,
+  ResponseCallback,
+  RootQueryMeta,
+  WrapOptions,
+} from './types';
 import { Defaults, DataDefaults } from './interface';
 import { useCacheInterceptors } from './services/interceptors';
 import { getWrapContext } from './helpers';
@@ -21,6 +29,32 @@ const defaultAxiosConfig = Object.freeze({
 
 const isModelQuery = (query: RootQueryMeta): query is Extract<RootQueryMeta, { target: 'model' }> =>
   query.target === 'model';
+
+const normalizeConfigValue = (value: unknown): unknown => {
+  if (value == null) return value;
+
+  if (value instanceof AxiosHeaders) {
+    return normalizeConfigValue(value.toJSON());
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeConfigValue(item));
+  }
+
+  if (typeof value === 'object') {
+    return Object.entries(value)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .reduce<Record<string, unknown>>((acc, [key, item]) => {
+        acc[key] = normalizeConfigValue(item);
+        return acc;
+      }, {});
+  }
+
+  return value;
+};
+
+const serializeRequestConfig = (config?: AxiosRequestConfig) => JSON.stringify(normalizeConfigValue(config ?? {}));
 
 interface AdapterOptions {
   rootRouterPath?: string;
@@ -167,16 +201,27 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
         return instance.delete<T>(finalUrl, finalConfig);
       };
     },
-    group: async <T extends ((ModelPromiseMeta | DataPromiseMeta) & Promise<unknown>)[]>(
+    group: async <T extends ((ModelPromiseMeta | DataPromiseMeta) & LazyRequest<unknown>)[]>(
       ...proms: T
     ): Promise<{ [K in keyof T]: T[K] extends Promise<infer U> ? U : never }> => {
-      let lastConfig;
+      let sharedConfig: AxiosRequestConfig | undefined;
+      let sharedConfigKey: string | undefined;
       const defs = proms.map((prom) => {
-        if (!isEmpty(prom.__requestConfig)) lastConfig = prom.__requestConfig;
+        if (!isEmpty(prom.__requestConfig)) {
+          const configKey = serializeRequestConfig(prom.__requestConfig);
+
+          if (sharedConfigKey && sharedConfigKey !== configKey) {
+            throw new Error('Grouped requests must share the same axios request config');
+          }
+
+          sharedConfig = prom.__requestConfig;
+          sharedConfigKey = configKey;
+        }
+
         return prom.__query;
       });
 
-      const result = await instance.post(rootRouterPath, defs, lastConfig ?? {}).then((res) => {
+      const result = await instance.post(rootRouterPath, defs, sharedConfig ?? {}).then((res) => {
         return res.data.map(({ result, message, statusCode, op }, index) => {
           const service = proms[index].__service;
           const query = proms[index].__query;
