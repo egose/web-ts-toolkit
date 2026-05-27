@@ -163,6 +163,8 @@ export interface LazyRequest<T> extends Promise<T> {
   exec(): Promise<T>;
 }
 
+export type ModelRequest<T> = ModelPromiseMeta & LazyRequest<T>;
+
 export type DataResponse<T> = Response<T, T>;
 export type ArrayDataResponse<T> = Response<T[], T[]>;
 export type ListDataResponse<T> = ArrayDataResponse<T> & { totalCount: number };
@@ -173,6 +175,8 @@ export interface DataPromiseMeta {
   __requestConfig?: AxiosRequestConfig;
   __service?: DataService<unknown>;
 }
+
+export type DataRequest<T> = DataPromiseMeta & LazyRequest<T>;
 
 export const wrapLazyPromise = <T, M = undefined>(promiseFn: () => Promise<T>, meta?: M): M & LazyRequest<T> => {
   let promise: Promise<T> | undefined;
