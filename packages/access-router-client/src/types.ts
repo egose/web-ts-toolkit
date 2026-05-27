@@ -124,6 +124,10 @@ export interface ModelPromiseMeta {
   __service?: ModelService<Document>;
 }
 
+export interface LazyRequest<T> extends Promise<T> {
+  exec(): Promise<T>;
+}
+
 export type DataResponse<T> = Response<T, T>;
 export type ArrayDataResponse<T> = Response<T[], T[]>;
 export type ListDataResponse<T> = ArrayDataResponse<T> & { totalCount: number };
@@ -135,25 +139,32 @@ export interface DataPromiseMeta {
   __service?: DataService<unknown>;
 }
 
-export const wrapLazyPromise = <T, M = undefined>(promiseFn: () => Promise<T>, meta?: M): M & Promise<T> => {
-  let isThenCalled = false;
+export const wrapLazyPromise = <T, M = undefined>(promiseFn: () => Promise<T>, meta?: M): M & LazyRequest<T> => {
+  let promise: Promise<T> | undefined;
+
+  const exec = () => {
+    if (!promise) {
+      promise = promiseFn();
+    }
+
+    return promise;
+  };
 
   const prom = {
+    exec,
     then<TResult1 = T, TResult2 = never>(
       onFulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
       onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
     ) {
-      isThenCalled = true;
-      return promiseFn().then(onFulfilled, onRejected);
+      return exec().then(onFulfilled, onRejected);
+    },
+    catch<TResult = never>(onRejected?: ((reason: unknown) => TResult | PromiseLike<TResult>) | null) {
+      return exec().catch(onRejected);
     },
     finally(onFinally?: (() => void) | null) {
-      if (isThenCalled) {
-        return Promise.resolve().then(onFinally);
-      }
-      return Promise.resolve();
+      return exec().finally(onFinally);
     },
     [Symbol.for('nodejs.util.inspect.custom')]() {
-      // This method can be added for better console output in Node.js
       return 'LazyPromise';
     },
   };
@@ -167,7 +178,7 @@ export const wrapLazyPromise = <T, M = undefined>(promiseFn: () => Promise<T>, m
 
   Object.assign(prom, meta);
 
-  return prom as M & Promise<T>;
+  return prom as M & LazyRequest<T>;
 };
 
 export type ResponseCallback = (res: unknown) => void;
