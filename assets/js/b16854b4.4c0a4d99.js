@@ -18,7 +18,7 @@ __webpack_require__.d(__webpack_exports__, {
 });
 
 ;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-moo-md-b16.json
-const site_docs_packages_moo_md_b16_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/moo","title":"@web-ts-toolkit/moo","description":"Helpers for common Mongoose patterns.","source":"@site/docs/packages/moo.md","sourceDirName":"packages","slug":"/packages/moo","permalink":"/docs/packages/moo","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":5,"frontMatter":{"sidebar_label":"Moo","sidebar_position":5},"sidebar":"packagesSidebar","previous":{"title":"HTTP Errors","permalink":"/docs/packages/http-errors"},"next":{"title":"Access Router Client","permalink":"/docs/packages/access-router-client/"}}');
+const site_docs_packages_moo_md_b16_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/moo","title":"@web-ts-toolkit/moo","description":"Helpers for common Mongoose patterns.","source":"@site/docs/packages/moo.md","sourceDirName":"packages","slug":"/packages/moo","permalink":"/docs/packages/moo","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":5,"frontMatter":{"sidebar_label":"Moo","sidebar_position":5},"sidebar":"packagesSidebar","previous":{"title":"HTTP Errors","permalink":"/docs/packages/http-errors"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js

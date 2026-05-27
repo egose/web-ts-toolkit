@@ -1,7 +1,7 @@
 "use strict";
-(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[853],{
+(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[726],{
 
-/***/ 8648
+/***/ 5801
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 // ESM COMPAT FLAG
@@ -13,12 +13,12 @@ __webpack_require__.d(__webpack_exports__, {
   contentTitle: () => (/* binding */ contentTitle),
   "default": () => (/* binding */ MDXContent),
   frontMatter: () => (/* binding */ frontMatter),
-  metadata: () => (/* reexport */ site_docs_packages_express_json_router_md_073_namespaceObject),
+  metadata: () => (/* reexport */ site_docs_packages_access_router_client_index_md_cb3_namespaceObject),
   toc: () => (/* binding */ toc)
 });
 
-;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-json-router-md-073.json
-const site_docs_packages_express_json_router_md_073_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-json-router","title":"@web-ts-toolkit/express-json-router","description":"Express router wrapper that wires route handlers through @web-ts-toolkit/express-response-handler and keeps track of registered endpoints.","source":"@site/docs/packages/express-json-router.md","sourceDirName":"packages","slug":"/packages/express-json-router","permalink":"/docs/packages/express-json-router","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":2,"frontMatter":{"sidebar_label":"Express JSON Router","sidebar_position":2},"sidebar":"packagesSidebar","previous":{"title":"Processors","permalink":"/docs/packages/access-router/processors"},"next":{"title":"Express Response Handler","permalink":"/docs/packages/express-response-handler"}}');
+;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-access-router-client-index-md-cb3.json
+const site_docs_packages_access_router_client_index_md_cb3_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router-client/index","title":"@web-ts-toolkit/access-router-client","description":"Typed Axios-based client utilities for @web-ts-toolkit/access-router model routers, data routers, and root batch routes.","source":"@site/docs/packages/access-router-client/index.md","sourceDirName":"packages/access-router-client","slug":"/packages/access-router-client/","permalink":"/docs/packages/access-router-client/","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":1,"frontMatter":{"sidebar_label":"Overview","sidebar_position":1},"sidebar":"packagesSidebar","previous":{"title":"Processors","permalink":"/docs/packages/access-router/processors"},"next":{"title":"Adapter And Setup","permalink":"/docs/packages/access-router-client/adapter"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -27,14 +27,14 @@ var lib = __webpack_require__(1982);
 var Tabs = __webpack_require__(5250);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@docusaurus+theme-classic@3.10.1_@types+react@19.2.14_react-dom@19.2.6_react@19.2.6__react@19.2.6_typescript@6.0.3/node_modules/@docusaurus/theme-classic/lib/theme/TabItem/index.js + 1 modules
 var TabItem = __webpack_require__(6574);
-;// ./docs/packages/express-json-router.md
+;// ./docs/packages/access-router-client/index.md
 
 
 const frontMatter = {
-	sidebar_label: 'Express JSON Router',
-	sidebar_position: 2
+	sidebar_label: 'Overview',
+	sidebar_position: 1
 };
-const contentTitle = '@web-ts-toolkit/express-json-router';
+const contentTitle = '@web-ts-toolkit/access-router-client';
 
 const assets = {
 
@@ -45,37 +45,68 @@ const assets = {
 
 
 const toc = [{
+  "value": "Relationship To The Server",
+  "id": "relationship-to-the-server",
+  "level": 2
+}, {
   "value": "Installation",
   "id": "installation",
   "level": 2
 }, {
-  "value": "Usage",
-  "id": "usage",
+  "value": "What It Exposes",
+  "id": "what-it-exposes",
   "level": 2
 }, {
-  "value": "Structured Error Formats",
-  "id": "structured-error-formats",
+  "value": "Quick Start",
+  "id": "quick-start",
   "level": 2
 }, {
-  "value": "Behavior",
-  "id": "behavior",
+  "value": "Typical Workflow",
+  "id": "typical-workflow",
   "level": 2
 }, {
-  "value": "Hooks",
-  "id": "hooks",
+  "value": "Core Concepts",
+  "id": "core-concepts",
   "level": 2
 }, {
-  "value": "API",
-  "id": "api",
+  "value": "Lazy requests",
+  "id": "lazy-requests",
+  "level": 3
+}, {
+  "value": "Response shape",
+  "id": "response-shape",
+  "level": 3
+}, {
+  "value": "<code>Model&lt;T&gt;</code> wrappers",
+  "id": "modelt-wrappers",
+  "level": 3
+}, {
+  "value": "Package Guide",
+  "id": "package-guide",
+  "level": 2
+}, {
+  "value": "Routing Notes",
+  "id": "routing-notes",
+  "level": 2
+}, {
+  "value": "Common path mapping",
+  "id": "common-path-mapping",
+  "level": 3
+}, {
+  "value": "When To Use It",
+  "id": "when-to-use-it",
   "level": 2
 }];
 function _createMdxContent(props) {
   const _components = {
+    a: "a",
     code: "code",
     h1: "h1",
     h2: "h2",
+    h3: "h3",
     header: "header",
     li: "li",
+    ol: "ol",
     p: "p",
     pre: "pre",
     ul: "ul",
@@ -85,15 +116,79 @@ function _createMdxContent(props) {
   return (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, {
     children: [(0,jsx_runtime.jsx)(_components.header, {
       children: (0,jsx_runtime.jsx)(_components.h1, {
-        id: "web-ts-toolkitexpress-json-router",
+        id: "web-ts-toolkitaccess-router-client",
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/express-json-router"
+          children: "@web-ts-toolkit/access-router-client"
         })
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Express router wrapper that wires route handlers through ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/express-response-handler"
-      }), " and keeps track of registered endpoints."]
+      children: ["Typed Axios-based client utilities for ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/access-router"
+      }), " model routers, data routers, and root batch routes."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["This package is designed to mirror the request contract exposed by ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "../access-router/",
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/access-router"
+        })
+      }), ":"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["model routers become ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ModelService<T>"
+        }), " instances"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["data routers become ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DataService<T>"
+        }), " instances"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["root-router batching becomes ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "adapter.group(...)"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["model responses become mutable ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Model<T>"
+        }), " wrappers with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "save()"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "reset()"
+        }), ", and dirty tracking"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "relationship-to-the-server",
+      children: "Relationship To The Server"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "access-router-client"
+      }), " is not a generic REST SDK generator."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["It assumes the server follows the conventions from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/access-router"
+      }), ", including:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["model routes mounted at a known ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "basePath"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["data routes mounted at a known ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "basePath"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["advanced query routes mounted under a query segment such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "__query"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["advanced mutation routes mounted under a mutation segment such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "__mutation"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["optional root batching mounted under a root route such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "/api/root"
+        })]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "If the server uses custom route segments, configure the client to match them exactly."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
       children: "Installation"
@@ -104,7 +199,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @web-ts-toolkit/express-json-router express\n"
+            children: "npm install @web-ts-toolkit/access-router-client\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -113,7 +208,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @web-ts-toolkit/express-json-router express\n"
+            children: "yarn add @web-ts-toolkit/access-router-client\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -122,7 +217,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @web-ts-toolkit/express-json-router express\n"
+            children: "pnpm add @web-ts-toolkit/access-router-client\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -131,202 +226,299 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @web-ts-toolkit/express-json-router express\n"
+            children: "bun add @web-ts-toolkit/access-router-client\n"
           })
         })
       })]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "usage",
-      children: "Usage"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import express from 'express';\nimport JsonRouter from '@web-ts-toolkit/express-json-router';\n\nconst app = express();\nconst router = new JsonRouter('/api');\n\nrouter.get('/health', () => ({ ok: true }));\n\nrouter.get('/users/:id', () => {\n  throw new JsonRouter.clientErrors.NotFoundError('User not found');\n});\n\nJsonRouter.errorMessageProvider = (error) => {\n  if (error instanceof Error) {\n    return { message: error.message };\n  }\n\n  return { message: String(error) };\n};\n\napp.use(router.original);\n"
+        className: "language-bash",
+        children: "pnpm add @web-ts-toolkit/access-router-client\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "structured-error-formats",
-      children: "Structured Error Formats"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter"
-      }), " uses the shared default response handler out of the box. If you want a different error format such as RFC 9457, create a custom handler and pass it to the router constructor:"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import JsonRouter from '@web-ts-toolkit/express-json-router';\nimport { BadRequestError } from '@web-ts-toolkit/http-errors';\n\nconst responseHandler = JsonRouter.createHandler({\n  errorFormat: JsonRouter.ErrorFormats.rfc9457,\n  errorDomain: 'api.example.com',\n});\n\nconst router = new JsonRouter('/api', undefined, responseHandler);\n\nrouter.get('/users', () => {\n  throw new BadRequestError('invalid email', {\n    type: 'https://api.example.com/problems/invalid-email',\n    title: 'Invalid email address',\n    errors: [\n      {\n        detail: 'must be a valid email address',\n        pointer: '#/email',\n      },\n    ],\n  });\n});\n"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The static hook properties such as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.preJson"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.errorMessageProvider"
-      }), " still proxy the shared default handler. When you pass a custom handler instance, configure that handler directly before giving it to the router."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "behavior",
-      children: "Behavior"
+      id: "what-it-exposes",
+      children: "What It Exposes"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Main entrypoint:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["Route handlers can return plain values, promises, ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "JsonRouter.HttpResponse.*"
-        }), " helpers, or throw ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "JsonRouter.clientErrors.*"
-        }), " errors."]
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "createAdapter(...)"
+        })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "Router-level middleware can be passed as a single function or an array in the constructor."
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "ModelService"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "DataService"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "Model"
+        })
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["A custom response-handler instance can be passed as the third constructor argument when you need ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "aip193"
-        }), " or ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "rfc9457"
-        }), " error formatting."]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "router.route(path)"
-        }), " supports the same JSON-aware handler behavior as ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "router.get(path, ...)"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "router.post(path, ...)"
-        }), ", and the other Express router methods exposed by the instance."]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "router.getEndpoints()"
-        }), " returns a snapshot of the registered endpoints in registration order."]
+        children: ["response and query helper types from ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "./types"
+        })]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "hooks",
-      children: "Hooks"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The package forwards the shared hooks from ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/express-response-handler"
-      }), " through static properties on ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter"
-      }), "."]
+      id: "quick-start",
+      children: "Quick Start"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "JsonRouter.preJson = (value) => {\n  console.log('about to serialize', value);\n};\n\nJsonRouter.postJson = (value) => {\n  console.log('serialized', value);\n};\n\nJsonRouter.preError = (error) => {\n  console.error('request failed', error);\n};\n"
+        children: "import { createAdapter } from '@web-ts-toolkit/access-router-client';\n\ninterface User {\n  _id?: string;\n  name: string;\n  role: string;\n  public: boolean;\n}\n\nconst adapter = createAdapter({\n  baseURL: 'http://localhost:3000/api',\n});\n\nconst userService = adapter.createModelService<User>({\n  modelName: 'User',\n  basePath: 'users',\n});\n\nconst listResponse = await userService.listAdvanced(\n  { role: 'admin' },\n  { select: ['name', 'role'], limit: 10 },\n  { includeCount: true },\n);\n\nconst user = await userService.read('user-id-1');\n\nuser.data.role = 'owner';\nawait user.data.save();\n\nconst grouped = await adapter.group(\n  userService.readAdvanced('user-id-1', { select: ['name'] }),\n  userService.countAdvanced({ role: 'admin' }),\n);\n"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "These hooks are shared process-wide because they proxy the default response-handler instance."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "api",
-      children: "API"
+      id: "typical-workflow",
+      children: "Typical Workflow"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "new JsonRouter(basePath?, middlewares?, responseHandler?)"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Creates a JSON-aware Express router. ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "basePath"
-      }), " accepts values like ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "'/api'"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "'api'"
-      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "'api/'"
-      }), " and is normalized for route registration. ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "responseHandler"
-      }), " defaults to the shared handler instance from ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/express-response-handler"
-      }), "."]
+      children: "In practice, a common client flow looks like this:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ol, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "create one adapter per API origin"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "create one service per router you care about"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["read documents into ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Model<T>"
+        }), " wrappers"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "mutate the wrapper locally"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["persist with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "save()"
+        }), " or call explicit service methods"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["use ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "group(...)"
+        }), " when several ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access-router"
+        }), " requests should share one round trip"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "core-concepts",
+      children: "Core Concepts"
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "lazy-requests",
+      children: "Lazy requests"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "router.original"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Returns the underlying Express router so it can be mounted with ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "app.use(...)"
-      }), "."]
+      children: "Service methods return promise-like lazy requests."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["the request does not execute until you ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "await"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".then()"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".catch()"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".finally()"
+        }), ", or call ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".exec()"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["lazy requests carry internal metadata that ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "adapter.group(...)"
+        }), " uses to build a root batch request"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "grouped requests must come from this client package, not from raw Axios calls"
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "response-shape",
+      children: "Response shape"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Most service methods resolve to a normalized shape:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "router.route(path)"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Builds chained route registrations such as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "router.route('/users').get(...).post(...)"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "router.getEndpoints()"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Returns ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "{ method, path }[]"
-      }), " for the routes registered through ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.clientErrors"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Re-exports the HTTP error classes from ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/http-errors"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.success"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Re-exports success response classes such as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.success.Created"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.HttpResponse"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Exposes helper constructors such as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.HttpResponse.ok(...)"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.HttpResponse.created(...)"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.defaultHandler"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Exposes the shared default response-handler instance used by ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter"
-      }), " when no custom handler is provided."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.ErrorFormats"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Exposes named error format constants such as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.ErrorFormats.rfc9457"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.createHandler"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Re-exports ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "createHandler(...)"
-      }), " from ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/express-response-handler"
-      }), " so you can provide a custom handler instance to the router."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.errorMessageProvider"
+        className: "language-ts",
+        children: "interface Response<TRaw, TData = TRaw> {\n  success: boolean;\n  raw: TRaw;\n  data: TData;\n  message: string;\n  status: number;\n  headers: Record<string, string>;\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Overrides the error-to-payload mapping used for non-HTTP errors."
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: "Common conventions:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "success === true"
+        }), " means the HTTP request completed and the router operation succeeded"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "raw"
+        }), " holds the original payload after client-side normalization"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "data"
+        }), " holds higher-level client objects such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Model<T>"
+        }), " wrappers for model reads"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "message"
+        }), " is populated for errors and is extracted from structured problem payloads when possible"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "For list-style responses:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "totalCount"
+        }), " is present on list response types"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "when the server returns count metadata, the client normalizes it into that field"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["when count metadata is not requested, ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "totalCount"
+        }), " may be ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "0"
+        }), " or a fallback based on the route shape"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.h3, {
+      id: "modelt-wrappers",
       children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.preJson"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.postJson"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.preError"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.postError"
-      })]
+        children: "Model<T>"
+      }), " wrappers"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Expose the shared serialization and error hooks from ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/express-response-handler"
-      }), "."]
+      children: ["Model reads and writes return ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Model<T>"
+      }), " instances instead of plain objects."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "That wrapper provides:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["direct property access like ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "user.data.name"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "assign(...)"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "get(...)"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "set(...)"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "isDirty(...)"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "markModified(...)"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "save()"
+        }), " for create-or-update persistence"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "reset()"
+        }), " to restore the last loaded or persisted snapshot"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "toObject()"
+        }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "toJSON()"
+        }), " for safe cloning and serialization"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "package-guide",
+      children: "Package Guide"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./adapter",
+          children: "Adapter And Setup"
+        }), ": configuring ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "createAdapter(...)"
+        }), ", batching, wrapping arbitrary endpoints, and cache behavior"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./services",
+          children: "Services"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ModelService"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DataService"
+        }), " methods, defaults, subqueries, and subdocuments"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./model",
+          children: "Model"
+        }), ": dirty tracking, save/reset behavior, path-based updates, and collision handling"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./typescript-and-errors",
+          children: "TypeScript And Errors"
+        }), ": typed selects, response typing, and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ServiceError"
+        })]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "routing-notes",
+      children: "Routing Notes"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["model and data service requests use the router paths you configure in ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "basePath"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["grouped ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "adapter.group(...)"
+        }), " requests target the root router path, which defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "root"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["if your root router uses another path, pass ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "rootRouterPath"
+        }), " as the second ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "createAdapter(...)"
+        }), " argument"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["custom query or mutation route segments must match the server-side ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "queryRouteSegment"
+        }), " and mutation route configuration"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "common-path-mapping",
+      children: "Common path mapping"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Typical server/client alignment looks like this:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "// server\nruntime.createRouter('User', {\n  basePath: '/api/users',\n  queryRouteSegment: '__query',\n});\n\n// client\nconst adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });\n\nconst userService = adapter.createModelService({\n  modelName: 'User',\n  basePath: 'users',\n  queryPath: '__query',\n});\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The client ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "basePath"
+      }), " is relative to the adapter ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "baseURL"
+      }), ", not the full server path."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "when-to-use-it",
+      children: "When To Use It"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access-router-client"
+      }), " when you want:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["a typed client over ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access-router"
+        }), " model or data routes"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["model instances that can be mutated locally and persisted with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "save()"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["root batched requests through ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "adapter.group(...)"
+        })]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "a consistent error contract without hand-writing Axios wrappers"
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["If you only need HTTP requests and do not use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access-router"
+      }), ", plain Axios is usually simpler."]
     })]
   });
 }

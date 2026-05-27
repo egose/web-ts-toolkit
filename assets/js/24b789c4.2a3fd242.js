@@ -1,7 +1,7 @@
 "use strict";
-(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[985],{
+(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[616],{
 
-/***/ 6528
+/***/ 3427
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 // ESM COMPAT FLAG
@@ -13,24 +13,24 @@ __webpack_require__.d(__webpack_exports__, {
   contentTitle: () => (/* binding */ contentTitle),
   "default": () => (/* binding */ MDXContent),
   frontMatter: () => (/* binding */ frontMatter),
-  metadata: () => (/* reexport */ site_docs_packages_access_router_processors_mdx_95e_namespaceObject),
+  metadata: () => (/* reexport */ site_docs_packages_index_md_24b_namespaceObject),
   toc: () => (/* binding */ toc)
 });
 
-;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-access-router-processors-mdx-95e.json
-const site_docs_packages_access_router_processors_mdx_95e_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router/processors","title":"Processors","description":"@web-ts-toolkit/access-router/processors currently exposes copyAndDepopulate(...).","source":"@site/docs/packages/access-router/processors.mdx","sourceDirName":"packages/access-router","slug":"/packages/access-router/processors","permalink":"/docs/packages/access-router/processors","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":8,"frontMatter":{"sidebar_label":"Processors","sidebar_position":8},"sidebar":"packagesSidebar","previous":{"title":"Advanced","permalink":"/docs/packages/access-router/advanced"},"next":{"title":"Express JSON Router","permalink":"/docs/packages/express-json-router"}}');
+;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-index-md-24b.json
+const site_docs_packages_index_md_24b_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/index","title":"Package Documentation","description":"This site is the primary documentation home for the current web-ts-toolkit workspace packages.","source":"@site/docs/packages/index.md","sourceDirName":"packages","slug":"/packages/","permalink":"/docs/packages/","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":0,"frontMatter":{"sidebar_label":"Overview","sidebar_position":0},"sidebar":"packagesSidebar","next":{"title":"Overview","permalink":"/docs/packages/access-router/"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
 var lib = __webpack_require__(1982);
-;// ./docs/packages/access-router/processors.mdx
+;// ./docs/packages/index.md
 
 
 const frontMatter = {
-	sidebar_label: 'Processors',
-	sidebar_position: 8
+	sidebar_label: 'Overview',
+	sidebar_position: 0
 };
-const contentTitle = 'Processors';
+const contentTitle = 'Package Documentation';
 
 const assets = {
 
@@ -39,19 +39,19 @@ const assets = {
 
 
 const toc = [{
-  "value": "<code>copyAndDepopulate</code>",
-  "id": "copyanddepopulate",
+  "value": "Available Packages",
+  "id": "available-packages",
   "level": 2
 }];
 function _createMdxContent(props) {
   const _components = {
+    a: "a",
     code: "code",
     h1: "h1",
     h2: "h2",
     header: "header",
     li: "li",
     p: "p",
-    pre: "pre",
     ul: "ul",
     ...(0,lib/* useMDXComponents */.R)(),
     ...props.components
@@ -59,43 +59,66 @@ function _createMdxContent(props) {
   return (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, {
     children: [(0,jsx_runtime.jsx)(_components.header, {
       children: (0,jsx_runtime.jsx)(_components.h1, {
-        id: "processors",
-        children: "Processors"
+        id: "package-documentation",
+        children: "Package Documentation"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/access-router/processors"
-      }), " currently exposes ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "copyAndDepopulate(...)"
-      }), "."]
+      children: ["This site is the primary documentation home for the current ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "web-ts-toolkit"
+      }), " workspace packages."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "copyanddepopulate",
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "copyAndDepopulate"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Copies selected nested values to new destinations and replaces the source value with IDs."
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';\n\nconst result = copyAndDepopulate(doc, [\n  { src: 'author', dest: 'authorSnapshot' },\n]);\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Options:"
+      id: "available-packages",
+      children: "Available Packages"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "mutable"
-        }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "true"
-        })]
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./access-router",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/access-router"
+          })
+        }), ": access-policy Express routers and in-memory data services for Mongoose-backed APIs."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "idField"
-        }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "_id"
-        })]
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./access-router-client",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/access-router-client"
+          })
+        }), ": typed client adapter, model wrapper, and batching helpers for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access-router"
+        }), " APIs."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./express-json-router",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/express-json-router"
+          })
+        }), ": JSON-aware Express router wrapper built on the shared response handler."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./express-response-handler",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/express-response-handler"
+          })
+        }), ": return-value response handling for Express routes."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./http-errors",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/http-errors"
+          })
+        }), ": typed HTTP error classes and structured error payload helpers."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./moo",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/moo"
+          })
+        }), ": Mongoose helpers for schema fields, ObjectId checks, and document plugins."]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Package-local ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "README.md"
+      }), " files now stay intentionally short and point back here for the full guides."]
     })]
   });
 }
