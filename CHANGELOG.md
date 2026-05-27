@@ -1,3 +1,80 @@
+## [0.3.0](https://github.com/egose/web-ts-toolkit/compare/v0.2.0...v0.3.0) (2026-05-27)
+
+### Features
+
+* **access-router-client:** enhance lazy promise and error response parsing ([f127274](https://github.com/egose/web-ts-toolkit/commit/f1272744f4beb29dbe5a31b2092fdad77154ac74))
+* **access-router-client:** enhance Model with state management and utility methods ([9c4f526](https://github.com/egose/web-ts-toolkit/commit/9c4f5264f148496c2edbf2210a4ab49164cbad65))
+* **access-router-client:** improve request caching, grouping and sub-document queries ([fc4312c](https://github.com/egose/web-ts-toolkit/commit/fc4312c0f26aedc5c5f371092e88617640b0a29a))
+* **access-router-client:** infer selected field types in advanced queries ([65a57fa](https://github.com/egose/web-ts-toolkit/commit/65a57faec050459d000d7a7c9283b110909431b1))
+* **access-router-client:** update default root router path and usage documentation ([6a8d4fc](https://github.com/egose/web-ts-toolkit/commit/6a8d4fc34ae92ee48f2cbca0a1cd63259def36f3))
+* **access-router-nodejs-sample:** add MongoDB model router demo ([5268829](https://github.com/egose/web-ts-toolkit/commit/52688296e7b6ff7db92702602ad5627788a1c3e9))
+* **access-router-nodejs-sample:** add nodejs sample application ([ef190cd](https://github.com/egose/web-ts-toolkit/commit/ef190cdffbd83821fd9b589925df4dcccc082c25))
+* **access-router:** implement isolated runtime support across options and routers ([62a1a94](https://github.com/egose/web-ts-toolkit/commit/62a1a9435e5b722360c04c41df40923914b7c7e5))
+* **access-router:** introduce AccessRuntime and async context storage ([2afab5d](https://github.com/egose/web-ts-toolkit/commit/2afab5db14923e1ca123b47c85d5d62631bb87db))
+* add access-router-client package ([5664220](https://github.com/egose/web-ts-toolkit/commit/56642204c5085f78fc0b72bbcfd8d2aac1056c12))
+* add combineRoutes utility to merge multiple routers ([ade35d3](https://github.com/egose/web-ts-toolkit/commit/ade35d306b8fabe8c6e7d2d6e340a9457776363e))
+* add data target support and enhanced batch processing to root router ([69023fc](https://github.com/egose/web-ts-toolkit/commit/69023fcf40c14fc3ac0352f5111e1e65ad54cf9a))
+* add generic support for typed routers and services ([6efeef7](https://github.com/egose/web-ts-toolkit/commit/6efeef75fe2890ff44b9c6cfe742b16eec00b79c))
+* add mapValues utility ([7323666](https://github.com/egose/web-ts-toolkit/commit/732366621f726090bb576f1a976016f0313d6f24))
+* add operation and query metadata to hook contexts ([9479c1b](https://github.com/egose/web-ts-toolkit/commit/9479c1be21f99f158a2eeac864794dad11bb13af))
+* add shared utility functions ([ad52723](https://github.com/egose/web-ts-toolkit/commit/ad52723daee3e83d84780ac2d1a01fe76599488c))
+* add sub-document operations to root batch router ([b442155](https://github.com/egose/web-ts-toolkit/commit/b442155188e7e9267358e9f76b4229e110b5d94d))
+* add upsert capability to public service and model router ([027dbb5](https://github.com/egose/web-ts-toolkit/commit/027dbb57bb0fc0296ffacc7efbf47d878de7b17c))
+* implement immutable router options and advanced subpath export ([073f246](https://github.com/egose/web-ts-toolkit/commit/073f24667035b2d294e764de527f52e482a8dcf8))
+* improve type safety for router options and hooks ([a750640](https://github.com/egose/web-ts-toolkit/commit/a7506402db832254e0b1bc595b5e0fed62b1524a))
+* initialize docusaurus documentation site and migrate package content ([94edd06](https://github.com/egose/web-ts-toolkit/commit/94edd0694fab0dffb6547936d02aad04bedc974a))
+* migrate nodejs sample to typed api and demonstrate augmentation ([e936b18](https://github.com/egose/web-ts-toolkit/commit/e936b1888054d3216556b7dcdf11e87378ee2069))
+* **nodejs-sample:** add batch router and update permission syntax ([31c44e3](https://github.com/egose/web-ts-toolkit/commit/31c44e3c65ad9977aa5839c3fd5a9bfeeffb6ade))
+* redesign permission class with method-based access ([f197f06](https://github.com/egose/web-ts-toolkit/commit/f197f06c3fa3dd46dbb9c5938a93918a7064e252))
+* refine API schemas, tighten validation, and add update permissions ([1152b35](https://github.com/egose/web-ts-toolkit/commit/1152b3548903023a80d3e5e9d0bf98c0f9905669))
+* rename configuration options for clarity ([eef1eac](https://github.com/egose/web-ts-toolkit/commit/eef1eac8789486ed02901c098527bb7334c71ea8))
+* rename finalize hook to afterPersist and add delete lifecycle hooks ([e3f8261](https://github.com/egose/web-ts-toolkit/commit/e3f8261fc0eb238aae18125ea5f7b41e20c7e0f8))
+* simplify delete hooks and remove DeleteAccess abstraction ([9d9e980](https://github.com/egose/web-ts-toolkit/commit/9d9e980cb4e9ab9fe8a420dba256b271c1e6da79))
+* update user router configuration with simplified filter and afterDelete hook ([2c68acf](https://github.com/egose/web-ts-toolkit/commit/2c68acf4dcd3b57bd2ad3f079e26406e6ca7912b))
+* use combineRoutes for mounting routers in nodejs sample ([fb03675](https://github.com/egose/web-ts-toolkit/commit/fb03675af1d4e5bfdc4a9145da640c61770bc8dc))
+
+### Bug Fixes
+
+* **access-router:** validate mongoose model existence in root operations ([e629faf](https://github.com/egose/web-ts-toolkit/commit/e629faf4c5209457e72e5977be06576d6cc0bc3c))
+
+### Docs
+
+* **access-router:** add architecture roadmap ([cdc17da](https://github.com/egose/web-ts-toolkit/commit/cdc17daab8614f58cf7635de4d8160338f4a8383))
+* **access-router:** mark ACL consolidation phase as completed in roadmap ([602b145](https://github.com/egose/web-ts-toolkit/commit/602b145201d22b85b21fc5c41c86429b7f77ef31))
+* **access-router:** update architecture roadmap status ([9313907](https://github.com/egose/web-ts-toolkit/commit/93139079cc597bc213a152fe6c169538788c0a7b))
+* **access-router:** update roadmap with phase 3 completion ([6fc3cd8](https://github.com/egose/web-ts-toolkit/commit/6fc3cd87d6f87a04f1cd4d21f0b6a67f3875f6b9))
+* add typescript documentation and usage examples ([a8c85d7](https://github.com/egose/web-ts-toolkit/commit/a8c85d75170f73c8c1182a5fa5d7ad58fe37b39a))
+* expand and split access-router documentation into multi-page guide ([53675b6](https://github.com/egose/web-ts-toolkit/commit/53675b6018eca43b1ba548ea122165d15b13ae9e))
+* update access-router documentation ([176430f](https://github.com/egose/web-ts-toolkit/commit/176430fcb2ab51986868ccbe1911cabfc77ce2ec))
+* update architecture roadmap and package documentation ([3400171](https://github.com/egose/web-ts-toolkit/commit/3400171b86c70e6bc9ea8e75fbca0cd280b35dcd))
+* update architecture roadmap with phase 1 completion status ([666517a](https://github.com/egose/web-ts-toolkit/commit/666517a9ded475ea49ce853a50e4e83bf3eaa48e))
+* update hook context field documentation ([e31447c](https://github.com/egose/web-ts-toolkit/commit/e31447cfba04094c9846a5560afe562ee7319b63))
+* **website:** add access-router-client package documentation ([583735b](https://github.com/egose/web-ts-toolkit/commit/583735b7d041fb77ce3e4007bfa01f1e210c4d4f))
+* **website:** add documentation for access-router-client package ([e9b118f](https://github.com/egose/web-ts-toolkit/commit/e9b118fde90ee640df69678ca5e2bc3dc7439599))
+
+### Refactors
+
+* **access-router-client:** extract shared service utilities ([9eabed9](https://github.com/egose/web-ts-toolkit/commit/9eabed9cbc0ecf17b943ee883447a8d2500b3faf))
+* **access-router-client:** improve type safety and internal implementations ([a71f301](https://github.com/egose/web-ts-toolkit/commit/a71f301343f9ed6ac3e47f96aa76af475d539a71))
+* **access-router-client:** remove unused set import ([d2dc942](https://github.com/egose/web-ts-toolkit/commit/d2dc94280fafcdeda358c07792ace46a7f2c6141))
+* **access-router-client:** simplify advanced read request payloads in DataService ([0e78338](https://github.com/egose/web-ts-toolkit/commit/0e783382716e7c90b8ec74b375fe3c525f9f4edb))
+* **access-router:** centralize service argument and option resolution ([54d2ae4](https://github.com/egose/web-ts-toolkit/commit/54d2ae4a47231f43697764f7717de5e1756dc33e))
+* **access-router:** extract argument resolution and subdocument logic to dedicated modules ([81d850b](https://github.com/egose/web-ts-toolkit/commit/81d850b8efddba9aade1f185727c28397d84f503))
+* **access-router:** extract shared ACL logic into specialized modules ([aa7d065](https://github.com/egose/web-ts-toolkit/commit/aa7d065177220e73cfaac23a39e2470f79727084))
+* **access-router:** extract shared response pipeline helpers ([d7e92d7](https://github.com/egose/web-ts-toolkit/commit/d7e92d7e8f6fdd25b45da3064a177e3d2372da09))
+* **access-router:** migrate routers to use shared response pipelines ([717a1e6](https://github.com/egose/web-ts-toolkit/commit/717a1e6954a2234d37a9aab969e1515728f62450))
+* **access-router:** rename middleware terminology to hooks ([34c7036](https://github.com/egose/web-ts-toolkit/commit/34c7036995da7cec69cd9efa349830ef00ce06a9))
+* **access-router:** reorganize interfaces into focused modules ([e8ebbcd](https://github.com/egose/web-ts-toolkit/commit/e8ebbcd2333d6349e90313fc40f0fab0881c50ac))
+* **access-router:** split model-router into operation-specific modules ([70a4782](https://github.com/egose/web-ts-toolkit/commit/70a4782c754ae73e036e187dd2d6b700ecc9d835))
+* **access-router:** split validation logic into domain-specific modules ([2f70248](https://github.com/egose/web-ts-toolkit/commit/2f7024842f404791ec7c39b43ee1f5b3e4ac081d))
+* distinguish between model and data request types ([f040a92](https://github.com/egose/web-ts-toolkit/commit/f040a922526b65c383a82423496876a09b642d38))
+* format code style and imports ([c6337c5](https://github.com/egose/web-ts-toolkit/commit/c6337c54154724344a1aa9ce7d8a55dcba5d7563))
+* improve type safety for router option setters with generics ([b855894](https://github.com/egose/web-ts-toolkit/commit/b85589468249fbf3501bb49a74864613dbaec7c0))
+* narrow public API surface and migrate low-level exports to advanced subpath ([417f901](https://github.com/egose/web-ts-toolkit/commit/417f901f5ee7b2e97581e4acb7bfb0a2a605c7ae))
+* rename hook contexts and enforce document instances in lifecycle hooks ([6dde902](https://github.com/egose/web-ts-toolkit/commit/6dde9020703622404d5d798c7d49f1d12efd512d))
+* rename internal router and service modules for clarity ([90507ec](https://github.com/egose/web-ts-toolkit/commit/90507ec272c1cd9e03a77c62a7459d49dd2cc3e2))
+* use shared utilities from utils package ([5cbc333](https://github.com/egose/web-ts-toolkit/commit/5cbc33388ddb48c6d49f9c09f560b07ad96d7bb4))
+
 ## [0.2.0](https://github.com/egose/web-ts-toolkit/compare/v0.1.0...v0.2.0) (2026-05-12)
 
 ### Features
