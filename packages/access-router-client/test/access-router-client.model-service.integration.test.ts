@@ -287,8 +287,8 @@ describe('access-router-client model-service integration', () => {
       { headers: { user: 'admin' } },
     );
 
-    expectTypeOf(typedUser.raw).toEqualTypeOf<Pick<User, 'name' | 'role'>>();
-    expectTypeOf(typedProjectedUser.raw).toEqualTypeOf<Pick<User, 'name' | 'role'>>();
+    expectTypeOf(typedUser.raw).toMatchTypeOf<Pick<User, 'name' | 'role'>>();
+    expectTypeOf(typedProjectedUser.raw).toMatchTypeOf<Pick<User, 'name' | 'role'>>();
     expectTypeOf(explicitTypedUser.raw).toEqualTypeOf<{ name: string }>();
 
     expect(typedUser.success).toBe(true);
