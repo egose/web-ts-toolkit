@@ -1,5 +1,5 @@
 import { AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
-import { get, set } from '@web-ts-toolkit/utils';
+import { get } from '@web-ts-toolkit/utils';
 import {
   FilterQuery,
   DataResponse,
