@@ -4,11 +4,46 @@ import { ModelService, DataService } from './services';
 import { SubQueryOptions } from './interface';
 import { _FilterQuery } from './mongoose/types';
 
-export interface KeyValueProjection {
-  [key: string]: 1 | -1;
-}
+export type KeyValueProjection<TKey extends string = string> = Partial<Record<TKey, 1 | -1>>;
 
-export type Projection = string[] | string | KeyValueProjection;
+export type Projection = readonly string[] | string | KeyValueProjection;
+
+type SelectableKey<T> = Extract<keyof T, string>;
+
+type IsTuple<T extends readonly unknown[]> = number extends T['length'] ? false : true;
+
+type SelectedKeysFromProjectionArray<T, TSelect> = TSelect extends readonly (infer K)[]
+  ? IsTuple<TSelect> extends true
+    ? Extract<K, SelectableKey<T>>
+    : never
+  : never;
+
+type SelectedKeysFromProjectionString<T, TSelect> = TSelect extends string
+  ? string extends TSelect
+    ? never
+    : Extract<TSelect, SelectableKey<T>>
+  : never;
+
+type SelectedKeysFromProjectionObject<T, TSelect> = TSelect extends KeyValueProjection
+  ? string extends keyof TSelect
+    ? never
+    : {
+        [K in keyof TSelect]-?: TSelect[K] extends 1 ? Extract<K, SelectableKey<T>> : never;
+      }[keyof TSelect]
+  : never;
+
+export type SelectedKeys<T, TSelect> =
+  | SelectedKeysFromProjectionArray<T, TSelect>
+  | SelectedKeysFromProjectionString<T, TSelect>
+  | SelectedKeysFromProjectionObject<T, TSelect>;
+
+export type SelectedShape<T, TSelect> = [SelectedKeys<T, TSelect>] extends [never]
+  ? Partial<T>
+  : Pick<T, SelectedKeys<T, TSelect>> & Partial<T>;
+
+export type ResolvedSelectedShape<T, TSelect, TExplicit> = [TExplicit] extends [never]
+  ? SelectedShape<T, TSelect>
+  : TExplicit;
 
 export type SortOrder = -1 | 1 | 'asc' | 'ascending' | 'desc' | 'descending';
 

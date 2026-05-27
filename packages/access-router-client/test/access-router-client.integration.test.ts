@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http';
 import express from 'express';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, it } from 'vitest';
 import { z } from 'zod';
 import { createAccessRuntime } from '@web-ts-toolkit/access-router';
 import type { ModelRouterOptions } from '@web-ts-toolkit/access-router';
@@ -468,6 +468,37 @@ describe('access-router-client', () => {
 
     const chairman = await endpoints.chairman({ flag: 'pencil' });
     expect(chairman.data).toEqual({ name: 'chairman', flag: 'pencil' });
+  });
+
+  it('infers selected field types for advanced selects', async () => {
+    const typedUser = await services.userService.readAdvanced(
+      String(seedState.admin._id),
+      { select: ['name', 'role'] as const },
+      undefined,
+      { headers: { user: 'admin' } },
+    );
+
+    const typedProjectedUser = await services.userService.readAdvanced(
+      String(seedState.admin._id),
+      { select: { name: 1, role: 1 } as const },
+      undefined,
+      { headers: { user: 'admin' } },
+    );
+
+    const explicitTypedUser = await services.userService.readAdvanced<{ name: string }>(
+      String(seedState.admin._id),
+      { select: { name: 1, role: 1 } as const },
+      undefined,
+      { headers: { user: 'admin' } },
+    );
+
+    expectTypeOf(typedUser.raw).toEqualTypeOf<Pick<User, 'name' | 'role'>>();
+    expectTypeOf(typedProjectedUser.raw).toEqualTypeOf<Pick<User, 'name' | 'role'>>();
+    expectTypeOf(explicitTypedUser.raw).toEqualTypeOf<{ name: string }>();
+
+    expect(typedUser.success).toBe(true);
+    expect(typedProjectedUser.success).toBe(true);
+    expect(explicitTypedUser.success).toBe(true);
   });
 
   it('reads totalCount from access-router extra headers', async () => {

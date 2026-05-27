@@ -23,8 +23,8 @@ export interface ListOptions {
   sq?: SubQueryOptions;
 }
 
-export interface ListAdvancedArgs {
-  select?: Projection;
+export interface ListAdvancedArgs<TSelect extends Projection = Projection> {
+  select?: TSelect;
   populate?: Populate[] | Populate | string;
   include?: Include | Include[];
   sort?: Sort;
@@ -52,8 +52,8 @@ export interface ReadOptions {
   sq?: SubQueryOptions;
 }
 
-export interface ReadAdvancedArgs {
-  select?: Projection;
+export interface ReadAdvancedArgs<TSelect extends Projection = Projection> {
+  select?: TSelect;
   sort?: Sort;
   populate?: Populate[] | Populate | string;
   include?: Include | Include[];
@@ -73,8 +73,8 @@ export interface CreateOptions {
   includePermissions?: boolean;
 }
 
-export interface CreateAdvancedArgs {
-  select?: Projection;
+export interface CreateAdvancedArgs<TSelect extends Projection = Projection> {
+  select?: TSelect;
   populate?: Populate[] | Populate | string;
   tasks?: Task | Task[];
 }
@@ -88,8 +88,8 @@ export interface UpdateOptions {
   returningAll?: boolean;
 }
 
-export interface UpdateAdvancedArgs {
-  select?: Projection;
+export interface UpdateAdvancedArgs<TSelect extends Projection = Projection> {
+  select?: TSelect;
   populate?: Populate[] | Populate | string;
   tasks?: Task | Task[];
 }
@@ -101,7 +101,7 @@ export interface UpdateAdvancedOptions {
 }
 
 export type UpsertOptions = UpdateOptions;
-export type UpsertAdvancedArgs = UpdateAdvancedArgs;
+export type UpsertAdvancedArgs<TSelect extends Projection = Projection> = UpdateAdvancedArgs<TSelect>;
 export type UpsertAdvancedOptions = UpdateAdvancedOptions;
 
 export interface Defaults {
@@ -137,8 +137,8 @@ export interface DataListOptions {
   ignoreCache?: boolean;
 }
 
-export interface DataListAdvancedArgs {
-  select?: Projection;
+export interface DataListAdvancedArgs<TSelect extends Projection = Projection> {
+  select?: TSelect;
   sort?: Sort;
   skip?: string | number;
   limit?: string | number;
@@ -158,8 +158,8 @@ export interface DataReadOptions {
   ignoreCache?: boolean;
 }
 
-export interface DataReadAdvancedArgs {
-  select?: Projection;
+export interface DataReadAdvancedArgs<TSelect extends Projection = Projection> {
+  select?: TSelect;
   ignoreCache?: boolean;
 }
 
