@@ -295,16 +295,7 @@ export class DataService<T> extends Service {
     >(
       () =>
         this._axios
-          .post(
-            `${this._basePath}/${this._queryPath}/${identifier}`,
-            {
-              select,
-              options: {
-                includePermissions,
-              },
-            },
-            reqConfig,
-          )
+          .post(`${this._basePath}/${this._queryPath}/${identifier}`, { select }, reqConfig)
           .then(this.handleSuccess)
           .then((result: DataResponse<ResolvedSelectedShape<T, TSelect, TData>>) => {
             result.data = result.raw;
@@ -357,17 +348,7 @@ export class DataService<T> extends Service {
     >(
       () =>
         this._axios
-          .post(
-            `${this._basePath}/${this._queryPath}/__filter`,
-            {
-              filter: _filter,
-              select,
-              options: {
-                includePermissions,
-              },
-            },
-            reqConfig,
-          )
+          .post(`${this._basePath}/${this._queryPath}/__filter`, { filter: _filter, select }, reqConfig)
           .then(this.handleSuccess)
           .then((result: DataResponse<ResolvedSelectedShape<T, TSelect, TData>>) => {
             result.data = result.raw;
