@@ -1,3 +1,3 @@
 export enum CustomHeaders {
-  TotalCount = 'egose-total-count',
+  TotalCount = 'wtt-total-count',
 }

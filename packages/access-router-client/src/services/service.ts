@@ -16,6 +16,60 @@ export interface ResultError {
 const removeTrailingSlash = (inputString: string) => inputString.replace(/\/$/, '');
 const removeLeadingSlash = (inputString: string) => inputString.replace(/^\/+/g, '');
 
+const readProblemDetail = (value: unknown): string | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  if ('detail' in value && typeof value.detail === 'string' && value.detail) {
+    return value.detail;
+  }
+
+  if ('message' in value && typeof value.message === 'string' && value.message) {
+    return value.message;
+  }
+
+  if ('title' in value && typeof value.title === 'string' && value.title) {
+    return value.title;
+  }
+
+  if ('errors' in value && Array.isArray(value.errors)) {
+    for (const item of value.errors) {
+      if (typeof item === 'string' && item) {
+        return item;
+      }
+
+      const nested = readProblemDetail(item);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+
+  return undefined;
+};
+
+const stringifyErrorPayload = (value: unknown) => {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  const detail = readProblemDetail(value);
+  if (detail) {
+    return detail;
+  }
+
+  if (value == null) {
+    return '';
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
 export class Service {
   protected _axios!: AxiosInstance;
   protected _basePath!: string;
@@ -51,10 +105,9 @@ export class Service {
       result.status = error.response.status;
       result.headers = error.response.headers;
       const responseData = error.response.data;
-      result.message =
-        responseData && typeof responseData === 'object' && 'message' in responseData
-          ? String(responseData.message)
-          : String(responseData);
+      result.raw = responseData;
+      result.data = responseData;
+      result.message = stringifyErrorPayload(responseData);
     } else if (error.request) {
       // The request was made but no response was received
       // `error.request` is an instance of XMLHttpRequest in the browser and an instance of

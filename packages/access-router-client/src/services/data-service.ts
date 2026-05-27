@@ -1,9 +1,11 @@
 import { AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
-import { get, noop, set } from '@web-ts-toolkit/utils';
+import { get } from '@web-ts-toolkit/utils';
 import {
   FilterQuery,
   DataResponse,
   ListDataResponse,
+  Projection,
+  ResolvedSelectedShape,
   wrapLazyPromise,
   DataPromiseMeta,
   ResponseCallback,
@@ -22,12 +24,9 @@ import {
 } from '../interface';
 import { CustomHeaders } from '../enums';
 
-import { Service, ServiceError, ResultError } from './service';
+import { Service } from './service';
 import { replaceSubQuery } from '../helpers';
-
-const setIfNotFound = (obj: object, key: string, value: unknown) => {
-  if (!get(obj, key)) set(obj, key, value);
-};
+import { createResponseHandler, setDefaultObjectProp } from './shared';
 
 interface ListData<T> {
   count: number;
@@ -61,21 +60,7 @@ export class DataService<T> extends Service {
     this._dataName = dataName;
     this._queryPath = queryPath;
     this._defaults = defaults ?? {};
-
-    const _onSuccess = onSuccess ?? noop;
-    const _onFailure = onFailure ?? noop;
-    this._handleCallbacks = <T extends { success: boolean }>(res: T, _throwOnError = throwOnError) => {
-      if (res.success) {
-        _onSuccess(res);
-        return res;
-      }
-
-      _onFailure(res);
-      if (_throwOnError) {
-        throw new ServiceError(res as unknown as ResultError);
-      }
-      return res;
-    };
+    this._handleCallbacks = createResponseHandler(onSuccess, onFailure, throwOnError);
 
     [
       'listArgs',
@@ -85,7 +70,7 @@ export class DataService<T> extends Service {
       'readOptions',
       'readAdvancedArgs',
       'readAdvancedOptions',
-    ].forEach((key) => setIfNotFound(this._defaults, key, {}));
+    ].forEach((key) => setDefaultObjectProp(this._defaults, key, {}));
   }
 
   list<TData extends Partial<T> = T>(
@@ -158,20 +143,20 @@ export class DataService<T> extends Service {
     return result;
   }
 
-  listAdvanced<TData extends Partial<T> = T>(
+  listAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
     filter: FilterQuery<T>,
-    args?: DataListAdvancedArgs,
+    args?: DataListAdvancedArgs<TSelect>,
     options?: DataListAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ) {
+  ): DataPromiseMeta & Promise<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>> {
     const {
-      select = this._defaults.listAdvancedArgs.select,
       sort = this._defaults.listAdvancedArgs.sort,
       skip = this._defaults.listAdvancedArgs.skip,
       limit = this._defaults.listAdvancedArgs.limit,
       page = this._defaults.listAdvancedArgs.page,
       pageSize = this._defaults.listAdvancedArgs.pageSize,
     } = args ?? {};
+    const select = (args?.select ?? this._defaults.listAdvancedArgs.select) as TSelect | undefined;
 
     const {
       includePermissions = this._defaults.listAdvancedOptions.includePermissions ?? false,
@@ -184,54 +169,54 @@ export class DataService<T> extends Service {
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
     const _filter = replaceSubQuery<T>(filter);
-    const result: DataPromiseMeta & Promise<ListDataResponse<TData>> = wrapLazyPromise<
-      ListDataResponse<TData>,
-      DataPromiseMeta
-    >(
-      () =>
-        this._axios
-          .post(
-            `${this._basePath}/${this._queryPath}`,
-            {
-              filter: _filter,
-              select,
-              sort,
-              skip,
-              limit,
-              page,
-              pageSize,
-              options: {
-                includePermissions,
-                includeCount,
-                includeExtraHeaders,
+    const result: DataPromiseMeta & Promise<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>> =
+      wrapLazyPromise<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>, DataPromiseMeta>(
+        () =>
+          this._axios
+            .post(
+              `${this._basePath}/${this._queryPath}`,
+              {
+                filter: _filter,
+                select,
+                sort,
+                skip,
+                limit,
+                page,
+                pageSize,
+                options: {
+                  includePermissions,
+                  includeCount,
+                  includeExtraHeaders,
+                },
               },
+              reqConfig,
+            )
+            .then(this.handleSuccess)
+            .then((result: ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>) => {
+              return this.processListResult(result, { includeCount, includeExtraHeaders });
+            })
+            .catch(this.handleError<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>>)
+            .then((res) =>
+              this._handleCallbacks<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
+            ),
+        {
+          __op: 'listAdvanced',
+          __query: {
+            target: 'data',
+            name: this._dataName,
+            op: 'list',
+            filter: _filter,
+            args: { select, sort, skip, limit, page, pageSize },
+            options: {
+              includePermissions,
+              includeCount,
+              includeExtraHeaders,
             },
-            reqConfig,
-          )
-          .then(this.handleSuccess)
-          .then((result: ListDataResponse<TData>) => {
-            return this.processListResult(result, { includeCount, includeExtraHeaders });
-          })
-          .catch(this.handleError<ListDataResponse<TData>>)
-          .then((res) => this._handleCallbacks<ListDataResponse<TData>>(res, throwOnError)),
-      {
-        __op: 'listAdvanced',
-        __query: {
-          target: 'data',
-          name: this._dataName,
-          op: 'list',
-          filter: _filter,
-          args: { select, sort, skip, limit, page, pageSize },
-          options: {
-            includePermissions,
-            includeCount,
-            includeExtraHeaders,
           },
+          __requestConfig: reqConfig,
+          __service: this,
         },
-        __requestConfig: reqConfig,
-        __service: this,
-      },
-    );
+      );
 
     return result;
   }
@@ -290,24 +275,22 @@ export class DataService<T> extends Service {
     return result;
   }
 
-  readAdvanced<TData extends Partial<T> = T>(
+  readAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
     identifier: string,
-    args?: DataReadAdvancedArgs,
+    args?: DataReadAdvancedArgs<TSelect>,
     options?: DataReadAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ) {
-    const {
-      select = this._defaults.readAdvancedArgs.select,
-      ignoreCache = this._defaults.readAdvancedArgs.ignoreCache ?? false,
-    } = args ?? {};
+  ): DataPromiseMeta & Promise<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> {
+    const { ignoreCache = this._defaults.readAdvancedArgs.ignoreCache ?? false } = args ?? {};
+    const select = (args?.select ?? this._defaults.readAdvancedArgs.select) as TSelect | undefined;
 
     const { includePermissions = this._defaults.readAdvancedOptions.includePermissions ?? true } = options ?? {};
 
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
-    const result: DataPromiseMeta & Promise<DataResponse<TData>> = wrapLazyPromise<
-      DataResponse<TData>,
+    const result: DataPromiseMeta & Promise<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> = wrapLazyPromise<
+      DataResponse<ResolvedSelectedShape<T, TSelect, TData>>,
       DataPromiseMeta
     >(
       () =>
@@ -323,12 +306,14 @@ export class DataService<T> extends Service {
             reqConfig,
           )
           .then(this.handleSuccess)
-          .then((result: DataResponse<TData>) => {
+          .then((result: DataResponse<ResolvedSelectedShape<T, TSelect, TData>>) => {
             result.data = result.raw;
             return result;
           })
-          .catch(this.handleError<DataResponse<TData>>)
-          .then((res) => this._handleCallbacks<DataResponse<TData>>(res, throwOnError)),
+          .catch(this.handleError<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>>)
+          .then((res) =>
+            this._handleCallbacks<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
+          ),
       {
         __op: 'readAdvanced',
         __query: {
@@ -349,13 +334,13 @@ export class DataService<T> extends Service {
     return result;
   }
 
-  readAdvancedFilter<TData extends Partial<T> = T>(
+  readAdvancedFilter<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
     filter: FilterQuery<T>,
-    args?: DataReadAdvancedArgs,
+    args?: DataReadAdvancedArgs<TSelect>,
     options?: DataReadAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ) {
-    const { select = this._defaults.readAdvancedArgs.select } = args ?? {};
+  ): DataPromiseMeta & Promise<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> {
+    const select = (args?.select ?? this._defaults.readAdvancedArgs.select) as TSelect | undefined;
 
     const {
       includePermissions = this._defaults.readAdvancedOptions.includePermissions ?? true,
@@ -366,8 +351,8 @@ export class DataService<T> extends Service {
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
     const _filter = replaceSubQuery<T>(filter);
-    const result: DataPromiseMeta & Promise<DataResponse<TData>> = wrapLazyPromise<
-      DataResponse<TData>,
+    const result: DataPromiseMeta & Promise<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> = wrapLazyPromise<
+      DataResponse<ResolvedSelectedShape<T, TSelect, TData>>,
       DataPromiseMeta
     >(
       () =>
@@ -384,12 +369,14 @@ export class DataService<T> extends Service {
             reqConfig,
           )
           .then(this.handleSuccess)
-          .then((result: DataResponse<TData>) => {
+          .then((result: DataResponse<ResolvedSelectedShape<T, TSelect, TData>>) => {
             result.data = result.raw;
             return result;
           })
-          .catch(this.handleError<DataResponse<TData>>)
-          .then((res) => this._handleCallbacks<DataResponse<TData>>(res, throwOnError)),
+          .catch(this.handleError<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>>)
+          .then((res) =>
+            this._handleCallbacks<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
+          ),
       {
         __op: 'readAdvancedFilter',
         __query: {

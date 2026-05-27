@@ -1,8 +1,10 @@
 import { AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
-import { get, noop, set } from '@web-ts-toolkit/utils';
+import { get, set } from '@web-ts-toolkit/utils';
 import {
   FilterQuery,
   Document,
+  Projection,
+  ResolvedSelectedShape,
   Response,
   ModelResponse,
   ListModelResponse,
@@ -34,13 +36,10 @@ import {
 import { CustomHeaders } from '../enums';
 
 import { Model } from '../model';
-import { Service, ServiceError, ResultError } from './service';
+import { Service } from './service';
 import { replaceSubQuery } from '../helpers';
 import { CACHE_HEADER } from '../constants';
-
-const setIfNotFound = (obj: object, key: string, value: unknown) => {
-  if (!get(obj, key)) set(obj, key, value);
-};
+import { createResponseHandler, setDefaultObjectProp } from './shared';
 
 interface ListData<T> {
   count: number;
@@ -77,22 +76,7 @@ export class ModelService<T extends Document> extends Service {
     this._queryPath = queryPath;
     this._mutationPath = mutationPath;
     this._defaults = defaults ?? {};
-
-    const _onSuccess = onSuccess ?? noop;
-    const _onFailure = onFailure ?? noop;
-
-    this._handleCallbacks = <T extends { success: boolean }>(res: T, _throwOnError = throwOnError) => {
-      if (res.success) {
-        _onSuccess(res);
-        return res;
-      }
-
-      _onFailure(res);
-      if (_throwOnError) {
-        throw new ServiceError(res as unknown as ResultError);
-      }
-      return res;
-    };
+    this._handleCallbacks = createResponseHandler(onSuccess, onFailure, throwOnError);
 
     [
       'listArgs',
@@ -111,7 +95,7 @@ export class ModelService<T extends Document> extends Service {
       'upsertOptions',
       'upsertAdvancedArgs',
       'upsertAdvancedOptions',
-    ].forEach((key) => setIfNotFound(this._defaults, key, {}));
+    ].forEach((key) => setDefaultObjectProp(this._defaults, key, {}));
   }
 
   list<TData extends Partial<T> = T>(args?: ListArgs, options?: ListOptions, axiosRequestConfig?: RequestConfig) {
@@ -186,14 +170,13 @@ export class ModelService<T extends Document> extends Service {
     return result;
   }
 
-  listAdvanced<TData extends Partial<T> = T>(
+  listAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
     filter: FilterQuery<T>,
-    args?: ListAdvancedArgs,
+    args?: ListAdvancedArgs<TSelect>,
     options?: ListAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ) {
+  ): ModelPromiseMeta & Promise<ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
     const {
-      select = this._defaults.listAdvancedArgs.select,
       populate = this._defaults.listAdvancedArgs.populate,
       include = this._defaults.listAdvancedArgs.include,
       sort = this._defaults.listAdvancedArgs.sort,
@@ -203,6 +186,7 @@ export class ModelService<T extends Document> extends Service {
       pageSize = this._defaults.listAdvancedArgs.pageSize,
       tasks = this._defaults.listAdvancedArgs.tasks,
     } = args ?? {};
+    const select = (args?.select ?? this._defaults.listAdvancedArgs.select) as TSelect | undefined;
 
     const {
       skim = this._defaults.listAdvancedOptions.skim ?? true,
@@ -218,63 +202,63 @@ export class ModelService<T extends Document> extends Service {
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
     const _filter = replaceSubQuery<T>(filter);
-    const result: ModelPromiseMeta & Promise<ListModelResponse<T, TData>> = wrapLazyPromise<
-      ListModelResponse<T, TData>,
-      ModelPromiseMeta
-    >(
-      () =>
-        this._axios
-          .post(
-            `${this._basePath}/${this._queryPath}`,
-            {
-              filter: _filter,
-              select,
-              sort,
-              populate,
-              include,
-              skip,
-              limit,
-              page,
-              pageSize,
-              tasks,
-              options: {
-                skim,
-                includePermissions,
-                includeCount,
-                includeExtraHeaders,
-                populateAccess,
+    const result: ModelPromiseMeta & Promise<ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> =
+      wrapLazyPromise<ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>, ModelPromiseMeta>(
+        () =>
+          this._axios
+            .post(
+              `${this._basePath}/${this._queryPath}`,
+              {
+                filter: _filter,
+                select,
+                sort,
+                populate,
+                include,
+                skip,
+                limit,
+                page,
+                pageSize,
+                tasks,
+                options: {
+                  skim,
+                  includePermissions,
+                  includeCount,
+                  includeExtraHeaders,
+                  populateAccess,
+                },
               },
+              reqConfig,
+            )
+            .then(this.handleSuccess)
+            .then((result: ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
+              return this.processListResult(this, result, { includeCount, includeExtraHeaders });
+            })
+            .catch(this.handleError<ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>)
+            .then((res) =>
+              this._handleCallbacks<ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
+            ),
+        {
+          __op: 'listAdvanced',
+          __query: {
+            target: 'model',
+            name: this._modelName,
+            model: this._modelName,
+            op: 'list',
+            filter: _filter,
+            args: { select, sort, populate, include, skip, limit, page, pageSize, tasks },
+            options: {
+              skim,
+              includePermissions,
+              includeCount,
+              includeExtraHeaders,
+              populateAccess,
             },
-            reqConfig,
-          )
-          .then(this.handleSuccess)
-          .then((result: ListModelResponse<T, TData>) => {
-            return this.processListResult(this, result, { includeCount, includeExtraHeaders });
-          })
-          .catch(this.handleError<ListModelResponse<T, TData>>)
-          .then((res) => this._handleCallbacks<ListModelResponse<T, TData>>(res, throwOnError)),
-      {
-        __op: 'listAdvanced',
-        __query: {
-          target: 'model',
-          name: this._modelName,
-          model: this._modelName,
-          op: 'list',
-          filter: _filter,
-          args: { select, sort, populate, include, skip, limit, page, pageSize, tasks },
-          options: {
-            skim,
-            includePermissions,
-            includeCount,
-            includeExtraHeaders,
-            populateAccess,
+            sqOptions: sq,
           },
-          sqOptions: sq,
+          __requestConfig: reqConfig,
+          __service: this,
         },
-        __requestConfig: reqConfig,
-        __service: this,
-      },
-    );
+      );
 
     return result;
   }
@@ -335,18 +319,18 @@ export class ModelService<T extends Document> extends Service {
     return result;
   }
 
-  readAdvanced<TData extends Partial<T> = T>(
+  readAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
     identifier: string,
-    args?: ReadAdvancedArgs,
+    args?: ReadAdvancedArgs<TSelect>,
     options?: ReadAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ) {
+  ): ModelPromiseMeta & Promise<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
     const {
-      select = this._defaults.readAdvancedArgs.select,
       populate = this._defaults.readAdvancedArgs.populate,
       include = this._defaults.readAdvancedArgs.include,
       tasks = this._defaults.readAdvancedArgs.tasks,
     } = args ?? {};
+    const select = (args?.select ?? this._defaults.readAdvancedArgs.select) as TSelect | undefined;
 
     const {
       skim = this._defaults.readAdvancedOptions.skim ?? true,
@@ -360,73 +344,75 @@ export class ModelService<T extends Document> extends Service {
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
-    const result: ModelPromiseMeta & Promise<ModelResponse<T, TData>> = wrapLazyPromise<
-      ModelResponse<T, TData>,
-      ModelPromiseMeta
-    >(
-      () =>
-        this._axios
-          .post(
-            `${this._basePath}/${this._queryPath}/${identifier}`,
-            {
-              select,
-              populate,
-              include,
-              tasks,
-              options: {
-                skim,
-                includePermissions,
-                tryList,
-                populateAccess,
+    const result: ModelPromiseMeta & Promise<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> =
+      wrapLazyPromise<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>, ModelPromiseMeta>(
+        () =>
+          this._axios
+            .post(
+              `${this._basePath}/${this._queryPath}/${identifier}`,
+              {
+                select,
+                populate,
+                include,
+                tasks,
+                options: {
+                  skim,
+                  includePermissions,
+                  tryList,
+                  populateAccess,
+                },
               },
+              reqConfig,
+            )
+            .then(this.handleSuccess)
+            .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
+              result.data = result.success
+                ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this)
+                : null;
+              return result;
+            })
+            .catch(this.handleError<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>)
+            .then((res) =>
+              this._handleCallbacks<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
+            ),
+        {
+          __op: 'readAdvanced',
+          __query: {
+            target: 'model',
+            name: this._modelName,
+            model: this._modelName,
+            op: 'read',
+            id: identifier,
+            args: { select, populate, include, tasks },
+            options: {
+              skim,
+              includePermissions,
+              tryList,
+              populateAccess,
             },
-            reqConfig,
-          )
-          .then(this.handleSuccess)
-          .then((result: ModelResponse<T, TData>) => {
-            result.data = result.success ? Model.create<T, TData>(result.raw, this) : null;
-            return result;
-          })
-          .catch(this.handleError<ModelResponse<T, TData>>)
-          .then((res) => this._handleCallbacks<ModelResponse<T, TData>>(res, throwOnError)),
-      {
-        __op: 'readAdvanced',
-        __query: {
-          target: 'model',
-          name: this._modelName,
-          model: this._modelName,
-          op: 'read',
-          id: identifier,
-          args: { select, populate, include, tasks },
-          options: {
-            skim,
-            includePermissions,
-            tryList,
-            populateAccess,
+            sqOptions: sq,
           },
-          sqOptions: sq,
+          __requestConfig: reqConfig,
+          __service: this,
         },
-        __requestConfig: reqConfig,
-        __service: this,
-      },
-    );
+      );
 
     return result;
   }
 
-  readAdvancedFilter<TData extends Partial<T> = T>(
+  readAdvancedFilter<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
     filter: FilterQuery<T>,
-    args?: ReadAdvancedArgs,
+    args?: ReadAdvancedArgs<TSelect>,
     options?: ReadAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ) {
+  ): ModelPromiseMeta & Promise<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
     const {
-      select = this._defaults.readAdvancedArgs.select,
       sort = this._defaults.readAdvancedArgs.sort,
       populate = this._defaults.readAdvancedArgs.populate,
       include = this._defaults.readAdvancedArgs.include,
       tasks = this._defaults.readAdvancedArgs.tasks,
     } = args ?? {};
+    const select = (args?.select ?? this._defaults.readAdvancedArgs.select) as TSelect | undefined;
 
     const {
       skim = this._defaults.readAdvancedOptions.skim ?? true,
@@ -441,58 +427,60 @@ export class ModelService<T extends Document> extends Service {
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
     const _filter = replaceSubQuery<T>(filter);
-    const result: ModelPromiseMeta & Promise<ModelResponse<T, TData>> = wrapLazyPromise<
-      ModelResponse<T, TData>,
-      ModelPromiseMeta
-    >(
-      () =>
-        this._axios
-          .post(
-            `${this._basePath}/${this._queryPath}/__filter`,
-            {
-              filter: _filter,
-              select,
-              sort,
-              populate,
-              include,
-              tasks,
-              options: {
-                skim,
-                includePermissions,
-                tryList,
-                populateAccess,
+    const result: ModelPromiseMeta & Promise<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> =
+      wrapLazyPromise<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>, ModelPromiseMeta>(
+        () =>
+          this._axios
+            .post(
+              `${this._basePath}/${this._queryPath}/__filter`,
+              {
+                filter: _filter,
+                select,
+                sort,
+                populate,
+                include,
+                tasks,
+                options: {
+                  skim,
+                  includePermissions,
+                  tryList,
+                  populateAccess,
+                },
               },
+              reqConfig,
+            )
+            .then(this.handleSuccess)
+            .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
+              result.data = result.success
+                ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this)
+                : null;
+              return result;
+            })
+            .catch(this.handleError<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>)
+            .then((res) =>
+              this._handleCallbacks<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
+            ),
+        {
+          __op: 'readAdvancedFilter',
+          __query: {
+            target: 'model',
+            name: this._modelName,
+            model: this._modelName,
+            op: 'read',
+            filter: _filter,
+            args: { select, sort, populate, include, tasks },
+            options: {
+              skim,
+              includePermissions,
+              tryList,
+              populateAccess,
             },
-            reqConfig,
-          )
-          .then(this.handleSuccess)
-          .then((result: ModelResponse<T, TData>) => {
-            result.data = result.success ? Model.create<T, TData>(result.raw, this) : null;
-            return result;
-          })
-          .catch(this.handleError<ModelResponse<T, TData>>)
-          .then((res) => this._handleCallbacks<ModelResponse<T, TData>>(res, throwOnError)),
-      {
-        __op: 'readAdvancedFilter',
-        __query: {
-          target: 'model',
-          name: this._modelName,
-          model: this._modelName,
-          op: 'read',
-          filter: _filter,
-          args: { select, sort, populate, include, tasks },
-          options: {
-            skim,
-            includePermissions,
-            tryList,
-            populateAccess,
+            sqOptions: sq,
           },
-          sqOptions: sq,
+          __requestConfig: reqConfig,
+          __service: this,
         },
-        __requestConfig: reqConfig,
-        __service: this,
-      },
-    );
+      );
 
     return result;
   }
@@ -572,17 +560,15 @@ export class ModelService<T extends Document> extends Service {
     return result;
   }
 
-  createAdvanced<TData extends Partial<T> = T>(
+  createAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
     data: object,
-    args?: CreateAdvancedArgs,
+    args?: CreateAdvancedArgs<TSelect>,
     options?: CreateAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ) {
-    const {
-      select = this._defaults.createAdvancedArgs.select,
-      populate = this._defaults.createAdvancedArgs.populate,
-      tasks = this._defaults.createAdvancedArgs.tasks,
-    } = args ?? {};
+  ): ModelPromiseMeta & Promise<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
+    const { populate = this._defaults.createAdvancedArgs.populate, tasks = this._defaults.createAdvancedArgs.tasks } =
+      args ?? {};
+    const select = (args?.select ?? this._defaults.createAdvancedArgs.select) as TSelect | undefined;
 
     const {
       includePermissions = this._defaults.createAdvancedOptions.includePermissions ?? true,
@@ -592,42 +578,44 @@ export class ModelService<T extends Document> extends Service {
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     set(reqConfig, `headers.${CACHE_HEADER}`, 'false');
 
-    const result: ModelPromiseMeta & Promise<ModelResponse<T, TData>> = wrapLazyPromise<
-      ModelResponse<T, TData>,
-      ModelPromiseMeta
-    >(
-      () =>
-        this._axios
-          .post(
-            `${this._basePath}/${this._mutationPath}`,
-            { data, select, populate, tasks, options: { includePermissions, populateAccess } },
-            reqConfig,
-          )
-          .then(this.handleSuccess)
-          .then((result: ModelResponse<T, TData>) => {
-            result.data = result.success ? Model.create<T, TData>(result.raw, this) : null;
-            return result;
-          })
-          .catch(this.handleError<ModelResponse<T, TData>>)
-          .then((res) => this._handleCallbacks<ModelResponse<T, TData>>(res, throwOnError)),
-      {
-        __op: 'createAdvanced',
-        __query: {
-          target: 'model',
-          name: this._modelName,
-          model: this._modelName,
-          op: 'create',
-          data,
-          args: { select, populate, tasks },
-          options: {
-            includePermissions,
-            populateAccess,
+    const result: ModelPromiseMeta & Promise<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> =
+      wrapLazyPromise<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>, ModelPromiseMeta>(
+        () =>
+          this._axios
+            .post(
+              `${this._basePath}/${this._mutationPath}`,
+              { data, select, populate, tasks, options: { includePermissions, populateAccess } },
+              reqConfig,
+            )
+            .then(this.handleSuccess)
+            .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
+              result.data = result.success
+                ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this)
+                : null;
+              return result;
+            })
+            .catch(this.handleError<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>)
+            .then((res) =>
+              this._handleCallbacks<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
+            ),
+        {
+          __op: 'createAdvanced',
+          __query: {
+            target: 'model',
+            name: this._modelName,
+            model: this._modelName,
+            op: 'create',
+            data,
+            args: { select, populate, tasks },
+            options: {
+              includePermissions,
+              populateAccess,
+            },
           },
+          __requestConfig: reqConfig,
+          __service: this,
         },
-        __requestConfig: reqConfig,
-        __service: this,
-      },
-    );
+      );
 
     return result;
   }
@@ -681,18 +669,16 @@ export class ModelService<T extends Document> extends Service {
     return result;
   }
 
-  updateAdvanced<TData extends Partial<T> = T>(
+  updateAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
     identifier: string,
     data: object,
-    args?: UpdateAdvancedArgs,
+    args?: UpdateAdvancedArgs<TSelect>,
     options?: UpdateAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ) {
-    const {
-      select = this._defaults.updateAdvancedArgs.select,
-      populate = this._defaults.updateAdvancedArgs.populate,
-      tasks = this._defaults.updateAdvancedArgs.tasks,
-    } = args ?? {};
+  ): ModelPromiseMeta & Promise<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
+    const { populate = this._defaults.updateAdvancedArgs.populate, tasks = this._defaults.updateAdvancedArgs.tasks } =
+      args ?? {};
+    const select = (args?.select ?? this._defaults.updateAdvancedArgs.select) as TSelect | undefined;
 
     const {
       returningAll = this._defaults.updateAdvancedOptions.returningAll ?? true,
@@ -703,50 +689,52 @@ export class ModelService<T extends Document> extends Service {
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     set(reqConfig, `headers.${CACHE_HEADER}`, 'false');
 
-    const result: ModelPromiseMeta & Promise<ModelResponse<T, TData>> = wrapLazyPromise<
-      ModelResponse<T, TData>,
-      ModelPromiseMeta
-    >(
-      () =>
-        this._axios
-          .patch(
-            `${this._basePath}/${this._mutationPath}/${identifier}`,
-            {
-              data,
-              select,
-              populate,
-              tasks,
-              options: { returningAll, includePermissions, populateAccess },
+    const result: ModelPromiseMeta & Promise<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> =
+      wrapLazyPromise<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>, ModelPromiseMeta>(
+        () =>
+          this._axios
+            .patch(
+              `${this._basePath}/${this._mutationPath}/${identifier}`,
+              {
+                data,
+                select,
+                populate,
+                tasks,
+                options: { returningAll, includePermissions, populateAccess },
+              },
+              reqConfig,
+            )
+            .then(this.handleSuccess)
+            .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
+              result.data = result.success
+                ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this)
+                : null;
+              return result;
+            })
+            .catch(this.handleError<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>)
+            .then((res) =>
+              this._handleCallbacks<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
+            ),
+        {
+          __op: 'updateAdvanced',
+          __query: {
+            target: 'model',
+            name: this._modelName,
+            model: this._modelName,
+            op: 'update',
+            id: identifier,
+            data,
+            args: { select, populate, tasks },
+            options: {
+              returningAll,
+              includePermissions,
+              populateAccess,
             },
-            reqConfig,
-          )
-          .then(this.handleSuccess)
-          .then((result: ModelResponse<T, TData>) => {
-            result.data = result.success ? Model.create<T, TData>(result.raw, this) : null;
-            return result;
-          })
-          .catch(this.handleError<ModelResponse<T, TData>>)
-          .then((res) => this._handleCallbacks<ModelResponse<T, TData>>(res, throwOnError)),
-      {
-        __op: 'updateAdvanced',
-        __query: {
-          target: 'model',
-          name: this._modelName,
-          model: this._modelName,
-          op: 'update',
-          id: identifier,
-          data,
-          args: { select, populate, tasks },
-          options: {
-            returningAll,
-            includePermissions,
-            populateAccess,
           },
+          __requestConfig: reqConfig,
+          __service: this,
         },
-        __requestConfig: reqConfig,
-        __service: this,
-      },
-    );
+      );
 
     return result;
   }
@@ -790,17 +778,15 @@ export class ModelService<T extends Document> extends Service {
     return result;
   }
 
-  upsertAdvanced<TData extends Partial<T> = T>(
+  upsertAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
     data: object,
-    args?: UpsertAdvancedArgs,
+    args?: UpsertAdvancedArgs<TSelect>,
     options?: UpsertAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ) {
-    const {
-      select = this._defaults.upsertAdvancedArgs.select,
-      populate = this._defaults.upsertAdvancedArgs.populate,
-      tasks = this._defaults.upsertAdvancedArgs.tasks,
-    } = args ?? {};
+  ): ModelPromiseMeta & Promise<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
+    const { populate = this._defaults.upsertAdvancedArgs.populate, tasks = this._defaults.upsertAdvancedArgs.tasks } =
+      args ?? {};
+    const select = (args?.select ?? this._defaults.upsertAdvancedArgs.select) as TSelect | undefined;
 
     const {
       returningAll = this._defaults.upsertAdvancedOptions.returningAll ?? true,
@@ -811,49 +797,51 @@ export class ModelService<T extends Document> extends Service {
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     set(reqConfig, `headers.${CACHE_HEADER}`, 'false');
 
-    const result: ModelPromiseMeta & Promise<ModelResponse<T, TData>> = wrapLazyPromise<
-      ModelResponse<T, TData>,
-      ModelPromiseMeta
-    >(
-      () =>
-        this._axios
-          .put(
-            `${this._basePath}/${this._mutationPath}`,
-            {
-              data,
-              select,
-              populate,
-              tasks,
-              options: { returningAll, includePermissions, populateAccess },
+    const result: ModelPromiseMeta & Promise<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> =
+      wrapLazyPromise<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>, ModelPromiseMeta>(
+        () =>
+          this._axios
+            .put(
+              `${this._basePath}/${this._mutationPath}`,
+              {
+                data,
+                select,
+                populate,
+                tasks,
+                options: { returningAll, includePermissions, populateAccess },
+              },
+              reqConfig,
+            )
+            .then(this.handleSuccess)
+            .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
+              result.data = result.success
+                ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this)
+                : null;
+              return result;
+            })
+            .catch(this.handleError<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>)
+            .then((res) =>
+              this._handleCallbacks<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
+            ),
+        {
+          __op: 'upsertAdvanced',
+          __query: {
+            target: 'model',
+            name: this._modelName,
+            model: this._modelName,
+            op: 'upsert',
+            data,
+            args: { select, populate, tasks },
+            options: {
+              returningAll,
+              includePermissions,
+              populateAccess,
             },
-            reqConfig,
-          )
-          .then(this.handleSuccess)
-          .then((result: ModelResponse<T, TData>) => {
-            result.data = result.success ? Model.create<T, TData>(result.raw, this) : null;
-            return result;
-          })
-          .catch(this.handleError<ModelResponse<T, TData>>)
-          .then((res) => this._handleCallbacks<ModelResponse<T, TData>>(res, throwOnError)),
-      {
-        __op: 'upsertAdvanced',
-        __query: {
-          target: 'model',
-          name: this._modelName,
-          model: this._modelName,
-          op: 'upsert',
-          data,
-          args: { select, populate, tasks },
-          options: {
-            returningAll,
-            includePermissions,
-            populateAccess,
           },
+          __requestConfig: reqConfig,
+          __service: this,
         },
-        __requestConfig: reqConfig,
-        __service: this,
-      },
-    );
+      );
 
     return result;
   }
@@ -1070,42 +1058,52 @@ export class ModelService<T extends Document> extends Service {
 
             return result;
           },
-          listAdvanced: (filter?: FilterQuery<S>, args?: { select: string[] }, axiosRequestConfig?: RequestConfig) => {
-            const { select } = args ?? {};
+          listAdvanced: <
+            TData extends Partial<S> | never = never,
+            TSelect extends readonly string[] = readonly string[],
+          >(
+            filter?: FilterQuery<S>,
+            args?: { select?: TSelect },
+            axiosRequestConfig?: RequestConfig,
+          ) => {
+            const select = args?.select;
             const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
-            const result: ModelPromiseMeta & Promise<ListModelResponse<S>> = wrapLazyPromise<
-              ListModelResponse<S>,
-              ModelPromiseMeta
-            >(
-              () =>
-                this._axios
-                  .post(`${this._basePath}/${id}/${sub}/${this._queryPath}`, { filter, fields: select }, reqConfig)
-                  .then(this.handleSuccess)
-                  .then((result: ListModelResponse<S>) => {
-                    result.totalCount = result.raw.length;
-                    result.data = [];
-                    return result;
-                  })
-                  .catch(this.handleError<ListModelResponse<S>>)
-                  .then((res) => this._handleCallbacks<ListModelResponse<S>>(res, throwOnError)),
-              {
-                __op: 'listAdvancedSub',
-                __query: {
-                  target: 'model',
-                  name: this._modelName,
-                  model: this._modelName,
-                  op: 'subList',
-                  id,
-                  sub,
-                  filter,
-                  args: { select },
-                  options: {},
+            const result: ModelPromiseMeta & Promise<ListModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>> =
+              wrapLazyPromise<ListModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>, ModelPromiseMeta>(
+                () =>
+                  this._axios
+                    .post(`${this._basePath}/${id}/${sub}/${this._queryPath}`, { filter, select }, reqConfig)
+                    .then(this.handleSuccess)
+                    .then((result: ListModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>) => {
+                      result.totalCount = result.raw.length;
+                      result.data = [];
+                      return result;
+                    })
+                    .catch(this.handleError<ListModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>)
+                    .then((res) =>
+                      this._handleCallbacks<ListModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>(
+                        res,
+                        throwOnError,
+                      ),
+                    ),
+                {
+                  __op: 'listAdvancedSub',
+                  __query: {
+                    target: 'model',
+                    name: this._modelName,
+                    model: this._modelName,
+                    op: 'subList',
+                    id,
+                    sub,
+                    filter,
+                    args: { select },
+                    options: {},
+                  },
+                  __requestConfig: reqConfig,
+                  __service: this,
                 },
-                __requestConfig: reqConfig,
-                __service: this,
-              },
-            );
+              );
 
             return result;
           },
@@ -1151,62 +1149,62 @@ export class ModelService<T extends Document> extends Service {
 
             return result;
           },
-          readAdvanced: (
+          readAdvanced: <
+            TData extends Partial<S> | never = never,
+            TSelect extends readonly string[] = readonly string[],
+          >(
             subId: string,
-            args?: { select?: string[]; populate?: unknown },
+            args?: { select?: TSelect; populate?: unknown },
             axiosRequestConfig?: RequestConfig,
           ) => {
             const { select, populate } = args ?? {};
             const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
-            const result: ModelPromiseMeta & Promise<ModelResponse<S>> = wrapLazyPromise<
-              ModelResponse<S>,
-              ModelPromiseMeta
-            >(
-              () =>
-                this._axios
-                  .post(
-                    `${this._basePath}/${id}/${sub}/${subId}/${this._queryPath}`,
-                    {
-                      fields: select,
-                      populate,
-                    },
-                    reqConfig,
-                  )
-                  .then(this.handleSuccess)
-                  .then((result: ModelResponse<S>) => {
-                    result.data = null;
-                    return result;
-                  })
-                  .catch(this.handleError<ModelResponse<S>>)
-                  .then((res) => this._handleCallbacks<ModelResponse<S>>(res, throwOnError)),
-              {
-                __op: 'readAdvancedSub',
-                __query: {
-                  target: 'model',
-                  name: this._modelName,
-                  model: this._modelName,
-                  op: 'subRead',
-                  id,
-                  sub,
-                  subId,
-                  args: { select, populate },
-                  options: {},
+            const result: ModelPromiseMeta & Promise<ModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>> =
+              wrapLazyPromise<ModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>, ModelPromiseMeta>(
+                () =>
+                  this._axios
+                    .post(
+                      `${this._basePath}/${id}/${sub}/${subId}/${this._queryPath}`,
+                      {
+                        select,
+                        populate,
+                      },
+                      reqConfig,
+                    )
+                    .then(this.handleSuccess)
+                    .then((result: ModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>) => {
+                      result.data = null;
+                      return result;
+                    })
+                    .catch(this.handleError<ModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>)
+                    .then((res) =>
+                      this._handleCallbacks<ModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>(
+                        res,
+                        throwOnError,
+                      ),
+                    ),
+                {
+                  __op: 'readAdvancedSub',
+                  __query: {
+                    target: 'model',
+                    name: this._modelName,
+                    model: this._modelName,
+                    op: 'subRead',
+                    id,
+                    sub,
+                    subId,
+                    args: { select, populate },
+                    options: {},
+                  },
+                  __requestConfig: reqConfig,
+                  __service: this,
                 },
-                __requestConfig: reqConfig,
-                __service: this,
-              },
-            );
+              );
 
             return result;
           },
-          update: (
-            subId: string,
-            data: object,
-            options?: { returningSub: boolean },
-            axiosRequestConfig?: RequestConfig,
-          ) => {
-            const { returningSub } = options ?? {};
+          update: (subId: string, data: object, axiosRequestConfig?: RequestConfig) => {
             const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
             const result: ModelPromiseMeta & Promise<ModelResponse<S>> = wrapLazyPromise<
@@ -1215,11 +1213,7 @@ export class ModelService<T extends Document> extends Service {
             >(
               () =>
                 this._axios
-                  .patch(
-                    `${this._basePath}/${id}/${sub}/${subId}`,
-                    data,
-                    mergeConfig(reqConfig, { params: { returning_sub: returningSub === true } }),
-                  )
+                  .patch(`${this._basePath}/${id}/${sub}/${subId}`, data, mergeConfig(reqConfig, { params: {} }))
                   .then(this.handleSuccess)
                   .then((result: ModelResponse<S>) => {
                     result.data = null;
@@ -1238,9 +1232,7 @@ export class ModelService<T extends Document> extends Service {
                   sub,
                   subId,
                   data,
-                  options: {
-                    returningSub,
-                  },
+                  options: {},
                 },
                 __requestConfig: reqConfig,
                 __service: this,
