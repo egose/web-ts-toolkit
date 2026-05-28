@@ -1,6 +1,5 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
-import type { z } from 'zod';
 import { forEach, isPlainObject, isString, isUndefined, normalizeUrlPath, padEnd } from '@web-ts-toolkit/utils';
 import Model from '../model';
 import { createSetCore } from '../core';
@@ -15,6 +14,7 @@ import { accessRouterResponseHandler } from './index';
 import { setModelCollectionRoutes } from './model-router-collection-routes';
 import { setModelDocumentRoutes } from './model-router-document-routes';
 import { setModelSubDocumentRoutes } from './model-router-subdocument-routes';
+import type { RequestSchemaLike } from '../validation/types';
 
 const clientErrors = JsonRouter.clientErrors;
 
@@ -60,7 +60,7 @@ export class ModelRouter<TModel = unknown> {
     return this.runtime.getExactModelOption<keyof ExtendedModelRouterOptions<TModel>, TModel>(
       this.modelName,
       key as keyof ExtendedModelRouterOptions<TModel>,
-    ) as z.ZodTypeAny | undefined;
+    ) as RequestSchemaLike | undefined;
   }
 
   getService(req: ModelRequest): Service<TModel> {

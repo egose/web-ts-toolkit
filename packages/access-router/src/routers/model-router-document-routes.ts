@@ -42,7 +42,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
   router.post('/count', async (req: ModelRequest) => {
     await context.assertAllowed(req, 'count');
 
-    const { filter, options: countOptions = {} }: CountBody = parseBodyWithSchema(
+    const { filter, options: countOptions = {} }: CountBody = await parseBodyWithSchema(
       countBodySchema,
       req.body,
       context.getRequestSchema('requestSchemas.count'),
@@ -81,11 +81,11 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
   router.post(`/${options.queryRouteSegment}/__filter`, async (req: ModelRequest) => {
     await context.assertAllowed(req, 'read');
 
-    const body = parseBodyWithSchema(
+    const body = (await parseBodyWithSchema(
       readFilterBodySchema,
       req.body,
       context.getRequestSchema('requestSchemas.advancedReadFilter'),
-    ) as AdvancedReadFilterBody;
+    )) as AdvancedReadFilterBody;
     const { filter, select, sort, populate, include, tasks } = body;
     const advancedOptions: NonNullable<AdvancedReadFilterBody['options']> = body.options ?? {};
     const { skim, includePermissions, tryList, populateAccess } = advancedOptions;
@@ -106,11 +106,11 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     await context.assertAllowed(req, 'read');
 
     const id = parsePathParam(req.params[options.idParam], options.idParam);
-    const body = parseBodyWithSchema(
+    const body = (await parseBodyWithSchema(
       readByIdBodySchema,
       req.body,
       context.getRequestSchema('requestSchemas.advancedRead'),
-    ) as AdvancedReadBody;
+    )) as AdvancedReadBody;
     const { select, populate, include, tasks } = body;
     const advancedOptions: NonNullable<AdvancedReadBody['options']> = body.options ?? {};
     const { skim, includePermissions, tryList, populateAccess } = advancedOptions;
@@ -132,7 +132,11 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     const id = parsePathParam(req.params[options.idParam], options.idParam);
     const { returning_all, include_permissions } = parseQuery(requestSchemas.updateQuery, req.query);
-    const data = parseBodyWithSchema(updateBodySchema, req.body, context.getRequestSchema('requestSchemas.update'));
+    const data = await parseBodyWithSchema(
+      updateBodySchema,
+      req.body,
+      context.getRequestSchema('requestSchemas.update'),
+    );
 
     const svc = context.getPublicService(req);
     const result = await svc._update(
@@ -155,15 +159,15 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     const id = parsePathParam(req.params[options.idParam], options.idParam);
     const { returning_all, include_permissions } = parseQuery(requestSchemas.updateQuery, req.query);
-    const body = parseNestedBodyWithSchema(
+    const body = (await parseNestedBodyWithSchema(
       advancedUpdateBodySchema,
       req.body,
       'data',
       context.getRequestSchema('requestSchemas.advancedUpdate.data'),
-    ) as AdvancedUpdateBody;
+    )) as AdvancedUpdateBody;
     const { data, select, populate, tasks } = body;
     const advancedOptions: NonNullable<AdvancedUpdateBody['options']> = body.options ?? {};
-    parseBodyWithSchema(
+    await parseBodyWithSchema(
       advancedUpdateBodySchema,
       { data, select, populate, tasks, options: advancedOptions },
       context.getRequestSchema('requestSchemas.advancedUpdate.default') ??
@@ -193,7 +197,11 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     const svc = context.getPublicService(req);
     const { returning_all, include_permissions } = parseQuery(requestSchemas.upsertQuery, req.query);
-    const body = parseBodyWithSchema(upsertBodySchema, req.body, context.getRequestSchema('requestSchemas.upsert'));
+    const body = await parseBodyWithSchema(
+      upsertBodySchema,
+      req.body,
+      context.getRequestSchema('requestSchemas.upsert'),
+    );
     const result = await svc._upsert(
       body,
       {},
@@ -213,15 +221,15 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     const svc = context.getPublicService(req);
     const { returning_all, include_permissions } = parseQuery(requestSchemas.upsertQuery, req.query);
-    const body = parseNestedBodyWithSchema(
+    const body = (await parseNestedBodyWithSchema(
       advancedUpsertBodySchema,
       req.body,
       'data',
       context.getRequestSchema('requestSchemas.advancedUpsert.data'),
-    ) as AdvancedUpsertBody;
+    )) as AdvancedUpsertBody;
     const { data, select, populate, tasks } = body;
     const advancedOptions: NonNullable<AdvancedUpsertBody['options']> = body.options ?? {};
-    parseBodyWithSchema(
+    await parseBodyWithSchema(
       advancedUpsertBodySchema,
       { data, select, populate, tasks, options: advancedOptions },
       context.getRequestSchema('requestSchemas.advancedUpsert.default') ??
@@ -270,7 +278,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     await context.assertAllowed(req, 'distinct');
 
     const field = parsePathParam(req.params.field, 'field');
-    const { filter }: DistinctBody = parseBodyWithSchema(
+    const { filter }: DistinctBody = await parseBodyWithSchema(
       distinctBodySchema,
       req.body,
       context.getRequestSchema('requestSchemas.distinct'),

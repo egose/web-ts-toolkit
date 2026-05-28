@@ -14,11 +14,12 @@ describe('access-router-client data-service and wrap integration', () => {
 
     const advancedList = await services.petService.listAdvanced(
       { public: true },
-      { select: 'name', limit: 10 },
+      { select: 'age', limit: 10 },
       { includeCount: true },
       { headers: { user: 'admin' } },
     );
-    expect(advancedList.data.map((row) => row.name).sort()).toEqual(['Bella', 'Max']);
+
+    expect(advancedList.data.map((row) => row.age).sort((left, right) => left - right)).toEqual([1, 3]);
 
     const read = await services.petService.read('Max', undefined, { headers: { user: 'admin' } });
     expect(read.data.name).toBe('Max');

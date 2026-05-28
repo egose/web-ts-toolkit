@@ -1,6 +1,7 @@
 import { AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
 import { get } from '@web-ts-toolkit/utils';
 import {
+  DataRequest,
   FilterQuery,
   DataResponse,
   ListDataResponse,
@@ -95,10 +96,7 @@ export class DataService<T> extends Service {
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
-    const result: DataPromiseMeta & Promise<ListDataResponse<TData>> = wrapLazyPromise<
-      ListDataResponse<TData>,
-      DataPromiseMeta
-    >(
+    const result: DataRequest<ListDataResponse<TData>> = wrapLazyPromise<ListDataResponse<TData>, DataPromiseMeta>(
       () =>
         this._axios
           .get(
@@ -148,7 +146,7 @@ export class DataService<T> extends Service {
     args?: DataListAdvancedArgs<TSelect>,
     options?: DataListAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ): DataPromiseMeta & Promise<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>> {
+  ): DataRequest<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>> {
     const {
       sort = this._defaults.listAdvancedArgs.sort,
       skip = this._defaults.listAdvancedArgs.skip,
@@ -169,54 +167,56 @@ export class DataService<T> extends Service {
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
     const _filter = replaceSubQuery<T>(filter);
-    const result: DataPromiseMeta & Promise<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>> =
-      wrapLazyPromise<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>, DataPromiseMeta>(
-        () =>
-          this._axios
-            .post(
-              `${this._basePath}/${this._queryPath}`,
-              {
-                filter: _filter,
-                select,
-                sort,
-                skip,
-                limit,
-                page,
-                pageSize,
-                options: {
-                  includePermissions,
-                  includeCount,
-                  includeExtraHeaders,
-                },
+    const result: DataRequest<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>> = wrapLazyPromise<
+      ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>,
+      DataPromiseMeta
+    >(
+      () =>
+        this._axios
+          .post(
+            `${this._basePath}/${this._queryPath}`,
+            {
+              filter: _filter,
+              select,
+              sort,
+              skip,
+              limit,
+              page,
+              pageSize,
+              options: {
+                includePermissions,
+                includeCount,
+                includeExtraHeaders,
               },
-              reqConfig,
-            )
-            .then(this.handleSuccess)
-            .then((result: ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>) => {
-              return this.processListResult(result, { includeCount, includeExtraHeaders });
-            })
-            .catch(this.handleError<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>>)
-            .then((res) =>
-              this._handleCallbacks<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
-            ),
-        {
-          __op: 'listAdvanced',
-          __query: {
-            target: 'data',
-            name: this._dataName,
-            op: 'list',
-            filter: _filter,
-            args: { select, sort, skip, limit, page, pageSize },
-            options: {
-              includePermissions,
-              includeCount,
-              includeExtraHeaders,
             },
+            reqConfig,
+          )
+          .then(this.handleSuccess)
+          .then((result: ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>) => {
+            return this.processListResult(result, { includeCount, includeExtraHeaders });
+          })
+          .catch(this.handleError<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>>)
+          .then((res) =>
+            this._handleCallbacks<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
+          ),
+      {
+        __op: 'listAdvanced',
+        __query: {
+          target: 'data',
+          name: this._dataName,
+          op: 'list',
+          filter: _filter,
+          args: { select, sort, skip, limit, page, pageSize },
+          options: {
+            includePermissions,
+            includeCount,
+            includeExtraHeaders,
           },
-          __requestConfig: reqConfig,
-          __service: this,
         },
-      );
+        __requestConfig: reqConfig,
+        __service: this,
+      },
+    );
 
     return result;
   }
@@ -234,10 +234,7 @@ export class DataService<T> extends Service {
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
-    const result: DataPromiseMeta & Promise<DataResponse<TData>> = wrapLazyPromise<
-      DataResponse<TData>,
-      DataPromiseMeta
-    >(
+    const result: DataRequest<DataResponse<TData>> = wrapLazyPromise<DataResponse<TData>, DataPromiseMeta>(
       () =>
         this._axios
           .get(
@@ -280,7 +277,7 @@ export class DataService<T> extends Service {
     args?: DataReadAdvancedArgs<TSelect>,
     options?: DataReadAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ): DataPromiseMeta & Promise<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> {
+  ): DataRequest<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> {
     const { ignoreCache = this._defaults.readAdvancedArgs.ignoreCache ?? false } = args ?? {};
     const select = (args?.select ?? this._defaults.readAdvancedArgs.select) as TSelect | undefined;
 
@@ -289,7 +286,7 @@ export class DataService<T> extends Service {
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
-    const result: DataPromiseMeta & Promise<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> = wrapLazyPromise<
+    const result: DataRequest<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> = wrapLazyPromise<
       DataResponse<ResolvedSelectedShape<T, TSelect, TData>>,
       DataPromiseMeta
     >(
@@ -330,7 +327,7 @@ export class DataService<T> extends Service {
     args?: DataReadAdvancedArgs<TSelect>,
     options?: DataReadAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ): DataPromiseMeta & Promise<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> {
+  ): DataRequest<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> {
     const select = (args?.select ?? this._defaults.readAdvancedArgs.select) as TSelect | undefined;
 
     const {
@@ -342,7 +339,7 @@ export class DataService<T> extends Service {
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
     const _filter = replaceSubQuery<T>(filter);
-    const result: DataPromiseMeta & Promise<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> = wrapLazyPromise<
+    const result: DataRequest<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> = wrapLazyPromise<
       DataResponse<ResolvedSelectedShape<T, TSelect, TData>>,
       DataPromiseMeta
     >(

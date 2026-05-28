@@ -240,10 +240,47 @@ const createRequestSchemaApp = async () => {
     requestSchemas: {
       create: z.object({ name: z.string().min(3), role: z.string(), public: z.boolean().optional() }),
       advancedCreate: {
-        data: z.object({ name: z.string().min(3), role: z.literal('user') }),
+        data: async (value) => {
+          const data = value as Record<string, unknown>;
+
+          if (typeof data?.name !== 'string' || data.name.length < 3) {
+            return {
+              success: false as const,
+              issues: [{ message: 'String must contain at least 3 character(s)', path: ['name'] }],
+            };
+          }
+
+          if (data.role !== 'user') {
+            return {
+              success: false as const,
+              issues: [{ message: 'Invalid input', path: ['role'] }],
+            };
+          }
+
+          return {
+            success: true as const,
+            data,
+          };
+        },
       },
       advancedUpdate: {
-        data: z.object({ role: z.enum(['manager', 'staff']) }),
+        data: {
+          validate: async (value) => {
+            const data = value as Record<string, unknown>;
+
+            if (data.role !== 'manager' && data.role !== 'staff') {
+              return {
+                success: false as const,
+                issues: [{ message: 'Invalid option', path: ['role'] }],
+              };
+            }
+
+            return {
+              success: true as const,
+              data,
+            };
+          },
+        },
       },
     },
   });

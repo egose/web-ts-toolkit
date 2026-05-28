@@ -2,15 +2,7 @@ import axios, { AxiosHeaders, mergeConfig, AxiosRequestConfig } from 'axios';
 import { castArray, isEmpty, set } from '@web-ts-toolkit/utils';
 import { ModelService, DataService } from './services';
 import { Model } from './model';
-import {
-  DataPromiseMeta,
-  Document,
-  LazyRequest,
-  ModelPromiseMeta,
-  ResponseCallback,
-  RootQueryMeta,
-  WrapOptions,
-} from './types';
+import { DataRequest, Document, ModelRequest, ResponseCallback, RootQueryMeta, WrapOptions } from './types';
 import { Defaults, DataDefaults } from './interface';
 import { useCacheInterceptors } from './services/interceptors';
 import { getWrapContext } from './helpers';
@@ -201,9 +193,9 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
         return instance.delete<T>(finalUrl, finalConfig);
       };
     },
-    group: async <T extends ((ModelPromiseMeta | DataPromiseMeta) & LazyRequest<unknown>)[]>(
+    group: async <T extends readonly (ModelRequest<unknown> | DataRequest<unknown>)[]>(
       ...proms: T
-    ): Promise<{ [K in keyof T]: T[K] extends Promise<infer U> ? U : never }> => {
+    ): Promise<{ [K in keyof T]: Awaited<T[K]> }> => {
       let sharedConfig: AxiosRequestConfig | undefined;
       let sharedConfigKey: string | undefined;
       const defs = proms.map((prom) => {
@@ -255,9 +247,7 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
             totalCount: result.success && result.kind === 'list' ? (result.totalCount ?? result.count ?? 0) : 0,
             headers: {},
           };
-        }) as {
-          [K in keyof T]: T[K] extends Promise<infer U> ? U : never;
-        };
+        }) as { [K in keyof T]: Awaited<T[K]> };
       });
 
       return result;

@@ -6,6 +6,228 @@ export type ValidationError = {
   parameter?: string;
 };
 
+export type RequestSchemaIssue = {
+  message: string;
+  path?: Array<string | number>;
+};
+
+export type RequestSchemaSuccess<T = unknown> = {
+  success: true;
+  data: T;
+};
+
+export type RequestSchemaFailure = {
+  success: false;
+  issues: RequestSchemaIssue[];
+};
+
+export type RequestSchemaResult<T = unknown> = RequestSchemaSuccess<T> | RequestSchemaFailure;
+
+export type RequestSchemaValidator<T = unknown> = (
+  value: unknown,
+) => RequestSchemaResult<T> | Promise<RequestSchemaResult<T>>;
+
+export type RequestSchemaAdapter<T = unknown> = {
+  validate: RequestSchemaValidator<T>;
+};
+
+export type StandardSchemaPathSegment = {
+  key: PropertyKey;
+};
+
+export type StandardSchemaIssue = {
+  message: string;
+  path?: ReadonlyArray<PropertyKey | StandardSchemaPathSegment>;
+};
+
+export type StandardSchemaSuccess<T = unknown> = {
+  value: T;
+  issues?: undefined;
+};
+
+export type StandardSchemaFailure = {
+  issues: ReadonlyArray<StandardSchemaIssue>;
+};
+
+export type StandardSchemaResult<T = unknown> = StandardSchemaSuccess<T> | StandardSchemaFailure;
+
+export type StandardSchemaV1<Input = unknown, Output = Input> = {
+  readonly '~standard': {
+    readonly version: 1;
+    readonly vendor: string;
+    readonly validate: (
+      value: unknown,
+      options?: {
+        readonly libraryOptions?: Record<string, unknown> | undefined;
+      },
+    ) => StandardSchemaResult<Output> | Promise<StandardSchemaResult<Output>>;
+    readonly types?: {
+      readonly input: Input;
+      readonly output: Output;
+    };
+  };
+};
+
+export type StandardSchemaInferOutput<TSchema extends StandardSchemaV1> = NonNullable<
+  TSchema['~standard']['types']
+>['output'];
+
+export type RequestSchemaLike<T = unknown> = RequestSchemaValidator<T> | RequestSchemaAdapter<T> | StandardSchemaV1;
+
+export type YupValidationErrorLike = {
+  message: string;
+  path?: string;
+  inner?: ReadonlyArray<YupValidationErrorLike>;
+};
+
+export type YupSchemaLike<T = unknown> = {
+  validate: (
+    value: unknown,
+    options?: {
+      abortEarly?: boolean;
+      stripUnknown?: boolean;
+    },
+  ) => Promise<T> | T;
+};
+
+export type JoiValidationErrorDetailLike = {
+  message: string;
+  path?: ReadonlyArray<string | number>;
+};
+
+export type JoiSchemaLike<T = unknown> = {
+  validate: (
+    value: unknown,
+    options?: {
+      abortEarly?: boolean;
+      stripUnknown?: boolean;
+    },
+  ) =>
+    | {
+        value: T;
+        error?: {
+          details?: ReadonlyArray<JoiValidationErrorDetailLike>;
+        };
+      }
+    | Promise<{
+        value: T;
+        error?: {
+          details?: ReadonlyArray<JoiValidationErrorDetailLike>;
+        };
+      }>;
+};
+
+export type AjvErrorObjectLike = {
+  message?: string;
+  instancePath?: string;
+  schemaPath?: string;
+  params?: {
+    missingProperty?: string;
+  };
+};
+
+export type AjvValidatorLike<T = unknown> = {
+  (value: unknown): boolean | Promise<boolean>;
+  errors?: ReadonlyArray<AjvErrorObjectLike> | null;
+};
+
+export type ValibotPathItemLike = {
+  key?: unknown;
+};
+
+export type ValibotIssueLike = {
+  message: string;
+  path?: ReadonlyArray<ValibotPathItemLike>;
+};
+
+export type ValibotSafeParseResult<T = unknown> =
+  | {
+      success: true;
+      output: T;
+      issues?: undefined;
+    }
+  | {
+      success: false;
+      output?: undefined;
+      issues: ReadonlyArray<ValibotIssueLike>;
+    };
+
+export type ValibotSafeParseLike = <TSchema, TOutput = unknown>(
+  schema: TSchema,
+  value: unknown,
+  config?: {
+    abortEarly?: boolean;
+  },
+) => ValibotSafeParseResult<TOutput> | Promise<ValibotSafeParseResult<TOutput>>;
+
+export type ArkTypeProblemLike = {
+  path?: ReadonlyArray<string | number>;
+  message?: string;
+  problem?: string;
+};
+
+export type ArkTypeErrorsLike = ReadonlyArray<ArkTypeProblemLike> & {
+  summary?: string;
+};
+
+export type ArkTypeLike<T = unknown> = {
+  (value: unknown): T | ArkTypeErrorsLike;
+  errors?: unknown;
+};
+
+export type IoTsContextEntryLike = {
+  key: string;
+};
+
+export type IoTsDecodeErrorLike = {
+  message?: string;
+  context: ReadonlyArray<IoTsContextEntryLike>;
+};
+
+export type IoTsDecoderLike<T = unknown> = {
+  decode: (value: unknown) =>
+    | {
+        _tag: 'Left';
+        left: ReadonlyArray<IoTsDecodeErrorLike>;
+      }
+    | {
+        _tag: 'Right';
+        right: T;
+      };
+};
+
+export type SuperstructFailureLike = {
+  message?: string;
+  path?: ReadonlyArray<string | number>;
+  key?: string | number;
+  branch?: ReadonlyArray<unknown>;
+  failures?: () => ReadonlyArray<SuperstructFailureLike>;
+};
+
+export type SuperstructValidateLike = <TStruct, TOutput = unknown>(
+  value: unknown,
+  struct: TStruct,
+) =>
+  | readonly [failure: SuperstructFailureLike, value: undefined]
+  | readonly [failure: undefined, value: TOutput]
+  | Promise<
+      readonly [failure: SuperstructFailureLike, value: undefined] | readonly [failure: undefined, value: TOutput]
+    >;
+
+export type VineValidationMessageLike = {
+  field: string;
+  message: string;
+  index?: number;
+};
+
+export type VineValidationErrorLike = {
+  messages: ReadonlyArray<VineValidationMessageLike>;
+};
+
+export type VineValidatorLike<T = unknown> = {
+  validate: (value: unknown) => Promise<T> | T;
+};
+
 export type ListQueryInput = {
   skip?: string;
   limit?: string;
