@@ -47,6 +47,18 @@ const toc = [{
   "id": "request-schemas",
   "level": 2
 }, {
+  "value": "RequestSchemas Inputs",
+  "id": "requestschemas-inputs",
+  "level": 2
+}, {
+  "value": "Helper Adapters",
+  "id": "helper-adapters",
+  "level": 2
+}, {
+  "value": "Examples",
+  "id": "examples",
+  "level": 2
+}, {
   "value": "Root Batch Validation",
   "id": "root-batch-validation",
   "level": 2
@@ -126,6 +138,154 @@ function _createMdxContent(props) {
       children: ["Model routers support ", (0,jsx_runtime.jsx)(_components.code, {
         children: "requestSchemas"
       }), " for stricter application-level validation."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "requestSchemas"
+      }), " are validation-library agnostic for user-defined validation:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "raw Zod schemas still work"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["raw ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "standard-schema"
+        }), " objects work"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "custom validator functions work"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["adapter objects with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "validate(value)"
+        }), " work"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "requestschemas-inputs",
+      children: "RequestSchemas Inputs"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "requestSchemas"
+      }), " can be provided as:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["a raw schema object the router already understands, such as Zod or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "standard-schema"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["a custom function returning ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ success, data }"
+        }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ success, issues }"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["an adapter object with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "validate(value)"
+        }), " returning the same result shape"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Custom validators must return:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "{ success: true, data }\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "or:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "{\n  success: false,\n  issues: [{ message: 'Required', path: ['data', 'name'] }],\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "The router converts those issues into the standard bad-request error format."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "helper-adapters",
+      children: "Helper Adapters"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Helpers exported by ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/access-router"
+      }), ":"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["generic adapters: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "fromZod(schema)"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "fromStandardSchema(schema)"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["schema/helper adapters: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "fromYup(schema)"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "fromJoi(schema)"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "fromAjv(validate)"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["schema/helper adapters: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "fromValibot(schema, safeParse)"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "fromArkType(type)"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["schema/helper adapters: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "fromIoTs(codec)"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "fromSuperstruct(struct, validate)"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "fromVine(validator)"
+        })]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "examples",
+      children: "Examples"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Example with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "standard-schema"
+      }), ":"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "requestSchemas: {\n  advancedRead: {\n    '~standard': {\n      version: 1,\n      vendor: 'my-validator',\n      validate(value) {\n        const body = value as { select?: unknown };\n\n        if (body.select !== undefined && !Array.isArray(body.select)) {\n          return {\n            issues: [{ message: 'Expected array', path: ['select'] }],\n          };\n        }\n\n        return { value: body };\n      },\n    },\n  },\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Example with Valibot:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import * as v from 'valibot';\nimport { fromValibot } from '@web-ts-toolkit/access-router';\n\nrequestSchemas: {\n  advancedRead: fromValibot(\n    v.object({\n      select: v.optional(v.array(v.string())),\n    }),\n    v.safeParse,\n  ),\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Example with ArkType:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { type } from 'arktype';\nimport { fromArkType } from '@web-ts-toolkit/access-router';\n\nrequestSchemas: {\n  advancedList: fromArkType(\n    type({\n      'filter?': {\n        'public?': 'boolean',\n      },\n    }),\n  ),\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Example with io-ts:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import * as t from 'io-ts';\nimport { fromIoTs } from '@web-ts-toolkit/access-router';\n\nrequestSchemas: {\n  advancedRead: fromIoTs(\n    t.type({\n      select: t.union([t.undefined, t.array(t.string)]),\n    }),\n  ),\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Example with Superstruct:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { object, optional, array, string, validate } from 'superstruct';\nimport { fromSuperstruct } from '@web-ts-toolkit/access-router';\n\nconst schema = object({\n  select: optional(array(string())),\n});\n\nrequestSchemas: {\n  advancedRead: fromSuperstruct(schema, validate),\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Example with Vine:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import vine from '@vinejs/vine';\nimport { fromVine } from '@web-ts-toolkit/access-router';\n\nconst validator = vine.create({\n  select: vine.array(vine.string()).optional(),\n});\n\nrequestSchemas: {\n  advancedRead: fromVine(validator),\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Example with a custom validator:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "requestSchemas: {\n  advancedCreate: {\n    data: async (value) => {\n      const data = value as { role?: unknown };\n\n      if (data.role !== 'user') {\n        return {\n          success: false,\n          issues: [{ message: 'Invalid role', path: ['role'] }],\n        };\n      }\n\n      return { success: true, data };\n    },\n  },\n}\n"
+      })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Useful keys include:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
