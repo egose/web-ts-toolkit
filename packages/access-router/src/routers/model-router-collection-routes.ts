@@ -51,11 +51,11 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
   router.post(`/${options.queryRouteSegment}`, async (req: ModelRequest) => {
     await context.assertAllowed(req, 'list');
 
-    const body = parseBodyWithSchema(
+    const body = (await parseBodyWithSchema(
       listBodySchema,
       req.body,
       context.getRequestSchema('requestSchemas.advancedList'),
-    ) as AdvancedListBody;
+    )) as AdvancedListBody;
     const { filter, select, sort, populate, include, tasks, skip, limit, page, pageSize } = body;
     const advancedOptions: NonNullable<AdvancedListBody['options']> = body.options ?? {};
     const { skim, includePermissions, includeCount, includeExtraHeaders, populateAccess } = advancedOptions;
@@ -83,7 +83,11 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
     await context.assertAllowed(req, 'create');
 
     const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
-    const data = parseBodyWithSchema(createBodySchema, req.body, context.getRequestSchema('requestSchemas.create'));
+    const data = await parseBodyWithSchema(
+      createBodySchema,
+      req.body,
+      context.getRequestSchema('requestSchemas.create'),
+    );
 
     const svc = context.getPublicService(req);
     const result = await svc._create(data, {}, { includePermissions: parseBooleanString(include_permissions) });
@@ -97,15 +101,15 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
     await context.assertAllowed(req, 'create');
 
     const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
-    const body = parseNestedBodyWithSchema(
+    const body = (await parseNestedBodyWithSchema(
       advancedCreateBodySchema,
       req.body,
       'data',
       context.getRequestSchema('requestSchemas.advancedCreate.data'),
-    ) as AdvancedCreateBody;
+    )) as AdvancedCreateBody;
     const { data, select, populate, tasks } = body;
     const advancedOptions: NonNullable<AdvancedCreateBody['options']> = body.options ?? {};
-    parseBodyWithSchema(
+    await parseBodyWithSchema(
       advancedCreateBodySchema,
       { data, select, populate, tasks, options: advancedOptions },
       context.getRequestSchema('requestSchemas.advancedCreate.default') ??

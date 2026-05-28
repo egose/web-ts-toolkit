@@ -1,5 +1,4 @@
 import express from 'express';
-import type { z } from 'zod';
 import {
   DataHookContext,
   DataRequest,
@@ -47,6 +46,7 @@ import type {
   ModelValidateHook,
   ValidateRule,
 } from './router-hooks';
+import type { RequestSchemaLike } from '../validation/types';
 export * from './request';
 export * from './access';
 export * from './router-hooks';
@@ -55,36 +55,40 @@ interface DefaultFindOneArgs<TModel = unknown> extends Omit<FindOneArgs<TModel>,
 interface DefaultFindByIdArgs<TModel = unknown> extends Omit<FindByIdArgs<TModel>, 'overrides'> {}
 interface DefaultFindArgs<TModel = unknown> extends Omit<FindArgs<TModel>, 'overrides'> {}
 
-type RequestZodSchema = z.ZodTypeAny;
+type RequestSchema = RequestSchemaLike;
+type NestedRequestSchema = {
+  default?: RequestSchema;
+  data?: RequestSchema;
+};
 
 type SubRouteGuardOptions = Record<string, Validation | Record<string, Validation>>;
 
 export interface RequestSchemas {
-  create?: RequestZodSchema;
-  update?: RequestZodSchema;
-  upsert?: RequestZodSchema;
-  count?: RequestZodSchema;
-  distinct?: RequestZodSchema;
-  advancedList?: RequestZodSchema;
-  advancedReadFilter?: RequestZodSchema;
-  advancedRead?: RequestZodSchema;
-  advancedCreate?: RequestZodSchema;
-  advancedCreateData?: RequestZodSchema;
-  advancedUpdate?: RequestZodSchema;
-  advancedUpdateData?: RequestZodSchema;
-  advancedUpsert?: RequestZodSchema;
-  advancedUpsertData?: RequestZodSchema;
-  subList?: RequestZodSchema;
-  subRead?: RequestZodSchema;
-  subCreate?: RequestZodSchema;
-  subUpdate?: RequestZodSchema;
-  subBulkUpdate?: RequestZodSchema;
+  create?: RequestSchema;
+  update?: RequestSchema;
+  upsert?: RequestSchema;
+  count?: RequestSchema;
+  distinct?: RequestSchema;
+  advancedList?: RequestSchema;
+  advancedReadFilter?: RequestSchema;
+  advancedRead?: RequestSchema;
+  advancedCreate?: RequestSchema | NestedRequestSchema;
+  advancedCreateData?: RequestSchema;
+  advancedUpdate?: RequestSchema | NestedRequestSchema;
+  advancedUpdateData?: RequestSchema;
+  advancedUpsert?: RequestSchema | NestedRequestSchema;
+  advancedUpsertData?: RequestSchema;
+  subList?: RequestSchema;
+  subRead?: RequestSchema;
+  subCreate?: RequestSchema;
+  subUpdate?: RequestSchema;
+  subBulkUpdate?: RequestSchema;
 }
 
 export interface DataRequestSchemas {
-  advancedList?: RequestZodSchema;
-  advancedReadFilter?: RequestZodSchema;
-  advancedRead?: RequestZodSchema;
+  advancedList?: RequestSchema;
+  advancedReadFilter?: RequestSchema;
+  advancedRead?: RequestSchema;
 }
 
 export interface Defaults<TModel = unknown> {
@@ -262,26 +266,26 @@ export interface ExtendedModelRouterOptions<TModel = unknown>
   'afterPersist.create'?: ModelDocumentHook;
   'afterPersist.update'?: ModelDocumentHook;
   onChange?: Record<string, ModelChangeHook>;
-  'requestSchemas.create'?: RequestZodSchema;
-  'requestSchemas.update'?: RequestZodSchema;
-  'requestSchemas.upsert'?: RequestZodSchema;
-  'requestSchemas.count'?: RequestZodSchema;
-  'requestSchemas.distinct'?: RequestZodSchema;
-  'requestSchemas.advancedList'?: RequestZodSchema;
-  'requestSchemas.advancedReadFilter'?: RequestZodSchema;
-  'requestSchemas.advancedRead'?: RequestZodSchema;
-  'requestSchemas.advancedCreate.default'?: RequestZodSchema;
-  'requestSchemas.advancedCreate.data'?: RequestZodSchema;
-  'requestSchemas.advancedUpdate'?: RequestZodSchema;
-  'requestSchemas.advancedUpdate.default'?: RequestZodSchema;
-  'requestSchemas.advancedUpdate.data'?: RequestZodSchema;
-  'requestSchemas.advancedUpsert.default'?: RequestZodSchema;
-  'requestSchemas.advancedUpsert.data'?: RequestZodSchema;
-  'requestSchemas.subList'?: RequestZodSchema;
-  'requestSchemas.subRead'?: RequestZodSchema;
-  'requestSchemas.subCreate'?: RequestZodSchema;
-  'requestSchemas.subUpdate'?: RequestZodSchema;
-  'requestSchemas.subBulkUpdate'?: RequestZodSchema;
+  'requestSchemas.create'?: RequestSchema;
+  'requestSchemas.update'?: RequestSchema;
+  'requestSchemas.upsert'?: RequestSchema;
+  'requestSchemas.count'?: RequestSchema;
+  'requestSchemas.distinct'?: RequestSchema;
+  'requestSchemas.advancedList'?: RequestSchema;
+  'requestSchemas.advancedReadFilter'?: RequestSchema;
+  'requestSchemas.advancedRead'?: RequestSchema;
+  'requestSchemas.advancedCreate.default'?: RequestSchema;
+  'requestSchemas.advancedCreate.data'?: RequestSchema;
+  'requestSchemas.advancedUpdate'?: RequestSchema;
+  'requestSchemas.advancedUpdate.default'?: RequestSchema;
+  'requestSchemas.advancedUpdate.data'?: RequestSchema;
+  'requestSchemas.advancedUpsert.default'?: RequestSchema;
+  'requestSchemas.advancedUpsert.data'?: RequestSchema;
+  'requestSchemas.subList'?: RequestSchema;
+  'requestSchemas.subRead'?: RequestSchema;
+  'requestSchemas.subCreate'?: RequestSchema;
+  'requestSchemas.subUpdate'?: RequestSchema;
+  'requestSchemas.subBulkUpdate'?: RequestSchema;
   'defaults.findOneArgs'?: DefaultFindOneArgs<TModel>;
   'defaults.findOneOptions'?: FindOneOptions;
   'defaults.findByIdArgs'?: DefaultFindByIdArgs<TModel>;
@@ -307,7 +311,7 @@ export interface ExtendedModelRouterOptions<TModel = unknown>
 }
 
 export interface ExtendedDataRouterOptions<TData = unknown> extends DataRouterOptions<TData> {
-  'requestSchemas.advancedList'?: RequestZodSchema;
-  'requestSchemas.advancedReadFilter'?: RequestZodSchema;
-  'requestSchemas.advancedRead'?: RequestZodSchema;
+  'requestSchemas.advancedList'?: RequestSchema;
+  'requestSchemas.advancedReadFilter'?: RequestSchema;
+  'requestSchemas.advancedRead'?: RequestSchema;
 }

@@ -37,11 +37,11 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
         await context.assertAllowed(req, `subs.${sub}.list`);
 
         const id = parsePathParam(req.params[context.options.idParam], context.options.idParam);
-        const body = parseBodyWithSchema(
+        const body = (await parseBodyWithSchema(
           subListBodySchema,
           req.body,
           context.getRequestSchema('requestSchemas.subList'),
-        ) as SubListBody;
+        )) as SubListBody;
         const svc = context.getPublicService(req);
         const result = await svc.listSub(id, sub, { filter: body.filter ?? {}, select: body.select ?? [] });
 
@@ -54,7 +54,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
       await context.assertAllowed(req, `subs.${sub}.update`);
 
       const id = parsePathParam(req.params[context.options.idParam], context.options.idParam);
-      const data = parseBodyWithSchema(
+      const data = await parseBodyWithSchema(
         subMutationBodySchema,
         req.body,
         context.getRequestSchema('requestSchemas.subBulkUpdate'),
@@ -85,11 +85,11 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
 
         const id = parsePathParam(req.params[context.options.idParam], context.options.idParam);
         const subId = parsePathParam(req.params.subId, 'subId');
-        const body = parseBodyWithSchema(
+        const body = (await parseBodyWithSchema(
           subReadBodySchema,
           req.body,
           context.getRequestSchema('requestSchemas.subRead'),
-        ) as SubReadBody;
+        )) as SubReadBody;
         const populate = body.populate;
         const normalizedPopulate: SubPopulate | SubPopulate[] = Array.isArray(populate)
           ? populate.map((item) => (isString(item) ? { path: item } : item))
@@ -109,7 +109,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
 
       const id = parsePathParam(req.params[context.options.idParam], context.options.idParam);
       const subId = parsePathParam(req.params.subId, 'subId');
-      const data = parseBodyWithSchema(
+      const data = await parseBodyWithSchema(
         subMutationBodySchema,
         req.body,
         context.getRequestSchema('requestSchemas.subUpdate'),
@@ -125,7 +125,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
       await context.assertAllowed(req, `subs.${sub}.create`);
 
       const id = parsePathParam(req.params[context.options.idParam], context.options.idParam);
-      const data = parseBodyWithSchema(
+      const data = await parseBodyWithSchema(
         subMutationBodySchema,
         req.body,
         context.getRequestSchema('requestSchemas.subCreate'),

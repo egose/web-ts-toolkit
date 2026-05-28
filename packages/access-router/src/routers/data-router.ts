@@ -1,6 +1,5 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
-import type { z } from 'zod';
 import { isPlainObject, isString, isUndefined, normalizeUrlPath } from '@web-ts-toolkit/utils';
 import { createSetDataCore } from '../core-data';
 import { decorateDataListResult, decorateDataSingleResult } from '../http/response-pipelines/data-response';
@@ -21,6 +20,7 @@ import {
   parseQuery,
   requestSchemas,
 } from './validation';
+import type { RequestSchemaLike } from '../validation/types';
 
 const clientErrors = JsonRouter.clientErrors;
 
@@ -61,7 +61,7 @@ export class DataRouter<TData = unknown> {
     return this.runtime.getExactDataOption<keyof ExtendedDataRouterOptions<TData>, TData>(
       this.dataName,
       key as keyof ExtendedDataRouterOptions<TData>,
-    ) as z.ZodTypeAny | undefined;
+    ) as RequestSchemaLike | undefined;
   }
 
   getService(req: DataRequest): DataService<TData> {
@@ -123,7 +123,7 @@ export class DataRouter<TData = unknown> {
         page,
         pageSize,
         options = {},
-      } = parseBodyWithSchema(dataListBodySchema, req.body, this.getRequestSchema('requestSchemas.advancedList'));
+      } = await parseBodyWithSchema(dataListBodySchema, req.body, this.getRequestSchema('requestSchemas.advancedList'));
       const { includeCount, includeExtraHeaders } = options;
 
       const svc = this.getService(req);
@@ -169,7 +169,7 @@ export class DataRouter<TData = unknown> {
     this.router.post(`/${this.options.queryRouteSegment}/__filter`, async (req: DataRequest) => {
       await this.assertAllowed(req, 'read');
 
-      let { filter, select } = parseBodyWithSchema(
+      let { filter, select } = await parseBodyWithSchema(
         dataReadFilterBodySchema,
         req.body,
         this.getRequestSchema('requestSchemas.advancedReadFilter'),
@@ -192,7 +192,7 @@ export class DataRouter<TData = unknown> {
       await this.assertAllowed(req, 'read');
 
       const id = parsePathParam(req.params[this.options.idParam], this.options.idParam);
-      let { select } = parseBodyWithSchema(
+      let { select } = await parseBodyWithSchema(
         dataReadByIdBodySchema,
         req.body,
         this.getRequestSchema('requestSchemas.advancedRead'),

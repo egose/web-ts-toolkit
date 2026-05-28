@@ -3,7 +3,20 @@ import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import acl, { createAccessRuntime, getGlobalOptions, setGlobalOptions } from '../dist/index.mjs';
+import acl, {
+  createAccessRuntime,
+  fromAjv,
+  fromArkType,
+  fromIoTs,
+  fromJoi,
+  fromStandardSchema,
+  fromSuperstruct,
+  fromValibot,
+  fromVine,
+  fromYup,
+  getGlobalOptions,
+  setGlobalOptions,
+} from '../dist/index.mjs';
 import type { Request as AccessRequest } from '../src/interfaces';
 
 const resetGlobalOptions = () => {
@@ -645,6 +658,594 @@ describe('data router', () => {
 
     await request(app)
       .post('/schema-fruit/__query/apple')
+      .send({ select: ['name'] })
+      .expect(200)
+      .expect('Content-Type', /json/);
+  });
+
+  it('supports async custom requestSchemas for advanced data routes', async () => {
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => [],
+    });
+
+    const app = express();
+    const router = acl.createDataRouter('custom-schema-fruit', {
+      basePath: '/custom-schema-fruit',
+      idField: 'id',
+      operationAccess: {
+        list: true,
+        read: true,
+      },
+      data: [
+        { id: 'apple', name: 'Apple', public: true },
+        { id: 'pear', name: 'Pear', public: false },
+      ],
+      permissionSchema: {
+        id: true,
+        name: true,
+        public: true,
+      },
+      requestSchemas: {
+        advancedList: async (value) => {
+          const data = value as { filter?: { public?: unknown } };
+
+          if (data.filter && typeof data.filter.public !== 'boolean') {
+            return {
+              success: false as const,
+              issues: [{ message: 'Expected boolean', path: ['filter', 'public'] }],
+            };
+          }
+
+          return {
+            success: true as const,
+            data,
+          };
+        },
+        advancedRead: {
+          validate: async (value) => {
+            const data = value as { select?: unknown };
+
+            if (data.select !== undefined && !Array.isArray(data.select)) {
+              return {
+                success: false as const,
+                issues: [{ message: 'Expected array', path: ['select'] }],
+              };
+            }
+
+            return {
+              success: true as const,
+              data,
+            };
+          },
+        },
+      },
+    });
+
+    app.use(express.json());
+    app.use(router.routes);
+
+    const invalidList = await request(app)
+      .post('/custom-schema-fruit/__query')
+      .send({ filter: { public: 'yes' } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidList.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/filter/public' }],
+    });
+
+    await request(app)
+      .post('/custom-schema-fruit/__query')
+      .send({ filter: { public: true } })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    const invalidRead = await request(app)
+      .post('/custom-schema-fruit/__query/apple')
+      .send({ select: 'name' })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidRead.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/select' }],
+    });
+
+    await request(app)
+      .post('/custom-schema-fruit/__query/apple')
+      .send({ select: ['name'] })
+      .expect(200)
+      .expect('Content-Type', /json/);
+  });
+
+  it('supports standard-schema requestSchemas for advanced data routes', async () => {
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => [],
+    });
+
+    const app = express();
+    const router = acl.createDataRouter('standard-schema-fruit', {
+      basePath: '/standard-schema-fruit',
+      idField: 'id',
+      operationAccess: {
+        list: true,
+        read: true,
+      },
+      data: [
+        { id: 'apple', name: 'Apple', public: true },
+        { id: 'pear', name: 'Pear', public: false },
+      ],
+      permissionSchema: {
+        id: true,
+        name: true,
+        public: true,
+      },
+      requestSchemas: {
+        advancedList: {
+          '~standard': {
+            version: 1,
+            vendor: 'test-standard-schema',
+            validate: async (value) => {
+              const data = value as { filter?: { public?: unknown } };
+
+              if (data.filter && typeof data.filter.public !== 'boolean') {
+                return {
+                  issues: [{ message: 'Expected boolean', path: ['filter', { key: 'public' }] }],
+                };
+              }
+
+              return { value: data };
+            },
+          },
+        },
+        advancedRead: fromStandardSchema({
+          '~standard': {
+            version: 1,
+            vendor: 'test-standard-schema',
+            validate: (value) => {
+              const data = value as { select?: unknown };
+
+              if (data.select !== undefined && !Array.isArray(data.select)) {
+                return {
+                  issues: [{ message: 'Expected array', path: ['select'] }],
+                };
+              }
+
+              return { value: data };
+            },
+          },
+        }),
+      },
+    });
+
+    app.use(express.json());
+    app.use(router.routes);
+
+    const invalidList = await request(app)
+      .post('/standard-schema-fruit/__query')
+      .send({ filter: { public: 'yes' } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidList.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/filter/public' }],
+    });
+
+    await request(app)
+      .post('/standard-schema-fruit/__query')
+      .send({ filter: { public: true } })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    const invalidRead = await request(app)
+      .post('/standard-schema-fruit/__query/apple')
+      .send({ select: 'name' })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidRead.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/select' }],
+    });
+
+    await request(app)
+      .post('/standard-schema-fruit/__query/apple')
+      .send({ select: ['name'] })
+      .expect(200)
+      .expect('Content-Type', /json/);
+  });
+
+  it('supports yup, joi, and ajv adapter helpers for requestSchemas', async () => {
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => [],
+    });
+
+    const app = express();
+
+    const sharedOptions = {
+      idField: 'id',
+      operationAccess: {
+        list: true,
+        read: true,
+      },
+      data: [
+        { id: 'apple', name: 'Apple', public: true },
+        { id: 'pear', name: 'Pear', public: false },
+      ],
+      permissionSchema: {
+        id: true,
+        name: true,
+        public: true,
+      },
+    };
+
+    const yupRouter = acl.createDataRouter('yup-fruit', {
+      ...sharedOptions,
+      basePath: '/yup-fruit',
+      requestSchemas: {
+        advancedRead: fromYup({
+          async validate(value) {
+            const data = value as { select?: unknown };
+            if (data.select !== undefined && !Array.isArray(data.select)) {
+              throw {
+                message: 'Expected array',
+                path: 'select',
+                inner: [{ message: 'Expected array', path: 'select' }],
+              };
+            }
+
+            return data;
+          },
+        }),
+      },
+    });
+
+    const joiRouter = acl.createDataRouter('joi-fruit', {
+      ...sharedOptions,
+      basePath: '/joi-fruit',
+      requestSchemas: {
+        advancedList: fromJoi({
+          validate(value) {
+            const data = value as { filter?: { public?: unknown } };
+            if (data.filter && typeof data.filter.public !== 'boolean') {
+              return {
+                value: data,
+                error: {
+                  details: [{ message: 'Expected boolean', path: ['filter', 'public'] }],
+                },
+              };
+            }
+
+            return { value: data };
+          },
+        }),
+      },
+    });
+
+    const ajvValidate = Object.assign(
+      (value: unknown) => {
+        const data = value as { filter?: { public?: unknown } };
+        const valid = !data.filter || typeof data.filter.public === 'boolean';
+        ajvValidate.errors = valid
+          ? null
+          : [{ message: 'must be boolean', instancePath: '/filter/public', params: {} }];
+        return valid;
+      },
+      {
+        errors: null as Array<{ message: string; instancePath: string; params: Record<string, never> }> | null,
+      },
+    );
+
+    const ajvRouter = acl.createDataRouter('ajv-fruit', {
+      ...sharedOptions,
+      basePath: '/ajv-fruit',
+      requestSchemas: {
+        advancedList: fromAjv(ajvValidate),
+      },
+    });
+
+    app.use(express.json());
+    app.use(yupRouter.routes);
+    app.use(joiRouter.routes);
+    app.use(ajvRouter.routes);
+
+    await request(app)
+      .post('/yup-fruit/__query/apple')
+      .send({ select: 'name' })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/)
+      .expect(({ body }) => {
+        expect(body.errors).toEqual([{ detail: 'Expected array', pointer: '#/select' }]);
+      });
+
+    await request(app)
+      .post('/yup-fruit/__query/apple')
+      .send({ select: ['name'] })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    await request(app)
+      .post('/joi-fruit/__query')
+      .send({ filter: { public: 'yes' } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/)
+      .expect(({ body }) => {
+        expect(body.errors).toEqual([{ detail: 'Expected boolean', pointer: '#/filter/public' }]);
+      });
+
+    await request(app)
+      .post('/joi-fruit/__query')
+      .send({ filter: { public: true } })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    await request(app)
+      .post('/ajv-fruit/__query')
+      .send({ filter: { public: 'yes' } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/)
+      .expect(({ body }) => {
+        expect(body.errors).toEqual([{ detail: 'must be boolean', pointer: '#/filter/public' }]);
+      });
+
+    await request(app)
+      .post('/ajv-fruit/__query')
+      .send({ filter: { public: true } })
+      .expect(200)
+      .expect('Content-Type', /json/);
+  });
+
+  it('supports valibot and arktype adapter helpers for requestSchemas', async () => {
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => [],
+    });
+
+    const app = express();
+
+    const sharedOptions = {
+      idField: 'id',
+      operationAccess: {
+        list: true,
+        read: true,
+      },
+      data: [
+        { id: 'apple', name: 'Apple', public: true },
+        { id: 'pear', name: 'Pear', public: false },
+      ],
+      permissionSchema: {
+        id: true,
+        name: true,
+        public: true,
+      },
+    };
+
+    const valibotSchema = { kind: 'fake-valibot' };
+    const valibotRouter = acl.createDataRouter('valibot-fruit', {
+      ...sharedOptions,
+      basePath: '/valibot-fruit',
+      requestSchemas: {
+        advancedRead: fromValibot(valibotSchema, (schema, value) => {
+          expect(schema).toBe(valibotSchema);
+          const data = value as { select?: unknown };
+
+          if (data.select !== undefined && !Array.isArray(data.select)) {
+            return {
+              success: false as const,
+              issues: [{ message: 'Expected array', path: [{ key: 'select' }] }],
+            };
+          }
+
+          return {
+            success: true as const,
+            output: data,
+          };
+        }),
+      },
+    });
+
+    const arkType = ((value: unknown) => {
+      const data = value as { filter?: { public?: unknown } };
+
+      if (data.filter && typeof data.filter.public !== 'boolean') {
+        return [{ path: ['filter', 'public'], problem: 'must be boolean' }];
+      }
+
+      return data;
+    }) as Parameters<typeof fromArkType>[0];
+
+    const arktypeRouter = acl.createDataRouter('arktype-fruit', {
+      ...sharedOptions,
+      basePath: '/arktype-fruit',
+      requestSchemas: {
+        advancedList: fromArkType(arkType),
+      },
+    });
+
+    app.use(express.json());
+    app.use(valibotRouter.routes);
+    app.use(arktypeRouter.routes);
+
+    await request(app)
+      .post('/valibot-fruit/__query/apple')
+      .send({ select: 'name' })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/)
+      .expect(({ body }) => {
+        expect(body.errors).toEqual([{ detail: 'Expected array', pointer: '#/select' }]);
+      });
+
+    await request(app)
+      .post('/valibot-fruit/__query/apple')
+      .send({ select: ['name'] })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    await request(app)
+      .post('/arktype-fruit/__query')
+      .send({ filter: { public: 'yes' } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/)
+      .expect(({ body }) => {
+        expect(body.errors).toEqual([{ detail: 'must be boolean', pointer: '#/filter/public' }]);
+      });
+
+    await request(app)
+      .post('/arktype-fruit/__query')
+      .send({ filter: { public: true } })
+      .expect(200)
+      .expect('Content-Type', /json/);
+  });
+
+  it('supports io-ts, superstruct, and vine adapter helpers for requestSchemas', async () => {
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => [],
+    });
+
+    const app = express();
+
+    const sharedOptions = {
+      idField: 'id',
+      operationAccess: {
+        list: true,
+        read: true,
+      },
+      data: [
+        { id: 'apple', name: 'Apple', public: true },
+        { id: 'pear', name: 'Pear', public: false },
+      ],
+      permissionSchema: {
+        id: true,
+        name: true,
+        public: true,
+      },
+    };
+
+    const ioTsRouter = acl.createDataRouter('iots-fruit', {
+      ...sharedOptions,
+      basePath: '/iots-fruit',
+      requestSchemas: {
+        advancedRead: fromIoTs({
+          decode(value) {
+            const data = value as { select?: unknown };
+            if (data.select !== undefined && !Array.isArray(data.select)) {
+              return {
+                _tag: 'Left' as const,
+                left: [{ message: 'Expected array', context: [{ key: '' }, { key: 'select' }] }],
+              };
+            }
+
+            return {
+              _tag: 'Right' as const,
+              right: data,
+            };
+          },
+        }),
+      },
+    });
+
+    const superstructSchema = { kind: 'fake-superstruct' };
+    const superstructRouter = acl.createDataRouter('superstruct-fruit', {
+      ...sharedOptions,
+      basePath: '/superstruct-fruit',
+      requestSchemas: {
+        advancedList: fromSuperstruct(superstructSchema, (value, struct) => {
+          expect(struct).toBe(superstructSchema);
+          const data = value as { filter?: { public?: unknown } };
+          if (data.filter && typeof data.filter.public !== 'boolean') {
+            return [
+              {
+                message: 'Expected boolean',
+                path: ['filter', 'public'],
+              },
+              undefined,
+            ] as const;
+          }
+
+          return [undefined, data] as const;
+        }),
+      },
+    });
+
+    const vineRouter = acl.createDataRouter('vine-fruit', {
+      ...sharedOptions,
+      basePath: '/vine-fruit',
+      requestSchemas: {
+        advancedRead: fromVine({
+          async validate(value) {
+            const data = value as { select?: unknown };
+            if (data.select !== undefined && !Array.isArray(data.select)) {
+              throw {
+                messages: [{ field: 'select', message: 'Expected array' }],
+              };
+            }
+
+            return data;
+          },
+        }),
+      },
+    });
+
+    app.use(express.json());
+    app.use(ioTsRouter.routes);
+    app.use(superstructRouter.routes);
+    app.use(vineRouter.routes);
+
+    await request(app)
+      .post('/iots-fruit/__query/apple')
+      .send({ select: 'name' })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/)
+      .expect(({ body }) => {
+        expect(body.errors).toEqual([{ detail: 'Expected array', pointer: '#/select' }]);
+      });
+
+    await request(app)
+      .post('/iots-fruit/__query/apple')
+      .send({ select: ['name'] })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    await request(app)
+      .post('/superstruct-fruit/__query')
+      .send({ filter: { public: 'yes' } })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/)
+      .expect(({ body }) => {
+        expect(body.errors).toEqual([{ detail: 'Expected boolean', pointer: '#/filter/public' }]);
+      });
+
+    await request(app)
+      .post('/superstruct-fruit/__query')
+      .send({ filter: { public: true } })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    await request(app)
+      .post('/vine-fruit/__query/apple')
+      .send({ select: 'name' })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/)
+      .expect(({ body }) => {
+        expect(body.errors).toEqual([{ detail: 'Expected array', pointer: '#/select' }]);
+      });
+
+    await request(app)
+      .post('/vine-fruit/__query/apple')
       .send({ select: ['name'] })
       .expect(200)
       .expect('Content-Type', /json/);

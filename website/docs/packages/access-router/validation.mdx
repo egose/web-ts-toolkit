@@ -25,6 +25,172 @@ Naming conventions:
 
 Model routers support `requestSchemas` for stricter application-level validation.
 
+`requestSchemas` are validation-library agnostic for user-defined validation:
+
+- raw Zod schemas still work
+- raw `standard-schema` objects work
+- custom validator functions work
+- adapter objects with `validate(value)` work
+
+## RequestSchemas Inputs
+
+`requestSchemas` can be provided as:
+
+- a raw schema object the router already understands, such as Zod or `standard-schema`
+- a custom function returning `{ success, data }` or `{ success, issues }`
+- an adapter object with `validate(value)` returning the same result shape
+
+Custom validators must return:
+
+```ts
+{ success: true, data }
+```
+
+or:
+
+```ts
+{
+  success: false,
+  issues: [{ message: 'Required', path: ['data', 'name'] }],
+}
+```
+
+The router converts those issues into the standard bad-request error format.
+
+## Helper Adapters
+
+Helpers exported by `@web-ts-toolkit/access-router`:
+
+- generic adapters: `fromZod(schema)`, `fromStandardSchema(schema)`
+- schema/helper adapters: `fromYup(schema)`, `fromJoi(schema)`, `fromAjv(validate)`
+- schema/helper adapters: `fromValibot(schema, safeParse)`, `fromArkType(type)`
+- schema/helper adapters: `fromIoTs(codec)`, `fromSuperstruct(struct, validate)`, `fromVine(validator)`
+
+## Examples
+
+Example with `standard-schema`:
+
+```ts
+requestSchemas: {
+  advancedRead: {
+    '~standard': {
+      version: 1,
+      vendor: 'my-validator',
+      validate(value) {
+        const body = value as { select?: unknown };
+
+        if (body.select !== undefined && !Array.isArray(body.select)) {
+          return {
+            issues: [{ message: 'Expected array', path: ['select'] }],
+          };
+        }
+
+        return { value: body };
+      },
+    },
+  },
+}
+```
+
+Example with Valibot:
+
+```ts
+import * as v from 'valibot';
+import { fromValibot } from '@web-ts-toolkit/access-router';
+
+requestSchemas: {
+  advancedRead: fromValibot(
+    v.object({
+      select: v.optional(v.array(v.string())),
+    }),
+    v.safeParse,
+  ),
+}
+```
+
+Example with ArkType:
+
+```ts
+import { type } from 'arktype';
+import { fromArkType } from '@web-ts-toolkit/access-router';
+
+requestSchemas: {
+  advancedList: fromArkType(
+    type({
+      'filter?': {
+        'public?': 'boolean',
+      },
+    }),
+  ),
+}
+```
+
+Example with io-ts:
+
+```ts
+import * as t from 'io-ts';
+import { fromIoTs } from '@web-ts-toolkit/access-router';
+
+requestSchemas: {
+  advancedRead: fromIoTs(
+    t.type({
+      select: t.union([t.undefined, t.array(t.string)]),
+    }),
+  ),
+}
+```
+
+Example with Superstruct:
+
+```ts
+import { object, optional, array, string, validate } from 'superstruct';
+import { fromSuperstruct } from '@web-ts-toolkit/access-router';
+
+const schema = object({
+  select: optional(array(string())),
+});
+
+requestSchemas: {
+  advancedRead: fromSuperstruct(schema, validate),
+}
+```
+
+Example with Vine:
+
+```ts
+import vine from '@vinejs/vine';
+import { fromVine } from '@web-ts-toolkit/access-router';
+
+const validator = vine.create({
+  select: vine.array(vine.string()).optional(),
+});
+
+requestSchemas: {
+  advancedRead: fromVine(validator),
+}
+```
+
+Example with a custom validator:
+
+```ts
+requestSchemas: {
+  advancedCreate: {
+    data: async (value) => {
+      const data = value as { role?: unknown };
+
+      if (data.role !== 'user') {
+        return {
+          success: false,
+          issues: [{ message: 'Invalid role', path: ['role'] }],
+        };
+      }
+
+      return { success: true, data };
+    },
+  },
+}
+```
+
 Useful keys include:
 
 - `create`
