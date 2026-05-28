@@ -20,9 +20,9 @@ import {
 const { handleResponse } = apiHandler;
 
 const app = express();
-app.set('port', 8082);
+app.set('port', 8083);
 const server = http.createServer(app);
-server.listen(8082);
+server.listen(8083);
 
 afterAll(() => {
   server.close();
