@@ -88,6 +88,15 @@ function _createMdxContent(props) {
         }), " APIs."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./access-router-react",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/access-router-react"
+          })
+        }), ": React hooks for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access-router-client"
+        }), " model services."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
           href: "./express-json-router",
           children: (0,jsx_runtime.jsx)(_components.code, {
             children: "@web-ts-toolkit/express-json-router"
