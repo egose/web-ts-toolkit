@@ -4,7 +4,6 @@ import { AppError } from './errors';
 import {
   membershipCreateSchema,
   membershipUpdateSchema,
-  ORGANIZATION_MODEL_NAME,
   organizationCreateSchema,
   organizationUpdateSchema,
   roleTemplates,

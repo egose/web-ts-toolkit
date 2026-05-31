@@ -51,6 +51,7 @@ export function App() {
     staleTime: 30_000,
   });
 
+  /* eslint-disable react-hooks/set-state-in-effect -- clear invalid session token */
   useEffect(() => {
     if (!token || sessionQuery.isPending) {
       return;
@@ -61,6 +62,7 @@ export function App() {
       setToken(null);
     }
   }, [token, sessionQuery.data, sessionQuery.isPending]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const loginMutation = useMutation({
     mutationFn: async (email: string) => {

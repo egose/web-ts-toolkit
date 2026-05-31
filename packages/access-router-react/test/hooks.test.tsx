@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { ModelCache, globalCache } from '../src/cache';
@@ -6,7 +7,6 @@ import type {
   Document,
   Model,
   ModelService,
-  FilterQuery,
   Response,
   ModelResponse,
   ListModelResponse,
@@ -447,7 +447,9 @@ describe('createModelHooks', () => {
       await act(async () => {
         try {
           await result.current.createModel({ name: 'New' });
-        } catch {}
+        } catch {
+          /* expected */
+        }
       });
       expect(onError).toHaveBeenCalledWith(error);
       expect(result.current.error).toBe(error);
@@ -540,7 +542,9 @@ describe('createModelHooks', () => {
       await act(async () => {
         try {
           await result.current.updateModel('1', { name: 'Updated' });
-        } catch {}
+        } catch {
+          /* expected */
+        }
       });
       expect(onError).toHaveBeenCalledWith(error);
       expect(result.current.error).toBe(error);
@@ -622,7 +626,9 @@ describe('createModelHooks', () => {
       await act(async () => {
         try {
           await result.current.deleteModel('1');
-        } catch {}
+        } catch {
+          /* expected */
+        }
       });
       expect(onError).toHaveBeenCalledWith(error);
       expect(result.current.error).toBe(error);
@@ -644,7 +650,9 @@ describe('createModelHooks', () => {
       await act(async () => {
         try {
           await result.current.deleteModel('1');
-        } catch {}
+        } catch {
+          /* expected */
+        }
       });
       expect(result.current.error).toBe(error);
       act(() => {

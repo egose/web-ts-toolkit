@@ -59,6 +59,7 @@ export function MemberCard({
   });
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- sync draft with member prop changes */
   useEffect(() => {
     setDraft({
       department: member.department ?? '',
@@ -67,6 +68,7 @@ export function MemberCard({
       title: member.title,
     });
   }, [member]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const memberId = member._id;
   if (!memberId) {

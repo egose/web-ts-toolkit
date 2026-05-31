@@ -107,6 +107,7 @@ export function createApp() {
 
   app.use(combineRoutes(organizationRouter, membershipRouter, roleTemplateRouter, rootRouter));
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Express error handler requires 4 params
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     console.error(error);
 
