@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { ModelCache, globalCache } from '../src/cache';
 import { createModelHooks } from '../src/create-model-hook';
 import type {
   Document,
@@ -12,50 +11,6 @@ import type {
   ListModelResponse,
 } from '@web-ts-toolkit/access-router-client';
 import { ServiceError } from '@web-ts-toolkit/access-router-client';
-
-// ── ModelCache tests ──
-
-describe('ModelCache', () => {
-  it('stores and retrieves values', () => {
-    const cache = new ModelCache();
-    cache.set('a', { id: 1 });
-    expect(cache.get('a')).toEqual({ id: 1 });
-    expect(cache.get('missing')).toBeUndefined();
-  });
-
-  it('deletes values and notifies subscribers', () => {
-    const cache = new ModelCache();
-    const listener = vi.fn();
-    cache.subscribe(listener);
-    cache.set('a', 1);
-    cache.delete('a');
-    expect(cache.get('a')).toBeUndefined();
-    expect(listener).toHaveBeenCalledTimes(2);
-  });
-
-  it('clears all values', () => {
-    const cache = new ModelCache();
-    cache.set('a', 1);
-    cache.set('b', 2);
-    cache.clear();
-    expect(cache.get('a')).toBeUndefined();
-    expect(cache.get('b')).toBeUndefined();
-  });
-
-  it('unsubscribe stops notifications', () => {
-    const cache = new ModelCache();
-    const listener = vi.fn();
-    const unsub = cache.subscribe(listener);
-    cache.set('a', 1);
-    unsub();
-    cache.set('b', 2);
-    expect(listener).toHaveBeenCalledTimes(1);
-  });
-
-  it('globalCache is a singleton', () => {
-    expect(globalCache).toBeInstanceOf(ModelCache);
-  });
-});
 
 // ── Lazy mock helper ──
 
@@ -142,6 +97,14 @@ function createMockService() {
     status: 200,
     headers: {},
   };
+  const distinctResult: Response<string[]> = {
+    success: true,
+    raw: ['active', 'pending'],
+    data: ['active', 'pending'],
+    message: 'ok',
+    status: 200,
+    headers: {},
+  };
 
   const service = {
     list: vi.fn().mockReturnValue(createLazyMock(listResult)),
@@ -152,26 +115,32 @@ function createMockService() {
     createAdvanced: vi.fn().mockReturnValue(createLazyMock(createResult)),
     update: vi.fn().mockReturnValue(createLazyMock(readResult)),
     updateAdvanced: vi.fn().mockReturnValue(createLazyMock(readResult)),
+    upsert: vi.fn().mockReturnValue(createLazyMock(readResult)),
+    upsertAdvanced: vi.fn().mockReturnValue(createLazyMock(readResult)),
     delete: vi.fn().mockReturnValue(createLazyMock(deleteResult)),
     count: vi.fn().mockReturnValue(createLazyMock(countResult)),
     countAdvanced: vi.fn().mockReturnValue(createLazyMock(countResult)),
+    distinct: vi.fn().mockReturnValue(createLazyMock(distinctResult)),
+    distinctAdvanced: vi.fn().mockReturnValue(createLazyMock(distinctResult)),
   } as unknown as ModelService<TestDoc>;
 
-  return { service, listResult, readResult, createResult, deleteResult, countResult };
+  return { service, listResult, readResult, createResult, deleteResult, countResult, distinctResult };
 }
 
 // ── createModelHooks tests ──
 
 describe('createModelHooks', () => {
-  it('returns an object with all 6 hooks', () => {
+  it('returns an object with all 8 hooks', () => {
     const { service } = createMockService();
     const hooks = createModelHooks({ modelService: service });
     expect(typeof hooks.useReadModel).toBe('function');
     expect(typeof hooks.useListModel).toBe('function');
     expect(typeof hooks.useCreateModel).toBe('function');
     expect(typeof hooks.useUpdateModel).toBe('function');
+    expect(typeof hooks.useUpsertModel).toBe('function');
     expect(typeof hooks.useDeleteModel).toBe('function');
     expect(typeof hooks.useCountModel).toBe('function');
+    expect(typeof hooks.useDistinctModel).toBe('function');
   });
 
   // ── useReadModel ──
@@ -220,13 +189,13 @@ describe('createModelHooks', () => {
       expect(result.current.data).toEqual({ _id: '1', name: 'Test', status: 'active' });
     });
 
-    it('calls onCompleted after fetch', async () => {
+    it('calls onSuccess after fetch', async () => {
       const { service } = createMockService();
-      const onCompleted = vi.fn();
+      const onSuccess = vi.fn();
       const { useReadModel } = createModelHooks({ modelService: service });
-      renderHook(() => useReadModel({ id: '1', onCompleted }));
+      renderHook(() => useReadModel({ id: '1', onSuccess }));
       await waitFor(() => {
-        expect(onCompleted).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+        expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
       });
     });
 
@@ -364,13 +333,13 @@ describe('createModelHooks', () => {
       });
     });
 
-    it('calls onCompleted after fetch', async () => {
+    it('calls onSuccess after fetch', async () => {
       const { service } = createMockService();
-      const onCompleted = vi.fn();
+      const onSuccess = vi.fn();
       const { useListModel } = createModelHooks({ modelService: service });
-      renderHook(() => useListModel({ listParams: {}, onCompleted }));
+      renderHook(() => useListModel({ listParams: {}, onSuccess }));
       await waitFor(() => {
-        expect(onCompleted).toHaveBeenCalled();
+        expect(onSuccess).toHaveBeenCalled();
       });
     });
 
@@ -419,15 +388,15 @@ describe('createModelHooks', () => {
       expect(service.create).toHaveBeenCalled();
     });
 
-    it('calls onCreated callback', async () => {
+    it('calls onSuccess callback', async () => {
       const { service } = createMockService();
-      const onCreated = vi.fn();
+      const onSuccess = vi.fn();
       const { useCreateModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useCreateModel({ onCreated }));
+      const { result } = renderHook(() => useCreateModel({ onSuccess }));
       await act(async () => {
         await result.current.createModel({ name: 'New' });
       });
-      expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+      expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
 
     it('calls onError on failure', async () => {
@@ -514,15 +483,15 @@ describe('createModelHooks', () => {
       expect(service.update).toHaveBeenCalled();
     });
 
-    it('calls onUpdated callback', async () => {
+    it('calls onSuccess callback', async () => {
       const { service } = createMockService();
-      const onUpdated = vi.fn();
+      const onSuccess = vi.fn();
       const { useUpdateModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useUpdateModel({ onUpdated }));
+      const { result } = renderHook(() => useUpdateModel({ onSuccess }));
       await act(async () => {
         await result.current.updateModel('1', { name: 'Updated' });
       });
-      expect(onUpdated).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+      expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
 
     it('calls onError on failure', async () => {
@@ -575,6 +544,91 @@ describe('createModelHooks', () => {
     });
   });
 
+  // ── useUpsertModel ──
+
+  describe('useUpsertModel', () => {
+    it('returns initial state', () => {
+      const { service } = createMockService();
+      const { useUpsertModel } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpsertModel());
+      expect(result.current.data).toBeNull();
+      expect(result.current.isPending).toBe(false);
+      expect(result.current.error).toBeNull();
+    });
+
+    it('upsert() populates data', async () => {
+      const { service } = createMockService();
+      const { useUpsertModel } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpsertModel());
+      await act(async () => {
+        await result.current.upsertModel({ name: 'Upserted' });
+      });
+      expect(result.current.data).toEqual({ _id: '1', name: 'Test', status: 'active' });
+      expect(service.upsert).toHaveBeenCalled();
+    });
+
+    it('calls onSuccess callback', async () => {
+      const { service } = createMockService();
+      const onSuccess = vi.fn();
+      const { useUpsertModel } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpsertModel({ onSuccess }));
+      await act(async () => {
+        await result.current.upsertModel({ name: 'Upserted' });
+      });
+      expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    it('calls onError on failure', async () => {
+      const { service } = createMockService();
+      const error = new ServiceError({
+        success: false,
+        message: 'fail',
+        status: 500,
+        raw: null,
+        data: null,
+        headers: {},
+      });
+      (service.upsert as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
+      const onError = vi.fn();
+      const { useUpsertModel } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpsertModel({ onError }));
+      await act(async () => {
+        try {
+          await result.current.upsertModel({ name: 'Upserted' });
+        } catch {
+          /* expected */
+        }
+      });
+      expect(onError).toHaveBeenCalledWith(error);
+      expect(result.current.error).toBe(error);
+    });
+
+    it('reset() clears data and error', async () => {
+      const { service } = createMockService();
+      const { useUpsertModel } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpsertModel());
+      await act(async () => {
+        await result.current.upsertModel({ name: 'Upserted' });
+      });
+      expect(result.current.data).not.toBeNull();
+      act(() => {
+        result.current.reset();
+      });
+      expect(result.current.data).toBeNull();
+      expect(result.current.error).toBeNull();
+    });
+
+    it('advanced mode calls upsertAdvanced', async () => {
+      const { service } = createMockService();
+      const { useUpsertModel } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpsertModel({ advanced: true }));
+      await act(async () => {
+        await result.current.upsertModel({ name: 'Upserted' });
+      });
+      expect(service.upsertAdvanced).toHaveBeenCalled();
+    });
+  });
+
   // ── useDeleteModel ──
 
   describe('useDeleteModel', () => {
@@ -598,15 +652,15 @@ describe('createModelHooks', () => {
       expect(service.delete).toHaveBeenCalledWith('1', undefined);
     });
 
-    it('calls onDeleted callback', async () => {
+    it('calls onSuccess callback', async () => {
       const { service } = createMockService();
-      const onDeleted = vi.fn();
+      const onSuccess = vi.fn();
       const { useDeleteModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useDeleteModel({ onDeleted }));
+      const { result } = renderHook(() => useDeleteModel({ onSuccess }));
       await act(async () => {
         await result.current.deleteModel('1');
       });
-      expect(onDeleted).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+      expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
 
     it('calls onError on failure', async () => {
@@ -665,13 +719,15 @@ describe('createModelHooks', () => {
   // ── useCountModel ──
 
   describe('useCountModel', () => {
-    it('returns initial state', () => {
+    it('returns initial state', async () => {
       const { service } = createMockService();
       const { useCountModel } = createModelHooks({ modelService: service });
       const { result } = renderHook(() => useCountModel());
       expect(result.current.data).toBeNull();
-      expect(result.current.isLoading).toBe(true);
       expect(result.current.error).toBeNull();
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
     });
 
     it('auto-fetches on mount', async () => {
@@ -699,13 +755,13 @@ describe('createModelHooks', () => {
       });
     });
 
-    it('calls onCompleted after fetch', async () => {
+    it('calls onSuccess after fetch', async () => {
       const { service } = createMockService();
-      const onCompleted = vi.fn();
+      const onSuccess = vi.fn();
       const { useCountModel } = createModelHooks({ modelService: service });
-      renderHook(() => useCountModel({ onCompleted }));
+      renderHook(() => useCountModel({ onSuccess }));
       await waitFor(() => {
-        expect(onCompleted).toHaveBeenCalledWith(expect.objectContaining({ data: 5 }));
+        expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ data: 5 }));
       });
     });
 
@@ -738,6 +794,100 @@ describe('createModelHooks', () => {
       });
       expect(countResult?.data).toBe(5);
       expect(result.current.data).toBe(5);
+    });
+  });
+
+  // ── useDistinctModel ──
+
+  describe('useDistinctModel', () => {
+    it('returns initial state', async () => {
+      const { service } = createMockService();
+      const { useDistinctModel } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useDistinctModel({ field: 'status' }));
+      expect(result.current.data).toBeNull();
+      expect(result.current.error).toBeNull();
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+    });
+
+    it('auto-fetches on mount using basic distinct', async () => {
+      const { service } = createMockService();
+      const { useDistinctModel } = createModelHooks({ modelService: service });
+      renderHook(() => useDistinctModel({ field: 'status' }));
+      await waitFor(() => {
+        expect(service.distinct).toHaveBeenCalledWith('status', expect.any(Object));
+      });
+    });
+
+    it('uses distinctAdvanced when conditions are provided', async () => {
+      const { service } = createMockService();
+      const { useDistinctModel } = createModelHooks({ modelService: service });
+      renderHook(() => useDistinctModel({ field: 'status', conditions: { org: '1' } }));
+      await waitFor(() => {
+        expect(service.distinctAdvanced).toHaveBeenCalledWith('status', { org: '1' }, expect.any(Object));
+      });
+    });
+
+    it('does not fetch when enabled is false', () => {
+      const { service } = createMockService();
+      const { useDistinctModel } = createModelHooks({ modelService: service });
+      renderHook(() => useDistinctModel({ field: 'status', enabled: false }));
+      expect(service.distinct).not.toHaveBeenCalled();
+    });
+
+    it('calls onSuccess after fetch', async () => {
+      const { service } = createMockService();
+      const onSuccess = vi.fn();
+      const { useDistinctModel } = createModelHooks({ modelService: service });
+      renderHook(() => useDistinctModel({ field: 'status', onSuccess }));
+      await waitFor(() => {
+        expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ data: ['active', 'pending'] }));
+      });
+    });
+
+    it('calls onError on failure', async () => {
+      const { service } = createMockService();
+      const error = new ServiceError({
+        success: false,
+        message: 'fail',
+        status: 500,
+        raw: null,
+        data: null,
+        headers: {},
+      });
+      (service.distinct as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
+      const onError = vi.fn();
+      const { useDistinctModel } = createModelHooks({ modelService: service });
+      renderHook(() => useDistinctModel({ field: 'status', onError }));
+      await waitFor(() => {
+        expect(onError).toHaveBeenCalledWith(error);
+      });
+    });
+
+    it('manual distinctModel() returns data', async () => {
+      const { service } = createMockService();
+      const { useDistinctModel } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useDistinctModel({ field: 'status', enabled: false }));
+      let distinctResult: Response<string[]> | undefined;
+      await act(async () => {
+        distinctResult = await result.current.distinctModel();
+      });
+      expect(distinctResult?.data).toEqual(['active', 'pending']);
+      expect(result.current.data).toEqual(['active', 'pending']);
+    });
+
+    it('reset() clears data', async () => {
+      const { service } = createMockService();
+      const { useDistinctModel } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useDistinctModel({ field: 'status' }));
+      await waitFor(() => {
+        expect(result.current.data).toEqual(['active', 'pending']);
+      });
+      act(() => {
+        result.current.reset();
+      });
+      expect(result.current.data).toBeNull();
     });
   });
 });

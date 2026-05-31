@@ -4,7 +4,7 @@ export function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'AbortError';
 }
 
-export function useAbortManager(): { replace: (c: AbortController) => void; abort: () => void } {
+export function useAbortManager(): { replace: (c: AbortController) => void } {
   const ref = useRef<AbortController | null>(null);
 
   const replace = useCallback((next: AbortController) => {
@@ -19,12 +19,7 @@ export function useAbortManager(): { replace: (c: AbortController) => void; abor
     };
   }, []);
 
-  const abort = useCallback(() => {
-    ref.current?.abort();
-    ref.current = null;
-  }, []);
-
-  return { replace, abort };
+  return { replace };
 }
 
 export function stableStringify(value: unknown): string {

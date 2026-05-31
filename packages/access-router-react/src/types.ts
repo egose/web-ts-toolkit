@@ -34,7 +34,7 @@ export interface RequestConfig {
 // ── Shared ──
 
 export interface UseBaseOptions {
-  axiosRequestConfig?: RequestConfig;
+  requestConfig?: RequestConfig;
 }
 
 // ── Read ──
@@ -47,11 +47,11 @@ export interface UseReadModelOptions<T extends Document> extends UseBaseOptions 
   sort?: ReadAdvancedArgs['sort'];
   include?: ReadAdvancedArgs['include'];
   tasks?: ReadAdvancedArgs['tasks'];
-  options?: ReadOptions;
+  basicOptions?: ReadOptions;
   advancedOptions?: ReadAdvancedOptions;
   enabled?: boolean;
   initialData?: (Model<T> & T) | null;
-  onCompleted?: (result: ModelResponse<T>) => void;
+  onSuccess?: (result: ModelResponse<T>) => void;
   onError?: (error: ServiceError) => void;
   onSettled?: (result: ModelResponse<T> | null, error: ServiceError | null) => void;
 }
@@ -77,12 +77,12 @@ export interface UseListModelOptions<T extends Document> extends UseBaseOptions 
   populate?: ListAdvancedArgs['populate'];
   include?: ListAdvancedArgs['include'];
   tasks?: ListAdvancedArgs['tasks'];
-  options?: ListOptions;
+  basicOptions?: ListOptions;
   advancedOptions?: ListAdvancedOptions;
   enabled?: boolean;
   keepPreviousData?: boolean;
   initialData?: (Model<T> & T)[];
-  onCompleted?: (result: ListModelResponse<T>) => void;
+  onSuccess?: (result: ListModelResponse<T>) => void;
   onError?: (error: ServiceError) => void;
   onSettled?: (result: ListModelResponse<T> | null, error: ServiceError | null) => void;
 }
@@ -106,9 +106,9 @@ export interface UseCreateModelOptions<T extends Document> extends UseBaseOption
   select?: Projection;
   populate?: CreateAdvancedArgs['populate'];
   tasks?: CreateAdvancedArgs['tasks'];
-  options?: CreateOptions;
+  basicOptions?: CreateOptions;
   advancedOptions?: CreateAdvancedOptions;
-  onCreated?: (result: ModelResponse<T>) => void;
+  onSuccess?: (result: ModelResponse<T>) => void;
   onError?: (error: ServiceError) => void;
   onSettled?: (result: ModelResponse<T> | null, error: ServiceError | null) => void;
 }
@@ -128,9 +128,9 @@ export interface UseUpdateModelOptions<T extends Document> extends UseBaseOption
   select?: Projection;
   populate?: UpdateAdvancedArgs['populate'];
   tasks?: UpdateAdvancedArgs['tasks'];
-  options?: UpdateOptions;
+  basicOptions?: UpdateOptions;
   advancedOptions?: UpdateAdvancedOptions;
-  onUpdated?: (result: ModelResponse<T>) => void;
+  onSuccess?: (result: ModelResponse<T>) => void;
   onError?: (error: ServiceError) => void;
   onSettled?: (result: ModelResponse<T> | null, error: ServiceError | null) => void;
 }
@@ -150,9 +150,9 @@ export interface UseUpsertModelOptions<T extends Document> extends UseBaseOption
   select?: Projection;
   populate?: UpsertAdvancedArgs['populate'];
   tasks?: UpsertAdvancedArgs['tasks'];
-  options?: UpsertOptions;
+  basicOptions?: UpsertOptions;
   advancedOptions?: UpsertAdvancedOptions;
-  onUpserted?: (result: ModelResponse<T>) => void;
+  onSuccess?: (result: ModelResponse<T>) => void;
   onError?: (error: ServiceError) => void;
   onSettled?: (result: ModelResponse<T> | null, error: ServiceError | null) => void;
 }
@@ -168,7 +168,7 @@ export interface UseUpsertModelResult<T extends Document> {
 // ── Delete ──
 
 export interface UseDeleteModelOptions extends UseBaseOptions {
-  onDeleted?: (result: Response<string>) => void;
+  onSuccess?: (result: Response<string>) => void;
   onError?: (error: ServiceError) => void;
   onSettled?: (result: Response<string> | null, error: ServiceError | null) => void;
 }
@@ -186,7 +186,7 @@ export interface UseCountModelOptions<T extends Document> extends UseBaseOptions
   advanced?: boolean;
   filter?: FilterQuery<T>;
   enabled?: boolean;
-  onCompleted?: (result: Response<number>) => void;
+  onSuccess?: (result: Response<number>) => void;
   onError?: (error: ServiceError) => void;
   onSettled?: (result: Response<number> | null, error: ServiceError | null) => void;
 }
@@ -206,7 +206,7 @@ export interface UseDistinctModelOptions<T extends Document> extends UseBaseOpti
   field: string;
   conditions?: FilterQuery<T>;
   enabled?: boolean;
-  onCompleted?: (result: Response<string[]>) => void;
+  onSuccess?: (result: Response<string[]>) => void;
   onError?: (error: ServiceError) => void;
   onSettled?: (result: Response<string[]> | null, error: ServiceError | null) => void;
 }

@@ -36,6 +36,141 @@ import type {
 } from './types';
 import { isAbortError, useAbortManager, stableStringify, useMountRef } from './fetch';
 
+// ── Internal helpers ──
+
+interface AutoQueryConfig<R> {
+  doFetch: (signal?: AbortSignal) => Promise<R>;
+  applyResult: (res: R) => void;
+  shouldFetch: boolean;
+  deps: unknown[];
+  onSuccess?: (result: R) => void;
+  onError?: (error: ServiceError) => void;
+  onSettled?: (result: R | null, error: ServiceError | null) => void;
+}
+
+function useAutoQuery<R>({
+  doFetch,
+  applyResult,
+  shouldFetch,
+  deps,
+  onSuccess,
+  onError,
+  onSettled,
+}: AutoQueryConfig<R>) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
+  const [error, setError] = useState<ServiceError | null>(null);
+  const manager = useAbortManager();
+  const mountRef = useMountRef();
+
+  const fetchAndSet = useCallback(
+    async (signal?: AbortSignal): Promise<R> => {
+      setIsFetching(true);
+      setError(null);
+      try {
+        return await doFetch(signal);
+      } catch (err) {
+        if (!isAbortError(err)) setError(err as ServiceError);
+        throw err;
+      } finally {
+        if (!signal?.aborted) setIsFetching(false);
+      }
+    },
+    [doFetch],
+  );
+
+  const doFetchWithCallbacks = useCallback(
+    async (signal?: AbortSignal): Promise<R> => {
+      const res = await fetchAndSet(signal);
+      if (!signal?.aborted) {
+        applyResult(res);
+        onSuccess?.(res);
+        onSettled?.(res, null);
+      }
+      return res;
+    },
+    [fetchAndSet, applyResult, onSuccess, onSettled],
+  );
+
+  useEffect(() => {
+    if (!shouldFetch) return;
+    mountRef.current = true;
+    setIsLoading(true);
+    const controller = new AbortController();
+    manager.replace(controller);
+
+    doFetchWithCallbacks(controller.signal)
+      .catch((err) => {
+        if (!mountRef.current || controller.signal.aborted) return;
+        onError?.(err as ServiceError);
+        onSettled?.(null, err as ServiceError);
+      })
+      .finally(() => {
+        if (mountRef.current && !controller.signal.aborted) setIsLoading(false);
+      });
+
+    return () => {
+      mountRef.current = false;
+      controller.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  const refetch = useCallback(() => {
+    setIsLoading(true);
+    const controller = new AbortController();
+    manager.replace(controller);
+    doFetchWithCallbacks(controller.signal)
+      .catch(() => {})
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
+  }, [doFetchWithCallbacks, manager]);
+
+  return { isLoading, isFetching, error, setError, refetch, manager, mountRef };
+}
+
+function useMutation<A extends unknown[], R>(
+  execute: (...args: A) => Promise<R>,
+  options?: { onSuccess?: (result: R) => void; onSettled?: (result: R | null, error: ServiceError | null) => void },
+) {
+  const [isPending, setIsPending] = useState(false);
+  const [error, setError] = useState<ServiceError | null>(null);
+  const mountRef = useMountRef();
+  const { onSuccess, onSettled } = options ?? {};
+
+  const mutate = useCallback(
+    async (...args: A): Promise<R> => {
+      setIsPending(true);
+      setError(null);
+      try {
+        const result = await execute(...args);
+        if (mountRef.current) {
+          onSuccess?.(result);
+          onSettled?.(result, null);
+        }
+        return result;
+      } catch (err) {
+        const svcErr = err as ServiceError;
+        if (mountRef.current) {
+          setError(svcErr);
+          onSettled?.(null, svcErr);
+        }
+        throw svcErr;
+      } finally {
+        if (mountRef.current) setIsPending(false);
+      }
+    },
+    [execute, mountRef, onSuccess, onSettled],
+  );
+
+  const reset = useCallback(() => setError(null), []);
+
+  return { isPending, error, mutate, reset };
+}
+
+// ── Factory ──
+
 export function createModelHooks<T extends Document>(config: { modelService: ModelService<T> }) {
   const { modelService } = config;
 
@@ -50,130 +185,73 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       sort,
       include,
       tasks,
-      options: readOptions,
+      basicOptions,
       advancedOptions,
       enabled = true,
       initialData = null,
-      axiosRequestConfig,
-      onCompleted,
+      requestConfig,
+      onSuccess,
       onError,
       onSettled,
     } = options;
     const [data, setData] = useState<(Model<T> & T) | null>(initialData);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isFetching, setIsFetching] = useState(false);
-    const [error, setError] = useState<ServiceError | null>(null);
-    const manager = useAbortManager();
-    const mountRef = useMountRef();
 
     const applyResult = useCallback((res: ModelResponse<T>) => {
       setData(res.data as Model<T> & T);
     }, []);
 
-    const doFetch = useCallback(
+    const doFetchById = useCallback(
       async (targetId: string, signal?: AbortSignal): Promise<ModelResponse<T>> => {
-        setIsFetching(true);
-        setError(null);
-        try {
-          let res: ModelResponse<T>;
-          if (advanced) {
-            res = (await modelService
-              .readAdvanced(
-                targetId,
-                { select, populate, sort, include, tasks } as ReadAdvancedArgs<Projection>,
-                advancedOptions,
-                { ...axiosRequestConfig, signal },
-              )
-              .exec()) as unknown as ModelResponse<T>;
-          } else {
-            res = (await modelService
-              .read(targetId, readOptions, { ...axiosRequestConfig, signal })
-              .exec()) as unknown as ModelResponse<T>;
-          }
-          return res;
-        } catch (err) {
-          if (!isAbortError(err)) setError(err as ServiceError);
-          throw err;
-        } finally {
-          if (!signal?.aborted) setIsFetching(false);
+        if (advanced) {
+          return (await modelService
+            .readAdvanced(
+              targetId,
+              { select, populate, sort, include, tasks } as ReadAdvancedArgs<Projection>,
+              advancedOptions,
+              { ...requestConfig, signal },
+            )
+            .exec()) as unknown as ModelResponse<T>;
         }
+        return (await modelService
+          .read(targetId, basicOptions, { ...requestConfig, signal })
+          .exec()) as unknown as ModelResponse<T>;
       },
-      [
-        modelService,
-        advanced,
-        select,
-        populate,
-        sort,
-        include,
-        tasks,
-        readOptions,
-        advancedOptions,
-        axiosRequestConfig,
-      ],
+      [modelService, advanced, select, populate, sort, include, tasks, basicOptions, advancedOptions, requestConfig],
     );
 
-    useEffect(() => {
-      if (!id || !enabled) return;
-      mountRef.current = true;
-      setIsLoading(true);
-      const controller = new AbortController();
-      manager.replace(controller);
+    const doFetch = useCallback(
+      (signal?: AbortSignal) => {
+        if (!id) throw new Error('useReadModel: id is required');
+        return doFetchById(id, signal);
+      },
+      [doFetchById, id],
+    );
 
-      doFetch(id, controller.signal)
-        .then((res) => {
-          if (!mountRef.current || controller.signal.aborted) return;
-          applyResult(res);
-          onCompleted?.(res);
-          onSettled?.(res, null);
-        })
-        .catch((err) => {
-          if (!mountRef.current || controller.signal.aborted) return;
-          const svcErr = err as ServiceError;
-          onError?.(svcErr);
-          onSettled?.(null, svcErr);
-        })
-        .finally(() => {
-          if (mountRef.current && !controller.signal.aborted) setIsLoading(false);
-        });
+    const shouldFetch = Boolean(id && enabled);
 
-      return () => {
-        mountRef.current = false;
-        controller.abort();
-      };
-    }, [id, enabled, advanced, select, populate, sort, include, tasks, readOptions, advancedOptions]);
+    const { isLoading, isFetching, error, refetch } = useAutoQuery({
+      doFetch,
+      applyResult,
+      shouldFetch,
+      deps: [id, enabled, advanced, select, populate, sort, include, tasks, basicOptions, advancedOptions],
+      onSuccess,
+      onError,
+      onSettled,
+    });
 
     const readModel = useCallback(
       async (readId: string): Promise<ModelResponse<T>> => {
-        const res = await doFetch(readId);
+        const res = await doFetchById(readId);
         applyResult(res);
-        onCompleted?.(res);
+        onSuccess?.(res);
         onSettled?.(res, null);
         return res;
       },
-      [doFetch, applyResult, onCompleted, onSettled],
+      [doFetchById, applyResult, onSuccess, onSettled],
     );
-
-    const refetch = useCallback(() => {
-      if (!id || !enabled) return;
-      setIsLoading(true);
-      const controller = new AbortController();
-      manager.replace(controller);
-      doFetch(id, controller.signal)
-        .then((res) => {
-          if (controller.signal.aborted) return;
-          applyResult(res);
-        })
-        .catch(() => {})
-        .finally(() => {
-          if (!controller.signal.aborted) setIsLoading(false);
-        });
-    }, [id, enabled, doFetch, applyResult, manager]);
 
     const reset = useCallback(() => {
       setData(initialData);
-      setError(null);
-      setIsLoading(false);
-      setIsFetching(false);
     }, [initialData]);
 
     return { data, isLoading, isFetching, error, readModel, refetch, reset };
@@ -189,24 +267,19 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       populate,
       include,
       tasks,
-      options: listOptions,
+      basicOptions,
       advancedOptions,
       enabled = true,
       keepPreviousData = false,
       initialData,
-      axiosRequestConfig,
-      onCompleted,
+      requestConfig,
+      onSuccess,
       onError,
       onSettled,
     } = options;
     const [data, setData] = useState<(Model<T> & T)[]>(initialData ?? []);
     const [previousData, setPreviousData] = useState<(Model<T> & T)[] | undefined>(undefined);
     const [totalCount, setTotalCount] = useState(0);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isFetching, setIsFetching] = useState(false);
-    const [error, setError] = useState<ServiceError | null>(null);
-    const manager = useAbortManager();
-    const mountRef = useMountRef();
     const latestDataRef = useRef(data);
     latestDataRef.current = data;
 
@@ -216,36 +289,24 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       setPreviousData(undefined);
     }, []);
 
-    const doFetch = useCallback(
-      async (args?: ListArgs, signal?: AbortSignal): Promise<ListModelResponse<T>> => {
-        setIsFetching(true);
-        setError(null);
+    const baseFetch = useCallback(
+      async (args: ListArgs | undefined, signal?: AbortSignal): Promise<ListModelResponse<T>> => {
         if (keepPreviousData) {
           setPreviousData(latestDataRef.current);
         }
-        try {
-          let res: ListModelResponse<T>;
-          if (advanced) {
-            res = (await modelService
-              .listAdvanced(
-                (filter ?? {}) as FilterQuery<T>,
-                { sort, select, populate, include, tasks, ...args } as ListAdvancedArgs<Projection>,
-                advancedOptions,
-                { ...axiosRequestConfig, signal },
-              )
-              .exec()) as unknown as ListModelResponse<T>;
-          } else {
-            res = (await modelService
-              .list(args ?? listParams, listOptions, { ...axiosRequestConfig, signal })
-              .exec()) as unknown as ListModelResponse<T>;
-          }
-          return res;
-        } catch (err) {
-          if (!isAbortError(err)) setError(err as ServiceError);
-          throw err;
-        } finally {
-          if (!signal?.aborted) setIsFetching(false);
+        if (advanced) {
+          return (await modelService
+            .listAdvanced(
+              (filter ?? {}) as FilterQuery<T>,
+              { sort, select, populate, include, tasks, ...args } as ListAdvancedArgs<Projection>,
+              advancedOptions,
+              { ...requestConfig, signal },
+            )
+            .exec()) as unknown as ListModelResponse<T>;
         }
+        return (await modelService
+          .list(args ?? listParams, basicOptions, { ...requestConfig, signal })
+          .exec()) as unknown as ListModelResponse<T>;
       },
       [
         modelService,
@@ -257,93 +318,59 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
         include,
         tasks,
         listParams,
-        listOptions,
+        basicOptions,
         advancedOptions,
-        axiosRequestConfig,
+        requestConfig,
         keepPreviousData,
         latestDataRef,
       ],
     );
 
+    const doFetch = useCallback((signal?: AbortSignal) => baseFetch(listParams, signal), [baseFetch, listParams]);
+
     const listParamsKey = stableStringify(listParams);
     const filterKey = stableStringify(filter);
     const sortKey = stableStringify(sort);
 
-    useEffect(() => {
-      if ((!listParams && !advanced) || !enabled) return;
-      mountRef.current = true;
-      setIsLoading(true);
-      const controller = new AbortController();
-      manager.replace(controller);
+    const shouldFetch = Boolean((listParams || advanced) && enabled);
 
-      doFetch(listParams, controller.signal)
-        .then((res) => {
-          if (!mountRef.current || controller.signal.aborted) return;
-          applyResult(res);
-          onCompleted?.(res);
-          onSettled?.(res, null);
-        })
-        .catch((err) => {
-          if (!mountRef.current || controller.signal.aborted) return;
-          const svcErr = err as ServiceError;
-          onError?.(svcErr);
-          onSettled?.(null, svcErr);
-        })
-        .finally(() => {
-          if (mountRef.current && !controller.signal.aborted) setIsLoading(false);
-        });
-
-      return () => {
-        mountRef.current = false;
-        controller.abort();
-      };
-    }, [
-      listParamsKey,
-      filterKey,
-      advanced,
-      enabled,
-      select,
-      populate,
-      sortKey,
-      include,
-      tasks,
-      listOptions,
-      advancedOptions,
-    ]);
+    const { isLoading, isFetching, error, refetch } = useAutoQuery({
+      doFetch,
+      applyResult,
+      shouldFetch,
+      deps: [
+        listParamsKey,
+        filterKey,
+        advanced,
+        enabled,
+        select,
+        populate,
+        sortKey,
+        include,
+        tasks,
+        basicOptions,
+        advancedOptions,
+      ],
+      onSuccess,
+      onError,
+      onSettled,
+    });
 
     const listModel = useCallback(
       async (args?: ListArgs): Promise<ListModelResponse<T>> => {
-        const res = await doFetch(args);
+        const res = await baseFetch(args);
         applyResult(res);
-        onCompleted?.(res);
+        onSuccess?.(res);
         onSettled?.(res, null);
         return res;
       },
-      [doFetch, applyResult, onCompleted, onSettled],
+      [baseFetch, applyResult, onSuccess, onSettled],
     );
-
-    const refetch = useCallback(() => {
-      setIsLoading(true);
-      const controller = new AbortController();
-      manager.replace(controller);
-      doFetch(listParams, controller.signal)
-        .then((res) => {
-          if (controller.signal.aborted) return;
-          applyResult(res);
-        })
-        .catch(() => {})
-        .finally(() => {
-          if (!controller.signal.aborted) setIsLoading(false);
-        });
-    }, [listParams, doFetch, applyResult, manager]);
 
     const reset = useCallback(() => {
       setData(initialData ?? []);
       setPreviousData(undefined);
       setTotalCount(0);
-      setError(null);
-      setIsLoading(false);
-      setIsFetching(false);
     }, [initialData]);
 
     return { data, previousData, totalCount, isLoading, isFetching, error, listModel, refetch, reset };
@@ -357,75 +384,57 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       select,
       populate,
       tasks,
-      options: createOptions,
+      basicOptions,
       advancedOptions,
-      axiosRequestConfig,
-      onCreated,
+      requestConfig,
+      onSuccess,
       onError,
       onSettled,
     } = options;
     const [data, setData] = useState<(Model<T> & T) | null>(null);
-    const [isPending, setIsPending] = useState(false);
-    const [error, setError] = useState<ServiceError | null>(null);
     const mountRef = useMountRef();
+
+    const execute = useCallback(
+      async (createData: object): Promise<ModelResponse<T>> => {
+        let res: ModelResponse<T>;
+        if (advanced) {
+          res = (await modelService
+            .createAdvanced(
+              createData,
+              { select, populate, tasks } as CreateAdvancedArgs<Projection>,
+              advancedOptions,
+              requestConfig,
+            )
+            .exec()) as unknown as ModelResponse<T>;
+        } else {
+          res = (await modelService
+            .create(createData, basicOptions, requestConfig)
+            .exec()) as unknown as ModelResponse<T>;
+        }
+        if (mountRef.current) setData(res.data as Model<T> & T);
+        return res;
+      },
+      [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig, mountRef],
+    );
+
+    const { isPending, error, mutate, reset: resetError } = useMutation(execute, { onSuccess, onSettled });
 
     const createModel = useCallback(
       async (createData: object): Promise<ModelResponse<T>> => {
-        setIsPending(true);
-        setError(null);
         try {
-          let res: ModelResponse<T>;
-          if (advanced) {
-            res = (await modelService
-              .createAdvanced(
-                createData,
-                { select, populate, tasks } as CreateAdvancedArgs<Projection>,
-                advancedOptions,
-                axiosRequestConfig,
-              )
-              .exec()) as unknown as ModelResponse<T>;
-          } else {
-            res = (await modelService
-              .create(createData, createOptions, axiosRequestConfig)
-              .exec()) as unknown as ModelResponse<T>;
-          }
-          if (mountRef.current) {
-            setData(res.data as Model<T> & T);
-            onCreated?.(res);
-            onSettled?.(res, null);
-          }
-          return res;
+          return await mutate(createData);
         } catch (err) {
-          const svcErr = err as ServiceError;
-          if (mountRef.current) {
-            setError(svcErr);
-            onError?.(svcErr);
-            onSettled?.(null, svcErr);
-          }
-          throw svcErr;
-        } finally {
-          if (mountRef.current) setIsPending(false);
+          onError?.(err as ServiceError);
+          throw err;
         }
       },
-      [
-        modelService,
-        advanced,
-        select,
-        populate,
-        tasks,
-        createOptions,
-        advancedOptions,
-        axiosRequestConfig,
-        onCreated,
-        onError,
-        onSettled,
-      ],
+      [mutate, onError],
     );
 
     const reset = useCallback(() => {
       setData(null);
-      setError(null);
-    }, []);
+      resetError();
+    }, [resetError]);
 
     return { data, isPending, error, createModel, reset };
   }
@@ -436,76 +445,58 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       select,
       populate,
       tasks,
-      options: updateOptions,
+      basicOptions,
       advancedOptions,
-      axiosRequestConfig,
-      onUpdated,
+      requestConfig,
+      onSuccess,
       onError,
       onSettled,
     } = options;
     const [data, setData] = useState<(Model<T> & T) | null>(null);
-    const [isPending, setIsPending] = useState(false);
-    const [error, setError] = useState<ServiceError | null>(null);
     const mountRef = useMountRef();
+
+    const execute = useCallback(
+      async (updateId: string, updateData: object): Promise<ModelResponse<T>> => {
+        let res: ModelResponse<T>;
+        if (advanced) {
+          res = (await modelService
+            .updateAdvanced(
+              updateId,
+              updateData,
+              { select, populate, tasks } as UpdateAdvancedArgs<Projection>,
+              advancedOptions,
+              requestConfig,
+            )
+            .exec()) as unknown as ModelResponse<T>;
+        } else {
+          res = (await modelService
+            .update(updateId, updateData, basicOptions, requestConfig)
+            .exec()) as unknown as ModelResponse<T>;
+        }
+        if (mountRef.current) setData(res.data as Model<T> & T);
+        return res;
+      },
+      [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig, mountRef],
+    );
+
+    const { isPending, error, mutate, reset: resetError } = useMutation(execute, { onSuccess, onSettled });
 
     const updateModel = useCallback(
       async (updateId: string, updateData: object): Promise<ModelResponse<T>> => {
-        setIsPending(true);
-        setError(null);
         try {
-          let res: ModelResponse<T>;
-          if (advanced) {
-            res = (await modelService
-              .updateAdvanced(
-                updateId,
-                updateData,
-                { select, populate, tasks } as UpdateAdvancedArgs<Projection>,
-                advancedOptions,
-                axiosRequestConfig,
-              )
-              .exec()) as unknown as ModelResponse<T>;
-          } else {
-            res = (await modelService
-              .update(updateId, updateData, updateOptions, axiosRequestConfig)
-              .exec()) as unknown as ModelResponse<T>;
-          }
-          if (mountRef.current) {
-            setData(res.data as Model<T> & T);
-            onUpdated?.(res);
-            onSettled?.(res, null);
-          }
-          return res;
+          return await mutate(updateId, updateData);
         } catch (err) {
-          const svcErr = err as ServiceError;
-          if (mountRef.current) {
-            setError(svcErr);
-            onError?.(svcErr);
-            onSettled?.(null, svcErr);
-          }
-          throw svcErr;
-        } finally {
-          if (mountRef.current) setIsPending(false);
+          onError?.(err as ServiceError);
+          throw err;
         }
       },
-      [
-        modelService,
-        advanced,
-        select,
-        populate,
-        tasks,
-        updateOptions,
-        advancedOptions,
-        axiosRequestConfig,
-        onUpdated,
-        onError,
-        onSettled,
-      ],
+      [mutate, onError],
     );
 
     const reset = useCallback(() => {
       setData(null);
-      setError(null);
-    }, []);
+      resetError();
+    }, [resetError]);
 
     return { data, isPending, error, updateModel, reset };
   }
@@ -516,297 +507,184 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       select,
       populate,
       tasks,
-      options: upsertOptions,
+      basicOptions,
       advancedOptions,
-      axiosRequestConfig,
-      onUpserted,
+      requestConfig,
+      onSuccess,
       onError,
       onSettled,
     } = options;
     const [data, setData] = useState<(Model<T> & T) | null>(null);
-    const [isPending, setIsPending] = useState(false);
-    const [error, setError] = useState<ServiceError | null>(null);
     const mountRef = useMountRef();
+
+    const execute = useCallback(
+      async (upsertData: object): Promise<ModelResponse<T>> => {
+        let res: ModelResponse<T>;
+        if (advanced) {
+          res = (await modelService
+            .upsertAdvanced(
+              upsertData,
+              { select, populate, tasks } as UpsertAdvancedArgs<Projection>,
+              advancedOptions,
+              requestConfig,
+            )
+            .exec()) as unknown as ModelResponse<T>;
+        } else {
+          res = (await modelService
+            .upsert(upsertData, basicOptions, requestConfig)
+            .exec()) as unknown as ModelResponse<T>;
+        }
+        if (mountRef.current) setData(res.data as Model<T> & T);
+        return res;
+      },
+      [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig, mountRef],
+    );
+
+    const { isPending, error, mutate, reset: resetError } = useMutation(execute, { onSuccess, onSettled });
 
     const upsertModel = useCallback(
       async (upsertData: object): Promise<ModelResponse<T>> => {
-        setIsPending(true);
-        setError(null);
         try {
-          let res: ModelResponse<T>;
-          if (advanced) {
-            res = (await modelService
-              .upsertAdvanced(
-                upsertData,
-                { select, populate, tasks } as UpsertAdvancedArgs<Projection>,
-                advancedOptions,
-                axiosRequestConfig,
-              )
-              .exec()) as unknown as ModelResponse<T>;
-          } else {
-            res = (await modelService
-              .upsert(upsertData, upsertOptions, axiosRequestConfig)
-              .exec()) as unknown as ModelResponse<T>;
-          }
-          if (mountRef.current) {
-            setData(res.data as Model<T> & T);
-            onUpserted?.(res);
-            onSettled?.(res, null);
-          }
-          return res;
+          return await mutate(upsertData);
         } catch (err) {
-          const svcErr = err as ServiceError;
-          if (mountRef.current) {
-            setError(svcErr);
-            onError?.(svcErr);
-            onSettled?.(null, svcErr);
-          }
-          throw svcErr;
-        } finally {
-          if (mountRef.current) setIsPending(false);
+          onError?.(err as ServiceError);
+          throw err;
         }
       },
-      [
-        modelService,
-        advanced,
-        select,
-        populate,
-        tasks,
-        upsertOptions,
-        advancedOptions,
-        axiosRequestConfig,
-        onUpserted,
-        onError,
-        onSettled,
-      ],
+      [mutate, onError],
     );
 
     const reset = useCallback(() => {
       setData(null);
-      setError(null);
-    }, []);
+      resetError();
+    }, [resetError]);
 
     return { data, isPending, error, upsertModel, reset };
   }
 
   function useDeleteModel(options: UseDeleteModelOptions = {}): UseDeleteModelResult {
-    const { axiosRequestConfig, onDeleted, onError, onSettled } = options;
-    const [isPending, setIsPending] = useState(false);
-    const [error, setError] = useState<ServiceError | null>(null);
-    const mountRef = useMountRef();
+    const { requestConfig, onSuccess, onError, onSettled } = options;
+
+    const execute = useCallback(
+      async (deleteId: string): Promise<Response<string>> => {
+        const res = await modelService.delete(deleteId, requestConfig).exec();
+        return res as Response<string>;
+      },
+      [modelService, requestConfig],
+    );
+
+    const { isPending, error, mutate, reset } = useMutation(execute, { onSuccess, onSettled });
 
     const deleteModel = useCallback(
       async (deleteId: string): Promise<Response<string>> => {
-        setIsPending(true);
-        setError(null);
         try {
-          const res = await modelService.delete(deleteId, axiosRequestConfig).exec();
-          const result = res as Response<string>;
-          if (mountRef.current) {
-            onDeleted?.(result);
-            onSettled?.(result, null);
-          }
-          return result;
+          return await mutate(deleteId);
         } catch (err) {
-          const svcErr = err as ServiceError;
-          if (mountRef.current) {
-            setError(svcErr);
-            onError?.(svcErr);
-            onSettled?.(null, svcErr);
-          }
-          throw svcErr;
-        } finally {
-          if (mountRef.current) setIsPending(false);
+          onError?.(err as ServiceError);
+          throw err;
         }
       },
-      [modelService, axiosRequestConfig, onDeleted, onError, onSettled],
+      [mutate, onError],
     );
-
-    const reset = useCallback(() => {
-      setError(null);
-    }, []);
 
     return { isPending, error, deleteModel, reset };
   }
 
-  // ── Query hooks (count, distinct) ──
+  // ── Count ──
 
   function useCountModel(options: UseCountModelOptions<T> = {}): UseCountModelResult {
-    const { advanced, filter, enabled = true, axiosRequestConfig, onCompleted, onError, onSettled } = options;
+    const { advanced, filter, enabled = true, requestConfig, onSuccess, onError, onSettled } = options;
     const [data, setData] = useState<number | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<ServiceError | null>(null);
-    const manager = useAbortManager();
-    const mountRef = useMountRef();
+
+    const applyResult = useCallback((res: Response<number>) => {
+      setData(res.data as number);
+    }, []);
 
     const doFetch = useCallback(
       async (signal?: AbortSignal): Promise<Response<number>> => {
-        setIsLoading(true);
-        setError(null);
-        try {
-          let res: Response<number>;
-          if (advanced) {
-            res = (await modelService
-              .countAdvanced((filter ?? {}) as FilterQuery<T>, undefined, { ...axiosRequestConfig, signal })
-              .exec()) as unknown as Response<number>;
-          } else {
-            res = (await modelService.count({ ...axiosRequestConfig, signal }).exec()) as unknown as Response<number>;
-          }
-          return res;
-        } catch (err) {
-          if (!isAbortError(err)) setError(err as ServiceError);
-          throw err;
-        } finally {
-          if (!signal?.aborted) setIsLoading(false);
+        if (advanced) {
+          return (await modelService
+            .countAdvanced((filter ?? {}) as FilterQuery<T>, undefined, { ...requestConfig, signal })
+            .exec()) as unknown as Response<number>;
         }
+        return (await modelService.count({ ...requestConfig, signal }).exec()) as unknown as Response<number>;
       },
-      [modelService, advanced, filter, axiosRequestConfig],
+      [modelService, advanced, filter, requestConfig],
     );
 
     const filterKey = stableStringify(filter);
 
-    useEffect(() => {
-      if (!enabled) return;
-      mountRef.current = true;
-      const controller = new AbortController();
-      manager.replace(controller);
-
-      doFetch(controller.signal)
-        .then((res) => {
-          if (!mountRef.current || controller.signal.aborted) return;
-          setData(res.data as number);
-          onCompleted?.(res);
-          onSettled?.(res, null);
-        })
-        .catch((err) => {
-          if (!mountRef.current || controller.signal.aborted) return;
-          const svcErr = err as ServiceError;
-          onError?.(svcErr);
-          onSettled?.(null, svcErr);
-        })
-        .finally(() => {
-          if (mountRef.current && !controller.signal.aborted) setIsLoading(false);
-        });
-
-      return () => {
-        mountRef.current = false;
-        controller.abort();
-      };
-    }, [enabled, advanced, filterKey]);
+    const { isLoading, error, refetch } = useAutoQuery({
+      doFetch,
+      applyResult,
+      shouldFetch: enabled,
+      deps: [enabled, advanced, filterKey],
+      onSuccess,
+      onError,
+      onSettled,
+    });
 
     const countModel = useCallback(async (): Promise<Response<number>> => {
       const res = await doFetch();
-      setData(res.data as number);
+      applyResult(res);
+      onSuccess?.(res);
+      onSettled?.(res, null);
       return res;
-    }, [doFetch]);
-
-    const refetch = useCallback(() => {
-      setIsLoading(true);
-      const controller = new AbortController();
-      manager.replace(controller);
-      doFetch(controller.signal)
-        .then((res) => {
-          if (controller.signal.aborted) return;
-          setData(res.data as number);
-        })
-        .catch(() => {})
-        .finally(() => {
-          if (!controller.signal.aborted) setIsLoading(false);
-        });
-    }, [doFetch, manager]);
+    }, [doFetch, applyResult, onSuccess, onSettled]);
 
     const reset = useCallback(() => {
       setData(null);
-      setError(null);
-      setIsLoading(false);
     }, []);
 
     return { data, isLoading, error, countModel, refetch, reset };
   }
 
+  // ── Distinct ──
+
   function useDistinctModel(options: UseDistinctModelOptions<T>): UseDistinctModelResult {
-    const { field, conditions, enabled = true, axiosRequestConfig, onCompleted, onError, onSettled } = options;
+    const { field, conditions, enabled = true, requestConfig, onSuccess, onError, onSettled } = options;
     const [data, setData] = useState<string[] | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<ServiceError | null>(null);
-    const manager = useAbortManager();
-    const mountRef = useMountRef();
+
+    const applyResult = useCallback((res: Response<string[]>) => {
+      setData(res.data as string[]);
+    }, []);
 
     const doFetch = useCallback(
       async (signal?: AbortSignal): Promise<Response<string[]>> => {
-        setIsLoading(true);
-        setError(null);
-        try {
-          const res = (await modelService
-            .distinctAdvanced(field, (conditions ?? {}) as FilterQuery<T>, { ...axiosRequestConfig, signal })
+        if (conditions && Object.keys(conditions).length > 0) {
+          return (await modelService
+            .distinctAdvanced(field, conditions as FilterQuery<T>, { ...requestConfig, signal })
             .exec()) as unknown as Response<string[]>;
-          return res;
-        } catch (err) {
-          if (!isAbortError(err)) setError(err as ServiceError);
-          throw err;
-        } finally {
-          if (!signal?.aborted) setIsLoading(false);
         }
+        return (await modelService.distinct(field, { ...requestConfig, signal }).exec()) as unknown as Response<
+          string[]
+        >;
       },
-      [modelService, field, conditions, axiosRequestConfig],
+      [modelService, field, conditions, requestConfig],
     );
 
     const conditionsKey = stableStringify(conditions);
 
-    useEffect(() => {
-      if (!enabled) return;
-      mountRef.current = true;
-      const controller = new AbortController();
-      manager.replace(controller);
-
-      doFetch(controller.signal)
-        .then((res) => {
-          if (!mountRef.current || controller.signal.aborted) return;
-          setData(res.data as string[]);
-          onCompleted?.(res);
-          onSettled?.(res, null);
-        })
-        .catch((err) => {
-          if (!mountRef.current || controller.signal.aborted) return;
-          const svcErr = err as ServiceError;
-          onError?.(svcErr);
-          onSettled?.(null, svcErr);
-        })
-        .finally(() => {
-          if (mountRef.current && !controller.signal.aborted) setIsLoading(false);
-        });
-
-      return () => {
-        mountRef.current = false;
-        controller.abort();
-      };
-    }, [enabled, field, conditionsKey]);
+    const { isLoading, error, refetch } = useAutoQuery({
+      doFetch,
+      applyResult,
+      shouldFetch: enabled,
+      deps: [enabled, field, conditionsKey],
+      onSuccess,
+      onError,
+      onSettled,
+    });
 
     const distinctModel = useCallback(async (): Promise<Response<string[]>> => {
       const res = await doFetch();
-      setData(res.data as string[]);
+      applyResult(res);
+      onSuccess?.(res);
+      onSettled?.(res, null);
       return res;
-    }, [doFetch]);
-
-    const refetch = useCallback(() => {
-      setIsLoading(true);
-      const controller = new AbortController();
-      manager.replace(controller);
-      doFetch(controller.signal)
-        .then((res) => {
-          if (controller.signal.aborted) return;
-          setData(res.data as string[]);
-        })
-        .catch(() => {})
-        .finally(() => {
-          if (!controller.signal.aborted) setIsLoading(false);
-        });
-    }, [doFetch, manager]);
+    }, [doFetch, applyResult, onSuccess, onSettled]);
 
     const reset = useCallback(() => {
       setData(null);
-      setError(null);
-      setIsLoading(false);
     }, []);
 
     return { data, isLoading, error, distinctModel, refetch, reset };
