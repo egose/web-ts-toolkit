@@ -113,7 +113,6 @@ function useAutoQuery<R>({
       mountRef.current = false;
       controller.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
   const refetch = useCallback(() => {
