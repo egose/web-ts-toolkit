@@ -61,8 +61,8 @@ const toc = [{
   "id": "createmodelhooks-modelservice-",
   "level": 3
 }, {
-  "value": "Hooks",
-  "id": "hooks",
+  "value": "Query Hooks",
+  "id": "query-hooks",
   "level": 2
 }, {
   "value": "<code>useReadModel</code>",
@@ -73,6 +73,18 @@ const toc = [{
   "id": "uselistmodel",
   "level": 3
 }, {
+  "value": "<code>useCountModel</code>",
+  "id": "usecountmodel",
+  "level": 3
+}, {
+  "value": "<code>useDistinctModel</code>",
+  "id": "usedistinctmodel",
+  "level": 3
+}, {
+  "value": "Mutation Hooks",
+  "id": "mutation-hooks",
+  "level": 2
+}, {
   "value": "<code>useCreateModel</code>",
   "id": "usecreatemodel",
   "level": 3
@@ -81,12 +93,12 @@ const toc = [{
   "id": "useupdatemodel",
   "level": 3
 }, {
-  "value": "<code>useDeleteModel</code>",
-  "id": "usedeletemodel",
+  "value": "<code>useUpsertModel</code>",
+  "id": "useupsertmodel",
   "level": 3
 }, {
-  "value": "<code>useCountModel</code>",
-  "id": "usecountmodel",
+  "value": "<code>useDeleteModel</code>",
+  "id": "usedeletemodel",
   "level": 3
 }, {
   "value": "Active Record Integration",
@@ -199,7 +211,7 @@ function _createMdxContent(props) {
         children: "createModelHooks({ modelService })"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Creates an object with six hooks, each bound to the given ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Creates an object with eight hooks, each bound to the given ", (0,jsx_runtime.jsx)(_components.code, {
         children: "ModelService"
       }), ". Call this ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "outside"
@@ -207,7 +219,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-tsx",
-        children: "const { useReadModel, useListModel, useCreateModel, useUpdateModel, useDeleteModel, useCountModel } = createModelHooks({\n  modelService: organizationService,\n});\n"
+        children: "const {\n  useReadModel,\n  useListModel,\n  useCreateModel,\n  useUpdateModel,\n  useUpsertModel,\n  useDeleteModel,\n  useCountModel,\n  useDistinctModel,\n} = createModelHooks({\n  modelService: organizationService,\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "The factory accepts:"
@@ -240,8 +252,8 @@ function _createMdxContent(props) {
         })
       })]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "hooks",
-      children: "Hooks"
+      id: "query-hooks",
+      children: "Query Hooks"
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "usereadmodel",
       children: (0,jsx_runtime.jsx)(_components.code, {
@@ -254,7 +266,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-tsx",
-        children: "const { data, isLoading, isFetching, error, readModel, refetch } = useReadModel({\n  id: 'org_123',\n  advanced: true,\n  select: ['name', 'status'],\n});\n"
+        children: "const { data, isLoading, isFetching, error, readModel, refetch, reset } = useReadModel({\n  id: 'org_123',\n  advanced: true,\n  select: ['name', 'status'],\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: (0,jsx_runtime.jsx)(_components.strong, {
@@ -339,6 +351,76 @@ function _createMdxContent(props) {
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "sort"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "Sort"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Sort order for advanced reads"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "include"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "Include | Include[]"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Include config for advanced reads"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "tasks"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "Task | Task[]"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Tasks for advanced reads"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "basicOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "ReadOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Options for basic reads"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "advancedOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "ReadAdvancedOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Options for advanced reads"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
               children: "enabled"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
@@ -373,7 +455,21 @@ function _createMdxContent(props) {
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "onCompleted"
+              children: "requestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "RequestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Per-request config (headers, signal, etc.)"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "onSuccess"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
@@ -508,6 +604,20 @@ function _createMdxContent(props) {
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: "Re-fetch the current model"
           })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "reset"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "() => void"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Reset to ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "initialData"
+            })]
+          })]
         })]
       })]
     }), "\n", (0,jsx_runtime.jsx)(_components.hr, {}), "\n", (0,jsx_runtime.jsx)(_components.h3, {
@@ -522,7 +632,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-tsx",
-        children: "const { data, totalCount, previousData, isLoading, error, listModel, refetch } = useListModel({\n  listParams: { pageSize: 20 },\n  filter: { status: 'active' },\n  advanced: true,\n  sort: { name: 1 },\n  keepPreviousData: true,\n});\n"
+        children: "const { data, totalCount, previousData, isLoading, error, listModel, refetch, reset } = useListModel({\n  listParams: { pageSize: 20 },\n  filter: { status: 'active' },\n  advanced: true,\n  sort: { name: 1 },\n  keepPreviousData: true,\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: (0,jsx_runtime.jsx)(_components.strong, {
@@ -645,6 +755,62 @@ function _createMdxContent(props) {
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "include"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "Include | Include[]"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Include config for advanced lists"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "tasks"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "Task | Task[]"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Tasks for advanced lists"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "basicOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "ListOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Options for basic lists"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "advancedOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "ListAdvancedOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Options for advanced lists"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
               children: "enabled"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
@@ -695,7 +861,21 @@ function _createMdxContent(props) {
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "onCompleted"
+              children: "requestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "RequestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Per-request config"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "onSuccess"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
@@ -854,9 +1034,494 @@ function _createMdxContent(props) {
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: "Re-fetch the current list"
           })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "reset"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "() => void"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Reset to ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "initialData"
+            })]
+          })]
         })]
       })]
     }), "\n", (0,jsx_runtime.jsx)(_components.hr, {}), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "usecountmodel",
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "useCountModel"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Fetches a count of models. Auto-fetches on mount."
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-tsx",
+        children: "const { data, isLoading, error, countModel, refetch, reset } = useCountModel({\n  advanced: true,\n  filter: { status: 'active' },\n});\n// data === 42\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Options:"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "Option"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Type"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Default"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Description"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "advanced"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "boolean"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "false"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "countAdvanced"
+            }), " instead of ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "count"
+            })]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "filter"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "FilterQuery<T>"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Filter for advanced count"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "enabled"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "boolean"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "true"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Set ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "false"
+            }), " to defer fetching"]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "requestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "RequestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Per-request config"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "onSuccess"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "(result) => void"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Called after successful fetch"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "onError"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "(error) => void"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Called on fetch failure"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "onSettled"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "(result, error) => void"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Called after fetch completes"
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Result:"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "Property"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Type"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Description"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "data"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "number | null"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "The count value"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "isLoading"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "boolean"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "true"
+            }), " during auto-fetch"]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "error"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "ServiceError | null"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Fetch error"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "countModel"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "() => Promise"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Manually trigger count"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "refetch"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "() => void"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Re-fetch the count"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "reset"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "() => void"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Reset data to ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "null"
+            })]
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.hr, {}), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "usedistinctmodel",
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "useDistinctModel"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Fetches unique values for a field. Auto-fetches on mount. Falls back to basic ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "distinct"
+      }), " when no conditions are provided, uses ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "distinctAdvanced"
+      }), " otherwise."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-tsx",
+        children: "const { data, isLoading, error, distinctModel, refetch, reset } = useDistinctModel({\n  field: 'status',\n  conditions: { organizationId: 'org_123' },\n});\n// data === ['active', 'pending', 'archived']\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Options:"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "Option"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Type"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Default"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Description"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "field"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "string"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.strong, {
+              children: "Required."
+            }), " Field name to get distinct values for"]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "conditions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "FilterQuery<T>"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Filter for advanced distinct"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "enabled"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "boolean"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "true"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Set ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "false"
+            }), " to defer fetching"]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "requestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "RequestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Per-request config"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "onSuccess"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "(result) => void"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Called after successful fetch"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "onError"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "(error) => void"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Called on fetch failure"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "onSettled"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "(result, error) => void"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Called after fetch completes"
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Result:"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "Property"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Type"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Description"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "data"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "string[] | null"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "The distinct values"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "isLoading"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "boolean"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "true"
+            }), " during auto-fetch"]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "error"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "ServiceError | null"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Fetch error"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "distinctModel"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "() => Promise"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Manually trigger fetch"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "refetch"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "() => void"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Re-fetch the values"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "reset"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "() => void"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Reset data to ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "null"
+            })]
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "mutation-hooks",
+      children: "Mutation Hooks"
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "usecreatemodel",
       children: (0,jsx_runtime.jsx)(_components.code, {
         children: "useCreateModel"
@@ -868,7 +1533,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-tsx",
-        children: "const { data, isPending, error, createModel, reset } = useCreateOrg({\n  onCreated: (result) => navigate(`/organizations/${result.raw._id}`),\n});\n\n// Trigger creation\nawait createModel({ name: 'New Organization' });\n"
+        children: "const { data, isPending, error, createModel, reset } = useCreateOrg({\n  onSuccess: (result) => navigate(`/organizations/${result.raw._id}`),\n});\n\n// Trigger creation\nawait createModel({ name: 'New Organization' });\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: (0,jsx_runtime.jsx)(_components.strong, {
@@ -939,7 +1604,63 @@ function _createMdxContent(props) {
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "onCreated"
+              children: "tasks"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "Task | Task[]"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Tasks for advanced creates"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "basicOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "CreateOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Options for basic creates"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "advancedOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "CreateAdvancedOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Options for advanced creates"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "requestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "RequestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Per-request config"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "onSuccess"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
@@ -1072,7 +1793,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-tsx",
-        children: "const { data, isPending, error, updateModel, reset } = useUpdateOrg({\n  onUpdated: () => queryClient.invalidateQueries({ queryKey: ['workspace'] }),\n});\n\nawait updateModel('org_123', { name: 'Renamed' });\n"
+        children: "const { data, isPending, error, updateModel, reset } = useUpdateOrg({\n  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['workspace'] }),\n});\n\nawait updateModel('org_123', { name: 'Renamed' });\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: (0,jsx_runtime.jsx)(_components.strong, {
@@ -1143,7 +1864,63 @@ function _createMdxContent(props) {
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "onUpdated"
+              children: "tasks"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "Task | Task[]"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Tasks for advanced updates"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "basicOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "UpdateOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Options for basic updates"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "advancedOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "UpdateAdvancedOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Options for advanced updates"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "requestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "RequestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Per-request config"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "onSuccess"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
@@ -1265,18 +2042,18 @@ function _createMdxContent(props) {
         })]
       })]
     }), "\n", (0,jsx_runtime.jsx)(_components.hr, {}), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "usedeletemodel",
+      id: "useupsertmodel",
       children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "useDeleteModel"
+        children: "useUpsertModel"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Deletes a model. Does not auto-fetch — call ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "deleteModel"
+      children: ["Creates or updates a model (upsert). Does not auto-fetch — call ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "upsertModel"
       }), " manually."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-tsx",
-        children: "const { isPending, error, deleteModel, reset } = useDeleteMember({\n  onDeleted: () => queryClient.invalidateQueries({ queryKey: ['workspace'] }),\n});\n\nawait deleteModel('mem_456');\n"
+        children: "const { data, isPending, error, upsertModel, reset } = useUpsertOrg({\n  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['workspace'] }),\n});\n\nawait upsertModel({ name: 'Organization', status: 'active' });\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: (0,jsx_runtime.jsx)(_components.strong, {
@@ -1299,7 +2076,281 @@ function _createMdxContent(props) {
         children: [(0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "onDeleted"
+              children: "advanced"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "boolean"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "false"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "upsertAdvanced"
+            }), " instead of ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "upsert"
+            })]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "select"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "Projection"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Field projection for advanced upserts"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "populate"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "Populate[]"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Population config for advanced upserts"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "tasks"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "Task | Task[]"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Tasks for advanced upserts"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "basicOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "UpsertOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Options for basic upserts"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "advancedOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "UpsertAdvancedOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Options for advanced upserts"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "requestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "RequestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Per-request config"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "onSuccess"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "(result) => void"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Called after successful upsert"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "onError"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "(error) => void"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Called on upsert failure"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "onSettled"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "(result, error) => void"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Called after upsert completes"
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Result:"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "Property"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Type"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Description"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "data"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "(Model<T> & T) | null"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "The upserted model"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "isPending"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "boolean"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "true"
+            }), " while upsert is in progress"]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "error"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "ServiceError | null"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Upsert error"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "upsertModel"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "(data: object) => Promise"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Trigger model upsert"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "reset"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "() => void"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Clear data and error state"
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.hr, {}), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "usedeletemodel",
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "useDeleteModel"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Deletes a model. Does not auto-fetch — call ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "deleteModel"
+      }), " manually."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-tsx",
+        children: "const { isPending, error, deleteModel, reset } = useDeleteMember({\n  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['workspace'] }),\n});\n\nawait deleteModel('mem_456');\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Options:"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "Option"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Type"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Default"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Description"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "requestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "RequestConfig"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Per-request config"
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "onSuccess"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
@@ -1408,212 +2459,6 @@ function _createMdxContent(props) {
           })]
         })]
       })]
-    }), "\n", (0,jsx_runtime.jsx)(_components.hr, {}), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "usecountmodel",
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "useCountModel"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Fetches a count of models. Auto-fetches on mount."
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-tsx",
-        children: "const { data, isLoading, error, countModel, refetch } = useCountModel({\n  advanced: true,\n  filter: { status: 'active' },\n});\n// data === 42\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.strong, {
-        children: "Options:"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
-      children: [(0,jsx_runtime.jsx)(_components.thead, {
-        children: (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.th, {
-            children: "Option"
-          }), (0,jsx_runtime.jsx)(_components.th, {
-            children: "Type"
-          }), (0,jsx_runtime.jsx)(_components.th, {
-            children: "Default"
-          }), (0,jsx_runtime.jsx)(_components.th, {
-            children: "Description"
-          })]
-        })
-      }), (0,jsx_runtime.jsxs)(_components.tbody, {
-        children: [(0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "advanced"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "boolean"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "false"
-            })
-          }), (0,jsx_runtime.jsxs)(_components.td, {
-            children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "countAdvanced"
-            }), " instead of ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "count"
-            })]
-          })]
-        }), (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "filter"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "FilterQuery<T>"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "—"
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Filter for advanced count"
-          })]
-        }), (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "enabled"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "boolean"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "true"
-            })
-          }), (0,jsx_runtime.jsxs)(_components.td, {
-            children: ["Set ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "false"
-            }), " to defer fetching"]
-          })]
-        }), (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "onCompleted"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "(result) => void"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "—"
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Called after successful fetch"
-          })]
-        }), (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "onError"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "(error) => void"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "—"
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Called on fetch failure"
-          })]
-        }), (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "onSettled"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "(result, error) => void"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "—"
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Called after fetch completes"
-          })]
-        })]
-      })]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.strong, {
-        children: "Result:"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
-      children: [(0,jsx_runtime.jsx)(_components.thead, {
-        children: (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.th, {
-            children: "Property"
-          }), (0,jsx_runtime.jsx)(_components.th, {
-            children: "Type"
-          }), (0,jsx_runtime.jsx)(_components.th, {
-            children: "Description"
-          })]
-        })
-      }), (0,jsx_runtime.jsxs)(_components.tbody, {
-        children: [(0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "data"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "number | null"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "The count value"
-          })]
-        }), (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "isLoading"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "boolean"
-            })
-          }), (0,jsx_runtime.jsxs)(_components.td, {
-            children: [(0,jsx_runtime.jsx)(_components.code, {
-              children: "true"
-            }), " during auto-fetch"]
-          })]
-        }), (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "error"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "ServiceError | null"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Fetch error"
-          })]
-        }), (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "countModel"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "() => Promise"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Manually trigger count"
-          })]
-        }), (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "refetch"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "() => void"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Re-fetch the count"
-          })]
-        })]
-      })]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "active-record-integration",
       children: "Active Record Integration"
@@ -1669,7 +2514,7 @@ function _createMdxContent(props) {
       }), (0,jsx_runtime.jsxs)(_components.tbody, {
         children: [(0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: "Model create/update/delete"
+            children: "Model create/update/delete/upsert"
           }), (0,jsx_runtime.jsxs)(_components.td, {
             children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "access-router-react"
@@ -1682,6 +2527,14 @@ function _createMdxContent(props) {
             children: ["Active record (", (0,jsx_runtime.jsx)(_components.code, {
               children: "model.save()"
             }), ")"]
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: "Distinct field values"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "useDistinctModel"
+            })
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsxs)(_components.td, {
@@ -1720,7 +2573,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-tsx",
-        children: "// After a mutation, invalidate react-query cached data\nconst createOrg = useCreateOrg({\n  onCreated: async () => {\n    await queryClient.invalidateQueries({ queryKey: ['workspace'] });\n  },\n});\n"
+        children: "// After a mutation, invalidate react-query cached data\nconst createOrg = useCreateOrg({\n  onSuccess: async () => {\n    await queryClient.invalidateQueries({ queryKey: ['workspace'] });\n  },\n});\n"
       })
     })]
   });
