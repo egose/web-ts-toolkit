@@ -313,6 +313,27 @@ importers:
         specifier: ^4.1.12
         version: 4.4.3
 
+  packages/access-router-deco:
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.3
+        version: 5.0.6
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.9.1
+      '@web-ts-toolkit/access-router':
+        specifier: workspace:*
+        version: link:../access-router
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
   packages/access-router-react:
     devDependencies:
       '@testing-library/react':
@@ -342,27 +363,6 @@ importers:
       vitest:
         specifier: ^4.1.7
         version: 4.1.7(@types/node@25.9.1)(jsdom@26.1.0)(vite@8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(sass-embedded@1.100.0)(sass@1.100.0)(terser@5.48.0)(tsx@4.22.3))
-
-  packages/deco:
-    devDependencies:
-      '@types/express':
-        specifier: ^5.0.3
-        version: 5.0.6
-      '@types/node':
-        specifier: ^25.6.0
-        version: 25.9.1
-      '@web-ts-toolkit/access-router':
-        specifier: workspace:*
-        version: link:../access-router
-      express:
-        specifier: ^5.2.1
-        version: 5.2.1
-      reflect-metadata:
-        specifier: ^0.2.2
-        version: 0.2.2
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
 
   packages/express-json-router:
     dependencies:
