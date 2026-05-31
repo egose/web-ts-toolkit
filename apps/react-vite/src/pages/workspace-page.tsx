@@ -41,6 +41,12 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
 
   const selectedOrganizationId = organizationId ?? session.organizations[0]?.organizationId ?? null;
   const [organizationName, setOrganizationName] = useState('');
+  const lastSyncedNameRef = useRef('');
+  const serverName = workspaceQuery.data?.organization.name ?? '';
+  if (serverName && serverName !== lastSyncedNameRef.current) {
+    lastSyncedNameRef.current = serverName;
+    setOrganizationName(serverName);
+  }
   const [newOrganizationName, setNewOrganizationName] = useState('');
   const [search, setSearch] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
@@ -76,10 +82,6 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
     queryFn: () => loadWorkspace(selectedOrganizationId!),
     queryKey: ['workspace', selectedOrganizationId],
   });
-
-  useEffect(() => {
-    setOrganizationName(workspaceQuery.data?.organization.name ?? '');
-  }, [workspaceQuery.data?.organization.name]);
 
   // ── access-router-react hooks ──
 
