@@ -15,8 +15,8 @@ import {
 } from './interfaces';
 import Permission from './permission';
 import { DataService } from './services';
-import { normalizeSelect, pickDocFields } from './helpers';
-import { DATA_MIDDLEWARE, PERMISSIONS, PERMISSION_KEYS } from './symbols';
+import { normalizeSelect } from './helpers';
+import { DATA_MIDDLEWARE } from './symbols';
 import { Cache } from './cache';
 import {
   canActivateRequest,
@@ -35,7 +35,6 @@ import {
 import type { AccessRuntime } from './runtime';
 import { defaultRuntime } from './runtime';
 import { runWithRuntime } from './runtime-context';
-import {} from './core-shared';
 
 export class DataCore {
   private req: DataRequest;

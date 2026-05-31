@@ -13,7 +13,6 @@ import {
   isNil,
   isString,
   isUndefined,
-  noop,
   pick,
   reduce,
   set,
@@ -45,7 +44,7 @@ import { Service, PublicService, Base } from './services';
 import { normalizeSelect, getDocPermissions, setDocValue, toObject, pickDocFields, genPagination } from './helpers';
 import { copyAndDepopulate } from './processors';
 import { isDocument } from './lib';
-import { MIDDLEWARE, PERMISSIONS, PERMISSION_KEYS } from './symbols';
+import { MIDDLEWARE } from './symbols';
 import { Cache } from './cache';
 import { logger } from './logger';
 import {
@@ -129,7 +128,7 @@ export class Core {
     });
   }
 
-  private removePrefix(str, prefix) {
+  private removePrefix(str: string, prefix: string) {
     if (!prefix) return str;
 
     if (str.startsWith(prefix)) {

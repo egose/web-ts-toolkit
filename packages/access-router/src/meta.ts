@@ -14,7 +14,3 @@ export const getModelRef = (modelName: string, refPath: string) => {
 export const getModelSub = (modelName: string) => {
   return getRuntime(modelName).getModelSub(modelName);
 };
-
-export const getModelAtt = (modelName: string) => {
-  return getRuntime(modelName).getModelAtt(modelName);
-};

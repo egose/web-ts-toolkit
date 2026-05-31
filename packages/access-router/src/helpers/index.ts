@@ -3,16 +3,7 @@ export * from './document';
 export * from './errors';
 export * from './query';
 
-import {
-  forEach,
-  isArray,
-  isEmpty,
-  isObject,
-  isPlainObject,
-  isString,
-  mapValuesAsync,
-  noop,
-} from '@web-ts-toolkit/utils';
+import { forEach, isArray, isEmpty, isObject, isPlainObject, isString, mapValuesAsync } from '@web-ts-toolkit/utils';
 import { isSchema, isReference } from '../lib';
 import { FilterOperator } from '../enums';
 
@@ -86,7 +77,7 @@ export function buildSubPaths(schema: unknown): string[] {
 
 export async function iterateQuery(query: unknown, handler?: QueryHandler): Promise<unknown> {
   if (!isPlainObject(query)) return query;
-  if (!handler) return noop;
+  if (!handler) return query;
 
   const queryObject = query as Record<string, unknown>;
   return mapValuesAsync(queryObject, async (val, key) => {

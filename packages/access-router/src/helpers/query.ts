@@ -29,7 +29,7 @@ export function genPagination(
   return { skip: _skip, limit: _limit };
 }
 
-export function parseSortString(sortString): { sortKey: string; sortOrder: 'asc' | 'desc' } {
+export function parseSortString(sortString: string): { sortKey: string; sortOrder: 'asc' | 'desc' } {
   if (!sortString) return { sortKey: '', sortOrder: 'asc' };
 
   if (sortString.startsWith('-')) {
@@ -54,29 +54,4 @@ export function normalizeSelect(select: Projection): string[] {
   }
   if (isString(select)) return select.split(' ').map((v) => v.trim());
   return [];
-}
-
-export function parseAccess(access: string) {
-  const parts = access.split('.');
-  if (parts.length === 1) {
-    return {
-      isSub: false,
-      sub: '',
-      access: parts[0],
-    };
-  }
-
-  if (parts.length === 3 && parts[0] === 'subs') {
-    return {
-      isSub: true,
-      sub: parts[1],
-      access: parts[2],
-    };
-  }
-
-  return {
-    isSub: false,
-    sub: '',
-    access,
-  };
 }

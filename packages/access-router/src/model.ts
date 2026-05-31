@@ -66,7 +66,6 @@ class Model {
     if (sort) builder.sort(sort);
     if (populate) builder.populate(populate as mongoose.PopulateOptions | Array<string | mongoose.PopulateOptions>);
     if (lean) builder.lean();
-    // builder = builder.setOptions({ sanitizeFilter: true });
 
     return builder;
   }
@@ -153,10 +152,6 @@ class Model {
     return builder;
   }
 
-  findOneAndDelete(filter) {
-    return this.model.findOneAndDelete(filter);
-  }
-
   exists(filter) {
     if (!filter) return null;
     return this.findOne(filter).select('_id').lean();
@@ -165,11 +160,6 @@ class Model {
   // see https://mongoosejs.com/docs/api.html#query_Query-countDocuments
   countDocuments(filter = {}) {
     return this.model.countDocuments(filter);
-  }
-
-  // see https://mongoosejs.com/docs/api.html#model_Model.estimatedDocumentCount
-  estimatedDocumentCount() {
-    return this.model.estimatedDocumentCount();
   }
 
   // see https://mongoosejs.com/docs/api.html#model_Model.distinct

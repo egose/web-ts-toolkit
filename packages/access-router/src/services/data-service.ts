@@ -25,10 +25,10 @@ import { Codes } from '../enums';
 import { orderBy, pick } from '@web-ts-toolkit/utils';
 
 export class DataService<T> {
-  req: DataRequest;
-  dataName: string;
-  options: DataRouterOptions<T>;
-  data: T[];
+  protected req: DataRequest;
+  protected dataName: string;
+  protected options: DataRouterOptions<T>;
+  protected data: T[];
 
   constructor(req: DataRequest, dataName: string) {
     this.req = req;

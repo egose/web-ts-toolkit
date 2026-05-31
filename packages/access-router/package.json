@@ -38,8 +38,7 @@
   },
   "files": [
     "README.md",
-    "dist",
-    "tsup.config.ts"
+    "dist"
   ],
   "dependencies": {
     "@web-ts-toolkit/express-json-router": "workspace:*",
