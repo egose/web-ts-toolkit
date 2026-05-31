@@ -17,7 +17,9 @@
       "@web-ts-toolkit/access-router-client": ["packages/access-router-client/src/index.ts"],
       "@web-ts-toolkit/access-router-client/*": ["packages/access-router-client/src/*"],
       "@web-ts-toolkit/access-router-react": ["packages/access-router-react/src/index.ts"],
-      "@web-ts-toolkit/access-router-react/*": ["packages/access-router-react/src/*"]
+      "@web-ts-toolkit/access-router-react/*": ["packages/access-router-react/src/*"],
+      "@web-ts-toolkit/access-router-deco": ["packages/access-router-deco/src/index.ts"],
+      "@web-ts-toolkit/access-router-deco/*": ["packages/access-router-deco/src/*"]
     }
   }
 }

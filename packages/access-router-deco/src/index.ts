@@ -1,0 +1,26 @@
+export { EgoseFactory, EgoseFactoryStatic } from './factory';
+export {
+  Module,
+  Router,
+  RouterOptions,
+  GlobalPermissions,
+  DocPermissions,
+  BaseFilter,
+  OverrideFilter,
+  Validate,
+  Prepare,
+  Transform,
+  AfterPersist,
+  Decorate,
+  DecorateAll,
+  RouteGuard,
+  Identifier,
+  BeforeDelete,
+  AfterDelete,
+  Option,
+  Request,
+  Document,
+  Permissions,
+  Context,
+} from './decorators';
+export type { Type, ModuleMetadata } from './interfaces';
