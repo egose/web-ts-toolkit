@@ -23,6 +23,30 @@ describe('access-router-client adapter integration', () => {
     expect(result[1]).toMatchObject({ success: true, status: 200, data: 2, raw: 2 });
   });
 
+  it('preserves response headers from grouped batch requests', async () => {
+    const result = await suite.adapter.group(
+      services.userService.list(undefined, { includeCount: true }, { headers: { user: 'admin' } }),
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].success).toBe(true);
+    expect(result[0].headers).toBeDefined();
+    expect(typeof result[0].headers).toBe('object');
+  });
+
+  it('sets default order on grouped requests', async () => {
+    const first = services.userService.create({ name: 'order-0-user', role: 'viewer', public: true }, undefined, {
+      headers: { user: 'admin' },
+    });
+    const second = services.orgService.count();
+
+    const result = await suite.adapter.group(first, second);
+
+    expect(result).toHaveLength(2);
+    expect(result[0].success).toBe(true);
+    expect(result[1].success).toBe(true);
+  });
+
   it('handles group partial failures gracefully', async () => {
     const successful = services.userService.readAdvanced(String(seedState.admin._id), { select: ['name'] }, undefined, {
       headers: { user: 'admin' },

@@ -1,12 +1,12 @@
-import axios, { AxiosHeaders, mergeConfig, AxiosRequestConfig } from 'axios';
-import { castArray, isEmpty, set } from '@web-ts-toolkit/utils';
+import axios, { mergeConfig, AxiosRequestConfig } from 'axios';
+import { castArray, isEmpty } from '@web-ts-toolkit/utils';
 import { ModelService, DataService } from './services';
 import { Model } from './model';
-import { DataRequest, Document, ModelRequest, ResponseCallback, RootQueryMeta, WrapOptions } from './types';
+import { DataRequest, Document, ModelRequest, ResponseCallback, RootQueryMeta } from './types';
 import { Defaults, DataDefaults } from './interface';
 import { useCacheInterceptors } from './services/interceptors';
-import { getWrapContext } from './helpers';
-import { CACHE_HEADER } from './constants';
+import { createWrapHelper } from './services/wrap';
+import { normalizeConfigValue } from './services/cache-utils';
 
 const defaultAxiosConfig = Object.freeze({
   baseURL: '/api',
@@ -21,30 +21,6 @@ const defaultAxiosConfig = Object.freeze({
 
 const isModelQuery = (query: RootQueryMeta): query is Extract<RootQueryMeta, { target: 'model' }> =>
   query.target === 'model';
-
-const normalizeConfigValue = (value: unknown): unknown => {
-  if (value == null) return value;
-
-  if (value instanceof AxiosHeaders) {
-    return normalizeConfigValue(value.toJSON());
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => normalizeConfigValue(item));
-  }
-
-  if (typeof value === 'object') {
-    return Object.entries(value)
-      .filter(([, item]) => item !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .reduce<Record<string, unknown>>((acc, [key, item]) => {
-        acc[key] = normalizeConfigValue(item);
-        return acc;
-      }, {});
-  }
-
-  return value;
-};
 
 const serializeRequestConfig = (config?: AxiosRequestConfig) => JSON.stringify(normalizeConfigValue(config ?? {}));
 
@@ -87,6 +63,8 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
   } = adapterOptions ?? {};
 
   if (cacheTTL > 0) useCacheInterceptors(instance, cacheTTL);
+
+  const wraps = createWrapHelper(instance);
 
   return Object.freeze({
     axios: instance,
@@ -133,72 +111,17 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
         defaults,
       );
     },
-    wrapGet: <T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) => {
-      set(defaultAxiosRequestConfig, `headers.${CACHE_HEADER}`, 'true');
-      return (options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
-        const { finalUrl, finalConfig } = getWrapContext(
-          url,
-          options,
-          mergeConfig(defaultAxiosRequestConfig, axiosRequestConfig),
-        );
-
-        return instance.get<T>(finalUrl, finalConfig);
-      };
-    },
-    wrapPost: <T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) => {
-      set(defaultAxiosRequestConfig, `headers.${CACHE_HEADER}`, 'false');
-      return (data?: unknown, options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
-        const { finalUrl, finalConfig } = getWrapContext(
-          url,
-          options,
-          mergeConfig(defaultAxiosRequestConfig, axiosRequestConfig),
-        );
-
-        return instance.post<T>(finalUrl, data, finalConfig);
-      };
-    },
-    wrapPut: <T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) => {
-      set(defaultAxiosRequestConfig, `headers.${CACHE_HEADER}`, 'false');
-      return (data?: unknown, options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
-        const { finalUrl, finalConfig } = getWrapContext(
-          url,
-          options,
-          mergeConfig(defaultAxiosRequestConfig, axiosRequestConfig),
-        );
-
-        return instance.put<T>(finalUrl, data, finalConfig);
-      };
-    },
-    wrapPatch: <T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) => {
-      set(defaultAxiosRequestConfig, `headers.${CACHE_HEADER}`, 'false');
-      return (data?: unknown, options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
-        const { finalUrl, finalConfig } = getWrapContext(
-          url,
-          options,
-          mergeConfig(defaultAxiosRequestConfig, axiosRequestConfig),
-        );
-
-        return instance.patch<T>(finalUrl, data, finalConfig);
-      };
-    },
-    wrapDelete: <T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) => {
-      set(defaultAxiosRequestConfig, `headers.${CACHE_HEADER}`, 'false');
-      return (options?: WrapOptions, axiosRequestConfig?: AxiosRequestConfig) => {
-        const { finalUrl, finalConfig } = getWrapContext(
-          url,
-          options,
-          mergeConfig(defaultAxiosRequestConfig, axiosRequestConfig),
-        );
-
-        return instance.delete<T>(finalUrl, finalConfig);
-      };
-    },
+    wrapGet: wraps.wrapGet,
+    wrapPost: wraps.wrapPost,
+    wrapPut: wraps.wrapPut,
+    wrapPatch: wraps.wrapPatch,
+    wrapDelete: wraps.wrapDelete,
     group: async <T extends readonly (ModelRequest<unknown> | DataRequest<unknown>)[]>(
       ...proms: T
     ): Promise<{ [K in keyof T]: Awaited<T[K]> }> => {
       let sharedConfig: AxiosRequestConfig | undefined;
       let sharedConfigKey: string | undefined;
-      const defs = proms.map((prom) => {
+      const defs = proms.map((prom, index) => {
         if (!isEmpty(prom.__requestConfig)) {
           const configKey = serializeRequestConfig(prom.__requestConfig);
 
@@ -210,10 +133,16 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
           sharedConfigKey = configKey;
         }
 
-        return prom.__query;
+        const query = { ...prom.__query };
+        if (prom.__query.order == null) {
+          query.order = index;
+        }
+
+        return query;
       });
 
       const result = await instance.post(rootRouterPath, defs, sharedConfig ?? {}).then((res) => {
+        const responseHeaders = res.headers ?? {};
         return res.data.map(({ result, message, statusCode, op }, index) => {
           const service = proms[index].__service;
           const query = proms[index].__query;
@@ -245,7 +174,7 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
             message,
             status: statusCode,
             totalCount: result.success && result.kind === 'list' ? (result.totalCount ?? result.count ?? 0) : 0,
-            headers: {},
+            headers: responseHeaders,
           };
         }) as { [K in keyof T]: Awaited<T[K]> };
       });

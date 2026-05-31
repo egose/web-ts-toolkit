@@ -1,5 +1,4 @@
 import { AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
-import { get } from '@web-ts-toolkit/utils';
 import {
   DataRequest,
   FilterQuery,
@@ -7,8 +6,6 @@ import {
   ListDataResponse,
   Projection,
   ResolvedSelectedShape,
-  wrapLazyPromise,
-  DataPromiseMeta,
   ResponseCallback,
 } from '../types';
 
@@ -23,16 +20,11 @@ import {
   DataDefaults,
   AdditionalReqConfig,
 } from '../interface';
-import { CustomHeaders } from '../enums';
 
 import { Service } from './service';
 import { replaceSubQuery } from '../helpers';
-import { createResponseHandler, setDefaultObjectProp } from './shared';
-
-interface ListData<T> {
-  count: number;
-  rows: T[];
-}
+import { createResponseHandler, processListResult, setDefaultObjectProp } from './shared';
+import { makeRequest } from './request';
 
 type RequestConfig = AxiosRequestConfig & AdditionalReqConfig;
 
@@ -74,6 +66,10 @@ export class DataService<T> extends Service {
     ].forEach((key) => setDefaultObjectProp(this._defaults, key, {}));
   }
 
+  // ---------------------------------------------------------------------------
+  // Collection operations
+  // ---------------------------------------------------------------------------
+
   list<TData extends Partial<T> = T>(
     args?: DataListArgs,
     options?: DataListOptions,
@@ -96,7 +92,7 @@ export class DataService<T> extends Service {
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
-    const result: DataRequest<ListDataResponse<TData>> = wrapLazyPromise<ListDataResponse<TData>, DataPromiseMeta>(
+    return makeRequest<ListDataResponse<TData>>(
       () =>
         this._axios
           .get(
@@ -115,7 +111,7 @@ export class DataService<T> extends Service {
           )
           .then(this.handleSuccess)
           .then((result: ListDataResponse<TData>) => {
-            return this.processListResult(result, { includeCount, includeExtraHeaders });
+            return processListResult<ListDataResponse<TData>, TData>(result, { includeCount, includeExtraHeaders });
           })
           .catch(this.handleError<ListDataResponse<TData>>)
           .then((res) => this._handleCallbacks<ListDataResponse<TData>>(res, throwOnError)),
@@ -127,18 +123,12 @@ export class DataService<T> extends Service {
           op: 'list',
           filter: {},
           args: { skip, limit, page, pageSize },
-          options: {
-            includePermissions,
-            includeCount,
-            includeExtraHeaders,
-          },
+          options: { includePermissions, includeCount, includeExtraHeaders },
         },
         __requestConfig: reqConfig,
         __service: this,
       },
     );
-
-    return result;
   }
 
   listAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
@@ -167,10 +157,7 @@ export class DataService<T> extends Service {
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
     const _filter = replaceSubQuery<T>(filter);
-    const result: DataRequest<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>> = wrapLazyPromise<
-      ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>,
-      DataPromiseMeta
-    >(
+    return makeRequest<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(
       () =>
         this._axios
           .post(
@@ -183,17 +170,19 @@ export class DataService<T> extends Service {
               limit,
               page,
               pageSize,
-              options: {
-                includePermissions,
-                includeCount,
-                includeExtraHeaders,
-              },
+              options: { includePermissions, includeCount, includeExtraHeaders },
             },
             reqConfig,
           )
           .then(this.handleSuccess)
           .then((result: ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>) => {
-            return this.processListResult(result, { includeCount, includeExtraHeaders });
+            return processListResult<
+              ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>,
+              ResolvedSelectedShape<T, TSelect, TData>
+            >(result, {
+              includeCount,
+              includeExtraHeaders,
+            });
           })
           .catch(this.handleError<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>>)
           .then((res) =>
@@ -207,19 +196,17 @@ export class DataService<T> extends Service {
           op: 'list',
           filter: _filter,
           args: { select, sort, skip, limit, page, pageSize },
-          options: {
-            includePermissions,
-            includeCount,
-            includeExtraHeaders,
-          },
+          options: { includePermissions, includeCount, includeExtraHeaders },
         },
         __requestConfig: reqConfig,
         __service: this,
       },
     );
-
-    return result;
   }
+
+  // ---------------------------------------------------------------------------
+  // Document operations
+  // ---------------------------------------------------------------------------
 
   read<TData extends Partial<T> = T>(
     identifier: string,
@@ -234,15 +221,13 @@ export class DataService<T> extends Service {
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
-    const result: DataRequest<DataResponse<TData>> = wrapLazyPromise<DataResponse<TData>, DataPromiseMeta>(
+    return makeRequest<DataResponse<TData>>(
       () =>
         this._axios
           .get(
             `${this._basePath}/${identifier}`,
             mergeConfig(reqConfig, {
-              params: {
-                include_permissions: includePermissions,
-              },
+              params: { include_permissions: includePermissions },
             }),
           )
           .then(this.handleSuccess)
@@ -260,16 +245,12 @@ export class DataService<T> extends Service {
           op: 'read',
           id: identifier,
           args: {},
-          options: {
-            includePermissions,
-          },
+          options: { includePermissions },
         },
         __requestConfig: reqConfig,
         __service: this,
       },
     );
-
-    return result;
   }
 
   readAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
@@ -286,10 +267,7 @@ export class DataService<T> extends Service {
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
-    const result: DataRequest<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> = wrapLazyPromise<
-      DataResponse<ResolvedSelectedShape<T, TSelect, TData>>,
-      DataPromiseMeta
-    >(
+    return makeRequest<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(
       () =>
         this._axios
           .post(`${this._basePath}/${this._queryPath}/${identifier}`, { select }, reqConfig)
@@ -310,16 +288,12 @@ export class DataService<T> extends Service {
           op: 'read',
           id: identifier,
           args: { select },
-          options: {
-            includePermissions,
-          },
+          options: { includePermissions },
         },
         __requestConfig: reqConfig,
         __service: this,
       },
     );
-
-    return result;
   }
 
   readAdvancedFilter<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
@@ -329,20 +303,15 @@ export class DataService<T> extends Service {
     axiosRequestConfig?: RequestConfig,
   ): DataRequest<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> {
     const select = (args?.select ?? this._defaults.readAdvancedArgs.select) as TSelect | undefined;
+    const { ignoreCache = this._defaults.readAdvancedArgs.ignoreCache ?? false } = args ?? {};
 
-    const {
-      includePermissions = this._defaults.readAdvancedOptions.includePermissions ?? true,
-      ignoreCache = this._defaults.readAdvancedOptions.ignoreCache ?? false,
-    } = options ?? {};
+    const { includePermissions = this._defaults.readAdvancedOptions.includePermissions ?? true } = options ?? {};
 
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
     const _filter = replaceSubQuery<T>(filter);
-    const result: DataRequest<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> = wrapLazyPromise<
-      DataResponse<ResolvedSelectedShape<T, TSelect, TData>>,
-      DataPromiseMeta
-    >(
+    return makeRequest<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(
       () =>
         this._axios
           .post(`${this._basePath}/${this._queryPath}/__filter`, { filter: _filter, select }, reqConfig)
@@ -363,45 +332,11 @@ export class DataService<T> extends Service {
           op: 'read',
           filter: _filter,
           args: { select },
-          options: {
-            includePermissions,
-          },
+          options: { includePermissions },
         },
         __requestConfig: reqConfig,
         __service: this,
       },
     );
-
-    return result;
-  }
-
-  private processListResult<TData>(result: ListDataResponse<TData>, { includeCount, includeExtraHeaders }) {
-    const wrappedRows = get(result, 'raw.data');
-    const wrappedTotalCount = get(result, 'raw.meta.totalCount');
-
-    if (Array.isArray(wrappedRows)) {
-      const rows = wrappedRows as TData[];
-      result.raw = wrappedRows;
-
-      if (includeCount) {
-        if (includeExtraHeaders) {
-          const totalCount = get(result, `headers.${CustomHeaders.TotalCount}`, 0);
-          result.totalCount = Number(totalCount);
-        } else {
-          result.totalCount = Number(wrappedTotalCount ?? rows.length);
-        }
-      }
-    } else if (includeCount) {
-      if (includeExtraHeaders) {
-        const totalCount = get(result, `headers.${CustomHeaders.TotalCount}`, 0);
-        result.totalCount = Number(totalCount);
-      } else {
-        result.totalCount = (result.raw as never as ListData<TData>).count;
-        result.raw = (result.raw as never as ListData<TData>).rows;
-      }
-    }
-
-    result.data = result.raw;
-    return result;
   }
 }

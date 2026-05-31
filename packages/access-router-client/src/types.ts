@@ -126,6 +126,7 @@ export interface RootModelQueryMeta {
   data?: unknown;
   args?: Record<string, unknown>;
   options?: Record<string, unknown>;
+  order?: number;
   sqOptions?: SubQueryOptions;
 }
 
@@ -138,19 +139,10 @@ export interface RootDataQueryMeta {
   data?: unknown;
   args?: Record<string, unknown>;
   options?: Record<string, unknown>;
+  order?: number;
 }
 
 export type RootQueryMeta = RootModelQueryMeta | RootDataQueryMeta;
-
-export interface SubQueryMeta {
-  model: string;
-  op: 'list' | 'read';
-  id?: string;
-  filter?: unknown;
-  args?: Record<string, unknown>;
-  options?: Record<string, unknown>;
-  sqOptions?: SubQueryOptions;
-}
 
 export interface ModelPromiseMeta {
   __op: string;
@@ -178,47 +170,7 @@ export interface DataPromiseMeta {
 
 export type DataRequest<T> = DataPromiseMeta & LazyRequest<T>;
 
-export const wrapLazyPromise = <T, M = undefined>(promiseFn: () => Promise<T>, meta?: M): M & LazyRequest<T> => {
-  let promise: Promise<T> | undefined;
-
-  const exec = () => {
-    if (!promise) {
-      promise = promiseFn();
-    }
-
-    return promise;
-  };
-
-  const prom = {
-    exec,
-    then<TResult1 = T, TResult2 = never>(
-      onFulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
-      onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
-    ) {
-      return exec().then(onFulfilled, onRejected);
-    },
-    catch<TResult = never>(onRejected?: ((reason: unknown) => TResult | PromiseLike<TResult>) | null) {
-      return exec().catch(onRejected);
-    },
-    finally(onFinally?: (() => void) | null) {
-      return exec().finally(onFinally);
-    },
-    [Symbol.for('nodejs.util.inspect.custom')]() {
-      return 'LazyPromise';
-    },
-  };
-
-  Object.defineProperty(prom, Symbol.toStringTag, {
-    value: 'Promise',
-    writable: false,
-    enumerable: false,
-    configurable: true,
-  });
-
-  Object.assign(prom, meta);
-
-  return prom as M & LazyRequest<T>;
-};
+export { wrapLazyPromise } from './lazy-promise';
 
 export type ResponseCallback = (res: unknown) => void;
 
