@@ -257,6 +257,9 @@ export class EgoseFactoryStatic {
       const fn = this.wrapMethod(routerOrOptions, methodName, optionKey);
       if (!fn) continue;
 
+      // Map decorator metadata key to access-router option key.
+      // e.g. "routeGuard.delete" → "operationAccess.delete" (decorator name differs from ACL key)
+      // e.g. "docPermissions.create" → "docPermissions.create" (same key, no transformation needed)
       const aclOptionKey = optionKey === aclKey ? key : key.replace(optionKey, aclKey);
 
       if (arrayType) {
