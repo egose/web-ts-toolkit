@@ -13,7 +13,6 @@ import {
   isNil,
   isString,
   isUndefined,
-  noop,
   pick,
   reduce,
   set,

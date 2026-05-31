@@ -2,9 +2,6 @@ import { DefaultModelRouterOptions, ExtendedDefaultModelRouterOptions } from '..
 import { defaultRuntime } from '../runtime';
 import { getActiveRuntime } from '../runtime-context';
 
-export const DEFAULT_QUERY_PATH = '__query';
-export const DEFAULT_MUTATION_PATH = '__mutation';
-
 const getRuntime = () => getActiveRuntime() ?? defaultRuntime;
 
 export const setDefaultModelOptions = (options: DefaultModelRouterOptions) => {

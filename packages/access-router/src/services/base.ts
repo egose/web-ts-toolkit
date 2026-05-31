@@ -71,8 +71,8 @@ export function validateClientFilter(filter: Filter | null | undefined): string[
 }
 
 export class Base<TModel = unknown> {
-  req: ModelRequest;
-  modelName: string;
+  protected req: ModelRequest;
+  protected modelName: string;
 
   constructor(req: ModelRequest, modelName: string) {
     this.req = req;
