@@ -1,3 +1,13 @@
+## [0.4.0](https://github.com/egose/web-ts-toolkit/compare/v0.3.0...v0.4.0) (2026-05-28)
+
+### Features
+
+* implement library-agnostic request validation ([c0b25e5](https://github.com/egose/web-ts-toolkit/commit/c0b25e5655f82f6acd89332331703a37ed57c006))
+
+### Refactors
+
+* **access-router-client:** simplify lazy request types with ModelRequest and DataRequest aliases ([b2288af](https://github.com/egose/web-ts-toolkit/commit/b2288af6e581c3a9f6c8ae778d9bab3d48860139))
+
 ## [0.3.0](https://github.com/egose/web-ts-toolkit/compare/v0.2.0...v0.3.0) (2026-05-27)
 
 ### Features
