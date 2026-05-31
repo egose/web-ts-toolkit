@@ -2,6 +2,7 @@ import { useDeferredValue, useEffect, useState } from 'react';
 import { Alert, AlertDescription } from '@egose/shadcn-theme/components/ui/alert';
 import { Card, CardDescription, CardHeader, CardTitle } from '@egose/shadcn-theme/components/ui/card';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createModelHooks } from '@web-ts-toolkit/access-router-react';
 import { useNavigate, useParams } from 'react-router';
 import { loadWorkspace, logout, membershipService, organizationService } from '../api';
 import { buildHierarchy } from '../hierarchy';
@@ -18,6 +19,14 @@ const emptyCardClass = 'rounded-[22px] p-4';
 const loadingCardClass = emptyCardClass;
 const errorBannerClass = 'rounded-2xl border border-red-400/35 bg-red-950/25 px-4 py-3 text-red-200';
 const statCardClass = 'app-surface rounded-2xl p-5 shadow-none';
+
+const { useCreateModel: useCreateOrg, useUpdateModel: useUpdateOrg } = createModelHooks({
+  modelService: organizationService,
+});
+
+const { useCreateModel: useCreateMember, useDeleteModel: useDeleteMember } = createModelHooks({
+  modelService: membershipService,
+});
 
 interface WorkspacePageProps {
   onRefreshSession(): Promise<void>;
@@ -72,66 +81,28 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
     setOrganizationName(workspaceQuery.data?.organization.name ?? '');
   }, [workspaceQuery.data?.organization.name]);
 
-  const createOrganizationMutation = useMutation({
-    mutationFn: async (name: string) => {
-      const response = await organizationService.create({ name });
-      if (!response.success) {
-        throw new Error(response.message || 'Unable to create organization.');
-      }
+  // ── access-router-react hooks ──
 
-      return response.raw;
-    },
-    onSuccess: async (organization) => {
+  const createOrg = useCreateOrg({
+    onCreated: async (result) => {
       setNewOrganizationName('');
       await onRefreshSession();
       await queryClient.invalidateQueries({ queryKey: ['workspace'] });
-      if (organization._id) {
-        navigate(`/organizations/${organization._id}`);
+      if (result.raw._id) {
+        navigate(`/organizations/${result.raw._id}`);
       }
     },
   });
 
-  const renameOrganizationMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedOrganizationId) {
-        throw new Error('Select an organization first.');
-      }
-
-      const response = await organizationService.update(selectedOrganizationId, { name: organizationName });
-      if (!response.success) {
-        throw new Error(response.message || 'Unable to rename organization.');
-      }
-
-      return response.raw;
-    },
-    onSuccess: async () => {
+  const renameOrg = useUpdateOrg({
+    onUpdated: async () => {
       await onRefreshSession();
       await queryClient.invalidateQueries({ queryKey: ['workspace', selectedOrganizationId] });
     },
   });
 
-  const inviteMemberMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedOrganizationId) {
-        throw new Error('Select an organization first.');
-      }
-
-      const response = await membershipService.create({
-        department: inviteDepartment,
-        email: inviteEmail,
-        fullName: inviteFullName,
-        managerMembershipId: inviteManagerMembershipId || undefined,
-        organizationId: selectedOrganizationId,
-        title: inviteTitle,
-      });
-
-      if (!response.success) {
-        throw new Error(response.message || 'Unable to add this person.');
-      }
-
-      return response.raw;
-    },
-    onSuccess: async () => {
+  const inviteMember = useCreateMember({
+    onCreated: async () => {
       setInviteDepartment('');
       setInviteEmail('');
       setInviteFullName('');
@@ -141,45 +112,14 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
     },
   });
 
-  const updateMemberMutation = useMutation({
-    mutationFn: async ({ draft, memberId }: { draft: MemberDraft; memberId: string }) => {
-      const response = await membershipService.update(memberId, {
-        department: draft.department,
-        fullName: draft.fullName,
-        managerMembershipId: draft.managerMembershipId || undefined,
-        title: draft.title,
-      });
-
-      if (!response.success) {
-        throw new Error(response.message || 'Unable to save member changes.');
-      }
-
-      return response.raw;
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['workspace', selectedOrganizationId] });
-    },
-  });
-
-  const deleteMemberMutation = useMutation({
-    mutationFn: async (member: OrganizationMember) => {
-      const memberId = member._id;
-      if (!memberId) {
-        throw new Error('Missing member id.');
-      }
-
-      const response = await membershipService.delete(memberId);
-      if (!response.success) {
-        throw new Error(response.message || 'Unable to remove member.');
-      }
-
-      return member;
-    },
-    onSuccess: async () => {
+  const deleteMember = useDeleteMember({
+    onDeleted: async () => {
       await onRefreshSession();
       await queryClient.invalidateQueries({ queryKey: ['workspace', selectedOrganizationId] });
     },
   });
+
+  // ── still on react-query (session lifecycle + sign-out) ──
 
   const signOutMutation = useMutation({
     mutationFn: async () => {
@@ -187,6 +127,36 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
       await onSignedOut();
     },
   });
+
+  // ── active record: update member via Model.save() ──
+
+  const [isSavingMember, setIsSavingMember] = useState(false);
+  const [saveMemberError, setSaveMemberError] = useState<Error | null>(null);
+
+  const handleSaveMember = async (memberId: string, draft: MemberDraft) => {
+    const member = workspaceQuery.data?.members.find((m) => m._id === memberId);
+    if (!member) return;
+
+    setIsSavingMember(true);
+    setSaveMemberError(null);
+    try {
+      member.fullName = draft.fullName;
+      member.title = draft.title;
+      member.department = draft.department;
+      member.managerMembershipId = draft.managerMembershipId || undefined;
+      const res = await member.save();
+      if (!res.success) {
+        throw new Error(res.message || 'Unable to save member changes.');
+      }
+      await queryClient.invalidateQueries({ queryKey: ['workspace', selectedOrganizationId] });
+    } catch (err) {
+      setSaveMemberError(err as Error);
+    } finally {
+      setIsSavingMember(false);
+    }
+  };
+
+  // ── derived state ──
 
   const members = workspaceQuery.data?.members ?? [];
   const currentOrganizationMembership = session.organizations.find(
@@ -204,11 +174,11 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
 
   const activeError =
     workspaceQuery.error ??
-    createOrganizationMutation.error ??
-    renameOrganizationMutation.error ??
-    inviteMemberMutation.error ??
-    updateMemberMutation.error ??
-    deleteMemberMutation.error;
+    createOrg.error ??
+    renameOrg.error ??
+    inviteMember.error ??
+    deleteMember.error ??
+    saveMemberError;
 
   return (
     <WorkspaceShell
@@ -231,10 +201,10 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
             />
           </div>
           <CreateOrganizationCard
-            isCreating={createOrganizationMutation.isPending}
+            isCreating={createOrg.isPending}
             newOrganizationName={newOrganizationName}
             onCreate={() => {
-              void createOrganizationMutation.mutateAsync(newOrganizationName);
+              void createOrg.createModel({ name: newOrganizationName });
             }}
             onNewOrganizationNameChange={setNewOrganizationName}
           />
@@ -304,8 +274,8 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
                 inviteFullName={inviteFullName}
                 inviteManagerMembershipId={inviteManagerMembershipId}
                 inviteTitle={inviteTitle}
-                isAddingMember={inviteMemberMutation.isPending}
-                isRenamingOrganization={renameOrganizationMutation.isPending}
+                isAddingMember={inviteMember.isPending}
+                isRenamingOrganization={renameOrg.isPending}
                 mappedDepartmentCount={new Set(members.map((member) => member.department).filter(Boolean)).size}
                 members={members}
                 onInviteDepartmentChange={setInviteDepartment}
@@ -313,12 +283,20 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
                 onInviteFullNameChange={setInviteFullName}
                 onInviteManagerMembershipIdChange={setInviteManagerMembershipId}
                 onInviteMember={() => {
-                  void inviteMemberMutation.mutateAsync();
+                  void inviteMember.createModel({
+                    department: inviteDepartment,
+                    email: inviteEmail,
+                    fullName: inviteFullName,
+                    managerMembershipId: inviteManagerMembershipId || undefined,
+                    organizationId: selectedOrganizationId!,
+                    title: inviteTitle,
+                  });
                 }}
                 onInviteTitleChange={setInviteTitle}
                 onOrganizationNameChange={setOrganizationName}
                 onRenameOrganization={() => {
-                  void renameOrganizationMutation.mutateAsync();
+                  if (!selectedOrganizationId) return;
+                  void renameOrg.updateModel(selectedOrganizationId, { name: organizationName });
                 }}
                 organizationName={organizationName}
                 organizationSlug={workspaceQuery.data.organization.slug}
@@ -330,12 +308,16 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
               <MembersSection
                 filteredHierarchy={filteredHierarchy}
                 filteredMembers={filteredMembers}
-                isDeletingMember={deleteMemberMutation.isPending}
-                isSavingMember={updateMemberMutation.isPending}
+                isDeletingMember={deleteMember.isPending}
+                isSavingMember={isSavingMember}
                 members={members}
-                onDeleteMember={async (targetMember) => deleteMemberMutation.mutateAsync(targetMember)}
+                onDeleteMember={async (targetMember) => {
+                  const memberId = targetMember._id;
+                  if (!memberId) throw new Error('Missing member id.');
+                  await deleteMember.deleteModel(memberId);
+                }}
                 onMemberSearchChange={setSearch}
-                onSaveMember={async (memberId, draft) => updateMemberMutation.mutateAsync({ draft, memberId })}
+                onSaveMember={handleSaveMember}
                 roleTemplates={workspaceQuery.data.roleTemplates}
                 search={search}
                 sessionEmail={session.user.email}
