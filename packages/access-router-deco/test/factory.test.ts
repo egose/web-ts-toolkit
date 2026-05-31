@@ -17,7 +17,7 @@ vi.mock('@web-ts-toolkit/access-router', () => {
 });
 
 import acl from '@web-ts-toolkit/access-router';
-import { EgoseFactory } from '../src/factory';
+import { EgoseFactory, EgoseFactoryStatic } from '../src/factory';
 import {
   Module,
   Router,
@@ -586,6 +586,40 @@ describe('EgoseFactory', () => {
       EgoseFactory.bootstrap(TestModule, createMockExpressApp());
       expect(mockAcl.createRouter).toHaveBeenCalledWith('User', {});
       expect(mockAcl.setModelOption).toHaveBeenCalledWith('User', 'listHardLimit', 200);
+    });
+
+    it('should only register first matching hook per method', () => {
+      class UserRouter {
+        handler() {
+          return {};
+        }
+      }
+      applyMethodDecorator(DocPermissions('create'), UserRouter.prototype, 'handler');
+      applyMethodDecorator(Validate('create'), UserRouter.prototype, 'handler');
+      Router('User')(UserRouter);
+
+      const TestModule = class {};
+      Module({ routers: [UserRouter] })(TestModule);
+
+      EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+
+      const docCall = mockAcl.setModelOption.mock.calls.find(
+        (call) => call[0] === 'User' && typeof call[1] === 'string' && call[1].startsWith('docPermissions'),
+      );
+      const validateCall = mockAcl.setModelOption.mock.calls.find(
+        (call) => call[0] === 'User' && typeof call[1] === 'string' && call[1].startsWith('validate'),
+      );
+
+      expect(docCall).toBeDefined();
+      expect(validateCall).toBeUndefined();
+    });
+  });
+
+  describe('EgoseFactoryStatic.create', () => {
+    it('should create independent instances', () => {
+      const a = EgoseFactoryStatic.create();
+      const b = EgoseFactoryStatic.create();
+      expect(a).not.toBe(b);
     });
   });
 });

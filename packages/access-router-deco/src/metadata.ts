@@ -53,18 +53,19 @@ export const getMethodMetadataKeysStartWith = (obj: object, method: string, star
 
 export function* getAllMethodNames(obj: object): IterableIterator<string> {
   const seen = new Set<string>();
+  let current: object | null = obj;
   const isMethod = (prop: string) => {
     if (seen.has(prop)) return false;
-    const descriptor = Object.getOwnPropertyDescriptor(obj, prop);
+    const descriptor = Object.getOwnPropertyDescriptor(current!, prop);
     if (descriptor?.set || descriptor?.get) return false;
-    return !isConstructor(prop) && isFunction((obj as any)[prop]);
+    return !isConstructor(prop) && isFunction((current as any)[prop]);
   };
   do {
-    for (const name of Object.getOwnPropertyNames(obj).filter(isMethod)) {
+    for (const name of Object.getOwnPropertyNames(current).filter(isMethod)) {
       seen.add(name);
       yield name;
     }
-  } while ((obj = Reflect.getPrototypeOf(obj)) && obj !== Object.prototype);
+  } while ((current = Reflect.getPrototypeOf(current)) && current !== Object.prototype);
 }
 
 export const isRootRouter = (obj: object) => !!getMetadata(obj, ROOT_ROUTER_WATERMARK);

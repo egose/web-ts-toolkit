@@ -357,21 +357,12 @@ importers:
       express:
         specifier: ^5.2.1
         version: 5.2.1
-      mongodb-memory-server:
-        specifier: ^11.1.0
-        version: 11.1.0(socks@2.8.8)
-      mongoose:
-        specifier: ^9.6.2
-        version: 9.6.2(socks@2.8.8)
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
-      vitest:
-        specifier: ^4.1.7
-        version: 4.1.7(@types/node@25.9.1)(jsdom@29.1.1(@noble/hashes@1.8.0))(vite@8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(sass-embedded@1.100.0)(sass@1.100.0)(terser@5.48.0)(tsx@4.22.3))
 
   packages/express-json-router:
     dependencies:

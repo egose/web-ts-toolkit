@@ -41,7 +41,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['packages/deco/**/*.{ts,mts,cts,js,mjs,cjs}'],
+    files: ['packages/access-router-deco/**/*.{ts,mts,cts,js,mjs,cjs}'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unsafe-function-type': 'off',
