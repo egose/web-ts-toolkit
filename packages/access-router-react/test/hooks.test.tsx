@@ -595,7 +595,7 @@ describe('createModelHooks', () => {
         deleteResult = await result.current.deleteModel('1');
       });
       expect(deleteResult?.success).toBe(true);
-      expect(service.delete).toHaveBeenCalledWith('1');
+      expect(service.delete).toHaveBeenCalledWith('1', undefined);
     });
 
     it('calls onDeleted callback', async () => {
