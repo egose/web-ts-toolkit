@@ -22,7 +22,7 @@
     "test": "pnpm --filter @web-ts-toolkit/access-router-deco... build && vitest run --config vitest.config.ts"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "main": "dist/index.js",
   "module": "dist/index.mjs",
