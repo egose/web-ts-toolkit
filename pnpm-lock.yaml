@@ -244,9 +244,6 @@ importers:
       '@web-ts-toolkit/express-json-router':
         specifier: workspace:*
         version: link:../express-json-router
-      '@web-ts-toolkit/moo':
-        specifier: workspace:*
-        version: link:../moo
       '@web-ts-toolkit/utils':
         specifier: workspace:*
         version: link:../utils
