@@ -16,7 +16,7 @@ import {
   uniq,
 } from '@web-ts-toolkit/utils';
 import { getModelOption } from '../options';
-import { iterateQuery, setDocValue, genPagination, normalizeSelect, populateDoc } from '../helpers';
+import { iterateQuery, setDocValue } from '../helpers';
 import {
   ErrorResult,
   Filter,
@@ -354,7 +354,9 @@ export class Base<TModel = unknown> {
     return ret;
   }
 
-  private async handleDate(val: unknown, key: string) {
+  private handleDate(val: unknown, key: string) {
+    if (val instanceof Date) return val;
+    if (typeof val === 'string' || typeof val === 'number') return new Date(val);
     return new Date();
   }
 }

@@ -2,13 +2,13 @@ import { Document } from 'mongoose';
 import {
   castArray,
   compact,
-  flatten,
-  intersectionBy,
+  forEach,
+  get,
   isArray,
   isBoolean,
   isFunction,
   isNil,
-  map,
+  isPlainObject,
   omit,
   pick,
   set,
@@ -106,7 +106,7 @@ const assertModelDocument = <TModel>(
 export class Service<TModel = unknown> extends Base<TModel> {
   protected model: Model;
   protected options: ModelRouterOptions<TModel>;
-  protected defaults: Defaults<TModel>;
+  public defaults: Defaults<TModel>;
   protected baseFields: string[];
   protected baseFieldsExt: string[];
 
