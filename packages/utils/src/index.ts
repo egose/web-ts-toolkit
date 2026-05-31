@@ -33,6 +33,7 @@ export { default as mapValues } from './mapValues';
 export { default as mapValuesAsync } from './mapValuesAsync';
 export { default as noop } from './noop';
 export { default as omit } from './omit';
+export { default as parseBooleanString } from './parseBooleanString';
 export { default as orderBy } from './orderBy';
 export { default as padEnd } from './padEnd';
 export { default as pick } from './pick';
