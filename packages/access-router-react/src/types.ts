@@ -105,13 +105,13 @@ export interface UseUpdateModelResult<T extends Document> {
 
 // ── Delete ──
 
-export interface UseDeleteModelOptions<T extends Document> {
+export interface UseDeleteModelOptions {
   onDeleted?: (result: Response<string>) => void;
   onError?: (error: ServiceError) => void;
   onSettled?: (result: Response<string> | null, error: ServiceError | null) => void;
 }
 
-export interface UseDeleteModelResult<T extends Document> {
+export interface UseDeleteModelResult {
   isPending: boolean;
   error: ServiceError | null;
   deleteModel: (id: string) => Promise<Response<string>>;
@@ -129,7 +129,7 @@ export interface UseCountModelOptions<T extends Document> {
   onSettled?: (result: Response<number> | null, error: ServiceError | null) => void;
 }
 
-export interface UseCountModelResult<T extends Document> {
+export interface UseCountModelResult {
   data: number | null;
   isLoading: boolean;
   error: ServiceError | null;

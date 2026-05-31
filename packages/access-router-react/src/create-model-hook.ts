@@ -68,7 +68,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
     const [error, setError] = useState<ServiceError | null>(null);
-    const [controllerRef, setController] = useAbortController();
+    const [, setController] = useAbortController();
     const mountRef = useRef(true);
     const initialDataRef = useRef(initialData);
     initialDataRef.current = initialData;
@@ -183,7 +183,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
     const [error, setError] = useState<ServiceError | null>(null);
-    const [controllerRef, setController] = useAbortController();
+    const [, setController] = useAbortController();
     const mountRef = useRef(true);
     const initialDataRef = useRef(initialData);
     initialDataRef.current = initialData;
@@ -408,7 +408,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     return { data, isPending, error, updateModel, reset };
   }
 
-  function useDeleteModel(options: UseDeleteModelOptions<T> = {}): UseDeleteModelResult<T> {
+  function useDeleteModel(options: UseDeleteModelOptions = {}): UseDeleteModelResult {
     const { onDeleted, onError, onSettled } = options;
     const [isPending, setIsPending] = useState(false);
     const [error, setError] = useState<ServiceError | null>(null);
@@ -455,12 +455,12 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     return { isPending, error, deleteModel, reset };
   }
 
-  function useCountModel(options: UseCountModelOptions<T> = {}): UseCountModelResult<T> {
+  function useCountModel(options: UseCountModelOptions<T> = {}): UseCountModelResult {
     const { advanced, filter, enabled = true, onCompleted, onError, onSettled } = options;
     const [data, setData] = useState<number | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<ServiceError | null>(null);
-    const [controllerRef, setController] = useAbortController();
+    const [, setController] = useAbortController();
     const mountRef = useRef(true);
 
     const doFetch = useCallback(
