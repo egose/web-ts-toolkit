@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { Model, type ModelService } from '../src';
+import { Model, replaceItemById, removeItemById, type ModelService } from '../src';
 import { setupIntegrationSuite, type User } from './support/integration-suite';
 
 interface CollisionDoc {
@@ -115,5 +115,64 @@ describe('access-router-client Model integration', () => {
     expect(created.success).toBe(true);
     expect(created.data.role).toBe('author');
     expect(created.data.statusHistory[0]).toMatchObject({ label: 'drafted', flag: 'purple' });
+  });
+
+  describe('replaceItemById', () => {
+    it('replaces an item by _id with merge', () => {
+      const items = [
+        { _id: '1', name: 'a' },
+        { _id: '2', name: 'b' },
+        { _id: '3', name: 'c' },
+      ];
+      const result = replaceItemById(items, { _id: '2', name: 'updated' });
+      expect(result).toEqual([
+        { _id: '1', name: 'a' },
+        { _id: '2', name: 'updated' },
+        { _id: '3', name: 'c' },
+      ]);
+    });
+
+    it('replaces an item by _id without merge', () => {
+      const items = [
+        { _id: '1', name: 'a', extra: true },
+        { _id: '2', name: 'b', extra: true },
+      ];
+      const result = replaceItemById(items, { _id: '2', name: 'replaced' }, { merge: false });
+      expect(result[1]).toEqual({ _id: '2', name: 'replaced' });
+      expect(result[1]).not.toHaveProperty('extra');
+    });
+
+    it('returns original items when _id not found', () => {
+      const items = [{ _id: '1', name: 'a' }];
+      const result = replaceItemById(items, { _id: '99', name: 'nope' });
+      expect(result).toEqual([{ _id: '1', name: 'a' }]);
+    });
+  });
+
+  describe('removeItemById', () => {
+    it('removes an item by _id', () => {
+      const items = [
+        { _id: '1', name: 'a' },
+        { _id: '2', name: 'b' },
+        { _id: '3', name: 'c' },
+      ];
+      const result = removeItemById(items, { _id: '2', name: 'b' });
+      expect(result).toEqual([
+        { _id: '1', name: 'a' },
+        { _id: '3', name: 'c' },
+      ]);
+    });
+
+    it('returns all items when _id not found', () => {
+      const items = [{ _id: '1', name: 'a' }];
+      const result = removeItemById(items, { _id: '99', name: 'nope' });
+      expect(result).toEqual([{ _id: '1', name: 'a' }]);
+    });
+
+    it('returns empty array when all items removed', () => {
+      const items = [{ _id: '1', name: 'a' }];
+      const result = removeItemById(items, { _id: '1', name: 'a' });
+      expect(result).toEqual([]);
+    });
   });
 });

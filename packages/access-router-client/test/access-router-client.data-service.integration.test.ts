@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { CustomHeaders } from '../src';
 import { setupIntegrationSuite } from './support/integration-suite';
 
 const suite = setupIntegrationSuite();
@@ -112,5 +113,47 @@ describe('access-router-client data-service and wrap integration', () => {
       pathParams: { name: 'gamma' },
       queryParams: { mode: 'drop' },
     });
+  });
+
+  it('exposes all CustomHeaders enum members with correct values', () => {
+    expect(CustomHeaders.TotalCount).toBe('wtt-total-count');
+    expect(CustomHeaders.ReturnedCount).toBe('wtt-returned-count');
+    expect(CustomHeaders.Page).toBe('wtt-page');
+    expect(CustomHeaders.PageSize).toBe('wtt-page-size');
+    expect(CustomHeaders.TotalPages).toBe('wtt-total-pages');
+    expect(CustomHeaders.HasNextPage).toBe('wtt-has-next-page');
+    expect(CustomHeaders.HasPreviousPage).toBe('wtt-has-previous-page');
+  });
+
+  it('reads page-related extra headers from list responses', async () => {
+    const list = await services.petService.list(
+      { limit: 1, page: 1 },
+      { includeCount: true, includeExtraHeaders: true },
+      { headers: { user: 'admin' } },
+    );
+
+    expect(list.success).toBe(true);
+    expect(list.headers).toBeDefined();
+    expect(list.totalCount).toBe(3);
+
+    const totalCount = list.headers[CustomHeaders.TotalCount];
+    if (totalCount != null) {
+      expect(Number(totalCount)).toBe(3);
+    }
+
+    const page = list.headers[CustomHeaders.Page];
+    if (page != null) {
+      expect(Number(page)).toBeGreaterThanOrEqual(1);
+    }
+
+    const pageSize = list.headers[CustomHeaders.PageSize];
+    if (pageSize != null) {
+      expect(Number(pageSize)).toBeGreaterThanOrEqual(1);
+    }
+
+    const totalPages = list.headers[CustomHeaders.TotalPages];
+    if (totalPages != null) {
+      expect(Number(totalPages)).toBeGreaterThanOrEqual(1);
+    }
   });
 });

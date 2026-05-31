@@ -1,11 +1,26 @@
 import { AxiosHeaders, AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { CACHE_HEADER } from '../constants';
+import { normalizeConfigValue } from './cache-utils';
 
 class SimpleCache<T> {
   private cache = new Map<string, T>();
+  private timers = new Map<string, ReturnType<typeof setTimeout>>();
 
-  set(key: string, value: T): void {
+  set(key: string, value: T, ttl?: number): void {
     this.cache.set(key, value);
+
+    if (ttl && ttl > 0) {
+      const existing = this.timers.get(key);
+      if (existing) clearTimeout(existing);
+
+      this.timers.set(
+        key,
+        setTimeout(() => {
+          this.cache.delete(key);
+          this.timers.delete(key);
+        }, ttl),
+      );
+    }
   }
 
   get(key: string): T | undefined {
@@ -17,29 +32,14 @@ class SimpleCache<T> {
   }
 
   delete(key: string): boolean {
+    const timer = this.timers.get(key);
+    if (timer) {
+      clearTimeout(timer);
+      this.timers.delete(key);
+    }
     return this.cache.delete(key);
   }
 }
-
-const normalizeCacheValue = (value: unknown): unknown => {
-  if (value == null) return value;
-
-  if (Array.isArray(value)) {
-    return value.map((item) => normalizeCacheValue(item));
-  }
-
-  if (typeof value === 'object') {
-    return Object.entries(value)
-      .filter(([, item]) => item !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .reduce<Record<string, unknown>>((acc, [key, item]) => {
-        acc[key] = normalizeCacheValue(item);
-        return acc;
-      }, {});
-  }
-
-  return value;
-};
 
 const IGNORED_CACHE_HEADERS = new Set([
   'accept',
@@ -69,7 +69,7 @@ const serializeHeaders = (headers: InternalAxiosRequestConfig['headers']) => {
       return acc;
     }, {});
 
-  return JSON.stringify(normalizeCacheValue(normalizedHeaders));
+  return JSON.stringify(normalizeConfigValue(normalizedHeaders));
 };
 
 function generateCacheKey(config: InternalAxiosRequestConfig) {
@@ -82,12 +82,12 @@ function generateCacheKey(config: InternalAxiosRequestConfig) {
 
 function generateParamKey(params?: Record<string, unknown>) {
   if (!params) return '';
-  return JSON.stringify(normalizeCacheValue(params));
+  return JSON.stringify(normalizeConfigValue(params));
 }
 
 function generateDataKey(data: unknown) {
   if (!data) return '';
-  return typeof data === 'string' ? data : JSON.stringify(normalizeCacheValue(data));
+  return typeof data === 'string' ? data : JSON.stringify(normalizeConfigValue(data));
 }
 
 export function useCacheInterceptors(instance: AxiosInstance, cacheTTL: number) {
@@ -122,8 +122,7 @@ export function useCacheInterceptors(instance: AxiosInstance, cacheTTL: number) 
       if (response.config.headers[CACHE_HEADER] === 'false') return response;
 
       const key = generateCacheKey(response.config);
-      store.set(key, response);
-      setTimeout(() => store.delete(key), cacheTTL);
+      store.set(key, response, cacheTTL);
       return response;
     },
     (error) => Promise.reject(error),

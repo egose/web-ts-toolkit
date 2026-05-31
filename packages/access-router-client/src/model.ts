@@ -100,8 +100,6 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     return this.toObject();
   }
 
-  // async validate() {}
-
   private updateModel(data: Partial<TData>) {
     assignObject(this._data, data);
     this.definePublicDataProps();
