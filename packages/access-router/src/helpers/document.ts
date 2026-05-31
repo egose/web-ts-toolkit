@@ -9,11 +9,11 @@ type DocumentLike = Document & { _doc: Record<string, unknown> };
 type DocValue = DocumentLike | Record<string, unknown>;
 type LegacyPopulateResult = { execPopulate?: () => Promise<unknown> };
 
-export function getDocValue(doc: DocValue, path: string, defalutValue?: unknown) {
+export function getDocValue(doc: DocValue, path: string, defaultValue?: unknown) {
   if (isDocument(doc)) {
-    return get(doc._doc, path, defalutValue);
+    return get(doc._doc, path, defaultValue);
   } else if (isPlainObject(doc)) {
-    return get(doc, path, defalutValue);
+    return get(doc, path, defaultValue);
   }
 }
 
@@ -28,10 +28,6 @@ export function setDocValue(doc: unknown, path: string, value: unknown) {
 export function getDocPermissions(modelName: string, doc: unknown) {
   const docPermissionField = getModelOption(modelName, 'documentPermissionField');
   return getDocValue(doc as DocValue, docPermissionField, {});
-}
-
-export function getModelKeys(doc: unknown) {
-  return Object.keys(isDocument(doc) ? doc._doc : doc);
 }
 
 export function toObject<T>(doc: T | DocumentLike): T | Record<string, unknown> {

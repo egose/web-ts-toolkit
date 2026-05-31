@@ -66,7 +66,6 @@ class Model {
     if (sort) builder.sort(sort);
     if (populate) builder.populate(populate as mongoose.PopulateOptions | Array<string | mongoose.PopulateOptions>);
     if (lean) builder.lean();
-    // builder = builder.setOptions({ sanitizeFilter: true });
 
     return builder;
   }
