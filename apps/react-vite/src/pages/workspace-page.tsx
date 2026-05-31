@@ -86,7 +86,7 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
   // ── access-router-react hooks ──
 
   const createOrg = useCreateOrg({
-    onCreated: async (result) => {
+    onSuccess: async (result) => {
       setNewOrganizationName('');
       await onRefreshSession();
       await queryClient.invalidateQueries({ queryKey: ['workspace'] });
@@ -97,14 +97,14 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
   });
 
   const renameOrg = useUpdateOrg({
-    onUpdated: async () => {
+    onSuccess: async () => {
       await onRefreshSession();
       await queryClient.invalidateQueries({ queryKey: ['workspace', selectedOrganizationId] });
     },
   });
 
   const inviteMember = useCreateMember({
-    onCreated: async () => {
+    onSuccess: async () => {
       setInviteDepartment('');
       setInviteEmail('');
       setInviteFullName('');
@@ -115,7 +115,7 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
   });
 
   const deleteMember = useDeleteMember({
-    onDeleted: async () => {
+    onSuccess: async () => {
       await onRefreshSession();
       await queryClient.invalidateQueries({ queryKey: ['workspace', selectedOrganizationId] });
     },
