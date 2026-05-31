@@ -13,7 +13,11 @@
       "@web-ts-toolkit/access-router": ["packages/access-router/src/index.ts"],
       "@web-ts-toolkit/access-router/*": ["packages/access-router/src/*"],
       "@web-ts-toolkit/moo": ["packages/moo/src/index.ts"],
-      "@web-ts-toolkit/moo/*": ["packages/moo/src/*"]
+      "@web-ts-toolkit/moo/*": ["packages/moo/src/*"],
+      "@web-ts-toolkit/access-router-client": ["packages/access-router-client/src/index.ts"],
+      "@web-ts-toolkit/access-router-client/*": ["packages/access-router-client/src/*"],
+      "@web-ts-toolkit/access-router-react": ["packages/access-router-react/src/index.ts"],
+      "@web-ts-toolkit/access-router-react/*": ["packages/access-router-react/src/*"]
     }
   }
 }

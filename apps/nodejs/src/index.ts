@@ -1,152 +1,15 @@
-import express from 'express';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import acl, { combineRoutes, permissionsPlugin } from '@web-ts-toolkit/access-router';
-
-const port = Number(process.env.PORT ?? 3000);
-const modelName = 'SampleUser';
-
-type Fruit = {
-  id: string;
-  name: string;
-  color: string;
-  stock: number;
-  public: boolean;
-};
-
-type User = {
-  name: string;
-  role: string;
-  email: string;
-  public: boolean;
-};
-
-const fruitData: Fruit[] = [
-  { id: 'apple', name: 'Apple', color: 'red', stock: 12, public: true },
-  { id: 'banana', name: 'Banana', color: 'yellow', stock: 8, public: true },
-  { id: 'dragonfruit', name: 'Dragon Fruit', color: 'pink', stock: 2, public: false },
-];
-
-acl.setGlobalOptions({
-  requestPermissionField: '_permissions',
-  globalPermissions(req) {
-    req.requestId = String(req.headers['x-request-id'] ?? 'sample-request');
-    return req.headers.user === 'admin' ? ['isAdmin'] : [];
-  },
-});
-
-const fruitRouter = acl.createDataRouter('sample-fruit', {
-  basePath: '/fruit',
-  idField: 'id',
-  operationAccess: {
-    list: true,
-    read: true,
-  },
-  data: fruitData,
-  permissionSchema: {
-    id: true,
-    name: true,
-    color: true,
-    stock: 'isAdmin',
-    public: true,
-  },
-  decorate(item, permissions) {
-    if (permissions.has('isAdmin') && this.requestId) {
-      return { ...item, requestId: this.requestId };
-    }
-
-    return item;
-  },
-  baseFilter: {
-    list(permissions) {
-      return permissions.has('isAdmin') ? {} : { public: true };
-    },
-    read(permissions) {
-      return permissions.has('isAdmin') ? {} : { public: true };
-    },
-  },
-});
-
-const fruitServiceTypecheck = fruitRouter.getService(
-  {} as express.Request as Parameters<typeof fruitRouter.getService>[0],
-);
-void fruitServiceTypecheck;
-
-const rootRouter = acl.createRouter({
-  basePath: '/batch',
-  operationAccess: true,
-});
-
-async function createUserRouter() {
-  const schema = new mongoose.Schema({
-    name: String,
-    role: String,
-    email: String,
-    public: Boolean,
-  });
-
-  schema.plugin(permissionsPlugin, { modelName });
-
-  const UserModel = mongoose.model<User>(modelName, schema);
-
-  const userRouter = acl.createRouter(UserModel, {
-    basePath: '/users',
-    resolveIdFilter(id: string) {
-      return { name: id };
-    },
-    operationAccess: {
-      list: true,
-      read: true,
-      create: 'isAdmin',
-      update: 'isAdmin',
-    },
-    permissionSchema: {
-      name: { list: true, read: true, create: true, update: true },
-      role: { list: 'isAdmin', read: 'isAdmin', create: 'isAdmin', update: 'isAdmin' },
-      email: { list: 'isAdmin', read: 'isAdmin', create: 'isAdmin', update: 'isAdmin' },
-      public: { list: true, read: true, create: true, update: true },
-    },
-    baseFilter: {
-      list(permissions) {
-        return permissions.has('isAdmin') ? {} : { public: true };
-      },
-      read(permissions) {
-        return permissions.has('isAdmin') ? {} : { public: true };
-      },
-    },
-    decorate(doc, permissions) {
-      if (permissions.has('isAdmin') && this.requestId) {
-        return { ...doc, requestId: this.requestId };
-      }
-
-      return doc;
-    },
-  });
-
-  userRouter.afterDelete(function (doc, permissions, context) {
-    console.log(doc.name);
-    console.log(permissions.has('isAdmin'));
-    console.log(context.originalDocumentSnapshot);
-  });
-
-  const typedService = userRouter.getService({} as express.Request as Parameters<typeof userRouter.getService>[0]);
-  void typedService;
-
-  await mongoose.model(modelName).create([
-    { name: 'admin', role: 'admin', email: 'admin@example.com', public: false },
-    { name: 'alice', role: 'user', email: 'alice@example.com', public: true },
-    { name: 'bob', role: 'user', email: 'bob@example.com', public: false },
-  ]);
-
-  return userRouter;
-}
+import { createApp } from './app';
+import { databaseName, port } from './domain';
+import { seedDemoData } from './session';
 
 async function start() {
   const mongoServer = await MongoMemoryServer.create();
-  await mongoose.connect(mongoServer.getUri(), { dbName: 'access-router-sample' });
+  await mongoose.connect(mongoServer.getUri(), { dbName: databaseName });
+  await seedDemoData();
 
-  const userRouter = await createUserRouter();
-  const app = express();
+  const app = createApp();
 
   const shutdown = async () => {
     await mongoose.disconnect();
@@ -161,38 +24,9 @@ async function start() {
     void shutdown();
   });
 
-  app.use(express.json());
-
-  app.get('/', (_req, res) => {
-    res.json({
-      name: 'nodejs-sample',
-      description: 'TypeScript Express sample app for trying @web-ts-toolkit packages',
-      endpoints: {
-        batch: 'POST /batch',
-        fruitList: 'GET /fruit',
-        fruitRead: 'GET /fruit/:id',
-        fruitAdvancedList: 'POST /fruit/__query',
-        fruitAdvancedRead: 'POST /fruit/__query/:id',
-        userList: 'GET /users',
-        userRead: 'GET /users/:id',
-        userCreate: 'POST /users',
-        userUpdate: 'PATCH /users/:id',
-      },
-      notes: [
-        'Send the header user: admin to view admin-only fields and non-public rows.',
-        'Guests only see public fruit and public users.',
-        'The /users routes are backed by mongodb-memory-server and seeded on startup.',
-        'The /batch route shows the root router batching model and data operations.',
-      ],
-    });
-  });
-
-  app.use(combineRoutes(fruitRouter, userRouter, rootRouter));
-
   app.listen(port, () => {
-    console.log(`access-router sample listening on http://localhost:${port}`);
-    console.log('Try GET /fruit, GET /users, GET /users/alice, and POST /batch');
-    console.log('Send header user: admin to see admin-only fields and private records.');
+    console.log(`org-access example API listening on http://localhost:${port}`);
+    console.log('Demo users: owner@example.com, ada@example.com, maya@example.com, sam@example.com');
   });
 }
 
