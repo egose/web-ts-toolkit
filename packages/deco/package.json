@@ -1,0 +1,57 @@
+{
+  "name": "@web-ts-toolkit/access-router-deco",
+  "version": "0.0.0-PLACEHOLDER",
+  "description": "TypeScript decorators for @web-ts-toolkit/access-router",
+  "license": "MIT",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anomalyco/opencode",
+    "directory": "packages/deco"
+  },
+  "keywords": [
+    "express",
+    "mongoose",
+    "access control",
+    "api endpoints",
+    "decorators",
+    "access-router"
+  ],
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "test": "pnpm --filter @web-ts-toolkit/access-router-deco... build && vitest run --config vitest.config.ts"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "peerDependencies": {
+    "@web-ts-toolkit/access-router": "workspace:*",
+    "express": ">=5.0.0",
+    "reflect-metadata": "^0.1.13 || ^0.2.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^25.6.0",
+    "@web-ts-toolkit/access-router": "workspace:*",
+    "express": "^5.2.1",
+    "mongodb-memory-server": "^11.1.0",
+    "mongoose": "^9.6.2",
+    "reflect-metadata": "^0.2.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
+  }
+}

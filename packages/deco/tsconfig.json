@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2018",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": false,
+    "ignoreDeprecations": "6.0",
+    "declaration": true,
+    "declarationMap": false,
+    "sourceMap": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "types": ["node", "reflect-metadata"],
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}
