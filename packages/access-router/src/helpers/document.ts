@@ -1,13 +1,17 @@
-import { Document, Schema } from 'mongoose';
-import { get, isArray, isPlainObject, isPromise, isString, pick, set } from '@web-ts-toolkit/utils';
-import { isDocument } from '../lib';
+import { Document } from 'mongoose';
+import { get, isPlainObject, pick, set } from '@web-ts-toolkit/utils';
 import { getModelOption } from '../options';
 import { SubPopulate } from '../interfaces';
 import { normalizeSelect } from './query';
+import { isArray, isPromise, isString } from '@web-ts-toolkit/utils';
 
 type DocumentLike = Document & { _doc: Record<string, unknown> };
 type DocValue = DocumentLike | Record<string, unknown>;
 type LegacyPopulateResult = { execPopulate?: () => Promise<unknown> };
+
+function isDocument(doc: unknown): doc is DocumentLike {
+  return doc instanceof Document;
+}
 
 export function getDocValue(doc: DocValue, path: string, defaultValue?: unknown) {
   if (isDocument(doc)) {

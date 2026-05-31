@@ -4,5 +4,4 @@ export {
   formatUpsertCreatedData,
 } from '../http/response-pipelines/list-response';
 
-export const parseBooleanString = (str: string | undefined, defaultValue?: boolean) =>
-  str ? str === 'true' : defaultValue;
+export { parseBooleanString } from '@web-ts-toolkit/utils';
