@@ -5,8 +5,6 @@ export interface SubQueryOptions {
   compact?: boolean;
 }
 
-export type sqOptions = SubQueryOptions;
-
 export interface ListArgs {
   skip?: number;
   limit?: number;
