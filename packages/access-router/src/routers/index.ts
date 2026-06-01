@@ -7,6 +7,7 @@ export * from './root-router';
 export * from './data-router';
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import { logger } from '../logger';
+export { createOpenApiRouter } from '../openapi';
 
 type AccessRouterInstance = ModelRouter<any> | DataRouter<any> | RootRouter;
 

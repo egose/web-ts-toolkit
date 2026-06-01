@@ -18,9 +18,27 @@ import {
 import { handleResultError } from '../helpers';
 import { parseBooleanString } from './shared';
 import type { ModelRouterRouteContext } from './model-router-route-context';
+import {
+  defineOpenApiSchemaResolver,
+  getNestedOpenApiSchemaDataSource,
+  patchOpenApiObjectSchema,
+  unwrapNestedOpenApiSchemaSource,
+} from '../openapi/schemas';
 
 export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContext<TModel>) {
   const { router, options } = context;
+  const getAdvancedCreateOpenApiBody = () => {
+    const advancedCreateSchema = context.getRequestSchema('requestSchemas.advancedCreate');
+    const dataSchema =
+      context.getRequestSchema('requestSchemas.advancedCreate.data') ??
+      getNestedOpenApiSchemaDataSource(advancedCreateSchema);
+    const bodySchema = unwrapNestedOpenApiSchemaSource(
+      context.getRequestSchema('requestSchemas.advancedCreate.default') ?? advancedCreateSchema,
+      advancedCreateBodySchema,
+    );
+
+    return dataSchema ? patchOpenApiObjectSchema(bodySchema, { data: dataSchema }) : bodySchema;
+  };
 
   router.get('', async (req: ModelRequest) => {
     await context.assertAllowed(req, 'list');
@@ -46,6 +64,13 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
     handleResultError(result);
 
     return formatModelListResponse(req, result, includeCount, includeExtraHeaders);
+  });
+  context.registerOpenApiRoute({
+    method: 'get',
+    path: '',
+    operationId: `${context.modelName}.list`,
+    summary: `List ${context.modelName} documents`,
+    query: requestSchemas.listQuery,
   });
 
   router.post(`/${options.queryRouteSegment}`, async (req: ModelRequest) => {
@@ -78,6 +103,13 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
 
     return formatModelListResponse(req, result, includeCount, includeExtraHeaders);
   });
+  context.registerOpenApiRoute({
+    method: 'post',
+    path: `/${options.queryRouteSegment}`,
+    operationId: `${context.modelName}.listAdvanced`,
+    summary: `Advanced list ${context.modelName} documents`,
+    body: defineOpenApiSchemaResolver(() => context.getRequestSchema('requestSchemas.advancedList') ?? listBodySchema),
+  });
 
   router.post('', async (req: ModelRequest) => {
     await context.assertAllowed(req, 'create');
@@ -95,6 +127,14 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
     handleResultError(result);
 
     return formatModelCreatedResponse(result);
+  });
+  context.registerOpenApiRoute({
+    method: 'post',
+    path: '',
+    operationId: `${context.modelName}.create`,
+    summary: `Create a ${context.modelName} document`,
+    query: requestSchemas.createQuery,
+    body: defineOpenApiSchemaResolver(() => context.getRequestSchema('requestSchemas.create') ?? createBodySchema),
   });
 
   router.post(`/${options.mutationRouteSegment}`, async (req: ModelRequest) => {
@@ -131,6 +171,14 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
 
     return formatModelCreatedResponse(result);
   });
+  context.registerOpenApiRoute({
+    method: 'post',
+    path: `/${options.mutationRouteSegment}`,
+    operationId: `${context.modelName}.createAdvanced`,
+    summary: `Advanced create a ${context.modelName} document`,
+    query: requestSchemas.createQuery,
+    body: defineOpenApiSchemaResolver(getAdvancedCreateOpenApiBody),
+  });
 
   router.get('/new', async (req: ModelRequest) => {
     const svc = context.getPublicService(req);
@@ -139,5 +187,11 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
     handleResultError(result);
 
     return unwrapServiceData(result);
+  });
+  context.registerOpenApiRoute({
+    method: 'get',
+    path: '/new',
+    operationId: `${context.modelName}.new`,
+    summary: `Get a new ${context.modelName} document template`,
   });
 }

@@ -15,6 +15,8 @@ import { setModelCollectionRoutes } from './model-router-collection-routes';
 import { setModelDocumentRoutes } from './model-router-document-routes';
 import { setModelSubDocumentRoutes } from './model-router-subdocument-routes';
 import type { RequestSchemaLike } from '../validation/types';
+import type { OpenApiRouteDescriptor } from '../openapi';
+import { registerOpenApiRoute } from '../openapi/route-registration';
 
 const clientErrors = JsonRouter.clientErrors;
 
@@ -76,6 +78,10 @@ export class ModelRouter<TModel = unknown> {
     if (!allowed) throw new clientErrors.UnauthorizedError();
   }
 
+  private registerOpenApiRoute(route: OpenApiRouteDescriptor) {
+    registerOpenApiRoute(this.runtime, this.fullBasePath, this.modelName, route);
+  }
+
   ///////////////////////
   // Collection Routes //
   ///////////////////////
@@ -87,6 +93,7 @@ export class ModelRouter<TModel = unknown> {
       getRequestSchema: this.getRequestSchema.bind(this),
       getPublicService: this.getPublicService.bind(this),
       assertAllowed: this.assertAllowed.bind(this),
+      registerOpenApiRoute: this.registerOpenApiRoute.bind(this),
     });
   }
 
@@ -101,6 +108,7 @@ export class ModelRouter<TModel = unknown> {
       getRequestSchema: this.getRequestSchema.bind(this),
       getPublicService: this.getPublicService.bind(this),
       assertAllowed: this.assertAllowed.bind(this),
+      registerOpenApiRoute: this.registerOpenApiRoute.bind(this),
     });
   }
 
@@ -115,6 +123,7 @@ export class ModelRouter<TModel = unknown> {
       getRequestSchema: this.getRequestSchema.bind(this),
       getPublicService: this.getPublicService.bind(this),
       assertAllowed: this.assertAllowed.bind(this),
+      registerOpenApiRoute: this.registerOpenApiRoute.bind(this),
     });
   }
 

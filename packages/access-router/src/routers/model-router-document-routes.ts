@@ -24,9 +24,39 @@ import {
 import { handleResultError } from '../helpers';
 import { parseBooleanString } from './shared';
 import type { ModelRouterRouteContext } from './model-router-route-context';
+import {
+  defineOpenApiSchemaResolver,
+  getNestedOpenApiSchemaDataSource,
+  patchOpenApiObjectSchema,
+  unwrapNestedOpenApiSchemaSource,
+} from '../openapi/schemas';
 
 export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<TModel>) {
   const { router, options, modelName } = context;
+  const getAdvancedUpdateOpenApiBody = () => {
+    const advancedUpdateSchema = context.getRequestSchema('requestSchemas.advancedUpdate');
+    const dataSchema =
+      context.getRequestSchema('requestSchemas.advancedUpdate.data') ??
+      getNestedOpenApiSchemaDataSource(advancedUpdateSchema);
+    const bodySchema = unwrapNestedOpenApiSchemaSource(
+      context.getRequestSchema('requestSchemas.advancedUpdate.default') ?? advancedUpdateSchema,
+      advancedUpdateBodySchema,
+    );
+
+    return dataSchema ? patchOpenApiObjectSchema(bodySchema, { data: dataSchema }) : bodySchema;
+  };
+  const getAdvancedUpsertOpenApiBody = () => {
+    const advancedUpsertSchema = context.getRequestSchema('requestSchemas.advancedUpsert');
+    const dataSchema =
+      context.getRequestSchema('requestSchemas.advancedUpsert.data') ??
+      getNestedOpenApiSchemaDataSource(advancedUpsertSchema);
+    const bodySchema = unwrapNestedOpenApiSchemaSource(
+      context.getRequestSchema('requestSchemas.advancedUpsert.default') ?? advancedUpsertSchema,
+      advancedUpsertBodySchema,
+    );
+
+    return dataSchema ? patchOpenApiObjectSchema(bodySchema, { data: dataSchema }) : bodySchema;
+  };
 
   router.get('/count', async (req: ModelRequest) => {
     await context.assertAllowed(req, 'count');
@@ -37,6 +67,12 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     handleResultError(result);
 
     return unwrapServiceData(result);
+  });
+  context.registerOpenApiRoute({
+    method: 'get',
+    path: '/count',
+    operationId: `${modelName}.count`,
+    summary: `Count ${modelName} documents`,
   });
 
   router.post('/count', async (req: ModelRequest) => {
@@ -57,6 +93,13 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     return unwrapServiceData(result);
   });
+  context.registerOpenApiRoute({
+    method: 'post',
+    path: '/count',
+    operationId: `${modelName}.countWithFilter`,
+    summary: `Count ${modelName} documents with a filter`,
+    body: defineOpenApiSchemaResolver(() => context.getRequestSchema('requestSchemas.count') ?? countBodySchema),
+  });
 
   router.get(`/:${options.idParam}`, async (req: ModelRequest) => {
     await context.assertAllowed(req, 'read');
@@ -76,6 +119,13 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     handleResultError(result);
 
     return unwrapServiceData(result);
+  });
+  context.registerOpenApiRoute({
+    method: 'get',
+    path: `/:${options.idParam}`,
+    operationId: `${modelName}.read`,
+    summary: `Read a ${modelName} document`,
+    query: requestSchemas.readQuery,
   });
 
   router.post(`/${options.queryRouteSegment}/__filter`, async (req: ModelRequest) => {
@@ -101,6 +151,15 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     return unwrapServiceData(result);
   });
+  context.registerOpenApiRoute({
+    method: 'post',
+    path: `/${options.queryRouteSegment}/__filter`,
+    operationId: `${modelName}.readByFilterAdvanced`,
+    summary: `Read a ${modelName} document by filter`,
+    body: defineOpenApiSchemaResolver(
+      () => context.getRequestSchema('requestSchemas.advancedReadFilter') ?? readFilterBodySchema,
+    ),
+  });
 
   router.post(`/${options.queryRouteSegment}/:${options.idParam}`, async (req: ModelRequest) => {
     await context.assertAllowed(req, 'read');
@@ -125,6 +184,15 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     handleResultError(result);
 
     return unwrapServiceData(result);
+  });
+  context.registerOpenApiRoute({
+    method: 'post',
+    path: `/${options.queryRouteSegment}/:${options.idParam}`,
+    operationId: `${modelName}.readAdvanced`,
+    summary: `Read a ${modelName} document with advanced options`,
+    body: defineOpenApiSchemaResolver(
+      () => context.getRequestSchema('requestSchemas.advancedRead') ?? readByIdBodySchema,
+    ),
   });
 
   router.patch(`/:${options.idParam}`, async (req: ModelRequest) => {
@@ -152,6 +220,14 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     handleResultError(result);
 
     return unwrapServiceData(result);
+  });
+  context.registerOpenApiRoute({
+    method: 'patch',
+    path: `/:${options.idParam}`,
+    operationId: `${modelName}.update`,
+    summary: `Update a ${modelName} document`,
+    query: requestSchemas.updateQuery,
+    body: defineOpenApiSchemaResolver(() => context.getRequestSchema('requestSchemas.update') ?? updateBodySchema),
   });
 
   router.patch(`/${options.mutationRouteSegment}/:${options.idParam}`, async (req: ModelRequest) => {
@@ -191,6 +267,14 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     return unwrapServiceData(result);
   });
+  context.registerOpenApiRoute({
+    method: 'patch',
+    path: `/${options.mutationRouteSegment}/:${options.idParam}`,
+    operationId: `${modelName}.updateAdvanced`,
+    summary: `Advanced update a ${modelName} document`,
+    query: requestSchemas.updateQuery,
+    body: defineOpenApiSchemaResolver(getAdvancedUpdateOpenApiBody),
+  });
 
   router.put(`/`, async (req: ModelRequest) => {
     await context.assertAllowed(req, 'upsert');
@@ -214,6 +298,14 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     handleResultError(result);
 
     return formatModelUpsertResponse(result);
+  });
+  context.registerOpenApiRoute({
+    method: 'put',
+    path: '/',
+    operationId: `${modelName}.upsert`,
+    summary: `Upsert a ${modelName} document`,
+    query: requestSchemas.upsertQuery,
+    body: defineOpenApiSchemaResolver(() => context.getRequestSchema('requestSchemas.upsert') ?? upsertBodySchema),
   });
 
   router.put(`/${options.mutationRouteSegment}`, async (req: ModelRequest) => {
@@ -249,6 +341,14 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     handleResultError(result);
     return formatModelUpsertResponse(result);
   });
+  context.registerOpenApiRoute({
+    method: 'put',
+    path: `/${options.mutationRouteSegment}`,
+    operationId: `${modelName}.upsertAdvanced`,
+    summary: `Advanced upsert a ${modelName} document`,
+    query: requestSchemas.upsertQuery,
+    body: defineOpenApiSchemaResolver(getAdvancedUpsertOpenApiBody),
+  });
 
   router.delete(`/:${options.idParam}`, async (req: ModelRequest) => {
     await context.assertAllowed(req, 'delete');
@@ -261,6 +361,12 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     return unwrapServiceData(result);
   });
+  context.registerOpenApiRoute({
+    method: 'delete',
+    path: `/:${options.idParam}`,
+    operationId: `${modelName}.delete`,
+    summary: `Delete a ${modelName} document`,
+  });
 
   router.get('/distinct/:field', async (req: ModelRequest) => {
     await context.assertAllowed(req, 'distinct');
@@ -272,6 +378,12 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     handleResultError(result);
 
     return unwrapServiceData(result);
+  });
+  context.registerOpenApiRoute({
+    method: 'get',
+    path: '/distinct/:field',
+    operationId: `${modelName}.distinct`,
+    summary: `Get distinct values for a ${modelName} field`,
   });
 
   router.post('/distinct/:field', async (req: ModelRequest) => {
@@ -290,5 +402,12 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     handleResultError(result);
 
     return unwrapServiceData(result);
+  });
+  context.registerOpenApiRoute({
+    method: 'post',
+    path: '/distinct/:field',
+    operationId: `${modelName}.distinctWithFilter`,
+    summary: `Get distinct values for a ${modelName} field with a filter`,
+    body: defineOpenApiSchemaResolver(() => context.getRequestSchema('requestSchemas.distinct') ?? distinctBodySchema),
   });
 }

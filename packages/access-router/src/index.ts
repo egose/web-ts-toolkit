@@ -1,9 +1,17 @@
 import mongoose from 'mongoose';
 import type {} from './filter-type-tests';
+import type { Router as ExpressRouter } from 'express';
 import { isPlainObject, isString, isUndefined } from '@web-ts-toolkit/utils';
 import middleware, { guard } from './middleware';
 import { createSetCore } from './core';
 import { RootRouter, ModelRouter, DataRouter, combineRoutes } from './routers';
+import { createOpenApiRouter } from './openapi/router';
+import type {
+  OpenApiDocumentOptions,
+  OpenApiMethod,
+  OpenApiRouteDescriptor,
+  OpenApiRouterOptions,
+} from './openapi/types';
 import {
   setGlobalOptions,
   setGlobalOption,
@@ -55,6 +63,7 @@ import {
   type RequestSchemaFailure,
   type RequestSchemaIssue,
   type RequestSchemaLike,
+  type RequestSchemaOptions,
   type RequestSchemaResult,
   type RequestSchemaSuccess,
   type RequestSchemaValidator,
@@ -109,6 +118,7 @@ export {
   setDefaultModelOption,
   getDefaultModelOptions,
   getDefaultModelOption,
+  createOpenApiRouter,
 };
 export type {
   AccessRouterPermissions,
@@ -132,6 +142,7 @@ export type {
   RequestSchemaFailure,
   RequestSchemaIssue,
   RequestSchemaLike,
+  RequestSchemaOptions,
   RequestSchemaResult,
   RequestSchemaSuccess,
   RequestSchemaValidator,
@@ -153,6 +164,10 @@ export type {
   VineValidatorLike,
   YupSchemaLike,
   YupValidationErrorLike,
+  OpenApiDocumentOptions,
+  OpenApiMethod,
+  OpenApiRouteDescriptor,
+  OpenApiRouterOptions,
 };
 export type { CombinedRouteInput } from './routers';
 export * from './permission';
@@ -168,6 +183,8 @@ type CreateDataRouter = {
   <TData>(dataName: string, options: DataRouterOptions<TData>): DataRouter<TData>;
 };
 
+type CreateRuntimeOpenApiRouter = (options?: OpenApiRouterOptions) => ExpressRouter;
+
 type WttSet = {
   <K extends keyof GlobalOptions>(key: K, value: GlobalOptions[K]): void;
   (options: { [K in keyof GlobalOptions]: GlobalOptions[K] }): void;
@@ -177,6 +194,7 @@ interface Wtt {
   runtime: AccessRuntime;
   createRouter: CreateRouter;
   createDataRouter: CreateDataRouter;
+  createOpenApiRouter: CreateRuntimeOpenApiRouter;
   combineRoutes: typeof combineRoutes;
   set: WttSet;
   setGlobalOptions: typeof setGlobalOptions;
@@ -227,6 +245,10 @@ function createRuntimeApi(runtime: AccessRuntime): AccessRuntimeApi {
 
   wtt.createDataRouter = function <TData>(dataName: string, options: DataRouterOptions<TData>) {
     return new DataRouter(dataName, options, runtime);
+  };
+
+  wtt.createOpenApiRouter = function (options) {
+    return createOpenApiRouter(runtime, options);
   };
 
   wtt.combineRoutes = combineRoutes;

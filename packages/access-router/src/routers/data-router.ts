@@ -21,6 +21,9 @@ import {
   requestSchemas,
 } from './validation';
 import type { RequestSchemaLike } from '../validation/types';
+import type { OpenApiRouteDescriptor } from '../openapi';
+import { registerOpenApiRoute } from '../openapi/route-registration';
+import { defineOpenApiSchemaResolver } from '../openapi/schemas';
 
 const clientErrors = JsonRouter.clientErrors;
 
@@ -73,6 +76,10 @@ export class DataRouter<TData = unknown> {
     if (!allowed) throw new clientErrors.UnauthorizedError();
   }
 
+  private registerOpenApiRoute(route: OpenApiRouteDescriptor) {
+    registerOpenApiRoute(this.runtime, this.fullBasePath, this.dataName, route);
+  }
+
   ///////////////////////
   // Collection Routes //
   ///////////////////////
@@ -107,6 +114,13 @@ export class DataRouter<TData = unknown> {
 
       return formatListResponse(req, decoratedResult, includeCount, includeExtraHeaders);
     });
+    this.registerOpenApiRoute({
+      method: 'get',
+      path: '',
+      operationId: `${this.dataName}.list`,
+      summary: `List ${this.dataName} records`,
+      query: requestSchemas.listQuery,
+    });
 
     /////////////////////
     // LIST - Advanced //
@@ -140,6 +154,15 @@ export class DataRouter<TData = unknown> {
 
       return formatListResponse(req, decoratedResult, includeCount, includeExtraHeaders);
     });
+    this.registerOpenApiRoute({
+      method: 'post',
+      path: `/${this.options.queryRouteSegment}`,
+      operationId: `${this.dataName}.listAdvanced`,
+      summary: `Advanced list ${this.dataName} records`,
+      body: defineOpenApiSchemaResolver(
+        () => this.getRequestSchema('requestSchemas.advancedList') ?? dataListBodySchema,
+      ),
+    });
   }
 
   /////////////////////
@@ -161,6 +184,12 @@ export class DataRouter<TData = unknown> {
       const decoratedResult = await decorateDataSingleResult(svc, result);
 
       return decoratedResult.data;
+    });
+    this.registerOpenApiRoute({
+      method: 'get',
+      path: `/:${this.options.idParam}`,
+      operationId: `${this.dataName}.read`,
+      summary: `Read a ${this.dataName} record`,
     });
 
     //////////////////////////////
@@ -184,6 +213,15 @@ export class DataRouter<TData = unknown> {
 
       return decoratedResult.data;
     });
+    this.registerOpenApiRoute({
+      method: 'post',
+      path: `/${this.options.queryRouteSegment}/__filter`,
+      operationId: `${this.dataName}.readByFilter`,
+      summary: `Read a ${this.dataName} record by filter`,
+      body: defineOpenApiSchemaResolver(
+        () => this.getRequestSchema('requestSchemas.advancedReadFilter') ?? dataReadFilterBodySchema,
+      ),
+    });
 
     /////////////////////
     // READ - Advanced //
@@ -206,6 +244,15 @@ export class DataRouter<TData = unknown> {
       const decoratedResult = await decorateDataSingleResult(svc, result);
 
       return decoratedResult.data;
+    });
+    this.registerOpenApiRoute({
+      method: 'post',
+      path: `/${this.options.queryRouteSegment}/:${this.options.idParam}`,
+      operationId: `${this.dataName}.readAdvanced`,
+      summary: `Advanced read a ${this.dataName} record`,
+      body: defineOpenApiSchemaResolver(
+        () => this.getRequestSchema('requestSchemas.advancedRead') ?? dataReadByIdBodySchema,
+      ),
     });
   }
 

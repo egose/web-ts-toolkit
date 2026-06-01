@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { Sort, Filter, Projection, Populate, SortOrder } from './interfaces';
+import { logger } from './logger';
 
 interface FindProps {
   filter: Filter;
@@ -70,20 +71,24 @@ class Model {
     return builder;
   }
 
-  // See https://github.com/Automattic/mongoose/blob/65b2d12a8f85f86136cfaf32947f338ba0c5f451/lib/query.js#L3011
-  validateSort(sort: SortType, logError: (msg: string, ...args: unknown[]) => void = console.error): boolean {
+  validateSort(sort: SortType, logError: (msg: string, ...args: unknown[]) => void = logger.error): boolean {
     const validSortOrders: SortOrder[] = [1, -1, 'asc', 'ascending', 'desc', 'descending'];
+    const fieldPathPattern = /^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*$/;
+
+    const isValidFieldPath = (field: string) => fieldPathPattern.test(field);
 
     // Handle null/undefined (valid, no-op)
     if (sort === null || sort === undefined) return true;
 
-    // Validate string
     if (typeof sort === 'string') {
-      // Optional: Check for valid format (e.g., "field -field2")
-      if (!/^[a-zA-Z0-9\s-]+/.test(sort)) {
+      const fields = sort.trim().split(/\s+/).filter(Boolean);
+      const isValid = fields.every((field) => isValidFieldPath(field.startsWith('-') ? field.slice(1) : field));
+
+      if (!isValid) {
         logError('Invalid sort string:', sort);
         return false;
       }
+
       return true;
     }
 
@@ -95,8 +100,8 @@ class Model {
           return false;
         }
         const [key, order] = pair as [string, SortOrder];
-        if (typeof key !== 'string') {
-          logError('Invalid sort array key: must be string', key);
+        if (typeof key !== 'string' || !isValidFieldPath(key)) {
+          logError('Invalid sort array key: must be a field path string', key);
           return false;
         }
         if (!validSortOrders.includes(order)) {
@@ -111,7 +116,12 @@ class Model {
 
     // Validate object
     if (typeof sort === 'object' && !(sort instanceof Map)) {
-      const isValid = Object.values(sort).every((order) => {
+      const isValid = Object.entries(sort).every(([key, order]) => {
+        if (!isValidFieldPath(key)) {
+          logError('Invalid sort object key: must be a field path string', key);
+          return false;
+        }
+
         if (!validSortOrders.includes(order as SortOrder)) {
           logError('Invalid sort object value: must be 1, -1, "asc", or "desc"', order);
           return false;
@@ -123,7 +133,12 @@ class Model {
 
     // Validate Map
     if (sort instanceof Map) {
-      const isValid = Array.from(sort.values()).every((order) => {
+      const isValid = Array.from(sort.entries()).every(([key, order]) => {
+        if (!isValidFieldPath(key)) {
+          logError('Invalid sort Map key: must be a field path string', key);
+          return false;
+        }
+
         if (!validSortOrders.includes(order)) {
           logError('Invalid sort Map value: must be 1, -1, "asc", or "desc"', order);
           return false;

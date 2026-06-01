@@ -1,6 +1,6 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
-import { isNumber as _isNumber, isString, orderBy as _orderBy } from '@web-ts-toolkit/utils';
+import { isNumber as _isNumber, isString, normalizeUrlPath, orderBy as _orderBy } from '@web-ts-toolkit/utils';
 import { createSetCore } from '../core';
 import { createSetDataCore } from '../core-data';
 import { decorateDataListResult, decorateDataSingleResult } from '../http/response-pipelines/data-response';
@@ -43,6 +43,8 @@ import {
 } from '../interfaces';
 import { Codes } from '../enums';
 import { parseBody, rootQuerySchema } from './validation';
+import type { OpenApiRouteDescriptor } from '../openapi';
+import { registerOpenApiRoute } from '../openapi/route-registration';
 
 const clientErrors = JsonRouter.clientErrors;
 
@@ -173,6 +175,10 @@ export class RootRouter {
     this.setRoutes();
   }
 
+  private registerOpenApiRoute(route: OpenApiRouteDescriptor) {
+    registerOpenApiRoute(this.runtime, normalizeUrlPath(this.basename), 'root', route);
+  }
+
   private wrapResult(index: number, item: RootQueryEntry, result: ServiceResult): RootOperationResult {
     return {
       index,
@@ -274,6 +280,14 @@ export class RootRouter {
       }
 
       return _orderBy(results, ['index'], ['asc']);
+    });
+
+    this.registerOpenApiRoute({
+      method: 'post',
+      path: '',
+      operationId: 'root.query',
+      summary: 'Execute batched model and data operations',
+      body: rootQuerySchema,
     });
   }
 

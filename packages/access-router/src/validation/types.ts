@@ -29,6 +29,11 @@ export type RequestSchemaValidator<T = unknown> = (
 
 export type RequestSchemaAdapter<T = unknown> = {
   validate: RequestSchemaValidator<T>;
+  openapi?: Record<string, unknown>;
+};
+
+export type RequestSchemaOptions = {
+  openapi?: Record<string, unknown>;
 };
 
 export type StandardSchemaPathSegment = {
