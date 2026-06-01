@@ -54,5 +54,7 @@ export type OpenApiDocumentOptions = {
 
 export type OpenApiRouterOptions = Partial<OpenApiDocumentOptions> & {
   jsonPath?: string;
-  docsPath?: string;
+  docsPath?: string | false;
+  swaggerUiCssUrl?: string;
+  swaggerUiBundleUrl?: string;
 };

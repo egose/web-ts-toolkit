@@ -12,17 +12,17 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-const renderDocsHtml = (specPath: string, title: string) => `<!doctype html>
+const renderDocsHtml = (specPath: string, title: string, cssUrl: string, bundleUrl: string) => `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(title)}</title>
-  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  <link rel="stylesheet" href="${escapeHtml(cssUrl)}" />
 </head>
 <body>
   <div id="swagger-ui"></div>
-  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script src="${escapeHtml(bundleUrl)}"></script>
   <script>
     window.ui = SwaggerUIBundle({
       url: ${JSON.stringify(specPath)},
@@ -45,6 +45,8 @@ export function createOpenApiRouter(runtime: AccessRuntime, options: OpenApiRout
   const router = express.Router();
   const jsonPath = options.jsonPath ?? '/openapi.json';
   const docsPath = options.docsPath ?? '/docs';
+  const swaggerUiCssUrl = options.swaggerUiCssUrl ?? 'https://unpkg.com/swagger-ui-dist@5/swagger-ui.css';
+  const swaggerUiBundleUrl = options.swaggerUiBundleUrl ?? 'https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js';
   const info = {
     title: options.title ?? 'Access Router API',
     version: options.version ?? '0.0.0',
@@ -56,9 +58,13 @@ export function createOpenApiRouter(runtime: AccessRuntime, options: OpenApiRout
     res.json(runtime.getOpenApiSpec(info));
   });
 
-  router.get(docsPath, (_req, res) => {
-    res.type('html').send(renderDocsHtml(getRelativeSpecPath(docsPath, jsonPath), info.title));
-  });
+  if (docsPath !== false) {
+    router.get(docsPath, (_req, res) => {
+      res
+        .type('html')
+        .send(renderDocsHtml(getRelativeSpecPath(docsPath, jsonPath), info.title, swaggerUiCssUrl, swaggerUiBundleUrl));
+    });
+  }
 
   return router;
 }

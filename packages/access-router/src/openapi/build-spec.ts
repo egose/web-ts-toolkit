@@ -1,4 +1,5 @@
 import { isArray, isPlainObject } from '@web-ts-toolkit/utils';
+import { openApiResponses } from './responses';
 import { toOpenApiSchema } from './schemas';
 import type {
   OpenApiDocumentOptions,
@@ -67,14 +68,21 @@ const schemaToPathParameters = (path: string, pathParams?: Record<string, unknow
   }));
 };
 
+const getDefaultResponses = (route: OpenApiRouteDescriptor): OpenApiResponses => {
+  if (route.operationId === 'root.query') return openApiResponses.batch();
+  if (route.method === 'delete') return openApiResponses.delete();
+  if (route.operationId?.toLowerCase().includes('create')) return openApiResponses.create();
+  if (route.operationId?.toLowerCase().includes('list')) return openApiResponses.list();
+  if (route.operationId?.toLowerCase().includes('distinct')) return openApiResponses.list();
+  return openApiResponses.single();
+};
+
 const buildOperation = (route: OpenApiRouteDescriptor): OpenApiOperation => {
   const queryParameters = schemaToQueryParameters(route.query);
   const pathParameters = schemaToPathParameters(route.path, route.pathParams);
 
   const bodySchema = toOpenApiSchema(route.body);
-  const responses = route.responses ?? {
-    200: { description: 'Success' },
-  };
+  const responses = route.responses ?? getDefaultResponses(route);
 
   const operation: OpenApiOperation = {
     operationId: route.operationId,

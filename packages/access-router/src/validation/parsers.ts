@@ -10,9 +10,11 @@ import type {
   IoTsDecoderLike,
   JoiSchemaLike,
   JoiValidationErrorDetailLike,
+  RequestSchemaAdapter,
   RequestSchemaFailure,
   RequestSchemaIssue,
   RequestSchemaLike,
+  RequestSchemaOptions,
   RequestSchemaResult,
   RequestSchemaValidator,
   StandardSchemaIssue,
@@ -164,8 +166,14 @@ function toRequestSchemaValidator(schema: RequestSchemaLike): RequestSchemaValid
   return schema.validate;
 }
 
-export function defineRequestSchema<T = unknown>(validator: RequestSchemaValidator<T>): RequestSchemaValidator<T> {
-  return validator;
+export function defineRequestSchema<T = unknown>(
+  validator: RequestSchemaValidator<T>,
+  options: RequestSchemaOptions = {},
+): RequestSchemaAdapter<T> {
+  return {
+    validate: validator,
+    openapi: options.openapi,
+  };
 }
 
 export function fromZod<TSchema extends z.ZodTypeAny>(schema: TSchema): RequestSchemaValidator<z.output<TSchema>> {

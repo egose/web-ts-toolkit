@@ -13,8 +13,8 @@ import {
   keys,
 } from '@web-ts-toolkit/utils';
 import { buildRefs, buildSubPaths } from './helpers';
-import { buildOpenApiSpec } from './openapi/build-spec';
 import type { OpenApiDocumentOptions, OpenApiRouteDescriptor } from './openapi/types';
+import { OpenApiRegistry } from './openapi/registry';
 import type {
   DataRouterOptions,
   DefaultModelRouterOptions,
@@ -151,27 +151,18 @@ export class AccessRuntime {
   private readonly modelRefs: Record<string, Record<string, unknown>> = {};
   private readonly modelSubs: Record<string, string[]> = {};
   private readonly modelAtts: Record<string, string[]> = {};
-  private readonly openApiRoutes: OpenApiRouteDescriptor[] = [];
+  private readonly openApiRegistry = new OpenApiRegistry();
 
   registerOpenApiRoute(route: OpenApiRouteDescriptor) {
-    const existingIndex = this.openApiRoutes.findIndex(
-      (item) => item.method === route.method && item.path === route.path,
-    );
-
-    if (existingIndex === -1) {
-      this.openApiRoutes.push(route);
-      return;
-    }
-
-    this.openApiRoutes[existingIndex] = route;
+    this.openApiRegistry.register(route);
   }
 
   getOpenApiRoutes() {
-    return [...this.openApiRoutes];
+    return this.openApiRegistry.getRoutes();
   }
 
   getOpenApiSpec(info: OpenApiDocumentOptions) {
-    return buildOpenApiSpec(this.openApiRoutes, info);
+    return this.openApiRegistry.getSpec(info);
   }
 
   setGlobalOptions(options: GlobalOptions) {

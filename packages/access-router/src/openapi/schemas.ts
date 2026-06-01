@@ -46,6 +46,10 @@ function isJsonSchemaLike(source: unknown): source is OpenApiSchema {
   return isPlainObject(source) && ('type' in source || 'properties' in source || '$ref' in source || 'anyOf' in source);
 }
 
+function hasOpenApiSchema(source: unknown): source is { openapi: OpenApiSchema } {
+  return isPlainObject(source) && isJsonSchemaLike(source.openapi);
+}
+
 export function toOpenApiSchema(source: OpenApiSchemaSource | undefined): OpenApiSchema | undefined {
   if (!source) return undefined;
 
@@ -65,6 +69,10 @@ export function toOpenApiSchema(source: OpenApiSchemaSource | undefined): OpenAp
       type: schema.type ?? 'object',
       properties,
     };
+  }
+
+  if (hasOpenApiSchema(resolvedSource)) {
+    return resolvedSource.openapi;
   }
 
   if (isJsonSchemaLike(resolvedSource)) {

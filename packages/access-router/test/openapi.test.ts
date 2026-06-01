@@ -4,7 +4,7 @@ import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { createAccessRuntime, createOpenApiRouter } from '../dist/index.mjs';
+import { createAccessRuntime, createOpenApiRouter, defineRequestSchema } from '../dist/index.mjs';
 
 let modelCounter = 0;
 
@@ -57,6 +57,8 @@ describe('openapi router', () => {
       required: true,
       schema: { type: 'string' },
     });
+    expect(response.body.paths['/users'].post.responses[201].description).toBe('Created');
+    expect(response.body.paths['/users/{id}'].get.responses[400].content['application/problem+json']).toBeDefined();
   });
 
   it('reflects user request schema changes made after router construction', async () => {
@@ -103,6 +105,26 @@ describe('openapi router', () => {
     expect(response.text).toContain('openapi.json');
   });
 
+  it('uses OpenAPI metadata attached to custom request schema validators', async () => {
+    const { app } = createApp({
+      requestSchemas: {
+        update: defineRequestSchema((value) => ({ success: true, data: value }), {
+          openapi: {
+            type: 'object',
+            properties: {
+              customName: { type: 'string' },
+            },
+          },
+        }),
+      },
+    });
+
+    const response = await request(app).get('/openapi.json').expect(200);
+    const schema = response.body.paths['/users/{id}'].patch.requestBody.content['application/json'].schema;
+
+    expect(schema.properties.customName).toEqual({ type: 'string' });
+  });
+
   it('supports the runtime API docs router helper', async () => {
     const { acl, app } = createApp({}, false);
 
@@ -128,5 +150,14 @@ describe('openapi router', () => {
     const response = await request(app).get('/swagger/ui').expect(200).expect('Content-Type', /html/);
 
     expect(response.text).toContain('url: "openapi.json"');
+  });
+
+  it('can disable Swagger UI while keeping the JSON endpoint', async () => {
+    const { acl, app } = createApp({}, false);
+
+    app.use(createOpenApiRouter(acl.runtime, { docsPath: false }));
+
+    await request(app).get('/openapi.json').expect(200);
+    await request(app).get('/docs').expect(404);
   });
 });
