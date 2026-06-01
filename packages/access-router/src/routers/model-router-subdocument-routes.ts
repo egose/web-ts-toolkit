@@ -13,6 +13,7 @@ import {
 } from './validation';
 import { handleResultError } from '../helpers';
 import type { ModelRouterRouteContext } from './model-router-route-context';
+import { defineOpenApiSchemaResolver } from '../openapi/schemas';
 
 export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteContext<TModel>) {
   const subs = getModelSub(context.modelName);
@@ -29,6 +30,12 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
 
       handleResultError(result);
       return unwrapServiceData(result);
+    });
+    context.registerOpenApiRoute({
+      method: 'get',
+      path: `/:${context.options.idParam}/${sub}`,
+      operationId: `${context.modelName}.${sub}.list`,
+      summary: `List ${sub} subdocuments`,
     });
 
     context.router.post(
@@ -49,6 +56,13 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
         return unwrapServiceData(result);
       },
     );
+    context.registerOpenApiRoute({
+      method: 'post',
+      path: `/:${context.options.idParam}/${sub}/${context.options.queryRouteSegment}`,
+      operationId: `${context.modelName}.${sub}.listAdvanced`,
+      summary: `Advanced list ${sub} subdocuments`,
+      body: defineOpenApiSchemaResolver(() => context.getRequestSchema('requestSchemas.subList') ?? subListBodySchema),
+    });
 
     context.router.patch(`/:${context.options.idParam}/${sub}`, async (req: ModelRequest) => {
       await context.assertAllowed(req, `subs.${sub}.update`);
@@ -65,6 +79,15 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
       handleResultError(result);
       return unwrapServiceData(result);
     });
+    context.registerOpenApiRoute({
+      method: 'patch',
+      path: `/:${context.options.idParam}/${sub}`,
+      operationId: `${context.modelName}.${sub}.bulkUpdate`,
+      summary: `Bulk update ${sub} subdocuments`,
+      body: defineOpenApiSchemaResolver(
+        () => context.getRequestSchema('requestSchemas.subBulkUpdate') ?? subMutationBodySchema,
+      ),
+    });
 
     context.router.get(`/:${context.options.idParam}/${sub}/:subId`, async (req: ModelRequest) => {
       await context.assertAllowed(req, `subs.${sub}.read`);
@@ -76,6 +99,12 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
 
       handleResultError(result);
       return unwrapServiceData(result);
+    });
+    context.registerOpenApiRoute({
+      method: 'get',
+      path: `/:${context.options.idParam}/${sub}/:subId`,
+      operationId: `${context.modelName}.${sub}.read`,
+      summary: `Read a ${sub} subdocument`,
     });
 
     context.router.post(
@@ -103,6 +132,13 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
         return unwrapServiceData(result);
       },
     );
+    context.registerOpenApiRoute({
+      method: 'post',
+      path: `/:${context.options.idParam}/${sub}/:subId/${context.options.queryRouteSegment}`,
+      operationId: `${context.modelName}.${sub}.readAdvanced`,
+      summary: `Advanced read a ${sub} subdocument`,
+      body: defineOpenApiSchemaResolver(() => context.getRequestSchema('requestSchemas.subRead') ?? subReadBodySchema),
+    });
 
     context.router.patch(`/:${context.options.idParam}/${sub}/:subId`, async (req: ModelRequest) => {
       await context.assertAllowed(req, `subs.${sub}.update`);
@@ -119,6 +155,15 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
 
       handleResultError(result);
       return unwrapServiceData(result);
+    });
+    context.registerOpenApiRoute({
+      method: 'patch',
+      path: `/:${context.options.idParam}/${sub}/:subId`,
+      operationId: `${context.modelName}.${sub}.update`,
+      summary: `Update a ${sub} subdocument`,
+      body: defineOpenApiSchemaResolver(
+        () => context.getRequestSchema('requestSchemas.subUpdate') ?? subMutationBodySchema,
+      ),
     });
 
     context.router.post(`/:${context.options.idParam}/${sub}`, async (req: ModelRequest) => {
@@ -137,6 +182,15 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
 
       return formatModelCreatedResponse(result);
     });
+    context.registerOpenApiRoute({
+      method: 'post',
+      path: `/:${context.options.idParam}/${sub}`,
+      operationId: `${context.modelName}.${sub}.create`,
+      summary: `Create a ${sub} subdocument`,
+      body: defineOpenApiSchemaResolver(
+        () => context.getRequestSchema('requestSchemas.subCreate') ?? subMutationBodySchema,
+      ),
+    });
 
     context.router.delete(`/:${context.options.idParam}/${sub}/:subId`, async (req: ModelRequest) => {
       await context.assertAllowed(req, `subs.${sub}.delete`);
@@ -148,6 +202,12 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
 
       handleResultError(result);
       return unwrapServiceData(result);
+    });
+    context.registerOpenApiRoute({
+      method: 'delete',
+      path: `/:${context.options.idParam}/${sub}/:subId`,
+      operationId: `${context.modelName}.${sub}.delete`,
+      summary: `Delete a ${sub} subdocument`,
     });
   }
 }
