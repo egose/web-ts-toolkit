@@ -40,3 +40,5 @@ const userSchema = new Schema({
 ## Documentation
 
 Full package documentation lives in `website/docs/packages/moo.md`.
+
+- live docs: https://web-ts-toolkit.pages.dev/docs/packages/moo

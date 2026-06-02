@@ -1,6 +1,7 @@
 {
   "name": "@web-ts-toolkit/access-router",
   "description": "ACL-aware Express routers and in-memory data services for Mongoose-backed APIs",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/access-router",
   "version": "0.0.0-PLACEHOLDER",
   "sideEffects": false,
   "keywords": [

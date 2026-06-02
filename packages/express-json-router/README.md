@@ -44,3 +44,5 @@ app.use(router.original);
 ## Documentation
 
 Full package documentation lives in `website/docs/packages/express-json-router.md`.
+
+- live docs: https://web-ts-toolkit.pages.dev/docs/packages/express-json-router

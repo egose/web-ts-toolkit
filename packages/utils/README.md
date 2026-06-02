@@ -45,3 +45,5 @@ parseBooleanString('true', false);
 ## Documentation
 
 Full package documentation lives in `website/docs/packages/utils.md`.
+
+- live docs: https://web-ts-toolkit.pages.dev/docs/packages/utils

@@ -1,6 +1,7 @@
 {
   "name": "@web-ts-toolkit/moo",
   "description": "Mongoose helpers for schema fields, ObjectId checks, and document plugins",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/moo",
   "version": "0.0.0-PLACEHOLDER",
   "sideEffects": false,
   "keywords": [

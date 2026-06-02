@@ -69,6 +69,7 @@ const docsRouter = acl.createOpenApiRouter({
 
 Full package documentation lives in `website/docs/packages/access-router/`.
 
+- live docs: https://web-ts-toolkit.pages.dev/docs/packages/access-router
 - overview: `website/docs/packages/access-router/index.mdx`
 - routing: `website/docs/packages/access-router/routing.mdx`
 - configuration: `website/docs/packages/access-router/configuration.mdx`

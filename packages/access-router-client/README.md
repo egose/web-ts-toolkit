@@ -64,6 +64,7 @@ const grouped = await adapter.group(
 
 Full package documentation lives in `website/docs/packages/access-router-client/`.
 
+- live docs: https://web-ts-toolkit.pages.dev/docs/packages/access-router-client
 - overview: `website/docs/packages/access-router-client/index.md`
 - adapter: `website/docs/packages/access-router-client/adapter.mdx`
 - services: `website/docs/packages/access-router-client/services.mdx`

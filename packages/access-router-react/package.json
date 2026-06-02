@@ -1,6 +1,7 @@
 {
   "name": "@web-ts-toolkit/access-router-react",
   "description": "React hooks for @web-ts-toolkit/access-router-client model services",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/access-router-react",
   "version": "0.0.0-PLACEHOLDER",
   "sideEffects": false,
   "keywords": [

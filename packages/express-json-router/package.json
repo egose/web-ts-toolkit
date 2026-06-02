@@ -1,6 +1,7 @@
 {
   "name": "@web-ts-toolkit/express-json-router",
   "description": "Express router wrapper for return-value JSON responses",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/express-json-router",
   "version": "0.0.0-PLACEHOLDER",
   "sideEffects": false,
   "keywords": [

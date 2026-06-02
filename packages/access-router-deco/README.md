@@ -76,3 +76,5 @@ EgoseFactory.bootstrap(AppModule, app);
 ## Documentation
 
 Full package documentation lives in `website/docs/packages/access-router-deco.md`.
+
+- live docs: https://web-ts-toolkit.pages.dev/docs/packages/access-router-deco

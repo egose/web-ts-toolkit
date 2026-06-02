@@ -40,3 +40,5 @@ throw new ServiceUnavailableError();
 ## Documentation
 
 Full package documentation lives in `website/docs/packages/http-errors.md`.
+
+- live docs: https://web-ts-toolkit.pages.dev/docs/packages/http-errors

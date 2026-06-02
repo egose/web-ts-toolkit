@@ -1,6 +1,7 @@
 {
   "name": "@web-ts-toolkit/express-response-handler",
   "description": "FastAPI-style return-value response handling for Express",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/express-response-handler",
   "version": "0.0.0-PLACEHOLDER",
   "sideEffects": false,
   "keywords": [

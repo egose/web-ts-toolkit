@@ -1,6 +1,7 @@
 {
   "name": "@web-ts-toolkit/utils",
   "description": "Shared collection, object, async, and URL helpers used across workspace packages",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/utils",
   "version": "0.0.0-PLACEHOLDER",
   "sideEffects": false,
   "keywords": [

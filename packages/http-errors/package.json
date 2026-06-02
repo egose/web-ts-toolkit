@@ -1,6 +1,7 @@
 {
   "name": "@web-ts-toolkit/http-errors",
   "description": "Typed HTTP error classes and payload helpers for backend APIs",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/http-errors",
   "version": "0.0.0-PLACEHOLDER",
   "sideEffects": false,
   "keywords": [
