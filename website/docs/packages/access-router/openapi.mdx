@@ -1,0 +1,141 @@
+---
+sidebar_label: OpenAPI
+sidebar_position: 7
+---
+
+# OpenAPI
+
+`access-router` registers generated routes into an internal OpenAPI registry and can expose that registry as JSON and Swagger UI.
+
+## Quick Start
+
+```ts
+import express from 'express';
+import acl from '@web-ts-toolkit/access-router';
+
+const app = express();
+
+const userRouter = acl.createRouter('User', {
+  basePath: '/users',
+});
+
+app.use(userRouter.routes);
+app.use(
+  acl.createOpenApiRouter({
+    title: 'Example API',
+    version: '1.0.0',
+  }),
+);
+```
+
+Default routes:
+
+- `GET /openapi.json`
+- `GET /docs`
+
+## What Gets Documented
+
+Generated documentation includes:
+
+- model router endpoints
+- data router endpoints
+- root batch router endpoints
+- generated path parameters, query parameters, and request bodies
+- default success and error responses
+- route tags and operation ids
+
+Paths are emitted as OpenAPI-style paths such as `/users/{id}`.
+
+## Operation IDs
+
+Generated operation ids follow the router naming conventions, for example:
+
+- `User.list`
+- `User.createAdvanced`
+- `User.read`
+- `User.readByFilterAdvanced`
+- `User.updateAdvanced`
+- `User.members.list`
+- `root.query`
+
+## Swagger UI Options
+
+`createOpenApiRouter(...)` accepts:
+
+- `title`
+- `version`
+- `description`
+- `servers`
+- `jsonPath`
+- `docsPath`
+- `swaggerUiCssUrl`
+- `swaggerUiBundleUrl`
+
+Example with custom paths:
+
+```ts
+app.use(
+  acl.createOpenApiRouter({
+    title: 'Internal API',
+    version: '2026-06-01',
+    jsonPath: '/spec/openapi.json',
+    docsPath: '/reference',
+  }),
+);
+```
+
+JSON-only mode:
+
+```ts
+app.use(
+  acl.createOpenApiRouter({
+    title: 'Internal API',
+    version: '1.0.0',
+    docsPath: false,
+  }),
+);
+```
+
+## Custom Validation Schemas
+
+Built-in request schemas are translated automatically.
+
+For custom validators, attach explicit OpenAPI metadata with `defineRequestSchema(...)`:
+
+```ts
+import { defineRequestSchema } from '@web-ts-toolkit/access-router';
+
+const advancedCreateSchema = defineRequestSchema(
+  async (value) => {
+    return { success: true, data: value };
+  },
+  {
+    openapi: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          additionalProperties: true,
+        },
+      },
+    },
+  },
+);
+```
+
+## Response Metadata
+
+If a route does not override responses manually, `access-router` derives default responses from route metadata:
+
+- list-like routes get list-style responses
+- create routes get `201 Created`
+- delete routes get delete-style responses
+- other routes get single-resource responses
+
+Default error responses are documented with `application/problem+json` payloads.
+
+## Notes
+
+- The generated document is OpenAPI `3.1.0`.
+- Duplicate routes are replaced by `method + path`, so later registrations win.
+- The OpenAPI router documents generated routes only; your custom Express endpoints need separate registration if you want them in the same spec.

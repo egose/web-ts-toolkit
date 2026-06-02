@@ -69,6 +69,19 @@ Router-specific options are also available through the mutable property helpers:
 - `queryRouteSegment`
 - `mutationRouteSegment`
 
+## OpenAPI Router Options
+
+`createOpenApiRouter(...)` accepts:
+
+- `title`
+- `version`
+- `description`
+- `servers`
+- `jsonPath` defaulting to `/openapi.json`
+- `docsPath` defaulting to `/docs`, or `false` to disable Swagger UI
+- `swaggerUiCssUrl`
+- `swaggerUiBundleUrl`
+
 ## Data Router Options
 
 Common data options:

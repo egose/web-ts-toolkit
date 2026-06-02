@@ -1,19 +1,21 @@
-# http-errors
+# `@web-ts-toolkit/http-errors`
 
-HTTP error classes for backend APIs, including 4xx client errors and 5xx server errors.
+Typed HTTP error classes and structured error payload helpers for backend APIs.
 
 ## Installation
 
 ```sh
-npm install @web-ts-toolkit/http-errors
+pnpm add @web-ts-toolkit/http-errors
 ```
 
-## Documentation
+## Highlights
 
-- Full package documentation lives in `website/docs/packages/http-errors.md`.
-- Use the Docusaurus site in `website` for the complete hierarchy, payload helpers, and Express examples.
+- typed 4xx and 5xx error classes
+- `HttpError`, `ClientError`, and `ServerError` base classes
+- machine-readable error metadata
+- helpers for AIP-193 and RFC 9457 payloads
 
-## Minimal Example
+## Quick Start
 
 ```ts
 import { HttpError, UnauthorizedError, ServiceUnavailableError } from '@web-ts-toolkit/http-errors';
@@ -26,3 +28,15 @@ throw new HttpError(503, 'please try again later');
 
 throw new ServiceUnavailableError();
 ```
+
+## Main Exports
+
+- `HttpError`
+- specific error classes such as `BadRequestError`, `ForbiddenError`, `NotFoundError`
+- `toAip193ErrorPayload(...)`
+- `toRfc9457ErrorPayload(...)`
+- `toRfc9457ValidationErrorPayload(...)`
+
+## Documentation
+
+Full package documentation lives in `website/docs/packages/http-errors.md`.

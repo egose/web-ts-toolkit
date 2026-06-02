@@ -1,25 +1,25 @@
-# moo
+# `@web-ts-toolkit/moo`
 
-Helpers for common Mongoose patterns.
-
-This package includes:
-
-- partial-index helpers for nullable or empty string fields
-- an `isObjectId(...)` guard for strict ObjectId checks
-- document plugins for model-bound helper functions and cascade deletes
+Mongoose helpers for schema fields, ObjectId checks, and document plugins.
 
 ## Installation
 
 ```sh
-npm install mongoose @web-ts-toolkit/moo
+pnpm add mongoose @web-ts-toolkit/moo
 ```
 
-## Documentation
+Peer dependencies:
 
-- Full package documentation lives in `website/docs/packages/moo.md`.
-- Use the Docusaurus site in `website` for the full examples.
+- `mongoose >= 8`
 
-## Minimal Example
+## Highlights
+
+- partial-index helpers for nullable or empty-string fields
+- strict `isObjectId(...)` guard
+- model-function plugin
+- cascade-delete plugin
+
+## Quick Start
 
 ```ts
 import { Schema } from 'mongoose';
@@ -30,3 +30,13 @@ const userSchema = new Schema({
   username: uniqueEmptiableString('username'),
 });
 ```
+
+## Main Exports
+
+- schema helpers such as `uniqueNullableString(...)`
+- `isObjectId(...)`
+- plugins from `@web-ts-toolkit/moo/plugins`
+
+## Documentation
+
+Full package documentation lives in `website/docs/packages/moo.md`.
