@@ -39,7 +39,7 @@ export interface UseBaseOptions {
 
 // ── Read ──
 
-export interface UseReadModelOptions<T extends Document> extends UseBaseOptions {
+export interface UseReadQueryOptions<T extends Document> extends UseBaseOptions {
   id?: string;
   advanced?: boolean;
   select?: Projection;
@@ -56,19 +56,19 @@ export interface UseReadModelOptions<T extends Document> extends UseBaseOptions 
   onSettled?: (result: ModelResponse<T> | null, error: ServiceError | null) => void;
 }
 
-export interface UseReadModelResult<T extends Document> {
+export interface UseReadQueryResult<T extends Document> {
   data: (Model<T> & T) | null;
   isLoading: boolean;
   isFetching: boolean;
   error: ServiceError | null;
-  readModel: (id: string) => Promise<ModelResponse<T>>;
+  query: (id: string) => Promise<ModelResponse<T>>;
   refetch: () => void;
   reset: () => void;
 }
 
 // ── List ──
 
-export interface UseListModelOptions<T extends Document> extends UseBaseOptions {
+export interface UseListQueryOptions<T extends Document> extends UseBaseOptions {
   listParams?: ListArgs;
   filter?: FilterQuery<T>;
   advanced?: boolean;
@@ -87,21 +87,21 @@ export interface UseListModelOptions<T extends Document> extends UseBaseOptions 
   onSettled?: (result: ListModelResponse<T> | null, error: ServiceError | null) => void;
 }
 
-export interface UseListModelResult<T extends Document> {
+export interface UseListQueryResult<T extends Document> {
   data: (Model<T> & T)[];
   previousData: (Model<T> & T)[] | undefined;
   totalCount: number;
   isLoading: boolean;
   isFetching: boolean;
   error: ServiceError | null;
-  listModel: (args?: ListArgs) => Promise<ListModelResponse<T>>;
+  query: (args?: ListArgs) => Promise<ListModelResponse<T>>;
   refetch: () => void;
   reset: () => void;
 }
 
 // ── Create ──
 
-export interface UseCreateModelOptions<T extends Document> extends UseBaseOptions {
+export interface UseCreateMutateOptions<T extends Document> extends UseBaseOptions {
   advanced?: boolean;
   select?: Projection;
   populate?: CreateAdvancedArgs['populate'];
@@ -113,17 +113,17 @@ export interface UseCreateModelOptions<T extends Document> extends UseBaseOption
   onSettled?: (result: ModelResponse<T> | null, error: ServiceError | null) => void;
 }
 
-export interface UseCreateModelResult<T extends Document> {
+export interface UseCreateMutateResult<T extends Document> {
   data: (Model<T> & T) | null;
   isPending: boolean;
   error: ServiceError | null;
-  createModel: (data: object) => Promise<ModelResponse<T>>;
+  mutate: (data: object) => Promise<ModelResponse<T>>;
   reset: () => void;
 }
 
 // ── Update ──
 
-export interface UseUpdateModelOptions<T extends Document> extends UseBaseOptions {
+export interface UseUpdateMutateOptions<T extends Document> extends UseBaseOptions {
   advanced?: boolean;
   select?: Projection;
   populate?: UpdateAdvancedArgs['populate'];
@@ -135,17 +135,17 @@ export interface UseUpdateModelOptions<T extends Document> extends UseBaseOption
   onSettled?: (result: ModelResponse<T> | null, error: ServiceError | null) => void;
 }
 
-export interface UseUpdateModelResult<T extends Document> {
+export interface UseUpdateMutateResult<T extends Document> {
   data: (Model<T> & T) | null;
   isPending: boolean;
   error: ServiceError | null;
-  updateModel: (id: string, data: object) => Promise<ModelResponse<T>>;
+  mutate: (id: string, data: object) => Promise<ModelResponse<T>>;
   reset: () => void;
 }
 
 // ── Upsert ──
 
-export interface UseUpsertModelOptions<T extends Document> extends UseBaseOptions {
+export interface UseUpsertMutateOptions<T extends Document> extends UseBaseOptions {
   advanced?: boolean;
   select?: Projection;
   populate?: UpsertAdvancedArgs['populate'];
@@ -157,32 +157,32 @@ export interface UseUpsertModelOptions<T extends Document> extends UseBaseOption
   onSettled?: (result: ModelResponse<T> | null, error: ServiceError | null) => void;
 }
 
-export interface UseUpsertModelResult<T extends Document> {
+export interface UseUpsertMutateResult<T extends Document> {
   data: (Model<T> & T) | null;
   isPending: boolean;
   error: ServiceError | null;
-  upsertModel: (data: object) => Promise<ModelResponse<T>>;
+  mutate: (data: object) => Promise<ModelResponse<T>>;
   reset: () => void;
 }
 
 // ── Delete ──
 
-export interface UseDeleteModelOptions extends UseBaseOptions {
+export interface UseDeleteMutateOptions extends UseBaseOptions {
   onSuccess?: (result: Response<string>) => void;
   onError?: (error: ServiceError) => void;
   onSettled?: (result: Response<string> | null, error: ServiceError | null) => void;
 }
 
-export interface UseDeleteModelResult {
+export interface UseDeleteMutateResult {
   isPending: boolean;
   error: ServiceError | null;
-  deleteModel: (id: string) => Promise<Response<string>>;
+  mutate: (id: string) => Promise<Response<string>>;
   reset: () => void;
 }
 
 // ── Count ──
 
-export interface UseCountModelOptions<T extends Document> extends UseBaseOptions {
+export interface UseCountQueryOptions<T extends Document> extends UseBaseOptions {
   advanced?: boolean;
   filter?: FilterQuery<T>;
   enabled?: boolean;
@@ -191,18 +191,18 @@ export interface UseCountModelOptions<T extends Document> extends UseBaseOptions
   onSettled?: (result: Response<number> | null, error: ServiceError | null) => void;
 }
 
-export interface UseCountModelResult {
+export interface UseCountQueryResult {
   data: number | null;
   isLoading: boolean;
   error: ServiceError | null;
-  countModel: () => Promise<Response<number>>;
+  query: () => Promise<Response<number>>;
   refetch: () => void;
   reset: () => void;
 }
 
 // ── Distinct ──
 
-export interface UseDistinctModelOptions<T extends Document> extends UseBaseOptions {
+export interface UseDistinctQueryOptions<T extends Document> extends UseBaseOptions {
   field: string;
   conditions?: FilterQuery<T>;
   enabled?: boolean;
@@ -211,11 +211,11 @@ export interface UseDistinctModelOptions<T extends Document> extends UseBaseOpti
   onSettled?: (result: Response<string[]> | null, error: ServiceError | null) => void;
 }
 
-export interface UseDistinctModelResult {
+export interface UseDistinctQueryResult {
   data: string[] | null;
   isLoading: boolean;
   error: ServiceError | null;
-  distinctModel: () => Promise<Response<string[]>>;
+  query: () => Promise<Response<string[]>>;
   refetch: () => void;
   reset: () => void;
 }
