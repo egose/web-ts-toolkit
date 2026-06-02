@@ -1,12 +1,14 @@
 {
   "name": "@web-ts-toolkit/express-response-handler",
-  "description": "Express response handler",
+  "description": "FastAPI-style return-value response handling for Express",
   "version": "0.0.0-PLACEHOLDER",
+  "sideEffects": false,
   "keywords": [
     "express",
     "api",
-    "request",
-    "handler"
+    "responses",
+    "http",
+    "error-handling"
   ],
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -49,9 +51,11 @@
   },
   "files": [
     "README.md",
-    "dist",
-    "tsup.config.ts"
+    "dist"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@fast-csv/format": "^5.0.5",
     "@web-ts-toolkit/http-errors": "workspace:*",

@@ -1,11 +1,14 @@
 {
   "name": "@web-ts-toolkit/access-router",
-  "description": "Access-policy Express routers and in-memory data services for Mongoose-backed APIs",
+  "description": "ACL-aware Express routers and in-memory data services for Mongoose-backed APIs",
   "version": "0.0.0-PLACEHOLDER",
+  "sideEffects": false,
   "keywords": [
     "express",
     "mongoose",
-    "access",
+    "acl",
+    "crud",
+    "openapi",
     "access-router",
     "router"
   ],
@@ -40,6 +43,9 @@
     "README.md",
     "dist"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@web-ts-toolkit/express-json-router": "workspace:*",
     "@web-ts-toolkit/utils": "workspace:*",

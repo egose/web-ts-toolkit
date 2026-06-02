@@ -2,12 +2,14 @@
   "name": "@web-ts-toolkit/access-router-react",
   "description": "React hooks for @web-ts-toolkit/access-router-client model services",
   "version": "0.0.0-PLACEHOLDER",
+  "sideEffects": false,
   "keywords": [
     "react",
     "hooks",
+    "typescript",
+    "crud",
     "access-router",
-    "model",
-    "crud"
+    "model"
   ],
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -26,9 +28,11 @@
   },
   "files": [
     "README.md",
-    "dist",
-    "tsup.config.ts"
+    "dist"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
     "@web-ts-toolkit/access-router-client": "workspace:*"

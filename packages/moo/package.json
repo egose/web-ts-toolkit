@@ -2,11 +2,13 @@
   "name": "@web-ts-toolkit/moo",
   "description": "Mongoose helpers for schema fields, ObjectId checks, and document plugins",
   "version": "0.0.0-PLACEHOLDER",
+  "sideEffects": false,
   "keywords": [
     "mongoose",
     "mongodb",
     "schema",
-    "plugin"
+    "plugins",
+    "objectid"
   ],
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -61,9 +63,11 @@
   },
   "files": [
     "README.md",
-    "dist",
-    "tsup.config.ts"
+    "dist"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "peerDependencies": {
     "mongoose": ">=8.0.0"
   },

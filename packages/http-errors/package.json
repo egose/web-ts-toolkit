@@ -1,10 +1,14 @@
 {
   "name": "@web-ts-toolkit/http-errors",
-  "description": "HTTP error classes for backend APIs",
+  "description": "Typed HTTP error classes and payload helpers for backend APIs",
   "version": "0.0.0-PLACEHOLDER",
+  "sideEffects": false,
   "keywords": [
     "http-errors",
-    "api-errors"
+    "api-errors",
+    "problem-details",
+    "rfc9457",
+    "aip193"
   ],
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -23,9 +27,11 @@
   },
   "files": [
     "README.md",
-    "dist",
-    "tsup.config.ts"
+    "dist"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@web-ts-toolkit/utils": "workspace:*"
   }

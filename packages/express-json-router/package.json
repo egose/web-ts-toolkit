@@ -1,12 +1,14 @@
 {
   "name": "@web-ts-toolkit/express-json-router",
-  "description": "Express router wrapper for JSON responses",
+  "description": "Express router wrapper for return-value JSON responses",
   "version": "0.0.0-PLACEHOLDER",
+  "sideEffects": false,
   "keywords": [
     "express",
     "api",
     "json",
-    "router"
+    "router",
+    "http"
   ],
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -25,9 +27,11 @@
   },
   "files": [
     "README.md",
-    "dist",
-    "tsup.config.ts"
+    "dist"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@web-ts-toolkit/express-response-handler": "workspace:*",
     "@web-ts-toolkit/http-errors": "workspace:*",
