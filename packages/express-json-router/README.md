@@ -1,6 +1,6 @@
-# @web-ts-toolkit/express-json-router
+# `@web-ts-toolkit/express-json-router`
 
-Express router wrapper that wires route handlers through `@web-ts-toolkit/express-response-handler` and keeps track of registered endpoints.
+Express router wrapper that routes handler return values through `@web-ts-toolkit/express-response-handler`.
 
 ## Installation
 
@@ -8,12 +8,14 @@ Express router wrapper that wires route handlers through `@web-ts-toolkit/expres
 pnpm add @web-ts-toolkit/express-json-router express
 ```
 
-## Documentation
+## Highlights
 
-- Full package documentation lives in `website/docs/packages/express-json-router.md`.
-- Use the Docusaurus site in `website` for the complete guide and API notes.
+- return plain values from route handlers
+- throw typed HTTP errors
+- use custom response-handler instances when needed
+- inspect registered endpoints with `getEndpoints()`
 
-## Minimal Example
+## Quick Start
 
 ```ts
 import express from 'express';
@@ -28,13 +30,19 @@ router.get('/users/:id', () => {
   throw new JsonRouter.clientErrors.NotFoundError('User not found');
 });
 
-JsonRouter.errorMessageProvider = (error) => {
-  if (error instanceof Error) {
-    return { message: error.message };
-  }
-
-  return { message: String(error) };
-};
-
 app.use(router.original);
 ```
+
+## Main Exports
+
+- `JsonRouter`
+- `JsonRouter.HttpResponse`
+- `JsonRouter.clientErrors`
+- `JsonRouter.createHandler(...)`
+- `JsonRouter.ErrorFormats`
+
+## Documentation
+
+Full package documentation lives in `website/docs/packages/express-json-router.md`.
+
+- live docs: https://web-ts-toolkit.pages.dev/docs/packages/express-json-router

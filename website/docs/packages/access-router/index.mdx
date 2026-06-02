@@ -20,6 +20,7 @@ Main entrypoint:
 - default export `acl`
 - named export `acl`
 - `createAccessRuntime()` for isolated runtime state
+- `createOpenApiRouter(...)` for `/openapi.json` and Swagger UI routes
 - `combineRoutes(...)` for mounting multiple routers together
 - `guard(...)` for route guards
 - `permissionsPlugin` for schema-based permission access
@@ -66,6 +67,18 @@ Use `access-router` when you want:
 - model-backed CRUD routers with ACL-aware filtering and field selection
 - in-memory data routers with the same request/permission model
 - root batch routes for grouped operations
+- OpenAPI generation and Swagger UI without hand-maintaining route docs
 - reusable permission helpers, hooks, and request validation
 
 If you only need low-level validation schemas, symbols, or enums, import from the `advanced` subpath instead.
+
+## Package Guide
+
+- [Routing](./routing): router factories, generated endpoints, and batch routing
+- [Configuration](./configuration): global, model, and data router options
+- [Services](./services): public service methods behind the generated routes
+- [Hooks](./hooks): ACL, filter, validation, decoration, and persistence hooks
+- [Validation](./validation): built-in schemas and custom validator adapters
+- [OpenAPI](./openapi): generated spec routes, Swagger UI, and custom schema metadata
+- [Advanced](./advanced): lower-level types, enums, symbols, and validation helpers
+- [Processors](./processors): document processing helpers

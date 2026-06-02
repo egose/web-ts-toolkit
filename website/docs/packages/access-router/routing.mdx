@@ -55,24 +55,38 @@ app.use(acl.combineRoutes(fruitRouter, userRouter, rootRouter));
 
 Default route segments are `__query` and `__mutation`.
 
-- `GET /base`
-- `POST /base`
-- `POST /base/__query`
-- `POST /base/__mutation`
-- `GET /base/new`
-- `GET /base/:id`
-- `POST /base/__query/:id`
-- `PATCH /base/:id`
-- `PATCH /base/__mutation/:id`
-- `PUT /base`
-- `PUT /base/__mutation`
-- `DELETE /base/:id`
-- `GET /base/count`
-- `POST /base/count`
-- `GET /base/distinct/:field`
-- `POST /base/distinct/:field`
+- `GET /base` for simple list
+- `POST /base/__query` for advanced list
+- `POST /base` for create
+- `POST /base/__mutation` for advanced create
+- `GET /base/new` for a new-document template
+- `GET /base/:id` for read by id
+- `POST /base/__query/__filter` for advanced read by filter
+- `POST /base/__query/:id` for advanced read by id
+- `PATCH /base/:id` for update
+- `PATCH /base/__mutation/:id` for advanced update
+- `PUT /base` for upsert
+- `PUT /base/__mutation` for advanced upsert
+- `DELETE /base/:id` for delete
+- `GET /base/count` for count
+- `POST /base/count` for filtered count
+- `GET /base/distinct/:field` for distinct values
+- `POST /base/distinct/:field` for filtered distinct values
 
 Sub-document routes are generated for every referenced subpath discovered on the model schema.
+
+For each subdocument path `sub`, these routes are added:
+
+- `GET /base/:id/sub`
+- `POST /base/:id/sub/__query`
+- `PATCH /base/:id/sub`
+- `GET /base/:id/sub/:subId`
+- `POST /base/:id/sub/:subId/__query`
+- `PATCH /base/:id/sub/:subId`
+- `POST /base/:id/sub`
+- `DELETE /base/:id/sub/:subId`
+
+That gives you generated list, advanced list, bulk update, read, advanced read, update, create, and delete operations for each discovered subdocument collection.
 
 ## Data Router Routes
 
@@ -122,6 +136,21 @@ The response wraps each operation as:
 ```
 
 `result` keeps the underlying service response instead of flattening it into a second batch-only format.
+
+## OpenAPI Router
+
+`access-router` can also mount a separate documentation router:
+
+```ts
+app.use(acl.createOpenApiRouter());
+```
+
+By default this exposes:
+
+- `GET /openapi.json`
+- `GET /docs`
+
+You can customize those paths with `jsonPath` and `docsPath`, or disable Swagger UI entirely with `docsPath: false`.
 
 ## Mutability
 

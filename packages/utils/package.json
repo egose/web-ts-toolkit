@@ -1,7 +1,16 @@
 {
   "name": "@web-ts-toolkit/utils",
-  "description": "Shared utility helpers used across workspace packages",
+  "description": "Shared collection, object, async, and URL helpers used across workspace packages",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/utils",
   "version": "0.0.0-PLACEHOLDER",
+  "sideEffects": false,
+  "keywords": [
+    "utilities",
+    "collections",
+    "objects",
+    "url",
+    "typescript"
+  ],
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -17,7 +26,10 @@
     "build": "tsup --config tsup.config.ts"
   },
   "files": [
-    "dist",
-    "tsup.config.ts"
-  ]
+    "README.md",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
 }

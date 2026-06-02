@@ -32,6 +32,8 @@ Model routers support `requestSchemas` for stricter application-level validation
 - custom validator functions work
 - adapter objects with `validate(value)` work
 
+If you want custom OpenAPI output for a user-defined validator, wrap it with `defineRequestSchema(...)`.
+
 ## RequestSchemas Inputs
 
 `requestSchemas` can be provided as:
@@ -65,6 +67,46 @@ Helpers exported by `@web-ts-toolkit/access-router`:
 - schema/helper adapters: `fromYup(schema)`, `fromJoi(schema)`, `fromAjv(validate)`
 - schema/helper adapters: `fromValibot(schema, safeParse)`, `fromArkType(type)`
 - schema/helper adapters: `fromIoTs(codec)`, `fromSuperstruct(struct, validate)`, `fromVine(validator)`
+
+## `defineRequestSchema(...)`
+
+Use `defineRequestSchema(validator, { openapi })` when you want a custom validator and still want the generated OpenAPI document to describe that request body.
+
+```ts
+import { defineRequestSchema } from '@web-ts-toolkit/access-router';
+
+requestSchemas: {
+  advancedCreate: defineRequestSchema(
+    async (value) => {
+      const body = value as { data?: { role?: string } };
+
+      if (body?.data?.role !== 'user' && body?.data?.role !== 'admin') {
+        return {
+          success: false,
+          issues: [{ message: 'role must be user or admin', path: ['data', 'role'] }],
+        };
+      }
+
+      return { success: true, data: body };
+    },
+    {
+      openapi: {
+        type: 'object',
+        properties: {
+          data: {
+            type: 'object',
+            properties: {
+              role: { type: 'string', enum: ['user', 'admin'] },
+            },
+          },
+        },
+      },
+    },
+  ),
+}
+```
+
+Without `openapi` metadata, custom validators still work for runtime validation, but the generated OpenAPI schema falls back to a generic object shape.
 
 ## Examples
 

@@ -1,20 +1,21 @@
 {
   "name": "@web-ts-toolkit/access-router-deco",
   "version": "0.0.0-PLACEHOLDER",
-  "description": "TypeScript decorators for @web-ts-toolkit/access-router",
-  "license": "MIT",
+  "description": "Decorator-based configuration for @web-ts-toolkit/access-router",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/access-router-deco",
+  "license": "Apache-2.0",
   "sideEffects": false,
   "repository": {
     "type": "git",
-    "url": "https://github.com/anomalyco/opencode",
+    "url": "git+https://github.com/egose/web-ts-toolkit.git",
     "directory": "packages/access-router-deco"
   },
   "keywords": [
+    "typescript",
     "express",
     "mongoose",
-    "access control",
-    "api endpoints",
     "decorators",
+    "acl",
     "access-router"
   ],
   "scripts": {
@@ -36,6 +37,7 @@
     }
   },
   "files": [
+    "README.md",
     "dist"
   ],
   "peerDependencies": {

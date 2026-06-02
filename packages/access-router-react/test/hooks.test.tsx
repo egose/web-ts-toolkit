@@ -133,23 +133,23 @@ describe('createModelHooks', () => {
   it('returns an object with all 8 hooks', () => {
     const { service } = createMockService();
     const hooks = createModelHooks({ modelService: service });
-    expect(typeof hooks.useReadModel).toBe('function');
-    expect(typeof hooks.useListModel).toBe('function');
-    expect(typeof hooks.useCreateModel).toBe('function');
-    expect(typeof hooks.useUpdateModel).toBe('function');
-    expect(typeof hooks.useUpsertModel).toBe('function');
-    expect(typeof hooks.useDeleteModel).toBe('function');
-    expect(typeof hooks.useCountModel).toBe('function');
-    expect(typeof hooks.useDistinctModel).toBe('function');
+    expect(typeof hooks.useRead).toBe('function');
+    expect(typeof hooks.useList).toBe('function');
+    expect(typeof hooks.useCreate).toBe('function');
+    expect(typeof hooks.useUpdate).toBe('function');
+    expect(typeof hooks.useUpsert).toBe('function');
+    expect(typeof hooks.useDelete).toBe('function');
+    expect(typeof hooks.useCount).toBe('function');
+    expect(typeof hooks.useDistinct).toBe('function');
   });
 
-  // ── useReadModel ──
+  // ── useRead ──
 
-  describe('useReadModel', () => {
+  describe('useRead', () => {
     it('returns initial state', () => {
       const { service } = createMockService();
-      const { useReadModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useReadModel());
+      const { useRead } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useRead());
       expect(result.current.data).toBeNull();
       expect(result.current.isLoading).toBe(false);
       expect(result.current.isFetching).toBe(false);
@@ -158,8 +158,8 @@ describe('createModelHooks', () => {
 
     it('auto-fetches on mount when id is provided', async () => {
       const { service } = createMockService();
-      const { useReadModel } = createModelHooks({ modelService: service });
-      renderHook(() => useReadModel({ id: '1' }));
+      const { useRead } = createModelHooks({ modelService: service });
+      renderHook(() => useRead({ id: '1' }));
       await waitFor(() => {
         expect(service.read).toHaveBeenCalledWith('1', undefined, expect.any(Object));
       });
@@ -167,24 +167,24 @@ describe('createModelHooks', () => {
 
     it('does not fetch when enabled is false', () => {
       const { service } = createMockService();
-      const { useReadModel } = createModelHooks({ modelService: service });
-      renderHook(() => useReadModel({ id: '1', enabled: false }));
+      const { useRead } = createModelHooks({ modelService: service });
+      renderHook(() => useRead({ id: '1', enabled: false }));
       expect(service.read).not.toHaveBeenCalled();
     });
 
     it('does not fetch when id is missing', () => {
       const { service } = createMockService();
-      const { useReadModel } = createModelHooks({ modelService: service });
-      renderHook(() => useReadModel());
+      const { useRead } = createModelHooks({ modelService: service });
+      renderHook(() => useRead());
       expect(service.read).not.toHaveBeenCalled();
     });
 
     it('manual read() populates data', async () => {
       const { service } = createMockService();
-      const { useReadModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useReadModel());
+      const { useRead } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useRead());
       await act(async () => {
-        await result.current.readModel('1');
+        await result.current.query('1');
       });
       expect(result.current.data).toEqual({ _id: '1', name: 'Test', status: 'active' });
     });
@@ -192,8 +192,8 @@ describe('createModelHooks', () => {
     it('calls onSuccess after fetch', async () => {
       const { service } = createMockService();
       const onSuccess = vi.fn();
-      const { useReadModel } = createModelHooks({ modelService: service });
-      renderHook(() => useReadModel({ id: '1', onSuccess }));
+      const { useRead } = createModelHooks({ modelService: service });
+      renderHook(() => useRead({ id: '1', onSuccess }));
       await waitFor(() => {
         expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
       });
@@ -211,8 +211,8 @@ describe('createModelHooks', () => {
       });
       (service.read as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
       const onError = vi.fn();
-      const { useReadModel } = createModelHooks({ modelService: service });
-      renderHook(() => useReadModel({ id: '1', onError }));
+      const { useRead } = createModelHooks({ modelService: service });
+      renderHook(() => useRead({ id: '1', onError }));
       await waitFor(() => {
         expect(onError).toHaveBeenCalledWith(error);
       });
@@ -221,8 +221,8 @@ describe('createModelHooks', () => {
     it('calls onSettled on success', async () => {
       const { service } = createMockService();
       const onSettled = vi.fn();
-      const { useReadModel } = createModelHooks({ modelService: service });
-      renderHook(() => useReadModel({ id: '1', onSettled }));
+      const { useRead } = createModelHooks({ modelService: service });
+      renderHook(() => useRead({ id: '1', onSettled }));
       await waitFor(() => {
         expect(onSettled).toHaveBeenCalledWith(expect.objectContaining({ success: true }), null);
       });
@@ -240,8 +240,8 @@ describe('createModelHooks', () => {
       });
       (service.read as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
       const onSettled = vi.fn();
-      const { useReadModel } = createModelHooks({ modelService: service });
-      renderHook(() => useReadModel({ id: '1', onSettled }));
+      const { useRead } = createModelHooks({ modelService: service });
+      renderHook(() => useRead({ id: '1', onSettled }));
       await waitFor(() => {
         expect(onSettled).toHaveBeenCalledWith(null, error);
       });
@@ -249,29 +249,29 @@ describe('createModelHooks', () => {
 
     it('uses initialData', () => {
       const { service } = createMockService();
-      const { useReadModel } = createModelHooks({ modelService: service });
+      const { useRead } = createModelHooks({ modelService: service });
       const initial = { _id: '0', name: 'Cached', status: 'active' } as Model<TestDoc> & TestDoc;
-      const { result } = renderHook(() => useReadModel({ initialData: initial }));
+      const { result } = renderHook(() => useRead({ initialData: initial }));
       expect(result.current.data).toEqual(initial);
     });
 
     it('advanced mode calls readAdvanced', async () => {
       const { service } = createMockService();
-      const { useReadModel } = createModelHooks({ modelService: service });
-      renderHook(() => useReadModel({ id: '1', advanced: true }));
+      const { useRead } = createModelHooks({ modelService: service });
+      renderHook(() => useRead({ id: '1', advanced: true }));
       await waitFor(() => {
         expect(service.readAdvanced).toHaveBeenCalled();
       });
     });
   });
 
-  // ── useListModel ──
+  // ── useList ──
 
-  describe('useListModel', () => {
+  describe('useList', () => {
     it('returns initial state', () => {
       const { service } = createMockService();
-      const { useListModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useListModel());
+      const { useList } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useList());
       expect(result.current.data).toEqual([]);
       expect(result.current.totalCount).toBe(0);
       expect(result.current.isLoading).toBe(false);
@@ -280,8 +280,8 @@ describe('createModelHooks', () => {
 
     it('auto-fetches on mount when listParams is provided', async () => {
       const { service } = createMockService();
-      const { useListModel } = createModelHooks({ modelService: service });
-      renderHook(() => useListModel({ listParams: { pageSize: 10 } }));
+      const { useList } = createModelHooks({ modelService: service });
+      renderHook(() => useList({ listParams: { pageSize: 10 } }));
       await waitFor(() => {
         expect(service.list).toHaveBeenCalled();
       });
@@ -289,15 +289,15 @@ describe('createModelHooks', () => {
 
     it('does not fetch when enabled is false', () => {
       const { service } = createMockService();
-      const { useListModel } = createModelHooks({ modelService: service });
-      renderHook(() => useListModel({ listParams: {}, enabled: false }));
+      const { useList } = createModelHooks({ modelService: service });
+      renderHook(() => useList({ listParams: {}, enabled: false }));
       expect(service.list).not.toHaveBeenCalled();
     });
 
     it('advanced mode calls listAdvanced', async () => {
       const { service } = createMockService();
-      const { useListModel } = createModelHooks({ modelService: service });
-      renderHook(() => useListModel({ advanced: true, filter: { status: 'active' } }));
+      const { useList } = createModelHooks({ modelService: service });
+      renderHook(() => useList({ advanced: true, filter: { status: 'active' } }));
       await waitFor(() => {
         expect(service.listAdvanced).toHaveBeenCalled();
       });
@@ -305,10 +305,10 @@ describe('createModelHooks', () => {
 
     it('manual list() populates data', async () => {
       const { service } = createMockService();
-      const { useListModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useListModel());
+      const { useList } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useList());
       await act(async () => {
-        await result.current.listModel();
+        await result.current.query();
       });
       expect(result.current.data).toEqual([]);
       expect(result.current.totalCount).toBe(0);
@@ -326,8 +326,8 @@ describe('createModelHooks', () => {
       });
       (service.list as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
       const onError = vi.fn();
-      const { useListModel } = createModelHooks({ modelService: service });
-      renderHook(() => useListModel({ listParams: {}, onError }));
+      const { useList } = createModelHooks({ modelService: service });
+      renderHook(() => useList({ listParams: {}, onError }));
       await waitFor(() => {
         expect(onError).toHaveBeenCalledWith(error);
       });
@@ -336,8 +336,8 @@ describe('createModelHooks', () => {
     it('calls onSuccess after fetch', async () => {
       const { service } = createMockService();
       const onSuccess = vi.fn();
-      const { useListModel } = createModelHooks({ modelService: service });
-      renderHook(() => useListModel({ listParams: {}, onSuccess }));
+      const { useList } = createModelHooks({ modelService: service });
+      renderHook(() => useList({ listParams: {}, onSuccess }));
       await waitFor(() => {
         expect(onSuccess).toHaveBeenCalled();
       });
@@ -345,16 +345,16 @@ describe('createModelHooks', () => {
 
     it('uses initialData', () => {
       const { service } = createMockService();
-      const { useListModel } = createModelHooks({ modelService: service });
+      const { useList } = createModelHooks({ modelService: service });
       const initial = [{ _id: '0', name: 'Cached', status: 'active' }] as (Model<TestDoc> & TestDoc)[];
-      const { result } = renderHook(() => useListModel({ initialData: initial }));
+      const { result } = renderHook(() => useList({ initialData: initial }));
       expect(result.current.data).toEqual(initial);
     });
 
     it('keepPreviousData sets previousData during refetch', async () => {
       const { service } = createMockService();
-      const { useListModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useListModel({ listParams: {}, keepPreviousData: true }));
+      const { useList } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useList({ listParams: {}, keepPreviousData: true }));
 
       // Wait for the initial fetch to complete
       await waitFor(() => {
@@ -365,13 +365,13 @@ describe('createModelHooks', () => {
     });
   });
 
-  // ── useCreateModel ──
+  // ── useCreate ──
 
-  describe('useCreateModel', () => {
+  describe('useCreate', () => {
     it('returns initial state', () => {
       const { service } = createMockService();
-      const { useCreateModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useCreateModel());
+      const { useCreate } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useCreate());
       expect(result.current.data).toBeNull();
       expect(result.current.isPending).toBe(false);
       expect(result.current.error).toBeNull();
@@ -379,10 +379,10 @@ describe('createModelHooks', () => {
 
     it('create() populates data', async () => {
       const { service } = createMockService();
-      const { useCreateModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useCreateModel());
+      const { useCreate } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useCreate());
       await act(async () => {
-        await result.current.createModel({ name: 'New' });
+        await result.current.mutate({ name: 'New' });
       });
       expect(result.current.data).toEqual({ _id: '2', name: 'New', status: 'pending' });
       expect(service.create).toHaveBeenCalled();
@@ -391,10 +391,10 @@ describe('createModelHooks', () => {
     it('calls onSuccess callback', async () => {
       const { service } = createMockService();
       const onSuccess = vi.fn();
-      const { useCreateModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useCreateModel({ onSuccess }));
+      const { useCreate } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useCreate({ onSuccess }));
       await act(async () => {
-        await result.current.createModel({ name: 'New' });
+        await result.current.mutate({ name: 'New' });
       });
       expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
@@ -411,11 +411,11 @@ describe('createModelHooks', () => {
       });
       (service.create as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
       const onError = vi.fn();
-      const { useCreateModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useCreateModel({ onError }));
+      const { useCreate } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useCreate({ onError }));
       await act(async () => {
         try {
-          await result.current.createModel({ name: 'New' });
+          await result.current.mutate({ name: 'New' });
         } catch {
           /* expected */
         }
@@ -427,20 +427,20 @@ describe('createModelHooks', () => {
     it('calls onSettled on success', async () => {
       const { service } = createMockService();
       const onSettled = vi.fn();
-      const { useCreateModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useCreateModel({ onSettled }));
+      const { useCreate } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useCreate({ onSettled }));
       await act(async () => {
-        await result.current.createModel({ name: 'New' });
+        await result.current.mutate({ name: 'New' });
       });
       expect(onSettled).toHaveBeenCalledWith(expect.objectContaining({ success: true }), null);
     });
 
     it('reset() clears data and error', async () => {
       const { service } = createMockService();
-      const { useCreateModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useCreateModel());
+      const { useCreate } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useCreate());
       await act(async () => {
-        await result.current.createModel({ name: 'New' });
+        await result.current.mutate({ name: 'New' });
       });
       expect(result.current.data).not.toBeNull();
       act(() => {
@@ -452,32 +452,32 @@ describe('createModelHooks', () => {
 
     it('advanced mode calls createAdvanced', async () => {
       const { service } = createMockService();
-      const { useCreateModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useCreateModel({ advanced: true }));
+      const { useCreate } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useCreate({ advanced: true }));
       await act(async () => {
-        await result.current.createModel({ name: 'New' });
+        await result.current.mutate({ name: 'New' });
       });
       expect(service.createAdvanced).toHaveBeenCalled();
     });
   });
 
-  // ── useUpdateModel ──
+  // ── useUpdate ──
 
-  describe('useUpdateModel', () => {
+  describe('useUpdate', () => {
     it('returns initial state', () => {
       const { service } = createMockService();
-      const { useUpdateModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useUpdateModel());
+      const { useUpdate } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpdate());
       expect(result.current.data).toBeNull();
       expect(result.current.isPending).toBe(false);
     });
 
     it('update() populates data', async () => {
       const { service } = createMockService();
-      const { useUpdateModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useUpdateModel());
+      const { useUpdate } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpdate());
       await act(async () => {
-        await result.current.updateModel('1', { name: 'Updated' });
+        await result.current.mutate('1', { name: 'Updated' });
       });
       expect(result.current.data).toEqual({ _id: '1', name: 'Test', status: 'active' });
       expect(service.update).toHaveBeenCalled();
@@ -486,10 +486,10 @@ describe('createModelHooks', () => {
     it('calls onSuccess callback', async () => {
       const { service } = createMockService();
       const onSuccess = vi.fn();
-      const { useUpdateModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useUpdateModel({ onSuccess }));
+      const { useUpdate } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpdate({ onSuccess }));
       await act(async () => {
-        await result.current.updateModel('1', { name: 'Updated' });
+        await result.current.mutate('1', { name: 'Updated' });
       });
       expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
@@ -506,11 +506,11 @@ describe('createModelHooks', () => {
       });
       (service.update as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
       const onError = vi.fn();
-      const { useUpdateModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useUpdateModel({ onError }));
+      const { useUpdate } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpdate({ onError }));
       await act(async () => {
         try {
-          await result.current.updateModel('1', { name: 'Updated' });
+          await result.current.mutate('1', { name: 'Updated' });
         } catch {
           /* expected */
         }
@@ -521,10 +521,10 @@ describe('createModelHooks', () => {
 
     it('reset() clears data and error', async () => {
       const { service } = createMockService();
-      const { useUpdateModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useUpdateModel());
+      const { useUpdate } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpdate());
       await act(async () => {
-        await result.current.updateModel('1', { name: 'Updated' });
+        await result.current.mutate('1', { name: 'Updated' });
       });
       act(() => {
         result.current.reset();
@@ -535,22 +535,22 @@ describe('createModelHooks', () => {
 
     it('advanced mode calls updateAdvanced', async () => {
       const { service } = createMockService();
-      const { useUpdateModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useUpdateModel({ advanced: true }));
+      const { useUpdate } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpdate({ advanced: true }));
       await act(async () => {
-        await result.current.updateModel('1', { name: 'Updated' });
+        await result.current.mutate('1', { name: 'Updated' });
       });
       expect(service.updateAdvanced).toHaveBeenCalled();
     });
   });
 
-  // ── useUpsertModel ──
+  // ── useUpsert ──
 
-  describe('useUpsertModel', () => {
+  describe('useUpsert', () => {
     it('returns initial state', () => {
       const { service } = createMockService();
-      const { useUpsertModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useUpsertModel());
+      const { useUpsert } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpsert());
       expect(result.current.data).toBeNull();
       expect(result.current.isPending).toBe(false);
       expect(result.current.error).toBeNull();
@@ -558,10 +558,10 @@ describe('createModelHooks', () => {
 
     it('upsert() populates data', async () => {
       const { service } = createMockService();
-      const { useUpsertModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useUpsertModel());
+      const { useUpsert } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpsert());
       await act(async () => {
-        await result.current.upsertModel({ name: 'Upserted' });
+        await result.current.mutate({ name: 'Upserted' });
       });
       expect(result.current.data).toEqual({ _id: '1', name: 'Test', status: 'active' });
       expect(service.upsert).toHaveBeenCalled();
@@ -570,10 +570,10 @@ describe('createModelHooks', () => {
     it('calls onSuccess callback', async () => {
       const { service } = createMockService();
       const onSuccess = vi.fn();
-      const { useUpsertModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useUpsertModel({ onSuccess }));
+      const { useUpsert } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpsert({ onSuccess }));
       await act(async () => {
-        await result.current.upsertModel({ name: 'Upserted' });
+        await result.current.mutate({ name: 'Upserted' });
       });
       expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
@@ -590,11 +590,11 @@ describe('createModelHooks', () => {
       });
       (service.upsert as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
       const onError = vi.fn();
-      const { useUpsertModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useUpsertModel({ onError }));
+      const { useUpsert } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpsert({ onError }));
       await act(async () => {
         try {
-          await result.current.upsertModel({ name: 'Upserted' });
+          await result.current.mutate({ name: 'Upserted' });
         } catch {
           /* expected */
         }
@@ -605,10 +605,10 @@ describe('createModelHooks', () => {
 
     it('reset() clears data and error', async () => {
       const { service } = createMockService();
-      const { useUpsertModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useUpsertModel());
+      const { useUpsert } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpsert());
       await act(async () => {
-        await result.current.upsertModel({ name: 'Upserted' });
+        await result.current.mutate({ name: 'Upserted' });
       });
       expect(result.current.data).not.toBeNull();
       act(() => {
@@ -620,33 +620,33 @@ describe('createModelHooks', () => {
 
     it('advanced mode calls upsertAdvanced', async () => {
       const { service } = createMockService();
-      const { useUpsertModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useUpsertModel({ advanced: true }));
+      const { useUpsert } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useUpsert({ advanced: true }));
       await act(async () => {
-        await result.current.upsertModel({ name: 'Upserted' });
+        await result.current.mutate({ name: 'Upserted' });
       });
       expect(service.upsertAdvanced).toHaveBeenCalled();
     });
   });
 
-  // ── useDeleteModel ──
+  // ── useDelete ──
 
-  describe('useDeleteModel', () => {
+  describe('useDelete', () => {
     it('returns initial state', () => {
       const { service } = createMockService();
-      const { useDeleteModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useDeleteModel());
+      const { useDelete } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useDelete());
       expect(result.current.isPending).toBe(false);
       expect(result.current.error).toBeNull();
     });
 
-    it('deleteModel() calls service', async () => {
+    it('mutate() calls service', async () => {
       const { service } = createMockService();
-      const { useDeleteModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useDeleteModel());
+      const { useDelete } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useDelete());
       let deleteResult: Response<string> | undefined;
       await act(async () => {
-        deleteResult = await result.current.deleteModel('1');
+        deleteResult = await result.current.mutate('1');
       });
       expect(deleteResult?.success).toBe(true);
       expect(service.delete).toHaveBeenCalledWith('1', undefined);
@@ -655,10 +655,10 @@ describe('createModelHooks', () => {
     it('calls onSuccess callback', async () => {
       const { service } = createMockService();
       const onSuccess = vi.fn();
-      const { useDeleteModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useDeleteModel({ onSuccess }));
+      const { useDelete } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useDelete({ onSuccess }));
       await act(async () => {
-        await result.current.deleteModel('1');
+        await result.current.mutate('1');
       });
       expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
@@ -675,11 +675,11 @@ describe('createModelHooks', () => {
       });
       (service.delete as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
       const onError = vi.fn();
-      const { useDeleteModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useDeleteModel({ onError }));
+      const { useDelete } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useDelete({ onError }));
       await act(async () => {
         try {
-          await result.current.deleteModel('1');
+          await result.current.mutate('1');
         } catch {
           /* expected */
         }
@@ -699,11 +699,11 @@ describe('createModelHooks', () => {
         headers: {},
       });
       (service.delete as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
-      const { useDeleteModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useDeleteModel());
+      const { useDelete } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useDelete());
       await act(async () => {
         try {
-          await result.current.deleteModel('1');
+          await result.current.mutate('1');
         } catch {
           /* expected */
         }
@@ -716,13 +716,13 @@ describe('createModelHooks', () => {
     });
   });
 
-  // ── useCountModel ──
+  // ── useCount ──
 
-  describe('useCountModel', () => {
+  describe('useCount', () => {
     it('returns initial state', async () => {
       const { service } = createMockService();
-      const { useCountModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useCountModel());
+      const { useCount } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useCount());
       expect(result.current.data).toBeNull();
       expect(result.current.error).toBeNull();
       await waitFor(() => {
@@ -732,8 +732,8 @@ describe('createModelHooks', () => {
 
     it('auto-fetches on mount', async () => {
       const { service } = createMockService();
-      const { useCountModel } = createModelHooks({ modelService: service });
-      renderHook(() => useCountModel());
+      const { useCount } = createModelHooks({ modelService: service });
+      renderHook(() => useCount());
       await waitFor(() => {
         expect(service.count).toHaveBeenCalled();
       });
@@ -741,15 +741,15 @@ describe('createModelHooks', () => {
 
     it('does not fetch when enabled is false', () => {
       const { service } = createMockService();
-      const { useCountModel } = createModelHooks({ modelService: service });
-      renderHook(() => useCountModel({ enabled: false }));
+      const { useCount } = createModelHooks({ modelService: service });
+      renderHook(() => useCount({ enabled: false }));
       expect(service.count).not.toHaveBeenCalled();
     });
 
     it('advanced mode calls countAdvanced', async () => {
       const { service } = createMockService();
-      const { useCountModel } = createModelHooks({ modelService: service });
-      renderHook(() => useCountModel({ advanced: true }));
+      const { useCount } = createModelHooks({ modelService: service });
+      renderHook(() => useCount({ advanced: true }));
       await waitFor(() => {
         expect(service.countAdvanced).toHaveBeenCalled();
       });
@@ -758,8 +758,8 @@ describe('createModelHooks', () => {
     it('calls onSuccess after fetch', async () => {
       const { service } = createMockService();
       const onSuccess = vi.fn();
-      const { useCountModel } = createModelHooks({ modelService: service });
-      renderHook(() => useCountModel({ onSuccess }));
+      const { useCount } = createModelHooks({ modelService: service });
+      renderHook(() => useCount({ onSuccess }));
       await waitFor(() => {
         expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ data: 5 }));
       });
@@ -777,8 +777,8 @@ describe('createModelHooks', () => {
       });
       (service.count as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
       const onError = vi.fn();
-      const { useCountModel } = createModelHooks({ modelService: service });
-      renderHook(() => useCountModel({ onError }));
+      const { useCount } = createModelHooks({ modelService: service });
+      renderHook(() => useCount({ onError }));
       await waitFor(() => {
         expect(onError).toHaveBeenCalledWith(error);
       });
@@ -786,24 +786,24 @@ describe('createModelHooks', () => {
 
     it('manual count() returns data', async () => {
       const { service } = createMockService();
-      const { useCountModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useCountModel({ enabled: false }));
+      const { useCount } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useCount({ enabled: false }));
       let countResult: Response<number> | undefined;
       await act(async () => {
-        countResult = await result.current.countModel();
+        countResult = await result.current.query();
       });
       expect(countResult?.data).toBe(5);
       expect(result.current.data).toBe(5);
     });
   });
 
-  // ── useDistinctModel ──
+  // ── useDistinct ──
 
-  describe('useDistinctModel', () => {
+  describe('useDistinct', () => {
     it('returns initial state', async () => {
       const { service } = createMockService();
-      const { useDistinctModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useDistinctModel({ field: 'status' }));
+      const { useDistinct } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useDistinct({ field: 'status' }));
       expect(result.current.data).toBeNull();
       expect(result.current.error).toBeNull();
       await waitFor(() => {
@@ -813,8 +813,8 @@ describe('createModelHooks', () => {
 
     it('auto-fetches on mount using basic distinct', async () => {
       const { service } = createMockService();
-      const { useDistinctModel } = createModelHooks({ modelService: service });
-      renderHook(() => useDistinctModel({ field: 'status' }));
+      const { useDistinct } = createModelHooks({ modelService: service });
+      renderHook(() => useDistinct({ field: 'status' }));
       await waitFor(() => {
         expect(service.distinct).toHaveBeenCalledWith('status', expect.any(Object));
       });
@@ -822,8 +822,8 @@ describe('createModelHooks', () => {
 
     it('uses distinctAdvanced when conditions are provided', async () => {
       const { service } = createMockService();
-      const { useDistinctModel } = createModelHooks({ modelService: service });
-      renderHook(() => useDistinctModel({ field: 'status', conditions: { org: '1' } }));
+      const { useDistinct } = createModelHooks({ modelService: service });
+      renderHook(() => useDistinct({ field: 'status', conditions: { org: '1' } }));
       await waitFor(() => {
         expect(service.distinctAdvanced).toHaveBeenCalledWith('status', { org: '1' }, expect.any(Object));
       });
@@ -831,16 +831,16 @@ describe('createModelHooks', () => {
 
     it('does not fetch when enabled is false', () => {
       const { service } = createMockService();
-      const { useDistinctModel } = createModelHooks({ modelService: service });
-      renderHook(() => useDistinctModel({ field: 'status', enabled: false }));
+      const { useDistinct } = createModelHooks({ modelService: service });
+      renderHook(() => useDistinct({ field: 'status', enabled: false }));
       expect(service.distinct).not.toHaveBeenCalled();
     });
 
     it('calls onSuccess after fetch', async () => {
       const { service } = createMockService();
       const onSuccess = vi.fn();
-      const { useDistinctModel } = createModelHooks({ modelService: service });
-      renderHook(() => useDistinctModel({ field: 'status', onSuccess }));
+      const { useDistinct } = createModelHooks({ modelService: service });
+      renderHook(() => useDistinct({ field: 'status', onSuccess }));
       await waitFor(() => {
         expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ data: ['active', 'pending'] }));
       });
@@ -858,20 +858,20 @@ describe('createModelHooks', () => {
       });
       (service.distinct as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
       const onError = vi.fn();
-      const { useDistinctModel } = createModelHooks({ modelService: service });
-      renderHook(() => useDistinctModel({ field: 'status', onError }));
+      const { useDistinct } = createModelHooks({ modelService: service });
+      renderHook(() => useDistinct({ field: 'status', onError }));
       await waitFor(() => {
         expect(onError).toHaveBeenCalledWith(error);
       });
     });
 
-    it('manual distinctModel() returns data', async () => {
+    it('manual query() returns data', async () => {
       const { service } = createMockService();
-      const { useDistinctModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useDistinctModel({ field: 'status', enabled: false }));
+      const { useDistinct } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useDistinct({ field: 'status', enabled: false }));
       let distinctResult: Response<string[]> | undefined;
       await act(async () => {
-        distinctResult = await result.current.distinctModel();
+        distinctResult = await result.current.query();
       });
       expect(distinctResult?.data).toEqual(['active', 'pending']);
       expect(result.current.data).toEqual(['active', 'pending']);
@@ -879,8 +879,8 @@ describe('createModelHooks', () => {
 
     it('reset() clears data', async () => {
       const { service } = createMockService();
-      const { useDistinctModel } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useDistinctModel({ field: 'status' }));
+      const { useDistinct } = createModelHooks({ modelService: service });
+      const { result } = renderHook(() => useDistinct({ field: 'status' }));
       await waitFor(() => {
         expect(result.current.data).toEqual(['active', 'pending']);
       });

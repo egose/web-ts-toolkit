@@ -1,48 +1,40 @@
-# express-response-handler
+# `@web-ts-toolkit/express-response-handler`
 
 FastAPI-style return-value responses for Express.
-
-Instead of calling `res.json(...)` in every route, return a value. This package turns that return value into a `200 OK` JSON response, while still letting you return explicit response wrappers or throw errors when needed.
 
 ## Installation
 
 ```sh
-npm install @web-ts-toolkit/express-response-handler
+pnpm add @web-ts-toolkit/express-response-handler
 ```
 
-## Documentation
+## Highlights
 
-- Full package documentation lives in `website/docs/packages/express-response-handler.md`.
-- Use the Docusaurus site in `website` for examples, hooks, and structured error format details.
+- return plain JSON values instead of calling `res.json(...)`
+- return explicit `HttpResponse` wrappers for status control
+- throw typed HTTP errors
+- switch between simple, AIP-193, and RFC 9457-style error payloads
 
-## Minimal Example
+## Quick Start
 
 ```ts
 import express from 'express';
-
 import apiHandler from '@web-ts-toolkit/express-response-handler';
 import { NotFoundError } from '@web-ts-toolkit/http-errors';
 
 const { handleResponse, HttpResponse } = apiHandler;
-
 const app = express();
 
 app.get(
   '/health',
-  handleResponse(() => {
-    return { ok: true };
-  }),
+  handleResponse(() => ({ ok: true })),
 );
 
 app.get(
   '/users/:id',
   handleResponse(async (req) => {
     const user = await getUser(req.params.id);
-
-    if (!user) {
-      throw new NotFoundError('user not found');
-    }
-
+    if (!user) throw new NotFoundError('user not found');
     return user;
   }),
 );
@@ -55,3 +47,17 @@ app.post(
   }),
 );
 ```
+
+## Main Exports
+
+- default handler instance
+- `handleResponse(...)`
+- `HttpResponse`
+- `createHandler(...)`
+- `ErrorFormats`
+
+## Documentation
+
+Full package documentation lives in `website/docs/packages/express-response-handler.md`.
+
+- live docs: https://web-ts-toolkit.pages.dev/docs/packages/express-response-handler

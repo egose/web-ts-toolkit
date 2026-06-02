@@ -17,22 +17,22 @@ import type {
   ListModelResponse,
 } from '@web-ts-toolkit/access-router-client';
 import type {
-  UseReadModelOptions,
-  UseReadModelResult,
-  UseListModelOptions,
-  UseListModelResult,
-  UseCreateModelOptions,
-  UseCreateModelResult,
-  UseUpdateModelOptions,
-  UseUpdateModelResult,
-  UseUpsertModelOptions,
-  UseUpsertModelResult,
-  UseDeleteModelOptions,
-  UseDeleteModelResult,
-  UseCountModelOptions,
-  UseCountModelResult,
-  UseDistinctModelOptions,
-  UseDistinctModelResult,
+  UseReadQueryOptions,
+  UseReadQueryResult,
+  UseListQueryOptions,
+  UseListQueryResult,
+  UseCreateMutateOptions,
+  UseCreateMutateResult,
+  UseUpdateMutateOptions,
+  UseUpdateMutateResult,
+  UseUpsertMutateOptions,
+  UseUpsertMutateResult,
+  UseDeleteMutateOptions,
+  UseDeleteMutateResult,
+  UseCountQueryOptions,
+  UseCountQueryResult,
+  UseDistinctQueryOptions,
+  UseDistinctQueryResult,
 } from './types';
 import { isAbortError, useAbortManager, stableStringify, useMountRef } from './fetch';
 
@@ -138,7 +138,7 @@ function useMutation<A extends unknown[], R>(
   const mountRef = useMountRef();
   const { onSuccess, onSettled } = options ?? {};
 
-  const mutate = useCallback(
+  const executeMutate = useCallback(
     async (...args: A): Promise<R> => {
       setIsPending(true);
       setError(null);
@@ -165,7 +165,7 @@ function useMutation<A extends unknown[], R>(
 
   const reset = useCallback(() => setError(null), []);
 
-  return { isPending, error, mutate, reset };
+  return { isPending, error, executeMutate, reset };
 }
 
 // ── Factory ──
@@ -175,7 +175,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
 
   // ── Query hooks ──
 
-  function useReadModel(options: UseReadModelOptions<T> = {}): UseReadModelResult<T> {
+  function useRead(options: UseReadQueryOptions<T> = {}): UseReadQueryResult<T> {
     const {
       id,
       advanced,
@@ -220,7 +220,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
 
     const doFetch = useCallback(
       (signal?: AbortSignal) => {
-        if (!id) throw new Error('useReadModel: id is required');
+        if (!id) throw new Error('useRead: id is required');
         return doFetchById(id, signal);
       },
       [doFetchById, id],
@@ -238,7 +238,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       onSettled,
     });
 
-    const readModel = useCallback(
+    const query = useCallback(
       async (readId: string): Promise<ModelResponse<T>> => {
         const res = await doFetchById(readId);
         applyResult(res);
@@ -253,10 +253,10 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       setData(initialData);
     }, [initialData]);
 
-    return { data, isLoading, isFetching, error, readModel, refetch, reset };
+    return { data, isLoading, isFetching, error, query, refetch, reset };
   }
 
-  function useListModel(options: UseListModelOptions<T> = {}): UseListModelResult<T> {
+  function useList(options: UseListQueryOptions<T> = {}): UseListQueryResult<T> {
     const {
       listParams,
       filter,
@@ -355,7 +355,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       onSettled,
     });
 
-    const listModel = useCallback(
+    const query = useCallback(
       async (args?: ListArgs): Promise<ListModelResponse<T>> => {
         const res = await baseFetch(args);
         applyResult(res);
@@ -372,12 +372,12 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       setTotalCount(0);
     }, [initialData]);
 
-    return { data, previousData, totalCount, isLoading, isFetching, error, listModel, refetch, reset };
+    return { data, previousData, totalCount, isLoading, isFetching, error, query, refetch, reset };
   }
 
   // ── Mutation hooks ──
 
-  function useCreateModel(options: UseCreateModelOptions<T> = {}): UseCreateModelResult<T> {
+  function useCreate(options: UseCreateMutateOptions<T> = {}): UseCreateMutateResult<T> {
     const {
       advanced,
       select,
@@ -416,18 +416,18 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig, mountRef],
     );
 
-    const { isPending, error, mutate, reset: resetError } = useMutation(execute, { onSuccess, onSettled });
+    const { isPending, error, executeMutate, reset: resetError } = useMutation(execute, { onSuccess, onSettled });
 
-    const createModel = useCallback(
+    const mutate = useCallback(
       async (createData: object): Promise<ModelResponse<T>> => {
         try {
-          return await mutate(createData);
+          return await executeMutate(createData);
         } catch (err) {
           onError?.(err as ServiceError);
           throw err;
         }
       },
-      [mutate, onError],
+      [executeMutate, onError],
     );
 
     const reset = useCallback(() => {
@@ -435,10 +435,10 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       resetError();
     }, [resetError]);
 
-    return { data, isPending, error, createModel, reset };
+    return { data, isPending, error, mutate, reset };
   }
 
-  function useUpdateModel(options: UseUpdateModelOptions<T> = {}): UseUpdateModelResult<T> {
+  function useUpdate(options: UseUpdateMutateOptions<T> = {}): UseUpdateMutateResult<T> {
     const {
       advanced,
       select,
@@ -478,18 +478,18 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig, mountRef],
     );
 
-    const { isPending, error, mutate, reset: resetError } = useMutation(execute, { onSuccess, onSettled });
+    const { isPending, error, executeMutate, reset: resetError } = useMutation(execute, { onSuccess, onSettled });
 
-    const updateModel = useCallback(
+    const mutate = useCallback(
       async (updateId: string, updateData: object): Promise<ModelResponse<T>> => {
         try {
-          return await mutate(updateId, updateData);
+          return await executeMutate(updateId, updateData);
         } catch (err) {
           onError?.(err as ServiceError);
           throw err;
         }
       },
-      [mutate, onError],
+      [executeMutate, onError],
     );
 
     const reset = useCallback(() => {
@@ -497,10 +497,10 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       resetError();
     }, [resetError]);
 
-    return { data, isPending, error, updateModel, reset };
+    return { data, isPending, error, mutate, reset };
   }
 
-  function useUpsertModel(options: UseUpsertModelOptions<T> = {}): UseUpsertModelResult<T> {
+  function useUpsert(options: UseUpsertMutateOptions<T> = {}): UseUpsertMutateResult<T> {
     const {
       advanced,
       select,
@@ -539,18 +539,18 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig, mountRef],
     );
 
-    const { isPending, error, mutate, reset: resetError } = useMutation(execute, { onSuccess, onSettled });
+    const { isPending, error, executeMutate, reset: resetError } = useMutation(execute, { onSuccess, onSettled });
 
-    const upsertModel = useCallback(
+    const mutate = useCallback(
       async (upsertData: object): Promise<ModelResponse<T>> => {
         try {
-          return await mutate(upsertData);
+          return await executeMutate(upsertData);
         } catch (err) {
           onError?.(err as ServiceError);
           throw err;
         }
       },
-      [mutate, onError],
+      [executeMutate, onError],
     );
 
     const reset = useCallback(() => {
@@ -558,10 +558,10 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       resetError();
     }, [resetError]);
 
-    return { data, isPending, error, upsertModel, reset };
+    return { data, isPending, error, mutate, reset };
   }
 
-  function useDeleteModel(options: UseDeleteModelOptions = {}): UseDeleteModelResult {
+  function useDelete(options: UseDeleteMutateOptions = {}): UseDeleteMutateResult {
     const { requestConfig, onSuccess, onError, onSettled } = options;
 
     const execute = useCallback(
@@ -572,26 +572,26 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       [modelService, requestConfig],
     );
 
-    const { isPending, error, mutate, reset } = useMutation(execute, { onSuccess, onSettled });
+    const { isPending, error, executeMutate, reset } = useMutation(execute, { onSuccess, onSettled });
 
-    const deleteModel = useCallback(
+    const mutate = useCallback(
       async (deleteId: string): Promise<Response<string>> => {
         try {
-          return await mutate(deleteId);
+          return await executeMutate(deleteId);
         } catch (err) {
           onError?.(err as ServiceError);
           throw err;
         }
       },
-      [mutate, onError],
+      [executeMutate, onError],
     );
 
-    return { isPending, error, deleteModel, reset };
+    return { isPending, error, mutate, reset };
   }
 
   // ── Count ──
 
-  function useCountModel(options: UseCountModelOptions<T> = {}): UseCountModelResult {
+  function useCount(options: UseCountQueryOptions<T> = {}): UseCountQueryResult {
     const { advanced, filter, enabled = true, requestConfig, onSuccess, onError, onSettled } = options;
     const [data, setData] = useState<number | null>(null);
 
@@ -623,7 +623,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       onSettled,
     });
 
-    const countModel = useCallback(async (): Promise<Response<number>> => {
+    const query = useCallback(async (): Promise<Response<number>> => {
       const res = await doFetch();
       applyResult(res);
       onSuccess?.(res);
@@ -635,12 +635,12 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       setData(null);
     }, []);
 
-    return { data, isLoading, error, countModel, refetch, reset };
+    return { data, isLoading, error, query, refetch, reset };
   }
 
   // ── Distinct ──
 
-  function useDistinctModel(options: UseDistinctModelOptions<T>): UseDistinctModelResult {
+  function useDistinct(options: UseDistinctQueryOptions<T>): UseDistinctQueryResult {
     const { field, conditions, enabled = true, requestConfig, onSuccess, onError, onSettled } = options;
     const [data, setData] = useState<string[] | null>(null);
 
@@ -674,7 +674,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       onSettled,
     });
 
-    const distinctModel = useCallback(async (): Promise<Response<string[]>> => {
+    const query = useCallback(async (): Promise<Response<string[]>> => {
       const res = await doFetch();
       applyResult(res);
       onSuccess?.(res);
@@ -686,17 +686,17 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       setData(null);
     }, []);
 
-    return { data, isLoading, error, distinctModel, refetch, reset };
+    return { data, isLoading, error, query, refetch, reset };
   }
 
   return {
-    useReadModel,
-    useListModel,
-    useCreateModel,
-    useUpdateModel,
-    useUpsertModel,
-    useDeleteModel,
-    useCountModel,
-    useDistinctModel,
+    useRead,
+    useList,
+    useCreate,
+    useUpdate,
+    useUpsert,
+    useDelete,
+    useCount,
+    useDistinct,
   };
 }

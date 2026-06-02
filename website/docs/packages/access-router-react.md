@@ -7,7 +7,7 @@ sidebar_position: 3
 
 React hooks for `@web-ts-toolkit/access-router-client` model services.
 
-This package provides a `createModelHooks` factory that binds a `ModelService` to individual React hooks for each CRUD operation. Each hook manages its own loading, error, and data state.
+This package provides a `createModelHooks` factory that binds one `ModelService` to eight hooks covering query and mutation flows.
 
 ## Installation
 
@@ -23,20 +23,17 @@ Peer dependencies: `react ^18 || ^19` and `@web-ts-toolkit/access-router-client`
 import { createModelHooks } from '@web-ts-toolkit/access-router-react';
 import { adapter } from './api';
 
-// Create a model service
 const organizationService = adapter.createModelService<Organization>({
   modelName: 'Organization',
   basePath: 'organizations',
 });
 
-// Generate hooks bound to that service
-const { useReadModel, useListModel, useCreateModel, useUpdateModel, useDeleteModel } = createModelHooks({
+const { useList, useRead, useCreate, useUpdate, useDelete } = createModelHooks({
   modelService: organizationService,
 });
 
-// Use in a component
 function OrganizationList() {
-  const { data, isLoading, error } = useListModel({
+  const { data, isLoading, error } = useList({
     listParams: { pageSize: 20 },
   });
 
@@ -57,83 +54,57 @@ function OrganizationList() {
 
 ### `createModelHooks({ modelService })`
 
-Creates an object with eight hooks, each bound to the given `ModelService`. Call this **outside** your component to get stable hook references:
+Call the factory once, outside your components, and reuse the returned hooks.
 
 ```tsx
-const {
-  useReadModel,
-  useListModel,
-  useCreateModel,
-  useUpdateModel,
-  useUpsertModel,
-  useDeleteModel,
-  useCountModel,
-  useDistinctModel,
-} = createModelHooks({
+const { useRead, useList, useCreate, useUpdate, useUpsert, useDelete, useCount, useDistinct } = createModelHooks({
   modelService: organizationService,
 });
 ```
 
-The factory accepts:
+The factory accepts one property:
 
-| Property       | Type              | Description                                                   |
-| -------------- | ----------------- | ------------------------------------------------------------- |
-| `modelService` | `ModelService<T>` | A model service created via `adapter.createModelService(...)` |
+| Property       | Type              | Description                                                  |
+| -------------- | ----------------- | ------------------------------------------------------------ |
+| `modelService` | `ModelService<T>` | A model service created by `adapter.createModelService(...)` |
+
+## Naming Convention
+
+The current API uses:
+
+- verb-based hook names: `useRead`, `useList`, `useCreate`, `useUpdate`, `useUpsert`, `useDelete`, `useCount`, `useDistinct`
+- `query(...)` for query hooks
+- `mutate(...)` for mutation hooks
+
+That keeps the React surface consistent even though the underlying client methods still map to read, list, create, update, upsert, delete, count, and distinct operations.
 
 ## Query Hooks
 
-### `useReadModel`
+### `useRead`
 
-Fetches a single model by ID. Auto-fetches on mount when `id` is provided.
+Fetches one model by ID.
 
 ```tsx
-const { data, isLoading, isFetching, error, readModel, refetch, reset } = useReadModel({
+const { data, isLoading, isFetching, error, query, refetch, reset } = useRead({
   id: 'org_123',
   advanced: true,
   select: ['name', 'status'],
 });
 ```
 
-**Options:**
+Important options:
 
-| Option            | Type                      | Default | Description                                       |
-| ----------------- | ------------------------- | ------- | ------------------------------------------------- |
-| `id`              | `string`                  | —       | Model ID to fetch (triggers auto-fetch)           |
-| `advanced`        | `boolean`                 | `false` | Use `readAdvanced` instead of `read`              |
-| `select`          | `Projection`              | —       | Field projection for advanced reads               |
-| `populate`        | `Populate[]`              | —       | Population config for advanced reads              |
-| `sort`            | `Sort`                    | —       | Sort order for advanced reads                     |
-| `include`         | `Include \| Include[]`    | —       | Include config for advanced reads                 |
-| `tasks`           | `Task \| Task[]`          | —       | Tasks for advanced reads                          |
-| `basicOptions`    | `ReadOptions`             | —       | Options for basic reads                           |
-| `advancedOptions` | `ReadAdvancedOptions`     | —       | Options for advanced reads                        |
-| `enabled`         | `boolean`                 | `true`  | Set `false` to defer fetching                     |
-| `initialData`     | `T \| null`               | `null`  | Pre-populate data without loading                 |
-| `requestConfig`   | `RequestConfig`           | —       | Per-request config (headers, signal, etc.)        |
-| `onSuccess`       | `(result) => void`        | —       | Called after successful fetch                     |
-| `onError`         | `(error) => void`         | —       | Called on fetch failure                           |
-| `onSettled`       | `(result, error) => void` | —       | Called after fetch completes (success or failure) |
+- `id` controls auto-fetching
+- `advanced: true` switches to `readAdvanced(...)`
+- `select`, `populate`, `sort`, `include`, and `tasks` are forwarded to advanced reads
+- `basicOptions`, `advancedOptions`, `enabled`, `initialData`, `requestConfig`, `onSuccess`, `onError`, and `onSettled` control request behavior
 
-**Result:**
+### `useList`
 
-| Property     | Type                      | Description                               |
-| ------------ | ------------------------- | ----------------------------------------- |
-| `data`       | `(Model<T> & T) \| null`  | The fetched model (or `initialData`)      |
-| `isLoading`  | `boolean`                 | `true` during auto-fetch on mount         |
-| `isFetching` | `boolean`                 | `true` during any fetch (mount or manual) |
-| `error`      | `ServiceError \| null`    | Last fetch error                          |
-| `readModel`  | `(id: string) => Promise` | Manually fetch a model by ID              |
-| `refetch`    | `() => void`              | Re-fetch the current model                |
-| `reset`      | `() => void`              | Reset to `initialData`                    |
-
----
-
-### `useListModel`
-
-Fetches a list of models. Auto-fetches on mount when `listParams` is provided.
+Fetches a list of models.
 
 ```tsx
-const { data, totalCount, previousData, isLoading, error, listModel, refetch, reset } = useListModel({
+const { data, totalCount, previousData, isLoading, isFetching, error, query, refetch, reset } = useList({
   listParams: { pageSize: 20 },
   filter: { status: 'active' },
   advanced: true,
@@ -142,308 +113,157 @@ const { data, totalCount, previousData, isLoading, error, listModel, refetch, re
 });
 ```
 
-**Options:**
+Important options:
 
-| Option             | Type                      | Default | Description                                             |
-| ------------------ | ------------------------- | ------- | ------------------------------------------------------- |
-| `listParams`       | `ListArgs`                | —       | Basic list params (`skip`, `limit`, `page`, `pageSize`) |
-| `filter`           | `FilterQuery<T>`          | —       | Query filter (used with `advanced: true`)               |
-| `advanced`         | `boolean`                 | `false` | Use `listAdvanced` instead of `list`                    |
-| `sort`             | `Sort`                    | —       | Sort order for advanced lists                           |
-| `select`           | `Projection`              | —       | Field projection for advanced lists                     |
-| `populate`         | `Populate[]`              | —       | Population config for advanced lists                    |
-| `include`          | `Include \| Include[]`    | —       | Include config for advanced lists                       |
-| `tasks`            | `Task \| Task[]`          | —       | Tasks for advanced lists                                |
-| `basicOptions`     | `ListOptions`             | —       | Options for basic lists                                 |
-| `advancedOptions`  | `ListAdvancedOptions`     | —       | Options for advanced lists                              |
-| `enabled`          | `boolean`                 | `true`  | Set `false` to defer fetching                           |
-| `keepPreviousData` | `boolean`                 | `false` | Preserve old data during refetch                        |
-| `initialData`      | `(Model<T> & T)[]`        | `[]`    | Pre-populate data                                       |
-| `requestConfig`    | `RequestConfig`           | —       | Per-request config                                      |
-| `onSuccess`        | `(result) => void`        | —       | Called after successful fetch                           |
-| `onError`          | `(error) => void`         | —       | Called on fetch failure                                 |
-| `onSettled`        | `(result, error) => void` | —       | Called after fetch completes                            |
+- `listParams` drives basic list requests
+- `filter` is used for advanced lists
+- `keepPreviousData` preserves the last resolved list during refetch
+- `sort`, `select`, `populate`, `include`, `tasks`, `basicOptions`, and `advancedOptions` map directly to client service arguments
 
-**Result:**
+### `useCount`
 
-| Property       | Type                            | Description                                     |
-| -------------- | ------------------------------- | ----------------------------------------------- |
-| `data`         | `(Model<T> & T)[]`              | The fetched models                              |
-| `previousData` | `(Model<T> & T)[] \| undefined` | Previous data during `keepPreviousData` refetch |
-| `totalCount`   | `number`                        | Server-reported total count                     |
-| `isLoading`    | `boolean`                       | `true` during auto-fetch on mount               |
-| `isFetching`   | `boolean`                       | `true` during any fetch                         |
-| `error`        | `ServiceError \| null`          | Last fetch error                                |
-| `listModel`    | `(args?: ListArgs) => Promise`  | Manually trigger a list fetch                   |
-| `refetch`      | `() => void`                    | Re-fetch the current list                       |
-| `reset`        | `() => void`                    | Reset to `initialData`                          |
-
----
-
-### `useCountModel`
-
-Fetches a count of models. Auto-fetches on mount.
+Fetches a count.
 
 ```tsx
-const { data, isLoading, error, countModel, refetch, reset } = useCountModel({
+const { data, isLoading, error, query, refetch, reset } = useCount({
   advanced: true,
   filter: { status: 'active' },
 });
-// data === 42
 ```
 
-**Options:**
+Use `advanced: true` when you need a filtered count.
 
-| Option          | Type                      | Default | Description                            |
-| --------------- | ------------------------- | ------- | -------------------------------------- |
-| `advanced`      | `boolean`                 | `false` | Use `countAdvanced` instead of `count` |
-| `filter`        | `FilterQuery<T>`          | —       | Filter for advanced count              |
-| `enabled`       | `boolean`                 | `true`  | Set `false` to defer fetching          |
-| `requestConfig` | `RequestConfig`           | —       | Per-request config                     |
-| `onSuccess`     | `(result) => void`        | —       | Called after successful fetch          |
-| `onError`       | `(error) => void`         | —       | Called on fetch failure                |
-| `onSettled`     | `(result, error) => void` | —       | Called after fetch completes           |
+### `useDistinct`
 
-**Result:**
-
-| Property     | Type                   | Description              |
-| ------------ | ---------------------- | ------------------------ |
-| `data`       | `number \| null`       | The count value          |
-| `isLoading`  | `boolean`              | `true` during auto-fetch |
-| `error`      | `ServiceError \| null` | Fetch error              |
-| `countModel` | `() => Promise`        | Manually trigger count   |
-| `refetch`    | `() => void`           | Re-fetch the count       |
-| `reset`      | `() => void`           | Reset data to `null`     |
-
----
-
-### `useDistinctModel`
-
-Fetches unique values for a field. Auto-fetches on mount. Falls back to basic `distinct` when no conditions are provided, uses `distinctAdvanced` otherwise.
+Fetches distinct values for a field.
 
 ```tsx
-const { data, isLoading, error, distinctModel, refetch, reset } = useDistinctModel({
+const { data, isLoading, error, query, refetch, reset } = useDistinct({
   field: 'status',
   conditions: { organizationId: 'org_123' },
 });
-// data === ['active', 'pending', 'archived']
 ```
 
-**Options:**
-
-| Option          | Type                      | Default | Description                                         |
-| --------------- | ------------------------- | ------- | --------------------------------------------------- |
-| `field`         | `string`                  | —       | **Required.** Field name to get distinct values for |
-| `conditions`    | `FilterQuery<T>`          | —       | Filter for advanced distinct                        |
-| `enabled`       | `boolean`                 | `true`  | Set `false` to defer fetching                       |
-| `requestConfig` | `RequestConfig`           | —       | Per-request config                                  |
-| `onSuccess`     | `(result) => void`        | —       | Called after successful fetch                       |
-| `onError`       | `(error) => void`         | —       | Called on fetch failure                             |
-| `onSettled`     | `(result, error) => void` | —       | Called after fetch completes                        |
-
-**Result:**
-
-| Property        | Type                   | Description              |
-| --------------- | ---------------------- | ------------------------ |
-| `data`          | `string[] \| null`     | The distinct values      |
-| `isLoading`     | `boolean`              | `true` during auto-fetch |
-| `error`         | `ServiceError \| null` | Fetch error              |
-| `distinctModel` | `() => Promise`        | Manually trigger fetch   |
-| `refetch`       | `() => void`           | Re-fetch the values      |
-| `reset`         | `() => void`           | Reset data to `null`     |
+If `conditions` is empty, the hook falls back to the basic `distinct(...)` route.
 
 ## Mutation Hooks
 
-### `useCreateModel`
+### `useCreate`
 
-Creates a new model. Does not auto-fetch — call `createModel` manually.
-
-```tsx
-const { data, isPending, error, createModel, reset } = useCreateOrg({
-  onSuccess: (result) => navigate(`/organizations/${result.raw._id}`),
-});
-
-// Trigger creation
-await createModel({ name: 'New Organization' });
-```
-
-**Options:**
-
-| Option            | Type                      | Default | Description                              |
-| ----------------- | ------------------------- | ------- | ---------------------------------------- |
-| `advanced`        | `boolean`                 | `false` | Use `createAdvanced` instead of `create` |
-| `select`          | `Projection`              | —       | Field projection for advanced creates    |
-| `populate`        | `Populate[]`              | —       | Population config for advanced creates   |
-| `tasks`           | `Task \| Task[]`          | —       | Tasks for advanced creates               |
-| `basicOptions`    | `CreateOptions`           | —       | Options for basic creates                |
-| `advancedOptions` | `CreateAdvancedOptions`   | —       | Options for advanced creates             |
-| `requestConfig`   | `RequestConfig`           | —       | Per-request config                       |
-| `onSuccess`       | `(result) => void`        | —       | Called after successful creation         |
-| `onError`         | `(error) => void`         | —       | Called on creation failure               |
-| `onSettled`       | `(result, error) => void` | —       | Called after creation completes          |
-
-**Result:**
-
-| Property      | Type                        | Description                          |
-| ------------- | --------------------------- | ------------------------------------ |
-| `data`        | `(Model<T> & T) \| null`    | The created model                    |
-| `isPending`   | `boolean`                   | `true` while creation is in progress |
-| `error`       | `ServiceError \| null`      | Creation error                       |
-| `createModel` | `(data: object) => Promise` | Trigger model creation               |
-| `reset`       | `() => void`                | Clear data and error state           |
-
----
-
-### `useUpdateModel`
-
-Updates an existing model. Does not auto-fetch — call `updateModel` manually.
+Creates a document.
 
 ```tsx
-const { data, isPending, error, updateModel, reset } = useUpdateOrg({
-  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['workspace'] }),
+const { data, isPending, error, mutate, reset } = useCreate({
+  advanced: true,
+  select: ['_id', 'name'],
 });
 
-await updateModel('org_123', { name: 'Renamed' });
+await mutate({ name: 'Northwind Labs' });
 ```
 
-**Options:**
+### `useUpdate`
 
-| Option            | Type                      | Default | Description                              |
-| ----------------- | ------------------------- | ------- | ---------------------------------------- |
-| `advanced`        | `boolean`                 | `false` | Use `updateAdvanced` instead of `update` |
-| `select`          | `Projection`              | —       | Field projection for advanced updates    |
-| `populate`        | `Populate[]`              | —       | Population config for advanced updates   |
-| `tasks`           | `Task \| Task[]`          | —       | Tasks for advanced updates               |
-| `basicOptions`    | `UpdateOptions`           | —       | Options for basic updates                |
-| `advancedOptions` | `UpdateAdvancedOptions`   | —       | Options for advanced updates             |
-| `requestConfig`   | `RequestConfig`           | —       | Per-request config                       |
-| `onSuccess`       | `(result) => void`        | —       | Called after successful update           |
-| `onError`         | `(error) => void`         | —       | Called on update failure                 |
-| `onSettled`       | `(result, error) => void` | —       | Called after update completes            |
-
-**Result:**
-
-| Property      | Type                                    | Description                        |
-| ------------- | --------------------------------------- | ---------------------------------- |
-| `data`        | `(Model<T> & T) \| null`                | The updated model                  |
-| `isPending`   | `boolean`                               | `true` while update is in progress |
-| `error`       | `ServiceError \| null`                  | Update error                       |
-| `updateModel` | `(id: string, data: object) => Promise` | Trigger model update               |
-| `reset`       | `() => void`                            | Clear data and error state         |
-
----
-
-### `useUpsertModel`
-
-Creates or updates a model (upsert). Does not auto-fetch — call `upsertModel` manually.
+Updates a document by ID.
 
 ```tsx
-const { data, isPending, error, upsertModel, reset } = useUpsertOrg({
-  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['workspace'] }),
-});
+const { data, isPending, error, mutate } = useUpdate();
 
-await upsertModel({ name: 'Organization', status: 'active' });
+await mutate('org_123', { status: 'active' });
 ```
 
-**Options:**
+### `useUpsert`
 
-| Option            | Type                      | Default | Description                              |
-| ----------------- | ------------------------- | ------- | ---------------------------------------- |
-| `advanced`        | `boolean`                 | `false` | Use `upsertAdvanced` instead of `upsert` |
-| `select`          | `Projection`              | —       | Field projection for advanced upserts    |
-| `populate`        | `Populate[]`              | —       | Population config for advanced upserts   |
-| `tasks`           | `Task \| Task[]`          | —       | Tasks for advanced upserts               |
-| `basicOptions`    | `UpsertOptions`           | —       | Options for basic upserts                |
-| `advancedOptions` | `UpsertAdvancedOptions`   | —       | Options for advanced upserts             |
-| `requestConfig`   | `RequestConfig`           | —       | Per-request config                       |
-| `onSuccess`       | `(result) => void`        | —       | Called after successful upsert           |
-| `onError`         | `(error) => void`         | —       | Called on upsert failure                 |
-| `onSettled`       | `(result, error) => void` | —       | Called after upsert completes            |
-
-**Result:**
-
-| Property      | Type                        | Description                        |
-| ------------- | --------------------------- | ---------------------------------- |
-| `data`        | `(Model<T> & T) \| null`    | The upserted model                 |
-| `isPending`   | `boolean`                   | `true` while upsert is in progress |
-| `error`       | `ServiceError \| null`      | Upsert error                       |
-| `upsertModel` | `(data: object) => Promise` | Trigger model upsert               |
-| `reset`       | `() => void`                | Clear data and error state         |
-
----
-
-### `useDeleteModel`
-
-Deletes a model. Does not auto-fetch — call `deleteModel` manually.
+Creates or updates, depending on the server-side upsert result.
 
 ```tsx
-const { isPending, error, deleteModel, reset } = useDeleteMember({
-  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['workspace'] }),
-});
+const { data, isPending, error, mutate } = useUpsert();
 
-await deleteModel('mem_456');
+await mutate({ _id: 'org_123', name: 'Northwind Labs' });
 ```
 
-**Options:**
+### `useDelete`
 
-| Option          | Type                      | Default | Description                      |
-| --------------- | ------------------------- | ------- | -------------------------------- |
-| `requestConfig` | `RequestConfig`           | —       | Per-request config               |
-| `onSuccess`     | `(result) => void`        | —       | Called after successful deletion |
-| `onError`       | `(error) => void`         | —       | Called on deletion failure       |
-| `onSettled`     | `(result, error) => void` | —       | Called after deletion completes  |
+Deletes a document by ID.
 
-**Result:**
+```tsx
+const { isPending, error, mutate } = useDelete();
 
-| Property      | Type                      | Description                          |
-| ------------- | ------------------------- | ------------------------------------ |
-| `isPending`   | `boolean`                 | `true` while deletion is in progress |
-| `error`       | `ServiceError \| null`    | Deletion error                       |
-| `deleteModel` | `(id: string) => Promise` | Trigger model deletion               |
-| `reset`       | `() => void`              | Clear error state                    |
+await mutate('org_123');
+```
+
+Shared mutation behavior:
+
+- `advanced: true` switches to the corresponding advanced client method when available
+- `mutate(...)` performs the request
+- `isPending` tracks in-flight state
+- `reset()` clears local hook state
+- `onSuccess`, `onError`, and `onSettled` are available on every mutation hook
+
+`useCreate`, `useUpdate`, and `useUpsert` also expose `data` with the last returned `Model<T>`.
+
+## Result Summary
+
+### `useRead` and `useList`
+
+- `data`
+- `isLoading`
+- `isFetching`
+- `error`
+- `query(...)`
+- `refetch()`
+- `reset()`
+
+### `useCount` and `useDistinct`
+
+- `data`
+- `isLoading`
+- `error`
+- `query()`
+- `refetch()`
+- `reset()`
+
+### `useCreate`, `useUpdate`, `useUpsert`
+
+- `data`
+- `isPending`
+- `error`
+- `mutate(...)`
+- `reset()`
+
+### `useDelete`
+
+- `isPending`
+- `error`
+- `mutate(id)`
+- `reset()`
 
 ## Active Record Integration
 
-Data from `useListModel` and `useReadModel` returns `Model<T>` instances with dirty tracking. You can update models directly without a dedicated mutation hook:
+Data returned from `useList` and `useRead` is backed by `Model<T>` wrappers from `@web-ts-toolkit/access-router-client`.
+
+That means you can edit loaded models directly and persist with `save()`:
 
 ```tsx
-const { models, refetch } = useListModel({ listParams: { organizationId } });
+const { data, refetch } = useList({ listParams: { pageSize: 20 } });
 
-const handleRename = async (memberId: string, newName: string) => {
-  const member = models.find((m) => m._id === memberId);
-  if (!member) return;
+async function rename(id: string, name: string) {
+  const organization = data.find((entry) => entry._id === id);
+  if (!organization) return;
 
-  member.fullName = newName;
-  const result = await member.save();
+  organization.name = name;
+  const result = await organization.save();
 
   if (result.success) {
-    await refetch();
+    refetch();
   }
-};
+}
 ```
 
-`model.save()` automatically sends only the changed fields (`PATCH`) for existing documents, or all fields (`POST`) for new ones.
+Use explicit mutation hooks when you want local pending and error state around a specific workflow.
 
-This pattern is best for **inline edits on data already loaded in the list**. Use `useCreateModel` / `useUpdateModel` / `useDeleteModel` when you need structured pending/error state or are creating new models that don't exist in any loaded list.
+## Notes
 
-## Hybrid Architecture with React Query
-
-These hooks handle **model CRUD**. For queries that don't map to a single model service, keep `@tanstack/react-query`:
-
-| Use Case                                      | Tool                                     |
-| --------------------------------------------- | ---------------------------------------- |
-| Model create/update/delete/upsert             | `access-router-react` hooks              |
-| Inline edits on loaded models                 | Active record (`model.save()`)           |
-| Distinct field values                         | `useDistinctModel`                       |
-| Batched / grouped queries (`adapter.group()`) | `react-query` `useQuery` directly        |
-| Auth / session management                     | `react-query` `useQuery` / `useMutation` |
-| Cache invalidation after mutations            | `queryClient.invalidateQueries()`        |
-
-```tsx
-// After a mutation, invalidate react-query cached data
-const createOrg = useCreateOrg({
-  onSuccess: async () => {
-    await queryClient.invalidateQueries({ queryKey: ['workspace'] });
-  },
-});
-```
+- These hooks do not implement shared caching, deduping, or invalidation.
+- They are thin stateful wrappers over `ModelService` from `@web-ts-toolkit/access-router-client`.
+- `requestConfig` is forwarded to the underlying client request and can include headers, `signal`, and transport-specific options.
+- If you need cache orchestration, use these services underneath a query library.
