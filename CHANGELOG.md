@@ -1,3 +1,46 @@
+## [0.5.0](https://github.com/egose/web-ts-toolkit/compare/v0.4.0...v0.5.0) (2026-06-02)
+
+### Features
+
+* **access-router-client:** implement batch request ordering and pagination headers ([5ea70c9](https://github.com/egose/web-ts-toolkit/commit/5ea70c9300fb8013a2e4d8478be1db1f3212c99b))
+* **access-router-deco:** implement decorator-based router factory and hooks ([1a21a59](https://github.com/egose/web-ts-toolkit/commit/1a21a59b24e3d77aa66fba162424529d139da2a0))
+* **access-router-react:** add upsert and distinct hooks and expand hook options ([f24197a](https://github.com/egose/web-ts-toolkit/commit/f24197a225ce936443680b3c47fd38208b350bfa))
+* **access-router:** enhance OpenAPI support with default responses and custom metadata ([a175eb5](https://github.com/egose/web-ts-toolkit/commit/a175eb55781821d49b496ba0c56f5e21f9b124dc))
+* **access-router:** implement OpenAPI specification generator and documentation router ([ea59053](https://github.com/egose/web-ts-toolkit/commit/ea59053c3a6cc270a2cd88a7029d939f78420528))
+* **access-router:** improve date handling and expose service defaults ([ee25662](https://github.com/egose/web-ts-toolkit/commit/ee25662d1b115844fbbd74df4a89fd705c5ceac1))
+* **access-router:** register endpoints for OpenAPI documentation ([981ecdb](https://github.com/egose/web-ts-toolkit/commit/981ecdb5488fcec9fc42f0e841f0fd7a3ae59366))
+* add parseBooleanString utility ([1875859](https://github.com/egose/web-ts-toolkit/commit/1875859a53dbcb21401c715ecbafb8ff89ca500b))
+* adopt access-router-react hooks in workspace page ([d344da2](https://github.com/egose/web-ts-toolkit/commit/d344da2e0eb3e72920abd98e87114035658106fe))
+* implement multi-tenant organization access example backend ([9331eba](https://github.com/egose/web-ts-toolkit/commit/9331eba81b1e6b7d0e1b81540c645bf821075039))
+* implement react-vite frontend for organization access demo ([019980f](https://github.com/egose/web-ts-toolkit/commit/019980f372506ae419451a7d88a86f5336998481))
+* introduce access-router-react package with model hooks ([6f4fb5a](https://github.com/egose/web-ts-toolkit/commit/6f4fb5aabde30a80f79a92082ddffd1081606e06))
+
+### Bug Fixes
+
+* **access-router:** improve sort field validation logic ([b2841d9](https://github.com/egose/web-ts-toolkit/commit/b2841d98c967635b7270ad8ee094eaf6906d80b4))
+* **access-router:** return original query in iterateQuery when handler is missing ([bffb137](https://github.com/egose/web-ts-toolkit/commit/bffb137752803292bc78747c2c7e603a1f242684))
+
+### Docs
+
+* **access-router-deco:** explain acl key mapping ([60b4e70](https://github.com/egose/web-ts-toolkit/commit/60b4e70f079ec9c013663c1209d5b2102cefbf35))
+* add documentation for access-router-react ([9a48461](https://github.com/egose/web-ts-toolkit/commit/9a4846188fec0aa10755e1d37e2ac78a5f6f9eb0))
+* add live documentation links and homepage fields to packages ([7cb3cf3](https://github.com/egose/web-ts-toolkit/commit/7cb3cf3ff71d3ce6c61c9beed294d51ae03f7a2e))
+* refresh package READMEs and expand website documentation ([bfbabdc](https://github.com/egose/web-ts-toolkit/commit/bfbabdcad5084b6fe8481b755c14bd291846fedb))
+
+### Refactors
+
+* **access-router-client:** extract core utilities and modularize service internals ([792d52e](https://github.com/egose/web-ts-toolkit/commit/792d52e4b4465e7b617b987607b57d6ff7fedb99))
+* **access-router-deco:** rename package directory from deco ([8361f1c](https://github.com/egose/web-ts-toolkit/commit/8361f1c07c554e39a40276ed0da62870f8dd35e8))
+* **access-router-react:** remove unnecessary eslint suppression for hook dependencies ([f32805c](https://github.com/egose/web-ts-toolkit/commit/f32805c5a8edb9f4641bd4a94486a327431b5d40))
+* **access-router-react:** rename hooks and types to use query/mutate terminology ([e42626a](https://github.com/egose/web-ts-toolkit/commit/e42626a854aa94b38e2a7b94e92fcb92f2c7102e))
+* **access-router:** clean up codebase and internal types ([28c3290](https://github.com/egose/web-ts-toolkit/commit/28c329033703ec77d6ceba591c8f2ca0ec351b8e))
+* **access-router:** cleanup unused code and update member visibility ([af8d5eb](https://github.com/egose/web-ts-toolkit/commit/af8d5eb8d887cad46630db57ea370397b4258c1d))
+* optimize organization name synchronization in workspace page ([7282e0b](https://github.com/egose/web-ts-toolkit/commit/7282e0b340515739af76707beb9f8143cd5e69eb))
+* **react-vite:** remove workspace-sidebar component ([d58267a](https://github.com/egose/web-ts-toolkit/commit/d58267ad459ccb05f087d3d2a156a648d49ef847))
+* simplify hook types and remove unused variables in access-router-react ([fb43bec](https://github.com/egose/web-ts-toolkit/commit/fb43bec2a77bd619ea9a4254884011760ddfc04d))
+* unify hook callbacks and options API ([65dea55](https://github.com/egose/web-ts-toolkit/commit/65dea552f79f0dcfdae4b69ad49d74318f37fec9))
+* use shared boolean parser and cleanup imports ([6028038](https://github.com/egose/web-ts-toolkit/commit/602803889594112a45d154a6ec9dcdde6e459ffe))
+
 ## [0.4.0](https://github.com/egose/web-ts-toolkit/compare/v0.3.0...v0.4.0) (2026-05-28)
 
 ### Features
