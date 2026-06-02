@@ -79,6 +79,15 @@ function _createMdxContent(props) {
         }), ": access-policy Express routers and in-memory data services for Mongoose-backed APIs."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./access-router-deco",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/access-router-deco"
+          })
+        }), ": decorator-based module and router configuration for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access-router"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
           href: "./access-router-client",
           children: (0,jsx_runtime.jsx)(_components.code, {
             children: "@web-ts-toolkit/access-router-client"
@@ -123,6 +132,13 @@ function _createMdxContent(props) {
             children: "@web-ts-toolkit/moo"
           })
         }), ": Mongoose helpers for schema fields, ObjectId checks, and document plugins."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./utils",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/utils"
+          })
+        }), ": shared collection, object, async, and URL helpers used across the workspace."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Package-local ", (0,jsx_runtime.jsx)(_components.code, {

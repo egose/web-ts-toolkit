@@ -51,6 +51,10 @@ const toc = [{
   "id": "model-router-options",
   "level": 2
 }, {
+  "value": "OpenAPI Router Options",
+  "id": "openapi-router-options",
+  "level": 2
+}, {
   "value": "Data Router Options",
   "id": "data-router-options",
   "level": 2
@@ -282,6 +286,53 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "mutationRouteSegment"
+        })
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "openapi-router-options",
+      children: "OpenAPI Router Options"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "createOpenApiRouter(...)"
+      }), " accepts:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "title"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "version"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "description"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "servers"
+        })
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "jsonPath"
+        }), " defaulting to ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "/openapi.json"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "docsPath"
+        }), " defaulting to ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "/docs"
+        }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "false"
+        }), " to disable Swagger UI"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "swaggerUiCssUrl"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "swaggerUiBundleUrl"
         })
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {

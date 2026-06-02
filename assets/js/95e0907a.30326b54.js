@@ -18,7 +18,7 @@ __webpack_require__.d(__webpack_exports__, {
 });
 
 ;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-access-router-processors-mdx-95e.json
-const site_docs_packages_access_router_processors_mdx_95e_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router/processors","title":"Processors","description":"@web-ts-toolkit/access-router/processors currently exposes copyAndDepopulate(...).","source":"@site/docs/packages/access-router/processors.mdx","sourceDirName":"packages/access-router","slug":"/packages/access-router/processors","permalink":"/docs/packages/access-router/processors","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":8,"frontMatter":{"sidebar_label":"Processors","sidebar_position":8},"sidebar":"packagesSidebar","previous":{"title":"Advanced","permalink":"/docs/packages/access-router/advanced"},"next":{"title":"Overview","permalink":"/docs/packages/access-router-client/"}}');
+const site_docs_packages_access_router_processors_mdx_95e_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router/processors","title":"Processors","description":"@web-ts-toolkit/access-router/processors currently exposes copyAndDepopulate(...).","source":"@site/docs/packages/access-router/processors.mdx","sourceDirName":"packages/access-router","slug":"/packages/access-router/processors","permalink":"/docs/packages/access-router/processors","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":9,"frontMatter":{"sidebar_label":"Processors","sidebar_position":9},"sidebar":"packagesSidebar","previous":{"title":"Advanced","permalink":"/docs/packages/access-router/advanced"},"next":{"title":"Overview","permalink":"/docs/packages/access-router-client/"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -28,7 +28,7 @@ var lib = __webpack_require__(1982);
 
 const frontMatter = {
 	sidebar_label: 'Processors',
-	sidebar_position: 8
+	sidebar_position: 9
 };
 const contentTitle = 'Processors';
 

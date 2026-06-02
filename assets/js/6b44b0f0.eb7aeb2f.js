@@ -18,7 +18,7 @@ __webpack_require__.d(__webpack_exports__, {
 });
 
 ;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-access-router-validation-mdx-6b4.json
-const site_docs_packages_access_router_validation_mdx_6b4_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router/validation","title":"Validation","description":"access-router validates requests before the service layer runs.","source":"@site/docs/packages/access-router/validation.mdx","sourceDirName":"packages/access-router","slug":"/packages/access-router/validation","permalink":"/docs/packages/access-router/validation","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":6,"frontMatter":{"sidebar_label":"Validation","sidebar_position":6},"sidebar":"packagesSidebar","previous":{"title":"Hooks","permalink":"/docs/packages/access-router/hooks"},"next":{"title":"Advanced","permalink":"/docs/packages/access-router/advanced"}}');
+const site_docs_packages_access_router_validation_mdx_6b4_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router/validation","title":"Validation","description":"access-router validates requests before the service layer runs.","source":"@site/docs/packages/access-router/validation.mdx","sourceDirName":"packages/access-router","slug":"/packages/access-router/validation","permalink":"/docs/packages/access-router/validation","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":6,"frontMatter":{"sidebar_label":"Validation","sidebar_position":6},"sidebar":"packagesSidebar","previous":{"title":"Hooks","permalink":"/docs/packages/access-router/hooks"},"next":{"title":"OpenAPI","permalink":"/docs/packages/access-router/openapi"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -53,6 +53,10 @@ const toc = [{
 }, {
   "value": "Helper Adapters",
   "id": "helper-adapters",
+  "level": 2
+}, {
+  "value": "<code>defineRequestSchema(...)</code>",
+  "id": "definerequestschema",
   "level": 2
 }, {
   "value": "Examples",
@@ -156,6 +160,10 @@ function _createMdxContent(props) {
           children: "validate(value)"
         }), " work"]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["If you want custom OpenAPI output for a user-defined validator, wrap it with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "defineRequestSchema(...)"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "requestschemas-inputs",
       children: "RequestSchemas Inputs"
@@ -232,6 +240,24 @@ function _createMdxContent(props) {
           children: "fromVine(validator)"
         })]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "definerequestschema",
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "defineRequestSchema(...)"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "defineRequestSchema(validator, { openapi })"
+      }), " when you want a custom validator and still want the generated OpenAPI document to describe that request body."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { defineRequestSchema } from '@web-ts-toolkit/access-router';\n\nrequestSchemas: {\n  advancedCreate: defineRequestSchema(\n    async (value) => {\n      const body = value as { data?: { role?: string } };\n\n      if (body?.data?.role !== 'user' && body?.data?.role !== 'admin') {\n        return {\n          success: false,\n          issues: [{ message: 'role must be user or admin', path: ['data', 'role'] }],\n        };\n      }\n\n      return { success: true, data: body };\n    },\n    {\n      openapi: {\n        type: 'object',\n        properties: {\n          data: {\n            type: 'object',\n            properties: {\n              role: { type: 'string', enum: ['user', 'admin'] },\n            },\n          },\n        },\n      },\n    },\n  ),\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Without ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "openapi"
+      }), " metadata, custom validators still work for runtime validation, but the generated OpenAPI schema falls back to a generic object shape."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "examples",
       children: "Examples"

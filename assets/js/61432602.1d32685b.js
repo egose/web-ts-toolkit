@@ -18,7 +18,7 @@ __webpack_require__.d(__webpack_exports__, {
 });
 
 ;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-access-router-advanced-mdx-614.json
-const site_docs_packages_access_router_advanced_mdx_614_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router/advanced","title":"Advanced","description":"Use @web-ts-toolkit/access-router/advanced when you need the lower-level contract surface.","source":"@site/docs/packages/access-router/advanced.mdx","sourceDirName":"packages/access-router","slug":"/packages/access-router/advanced","permalink":"/docs/packages/access-router/advanced","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":7,"frontMatter":{"sidebar_label":"Advanced","sidebar_position":7},"sidebar":"packagesSidebar","previous":{"title":"Validation","permalink":"/docs/packages/access-router/validation"},"next":{"title":"Processors","permalink":"/docs/packages/access-router/processors"}}');
+const site_docs_packages_access_router_advanced_mdx_614_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router/advanced","title":"Advanced","description":"Use @web-ts-toolkit/access-router/advanced when you need the lower-level contract surface.","source":"@site/docs/packages/access-router/advanced.mdx","sourceDirName":"packages/access-router","slug":"/packages/access-router/advanced","permalink":"/docs/packages/access-router/advanced","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":8,"frontMatter":{"sidebar_label":"Advanced","sidebar_position":8},"sidebar":"packagesSidebar","previous":{"title":"OpenAPI","permalink":"/docs/packages/access-router/openapi"},"next":{"title":"Processors","permalink":"/docs/packages/access-router/processors"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -28,7 +28,7 @@ var lib = __webpack_require__(1982);
 
 const frontMatter = {
 	sidebar_label: 'Advanced',
-	sidebar_position: 7
+	sidebar_position: 8
 };
 const contentTitle = 'Advanced';
 

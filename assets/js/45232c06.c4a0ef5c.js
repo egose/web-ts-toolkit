@@ -1,7 +1,7 @@
 "use strict";
-(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[210],{
+(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[876],{
 
-/***/ 4274
+/***/ 2029
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 // ESM COMPAT FLAG
@@ -13,12 +13,12 @@ __webpack_require__.d(__webpack_exports__, {
   contentTitle: () => (/* binding */ contentTitle),
   "default": () => (/* binding */ MDXContent),
   frontMatter: () => (/* binding */ frontMatter),
-  metadata: () => (/* reexport */ site_docs_packages_access_router_index_mdx_c6c_namespaceObject),
+  metadata: () => (/* reexport */ site_docs_packages_access_router_deco_md_452_namespaceObject),
   toc: () => (/* binding */ toc)
 });
 
-;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-access-router-index-mdx-c6c.json
-const site_docs_packages_access_router_index_mdx_c6c_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router/index","title":"@web-ts-toolkit/access-router","description":"ACL-aware Express routers and in-memory data services for Mongoose-backed APIs.","source":"@site/docs/packages/access-router/index.mdx","sourceDirName":"packages/access-router","slug":"/packages/access-router/","permalink":"/docs/packages/access-router/","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":1,"frontMatter":{"sidebar_label":"Overview","sidebar_position":1},"sidebar":"packagesSidebar","previous":{"title":"Overview","permalink":"/docs/packages/"},"next":{"title":"Routing","permalink":"/docs/packages/access-router/routing"}}');
+;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-access-router-deco-md-452.json
+const site_docs_packages_access_router_deco_md_452_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router-deco","title":"@web-ts-toolkit/access-router-deco","description":"Decorator-based configuration for @web-ts-toolkit/access-router.","source":"@site/docs/packages/access-router-deco.md","sourceDirName":"packages","slug":"/packages/access-router-deco","permalink":"/docs/packages/access-router-deco","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":2,"frontMatter":{"sidebar_label":"Access Router Deco","sidebar_position":2},"sidebar":"packagesSidebar","previous":{"title":"TypeScript And Errors","permalink":"/docs/packages/access-router-client/typescript-and-errors"},"next":{"title":"Express JSON Router","permalink":"/docs/packages/express-json-router"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -27,14 +27,14 @@ var lib = __webpack_require__(1982);
 var Tabs = __webpack_require__(5250);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@docusaurus+theme-classic@3.10.1_@types+react@19.2.14_react-dom@19.2.6_react@19.2.6__react@19.2.6_typescript@6.0.3/node_modules/@docusaurus/theme-classic/lib/theme/TabItem/index.js + 1 modules
 var TabItem = __webpack_require__(6574);
-;// ./docs/packages/access-router/index.mdx
+;// ./docs/packages/access-router-deco.md
 
 
 const frontMatter = {
-	sidebar_label: 'Overview',
-	sidebar_position: 1
+	sidebar_label: 'Access Router Deco',
+	sidebar_position: 2
 };
-const contentTitle = '@web-ts-toolkit/access-router';
+const contentTitle = '@web-ts-toolkit/access-router-deco';
 
 const assets = {
 
@@ -45,8 +45,8 @@ const assets = {
 
 
 const toc = [{
-  "value": "Install",
-  "id": "install",
+  "value": "Installation",
+  "id": "installation",
   "level": 2
 }, {
   "value": "What It Exposes",
@@ -57,8 +57,44 @@ const toc = [{
   "id": "quick-start",
   "level": 2
 }, {
-  "value": "When To Use It",
-  "id": "when-to-use-it",
+  "value": "Mental Model",
+  "id": "mental-model",
+  "level": 2
+}, {
+  "value": "Class Decorators",
+  "id": "class-decorators",
+  "level": 2
+}, {
+  "value": "<code>Module({ routers, routerOptions, options })</code>",
+  "id": "module-routers-routeroptions-options-",
+  "level": 3
+}, {
+  "value": "<code>Router(modelName, options?)</code>",
+  "id": "routermodelname-options",
+  "level": 3
+}, {
+  "value": "<code>Router(rootOptions)</code>",
+  "id": "routerrootoptions",
+  "level": 3
+}, {
+  "value": "<code>RouterOptions(options)</code> and <code>RouterOptions(modelName, options)</code>",
+  "id": "routeroptionsoptions-and-routeroptionsmodelname-options",
+  "level": 3
+}, {
+  "value": "Hook Decorators",
+  "id": "hook-decorators",
+  "level": 2
+}, {
+  "value": "Parameter Decorators",
+  "id": "parameter-decorators",
+  "level": 2
+}, {
+  "value": "Property Decorator",
+  "id": "property-decorator",
+  "level": 2
+}, {
+  "value": "Notes",
+  "id": "notes",
   "level": 2
 }];
 function _createMdxContent(props) {
@@ -66,10 +102,17 @@ function _createMdxContent(props) {
     code: "code",
     h1: "h1",
     h2: "h2",
+    h3: "h3",
     header: "header",
     li: "li",
     p: "p",
     pre: "pre",
+    table: "table",
+    tbody: "tbody",
+    td: "td",
+    th: "th",
+    thead: "thead",
+    tr: "tr",
     ul: "ul",
     ...(0,lib/* useMDXComponents */.R)(),
     ...props.components
@@ -77,16 +120,22 @@ function _createMdxContent(props) {
   return (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, {
     children: [(0,jsx_runtime.jsx)(_components.header, {
       children: (0,jsx_runtime.jsx)(_components.h1, {
-        id: "web-ts-toolkitaccess-router",
+        id: "web-ts-toolkitaccess-router-deco",
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/access-router"
+          children: "@web-ts-toolkit/access-router-deco"
         })
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "ACL-aware Express routers and in-memory data services for Mongoose-backed APIs."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Decorator-based configuration for ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/access-router"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["This package lets you describe ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access-router"
+      }), " modules, model routers, router options, and hook methods with TypeScript decorators instead of wiring everything by hand."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "install",
-      children: "Install"
+      id: "installation",
+      children: "Installation"
     }), "\n", (0,jsx_runtime.jsxs)(Tabs/* default */.A, {
       groupId: "npm2yarn",
       children: [(0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -94,7 +143,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @web-ts-toolkit/access-router express mongoose\n"
+            children: "npm install @web-ts-toolkit/access-router-deco @web-ts-toolkit/access-router reflect-metadata express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -103,7 +152,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @web-ts-toolkit/access-router express mongoose\n"
+            children: "yarn add @web-ts-toolkit/access-router-deco @web-ts-toolkit/access-router reflect-metadata express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -112,7 +161,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @web-ts-toolkit/access-router express mongoose\n"
+            children: "pnpm add @web-ts-toolkit/access-router-deco @web-ts-toolkit/access-router reflect-metadata express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -121,61 +170,77 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @web-ts-toolkit/access-router express mongoose\n"
+            children: "bun add @web-ts-toolkit/access-router-deco @web-ts-toolkit/access-router reflect-metadata express\n"
           })
         })
       })]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "what-it-exposes",
-      children: "What It Exposes"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Main entrypoint:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["default export ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "acl"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["named export ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "acl"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "createAccessRuntime()"
-        }), " for isolated runtime state"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "combineRoutes(...)"
-        }), " for mounting multiple routers together"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "guard(...)"
-        }), " for route guards"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "permissionsPlugin"
-        }), " for schema-based permission access"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "RootRouter"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "ModelRouter"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "DataRouter"
-        })]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "option getters and setters for global, model, and data options"
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Low-level entrypoints:"
+      children: "Peer dependencies:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/access-router/advanced"
+          children: "@web-ts-toolkit/access-router"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/access-router/processors"
+          children: "express >=5"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "reflect-metadata"
+        })
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Import ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "reflect-metadata"
+      }), " once before using the decorators."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "what-it-exposes",
+      children: "What It Exposes"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "Module(...)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "Router(...)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "RouterOptions(...)"
+        })
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["hook decorators such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "GlobalPermissions"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DocPermissions"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Validate"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Prepare"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Transform"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "RouteGuard"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["parameter decorators ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Request"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Document"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Permissions"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Context"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["property decorator ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Option(...)"
+        })]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "EgoseFactory.bootstrap(...)"
         })
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
@@ -184,29 +249,342 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import acl from '@web-ts-toolkit/access-router';\n\nacl.setGlobalOptions({\n  globalPermissions(req) {\n    return req.headers.user === 'admin' ? ['isAdmin'] : [];\n  },\n});\n\nconst fruitRouter = acl.createDataRouter('fruit', {\n  basePath: '/fruit',\n  data: [{ id: 'apple', name: 'Apple', public: true }],\n  idField: 'id',\n  operationAccess: { list: true, read: true },\n  permissionSchema: {\n    id: true,\n    name: 'isAdmin',\n    public: true,\n  },\n});\n\nconst userRouter = acl.createRouter('User', {\n  basePath: '/users',\n});\n"
+        children: "import 'reflect-metadata';\nimport express from 'express';\nimport {\n  Module,\n  Router,\n  RouterOptions,\n  GlobalPermissions,\n  DocPermissions,\n  Validate,\n  Document,\n  Permissions,\n  EgoseFactory,\n} from '@web-ts-toolkit/access-router-deco';\n\n@Router('User', {\n  basePath: '/users',\n})\nclass UserRouter {\n  @DocPermissions('read')\n  canRead(@Document() doc: any, @Permissions() permissions: string[]) {\n    return doc.public ? ['_id', 'name'] : permissions.includes('isAdmin') ? true : ['_id'];\n  }\n\n  @Validate('create')\n  validateCreate(@Document() doc: any) {\n    if (!doc.email) {\n      throw new Error('email is required');\n    }\n\n    return doc;\n  }\n}\n\n@RouterOptions({\n  operationAccess: {\n    list: true,\n    read: true,\n  },\n})\nclass DefaultOptions {}\n\n@Module({\n  routers: [UserRouter],\n  routerOptions: [DefaultOptions],\n  options: {\n    basePath: '/api',\n  },\n})\nclass AppModule {\n  @GlobalPermissions()\n  permissions(req: express.Request) {\n    return req.headers['x-role'] === 'admin' ? ['isAdmin'] : [];\n  }\n}\n\nconst app = express();\nEgoseFactory.bootstrap(AppModule, app);\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "when-to-use-it",
-      children: "When To Use It"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "access-router"
-      }), " when you want:"]
+      id: "mental-model",
+      children: "Mental Model"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "model-backed CRUD routers with ACL-aware filtering and field selection"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "in-memory data routers with the same request/permission model"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "root batch routes for grouped operations"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "reusable permission helpers, hooks, and request validation"
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "Module(...)"
+        }), " declares the top-level composition unit"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "Router('User', ...)"
+        }), " declares one model router"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "Router({...})"
+        }), " declares a root batch router"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "RouterOptions({...})"
+        }), " sets default model options or per-model option overrides"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["method decorators map class methods to ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access-router"
+        }), " hooks"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "EgoseFactory.bootstrap(...)"
+        }), " reads the metadata and registers the actual Express routers"]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "class-decorators",
+      children: "Class Decorators"
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "module-routers-routeroptions-options-",
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "Module({ routers, routerOptions, options })"
+      })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["If you only need low-level validation schemas, symbols, or enums, import from the ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "advanced"
-      }), " subpath instead."]
+      children: ["Defines the application module that ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "EgoseFactory"
+      }), " will bootstrap."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "routers"
+        }), ": router classes decorated with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "@Router(...)"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "routerOptions"
+        }), ": classes decorated with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "@RouterOptions(...)"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "options"
+        }), ": global ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access-router"
+        }), " options plus ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "basePath"
+        }), " and optional ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "handleErrors"
+        })]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "routermodelname-options",
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "Router(modelName, options?)"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Declares a model router for one ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access-router"
+      }), " model."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "@Router('User', { basePath: '/users' })\nclass UserRouter {}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "routerrootoptions",
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "Router(rootOptions)"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Declares a root batch router instead of a model router."
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "@Router({ basePath: '/root' })\nclass RootRouterModule {}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.h3, {
+      id: "routeroptionsoptions-and-routeroptionsmodelname-options",
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "RouterOptions(options)"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "RouterOptions(modelName, options)"
+      })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Use the one-argument form for default model options and the two-argument form for per-model overrides."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "hook-decorators",
+      children: "Hook Decorators"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["These decorators map directly to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access-router"
+      }), " option keys."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "Decorator"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Maps to"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@GlobalPermissions()"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "globalPermissions"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@DocPermissions(...)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "docPermissions.*"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@BaseFilter(...)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "baseFilter.*"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@OverrideFilter(...)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "overrideFilter.*"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@Validate(...)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "validate.*"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@Prepare(...)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "prepare.*"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@Transform(...)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "transform.*"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@AfterPersist(...)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "afterPersist.*"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@Decorate(...)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "decorate.*"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@DecorateAll(...)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "decorateAll.*"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouteGuard(...)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "operationAccess.*"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@Identifier()"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "resolveIdFilter"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@BeforeDelete()"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "beforeDelete"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@AfterDelete()"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "afterDelete"
+            })
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Most decorators take the same operation names you would use in plain ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access-router"
+      }), " options, such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "create"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "read"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "update"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "list"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "delete"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "parameter-decorators",
+      children: "Parameter Decorators"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Hook methods can declare only the inputs they need."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@Request()"
+        }), " injects the active request for global permission hooks"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@Document()"
+        }), " injects the document payload or current document"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@Permissions()"
+        }), " injects resolved permissions"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@Context()"
+        }), " injects the hook context from ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access-router"
+        })]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Example:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "@Prepare('create')\nprepareCreate(@Document() doc: any, @Permissions() permissions: string[]) {\n  if (permissions.includes('isAdmin')) {\n    doc.internal = true;\n  }\n\n  return doc;\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "property-decorator",
+      children: "Property Decorator"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "@Option(...)"
+      }), " copies a class property value onto global, default-model, or model-specific options during bootstrap."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "@RouterOptions('User')\nclass UserRouterOptions {\n  @Option('basePath')\n  usersPath = '/members';\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "notes",
+      children: "Notes"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["This package is a configuration layer over ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access-router"
+        }), ", not a separate runtime."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Decorators only describe metadata; ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "EgoseFactory.bootstrap(...)"
+        }), " performs the actual registration."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["If you already prefer explicit ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "acl.createRouter(...)"
+        }), " code, you do not need this package."]
+      }), "\n"]
     })]
   });
 }
