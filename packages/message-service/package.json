@@ -1,0 +1,52 @@
+{
+  "name": "@web-ts-toolkit/message-service",
+  "description": "Template-driven messaging core for Mongoose + Express applications",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/message-service",
+  "version": "0.0.0-PLACEHOLDER",
+  "sideEffects": false,
+  "keywords": [
+    "mongoose",
+    "messaging",
+    "template",
+    "notification",
+    "request",
+    "express"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "test": "pnpm --filter @web-ts-toolkit/message-service... build && vitest run --config ../../vitest.config.ts"
+  },
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@web-ts-toolkit/express-json-router": "workspace:*",
+    "@web-ts-toolkit/utils": "workspace:*",
+    "handlebars": "^4.7.8"
+  },
+  "peerDependencies": {
+    "express": ">=5.0.0",
+    "mongoose": ">=8.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.15.2",
+    "express": "^5.2.1",
+    "mongoose": "^9.6.2"
+  }
+}
