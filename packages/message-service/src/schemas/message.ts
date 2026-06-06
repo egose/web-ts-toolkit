@@ -15,6 +15,7 @@ function archive(this: IMessage, actionCd: string, archivedBy: UserId, registry?
   // Copy all defined base fields — consumer-extended fields must override archive() to preserve their extra fields
   const data: Record<string, unknown> = {};
   for (const key of Object.keys(BaseMessageFields)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data[key] = (this as any)[key];
   }
 

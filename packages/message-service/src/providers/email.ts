@@ -11,6 +11,7 @@ export interface EmailProvider {
  * Useful for testing or when email is not needed.
  */
 export class NoopEmailProvider implements EmailProvider {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async sendNotification(_to: string, _title: string, _body: string): Promise<void> {
     // no-op
   }

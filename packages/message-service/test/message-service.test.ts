@@ -39,9 +39,11 @@ describe('NoopPaymentProvider', () => {
 // ---------------------------------------------------------------------------
 
 describe('MessageService', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mockMessages: any[] = [];
 
   const mockMessageModel = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     create: vi.fn(async (data: any) => {
       const doc = {
         ...data,
@@ -57,6 +59,7 @@ describe('MessageService', () => {
   };
 
   const mockArchiveModel = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     create: vi.fn(async (data: any) => ({ ...data, _id: `arch-${Date.now()}` })),
     findById: vi.fn(async () => null),
   };
@@ -75,7 +78,9 @@ describe('MessageService', () => {
     receiverContent: { title: 'Recv Title', long: 'Recv Long {{name}}', short: 'Recv Short' },
     uiTemplate: 'default-message',
     prepareMessage: async ({ user, payload }) => ({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       templateData: { name: (payload as any).name },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       fromUser: (user as any)._id,
       payload,
     }),

@@ -23,6 +23,7 @@ export const MessageContentSchema = new mongoose.Schema(
  * Consumers can extend this object with additional fields (e.g. toOrg, toOrgAdmin)
  * by spreading it into their own schema definition.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const BaseMessageFields: Record<string, any> = {
   templateCd: { type: String, default: '' },
   type: { type: String, default: 'notification' },

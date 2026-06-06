@@ -26,9 +26,12 @@ const testTemplate: MessageTemplate = {
   daysToArchive: 14,
   prepareMessage: async ({ user, payload }) => ({
     templateData: {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       displayName: (user as any).displayName,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       itemName: (payload as any).itemName,
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fromUser: (user as any)._id,
     payload,
   }),
@@ -187,6 +190,7 @@ describe('interpolateTemplate', () => {
   });
 
   it('should return null for null template', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = interpolateTemplate(null as any, {}, 'sender');
     expect(result).toBeNull();
   });
@@ -247,6 +251,7 @@ describe('interpolateTemplate', () => {
           variant: 'info',
           sender: false,
           receiver: true,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           condition: (msg: any) => msg.isPaid === true,
           runHandler: async () => true,
         },

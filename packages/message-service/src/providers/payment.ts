@@ -16,14 +16,17 @@ export interface PaymentProvider {
  * Useful for apps that don't use payments.
  */
 export class NoopPaymentProvider implements PaymentProvider {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async createSession(_user: UserId, _code: string, _priceArgs?: Record<string, unknown>): Promise<string | null> {
     return null;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async expireSession(_sessionId: string): Promise<void> {
     // no-op
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async refundPayment(_sessionId: string): Promise<void> {
     // no-op
   }

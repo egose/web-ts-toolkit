@@ -410,9 +410,9 @@ importers:
 
   packages/message-service:
     dependencies:
-      '@web-ts-toolkit/access-router':
+      '@web-ts-toolkit/express-json-router':
         specifier: workspace:*
-        version: link:../access-router
+        version: link:../express-json-router
       '@web-ts-toolkit/utils':
         specifier: workspace:*
         version: link:../utils

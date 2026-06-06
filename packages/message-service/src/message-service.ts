@@ -3,7 +3,6 @@ import type mongoose from 'mongoose';
 import type { IMessage, IMessageArchive, MessageUser, UserId } from './types/message';
 import type {
   MessageTemplate,
-  PrepareResult,
   SenderNotificationContent,
   UiTemplate,
   InterpolatedAction,

@@ -150,6 +150,7 @@ export function createMessageRoutes(options: MessageRoutesOptions): {
 
     const user = getUser(req) || { _id: '' };
     const permissions = getPermissions(req);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return service.handleAction(message.templateCd, actionCd, { message: message as any, user, permissions, req });
   }
 
@@ -164,14 +165,17 @@ export function createMessageRoutes(options: MessageRoutesOptions): {
 // ---------------------------------------------------------------------------
 
 function defaultGetUser(req: Request): MessageUser | undefined {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw = (req as any)._user || (req as any).user;
   return raw as MessageUser | undefined;
 }
 
 function defaultGetPermissions(req: Request): Record<string, boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (req as any)._permissions || {};
 }
 
 function defaultGetIdentity(req: Request): Record<string, unknown> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (req as any)._identity || {};
 }
