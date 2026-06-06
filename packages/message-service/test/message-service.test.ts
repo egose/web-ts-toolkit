@@ -43,7 +43,13 @@ describe('MessageService', () => {
 
   const mockMessageModel = {
     create: vi.fn(async (data: any) => {
-      const doc = { ...data, _id: `msg-${mockMessages.length}`, isSender: () => true, isReceiver: () => true, archive: vi.fn() };
+      const doc = {
+        ...data,
+        _id: `msg-${mockMessages.length}`,
+        isSender: () => true,
+        isReceiver: () => true,
+        archive: vi.fn(),
+      };
       mockMessages.push(doc);
       return doc;
     }),

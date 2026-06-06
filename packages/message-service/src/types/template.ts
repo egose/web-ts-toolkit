@@ -83,9 +83,7 @@ export interface MessageAction {
   condition?: (message: IMessage) => boolean;
   confirmation?: ActionConfirmation;
   payload?: Record<string, unknown>;
-  senderNotification?:
-    | string
-    | ((ctx: ActionContext) => Promise<string | SenderNotificationContent>);
+  senderNotification?: string | ((ctx: ActionContext) => Promise<string | SenderNotificationContent>);
   runHandler: (ctx: ActionContext) => Promise<unknown>;
 }
 

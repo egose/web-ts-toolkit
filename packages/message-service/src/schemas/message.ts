@@ -29,11 +29,7 @@ function archive(this: IMessage, actionCd: string, archivedBy: UserId, registry?
 // Pre-save hook: send email notification
 // ---------------------------------------------------------------------------
 
-export type EmailNotifier = (
-  email: string,
-  title: string,
-  message: string,
-) => Promise<void> | void;
+export type EmailNotifier = (email: string, title: string, message: string) => Promise<void> | void;
 
 interface SchemaConfig {
   emailNotifier: EmailNotifier | null;
@@ -70,7 +66,7 @@ function createPreSaveHook() {
 
     try {
       const User = mongoose.model('User');
-      const user = await User.findById(this.toUser).select('email').lean() as { email?: string } | null;
+      const user = (await User.findById(this.toUser).select('email').lean()) as { email?: string } | null;
       if (!user?.email) {
         return next();
       }
@@ -92,12 +88,9 @@ function createPreSaveHook() {
 // Schema Definition
 // ---------------------------------------------------------------------------
 
-const MessageSchema: mongoose.Schema = new mongoose.Schema(
-  BaseMessageFields,
-  {
-    timestamps: true,
-  },
-);
+const MessageSchema: mongoose.Schema = new mongoose.Schema(BaseMessageFields, {
+  timestamps: true,
+});
 
 MessageSchema.index({ createdAt: 1 });
 

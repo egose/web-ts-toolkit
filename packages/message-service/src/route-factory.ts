@@ -138,10 +138,10 @@ export function createMessageRoutes(options: MessageRoutesOptions): {
     const actionCd = req.params.actionCd as string;
     const Message = getModel(MESSAGE_MODEL_NAME);
     const MessageArchive = getModel(MESSAGE_ARCHIVE_MODEL_NAME);
-    let message = await Message.findById(id) as { templateCd: string } | null;
+    let message = (await Message.findById(id)) as { templateCd: string } | null;
 
     if (!message) {
-      message = await MessageArchive.findById(id) as { templateCd: string } | null;
+      message = (await MessageArchive.findById(id)) as { templateCd: string } | null;
     }
 
     if (!message) {

@@ -1,7 +1,14 @@
 import { isFunction, isString } from '@web-ts-toolkit/utils';
 import type mongoose from 'mongoose';
 import type { IMessage, IMessageArchive, MessageUser, UserId } from './types/message';
-import type { MessageTemplate, PrepareResult, SenderNotificationContent, UiTemplate, InterpolatedAction, ActionContext } from './types/template';
+import type {
+  MessageTemplate,
+  PrepareResult,
+  SenderNotificationContent,
+  UiTemplate,
+  InterpolatedAction,
+  ActionContext,
+} from './types/template';
 import type { PaymentProvider } from './providers/payment';
 import { interpolateTemplate } from './template-engine';
 import { TemplateRegistry, defaultRegistry } from './template-registry';
@@ -145,9 +152,9 @@ export class MessageService {
     const Message = this.getModel(MESSAGE_MODEL_NAME);
     const MessageArchive = this.getModel(MESSAGE_ARCHIVE_MODEL_NAME);
 
-    let message = await Message.findById(messageId) as IMessage | null;
+    let message = (await Message.findById(messageId)) as IMessage | null;
     if (!message) {
-      message = await MessageArchive.findById(messageId) as IMessage | null;
+      message = (await MessageArchive.findById(messageId)) as IMessage | null;
     }
     if (!message) return null;
 
@@ -230,7 +237,9 @@ export class MessageService {
       let content: string | SenderNotificationContent;
 
       if (isFunction(action.senderNotification)) {
-        content = await (action.senderNotification as (ctx: ActionContext) => Promise<string | SenderNotificationContent>)(actionContext);
+        content = await (
+          action.senderNotification as (ctx: ActionContext) => Promise<string | SenderNotificationContent>
+        )(actionContext);
       } else {
         content = action.senderNotification as string;
       }
@@ -295,7 +304,20 @@ export class MessageService {
     payload: Record<string, unknown>;
     display?: Record<string, unknown>;
   }): Promise<IMessage> {
-    const { type, templateCd, fromUser, toUser, toRoles, senderContent, receiverContent, documents, paymentSession, paymentCd, payload, display } = params;
+    const {
+      type,
+      templateCd,
+      fromUser,
+      toUser,
+      toRoles,
+      senderContent,
+      receiverContent,
+      documents,
+      paymentSession,
+      paymentCd,
+      payload,
+      display,
+    } = params;
 
     const Message = this.getModel(MESSAGE_MODEL_NAME);
 

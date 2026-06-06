@@ -167,11 +167,7 @@ describe('interpolateTemplate', () => {
   });
 
   it('should interpolate receiver content with data', () => {
-    const result = interpolateTemplate(
-      testTemplate,
-      { displayName: 'John', itemName: 'Widget' },
-      'receiver',
-    );
+    const result = interpolateTemplate(testTemplate, { displayName: 'John', itemName: 'Widget' }, 'receiver');
     expect(result).not.toBeNull();
     expect(result!.receiverContent.long).toBe('"John" submitted a request for "Widget".');
   });

@@ -44,17 +44,18 @@ app.use('/api/messages', myAuthMiddleware, router);
 
 Creates a standalone Express router with message template routes.
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `getModel` | `(name: string) => Model` | Mongoose model getter |
-| `emailProvider` | `EmailProvider` | Optional email provider |
-| `paymentProvider` | `PaymentProvider` | Optional payment provider |
-| `adminRoles` | `string[]` | Roles that receive messages by default |
-| `authMiddleware` | `any[]` | Custom auth middleware |
+| Option            | Type                      | Description                            |
+| ----------------- | ------------------------- | -------------------------------------- |
+| `getModel`        | `(name: string) => Model` | Mongoose model getter                  |
+| `emailProvider`   | `EmailProvider`           | Optional email provider                |
+| `paymentProvider` | `PaymentProvider`         | Optional payment provider              |
+| `adminRoles`      | `string[]`                | Roles that receive messages by default |
+| `authMiddleware`  | `any[]`                   | Custom auth middleware                 |
 
 Returns `{ router, service }`.
 
 Routes:
+
 - `POST /new/:templateCd` — create message from template
 - `GET /:id/actions/:usertype` — get available actions
 - `GET /:id/action/:actionCd` — execute action (GET)
@@ -107,7 +108,9 @@ import { PaymentProvider } from '@web-ts-toolkit/message-service';
 
 class StripePaymentProvider implements PaymentProvider {
   async createSession(user, code, priceArgs) {
-    const session = await stripe.checkout.sessions.create({ /* ... */ });
+    const session = await stripe.checkout.sessions.create({
+      /* ... */
+    });
     return session.id;
   }
   async expireSession(sessionId) {

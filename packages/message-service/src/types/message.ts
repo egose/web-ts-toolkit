@@ -60,11 +60,12 @@ export type IMessage = mongoose.Document & IBaseMessage & IMessageMethods;
 // Message Archive Document
 // ---------------------------------------------------------------------------
 
-export type IMessageArchive = mongoose.Document & IBaseMessage & {
-  actionCd: string;
-  archivedBy: UserId;
-  archivedAt: Date;
-} & IMessageMethods;
+export type IMessageArchive = mongoose.Document &
+  IBaseMessage & {
+    actionCd: string;
+    archivedBy: UserId;
+    archivedAt: Date;
+  } & IMessageMethods;
 
 // ---------------------------------------------------------------------------
 // Permission Schema (for ACL route configuration)
