@@ -1,41 +1,56 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type mongoose from 'mongoose';
 import type { Request, Response, NextFunction } from 'express';
-import type { MessageUser, PermissionSchema } from './types/message';
+import type { MessageUser } from './types/message';
 import type { PaymentProvider } from './providers/payment';
-import { MessageService } from './message-service';
-import { MESSAGE_MODEL_NAME, MESSAGE_ARCHIVE_MODEL_NAME } from './schemas/base';
+import {
+  ActionNotAllowedError,
+  ActionNotFoundError,
+  MessageArchivedError,
+  MessageNotFoundError,
+  MessageService,
+  TemplateNotFoundError,
+} from './message-service';
+import { TemplateRegistry } from './template-registry';
 
 // ---------------------------------------------------------------------------
-// Default permission schema — all fields readable, only paymentCd writable
+// Action code validation
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_PERMISSION_SCHEMA: PermissionSchema = {
-  templateCd: { list: true, read: true, update: false, create: false },
-  type: { list: true, read: true, update: false, create: false },
-  fromUser: { list: true, read: true, update: false, create: false },
-  toUser: { list: true, read: true, update: false, create: false },
-  toRoles: { list: true, read: true, update: false, create: false },
-  senderContent: { list: true, read: true, update: false, create: false },
-  receiverContent: { list: true, read: true, update: false, create: false },
-  documents: { list: true, read: true, update: false, create: false },
-  paymentSession: { list: true, read: true, update: false, create: false },
-  paymentCd: { list: true, read: true, update: false, create: false },
-  payload: { list: true, read: true, update: false, create: false },
-  display: { list: true, read: true, update: false, create: false },
-  createdAt: { list: true, read: true, update: false, create: false },
-  updatedAt: { list: true, read: true, update: false, create: false },
-};
+const ACTION_CD_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
-// ---------------------------------------------------------------------------
-// Archive permission schema
-// ---------------------------------------------------------------------------
+function assertValidActionCd(actionCd: unknown): asserts actionCd is string {
+  if (typeof actionCd !== 'string' || !ACTION_CD_PATTERN.test(actionCd)) {
+    throw new JsonRouter.clientErrors.BadRequestError(
+      'actionCd must be a string of letters, digits, underscores, and hyphens',
+    );
+  }
+}
 
-export const ARCHIVE_PERMISSION_SCHEMA: PermissionSchema = {
-  ...DEFAULT_PERMISSION_SCHEMA,
-  actionCd: { list: true, read: true, update: false, create: false },
-  archivedBy: { list: true, read: true, update: false, create: false },
-};
+function assertValidUsertype(usertype: unknown): asserts usertype is 'sender' | 'receiver' {
+  if (usertype !== 'sender' && usertype !== 'receiver') {
+    throw new JsonRouter.clientErrors.BadRequestError('usertype must be "sender" or "receiver"');
+  }
+}
+
+function mapServiceError(error: unknown): never {
+  if (error instanceof MessageNotFoundError) {
+    throw new JsonRouter.clientErrors.NotFoundError('message not found');
+  }
+  if (error instanceof TemplateNotFoundError) {
+    throw new JsonRouter.clientErrors.NotFoundError(error.message);
+  }
+  if (error instanceof ActionNotFoundError) {
+    throw new JsonRouter.clientErrors.NotFoundError(error.message);
+  }
+  if (error instanceof ActionNotAllowedError) {
+    throw new JsonRouter.clientErrors.ForbiddenError(error.message);
+  }
+  if (error instanceof MessageArchivedError) {
+    throw new JsonRouter.clientErrors.GoneError(error.message);
+  }
+  throw error;
+}
 
 // ---------------------------------------------------------------------------
 // createMessageRoutes
@@ -51,6 +66,13 @@ export interface MessageRoutesOptions {
   /** Admin roles that receive messages when no toUser/toRoles specified */
   adminRoles?: string[];
 
+  /**
+   * Custom template registry. Use this to isolate templates per app or test
+   * instead of relying on the global `defaultRegistry`. Pass the same registry
+   * instance to `MessageService` if you also construct one directly.
+   */
+  registry?: TemplateRegistry;
+
   /** Custom auth middleware applied to all routes */
   authMiddleware?: ((req: Request, res: Response, next: NextFunction) => void)[];
 
@@ -62,6 +84,12 @@ export interface MessageRoutesOptions {
 
   /** Extract identity from request (default: req._identity || {}) */
   getIdentity?: (req: Request) => Record<string, unknown>;
+
+  /**
+   * Permission key that, when truthy, makes `getActions` return an empty
+   * action list (read-only view). Defaults to `'is.admin'`.
+   */
+  adminPermissionKey?: string;
 }
 
 /**
@@ -82,16 +110,17 @@ export function createMessageRoutes(options: MessageRoutesOptions): {
     getModel,
     paymentProvider = null,
     adminRoles,
+    registry,
     authMiddleware = [],
     getUser = defaultGetUser,
     getPermissions = defaultGetPermissions,
     getIdentity = defaultGetIdentity,
+    adminPermissionKey = 'is.admin',
   } = options;
 
-  const service = new MessageService({ getModel, paymentProvider, adminRoles });
+  const service = new MessageService({ getModel, paymentProvider, adminRoles, registry });
   const router = new JsonRouter('', authMiddleware);
 
-  // Create message from template
   router.post('/new/:templateCd', async (req) => {
     const templateCd = req.params.templateCd as string;
     const user = getUser(req) || { _id: '' };
@@ -99,59 +128,62 @@ export function createMessageRoutes(options: MessageRoutesOptions): {
     const identity = getIdentity(req);
     const permissions = getPermissions(req);
 
-    return service.createMessage({
-      templateCd,
-      user,
-      roles,
-      identity,
-      permissions,
-      payload: req.body,
-      payerUser: user,
-      req,
-    });
+    const body = (req.body || {}) as Record<string, unknown>;
+    const { clientRequestId, ...payload } = body;
+    const clientRequestIdStr = typeof clientRequestId === 'string' ? clientRequestId : undefined;
+
+    try {
+      return await service.createMessage({
+        templateCd,
+        user,
+        roles,
+        identity,
+        permissions,
+        payload,
+        payerUser: user,
+        req,
+        clientRequestId: clientRequestIdStr,
+      });
+    } catch (error) {
+      mapServiceError(error);
+    }
   });
 
-  // Get available actions for a message
   router.get('/:id/actions/:usertype', async (req) => {
     const id = req.params.id as string;
-    const usertype = req.params.usertype as string;
-
-    if (usertype !== 'sender' && usertype !== 'receiver') {
-      throw new JsonRouter.clientErrors.BadRequestError('usertype must be "sender" or "receiver"');
-    }
+    const usertype = req.params.usertype;
+    assertValidUsertype(usertype);
 
     const permissions = getPermissions(req);
-    const isAdmin = !!permissions['is.admin'];
+    const isAdmin = !!permissions[adminPermissionKey];
 
-    const result = await service.getActions(id, usertype, { permissions, isAdmin });
-
+    const user = getUser(req) || { _id: '' };
+    const result = await service.getActions(id, usertype, { permissions, user, isAdmin });
     if (!result) {
       throw new JsonRouter.clientErrors.NotFoundError('message not found');
     }
-
     return result;
   });
 
-  // Execute an action (GET and POST variants)
   async function handleAction(req: Request) {
     const id = req.params.id as string;
-    const actionCd = req.params.actionCd as string;
-    const Message = getModel(MESSAGE_MODEL_NAME);
-    const MessageArchive = getModel(MESSAGE_ARCHIVE_MODEL_NAME);
-    let message = (await Message.findById(id)) as { templateCd: string } | null;
+    const actionCd = req.params.actionCd;
+    assertValidActionCd(actionCd);
 
-    if (!message) {
-      message = (await MessageArchive.findById(id)) as { templateCd: string } | null;
-    }
-
-    if (!message) {
-      throw new JsonRouter.clientErrors.NotFoundError('message not found');
+    let message;
+    try {
+      message = await service.findMessageOrThrow(id);
+    } catch (error) {
+      mapServiceError(error);
     }
 
     const user = getUser(req) || { _id: '' };
     const permissions = getPermissions(req);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return service.handleAction(message.templateCd, actionCd, { message: message as any, user, permissions, req });
+    try {
+      return await service.handleAction(message.templateCd, actionCd, { message, user, permissions, req });
+    } catch (error) {
+      mapServiceError(error);
+    }
   }
 
   router.get('/:id/action/:actionCd', handleAction);
@@ -165,17 +197,16 @@ export function createMessageRoutes(options: MessageRoutesOptions): {
 // ---------------------------------------------------------------------------
 
 function defaultGetUser(req: Request): MessageUser | undefined {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw = (req as any)._user || (req as any).user;
-  return raw as MessageUser | undefined;
+  const raw =
+    (req as unknown as { _user?: MessageUser; user?: MessageUser })._user ||
+    (req as unknown as { user?: MessageUser }).user;
+  return raw;
 }
 
 function defaultGetPermissions(req: Request): Record<string, boolean> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (req as any)._permissions || {};
+  return (req as unknown as { _permissions?: Record<string, boolean> })._permissions || {};
 }
 
 function defaultGetIdentity(req: Request): Record<string, unknown> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (req as any)._identity || {};
+  return (req as unknown as { _identity?: Record<string, unknown> })._identity || {};
 }

@@ -13,9 +13,12 @@ export const MessageContentSchema = new mongoose.Schema(
   { _id: false },
 );
 
+export function defaultMessageContent() {
+  return { title: '', long: '', short: '' };
+}
+
 /**
  * Base message fields shared between Message and MessageArchive.
- * Uses `any` typing to avoid TS7056 serialization limits on complex Mongoose types.
  *
  * All ObjectId fields use generic refs — consumers should configure
  * their own Mongoose populate paths for their domain models.
@@ -23,18 +26,18 @@ export const MessageContentSchema = new mongoose.Schema(
  * Consumers can extend this object with additional fields (e.g. toOrg, toOrgAdmin)
  * by spreading it into their own schema definition.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const BaseMessageFields: Record<string, any> = {
+export const BaseMessageFields: Record<string, mongoose.SchemaTypeOptions<unknown>> = {
   templateCd: { type: String, default: '' },
   type: { type: String, default: 'notification' },
   fromUser: { type: mongoose.Schema.Types.ObjectId, default: null },
   toUser: { type: mongoose.Schema.Types.ObjectId, default: null },
   toRoles: { type: [String], default: [] },
-  senderContent: { type: MessageContentSchema, default: () => ({}) },
-  receiverContent: { type: MessageContentSchema, default: () => ({}) },
+  senderContent: { type: MessageContentSchema, default: defaultMessageContent },
+  receiverContent: { type: MessageContentSchema, default: defaultMessageContent },
   documents: { type: [mongoose.Schema.Types.ObjectId], default: [] },
   paymentSession: { type: String, default: null },
   paymentCd: { type: String, default: '' },
   payload: { type: mongoose.Schema.Types.Mixed, default: {} },
   display: { type: mongoose.Schema.Types.Mixed, default: {} },
+  clientRequestId: { type: String, default: null },
 };

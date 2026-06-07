@@ -3,6 +3,10 @@ import type { MessageTemplate } from './types/template';
 /**
  * In-memory registry for message templates.
  * Templates are looked up by their `templateCd`.
+ *
+ * Recommended: create one `TemplateRegistry` per app and pass it to
+ * `MessageService({ registry })`. Use the `defaultRegistry` only for
+ * simple cases or quick experiments.
  */
 export class TemplateRegistry {
   private templates = new Map<string, MessageTemplate>();
@@ -75,8 +79,8 @@ export const defaultRegistry = new TemplateRegistry();
  * Check if a given actionCd exists in a registered template.
  * Used by the Message model's archive() method.
  */
-export function includesAction(templateCd: string, actionCd: string, registry?: TemplateRegistry): boolean {
-  const template = registry?.find(templateCd) ?? defaultRegistry.find(templateCd);
+export function includesAction(templateCd: string, actionCd: string, registry: TemplateRegistry): boolean {
+  const template = registry.find(templateCd);
   if (!template) return false;
 
   return template.actions.some((a) => a.actionCd === actionCd);

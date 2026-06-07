@@ -13,11 +13,6 @@ export type {
   IMessageMethods,
   MessageType,
   MessageUser,
-  PermissionSchema,
-  PermissionSchemaField,
-  BaseFilter,
-  BaseFilterAccess,
-  BaseFilterContext,
 } from './types/message';
 
 export type {
@@ -29,6 +24,7 @@ export type {
   MessageAction,
   MessageTemplate,
   UiTemplate,
+  Usertype,
   InterpolatedContent,
   InterpolatedAction,
   InterpolationResult,
@@ -41,26 +37,34 @@ export {
   MessageContentSchema,
   BaseMessageFields,
 } from './schemas/base';
-export { MessageSchema, setEmailNotifier, setEmailExclusions } from './schemas/message';
-export type { EmailNotifier } from './schemas/message';
-export { MessageArchiveSchema } from './schemas/message-archive';
+export { MessageSchema, buildMessageSchema } from './schemas/message';
+export type { EmailNotifier, MessageSchemaConfig } from './schemas/message';
+export { MessageArchiveSchema, buildMessageArchiveSchema } from './schemas/message-archive';
 
 // --- Template Engine ---
-export { interpolateTemplate } from './template-engine';
+export { interpolateTemplate, filterActions, isActionAllowed } from './template-engine';
 
 // --- Template Registry ---
 export { TemplateRegistry, defaultRegistry, includesAction } from './template-registry';
 
 // --- Providers ---
-export type { EmailProvider } from './providers/email';
 export { NoopEmailProvider } from './providers/email';
-export type { PaymentProvider } from './providers/payment';
+export type { EmailProvider } from './providers/email';
 export { NoopPaymentProvider } from './providers/payment';
+export type { PaymentProvider } from './providers/payment';
 
 // --- Message Service ---
 export { MessageService } from './message-service';
 export type { MessageServiceOptions } from './message-service';
+export {
+  GENERIC_NOTIFICATION_TEMPLATE_CD,
+  MessageArchivedError,
+  MessageNotFoundError,
+  TemplateNotFoundError,
+  ActionNotFoundError,
+  ActionNotAllowedError,
+} from './message-service';
 
 // --- Route Factory ---
-export { createMessageRoutes, DEFAULT_PERMISSION_SCHEMA, ARCHIVE_PERMISSION_SCHEMA } from './route-factory';
+export { createMessageRoutes } from './route-factory';
 export type { MessageRoutesOptions } from './route-factory';

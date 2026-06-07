@@ -3,7 +3,10 @@
   "description": "Template-driven messaging core for Mongoose + Express applications",
   "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/message-service",
   "version": "0.0.0-PLACEHOLDER",
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/schemas/message.js",
+    "./dist/schemas/message-archive.js"
+  ],
   "keywords": [
     "mongoose",
     "messaging",
