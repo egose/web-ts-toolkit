@@ -4,8 +4,8 @@ import mongoose from 'mongoose';
 import type { MessageTemplate, MessageUser } from '@web-ts-toolkit/message-service';
 import {
   createMessageRoutes,
-  MessageSchema,
-  MessageArchiveSchema,
+  buildMessageSchema,
+  buildMessageArchiveSchema,
   MESSAGE_MODEL_NAME,
   MESSAGE_ARCHIVE_MODEL_NAME,
   defaultRegistry,
@@ -59,14 +59,13 @@ export function parseTemplatePayload(templateCd: string, payload: unknown) {
   return schema.safeParse(payload);
 }
 
-type TemplateUser = MessageUser & { displayName: string };
-
+type TemplateUser = MessageUser;
 export type { TemplateUser };
 
 function getUserFromRequest(req: Request) {
   const appReq = req as AppReq;
   if (!appReq.currentUserId) return undefined;
-  return { _id: appReq.currentUserId, roles: ['authenticated'] } as TemplateUser;
+  return { _id: appReq.currentUserId, roles: ['authenticated'] } as MessageUser;
 }
 
 function getPermissionsFromRequest(req: Request) {
@@ -107,7 +106,7 @@ const teamInvitationTemplate: MessageTemplate = {
   uiTemplate: 'card',
   async prepareMessage(ctx) {
     const { payload } = ctx;
-    const user = ctx.user as TemplateUser;
+    const user = ctx.user as MessageUser;
     const inviteeEmail = String(payload.inviteeEmail || '');
     const organizationName = String(payload.organizationName || 'Workspace');
 
@@ -171,7 +170,7 @@ const taskAssignmentTemplate: MessageTemplate = {
   uiTemplate: 'card',
   async prepareMessage(ctx) {
     const { payload } = ctx;
-    const user = ctx.user as TemplateUser;
+    const user = ctx.user as MessageUser;
     const toUserEmail = String(payload.toUserEmail || '');
     const taskTitle = String(payload.taskTitle || 'Untitled Task');
     const taskDescription = String(payload.taskDescription || '');
@@ -236,7 +235,7 @@ const approvalRequestTemplate: MessageTemplate = {
   uiTemplate: 'card',
   async prepareMessage(ctx) {
     const { payload } = ctx;
-    const user = ctx.user as TemplateUser;
+    const user = ctx.user as MessageUser;
     const toUserEmail = String(payload.toUserEmail || '');
     const requestTitle = String(payload.requestTitle || 'Untitled Request');
     const requestDetails = String(payload.requestDetails || '');
@@ -307,7 +306,7 @@ const directMessageTemplate: MessageTemplate = {
   uiTemplate: 'card',
   async prepareMessage(ctx) {
     const { payload } = ctx;
-    const user = ctx.user as TemplateUser;
+    const user = ctx.user as MessageUser;
     const toUserEmail = String(payload.toUserEmail || '');
     const subject = String(payload.subject || 'No subject');
     const body = String(payload.body || '');
@@ -334,7 +333,9 @@ const directMessageTemplate: MessageTemplate = {
       variant: 'secondary',
       sender: true,
       receiver: true,
-      async runHandler() {
+      async runHandler({ message }) {
+        message.set('payload.read', true);
+        await message.save();
         return { read: true };
       },
     },
@@ -360,7 +361,7 @@ const systemAnnouncementTemplate: MessageTemplate = {
   uiTemplate: 'banner',
   async prepareMessage(ctx) {
     const { payload } = ctx;
-    const user = ctx.user as TemplateUser;
+    const user = ctx.user as MessageUser;
     const title = String(payload.title || 'Announcement');
     const body = String(payload.body || '');
     const priority = String(payload.priority || 'normal');
@@ -401,11 +402,11 @@ const systemAnnouncementTemplate: MessageTemplate = {
 
 export function registerMessageModels() {
   if (!mongoose.models[MESSAGE_MODEL_NAME]) {
-    mongoose.model(MESSAGE_MODEL_NAME, MessageSchema);
+    mongoose.model(MESSAGE_MODEL_NAME, buildMessageSchema({ userModelName: 'User' }));
   }
 
   if (!mongoose.models[MESSAGE_ARCHIVE_MODEL_NAME]) {
-    mongoose.model(MESSAGE_ARCHIVE_MODEL_NAME, MessageArchiveSchema);
+    mongoose.model(MESSAGE_ARCHIVE_MODEL_NAME, buildMessageArchiveSchema());
   }
 }
 
@@ -427,7 +428,7 @@ const MESSAGE_LIST_DEFAULT_LIMIT = 50;
 const MESSAGE_LIST_MAX_LIMIT = 100;
 
 export function createMessageRouteGroup() {
-  const { router } = createMessageRoutes({
+  const { router, service } = createMessageRoutes({
     getModel,
     getUser: getUserFromRequest,
     getPermissions: getPermissionsFromRequest,
@@ -445,19 +446,15 @@ export function createMessageRouteGroup() {
     const rawSkip = Number(req.query.skip ?? 0);
     const skip = Number.isFinite(rawSkip) && rawSkip >= 0 ? rawSkip : 0;
 
-    const userObjectId = toObjectId(appReq.currentUserId);
-    const Message = getModel(MESSAGE_MODEL_NAME);
-
-    const filter = userObjectId
-      ? { $or: [{ toUser: userObjectId }, { fromUser: userObjectId }] }
-      : { $or: [{ toUser: appReq.currentUserId }, { fromUser: appReq.currentUserId }] };
-
-    const messages = await Message.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('fromUser', 'email displayName')
-      .populate('toUser', 'email displayName');
+    const messages = await service.listMessages({
+      user: { _id: appReq.currentUserId, roles: ['authenticated'] },
+      limit,
+      skip,
+      populate: [
+        { path: 'fromUser', select: 'email displayName' },
+        { path: 'toUser', select: 'email displayName' },
+      ],
+    });
 
     return { success: true, data: messages };
   });

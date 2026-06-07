@@ -1,8 +1,7 @@
 import crypto from 'node:crypto';
 import type { HydratedDocument } from 'mongoose';
 import mongoose from 'mongoose';
-import { defaultRegistry, MessageService, MESSAGE_MODEL_NAME } from '@web-ts-toolkit/message-service';
-import type { TemplateUser } from './messages';
+import { defaultRegistry, MessageService, MESSAGE_MODEL_NAME, type MessageUser } from '@web-ts-toolkit/message-service';
 import { demoOrganizations, demoUserSeeds } from './domain';
 import {
   MembershipModel,
@@ -195,7 +194,7 @@ export async function seedDemoMessages() {
 
   if (!alice || !bob || !carol || !dave || !eve) return;
 
-  const buildUser = (u: HydratedDocument<UserRecord>): TemplateUser => ({
+  const buildUser = (u: HydratedDocument<UserRecord>): MessageUser => ({
     _id: u._id,
     displayName: u.displayName,
     roles: ['authenticated'],
