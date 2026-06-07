@@ -51,25 +51,25 @@ export function setEmailExclusions(exclusions: string[]) {
 }
 
 function createPreSaveHook() {
-  return async function sendNotificationEmail(this: IMessage, next: (err?: Error | null) => void) {
+  return async function sendNotificationEmail(this: IMessage) {
     if (!schemaConfig.emailNotifier) {
-      return next();
+      return;
     }
 
     if (!this.toUser || !this.receiverContent?.title) {
-      return next();
+      return;
     }
 
     const title = this.receiverContent.title.trim();
     if (schemaConfig.emailNotificationExclusions.includes(title.toLowerCase())) {
-      return next();
+      return;
     }
 
     try {
       const User = mongoose.model('User');
       const user = (await User.findById(this.toUser).select('email').lean()) as { email?: string } | null;
       if (!user?.email) {
-        return next();
+        return;
       }
 
       const long = this.receiverContent.long || '';
@@ -80,8 +80,6 @@ function createPreSaveHook() {
     } catch {
       // Don't block message save on email failure
     }
-
-    next();
   };
 }
 
