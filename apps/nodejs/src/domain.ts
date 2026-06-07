@@ -71,6 +71,11 @@ export const demoUserSeeds: DemoUserSeed[] = [
   { email: 'sam@example.com', displayName: 'Sam Patel' },
   { email: 'nora@example.com', displayName: 'Nora Diaz' },
   { email: 'leo@example.com', displayName: 'Leo Park' },
+  { email: 'alice@example.com', displayName: 'Alice Liu' },
+  { email: 'bob@example.com', displayName: 'Bob Singh' },
+  { email: 'carol@example.com', displayName: 'Carol Reyes' },
+  { email: 'dave@example.com', displayName: 'Dave Park' },
+  { email: 'eve@example.com', displayName: 'Eve Carter' },
 ];
 
 export const demoOrganizations: DemoOrganizationSeed[] = [

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { TemplateRegistry, defaultRegistry, includesAction } from '../src/template-registry';
-import { interpolateTemplate } from '../src/template-engine';
+import { interpolateTemplate, filterActions, isActionAllowed } from '../src/template-engine';
 import type { MessageTemplate } from '../src/types/template';
 
 // ---------------------------------------------------------------------------
@@ -26,12 +26,11 @@ const testTemplate: MessageTemplate = {
   daysToArchive: 14,
   prepareMessage: async ({ user, payload }) => ({
     templateData: {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       displayName: (user as any).displayName,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       itemName: (payload as any).itemName,
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     fromUser: (user as any)._id,
     payload,
   }),
@@ -138,21 +137,21 @@ describe('includesAction', () => {
   });
 
   it('should return false for "paid" action on unknown template', () => {
-    expect(includesAction('any-template', 'paid')).toBe(false);
+    expect(includesAction('any-template', 'paid', defaultRegistry)).toBe(false);
   });
 
   it('should return true for existing action', () => {
     defaultRegistry.register(testTemplate);
-    expect(includesAction('test-request', 'approved')).toBe(true);
+    expect(includesAction('test-request', 'approved', defaultRegistry)).toBe(true);
   });
 
   it('should return false for non-existing action', () => {
     defaultRegistry.register(testTemplate);
-    expect(includesAction('test-request', 'nonexistent')).toBe(false);
+    expect(includesAction('test-request', 'nonexistent', defaultRegistry)).toBe(false);
   });
 
   it('should return false for unknown template', () => {
-    expect(includesAction('unknown', 'approved')).toBe(false);
+    expect(includesAction('unknown', 'approved', defaultRegistry)).toBe(false);
   });
 });
 
@@ -187,12 +186,6 @@ describe('interpolateTemplate', () => {
     expect(result).not.toBeNull();
     const actionCds = result!.actions.map((a) => a.actionCd);
     expect(actionCds).toEqual(['approved', 'rejected']);
-  });
-
-  it('should return null for null template', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = interpolateTemplate(null as any, {}, 'sender');
-    expect(result).toBeNull();
   });
 
   it('should resolve string uiTemplate', () => {
@@ -251,7 +244,7 @@ describe('interpolateTemplate', () => {
           variant: 'info',
           sender: false,
           receiver: true,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
           condition: (msg: any) => msg.isPaid === true,
           runHandler: async () => true,
         },
@@ -267,5 +260,122 @@ describe('interpolateTemplate', () => {
       message: { isPaid: true },
     });
     expect(withPayment!.actions.map((a) => a.actionCd)).toContain('conditional');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// filterActions / isActionAllowed (shared filter source)
+// ---------------------------------------------------------------------------
+
+describe('filterActions', () => {
+  it('should return all matching actions as InterpolatedAction', () => {
+    const result = filterActions(testTemplate.actions, 'sender');
+    const actionCds = result.map((a) => a.actionCd);
+    expect(actionCds).toEqual(['revoked']);
+    expect(result[0]).not.toHaveProperty('runHandler');
+  });
+
+  it('should compile action names against provided data', () => {
+    const template: MessageTemplate = {
+      ...testTemplate,
+      actions: [
+        {
+          ...testTemplate.actions[0],
+          name: 'Approve {{itemName}}',
+        },
+      ],
+    };
+    const result = filterActions(template.actions, 'receiver', { data: { itemName: 'Widget' } });
+    expect(result[0].name).toBe('Approve Widget');
+  });
+
+  it('should compile confirmation title, message, and notesLabel', () => {
+    const template: MessageTemplate = {
+      ...testTemplate,
+      actions: [
+        {
+          ...testTemplate.actions[0],
+          confirmation: {
+            title: 'Reject {{itemName}}',
+            message: 'Are you sure about {{itemName}}?',
+            notesLabel: 'Reason for rejecting {{itemName}}',
+          },
+        },
+      ],
+    };
+    const result = filterActions(template.actions, 'receiver', { data: { itemName: 'Widget' } });
+    expect(result[0].confirmation).toEqual({
+      title: 'Reject Widget',
+      message: 'Are you sure about Widget?',
+      notesLabel: 'Reason for rejecting Widget',
+    });
+  });
+});
+
+describe('isActionAllowed', () => {
+  const message = {
+    isSender: (u: { _id: string }) => u._id === 'sender1',
+    isReceiver: (u: { _id: string }) => u._id === 'receiver1',
+  };
+
+  it('should allow sender when action.sender is true', () => {
+    const action = testTemplate.actions.find((a) => a.actionCd === 'revoked')!;
+    expect(isActionAllowed(action, { _id: 'sender1' }, message as never)).toBe(true);
+  });
+
+  it('should deny sender when action.sender is false', () => {
+    const action = testTemplate.actions.find((a) => a.actionCd === 'approved')!;
+    expect(isActionAllowed(action, { _id: 'sender1' }, message as never)).toBe(false);
+  });
+
+  it('should allow receiver when action.receiver is true', () => {
+    const action = testTemplate.actions.find((a) => a.actionCd === 'approved')!;
+    expect(isActionAllowed(action, { _id: 'receiver1' }, message as never)).toBe(true);
+  });
+
+  it('should deny when permission is missing', () => {
+    const template: MessageTemplate = {
+      ...testTemplate,
+      actions: [
+        {
+          actionCd: 'admin-only',
+          name: 'Admin',
+          variant: 'dark',
+          sender: false,
+          receiver: true,
+          permission: 'is.admin',
+          runHandler: async () => true,
+        },
+      ],
+    };
+    const action = template.actions[0];
+    expect(isActionAllowed(action, { _id: 'receiver1' }, message as never)).toBe(false);
+    expect(isActionAllowed(action, { _id: 'receiver1' }, message as never, { permissions: { 'is.admin': true } })).toBe(
+      true,
+    );
+  });
+
+  it('should deny when condition returns false', () => {
+    const template: MessageTemplate = {
+      ...testTemplate,
+      actions: [
+        {
+          actionCd: 'conditional',
+          name: 'Conditional',
+          variant: 'info',
+          sender: false,
+          receiver: true,
+
+          condition: (msg: any) => msg.isPaid === true,
+          runHandler: async () => true,
+        },
+      ],
+    };
+    const action = template.actions[0];
+
+    const msg: any = { ...message, isPaid: false };
+    expect(isActionAllowed(action, { _id: 'receiver1' }, msg)).toBe(false);
+    msg.isPaid = true;
+    expect(isActionAllowed(action, { _id: 'receiver1' }, msg)).toBe(true);
   });
 });

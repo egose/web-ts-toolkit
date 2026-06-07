@@ -5,6 +5,7 @@ import { Navigate, Route, Routes } from 'react-router';
 import { cn } from '@egose/shadcn-theme/utils/ui';
 import { getSession, loginWithEmail } from './api';
 import { LoginPage } from './pages/login-page';
+import { MessagesPage } from './pages/messages-page';
 import { WorkspacePage } from './pages/workspace-page';
 import { clearStoredSessionToken, getStoredSessionToken, setStoredSessionToken } from './storage';
 import type { SessionData } from './types';
@@ -117,6 +118,14 @@ export function App() {
                 onSignedOut={handleSignedOut}
                 session={sessionQuery.data!}
               />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/messages"
+          element={
+            <ProtectedRoute isLoading={sessionQuery.isPending && !!token} session={sessionQuery.data}>
+              <MessagesPage session={sessionQuery.data!} />
             </ProtectedRoute>
           }
         />

@@ -6,6 +6,7 @@ import type { AppRequest } from './models';
 import { UserModel } from './models';
 import { createRouters } from './routers';
 import { buildSessionPayload, clearSession, createSession, findOrCreateUser, resolveSession } from './session';
+import { createMessageRouteGroup } from './messages';
 
 export function createApp() {
   const runtime = createAccessRuntime();
@@ -17,6 +18,7 @@ export function createApp() {
   });
 
   const { membershipRouter, organizationRouter, roleTemplateRouter, rootRouter } = createRouters(runtime);
+  const messageRouteGroup = createMessageRouteGroup();
 
   const app = express();
   app.use(express.json());
@@ -52,12 +54,14 @@ export function createApp() {
         organizations: '/api/organizations',
         memberships: '/api/memberships',
         roleTemplates: '/api/role-templates',
+        messages: '/api/messages',
         batch: 'POST /api/root',
       },
       notes: [
         'Users log in with email only.',
         'Adding a member by email creates the user automatically if needed.',
         "Anyone who belongs to an organization can edit that organization's roles and hierarchy.",
+        'Messages support team invitations, task assignments, approval requests, direct messages, and system announcements.',
         'Data is stored in mongodb-memory-server for this example.',
       ],
     });
@@ -105,6 +109,7 @@ export function createApp() {
     return res.status(200).json({ success: true, data: { loggedOut: true } });
   });
 
+  app.use('/api/messages', messageRouteGroup.router);
   app.use(combineRoutes(organizationRouter, membershipRouter, roleTemplateRouter, rootRouter));
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Express error handler requires 4 params

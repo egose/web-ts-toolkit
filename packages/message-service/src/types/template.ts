@@ -1,5 +1,5 @@
 import type mongoose from 'mongoose';
-import type { IMessage, MessageUser, UserId } from './message';
+import type { IMessage, IMessageArchive, MessageUser, UserId } from './message';
 
 // ---------------------------------------------------------------------------
 // Prepare Context — passed to template.prepareMessage()
@@ -36,12 +36,11 @@ export interface PrepareResult {
 // ---------------------------------------------------------------------------
 
 export interface ActionContext {
-  message: IMessage;
+  message: IMessage | IMessageArchive;
   user: MessageUser;
   getModel: (name: string) => mongoose.Model<unknown>;
   expireSession?: (sessionId: string) => Promise<void>;
   refundPayment?: (sessionId: string) => Promise<void>;
-  approverId?: UserId;
   req?: unknown;
 }
 
@@ -117,9 +116,14 @@ export interface InterpolatedContent {
 
 export interface InterpolatedAction {
   actionCd: string;
-  isDefault?: boolean;
   name: string;
   variant: string;
+  /**
+   * When multiple actions are available, the UI may auto-submit or pre-select
+   * the one with `isDefault: true`. Templates should set this on at most one
+   * action per usertype.
+   */
+  isDefault?: boolean;
   confirmation?: ActionConfirmation;
   payload?: Record<string, unknown>;
 }
@@ -130,3 +134,10 @@ export interface InterpolationResult {
   uiTemplate: UiTemplate;
   actions: InterpolatedAction[];
 }
+
+/**
+ * The role a user plays with respect to a message.
+ * `'sender'` is the user who created the message; `'receiver'` is the
+ * intended recipient (a direct user or a member of one of the `toRoles`).
+ */
+export type Usertype = 'sender' | 'receiver';

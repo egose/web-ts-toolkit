@@ -46,3 +46,52 @@ export interface WorkspaceData {
   members: OrganizationMember[];
   roleTemplates: RoleTemplate[];
 }
+
+export interface MessageContent {
+  title: string;
+  long: string;
+  short: string;
+}
+
+export interface MessageUserRef {
+  _id: string;
+  email: string;
+  displayName: string;
+}
+
+export interface Message {
+  _id: string;
+  templateCd: string;
+  type: string;
+  fromUser: MessageUserRef | string | null;
+  toUser: MessageUserRef | string | null;
+  toRoles: string[];
+  senderContent: MessageContent;
+  receiverContent: MessageContent;
+  documents: string[];
+  paymentSession: string | null;
+  paymentCd: string;
+  payload: Record<string, unknown>;
+  display: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MessageAction {
+  actionCd: string;
+  isDefault?: boolean;
+  name: string;
+  variant: string;
+  confirmation?: {
+    title: string;
+    message: string;
+    notesLabel?: string;
+    requireNotes?: boolean;
+  };
+  payload?: Record<string, unknown>;
+}
+
+export interface MessageActionsResponse {
+  uiTemplate: string;
+  actions: MessageAction[];
+}

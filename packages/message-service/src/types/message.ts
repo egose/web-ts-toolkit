@@ -15,27 +15,41 @@ export interface IMessageContent {
 // Message Document
 // ---------------------------------------------------------------------------
 
-export type MessageType = string;
+/**
+ * The high-level category of a message. Common values are 'notification',
+ * 'request', 'reminder', 'approval'. Templates can use any string; the
+ * `(string & {})` trick preserves the literal types in autocomplete while
+ * still allowing arbitrary strings.
+ */
+export type MessageType = 'notification' | 'request' | 'reminder' | 'approval' | (string & {});
 
 export type UserId = mongoose.Types.ObjectId | string;
 
 /**
  * Minimal user shape accepted by MessageService methods.
+ * `displayName` is optional but templates that interpolate `{{displayName}}`
+ * will fall back to an empty string if it is absent.
  */
 export interface MessageUser {
   _id: UserId;
   id?: string;
   roles?: string[];
+  displayName?: string;
 }
 
 export interface IMessageMethods {
   isSender(user: MessageUser): boolean;
   isReceiver(user: MessageUser): boolean;
-  archive(actionCd: string, archivedBy: UserId, registry?: TemplateRegistry): Promise<void>;
+  archive(actionCd: string, archivedBy: UserId, registry: TemplateRegistry): Promise<void>;
 }
 
 /**
  * Base fields shared between IMessage and IMessageArchive.
+ *
+ * `display` is stored as-is from the template's `PrepareResult.display` —
+ * unlike `senderContent` and `receiverContent`, it is NOT interpolated at
+ * create time. Use it for static per-message configuration (priority,
+ * category, etc.) rather than user-facing text.
  */
 export interface IBaseMessage {
   templateCd: string;
@@ -54,47 +68,20 @@ export interface IBaseMessage {
   updatedAt: Date;
 }
 
-export type IMessage = mongoose.Document & IBaseMessage & IMessageMethods;
+type MongooseQueryHelpers = Record<string, unknown>;
+
+export type IMessage = mongoose.Document<unknown, MongooseQueryHelpers, IMessageMethods> &
+  IBaseMessage &
+  IMessageMethods & { __v?: number };
 
 // ---------------------------------------------------------------------------
 // Message Archive Document
 // ---------------------------------------------------------------------------
 
-export type IMessageArchive = mongoose.Document &
+export type IMessageArchive = mongoose.Document<unknown, MongooseQueryHelpers, IMessageMethods> &
   IBaseMessage & {
     actionCd: string;
     archivedBy: UserId;
     archivedAt: Date;
+    __v?: number;
   } & IMessageMethods;
-
-// ---------------------------------------------------------------------------
-// Permission Schema (for ACL route configuration)
-// ---------------------------------------------------------------------------
-
-export type FieldPermission = boolean | string;
-
-export interface PermissionSchemaField {
-  list: FieldPermission;
-  read: FieldPermission;
-  update: FieldPermission;
-  create: FieldPermission;
-}
-
-export type PermissionSchema = Record<string, PermissionSchemaField>;
-
-// ---------------------------------------------------------------------------
-// Base Filter (for ACL route configuration)
-// ---------------------------------------------------------------------------
-
-export type BaseFilterAccess = 'list' | 'read' | 'update' | 'delete';
-
-export interface BaseFilterContext {
-  _user?: { _id: UserId; roles: string[] };
-}
-
-export type BaseFilterFunction = (
-  this: BaseFilterContext,
-  permissions: Record<string, boolean>,
-) => Record<string, unknown> | boolean | Promise<Record<string, unknown> | boolean>;
-
-export type BaseFilter = Partial<Record<BaseFilterAccess, BaseFilterFunction>>;
