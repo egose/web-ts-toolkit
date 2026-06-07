@@ -2,7 +2,7 @@
   "name": "org-access-nodejs-example",
   "private": true,
   "scripts": {
-    "build:deps": "pnpm --filter @web-ts-toolkit/access-router... build",
+    "build:deps": "pnpm --filter @web-ts-toolkit/access-router... build && pnpm --filter @web-ts-toolkit/message-service... build",
     "build": "pnpm run build:deps && tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@web-ts-toolkit/access-router": "workspace:*",
+    "@web-ts-toolkit/message-service": "workspace:*",
     "express": "^5.2.1",
     "mongodb-memory-server": "^11.1.0",
     "mongoose": "^9.6.2"

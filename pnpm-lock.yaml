@@ -62,6 +62,9 @@ importers:
       '@web-ts-toolkit/access-router':
         specifier: workspace:*
         version: link:../../packages/access-router
+      '@web-ts-toolkit/message-service':
+        specifier: workspace:*
+        version: link:../../packages/message-service
       express:
         specifier: ^5.2.1
         version: 5.2.1

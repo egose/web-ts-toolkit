@@ -6,6 +6,7 @@ import {
   IconBriefcase,
   IconBuildingEstate,
   IconLayoutGrid,
+  IconMail,
   IconSettings,
   IconSparkles,
   IconUserCircle,
@@ -154,6 +155,17 @@ export function WorkspaceShell({
             url: `${basePath}#overview`,
             icon: IconLayoutGrid,
             isActive: hashIsActive(location.hash, '#overview'),
+          },
+        ],
+      },
+      {
+        title: 'Communication',
+        items: [
+          {
+            title: 'Messages',
+            url: '/messages',
+            icon: IconMail,
+            isActive: location.pathname === '/messages',
           },
         ],
       },

@@ -1,5 +1,13 @@
 import { createAdapter } from '@web-ts-toolkit/access-router-client';
-import type { Organization, OrganizationMember, RoleTemplate, SessionData, WorkspaceData } from './types';
+import type {
+  Organization,
+  OrganizationMember,
+  RoleTemplate,
+  SessionData,
+  WorkspaceData,
+  Message,
+  MessageActionsResponse,
+} from './types';
 import { getStoredSessionToken } from './storage';
 
 const adapter = createAdapter({
@@ -78,4 +86,54 @@ export async function loadWorkspace(organizationId: string): Promise<WorkspaceDa
     members: membershipResponse.raw,
     roleTemplates: roleTemplateResponse.raw,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Messages
+// ---------------------------------------------------------------------------
+
+export interface ListMessagesOptions {
+  limit?: number;
+  skip?: number;
+}
+
+export async function listMessages(options: ListMessagesOptions = {}): Promise<Message[]> {
+  const params: Record<string, number> = {};
+  if (options.limit != null) params.limit = options.limit;
+  if (options.skip != null) params.skip = options.skip;
+  const response = await adapter.axios.get<{ success: boolean; data: Message[] }>('/messages', { params });
+  return response.data.data;
+}
+
+export async function getMessageActions(
+  messageId: string,
+  usertype: 'sender' | 'receiver',
+): Promise<MessageActionsResponse> {
+  const response = await adapter.axios.get<{ success: boolean; data: MessageActionsResponse }>(
+    `/messages/${messageId}/actions/${usertype}`,
+  );
+  return response.data.data;
+}
+
+export async function createMessageFromTemplate(
+  templateCd: string,
+  payload: Record<string, unknown>,
+): Promise<Message[]> {
+  const response = await adapter.axios.post<{ success: boolean; data: Message[] }>(
+    `/messages/new/${templateCd}`,
+    payload,
+  );
+  return response.data.data;
+}
+
+export async function executeMessageAction(
+  messageId: string,
+  actionCd: string,
+  body: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
+  const response = await adapter.axios.post<{ success: boolean; data: Record<string, unknown> }>(
+    `/messages/${messageId}/action/${actionCd}`,
+    body,
+  );
+  return response.data.data;
 }

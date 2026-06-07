@@ -49,4 +49,10 @@ export default tseslint.config(
       'no-prototype-builtins': 'off',
     },
   },
+  {
+    files: ['apps/nodejs/src/session.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
 );
