@@ -14,7 +14,7 @@ import {
   set,
   uniq,
 } from '@web-ts-toolkit/utils';
-import diff from 'deep-diff';
+import { diff } from 'just-diff';
 import Model from '../model';
 import { getModelOption, getModelOptions } from '../options';
 import { getDocPermissions, genPagination, normalizeSelect, populateDoc, matchElement, toObject } from '../helpers';
@@ -490,7 +490,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
           omit(d.toObject({ virtuals: false }), diffExcludeFields),
         ) || [];
 
-      context.modifiedPaths = uniq(context.changes.map((di) => (di.path.length > 0 ? di.path[0] : '')));
+      context.modifiedPaths = uniq(context.changes.map((di) => (di.path.length > 0 ? String(di.path[0]) : '')));
     };
 
     doc = assertModelDocument<TModel>(await this.afterPersist(doc, 'update', context), this.modelName, 'afterPersist');

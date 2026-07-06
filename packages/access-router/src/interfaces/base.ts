@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-import { Diff } from 'deep-diff';
 import { Core } from '../core';
 import { DataCore } from '../core-data';
 import { Codes } from '../enums';
@@ -19,6 +18,12 @@ interface KeyValue {
   [key: string]: unknown;
 }
 
+export interface Change {
+  op: 'add' | 'replace' | 'remove';
+  path: Array<string | number>;
+  value?: unknown;
+}
+
 export interface ModelHookContext {
   modelName: string;
   mongooseModel: mongoose.Model<unknown>;
@@ -31,7 +36,7 @@ export interface ModelHookContext {
   preparedData?: Record<string, unknown>;
   allowedFields?: string[];
   modifiedPaths?: string[];
-  changes?: Diff<unknown>[];
+  changes?: Change[];
   docPermissions?: KeyValue;
   resolvedQuery?: {
     filter?: Filter;

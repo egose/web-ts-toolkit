@@ -1,6 +1,13 @@
-import { Diff } from 'deep-diff';
 import type { AccessRouterPermissions } from '../permission';
-import type { DataHookContext, DataRequest, Filter, ModelDocument, ModelHookContext, ModelRequest } from './base';
+import type {
+  Change,
+  DataHookContext,
+  DataRequest,
+  Filter,
+  ModelDocument,
+  ModelHookContext,
+  ModelRequest,
+} from './base';
 import type { AccessRouterRequest } from './request';
 
 export type MaybePromise<T> = T | Promise<T>;
@@ -56,7 +63,7 @@ type ChangeHook<TRequest extends AccessRouterRequest = AccessRouterRequest> = (
   this: TRequest,
   previousValue: unknown,
   nextValue: unknown,
-  changes: Diff<unknown>[],
+  changes: Change[],
   context: ModelHookContext,
 ) => MaybePromise<void>;
 
