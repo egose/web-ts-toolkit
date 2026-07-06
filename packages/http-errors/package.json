@@ -3,13 +3,9 @@
   "description": "Typed HTTP error classes and payload helpers for backend APIs",
   "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/http-errors",
   "version": "0.0.0-PLACEHOLDER",
-  "license": "Apache-2.0",
+  "license": "PLACEHOLDER",
   "sideEffects": false,
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/egose/web-ts-toolkit.git",
-    "directory": "packages/http-errors"
-  },
+  "repository": "PLACEHOLDER",
   "keywords": [
     "http-errors",
     "api-errors",
