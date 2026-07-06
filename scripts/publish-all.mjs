@@ -10,9 +10,9 @@ const rootDir = path.resolve(__dirname, '..');
 const VER_PLACEHOLDER = '0.0.0-PLACEHOLDER';
 const PUBLISH_DIR = 'dist';
 const PACKAGE_JSON = 'package.json';
-const COPY_FILES = ['README.md'];
+const COPY_FILES = ['README.md', 'llms.txt'];
 const DEPENDENCY_FIELDS = ['dependencies', 'peerDependencies', 'optionalDependencies'];
-const OMITTED_FIELDS = new Set(['additionalNames', 'devDependencies', 'files', 'packageManager', 'private', 'scripts']);
+const OMITTED_FIELDS = new Set(['additionalNames', 'devDependencies', 'files', 'license', 'packageManager', 'private', 'repository', 'scripts']);
 
 const args = parseArgs(process.argv.slice(2));
 let { tag } = args;

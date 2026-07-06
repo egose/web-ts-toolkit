@@ -3,12 +3,8 @@
   "description": "React hooks for @web-ts-toolkit/access-router-client model services",
   "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/access-router-react",
   "version": "0.0.0-PLACEHOLDER",
-  "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/egose/web-ts-toolkit.git",
-    "directory": "packages/access-router-react"
-  },
+  "license": "PLACEHOLDER",
+  "repository": "PLACEHOLDER",
   "keywords": [
     "react",
     "hooks",
