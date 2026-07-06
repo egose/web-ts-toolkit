@@ -92,7 +92,7 @@ describe('Successful responses', () => {
     const status = 204;
     app.get(
       `/${status}`,
-      handleResponse(() => new NoContent('')),
+      handleResponse(() => new NoContent()),
     );
 
     await hit(`/${status}`, status, status);

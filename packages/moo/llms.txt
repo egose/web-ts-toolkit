@@ -1,0 +1,67 @@
+# @web-ts-toolkit/moo
+
+Mongoose helpers for schema fields, ObjectId checks, and document plugins.
+
+## Main Patterns
+
+Partial-index schema fields:
+
+```ts
+import { Schema } from 'mongoose';
+import { uniqueEmptiableString, uniqueNullableString } from '@web-ts-toolkit/moo';
+
+const userSchema = new Schema({
+  email: uniqueNullableString('email'),
+  username: uniqueEmptiableString('username'),
+});
+```
+
+Strict ObjectId guard:
+
+```ts
+import { isObjectId } from '@web-ts-toolkit/moo';
+
+if (isObjectId(req.params.id)) { doSomething(); }
+```
+
+Cascade-delete plugin:
+
+```ts
+import { cascadeDeletePlugin } from '@web-ts-toolkit/moo/plugins/cascade-delete';
+
+userSchema.plugin(cascadeDeletePlugin, { foreignKey: 'parentRef' });
+```
+
+Model-function plugin:
+
+```ts
+import { modelFunctionPlugin } from '@web-ts-toolkit/moo/plugins/model-function';
+
+userSchema.plugin(modelFunctionPlugin, {
+  fnName: 'fullName',
+  fn: (doc) => `${doc.name}`,
+});
+
+// static + instance methods `fullName` and `fullNameById` are now available on the model
+```
+
+## Gotchas
+
+- peer dependency: `mongoose >= 8`
+- root entrypoint exports schema helpers and `isObjectId`; plugins and utils live under subpaths
+- `isObjectId(...)` is a strict guard: it rejects strings that `ObjectId.isValid` accepts but that don't round-trip back to the same string
+- `uniqueNullableString`/`uniqueEmptiableString` return partial-index field definitions, not full schemas
+
+## Subpaths
+
+- `@web-ts-toolkit/moo/is` — `isObjectId`
+- `@web-ts-toolkit/moo/schema` — `uniqueNullableString`, `uniqueEmptiableString`
+- `@web-ts-toolkit/moo/utils` — `isSchema`, `isObjectIdType`, `isReference`
+- `@web-ts-toolkit/moo/plugins` — re-exports all plugins
+- `@web-ts-toolkit/moo/plugins/cascade-delete` — `cascadeDeletePlugin`
+- `@web-ts-toolkit/moo/plugins/model-function` — `modelFunctionPlugin`
+
+## Pointers
+
+- README: installation, quickstart, main exports, subpath list
+- website/docs/packages/moo.md: full documentation

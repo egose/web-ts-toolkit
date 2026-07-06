@@ -1,0 +1,53 @@
+# @web-ts-toolkit/access-router
+
+ACL-aware Express routers and in-memory data services for Mongoose-backed APIs.
+
+## Main Patterns
+
+```ts
+import acl from '@web-ts-toolkit/access-router';
+
+// configure global permissions
+acl.setGlobalOptions({ globalPermissions(req) { return []; } });
+
+// model CRUD router from a Mongoose model name
+const userRouter = acl.createRouter('User', { basePath: '/users' });
+
+// in-memory data router
+const fruitRouter = acl.createDataRouter('fruit', {
+  basePath: '/fruit',
+  idField: 'id',
+  data: [{ id: 'apple', name: 'Apple' }],
+});
+
+// OpenAPI + Swagger UI
+const docsRouter = acl.createOpenApiRouter({ title: 'Example API', version: '1.0.0' });
+```
+
+Validation adapters:
+
+```ts
+import { fromZod, defineRequestSchema } from '@web-ts-toolkit/access-router';
+
+const validator = fromZod(z.object({ name: z.string() }));
+const schema = defineRequestSchema(validator);
+```
+
+Subpath imports:
+
+```ts
+import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';
+import { AccessRuntime, defaultRuntime } from '@web-ts-toolkit/access-router/advanced';
+```
+
+## Gotchas
+
+- peer dependencies: `express >= 5` and `mongoose >= 8`
+- default export `acl` and named exports are both available; default is preferred for the runtime API
+- `createRouter('User', ...)` takes a Mongoose model name string, not the model instance
+- `createDataRouter(...)` holds data in-memory; use it for lightweight/non-persisted resources
+
+## Pointers
+
+- README: installation, quickstart, main exports
+- website/docs/packages/access-router/: full documentation (routing, configuration, hooks, validation, openapi)

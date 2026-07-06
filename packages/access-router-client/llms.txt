@@ -1,0 +1,53 @@
+# @web-ts-toolkit/access-router-client
+
+Typed Axios-based client utilities for `@web-ts-toolkit/access-router` model routers, data routers, and root batch routes.
+
+## Main Patterns
+
+```ts
+import { createAdapter } from '@web-ts-toolkit/access-router-client';
+
+const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });
+
+const userService = adapter.createModelService<User>({
+  modelName: 'User',
+  basePath: 'users',
+});
+
+const user = await userService.read('user-id-1');
+user.data.role = 'owner';
+await user.data.save();
+```
+
+Data service for in-memory `access-router` data routes:
+
+```ts
+const fruitService = adapter.createDataService<Fruit>({
+  dataName: 'fruit',
+  basePath: 'fruit',
+});
+```
+
+Batch grouped lazy requests into one root round trip:
+
+```ts
+const grouped = await adapter.group(
+  userService.readAdvanced('user-id-1', { select: ['name'] }),
+  userService.countAdvanced({ role: 'admin' }),
+);
+```
+
+## Gotchas
+
+- depends on `axios`; bring your own `axios`-compatible runtime
+- service methods return lazy requests; they do not execute until `await`, `.then()`, `.exec()`, etc.
+- `adapter.group(...)` only batches lazy requests from this client, not raw Axios calls
+- the client `basePath` is relative to the adapter `baseURL`, not the full server path
+- match `queryPath`/`mutationPath` to the server-side `queryRouteSegment` and mutation route configuration
+- this package targets `@web-ts-toolkit/access-router` servers; plain Axios is simpler for non-access-router APIs
+- imports are named-only (`import { createAdapter }`); there is no default export
+
+## Pointers
+
+- README: installation, quickstart, main exports
+- website/docs/packages/access-router-client/: full documentation (adapter, services, model, typing and errors)

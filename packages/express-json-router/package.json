@@ -3,7 +3,13 @@
   "description": "Express router wrapper for return-value JSON responses",
   "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/express-json-router",
   "version": "0.0.0-PLACEHOLDER",
+  "license": "Apache-2.0",
   "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egose/web-ts-toolkit.git",
+    "directory": "packages/express-json-router"
+  },
   "keywords": [
     "express",
     "api",

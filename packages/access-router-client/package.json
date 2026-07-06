@@ -3,7 +3,13 @@
   "description": "Typed client utilities for @web-ts-toolkit/access-router APIs",
   "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/access-router-client",
   "version": "0.0.0-PLACEHOLDER",
+  "license": "Apache-2.0",
   "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egose/web-ts-toolkit.git",
+    "directory": "packages/access-router-client"
+  },
   "keywords": [
     "axios",
     "typescript",
@@ -28,6 +34,7 @@
   },
   "files": [
     "README.md",
+    "llms.txt",
     "dist"
   ],
   "engines": {
