@@ -50,11 +50,48 @@ app.post(
 
 ## Main Exports
 
+Root entrypoint (`@web-ts-toolkit/express-response-handler`):
+
 - default handler instance
 - `handleResponse(...)`
 - `HttpResponse`
 - `createHandler(...)`
 - `ErrorFormats`
+
+Subpath entrypoints:
+
+- `@web-ts-toolkit/express-response-handler/types` — public type exports
+- `@web-ts-toolkit/express-response-handler/responses` — response wrappers
+- `@web-ts-toolkit/express-response-handler/responses/csv` — `CSVResponse`
+- `@web-ts-toolkit/express-response-handler/responses/success` — `Created`, `Accepted`, `NoContent`, etc.
+
+### Subpath import example
+
+```ts
+import { Created, NoContent } from '@web-ts-toolkit/express-response-handler/responses/success';
+
+app.post(
+  '/users',
+  handleResponse(async () => Created(await createUser())),
+);
+app.delete(
+  '/users/:id',
+  handleResponse(async () => NoContent()),
+);
+```
+
+### Import styles
+
+The package ships both a default handler instance and named exports:
+
+```ts
+// default export
+import apiHandler from '@web-ts-toolkit/express-response-handler';
+const { handleResponse, HttpResponse } = apiHandler;
+
+// named exports
+import { handleResponse, HttpResponse } from '@web-ts-toolkit/express-response-handler';
+```
 
 ## Documentation
 

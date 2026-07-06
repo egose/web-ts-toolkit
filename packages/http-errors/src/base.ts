@@ -9,6 +9,12 @@ type ErrorWithCaptureStackTrace = ErrorConstructor & {
 
 const ErrorCtor = Error as ErrorWithCaptureStackTrace;
 
+/**
+ * Base typed HTTP error with a numeric `statusCode` and machine-readable metadata.
+ *
+ * @example
+ * throw new HttpError(503, 'please try again later');
+ */
 export class HttpError extends Error {
   readonly statusCode: number;
   readonly status: string;

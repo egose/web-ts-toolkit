@@ -38,6 +38,13 @@ interface Props {
   throwOnError: boolean;
 }
 
+/**
+ * Typed client for `access-router` in-memory data routes. Created by
+ * `adapter.createDataService<T>(...)`.
+ *
+ * @example
+ * const fruitService = adapter.createDataService<Fruit>({ dataName: 'fruit', basePath: 'fruit' });
+ */
 export class DataService<T> extends Service {
   private _dataName!: string;
   private _queryPath!: string;

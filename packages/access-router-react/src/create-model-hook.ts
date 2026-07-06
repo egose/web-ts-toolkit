@@ -170,6 +170,12 @@ function useMutation<A extends unknown[], R>(
 
 // ── Factory ──
 
+/**
+ * Creates query and mutation hooks bound to one `ModelService<T>`.
+ *
+ * @example
+ * const { useList, useCreate } = createModelHooks({ modelService });
+ */
 export function createModelHooks<T extends Document>(config: { modelService: ModelService<T> }) {
   const { modelService } = config;
 

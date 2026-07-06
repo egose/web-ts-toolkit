@@ -33,9 +33,33 @@ const userSchema = new Schema({
 
 ## Main Exports
 
+Root entrypoint (`@web-ts-toolkit/moo`):
+
 - schema helpers such as `uniqueNullableString(...)`
 - `isObjectId(...)`
-- plugins from `@web-ts-toolkit/moo/plugins`
+
+Subpath entrypoints:
+
+- `@web-ts-toolkit/moo/schema` — schema field helpers
+- `@web-ts-toolkit/moo/is` — type guards such as `isObjectId(...)`
+- `@web-ts-toolkit/moo/utils` — mongoose utilities
+- `@web-ts-toolkit/moo/plugins` — plugin entrypoint
+- `@web-ts-toolkit/moo/plugins/cascade-delete` — cascade-delete plugin
+- `@web-ts-toolkit/moo/plugins/model-function` — model-function plugin
+
+### Subpath import example
+
+```ts
+import { Schema } from 'mongoose';
+import { uniqueEmptiableString } from '@web-ts-toolkit/moo';
+import { cascadeDeletePlugin } from '@web-ts-toolkit/moo/plugins/cascade-delete';
+
+const userSchema = new Schema({
+  email: uniqueEmptiableString('email'),
+});
+
+userSchema.plugin(cascadeDeletePlugin, { foreignKey: 'parentRef' });
+```
 
 ## Documentation
 

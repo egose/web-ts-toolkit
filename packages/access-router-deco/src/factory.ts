@@ -67,6 +67,11 @@ type OptionSetter = (aclKey: string, value: any) => void;
 type OptionGetter = (aclKey: string) => any;
 
 /**
+ * Static factory for bootstrapping decorator-based `access-router` modules.
+ *
+ * @example
+ * EgoseFactory.bootstrap(AppModule, app);
+ *
  * @publicApi
  */
 export class EgoseFactoryStatic {

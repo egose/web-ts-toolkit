@@ -7,4 +7,3 @@ export * from './enums';
 export * from './utils';
 
 export { createAdapter };
-export default { createAdapter };

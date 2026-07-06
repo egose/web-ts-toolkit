@@ -166,6 +166,12 @@ function toRequestSchemaValidator(schema: RequestSchemaLike): RequestSchemaValid
   return schema.validate;
 }
 
+/**
+ * Wraps a request validator into a request schema adapter used by `access-router`.
+ *
+ * @example
+ * const schema = defineRequestSchema(fromZod(z.object({ name: z.string() })));
+ */
 export function defineRequestSchema<T = unknown>(
   validator: RequestSchemaValidator<T>,
   options: RequestSchemaOptions = {},
@@ -176,6 +182,12 @@ export function defineRequestSchema<T = unknown>(
   };
 }
 
+/**
+ * Adapts a Zod schema into a `RequestSchemaValidator` for `access-router`.
+ *
+ * @example
+ * const validator = fromZod(z.object({ name: z.string() }));
+ */
 export function fromZod<TSchema extends z.ZodTypeAny>(schema: TSchema): RequestSchemaValidator<z.output<TSchema>> {
   return (value: unknown): RequestSchemaResult<z.output<TSchema>> => {
     const result = schema.safeParse(value);

@@ -99,6 +99,12 @@ interface CreateContext {
   req?: unknown;
 }
 
+/**
+ * Core message service for creating messages, getting actions, and handling actions.
+ *
+ * @example
+ * const service = new MessageService({ getModel: mongoose.model.bind(mongoose) });
+ */
 export class MessageService {
   private getModel: (name: string) => mongoose.Model<unknown>;
   private paymentProvider: PaymentProvider | null;
