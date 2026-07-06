@@ -1,3 +1,25 @@
+## [0.6.0](https://github.com/egose/web-ts-toolkit/compare/v0.5.0...v0.6.0) (2026-07-06)
+
+### Features
+
+* add schema factories, idempotency, and enhanced service API to message-service ([a617e55](https://github.com/egose/web-ts-toolkit/commit/a617e55cfd8c3351be5fd6ccb56746067aa38e6a))
+* implement messaging system with templates and management UI ([12a592e](https://github.com/egose/web-ts-toolkit/commit/12a592ec6a193ac18166f347619510bacf9cf662))
+* **message-service:** initial implementation of template-driven messaging ([3e27393](https://github.com/egose/web-ts-toolkit/commit/3e2739337c006dc1b534d196f6deb5db57decf4b))
+* switch access router change tracking to just-diff ([45c34f7](https://github.com/egose/web-ts-toolkit/commit/45c34f7dd0fb20a805d493331ab11fa6d6ca1685))
+
+### Bug Fixes
+
+* remove callback from async pre-save hook in message schema ([5facb8c](https://github.com/egose/web-ts-toolkit/commit/5facb8c1becc0e03d5fdc6021ed8398e1f4bd429))
+
+### Docs
+
+* add clean architecture and separation of concerns guides ([0106769](https://github.com/egose/web-ts-toolkit/commit/010676925604d3087ff5d7b0da0af6594ca2a950))
+* document package entrypoints and usage ([c924564](https://github.com/egose/web-ts-toolkit/commit/c924564bd40147d146bfc012eeb54adc8be519c2))
+
+### Refactors
+
+* migrate nodejs app to updated message-service API ([f380417](https://github.com/egose/web-ts-toolkit/commit/f380417e053734fb4ee76eac8b9315f9feb11e18))
+
 ## [0.5.0](https://github.com/egose/web-ts-toolkit/compare/v0.4.0...v0.5.0) (2026-06-02)
 
 ### Features
