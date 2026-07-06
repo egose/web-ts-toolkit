@@ -51,6 +51,13 @@ interface DataServiceOptions {
   throwOnError?: boolean;
 }
 
+/**
+ * Creates a typed API adapter for `@web-ts-toolkit/access-router` model and data routes.
+ *
+ * @example
+ * const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });
+ * const userService = adapter.createModelService<User>({ modelName: 'User', basePath: 'users' });
+ */
 export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?: AdapterOptions) {
   const merged = mergeConfig(defaultAxiosConfig, axiosConfig ?? {});
   const instance = axios.create(merged);

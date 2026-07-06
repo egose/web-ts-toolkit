@@ -57,6 +57,8 @@ const docsRouter = acl.createOpenApiRouter({
 
 ## Main Exports
 
+Root entrypoint (`@web-ts-toolkit/access-router`):
+
 - default export `acl`
 - `createAccessRuntime()`
 - `createOpenApiRouter(...)`
@@ -64,6 +66,38 @@ const docsRouter = acl.createOpenApiRouter({
 - `guard(...)`
 - `RootRouter`, `ModelRouter`, `DataRouter`
 - validation adapters such as `fromZod(...)` and `defineRequestSchema(...)`
+
+Subpath entrypoints:
+
+- `@web-ts-toolkit/access-router/advanced` — runtime context and advanced internals
+- `@web-ts-toolkit/access-router/processors` — field processors
+
+### Import styles
+
+The package ships both a default export and named exports:
+
+```ts
+// default export (preferred for the runtime API)
+import acl from '@web-ts-toolkit/access-router';
+
+// named exports (useful when you only need specific helpers)
+import { createOpenApiRouter, fromZod } from '@web-ts-toolkit/access-router';
+```
+
+### Subpath import example
+
+```ts
+import { setGlobalOptions } from '@web-ts-toolkit/access-router';
+import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';
+
+setGlobalOptions({
+  globalPermissions(req) {
+    return [];
+  },
+});
+
+const depopulated = copyAndDepopulate({ items: [{ _id: 'a1', name: 'Apple' }] }, [{ src: 'items', dest: 'items' }]);
+```
 
 ## Documentation
 

@@ -3,6 +3,12 @@
   "description": "Template-driven messaging core for Mongoose + Express applications",
   "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/message-service",
   "version": "0.0.0-PLACEHOLDER",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egose/web-ts-toolkit.git",
+    "directory": "packages/message-service"
+  },
   "sideEffects": [
     "./dist/schemas/message.js",
     "./dist/schemas/message-archive.js"

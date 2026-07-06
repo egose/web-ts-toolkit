@@ -54,6 +54,14 @@ interface Props {
   throwOnError: boolean;
 }
 
+/**
+ * Typed client for `access-router` model CRUD routes. Created by
+ * `adapter.createModelService<T>(...)`.
+ *
+ * @example
+ * const userService = adapter.createModelService<User>({ modelName: 'User', basePath: 'users' });
+ * const user = await userService.read('user-id-1');
+ */
 export class ModelService<T extends Document> extends Service {
   private _modelName!: string;
   private _queryPath!: string;

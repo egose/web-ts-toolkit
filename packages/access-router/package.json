@@ -3,7 +3,13 @@
   "description": "ACL-aware Express routers and in-memory data services for Mongoose-backed APIs",
   "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/access-router",
   "version": "0.0.0-PLACEHOLDER",
+  "license": "Apache-2.0",
   "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egose/web-ts-toolkit.git",
+    "directory": "packages/access-router"
+  },
   "keywords": [
     "express",
     "mongoose",
@@ -42,6 +48,7 @@
   },
   "files": [
     "README.md",
+    "llms.txt",
     "dist"
   ],
   "engines": {

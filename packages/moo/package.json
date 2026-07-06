@@ -3,7 +3,13 @@
   "description": "Mongoose helpers for schema fields, ObjectId checks, and document plugins",
   "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/moo",
   "version": "0.0.0-PLACEHOLDER",
+  "license": "Apache-2.0",
   "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egose/web-ts-toolkit.git",
+    "directory": "packages/moo"
+  },
   "keywords": [
     "mongoose",
     "mongodb",
@@ -64,6 +70,7 @@
   },
   "files": [
     "README.md",
+    "llms.txt",
     "dist"
   ],
   "engines": {

@@ -93,6 +93,15 @@ const toMiddlewareList = (middlewares?: JsonRouterCallback | JsonRouterCallback[
   return Array.isArray(middlewares) ? middlewares : [middlewares];
 };
 
+/**
+ * Express router that serializes route handler return values as JSON and
+ * converts thrown `HttpError`s into structured error responses.
+ *
+ * @example
+ * import JsonRouter from '@web-ts-toolkit/express-json-router';
+ * const router = new JsonRouter('/api');
+ * router.get('/health', () => ({ ok: true }));
+ */
 class JsonRouter {
   readonly methods: RouteMethod[] = [];
   readonly endpoints: Endpoint[] = [];

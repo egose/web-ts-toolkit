@@ -24,9 +24,9 @@ export class NonAuthoritativeInfo<T = unknown> extends Response<T> {
   }
 }
 
-export class NoContent<T = unknown> extends Response<T> {
-  constructor(data: T) {
-    super(204, data);
+export class NoContent extends Response<undefined> {
+  constructor() {
+    super(204, undefined);
   }
 }
 

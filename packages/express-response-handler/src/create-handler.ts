@@ -108,6 +108,14 @@ const normalizeMiddlewareList = (fns: Array<MiddlewareFunction | MiddlewareFunct
   return [fns[0]];
 };
 
+/**
+ * Creates an Express response handler that wraps route handlers and serializes
+ * return values, thrown `HttpError`s, and explicit `HttpResponse` wrappers.
+ *
+ * @example
+ * const { handleResponse, HttpResponse } = createHandler();
+ * app.get('/health', handleResponse(() => ({ ok: true })));
+ */
 export function createHandler(options: ExpressResponseHandlerOptions = {}): ExpressResponseHandler {
   const errorFormat = options.errorFormat ?? ErrorFormats.simple;
   const errorDomain = options.errorDomain ?? 'express-response-handler';

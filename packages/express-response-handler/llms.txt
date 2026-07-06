@@ -1,0 +1,52 @@
+# @web-ts-toolkit/express-response-handler
+
+FastAPI-style return-value response handling for Express: route handlers return plain values, `HttpResponse` wrappers, or throw typed HTTP errors.
+
+## Main Patterns
+
+```ts
+import express from 'express';
+import apiHandler from '@web-ts-toolkit/express-response-handler';
+import { NotFoundError } from '@web-ts-toolkit/http-errors';
+
+const { handleResponse, HttpResponse } = apiHandler;
+const app = express();
+
+app.get('/health', handleResponse(() => ({ ok: true })));
+
+app.get('/users/:id', handleResponse(async (req) => {
+  const user = await getUser(req.params.id);
+  if (!user) throw new NotFoundError('user not found');
+  return user;
+}));
+
+app.post('/jobs', handleResponse(async () => HttpResponse.created(await createJob())));
+```
+
+Custom handler instance and error format:
+
+```ts
+import { createHandler, ErrorFormats } from '@web-ts-toolkit/express-response-handler';
+
+const { handleResponse } = createHandler({ errorFormat: ErrorFormats.rfc9457 });
+```
+
+Subpath response wrappers:
+
+```ts
+import { CSVResponse } from '@web-ts-toolkit/express-response-handler/responses/csv';
+import { Created, NoContent } from '@web-ts-toolkit/express-response-handler/responses/success';
+```
+
+## Gotchas
+
+- depends on `@web-ts-toolkit/http-errors` for typed thrown errors
+- default export is the handler instance; named exports (`handleResponse`, `HttpResponse`, `createHandler`, `ErrorFormats`) are also available
+- return plain values for `200 OK`; use `HttpResponse.*` wrappers for other status codes
+- `ErrorFormats` selects between `simple`, `aip193`, and `rfc9457` error payload shapes
+- response wrappers (`Created`, `NoContent`, `CSVResponse`, etc.) are also exported from the root entrypoint, but the subpaths give tree-shakeable access
+
+## Pointers
+
+- README: installation, quickstart, main exports, subpath list, import styles
+- website/docs/packages/express-response-handler.md: full documentation
