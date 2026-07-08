@@ -24,11 +24,11 @@ importers:
         specifier: ^7.0.6
         version: 7.0.6(release-it@20.2.1(@types/node@25.9.4))
       '@repo-toolkit/changelog':
-        specifier: ^0.1.0
-        version: 0.1.0(conventional-commits-filter@5.0.0)
+        specifier: ^0.2.0
+        version: 0.2.0(conventional-commits-filter@5.0.0)
       '@repo-toolkit/publish-all':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.2.0
+        version: 0.2.0
       '@types/node':
         specifier: ^25.9.4
         version: 25.9.4
@@ -2649,13 +2649,13 @@ packages:
     peerDependencies:
       release-it: ^18.0.0 || ^19.0.0 || ^20.0.0
 
-  '@repo-toolkit/changelog@0.1.0':
-    resolution: {integrity: sha512-t2t7WGHKPmBbHt7dPlyaKKDeW4huCQeDFBKwH+RVL6CBDAhYdPimLvQEltyzdQkVnPNVQ5m7L1HaQ4A+VHUl9Q==}
+  '@repo-toolkit/changelog@0.2.0':
+    resolution: {integrity: sha512-KwYAPb5wfL4y3jlAUPoNVx/y9A8ZyxE2EYsNRRrrLCWJD44MumoJPCbAEUaWcCottVIMGLq4S6Eju9W53wBFRQ==}
     engines: {node: '>=20'}
     hasBin: true
 
-  '@repo-toolkit/publish-all@0.1.0':
-    resolution: {integrity: sha512-py300nqnlTdRI1EkPl/Zzbop1VttfbLU8OXfrz9FuMeTzSm/7wbbSsSbTo5yp6rOhlHu0gzljhvUFRTqBUxkGQ==}
+  '@repo-toolkit/publish-all@0.2.0':
+    resolution: {integrity: sha512-5w0/00ltEVwZCCN9UOckEoZ1ZZ7wFFdrj/bZZlybOQX5RFXx3CV16sdDExy7zKFwqo+IePJd9YPbI4OO4IidwQ==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -9554,14 +9554,14 @@ snapshots:
       release-it: 20.2.1(@types/node@25.9.4)
       semver: 7.8.5
 
-  '@repo-toolkit/changelog@0.1.0(conventional-commits-filter@5.0.0)':
+  '@repo-toolkit/changelog@0.2.0(conventional-commits-filter@5.0.0)':
     dependencies:
       conventional-changelog: 7.2.1(conventional-commits-filter@5.0.0)
       conventional-changelog-conventionalcommits: 9.3.1
     transitivePeerDependencies:
       - conventional-commits-filter
 
-  '@repo-toolkit/publish-all@0.1.0': {}
+  '@repo-toolkit/publish-all@0.2.0': {}
 
   '@rolldown/binding-android-arm64@1.0.2':
     optional: true
@@ -10932,7 +10932,7 @@ snapshots:
       conventional-commits-filter: 5.0.0
       handlebars: 4.7.9
       meow: 13.2.0
-      semver: 7.7.4
+      semver: 7.8.5
 
   conventional-changelog@7.2.1(conventional-commits-filter@5.0.0):
     dependencies:
@@ -12653,7 +12653,7 @@ snapshots:
   normalize-package-data@7.0.1:
     dependencies:
       hosted-git-info: 8.1.0
-      semver: 7.7.4
+      semver: 7.8.5
       validate-npm-package-license: 3.0.4
 
   nth-check@2.1.1:
@@ -14174,10 +14174,10 @@ snapshots:
   vite@8.0.14(@types/node@25.9.4)(esbuild@0.27.7)(jiti@2.7.0)(sass-embedded@1.100.0)(sass@1.100.0)(terser@5.48.0)(tsx@4.22.3):
     dependencies:
       lightningcss: 1.32.0
-      picomatch: 4.0.5
+      picomatch: 4.0.4
       postcss: 8.5.15
       rolldown: 1.0.2
-      tinyglobby: 0.2.17
+      tinyglobby: 0.2.16
     optionalDependencies:
       '@types/node': 25.9.4
       esbuild: 0.27.7
