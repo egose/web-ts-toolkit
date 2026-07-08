@@ -23,15 +23,15 @@ importers:
       '@release-it/bumper':
         specifier: ^7.0.6
         version: 7.0.6(release-it@20.2.1(@types/node@25.9.4))
+      '@repo-toolkit/changelog':
+        specifier: ^0.1.0
+        version: 0.1.0(conventional-commits-filter@5.0.0)
+      '@repo-toolkit/publish-all':
+        specifier: ^0.1.0
+        version: 0.1.0
       '@types/node':
         specifier: ^25.9.4
         version: 25.9.4
-      conventional-changelog:
-        specifier: ^7.2.1
-        version: 7.2.1(conventional-commits-filter@5.0.0)
-      conventional-changelog-conventionalcommits:
-        specifier: ^9.3.1
-        version: 9.3.1
       eslint:
         specifier: 10.3.0
         version: 10.3.0(jiti@2.7.0)
@@ -2649,6 +2649,16 @@ packages:
     peerDependencies:
       release-it: ^18.0.0 || ^19.0.0 || ^20.0.0
 
+  '@repo-toolkit/changelog@0.1.0':
+    resolution: {integrity: sha512-t2t7WGHKPmBbHt7dPlyaKKDeW4huCQeDFBKwH+RVL6CBDAhYdPimLvQEltyzdQkVnPNVQ5m7L1HaQ4A+VHUl9Q==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  '@repo-toolkit/publish-all@0.1.0':
+    resolution: {integrity: sha512-py300nqnlTdRI1EkPl/Zzbop1VttfbLU8OXfrz9FuMeTzSm/7wbbSsSbTo5yp6rOhlHu0gzljhvUFRTqBUxkGQ==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   '@rolldown/binding-android-arm64@1.0.2':
     resolution: {integrity: sha512-ZS4D1JPGn/MYQN/SYDWftIE/nVsM8j/AFOYEzAoOE2O3NktQOZru+/vYXGbR/qtdLdIfGCP0lcoJiYVzsEz+iQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -4767,6 +4777,7 @@ packages:
   git-raw-commits@5.0.1:
     resolution: {integrity: sha512-Y+csSm2GD/PCSh6Isd/WiMjNAydu0VBiG9J7EdQsNA5P9uXvLayqjmTsNlK5Gs9IhblFZqOU0yid5Il5JPoLiQ==}
     engines: {node: '>=18'}
+    deprecated: Deprecated and no longer maintained. Use @conventional-changelog/git-client instead.
     hasBin: true
 
   git-up@8.1.1:
@@ -8748,7 +8759,7 @@ snapshots:
       detect-libc: 2.1.2
       is-glob: 4.0.3
       node-addon-api: 7.1.1
-      picomatch: 4.0.4
+      picomatch: 4.0.5
     optionalDependencies:
       '@parcel/watcher-android-arm64': 2.5.6
       '@parcel/watcher-darwin-arm64': 2.5.6
@@ -9542,6 +9553,15 @@ snapshots:
       lodash-es: 4.18.1
       release-it: 20.2.1(@types/node@25.9.4)
       semver: 7.8.5
+
+  '@repo-toolkit/changelog@0.1.0(conventional-commits-filter@5.0.0)':
+    dependencies:
+      conventional-changelog: 7.2.1(conventional-commits-filter@5.0.0)
+      conventional-changelog-conventionalcommits: 9.3.1
+    transitivePeerDependencies:
+      - conventional-commits-filter
+
+  '@repo-toolkit/publish-all@0.1.0': {}
 
   '@rolldown/binding-android-arm64@1.0.2':
     optional: true
@@ -12219,7 +12239,7 @@ snapshots:
       saxes: 6.0.0
       symbol-tree: 3.2.4
       tough-cookie: 6.0.1
-      undici: 7.26.0
+      undici: 7.28.0
       w3c-xmlserializer: 5.0.0
       webidl-conversions: 8.0.1
       whatwg-mimetype: 5.0.0
@@ -14154,10 +14174,10 @@ snapshots:
   vite@8.0.14(@types/node@25.9.4)(esbuild@0.27.7)(jiti@2.7.0)(sass-embedded@1.100.0)(sass@1.100.0)(terser@5.48.0)(tsx@4.22.3):
     dependencies:
       lightningcss: 1.32.0
-      picomatch: 4.0.4
+      picomatch: 4.0.5
       postcss: 8.5.15
       rolldown: 1.0.2
-      tinyglobby: 0.2.16
+      tinyglobby: 0.2.17
     optionalDependencies:
       '@types/node': 25.9.4
       esbuild: 0.27.7

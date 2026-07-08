@@ -6,7 +6,7 @@ jobs:
   pre-commit:
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
     - name: Setup Tools
       uses: ./.github/actions/setup-tools
@@ -15,7 +15,7 @@ jobs:
       uses: ./.github/actions/setup-npm
 
     - name: Run pre-commit
-      uses: egose/actions/precommit@05add1b5a7a995374c1bb375f3e920203efcc313
+      uses: egose/actions/precommit@ef042a54d9446c85fdd1044d342c614b5353f812
       with:
         config: .pre-commit-config.yaml
         commit-on-push: false

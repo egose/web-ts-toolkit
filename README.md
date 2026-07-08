@@ -26,38 +26,38 @@ pnpm test
 Publish all workspace packages with:
 
 ```sh
-pnpm publish:all -- --tag v1.2.3
+pnpm repo-toolkit-publish-all -- --tag v1.2.3
 ```
 
 For prereleases:
 
 ```sh
-pnpm publish:all -- --tag v1.2.3-beta.1
+pnpm repo-toolkit-publish-all -- --tag v1.2.3-beta.1
 ```
 
 Dry-run without publishing:
 
 ```sh
-pnpm publish:all -- --tag v1.2.3 --dry-run
+pnpm repo-toolkit-publish-all -- --tag v1.2.3 --dry-run
 ```
 
 Publish only selected packages:
 
 ```sh
-pnpm publish:all -- --tag v1.2.3 --filter http-errors
-pnpm publish:all -- --tag v1.2.3 --filter http-errors,express-response-handler
+pnpm repo-toolkit-publish-all -- --tag v1.2.3 --filter http-errors
+pnpm repo-toolkit-publish-all -- --tag v1.2.3 --filter http-errors,express-response-handler
 ```
 
 Resume from a specific package in dependency order:
 
 ```sh
-pnpm publish:all -- --tag v1.2.3 --from express-response-handler
+pnpm repo-toolkit-publish-all -- --tag v1.2.3 --from express-response-handler
 ```
 
 Override the npm dist-tag explicitly:
 
 ```sh
-pnpm publish:all -- --tag v1.2.3-beta.1 --npm-tag beta
+pnpm repo-toolkit-publish-all -- --tag v1.2.3-beta.1 --npm-tag beta
 ```
 
 The script may also append:
