@@ -1,3 +1,5 @@
+## [0.6.1](https://github.com/egose/web-ts-toolkit/compare/v0.6.0...v0.6.1) (2026-07-08)
+
 ## [0.6.0](https://github.com/egose/web-ts-toolkit/compare/v0.5.0...v0.6.0) (2026-07-06)
 
 ### Features
@@ -11,12 +13,12 @@
 
 * remove callback from async pre-save hook in message schema ([5facb8c](https://github.com/egose/web-ts-toolkit/commit/5facb8c1becc0e03d5fdc6021ed8398e1f4bd429))
 
-### Docs
+### Documentation
 
 * add clean architecture and separation of concerns guides ([0106769](https://github.com/egose/web-ts-toolkit/commit/010676925604d3087ff5d7b0da0af6594ca2a950))
 * document package entrypoints and usage ([c924564](https://github.com/egose/web-ts-toolkit/commit/c924564bd40147d146bfc012eeb54adc8be519c2))
 
-### Refactors
+### Code Refactoring
 
 * migrate nodejs app to updated message-service API ([f380417](https://github.com/egose/web-ts-toolkit/commit/f380417e053734fb4ee76eac8b9315f9feb11e18))
 
@@ -42,14 +44,14 @@
 * **access-router:** improve sort field validation logic ([b2841d9](https://github.com/egose/web-ts-toolkit/commit/b2841d98c967635b7270ad8ee094eaf6906d80b4))
 * **access-router:** return original query in iterateQuery when handler is missing ([bffb137](https://github.com/egose/web-ts-toolkit/commit/bffb137752803292bc78747c2c7e603a1f242684))
 
-### Docs
+### Documentation
 
 * **access-router-deco:** explain acl key mapping ([60b4e70](https://github.com/egose/web-ts-toolkit/commit/60b4e70f079ec9c013663c1209d5b2102cefbf35))
 * add documentation for access-router-react ([9a48461](https://github.com/egose/web-ts-toolkit/commit/9a4846188fec0aa10755e1d37e2ac78a5f6f9eb0))
 * add live documentation links and homepage fields to packages ([7cb3cf3](https://github.com/egose/web-ts-toolkit/commit/7cb3cf3ff71d3ce6c61c9beed294d51ae03f7a2e))
 * refresh package READMEs and expand website documentation ([bfbabdc](https://github.com/egose/web-ts-toolkit/commit/bfbabdcad5084b6fe8481b755c14bd291846fedb))
 
-### Refactors
+### Code Refactoring
 
 * **access-router-client:** extract core utilities and modularize service internals ([792d52e](https://github.com/egose/web-ts-toolkit/commit/792d52e4b4465e7b617b987607b57d6ff7fedb99))
 * **access-router-deco:** rename package directory from deco ([8361f1c](https://github.com/egose/web-ts-toolkit/commit/8361f1c07c554e39a40276ed0da62870f8dd35e8))
@@ -69,7 +71,7 @@
 
 * implement library-agnostic request validation ([c0b25e5](https://github.com/egose/web-ts-toolkit/commit/c0b25e5655f82f6acd89332331703a37ed57c006))
 
-### Refactors
+### Code Refactoring
 
 * **access-router-client:** simplify lazy request types with ModelRequest and DataRequest aliases ([b2288af](https://github.com/egose/web-ts-toolkit/commit/b2288af6e581c3a9f6c8ae778d9bab3d48860139))
 
@@ -112,7 +114,7 @@
 
 * **access-router:** validate mongoose model existence in root operations ([e629faf](https://github.com/egose/web-ts-toolkit/commit/e629faf4c5209457e72e5977be06576d6cc0bc3c))
 
-### Docs
+### Documentation
 
 * **access-router:** add architecture roadmap ([cdc17da](https://github.com/egose/web-ts-toolkit/commit/cdc17daab8614f58cf7635de4d8160338f4a8383))
 * **access-router:** mark ACL consolidation phase as completed in roadmap ([602b145](https://github.com/egose/web-ts-toolkit/commit/602b145201d22b85b21fc5c41c86429b7f77ef31))
@@ -127,7 +129,7 @@
 * **website:** add access-router-client package documentation ([583735b](https://github.com/egose/web-ts-toolkit/commit/583735b7d041fb77ce3e4007bfa01f1e210c4d4f))
 * **website:** add documentation for access-router-client package ([e9b118f](https://github.com/egose/web-ts-toolkit/commit/e9b118fde90ee640df69678ca5e2bc3dc7439599))
 
-### Refactors
+### Code Refactoring
 
 * **access-router-client:** extract shared service utilities ([9eabed9](https://github.com/egose/web-ts-toolkit/commit/9eabed9cbc0ecf17b943ee883447a8d2500b3faf))
 * **access-router-client:** improve type safety and internal implementations ([a71f301](https://github.com/egose/web-ts-toolkit/commit/a71f301343f9ed6ac3e47f96aa76af475d539a71))
@@ -177,11 +179,11 @@
 
 * **access-router:** preserve model overrides and improve permission classification ([abcd2a8](https://github.com/egose/web-ts-toolkit/commit/abcd2a81b24955648302b9c3addac7b2b9445a1b))
 
-### Docs
+### Documentation
 
 * **access-router:** add hook signatures and examples to README ([1cadc21](https://github.com/egose/web-ts-toolkit/commit/1cadc219f83a3f2f52f82ad1515d995581653f91))
 
-### Refactors
+### Code Refactoring
 
 * **access-router:** clean up unused imports and dead code ([c2268db](https://github.com/egose/web-ts-toolkit/commit/c2268dbcc1effc1990cdfcb45db74963fa42f1aa))
 * **access-router:** extract assertAllowed helper and clean up routers ([5a7306c](https://github.com/egose/web-ts-toolkit/commit/5a7306c78936aa238e5fcd5cd08caa6f749b8c1f))
@@ -198,6 +200,10 @@
 * **moo:** extract shared utils and simplify plugin internals ([b7176e0](https://github.com/egose/web-ts-toolkit/commit/b7176e0885f4243fc7404c72890bed243e235d5c))
 * replace lodash with @web-ts-toolkit/utils in access-router ([35f8c1d](https://github.com/egose/web-ts-toolkit/commit/35f8c1d727b4288deb7c65df234c0bbafa826e00))
 
+### Performance Improvements
+
+* **acl:** batch field permission checks for list operations ([73c592d](https://github.com/egose/web-ts-toolkit/commit/73c592d655dd6d55743e9618fe4e53ad709c6280))
+
 ## [0.1.0](https://github.com/egose/web-ts-toolkit/compare/v0.0.2...v0.1.0) (2026-05-03)
 
 ### Features
@@ -205,7 +211,7 @@
 * add express-json-router package ([a620fb1](https://github.com/egose/web-ts-toolkit/commit/a620fb1b0108c6df27f3a24689702f9e93f2b03c))
 * add moo package with mongoose helpers and plugins ([6118f36](https://github.com/egose/web-ts-toolkit/commit/6118f365c2fd3b1fa82619d5b530612b0702758b))
 
-### Refactors
+### Code Refactoring
 
 * explicitly define route methods in JsonRouter ([ba531ae](https://github.com/egose/web-ts-toolkit/commit/ba531aee3caed9fd828d06a2735ecfcbda08b1c7))
 * improve type safety and clean up code in moo ([e4bd12f](https://github.com/egose/web-ts-toolkit/commit/e4bd12f4829d902a93e82db60765c20dcac71ca8))
@@ -225,12 +231,12 @@
 
 * improve captureStackTrace type safety in http-errors ([15c9465](https://github.com/egose/web-ts-toolkit/commit/15c9465e24562f14aa6d9b9947773b9c1e603af6))
 
-### Docs
+### Documentation
 
 * add project readme and release tag dispatch guide ([e5170ea](https://github.com/egose/web-ts-toolkit/commit/e5170ea051ae8dc40ee5b912b2e8e30744bb49ee))
 * update README with TypeScript examples and detailed usage ([46ed567](https://github.com/egose/web-ts-toolkit/commit/46ed567970a42823dfdf9241b98af9ee7ed7a406))
 
-### Refactors
+### Code Refactoring
 
 * reformat code and documentation ([3fa38dd](https://github.com/egose/web-ts-toolkit/commit/3fa38dd97302bb406266095cd63024bce97184d5))
 * reorganize http-errors and express-response-handler ([0d8f66c](https://github.com/egose/web-ts-toolkit/commit/0d8f66c81bb2e11c70840eba7048844876939bad))
