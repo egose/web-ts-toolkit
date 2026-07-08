@@ -12,8 +12,8 @@ jobs:
       contents: write
 
     steps:
-    - uses: hmarr/debug-action@f7318c783045ac39ed9bb497e22ce835fdafbfe6
-    - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
+    - uses: hmarr/debug-action@cd1afbd7852b7ad7b1b7a9a1b03efebd3b0a1820
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
     - name: Setup Tools
       uses: ./.github/actions/setup-tools
@@ -28,9 +28,9 @@ jobs:
         registry=https://registry.npmjs.org/
         always-auth=true
         EOF
-        pnpm publish:all -- --tag ${{github.ref_name}}
+        pnpm publish-all -- --tag ${{github.ref_name}}
 
     - name: Release
-      uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe
+      uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
