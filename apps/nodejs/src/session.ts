@@ -3,6 +3,7 @@ import type { HydratedDocument } from 'mongoose';
 import mongoose from 'mongoose';
 import { defaultRegistry, MessageService, MESSAGE_MODEL_NAME, type MessageUser } from '@web-ts-toolkit/message-service';
 import { demoOrganizations, demoUserSeeds } from './domain';
+import { AppError } from './errors';
 import {
   MembershipModel,
   type AppRequest,
@@ -159,7 +160,7 @@ export async function buildSessionPayload(
 
 export function requireCurrentUserId(request: AppRequest) {
   if (!request.currentUserId) {
-    throw new Error('Authenticated request expected currentUserId to exist');
+    throw new AppError('Authentication required.', 401);
   }
 
   return request.currentUserId;

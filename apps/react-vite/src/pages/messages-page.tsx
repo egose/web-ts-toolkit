@@ -81,11 +81,13 @@ const PRIORITIES = ['low', 'normal', 'high'];
 
 const EMAIL_KEYS = new Set(['inviteeEmail', 'toUserEmail']);
 
-function normalizePayload(templateCd: string, payload: Record<string, string>): Record<string, unknown> {
+function normalizePayload(payload: Record<string, string>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(payload)) {
-    if (!value.trim()) continue;
-    out[key] = EMAIL_KEYS.has(key) ? value.trim().toLowerCase() : value.trim();
+    const trimmedValue = value.trim();
+    if (!trimmedValue) continue;
+
+    out[key] = EMAIL_KEYS.has(key) ? trimmedValue.toLowerCase() : trimmedValue;
   }
   return out;
 }
@@ -217,7 +219,7 @@ export function MessagesPage({ session }: MessagesPageProps) {
   }
 
   function handleComposeSubmit() {
-    const payload = normalizePayload(composeTemplate, composeForm);
+    const payload = normalizePayload(composeForm);
     createMessageMutation.mutate({ templateCd: composeTemplate, payload });
   }
 
