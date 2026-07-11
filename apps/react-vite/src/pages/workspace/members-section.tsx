@@ -45,6 +45,19 @@ export function MembersSection({
   search,
   sessionEmail,
 }: MembersSectionProps) {
+  const membersById = new Map<string, OrganizationMember>();
+  const directReportCounts = new Map<string, number>();
+
+  members.forEach((member) => {
+    if (member._id) {
+      membersById.set(member._id, member);
+    }
+
+    if (member.managerMembershipId) {
+      directReportCounts.set(member.managerMembershipId, (directReportCounts.get(member.managerMembershipId) ?? 0) + 1);
+    }
+  });
+
   return (
     <div className={workspaceGridClass}>
       <Card className="app-surface rounded-2xl p-5 shadow-none" id="people">
@@ -83,14 +96,14 @@ export function MembersSection({
             {filteredMembers.map((member) => (
               <MemberCard
                 canDelete={members.length > 1}
-                directReportCount={members.filter((candidate) => candidate.managerMembershipId === member._id).length}
+                directReportCount={member._id ? (directReportCounts.get(member._id) ?? 0) : 0}
                 isCurrentUser={member.email === sessionEmail}
                 isDeleting={isDeletingMember}
                 isSaving={isSavingMember}
                 key={member._id}
                 managerLabel={
                   member.managerMembershipId
-                    ? `Reports to ${members.find((candidate) => candidate._id === member.managerMembershipId)?.fullName ?? 'Unknown manager'}`
+                    ? `Reports to ${membersById.get(member.managerMembershipId)?.fullName ?? 'Unknown manager'}`
                     : 'Top-level role'
                 }
                 managers={members.filter((candidate) => candidate._id !== member._id)}

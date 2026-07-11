@@ -1,11 +1,11 @@
-import { useDeferredValue, useEffect, useState } from 'react';
+import { useDeferredValue, useEffect, useRef, useState } from 'react';
 import { Alert, AlertDescription } from '@egose/shadcn-theme/components/ui/alert';
 import { Card, CardDescription, CardHeader, CardTitle } from '@egose/shadcn-theme/components/ui/card';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createModelHooks } from '@web-ts-toolkit/access-router-react';
 import { useNavigate, useParams } from 'react-router';
 import { loadWorkspace, logout, membershipService, organizationService } from '../api';
-import { buildHierarchy } from '../hierarchy';
+import { buildHierarchy, filterMembersBySearch } from '../hierarchy';
 import type { OrganizationMember, SessionData } from '../types';
 import { CreateOrganizationCard } from './workspace/create-organization-card';
 import { MembersSection } from './workspace/members-section';
@@ -41,12 +41,7 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
 
   const selectedOrganizationId = organizationId ?? session.organizations[0]?.organizationId ?? null;
   const [organizationName, setOrganizationName] = useState('');
-  const lastSyncedNameRef = useRef('');
-  const serverName = workspaceQuery.data?.organization.name ?? '';
-  if (serverName && serverName !== lastSyncedNameRef.current) {
-    lastSyncedNameRef.current = serverName;
-    setOrganizationName(serverName);
-  }
+  const lastSyncedOrganizationNameRef = useRef<string | null>(null);
   const [newOrganizationName, setNewOrganizationName] = useState('');
   const [search, setSearch] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
@@ -82,6 +77,22 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
     queryFn: () => loadWorkspace(selectedOrganizationId!),
     queryKey: ['workspace', selectedOrganizationId],
   });
+
+  const serverName = workspaceQuery.data?.organization.name ?? '';
+
+  useEffect(() => {
+    if (!selectedOrganizationId || !serverName) {
+      return;
+    }
+
+    const syncKey = `${selectedOrganizationId}:${serverName}`;
+    if (syncKey === lastSyncedOrganizationNameRef.current) {
+      return;
+    }
+
+    lastSyncedOrganizationNameRef.current = syncKey;
+    setOrganizationName(serverName);
+  }, [selectedOrganizationId, serverName]);
 
   // ── access-router-react hooks ──
 
@@ -164,15 +175,10 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
   const currentOrganizationMembership = session.organizations.find(
     (organization) => organization.organizationId === selectedOrganizationId,
   );
-  const filteredMembers = members.filter((member) => {
-    if (!deferredSearch.trim()) {
-      return true;
-    }
-
-    const haystack = [member.fullName, member.title, member.department ?? '', member.email].join(' ').toLowerCase();
-    return haystack.includes(deferredSearch.trim().toLowerCase());
-  });
+  const filteredMembers = filterMembersBySearch(members, deferredSearch);
   const filteredHierarchy = buildHierarchy(members, deferredSearch);
+  const mappedDepartmentCount = new Set(members.map((member) => member.department).filter(Boolean)).size;
+  const topLevelLeaderCount = members.filter((member) => !member.managerMembershipId).length;
 
   const activeError =
     workspaceQuery.error ??
@@ -278,7 +284,7 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
                 inviteTitle={inviteTitle}
                 isAddingMember={inviteMember.isPending}
                 isRenamingOrganization={renameOrg.isPending}
-                mappedDepartmentCount={new Set(members.map((member) => member.department).filter(Boolean)).size}
+                mappedDepartmentCount={mappedDepartmentCount}
                 members={members}
                 onInviteDepartmentChange={setInviteDepartment}
                 onInviteEmailChange={setInviteEmail}
@@ -302,7 +308,7 @@ export function WorkspacePage({ onRefreshSession, onSignedOut, session }: Worksp
                 }}
                 organizationName={organizationName}
                 organizationSlug={workspaceQuery.data.organization.slug}
-                topLevelLeaderCount={members.filter((member) => !member.managerMembershipId).length}
+                topLevelLeaderCount={topLevelLeaderCount}
               />
             </section>
 

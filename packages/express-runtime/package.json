@@ -1,0 +1,54 @@
+{
+  "name": "@web-ts-toolkit/express-runtime",
+  "description": "Express app factory plus serverless handler and local dev server helpers",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/express-runtime",
+  "version": "0.0.0-PLACEHOLDER",
+  "license": "PLACEHOLDER",
+  "sideEffects": false,
+  "repository": "PLACEHOLDER",
+  "keywords": [
+    "express",
+    "serverless",
+    "local-server",
+    "dev-server",
+    "runtime",
+    "http"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "web-ts-toolkit-express-runtime": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "test": "pnpm --filter @web-ts-toolkit/express-runtime... build && vitest run --config vitest.config.ts"
+  },
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "serverless-http": "^4.0.0"
+  },
+  "peerDependencies": {
+    "express": ">=5.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.6.0",
+    "express": "^5.2.1",
+    "supertest": "^7.2.2"
+  }
+}

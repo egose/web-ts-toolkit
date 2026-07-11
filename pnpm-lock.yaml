@@ -24,11 +24,14 @@ importers:
         specifier: ^7.0.6
         version: 7.0.6(release-it@20.2.1(@types/node@25.9.4))
       '@repo-toolkit/changelog':
-        specifier: ^0.2.0
-        version: 0.2.0(conventional-commits-filter@5.0.0)
-      '@repo-toolkit/publish-all':
-        specifier: ^0.2.0
-        version: 0.2.0
+        specifier: ^0.7.0
+        version: 0.7.0(conventional-commits-filter@5.0.0)
+      '@repo-toolkit/publish-packages':
+        specifier: ^0.7.0
+        version: 0.7.0
+      '@repo-toolkit/release-artifact':
+        specifier: ^0.7.0
+        version: 0.7.0
       '@types/node':
         specifier: ^25.9.4
         version: 25.9.4
@@ -62,6 +65,9 @@ importers:
       '@web-ts-toolkit/access-router':
         specifier: workspace:*
         version: link:../../packages/access-router
+      '@web-ts-toolkit/express-runtime':
+        specifier: workspace:*
+        version: link:../../packages/express-runtime
       '@web-ts-toolkit/message-service':
         specifier: workspace:*
         version: link:../../packages/message-service
@@ -395,6 +401,25 @@ importers:
       '@types/node':
         specifier: ^25.6.0
         version: 25.6.0
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
+      supertest:
+        specifier: ^7.2.2
+        version: 7.2.2
+
+  packages/express-runtime:
+    dependencies:
+      serverless-http:
+        specifier: ^4.0.0
+        version: 4.0.0
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.9.4
       express:
         specifier: ^5.2.1
         version: 5.2.1
@@ -2649,13 +2674,23 @@ packages:
     peerDependencies:
       release-it: ^18.0.0 || ^19.0.0 || ^20.0.0
 
-  '@repo-toolkit/changelog@0.2.0':
-    resolution: {integrity: sha512-KwYAPb5wfL4y3jlAUPoNVx/y9A8ZyxE2EYsNRRrrLCWJD44MumoJPCbAEUaWcCottVIMGLq4S6Eju9W53wBFRQ==}
+  '@repo-toolkit/changelog@0.7.0':
+    resolution: {integrity: sha512-uu9AVduvKcnz7Cl5mmV2IYsPFtO+LSQFk6ezVnHsK/Wj05JBGMPmDNP2e3UrSee80kpOUFvW15jjMklUg9KIzQ==}
     engines: {node: '>=20'}
     hasBin: true
 
-  '@repo-toolkit/publish-all@0.2.0':
-    resolution: {integrity: sha512-5w0/00ltEVwZCCN9UOckEoZ1ZZ7wFFdrj/bZZlybOQX5RFXx3CV16sdDExy7zKFwqo+IePJd9YPbI4OO4IidwQ==}
+  '@repo-toolkit/publish-package@0.7.0':
+    resolution: {integrity: sha512-x+X/ZAT9pNXT8ibKDJkPZjJMYR4+McRpGVeTM+shX76Yv/L8hy/lqUvsPlrCUqrOvD3BnWoWAB6yHMiE4sAwsw==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  '@repo-toolkit/publish-packages@0.7.0':
+    resolution: {integrity: sha512-PKssUArffnwINWzvUmZ9bRZDeTXjLYd+RlkxF1bwyCwrtbsjdbW4fVaDJJxsPXaYmXnebS5Uh/ua8OwOJm79/Q==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  '@repo-toolkit/release-artifact@0.7.0':
+    resolution: {integrity: sha512-IVg6QLIwjyzf8fWj3WfTTRO/v3gK0BHtSY5xKSskuFuRZoMOvEzvklukSpp3B9QU2DXjSAMBCYKunKey///WLg==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -6330,6 +6365,10 @@ packages:
     resolution: {integrity: sha512-xRXBn0pPqQTVQiC8wyQrKs2MOlX24zQ0POGaj0kultvoOCstBQM5yvOhAVSUwOMjQtTvsPWoNCHfPGwaaQJhTw==}
     engines: {node: '>= 18'}
 
+  serverless-http@4.0.0:
+    resolution: {integrity: sha512-KKl9h1+VApX9y2vHsVMogf906UXBwO3FDYiWPzqS0mCjEEx4Sx91JrssbWA7RN43HBuxrtoh8MkocZPvjyGnLg==}
+    engines: {node: '>=12.0'}
+
   set-cookie-parser@2.7.2:
     resolution: {integrity: sha512-oeM1lpU/UvhTxw+g3cIfxXHyJRc/uidd3yK1P242gzHds0udQBYzs3y8j4gCCW+ZJ7ad0yctld8RYO+bdurlvw==}
 
@@ -9554,14 +9593,23 @@ snapshots:
       release-it: 20.2.1(@types/node@25.9.4)
       semver: 7.8.5
 
-  '@repo-toolkit/changelog@0.2.0(conventional-commits-filter@5.0.0)':
+  '@repo-toolkit/changelog@0.7.0(conventional-commits-filter@5.0.0)':
     dependencies:
+      '@repo-toolkit/publish-package': 0.7.0
       conventional-changelog: 7.2.1(conventional-commits-filter@5.0.0)
       conventional-changelog-conventionalcommits: 9.3.1
     transitivePeerDependencies:
       - conventional-commits-filter
 
-  '@repo-toolkit/publish-all@0.2.0': {}
+  '@repo-toolkit/publish-package@0.7.0': {}
+
+  '@repo-toolkit/publish-packages@0.7.0':
+    dependencies:
+      '@repo-toolkit/publish-package': 0.7.0
+
+  '@repo-toolkit/release-artifact@0.7.0':
+    dependencies:
+      '@repo-toolkit/publish-package': 0.7.0
 
   '@rolldown/binding-android-arm64@1.0.2':
     optional: true
@@ -10072,7 +10120,7 @@ snapshots:
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
-      '@types/node': 25.6.0
+      '@types/node': 25.9.4
 
   '@types/chai@5.2.3':
     dependencies:
@@ -10081,7 +10129,7 @@ snapshots:
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 25.6.0
+      '@types/node': 25.9.4
 
   '@types/deep-eql@4.0.2': {}
 
@@ -10093,7 +10141,7 @@ snapshots:
 
   '@types/express-serve-static-core@5.1.1':
     dependencies:
-      '@types/node': 25.6.0
+      '@types/node': 25.9.4
       '@types/qs': 6.15.1
       '@types/range-parser': 1.2.7
       '@types/send': 1.2.1
@@ -10158,12 +10206,12 @@ snapshots:
 
   '@types/send@1.2.1':
     dependencies:
-      '@types/node': 25.6.0
+      '@types/node': 25.9.4
 
   '@types/serve-static@2.2.0':
     dependencies:
       '@types/http-errors': 2.0.5
-      '@types/node': 25.6.0
+      '@types/node': 25.9.4
 
   '@types/triple-beam@1.3.5': {}
 
@@ -13493,6 +13541,8 @@ snapshots:
       send: 1.2.1
     transitivePeerDependencies:
       - supports-color
+
+  serverless-http@4.0.0: {}
 
   set-cookie-parser@2.7.2: {}
 

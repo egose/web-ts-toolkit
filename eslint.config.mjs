@@ -50,13 +50,20 @@ export default tseslint.config(
     },
   },
   {
-    files: ['apps/nodejs/src/session.ts'],
+    files: ['apps/nodejs/src/**/*.{ts,mts,cts,js,mjs,cjs}'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
   {
     files: ['packages/message-service/**/*.{ts,mts,cts,js,mjs,cjs}'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    },
+  },
+  {
+    files: ['packages/express-runtime/**/*.{ts,mts,cts,js,mjs,cjs}'],
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },

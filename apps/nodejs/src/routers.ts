@@ -60,6 +60,28 @@ async function validateManager(organizationId: string, managerMembershipId: stri
     return ['Manager must belong to the same organization.'];
   }
 
+  if (!memberId) {
+    return [];
+  }
+
+  const visitedManagerIds = new Set<string>([managerMembershipId]);
+  let currentManagerId = manager.managerMembershipId ? String(manager.managerMembershipId) : null;
+
+  while (currentManagerId) {
+    if (currentManagerId === memberId || visitedManagerIds.has(currentManagerId)) {
+      return ['Reporting lines cannot create a cycle.'];
+    }
+
+    visitedManagerIds.add(currentManagerId);
+
+    const currentManager = await MembershipModel.findById(currentManagerId);
+    if (!currentManager || String(currentManager.organizationId) !== organizationId) {
+      break;
+    }
+
+    currentManagerId = currentManager.managerMembershipId ? String(currentManager.managerMembershipId) : null;
+  }
+
   return [];
 }
 
