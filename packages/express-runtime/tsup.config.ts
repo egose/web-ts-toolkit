@@ -18,6 +18,9 @@ export default defineConfig([
     target: 'node20',
     outDir: 'dist',
     clean: false,
+    // tsup is dynamically imported in build mode — keep it external so the
+    // CLI bundle stays small (users who want `build` install tsup themselves).
+    external: ['tsup', 'esbuild'],
     banner: {
       js: '#!/usr/bin/env node',
     },

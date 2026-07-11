@@ -1,4 +1,4 @@
-import { loadApp, parseArgs } from './cli-utils';
+import { buildServerless, createServerlessAdapterApp, loadApp, loadHandler, parseArgs } from './cli-utils';
 import { startLocalServer } from './index';
 
 async function main(): Promise<void> {
@@ -7,9 +7,16 @@ async function main(): Promise<void> {
     return;
   }
 
-  const app = await loadApp(parsedArgs.appPath);
-  // CLI runs the server with exit-after-shutdown so SIGINT/SIGTERM cleanly exit.
-  startLocalServer(app, { ...parsedArgs.options, exitAfterShutdown: true });
+  if (parsedArgs.subcommand === 'dev') {
+    const app = await loadApp(parsedArgs.dev.appPath);
+    startLocalServer(app, { ...parsedArgs.dev.options, exitAfterShutdown: true });
+  } else if (parsedArgs.subcommand === 'start') {
+    const handler = await loadHandler(parsedArgs.start.handlerPath);
+    const app = createServerlessAdapterApp(handler);
+    startLocalServer(app, { ...parsedArgs.start.options, exitAfterShutdown: true });
+  } else {
+    await buildServerless(parsedArgs.build);
+  }
 }
 
 main().catch((error: unknown) => {

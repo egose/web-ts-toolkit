@@ -23,7 +23,10 @@ pnpm add @web-ts-toolkit/express-runtime express
 - `startLocalServer()` — `http.createServer` + `listen` with friendly
   `EADDRINUSE` / `EACCES` errors, optional graceful `SIGINT` / `SIGTERM`
   shutdown that drains in-flight requests, and a configurable timeout.
-- CLI binary to run any Express app locally from a module path.
+- CLI binary with three subcommands:
+  - `dev` — run an Express app as a local dev server
+  - `build` — bundle the app as a serverless handler using `tsup`
+  - `start` — smoke-test the bundled handler locally by translating HTTP ↔ serverless events
 
 ## Quick Start
 
@@ -75,13 +78,14 @@ startLocalServer(app, {
 });
 ```
 
-### CLI
+### CLI — dev (local server)
 
-The `web-ts-toolkit-express-runtime` binary runs any module that default-exports
-an Express app (or an async function returning one) as a local dev server:
+The `web-ts-toolkit-express-runtime dev` command runs any module that
+default-exports an Express app (or an async function returning one) as a local
+dev server:
 
 ```sh
-npx web-ts-toolkit-express-runtime ./dist/app.js --port 3000 --host localhost
+npx web-ts-toolkit-express-runtime dev ./dist/app.js --port 3000 --host localhost
 ```
 
 ```ts
@@ -96,13 +100,64 @@ export default createExpressApp({
 For TypeScript app modules, run the CLI through `tsx`:
 
 ```sh
-npx tsx ./node_modules/@web-ts-toolkit/express-runtime/dist/cli.js ./src/app.ts
+npx tsx ./node_modules/@web-ts-toolkit/express-runtime/dist/cli.js dev ./src/app.ts
 ```
 
-> The CLI evaluates arbitrary code from `<app-module>` in the current process
-> and inherits its privileges. Init logic (e.g. DB connections) should be
-> placed at the top level of your app module since the CLI does not expose an
+> The `dev` command evaluates arbitrary code from `<app-module>` in the current
+> process and inherits its privileges. Init logic (e.g. DB connections) should
+> be placed at the top level of your app module since `dev` does not expose an
 > `init` hook.
+
+### CLI — build (serverless bundle)
+
+The `build` command generates a temporary serverless entry that wraps the app
+with `createServerlessHandler`, then bundles it with `tsup` into a
+deployment-ready file:
+
+```sh
+npx web-ts-toolkit-express-runtime build ./src/app.ts --out-dir netlify/functions
+```
+
+With an optional init hook (DB connections, cache warmup, etc.):
+
+```sh
+npx web-ts-toolkit-express-runtime build ./src/app.ts --init ./src/init.ts --out-dir netlify/functions
+```
+
+```ts
+// src/init.ts
+export default async () => {
+  await mongoose.connect(process.env.MONGODB_URI);
+};
+```
+
+This produces `netlify/functions/handler.js` (configurable via `--out-name`)
+that exports a `handler` function compatible with Netlify, Vercel, AWS Lambda,
+and any platform that calls `(event, context)`.
+
+> `tsup` is required for `build`: `pnpm add -D tsup`. `express` is always
+> external; additional externals can be added via `--external`.
+
+### CLI — start (run a bundled handler locally)
+
+The `start` command runs a bundled serverless handler locally by translating
+HTTP requests into serverless events and the handler's results back into HTTP
+responses — letting you smoke-test the exact `build` output without a
+serverless platform:
+
+```sh
+npx web-ts-toolkit-express-runtime build ./src/app.ts --out-dir dist
+npx web-ts-toolkit-express-runtime start ./dist/handler.js --port 9000
+```
+
+The handler module must export a `handler` function (named or default) that
+accepts `(event, context)` and returns a result with `statusCode`, `headers`,
+and `body` — the same shape produced by `createServerlessHandler` via
+`serverless-http`.
+
+> The adapter passes the raw request body as a Buffer (no body parsing) so the
+> handler's request hook, including the serverless-http #305 workaround, runs
+> identically to production.
 
 ## Module API
 
@@ -217,7 +272,17 @@ interface Logger {
 
 ## CLI
 
-### `web-ts-toolkit-express-runtime <app-module> [options]`
+### `web-ts-toolkit-express-runtime <command> <app-module> [options]`
+
+Omitting `<command>` defaults to `dev` for backward compatibility.
+
+| Command | Description                                                                         |
+| ------- | ----------------------------------------------------------------------------------- |
+| `dev`   | Run the Express app as a local dev server (`http.createServer` + graceful shutdown) |
+| `build` | Bundle the Express app as a serverless handler using `tsup`                         |
+| `start` | Run a bundled serverless handler locally (HTTP ↔ serverless event adapter)          |
+
+#### dev options
 
 | Option                    | Description                                                                               |
 | ------------------------- | ----------------------------------------------------------------------------------------- |
@@ -226,12 +291,46 @@ interface Logger {
 | `--host <hostname>`       | Hostname to bind (default: `process.env.HOST` or `0.0.0.0`)                               |
 | `--no-signals`            | Disable `SIGINT` / `SIGTERM` handler registration                                         |
 | `--shutdown-timeout <ms>` | Max ms to wait for in-flight requests (default: `5000`)                                   |
-| `-V, --version`           | Print the CLI version                                                                     |
-| `-h, --help`              | Show help                                                                                 |
 
-The CLI sets `exitAfterShutdown: true` so `SIGINT` / `SIGTERM` cleanly exit the
-process after the server drains. TypeScript app modules require a TS loader
-(see the Quick Start CLI section for a `tsx` invocation).
+#### build options
+
+| Option                | Description                                                                      |
+| --------------------- | -------------------------------------------------------------------------------- |
+| `<app-module>`        | Module path whose **default export** is an Express app (sync, not async factory) |
+| `--init <path>`       | Init hook module (default export, async function) called once per cold start     |
+| `--out-dir <path>`    | Output directory (default: `dist`)                                               |
+| `--out-name <name>`   | Output filename without extension (default: `handler`)                           |
+| `--format <cjs\|esm>` | Output format (default: `cjs`)                                                   |
+| `--target <target>`   | Compilation target (default: `node20`)                                           |
+| `--external <pkg>`    | Mark package as external (repeatable; `express` is always external)              |
+| `--no-clean`          | Don't clean the output directory before building                                 |
+
+#### start options
+
+| Option                    | Description                                                                       |
+| ------------------------- | --------------------------------------------------------------------------------- |
+| `<handler-module>`        | JS/CJS module path exporting `handler` (named or default) — the output of `build` |
+| `--port <number>`         | Port or named pipe (default: `process.env.PORT` or `8080`)                        |
+| `--host <hostname>`       | Hostname to bind (default: `process.env.HOST` or `0.0.0.0`)                       |
+| `--no-signals`            | Disable `SIGINT` / `SIGTERM` handler registration                                 |
+| `--shutdown-timeout <ms>` | Max ms to wait for in-flight requests (default: `5000`)                           |
+
+#### global options
+
+| Option          | Description           |
+| --------------- | --------------------- |
+| `-V, --version` | Print the CLI version |
+| `-h, --help`    | Show help             |
+
+The `dev` command sets `exitAfterShutdown: true` so `SIGINT` / `SIGTERM` cleanly
+exit the process after the server drains. TypeScript app modules require a TS
+loader (see the Quick Start CLI section for a `tsx` invocation).
+
+The `build` command generates a temporary entry file that imports the app
+module and wraps it with `createServerlessHandler`, then invokes `tsup` to
+produce a self-contained bundle. `express` is always external; all other
+dependencies (including `@web-ts-toolkit/express-runtime` and `serverless-http`)
+are bundled into the output unless marked external via `--external`.
 
 ## License
 
