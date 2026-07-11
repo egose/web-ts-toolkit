@@ -24,11 +24,14 @@ importers:
         specifier: ^7.0.6
         version: 7.0.6(release-it@20.2.1(@types/node@25.9.4))
       '@repo-toolkit/changelog':
-        specifier: ^0.2.0
-        version: 0.2.0(conventional-commits-filter@5.0.0)
-      '@repo-toolkit/publish-all':
-        specifier: ^0.2.0
-        version: 0.2.0
+        specifier: ^0.7.0
+        version: 0.7.0(conventional-commits-filter@5.0.0)
+      '@repo-toolkit/publish-packages':
+        specifier: ^0.7.0
+        version: 0.7.0
+      '@repo-toolkit/release-artifact':
+        specifier: ^0.7.0
+        version: 0.7.0
       '@types/node':
         specifier: ^25.9.4
         version: 25.9.4
@@ -2671,13 +2674,23 @@ packages:
     peerDependencies:
       release-it: ^18.0.0 || ^19.0.0 || ^20.0.0
 
-  '@repo-toolkit/changelog@0.2.0':
-    resolution: {integrity: sha512-KwYAPb5wfL4y3jlAUPoNVx/y9A8ZyxE2EYsNRRrrLCWJD44MumoJPCbAEUaWcCottVIMGLq4S6Eju9W53wBFRQ==}
+  '@repo-toolkit/changelog@0.7.0':
+    resolution: {integrity: sha512-uu9AVduvKcnz7Cl5mmV2IYsPFtO+LSQFk6ezVnHsK/Wj05JBGMPmDNP2e3UrSee80kpOUFvW15jjMklUg9KIzQ==}
     engines: {node: '>=20'}
     hasBin: true
 
-  '@repo-toolkit/publish-all@0.2.0':
-    resolution: {integrity: sha512-5w0/00ltEVwZCCN9UOckEoZ1ZZ7wFFdrj/bZZlybOQX5RFXx3CV16sdDExy7zKFwqo+IePJd9YPbI4OO4IidwQ==}
+  '@repo-toolkit/publish-package@0.7.0':
+    resolution: {integrity: sha512-x+X/ZAT9pNXT8ibKDJkPZjJMYR4+McRpGVeTM+shX76Yv/L8hy/lqUvsPlrCUqrOvD3BnWoWAB6yHMiE4sAwsw==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  '@repo-toolkit/publish-packages@0.7.0':
+    resolution: {integrity: sha512-PKssUArffnwINWzvUmZ9bRZDeTXjLYd+RlkxF1bwyCwrtbsjdbW4fVaDJJxsPXaYmXnebS5Uh/ua8OwOJm79/Q==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  '@repo-toolkit/release-artifact@0.7.0':
+    resolution: {integrity: sha512-IVg6QLIwjyzf8fWj3WfTTRO/v3gK0BHtSY5xKSskuFuRZoMOvEzvklukSpp3B9QU2DXjSAMBCYKunKey///WLg==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -9580,14 +9593,23 @@ snapshots:
       release-it: 20.2.1(@types/node@25.9.4)
       semver: 7.8.5
 
-  '@repo-toolkit/changelog@0.2.0(conventional-commits-filter@5.0.0)':
+  '@repo-toolkit/changelog@0.7.0(conventional-commits-filter@5.0.0)':
     dependencies:
+      '@repo-toolkit/publish-package': 0.7.0
       conventional-changelog: 7.2.1(conventional-commits-filter@5.0.0)
       conventional-changelog-conventionalcommits: 9.3.1
     transitivePeerDependencies:
       - conventional-commits-filter
 
-  '@repo-toolkit/publish-all@0.2.0': {}
+  '@repo-toolkit/publish-package@0.7.0': {}
+
+  '@repo-toolkit/publish-packages@0.7.0':
+    dependencies:
+      '@repo-toolkit/publish-package': 0.7.0
+
+  '@repo-toolkit/release-artifact@0.7.0':
+    dependencies:
+      '@repo-toolkit/publish-package': 0.7.0
 
   '@rolldown/binding-android-arm64@1.0.2':
     optional: true
