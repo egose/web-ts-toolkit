@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags:
+    - v*.*.*
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+    - name: Setup Tools
+      uses: ./.github/actions/setup-tools
+
+    - name: Setup NPM Packages
+      uses: ./.github/actions/setup-npm
+
+    - name: Build
+      run: |
+        pnpm build
+        pnpm build-artifact -- --version "${GITHUB_REF_NAME#v}"
+
+    - name: Verify Build Artifact
+      run: pnpm verify-artifact -- --version "${GITHUB_REF_NAME#v}"
+
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: wtt-${{ github.ref_name }}
+        path: dist/*.tar.gz
+
+    - name: Release
+      uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b
+      with:
+        generate_release_notes: true
+        files: dist/*.tar.gz

@@ -5,11 +5,13 @@
   "main": "index.js",
   "scripts": {
     "lint": "eslint .",
-    "publish-all": "repo-toolkit-publish-all",
     "build": "pnpm -r --if-present build",
     "test": "pnpm -r --if-present test",
     "release": "release-it",
-    "changelog": "repo-toolkit-changelog"
+    "changelog": "repo-toolkit-changelog",
+    "publish-packages": "repo-toolkit-publish-packages",
+    "build-artifact": "repo-toolkit-build-artifact --config release-artifact.config.json",
+    "verify-artifact": "repo-toolkit-verify-artifact --config release-artifact.config.json"
   },
   "keywords": [],
   "author": "Junmin Ahn",

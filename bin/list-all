@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+# asdf wtt: list installable versions from GitHub releases.
+#
+# Resolves the GitHub <owner>/<repo> for this plugin from the local git remote
+# of the checked-out plugin source (falling back to WTT_GITHUB_REPOSITORY),
+# queries the GitHub releases API once, keeps only releases that publish the
+# expected asdf archive, and prints their tags (without the leading "v"),
+# sorted with `sort -V`.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WTT_HELPERS="${SCRIPT_DIR}/lib/wtt.sh"
+# shellcheck source=bin/lib/wtt.sh
+. "$WTT_HELPERS"
+
+tool_name="wtt"
+
+github_coordinates="${WTT_GITHUB_REPOSITORY:-$(wtt_resolve_github_coordinates "$SCRIPT_DIR")}"
+
+releases_json=$(wtt_fetch_releases "$github_coordinates")
+
+wtt_list_installable_versions "$releases_json" "^${tool_name}-.+\.tar\.gz$"
