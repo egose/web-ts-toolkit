@@ -85,23 +85,23 @@ The script may also append:
 Use this repository directly as an asdf plugin:
 
 ```sh
-asdf plugin add wtt https://github.com/egose/web-ts-toolkit.git
+asdf plugin add web-ts-toolkit https://github.com/egose/web-ts-toolkit.git
 asdf plugin add nodejs https://github.com/asdf-vm/asdf-nodejs.git
 asdf install nodejs <node-version>
-asdf install wtt <wtt-version>
-asdf global wtt <wtt-version>
+asdf install web-ts-toolkit <web-ts-toolkit-version>
+asdf global web-ts-toolkit <web-ts-toolkit-version>
 ```
 
 Available commands after install:
 
-- `web-ts-toolkit-express-runtime`
+- `wtt-express-runtime`
 
 Useful asdf commands:
 
-- `asdf list all wtt` (shows only versions with published install archives)
-- `asdf install wtt latest`
-- `asdf local wtt <wtt-version>`
+- `asdf list all web-ts-toolkit` (shows only versions with published install archives)
+- `asdf install web-ts-toolkit latest`
+- `asdf local web-ts-toolkit <web-ts-toolkit-version>`
 
-`wtt` runs on Node.js, so install a compatible `nodejs` version in asdf before invoking the commands.
+`web-ts-toolkit` runs on Node.js, so install a compatible `nodejs` version in asdf before invoking the commands.
 
 The release artifact discovers workspace packages from `packages/*` and automatically exposes any package with a `bin` entry.

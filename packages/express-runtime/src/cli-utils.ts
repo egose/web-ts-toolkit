@@ -59,13 +59,13 @@ export type ParsedArgs =
 // ---------------------------------------------------------------------------
 
 export function printHelp(): void {
-  console.log(`web-ts-toolkit-express-runtime
+  console.log(`wtt-express-runtime
 
 Run an Express app locally, bundle it as a serverless handler, or run the bundle.
 
 Usage:
-  web-ts-toolkit-express-runtime <command> <app-module> [options]
-  web-ts-toolkit-express-runtime <app-module> [options]   (alias for dev)
+  wtt-express-runtime <command> <app-module> [options]
+  wtt-express-runtime <app-module> [options]   (alias for dev)
 
 Commands:
   dev                           Run the Express app as a local dev server
@@ -98,12 +98,12 @@ Global options:
   -h, --help                    Show this help message
 
 Examples:
-  web-ts-toolkit-express-runtime dev ./dist/app.js
-  web-ts-toolkit-express-runtime dev ./dist/app.js --port 3000 --host localhost
-  web-ts-toolkit-express-runtime build ./src/app.ts --out-dir netlify/functions
-  web-ts-toolkit-express-runtime build ./src/app.ts --init ./src/init.ts --format esm
-  web-ts-toolkit-express-runtime start ./netlify/functions/handler.js --port 9000
-  web-ts-toolkit-express-runtime build ./src/app.ts && web-ts-toolkit-express-runtime start ./dist/handler.js
+  wtt-express-runtime dev ./dist/app.js
+  wtt-express-runtime dev ./dist/app.js --port 3000 --host localhost
+  wtt-express-runtime build ./src/app.ts --out-dir netlify/functions
+  wtt-express-runtime build ./src/app.ts --init ./src/init.ts --format esm
+  wtt-express-runtime start ./netlify/functions/handler.js --port 9000
+  wtt-express-runtime build ./src/app.ts && wtt-express-runtime start ./dist/handler.js
 
 Notes:
   - In dev mode, the CLI evaluates arbitrary code from <app-module> in the current process.

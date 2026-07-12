@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-tool_name="wtt"
+tool_name="web-ts-toolkit"
 install_type="$ASDF_INSTALL_TYPE"
 version="$ASDF_INSTALL_VERSION"
 install_path="$ASDF_INSTALL_PATH"
