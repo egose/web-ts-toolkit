@@ -2,7 +2,7 @@
 
 wtt_require_jq() {
   if ! command -v jq >/dev/null 2>&1; then
-    echo "Error: jq is required by the ${tool_name:-wtt} asdf plugin." >&2
+    echo "Error: jq is required by the ${tool_name:-web-ts-toolkit} asdf plugin." >&2
     echo "Install jq (https://stedolan.github.io/jq/) and ensure it is on PATH." >&2
     return 1
   fi
@@ -92,6 +92,7 @@ wtt_list_installable_versions() {
 
 # Resolve the GitHub <owner>/<repo> for this plugin from the local git remote
 # of the checked-out plugin source (falling back to WTT_GITHUB_REPOSITORY).
+# The WTT_ prefix intentionally mirrors the short `wtt-` CLI command prefix.
 wtt_resolve_github_coordinates() {
   local script_dir="$1"
 

@@ -80,12 +80,12 @@ startLocalServer(app, {
 
 ### CLI — dev (local server)
 
-The `web-ts-toolkit-express-runtime dev` command runs any module that
+The `wtt-express-runtime dev` command runs any module that
 default-exports an Express app (or an async function returning one) as a local
 dev server:
 
 ```sh
-npx web-ts-toolkit-express-runtime dev ./dist/app.js --port 3000 --host localhost
+npx wtt-express-runtime dev ./dist/app.js --port 3000 --host localhost
 ```
 
 ```ts
@@ -115,13 +115,13 @@ with `createServerlessHandler`, then bundles it with `tsup` into a
 deployment-ready file:
 
 ```sh
-npx web-ts-toolkit-express-runtime build ./src/app.ts --out-dir netlify/functions
+npx wtt-express-runtime build ./src/app.ts --out-dir netlify/functions
 ```
 
 With an optional init hook (DB connections, cache warmup, etc.):
 
 ```sh
-npx web-ts-toolkit-express-runtime build ./src/app.ts --init ./src/init.ts --out-dir netlify/functions
+npx wtt-express-runtime build ./src/app.ts --init ./src/init.ts --out-dir netlify/functions
 ```
 
 ```ts
@@ -146,8 +146,8 @@ responses — letting you smoke-test the exact `build` output without a
 serverless platform:
 
 ```sh
-npx web-ts-toolkit-express-runtime build ./src/app.ts --out-dir dist
-npx web-ts-toolkit-express-runtime start ./dist/handler.js --port 9000
+npx wtt-express-runtime build ./src/app.ts --out-dir dist
+npx wtt-express-runtime start ./dist/handler.js --port 9000
 ```
 
 The handler module must export a `handler` function (named or default) that
@@ -272,7 +272,7 @@ interface Logger {
 
 ## CLI
 
-### `web-ts-toolkit-express-runtime <command> <app-module> [options]`
+### `wtt-express-runtime <command> <app-module> [options]`
 
 Omitting `<command>` defaults to `dev` for backward compatibility.
 

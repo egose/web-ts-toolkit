@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-# asdf wtt: list installable versions from GitHub releases.
+# asdf web-ts-toolkit: list installable versions from GitHub releases.
 #
 # Resolves the GitHub <owner>/<repo> for this plugin from the local git remote
 # of the checked-out plugin source (falling back to WTT_GITHUB_REPOSITORY),
@@ -14,7 +14,7 @@ WTT_HELPERS="${SCRIPT_DIR}/lib/wtt.sh"
 # shellcheck source=bin/lib/wtt.sh
 . "$WTT_HELPERS"
 
-tool_name="wtt"
+tool_name="web-ts-toolkit"
 
 github_coordinates="${WTT_GITHUB_REPOSITORY:-$(wtt_resolve_github_coordinates "$SCRIPT_DIR")}"
 

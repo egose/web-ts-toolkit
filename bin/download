@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-# asdf wtt: download the release artifact for a version tag.
+# asdf web-ts-toolkit: download the release artifact for a version tag.
 #
 # The release workflow publishes a prebuilt archive named
-# wtt-<version>.tar.gz to the GitHub release for v<version>.
+# web-ts-toolkit-<version>.tar.gz to the GitHub release for v<version>.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WTT_HELPERS="${SCRIPT_DIR}/lib/wtt.sh"
 # shellcheck source=bin/lib/wtt.sh
 . "$WTT_HELPERS"
 
-tool_name="wtt"
+tool_name="web-ts-toolkit"
 version="$ASDF_INSTALL_VERSION"
 download_path="$ASDF_DOWNLOAD_PATH"
 
