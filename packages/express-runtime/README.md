@@ -103,6 +103,29 @@ For TypeScript app modules, run the CLI through `tsx`:
 npx tsx ./node_modules/@web-ts-toolkit/express-runtime/dist/cli.js dev ./src/app.ts
 ```
 
+#### CLI — dev with env, require, and watch
+
+`--env` loads `.env` files into `process.env` (existing vars are not
+overridden). `--require` preloads modules (e.g. `tsconfig-paths/register` for
+TS path aliases) before the app module is loaded. `--watch` forks a child
+process running the server and restarts it on file changes:
+
+```sh
+npx tsx ./node_modules/@web-ts-toolkit/express-runtime/dist/cli.js dev ./src/app.ts \
+  --env .env \
+  --require tsconfig-paths/register \
+  --watch ./src,./shared \
+  --ext ts,json
+```
+
+> `--env` parses `KEY=VALUE` lines (supports `export` prefix, quoted values,
+> `#` comments). For advanced dotenv features (multiline, variable expansion),
+> use `--require dotenv/config` instead.
+>
+> `--watch` uses Node 20+'s `fs.watch` with `{ recursive: true }` and forks the
+> same CLI as a child process. On file change, the child receives `SIGTERM`,
+> waits for it to exit, and respawns after the debounce delay (`--delay`).
+
 > The `dev` command evaluates arbitrary code from `<app-module>` in the current
 > process and inherits its privileges. Init logic (e.g. DB connections) should
 > be placed at the top level of your app module since `dev` does not expose an
@@ -147,7 +170,7 @@ serverless platform:
 
 ```sh
 npx wtt-express-runtime build ./src/app.ts --out-dir dist
-npx wtt-express-runtime start ./dist/handler.js --port 9000
+npx wtt-express-runtime start ./dist/handler.js --port 9000 --env .env
 ```
 
 The handler module must export a `handler` function (named or default) that
@@ -291,6 +314,11 @@ Omitting `<command>` defaults to `dev` for backward compatibility.
 | `--host <hostname>`       | Hostname to bind (default: `process.env.HOST` or `0.0.0.0`)                               |
 | `--no-signals`            | Disable `SIGINT` / `SIGTERM` handler registration                                         |
 | `--shutdown-timeout <ms>` | Max ms to wait for in-flight requests (default: `5000`)                                   |
+| `--require <module>`      | Module(s) to preload before app load (repeatable; comma-separated values supported)       |
+| `--env <path>`            | Env file(s) to load before app load (repeatable; existing env vars are not overridden)    |
+| `--watch <paths>`         | Comma-separated paths to watch for restart (repeatable; forks a child process)            |
+| `--ext <extensions>`      | Comma-separated extensions to watch (default: `ts,js,mjs,cjs,json`)                       |
+| `--delay <ms>`            | Debounce ms before restarting on change (default: `500`)                                  |
 
 #### build options
 
@@ -307,13 +335,15 @@ Omitting `<command>` defaults to `dev` for backward compatibility.
 
 #### start options
 
-| Option                    | Description                                                                       |
-| ------------------------- | --------------------------------------------------------------------------------- |
-| `<handler-module>`        | JS/CJS module path exporting `handler` (named or default) — the output of `build` |
-| `--port <number>`         | Port or named pipe (default: `process.env.PORT` or `8080`)                        |
-| `--host <hostname>`       | Hostname to bind (default: `process.env.HOST` or `0.0.0.0`)                       |
-| `--no-signals`            | Disable `SIGINT` / `SIGTERM` handler registration                                 |
-| `--shutdown-timeout <ms>` | Max ms to wait for in-flight requests (default: `5000`)                           |
+| Option                    | Description                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------ |
+| `<handler-module>`        | JS/CJS module path exporting `handler` (named or default) — the output of `build`          |
+| `--port <number>`         | Port or named pipe (default: `process.env.PORT` or `8080`)                                 |
+| `--host <hostname>`       | Hostname to bind (default: `process.env.HOST` or `0.0.0.0`)                                |
+| `--no-signals`            | Disable `SIGINT` / `SIGTERM` handler registration                                          |
+| `--shutdown-timeout <ms>` | Max ms to wait for in-flight requests (default: `5000`)                                    |
+| `--require <module>`      | Module(s) to preload before handler load (repeatable; comma-separated values supported)    |
+| `--env <path>`            | Env file(s) to load before handler load (repeatable; existing env vars are not overridden) |
 
 #### global options
 
