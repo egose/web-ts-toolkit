@@ -1,3 +1,13 @@
+## [0.8.0](https://github.com/egose/web-ts-toolkit/compare/v0.7.0...v0.8.0) (2026-07-12)
+
+### Features
+
+* **express-runtime:** rename plugin and CLI branding to web-ts-toolkit ([1324677](https://github.com/egose/web-ts-toolkit/commit/13246779971f4e78f3a94078dd7c0009ffa51f1d))
+
+### Documentation
+
+* update package list, publish command, and asdf plugin instructions ([0b12069](https://github.com/egose/web-ts-toolkit/commit/0b12069e86dfaa2dff3875308e1cc2c35da5e475))
+
 ## [0.7.0](https://github.com/egose/web-ts-toolkit/compare/v0.6.1...v0.7.0) (2026-07-12)
 
 ### Features
