@@ -6,7 +6,7 @@
   "scripts": {
     "lint": "eslint .",
     "build": "pnpm -r --if-present build",
-    "test": "pnpm -r --if-present test",
+    "test": "pnpm -r --if-present --workspace-concurrency=1 test",
     "release": "release-it",
     "changelog": "repo-toolkit-changelog",
     "publish-packages": "repo-toolkit-publish-packages",
