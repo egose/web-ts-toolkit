@@ -1,3 +1,14 @@
+## [0.9.0](https://github.com/egose/web-ts-toolkit/compare/v0.8.0...v0.9.0) (2026-07-12)
+
+### Features
+
+* **express-runtime:** add env, preload, and watch support to the CLI ([94304a1](https://github.com/egose/web-ts-toolkit/commit/94304a147fef26057334f89f234439641bd03829))
+
+### Documentation
+
+* add contributor guidance for commands and serialized testing ([8f7613c](https://github.com/egose/web-ts-toolkit/commit/8f7613c12f47dfb5fe9eafd47458020052bc4481))
+* **express-runtime:** document new CLI runtime options and watch behavior ([037515b](https://github.com/egose/web-ts-toolkit/commit/037515b2a5a5bbd721835506f3012f02773b86ae))
+
 ## [0.8.0](https://github.com/egose/web-ts-toolkit/compare/v0.7.0...v0.8.0) (2026-07-12)
 
 ### Features
