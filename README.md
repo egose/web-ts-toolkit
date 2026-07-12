@@ -4,8 +4,17 @@ TypeScript packages for backend and web tooling.
 
 ## Packages
 
-- `@web-ts-toolkit/http-errors`
-- `@web-ts-toolkit/express-response-handler`
+- `@web-ts-toolkit/access-router`: ACL-aware Express routers and in-memory data services for Mongoose-backed APIs
+- `@web-ts-toolkit/access-router-client`: typed client utilities for `@web-ts-toolkit/access-router` APIs
+- `@web-ts-toolkit/access-router-deco`: decorator-based configuration for `@web-ts-toolkit/access-router`
+- `@web-ts-toolkit/access-router-react`: React hooks for `@web-ts-toolkit/access-router-client` model services
+- `@web-ts-toolkit/express-json-router`: Express router wrapper for return-value JSON responses
+- `@web-ts-toolkit/express-response-handler`: FastAPI-style return-value response handling for Express
+- `@web-ts-toolkit/express-runtime`: Express app factory plus serverless handler and local dev server helpers
+- `@web-ts-toolkit/http-errors`: typed HTTP error classes and payload helpers for backend APIs
+- `@web-ts-toolkit/message-service`: template-driven messaging core for Mongoose + Express applications
+- `@web-ts-toolkit/moo`: Mongoose helpers for schema fields, ObjectId checks, and document plugins
+- `@web-ts-toolkit/utils`: shared collection, object, async, and URL helpers used across workspace packages
 
 ## Development
 
@@ -26,38 +35,38 @@ pnpm test
 Publish all workspace packages with:
 
 ```sh
-pnpm repo-toolkit-publish-all -- --tag v1.2.3
+pnpm repo-toolkit-publish-packages -- --tag v1.2.3
 ```
 
 For prereleases:
 
 ```sh
-pnpm repo-toolkit-publish-all -- --tag v1.2.3-beta.1
+pnpm repo-toolkit-publish-packages -- --tag v1.2.3-beta.1
 ```
 
 Dry-run without publishing:
 
 ```sh
-pnpm repo-toolkit-publish-all -- --tag v1.2.3 --dry-run
+pnpm repo-toolkit-publish-packages -- --tag v1.2.3 --dry-run
 ```
 
 Publish only selected packages:
 
 ```sh
-pnpm repo-toolkit-publish-all -- --tag v1.2.3 --filter http-errors
-pnpm repo-toolkit-publish-all -- --tag v1.2.3 --filter http-errors,express-response-handler
+pnpm repo-toolkit-publish-packages -- --tag v1.2.3 --filter http-errors
+pnpm repo-toolkit-publish-packages -- --tag v1.2.3 --filter http-errors,express-response-handler
 ```
 
 Resume from a specific package in dependency order:
 
 ```sh
-pnpm repo-toolkit-publish-all -- --tag v1.2.3 --from express-response-handler
+pnpm repo-toolkit-publish-packages -- --tag v1.2.3 --from express-response-handler
 ```
 
 Override the npm dist-tag explicitly:
 
 ```sh
-pnpm repo-toolkit-publish-all -- --tag v1.2.3-beta.1 --npm-tag beta
+pnpm repo-toolkit-publish-packages -- --tag v1.2.3-beta.1 --npm-tag beta
 ```
 
 The script may also append:
@@ -70,3 +79,29 @@ The script may also append:
 - The version passed with `--tag` is used to replace `0.0.0-PLACEHOLDER`.
 - Internal workspace dependencies such as `workspace:*` are rewritten to the release version before publishing.
 - Packages are published in internal dependency order.
+
+## asdf Plugin
+
+Use this repository directly as an asdf plugin:
+
+```sh
+asdf plugin add wtt https://github.com/egose/web-ts-toolkit.git
+asdf plugin add nodejs https://github.com/asdf-vm/asdf-nodejs.git
+asdf install nodejs <node-version>
+asdf install wtt <wtt-version>
+asdf global wtt <wtt-version>
+```
+
+Available commands after install:
+
+- `web-ts-toolkit-express-runtime`
+
+Useful asdf commands:
+
+- `asdf list all wtt` (shows only versions with published install archives)
+- `asdf install wtt latest`
+- `asdf local wtt <wtt-version>`
+
+`wtt` runs on Node.js, so install a compatible `nodejs` version in asdf before invoking the commands.
+
+The release artifact discovers workspace packages from `packages/*` and automatically exposes any package with a `bin` entry.
