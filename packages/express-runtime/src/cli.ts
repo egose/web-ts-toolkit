@@ -1,4 +1,13 @@
-import { buildServerless, createServerlessAdapterApp, loadApp, loadHandler, parseArgs } from './cli-utils';
+import {
+  buildServerless,
+  createServerlessAdapterApp,
+  loadApp,
+  loadEnvFiles,
+  loadHandler,
+  parseArgs,
+  preloadModules,
+  runWithWatch,
+} from './cli-utils';
 import { startLocalServer } from './index';
 
 async function main(): Promise<void> {
@@ -8,12 +17,31 @@ async function main(): Promise<void> {
   }
 
   if (parsedArgs.subcommand === 'dev') {
-    const app = await loadApp(parsedArgs.dev.appPath);
-    startLocalServer(app, { ...parsedArgs.dev.options, exitAfterShutdown: true });
+    const { dev } = parsedArgs;
+
+    // Watch mode: fork a child and restart on file changes.
+    if (dev.watch.length > 0) {
+      runWithWatch(dev);
+      return;
+    }
+
+    // Normal mode: load env, preload modules, then start the server.
+    if (dev.env.length > 0) {
+      loadEnvFiles(dev.env);
+    }
+    await preloadModules(dev.require);
+    const app = await loadApp(dev.appPath);
+    startLocalServer(app, { ...dev.options, exitAfterShutdown: true });
   } else if (parsedArgs.subcommand === 'start') {
-    const handler = await loadHandler(parsedArgs.start.handlerPath);
+    const { start } = parsedArgs;
+
+    if (start.env.length > 0) {
+      loadEnvFiles(start.env);
+    }
+    await preloadModules(start.require);
+    const handler = await loadHandler(start.handlerPath);
     const app = createServerlessAdapterApp(handler);
-    startLocalServer(app, { ...parsedArgs.start.options, exitAfterShutdown: true });
+    startLocalServer(app, { ...start.options, exitAfterShutdown: true });
   } else {
     await buildServerless(parsedArgs.build);
   }

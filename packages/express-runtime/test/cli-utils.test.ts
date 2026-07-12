@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
+import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import {
   readValue,
   parseArgs,
@@ -12,6 +15,10 @@ import {
   applyServerlessResult,
   createServerlessAdapterApp,
   loadHandler,
+  loadEnvFiles,
+  parseEnvFile,
+  preloadModules,
+  buildChildArgs,
   CLI_VERSION,
 } from '../src/cli-utils';
 import { createExpressApp } from '../src/index';
@@ -146,6 +153,97 @@ describe('parseArgs — dev', () => {
 
   it('throws on duplicate positional argument', () => {
     expect(() => parseArgs(['dev', './a.js', './b.js'])).toThrow('Unexpected positional argument');
+  });
+
+  it('parses --require (repeatable)', () => {
+    const result = parseArgs(['dev', './app.js', '--require', 'tsconfig-paths/register', '--require', 'dotenv/config']);
+    expect(result?.subcommand === 'dev' && result.dev.require).toEqual(['tsconfig-paths/register', 'dotenv/config']);
+  });
+
+  it('parses --require=', () => {
+    const result = parseArgs(['dev', './app.js', '--require=tsconfig-paths/register']);
+    expect(result?.subcommand === 'dev' && result.dev.require).toEqual(['tsconfig-paths/register']);
+  });
+
+  it('parses --require with comma-separated values', () => {
+    const result = parseArgs(['dev', './app.js', '--require', 'tsconfig-paths/register,dotenv/config']);
+    expect(result?.subcommand === 'dev' && result.dev.require).toEqual(['tsconfig-paths/register', 'dotenv/config']);
+  });
+
+  it('parses --env (repeatable)', () => {
+    const result = parseArgs(['dev', './app.js', '--env', './.env', '--env', './.env.local']);
+    expect(result?.subcommand === 'dev' && result.dev.env).toEqual(['./.env', './.env.local']);
+  });
+
+  it('parses --env=', () => {
+    const result = parseArgs(['dev', './app.js', '--env=./.env']);
+    expect(result?.subcommand === 'dev' && result.dev.env).toEqual(['./.env']);
+  });
+
+  it('parses --env with comma-separated values', () => {
+    const result = parseArgs(['dev', './app.js', '--env', './.env,./.env.local']);
+    expect(result?.subcommand === 'dev' && result.dev.env).toEqual(['./.env', './.env.local']);
+  });
+
+  it('parses --watch', () => {
+    const result = parseArgs(['dev', './app.js', '--watch', './src']);
+    expect(result?.subcommand === 'dev' && result.dev.watch).toEqual(['./src']);
+  });
+
+  it('parses --watch with comma-separated paths', () => {
+    const result = parseArgs(['dev', './app.js', '--watch', './src,./shared']);
+    expect(result?.subcommand === 'dev' && result.dev.watch).toEqual(['./src', './shared']);
+  });
+
+  it('parses repeatable --watch', () => {
+    const result = parseArgs(['dev', './app.js', '--watch', './src', '--watch', './shared']);
+    expect(result?.subcommand === 'dev' && result.dev.watch).toEqual(['./src', './shared']);
+  });
+
+  it('parses --watch=', () => {
+    const result = parseArgs(['dev', './app.js', '--watch=./src']);
+    expect(result?.subcommand === 'dev' && result.dev.watch).toEqual(['./src']);
+  });
+
+  it('defaults watchExt to ts,js,mjs,cjs,json', () => {
+    const result = parseArgs(['dev', './app.js', '--watch', './src']);
+    expect(result?.subcommand === 'dev' && result.dev.watchExt).toEqual(['ts', 'js', 'mjs', 'cjs', 'json']);
+  });
+
+  it('parses --ext', () => {
+    const result = parseArgs(['dev', './app.js', '--watch', './src', '--ext', 'ts,json']);
+    expect(result?.subcommand === 'dev' && result.dev.watchExt).toEqual(['ts', 'json']);
+  });
+
+  it('parses --ext=', () => {
+    const result = parseArgs(['dev', './app.js', '--watch', './src', '--ext=ts,mjs']);
+    expect(result?.subcommand === 'dev' && result.dev.watchExt).toEqual(['ts', 'mjs']);
+  });
+
+  it('parses --delay', () => {
+    const result = parseArgs(['dev', './app.js', '--watch', './src', '--delay', '1000']);
+    expect(result?.subcommand === 'dev' && result.dev.watchDelay).toBe(1000);
+  });
+
+  it('parses --delay=', () => {
+    const result = parseArgs(['dev', './app.js', '--watch', './src', '--delay=200']);
+    expect(result?.subcommand === 'dev' && result.dev.watchDelay).toBe(200);
+  });
+
+  it('defaults watchDelay to 500', () => {
+    const result = parseArgs(['dev', './app.js', '--watch', './src']);
+    expect(result?.subcommand === 'dev' && result.dev.watchDelay).toBe(500);
+  });
+
+  it('defaults require and env to empty arrays', () => {
+    const result = parseArgs(['dev', './app.js']);
+    expect(result?.subcommand === 'dev' && result.dev.require).toEqual([]);
+    expect(result?.subcommand === 'dev' && result.dev.env).toEqual([]);
+  });
+
+  it('defaults watch to empty array', () => {
+    const result = parseArgs(['dev', './app.js']);
+    expect(result?.subcommand === 'dev' && result.dev.watch).toEqual([]);
   });
 });
 
@@ -429,6 +527,34 @@ describe('parseArgs — start', () => {
   it('throws on duplicate positional argument', () => {
     expect(() => parseArgs(['start', './a.js', './b.js'])).toThrow('Unexpected positional argument');
   });
+
+  it('parses --require (repeatable)', () => {
+    const result = parseArgs(['start', './handler.js', '--require', 'dotenv/config']);
+    expect(result?.subcommand === 'start' && result.start.require).toEqual(['dotenv/config']);
+  });
+
+  it('parses --env', () => {
+    const result = parseArgs(['start', './handler.js', '--env', './.env']);
+    expect(result?.subcommand === 'start' && result.start.env).toEqual(['./.env']);
+  });
+
+  it('rejects --watch', () => {
+    expect(() => parseArgs(['start', './handler.js', '--watch', './src'])).toThrow(
+      '--watch/--ext/--delay are not supported with the start subcommand',
+    );
+  });
+
+  it('rejects --ext', () => {
+    expect(() => parseArgs(['start', './handler.js', '--ext', 'ts'])).toThrow(
+      '--watch/--ext/--delay are not supported with the start subcommand',
+    );
+  });
+
+  it('rejects --delay', () => {
+    expect(() => parseArgs(['start', './handler.js', '--delay', '500'])).toThrow(
+      '--watch/--ext/--delay are not supported with the start subcommand',
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -577,5 +703,171 @@ describe('loadHandler', () => {
   it('throws when the module has no "handler" function export', async () => {
     const path = new URL('../src/index.js', import.meta.url).pathname;
     await expect(loadHandler(path)).rejects.toThrow('must export a "handler" function');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseEnvFile
+// ---------------------------------------------------------------------------
+
+describe('parseEnvFile', () => {
+  it('parses simple KEY=VALUE lines', () => {
+    expect(parseEnvFile('FOO=bar\nBAZ=qux')).toEqual({ FOO: 'bar', BAZ: 'qux' });
+  });
+
+  it('ignores empty lines and comments', () => {
+    expect(parseEnvFile('# comment\n\nFOO=bar\n  # indented comment\n')).toEqual({ FOO: 'bar' });
+  });
+
+  it('strips surrounding double quotes', () => {
+    expect(parseEnvFile('FOO="hello world"')).toEqual({ FOO: 'hello world' });
+  });
+
+  it('strips surrounding single quotes', () => {
+    expect(parseEnvFile("FOO='hello world'")).toEqual({ FOO: 'hello world' });
+  });
+
+  it('handles export prefix', () => {
+    expect(parseEnvFile('export FOO=bar')).toEqual({ FOO: 'bar' });
+  });
+
+  it('handles empty value', () => {
+    expect(parseEnvFile('FOO=')).toEqual({ FOO: '' });
+  });
+
+  it('skips lines without =', () => {
+    expect(parseEnvFile('FOO\nBAR=baz')).toEqual({ BAR: 'baz' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// loadEnvFiles
+// ---------------------------------------------------------------------------
+
+describe('loadEnvFiles', () => {
+  const tmpDir = join(tmpdir(), `wtt-env-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
+  it('loads env vars into process.env', () => {
+    mkdirSync(tmpDir, { recursive: true });
+    const envPath = join(tmpDir, 'test.env');
+    writeFileSync(envPath, 'WTT_TEST_KEY=value123');
+    loadEnvFiles([envPath]);
+    expect(process.env.WTT_TEST_KEY).toBe('value123');
+    delete process.env.WTT_TEST_KEY;
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('does not override existing env vars', () => {
+    mkdirSync(tmpDir, { recursive: true });
+    process.env.WTT_EXISTING = 'original';
+    const envPath = join(tmpDir, 'override.env');
+    writeFileSync(envPath, 'WTT_EXISTING=overridden');
+    loadEnvFiles([envPath]);
+    expect(process.env.WTT_EXISTING).toBe('original');
+    delete process.env.WTT_EXISTING;
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws on missing file', () => {
+    expect(() => loadEnvFiles(['./nonexistent.env'])).toThrow('Env file not found');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// preloadModules
+// ---------------------------------------------------------------------------
+
+describe('preloadModules', () => {
+  it('requires modules without error', async () => {
+    await expect(preloadModules(['node:events'])).resolves.toBeUndefined();
+  });
+
+  it('is a no-op for empty list', async () => {
+    await expect(preloadModules([])).resolves.toBeUndefined();
+  });
+
+  it('throws on missing module', async () => {
+    await expect(preloadModules(['non-existent-pkg-xyz_123'])).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildChildArgs
+// ---------------------------------------------------------------------------
+
+describe('buildChildArgs', () => {
+  it('builds child argv with subcommand and app path', () => {
+    const args = {
+      appPath: './app.mts',
+      options: {},
+      require: [],
+      env: [],
+      watch: ['./src'],
+      watchExt: ['ts'],
+      watchDelay: 500,
+    };
+    expect(buildChildArgs(args)).toEqual(['dev', './app.mts']);
+  });
+
+  it('includes port, host, and shutdown options', () => {
+    const args = {
+      appPath: './app.mts',
+      options: { port: 3000, host: 'localhost', shutdownTimeout: 2000, signals: false },
+      require: [],
+      env: [],
+      watch: [],
+      watchExt: [],
+      watchDelay: 500,
+    };
+    expect(buildChildArgs(args)).toEqual([
+      'dev',
+      './app.mts',
+      '--port',
+      '3000',
+      '--host',
+      'localhost',
+      '--no-signals',
+      '--shutdown-timeout',
+      '2000',
+    ]);
+  });
+
+  it('includes require and env flags', () => {
+    const args = {
+      appPath: './app.mts',
+      options: {},
+      require: ['tsconfig-paths/register', 'dotenv/config'],
+      env: ['./.env'],
+      watch: [],
+      watchExt: [],
+      watchDelay: 500,
+    };
+    expect(buildChildArgs(args)).toEqual([
+      'dev',
+      './app.mts',
+      '--require',
+      'tsconfig-paths/register',
+      '--require',
+      'dotenv/config',
+      '--env',
+      './.env',
+    ]);
+  });
+
+  it('omits watch, ext, and delay from child args', () => {
+    const args = {
+      appPath: './app.mts',
+      options: {},
+      require: [],
+      env: [],
+      watch: ['./src', './shared'],
+      watchExt: ['ts', 'json'],
+      watchDelay: 1000,
+    };
+    const childArgv = buildChildArgs(args);
+    expect(childArgv).not.toContain('--watch');
+    expect(childArgv).not.toContain('./src');
+    expect(childArgv).not.toContain('--ext');
+    expect(childArgv).not.toContain('--delay');
   });
 });
