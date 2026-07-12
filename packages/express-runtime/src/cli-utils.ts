@@ -1,6 +1,8 @@
 import { pathToFileURL } from 'node:url';
-import { resolve as pathResolve } from 'node:path';
-import { writeFileSync, rmSync } from 'node:fs';
+import { resolve as pathResolve, extname } from 'node:path';
+import { writeFileSync, rmSync, readFileSync, existsSync, watch } from 'node:fs';
+import { createRequire } from 'node:module';
+import { fork, type ChildProcess } from 'node:child_process';
 import type { Express, Request, Response } from 'express';
 import { createExpressApp, type LocalServerOptions } from './index';
 
@@ -30,6 +32,16 @@ export type Subcommand = 'dev' | 'build' | 'start';
 export interface DevArgs {
   appPath: string;
   options: Omit<LocalServerOptions, 'init' | 'onShutdown'>;
+  /** Modules to preload before loading the app (repeatable `--require`). */
+  require: string[];
+  /** Env files to load before loading the app (repeatable `--env`). */
+  env: string[];
+  /** Directories to watch for changes (repeatable `--watch`). */
+  watch: string[];
+  /** File extensions to watch (default: ts,js,mjs,cjs,json). */
+  watchExt: string[];
+  /** Debounce delay (ms) before restarting on file change (default: 500). */
+  watchDelay: number;
 }
 
 export interface BuildArgs {
@@ -46,6 +58,10 @@ export interface BuildArgs {
 export interface StartArgs {
   handlerPath: string;
   options: Omit<LocalServerOptions, 'init' | 'onShutdown'>;
+  /** Modules to preload before loading the handler (repeatable `--require`). */
+  require: string[];
+  /** Env files to load before loading the handler (repeatable `--env`). */
+  env: string[];
 }
 
 export type ParsedArgs =
@@ -77,6 +93,11 @@ Dev options:
   --host <hostname>             Hostname to bind (default: process.env.HOST or 0.0.0.0)
   --no-signals                  Disable SIGINT/SIGTERM handler registration
   --shutdown-timeout <ms>       Max ms to wait for in-flight requests (default: 5000)
+  --require <module>            Module(s) to preload before app load (repeatable)
+  --env <path>                  Env file(s) to load (repeatable; existing env vars are not overridden)
+  --watch <paths>               Comma-separated paths to watch for restart (repeatable; dev only)
+  --ext <extensions>            Comma-separated extensions to watch (default: ts,js,mjs,cjs,json)
+  --delay <ms>                  Debounce ms before restarting on change (default: 500)
 
 Build options:
   --init <path>                 Init hook module (default export, async function)
@@ -92,6 +113,8 @@ Start options:
   --host <hostname>             Hostname to bind (default: process.env.HOST or 0.0.0.0)
   --no-signals                  Disable SIGINT/SIGTERM handler registration
   --shutdown-timeout <ms>       Max ms to wait for in-flight requests (default: 5000)
+  --require <module>            Module(s) to preload before handler load (repeatable)
+  --env <path>                  Env file(s) to load (repeatable; existing env vars are not overridden)
 
 Global options:
   -V, --version                 Show version
@@ -100,15 +123,21 @@ Global options:
 Examples:
   wtt-express-runtime dev ./dist/app.js
   wtt-express-runtime dev ./dist/app.js --port 3000 --host localhost
+  wtt-express-runtime dev ./src/app.ts --env .env --require tsconfig-paths/register --watch ./src,./shared
   wtt-express-runtime build ./src/app.ts --out-dir netlify/functions
   wtt-express-runtime build ./src/app.ts --init ./src/init.ts --format esm
-  wtt-express-runtime start ./netlify/functions/handler.js --port 9000
+  wtt-express-runtime start ./netlify/functions/handler.js --port 9000 --env .env
   wtt-express-runtime build ./src/app.ts && wtt-express-runtime start ./dist/handler.js
 
 Notes:
   - In dev mode, the CLI evaluates arbitrary code from <app-module> in the current process.
   - TypeScript app modules in dev mode require a TS loader. Run via tsx:
       npx tsx ./node_modules/@web-ts-toolkit/express-runtime/dist/cli.js dev ./src/app.ts
+    Or use --require with a TS-aware loader module.
+  - --env files are parsed as KEY=VALUE; existing process.env entries are never overridden.
+    For advanced dotenv features (multiline, expansion), --require dotenv/config instead.
+  - --watch forks a child process running the same CLI without --watch. On file change,
+    the child is killed (SIGTERM) and respawned after the debounce delay.
   - In build mode, tsup is required: pnpm add -D tsup
   - In start mode, the bundled handler file must be a JS/CJS module whose "handler"
     export (or default export) is a function: (event, context) => Promise<result>.
@@ -132,8 +161,25 @@ function isSubcommand(arg: string): arg is Subcommand {
   return arg === 'dev' || arg === 'build' || arg === 'start';
 }
 
+const DEFAULT_WATCH_EXTENSIONS = ['ts', 'js', 'mjs', 'cjs', 'json'];
+const DEFAULT_WATCH_DELAY = 500;
+
+function parseRepeatable(argv: string[], index: number, arg: string, list: string[]): number {
+  const value = readValue(argv, index, arg);
+  for (const part of value.split(',')) {
+    const trimmed = part.trim();
+    if (trimmed) list.push(trimmed);
+  }
+  return index + 1;
+}
+
 function parseDevArgs(argv: string[]): DevArgs {
   const options: Omit<LocalServerOptions, 'init' | 'onShutdown'> = {};
+  const requireModules: string[] = [];
+  const envFiles: string[] = [];
+  const watchPaths: string[] = [];
+  let watchExt: string[] | undefined;
+  let watchDelay: number | undefined;
   let appPath: string | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -186,6 +232,66 @@ function parseDevArgs(argv: string[]): DevArgs {
       continue;
     }
 
+    if (arg === '--require') {
+      index = parseRepeatable(argv, index, arg, requireModules);
+      continue;
+    }
+    if (arg.startsWith('--require=')) {
+      for (const part of arg.slice('--require='.length).split(',')) {
+        const trimmed = part.trim();
+        if (trimmed) requireModules.push(trimmed);
+      }
+      continue;
+    }
+
+    if (arg === '--env') {
+      index = parseRepeatable(argv, index, arg, envFiles);
+      continue;
+    }
+    if (arg.startsWith('--env=')) {
+      for (const part of arg.slice('--env='.length).split(',')) {
+        const trimmed = part.trim();
+        if (trimmed) envFiles.push(trimmed);
+      }
+      continue;
+    }
+
+    if (arg === '--watch') {
+      index = parseRepeatable(argv, index, arg, watchPaths);
+      continue;
+    }
+    if (arg.startsWith('--watch=')) {
+      for (const part of arg.slice('--watch='.length).split(',')) {
+        const trimmed = part.trim();
+        if (trimmed) watchPaths.push(trimmed);
+      }
+      continue;
+    }
+
+    if (arg === '--ext') {
+      watchExt = [];
+      index = parseRepeatable(argv, index, arg, watchExt);
+      continue;
+    }
+    if (arg.startsWith('--ext=')) {
+      watchExt = [];
+      for (const part of arg.slice('--ext='.length).split(',')) {
+        const trimmed = part.trim();
+        if (trimmed) watchExt.push(trimmed);
+      }
+      continue;
+    }
+
+    if (arg === '--delay') {
+      watchDelay = Number(readValue(argv, index, arg));
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith('--delay=')) {
+      watchDelay = Number(arg.slice('--delay='.length));
+      continue;
+    }
+
     if (!arg.startsWith('--')) {
       if (appPath) {
         throw new Error(`Unexpected positional argument: ${arg}. App module already set to ${appPath}`);
@@ -202,14 +308,41 @@ function parseDevArgs(argv: string[]): DevArgs {
     throw new Error('Missing required argument: <app-module>');
   }
 
-  return { appPath, options };
+  return {
+    appPath,
+    options,
+    require: requireModules,
+    env: envFiles,
+    watch: watchPaths,
+    watchExt: watchExt ?? DEFAULT_WATCH_EXTENSIONS,
+    watchDelay: watchDelay ?? DEFAULT_WATCH_DELAY,
+  };
 }
 
 function parseStartArgs(argv: string[]): StartArgs {
   // start shares the same option set as dev (port, host, signals, etc.)
   // but the positional argument is a bundled handler file, not an Express app.
+  // --watch/--ext/--delay are dev-only and rejected for start.
+  for (const arg of argv) {
+    if (
+      arg === '--watch' ||
+      arg.startsWith('--watch=') ||
+      arg === '--ext' ||
+      arg.startsWith('--ext=') ||
+      arg === '--delay' ||
+      arg.startsWith('--delay=')
+    ) {
+      throw new Error(`--watch/--ext/--delay are not supported with the start subcommand`);
+    }
+  }
+
   const result = parseDevArgs(argv);
-  return { handlerPath: result.appPath, options: result.options };
+  return {
+    handlerPath: result.appPath,
+    options: result.options,
+    require: result.require,
+    env: result.env,
+  };
 }
 
 function parseBuildArgs(argv: string[]): BuildArgs {
@@ -416,6 +549,182 @@ export async function loadApp(appPath: string): Promise<Express> {
     );
   }
   return resolveExport(exported, appPath);
+}
+
+// ---------------------------------------------------------------------------
+// Preload helpers (env files + --require modules)
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse env file content as KEY=VALUE lines. Supports `export` prefix,
+ * single/double-quoted values, and `#` comments. Returns parsed entries.
+ *
+ * Exported for direct unit testing.
+ */
+export function parseEnvFile(content: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const line of content.split('\n')) {
+    let trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    // Strip optional `export ` prefix
+    if (trimmed.startsWith('export ')) trimmed = trimmed.slice('export '.length).trim();
+    const eqIndex = trimmed.indexOf('=');
+    if (eqIndex === -1) continue;
+    const key = trimmed.slice(0, eqIndex).trim();
+    let value = trimmed.slice(eqIndex + 1).trim();
+    // Remove surrounding quotes (single or double)
+    if (value.length >= 2) {
+      const first = value[0];
+      const last = value[value.length - 1];
+      if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+        value = value.slice(1, -1);
+      }
+    }
+    result[key] = value;
+  }
+  return result;
+}
+
+/**
+ * Load env files into `process.env`. Existing environment variables are
+ * **not** overridden (consistent with dotenv's default behavior). Missing
+ * files throw with a friendly message.
+ *
+ * Exported for direct unit testing.
+ */
+export function loadEnvFiles(paths: string[]): void {
+  for (const p of paths) {
+    const absPath = pathResolve(process.cwd(), p);
+    if (!existsSync(absPath)) {
+      throw new Error(`Env file not found: ${p}`);
+    }
+    const content = readFileSync(absPath, 'utf8');
+    const parsed = parseEnvFile(content);
+    for (const [key, value] of Object.entries(parsed)) {
+      if (process.env[key] === undefined) {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
+const moduleRequire: NodeRequire = createRequire(
+  (typeof import.meta !== 'undefined' && import.meta.url) || pathResolve(process.cwd(), 'x').replace(/x$/, ''),
+);
+
+/**
+ * Preload modules (e.g. `tsconfig-paths/register`, `dotenv/config`) before
+ * loading the app module. Each module is `require()`-ed, running its
+ * side effects (registering hooks, loading configs, etc.).
+ *
+ * Exported for direct unit testing.
+ */
+export async function preloadModules(modules: string[]): Promise<void> {
+  for (const mod of modules) {
+    moduleRequire(mod);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Watch mode (dev only)
+// ---------------------------------------------------------------------------
+
+/**
+ * Reconstruct the argv for the child process, stripping --watch/--ext/--delay
+ * flags (the child runs without watch mode).
+ *
+ * Exported for direct unit testing.
+ */
+export function buildChildArgs(args: DevArgs): string[] {
+  const result: string[] = ['dev', args.appPath];
+  if (args.options.port !== undefined) result.push('--port', String(args.options.port));
+  if (args.options.host !== undefined) result.push('--host', args.options.host);
+  if (args.options.signals === false) result.push('--no-signals');
+  if (args.options.shutdownTimeout !== undefined)
+    result.push('--shutdown-timeout', String(args.options.shutdownTimeout));
+  for (const r of args.require) result.push('--require', r);
+  for (const e of args.env) result.push('--env', e);
+  return result;
+}
+
+/**
+ * Run the CLI in watch mode. Forks a child process running the same CLI
+ * without --watch, watches the specified paths for file changes, and
+ * restarts the child (SIGTERM → respawn) on changes matching the given
+ * extensions. Uses Node 20+'s `fs.watch` with `{ recursive: true }`.
+ */
+export function runWithWatch(args: DevArgs): void {
+  const cliPath = process.argv[1];
+  const childArgv = buildChildArgs(args);
+  let child: ChildProcess | null = null;
+  let restartTimer: ReturnType<typeof setTimeout> | null = null;
+  let isShuttingDown = false;
+  const restartDelay = args.watchDelay;
+
+  const spawnChild = (): void => {
+    child = fork(cliPath, childArgv, { stdio: 'inherit' });
+    child.on('exit', (code) => {
+      child = null;
+      if (!isShuttingDown && code !== null && code !== 0) {
+        // On crash, keep the watcher running so the next file change respawns.
+      }
+    });
+  };
+
+  const killChild = (): Promise<void> => {
+    return new Promise((resolve) => {
+      if (!child || !child.pid) {
+        resolve();
+        return;
+      }
+      child.once('exit', () => resolve());
+      child.kill('SIGTERM');
+    });
+  };
+
+  const restart = async (): Promise<void> => {
+    await killChild();
+    spawnChild();
+  };
+
+  const debouncedRestart = (): void => {
+    if (restartTimer) clearTimeout(restartTimer);
+    restartTimer = setTimeout(() => {
+      restartTimer = null;
+      void restart();
+    }, restartDelay);
+  };
+
+  // Start watching
+  for (const watchPath of args.watch) {
+    const absPath = pathResolve(process.cwd(), watchPath);
+    if (!existsSync(absPath)) {
+      throw new Error(`Watch path not found: ${watchPath}`);
+    }
+    watch(absPath, { recursive: true }, (_eventType, filename) => {
+      if (!filename) return;
+      const ext = extname(filename).slice(1).toLowerCase();
+      if (args.watchExt.includes(ext)) {
+        debouncedRestart();
+      }
+    });
+  }
+
+  // Forward parent signals to child, then exit
+  const shutdown = (): void => {
+    isShuttingDown = true;
+    if (restartTimer) clearTimeout(restartTimer);
+    if (child && child.pid) {
+      child.once('exit', () => process.exit(0));
+      child.kill('SIGTERM');
+    } else {
+      process.exit(0);
+    }
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+
+  spawnChild();
 }
 
 // ---------------------------------------------------------------------------
