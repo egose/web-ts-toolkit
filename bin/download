@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+# asdf wtt: download the release artifact for a version tag.
+#
+# The release workflow publishes a prebuilt archive named
+# wtt-<version>.tar.gz to the GitHub release for v<version>.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WTT_HELPERS="${SCRIPT_DIR}/lib/wtt.sh"
+# shellcheck source=bin/lib/wtt.sh
+. "$WTT_HELPERS"
+
+tool_name="wtt"
+version="$ASDF_INSTALL_VERSION"
+download_path="$ASDF_DOWNLOAD_PATH"
+
+github_coordinates="${WTT_GITHUB_REPOSITORY:-$(wtt_resolve_github_coordinates "$SCRIPT_DIR")}"
+
+filename="${tool_name}-${version}.tar.gz"
+download_url="https://github.com/${github_coordinates}/releases/download/v${version}/${filename}"
+outfile="${download_path}/${filename}"
+
+mkdir -p "$download_path"
+
+echo "Downloading $tool_name v$version from $download_url ..."
+
+if curl -L --fail --connect-timeout 10 --retry 3 "${download_url}" -o "${outfile}"; then
+  echo "Download successful: $outfile"
+  exit 0
+fi
+
+releases_json=$(wtt_fetch_releases "$github_coordinates")
+
+if ! wtt_release_exists "$releases_json" "$version"; then
+  echo "Error: release v${version} was not found in ${github_coordinates}." >&2
+  exit 1
+fi
+
+if ! wtt_release_has_asset "$releases_json" "$version" "$filename"; then
+  echo "Error: release v${version} exists, but it does not include ${filename}." >&2
+  echo "Install one of the versions from 'asdf list all ${tool_name}', or publish the missing release artifact for v${version}." >&2
+  exit 1
+fi
+
+echo "Error: failed to download ${tool_name} v${version} from ${download_url}" >&2
+exit 1
