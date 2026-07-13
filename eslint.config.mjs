@@ -7,7 +7,7 @@ export default tseslint.config(
     ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'],
   },
   {
-    ignores: ['packages/access-router/_tmp_examples/**', 'website/**'],
+    ignores: ['packages/access-router/_tmp_examples/**', 'website/**', 'packages/create-access-router-mongo-starter/template/**'],
   },
   {
     files: ['**/*.{js,mjs,cjs,ts,mts,cts}'],
