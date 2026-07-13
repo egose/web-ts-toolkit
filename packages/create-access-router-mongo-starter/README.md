@@ -61,3 +61,38 @@ create-access-router-mongo-starter/
   tsup.config.ts
   package.json
 ```
+
+## Publish Checklist
+
+Use this before releasing `create-access-router-mongo-starter` to npm:
+
+1. Build and typecheck the package:
+
+   ```sh
+   pnpm --dir packages/create-access-router-mongo-starter build
+   pnpm --dir packages/create-access-router-mongo-starter typecheck
+   ```
+
+2. Verify the published tarball contents locally:
+
+   ```sh
+   pnpm --dir packages/create-access-router-mongo-starter build
+   npm pack --dry-run --prefix packages/create-access-router-mongo-starter
+   ```
+
+3. Dry-run the repo publish flow for this package:
+
+   ```sh
+   pnpm publish-packages -- --version v0.0.0-test --filter create-access-router-mongo-starter --dry-run
+   ```
+
+4. Release through the repo's normal tag-based workflow:
+
+   ```sh
+   pnpm release
+   git push --follow-tags
+   ```
+
+The GitHub workflow in `.github/workflows/publish.yml` publishes all eligible
+`packages/*` entries on version tags, and this package is already wired into
+that flow.
