@@ -1,19 +1,33 @@
 {
   "name": "create-access-router-mongo-starter",
-  "version": "0.0.0",
-  "private": true,
   "description": "Scaffold a new access-router + MongoDB CRUD app from the web-ts-toolkit starter template",
-  "bin": {
-    "create-access-router-mongo-starter": "dist/cli.js"
+  "version": "0.0.0-PLACEHOLDER",
+  "author": "PLACEHOLDER",
+  "license": "PLACEHOLDER",
+  "repository": "PLACEHOLDER",
+  "homepage": "https://github.com/egose/web-ts-toolkit/tree/main/packages/create-access-router-mongo-starter",
+  "bugs": {
+    "url": "https://github.com/egose/web-ts-toolkit/issues"
   },
+  "keywords": [
+    "create",
+    "scaffold",
+    "starter",
+    "template",
+    "mongodb",
+    "access-router",
+    "vite",
+    "react",
+    "express"
+  ],
+  "bin": "dist/cli.js",
   "scripts": {
-    "build": "tsup --config tsup.config.ts",
+    "build": "tsup --config tsup.config.ts && node scripts/stage-template.mjs",
     "typecheck": "tsc --noEmit"
   },
   "files": [
     "README.md",
-    "dist",
-    "template"
+    "dist"
   ],
   "dependencies": {
     "@clack/prompts": "^1.7.0"

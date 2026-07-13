@@ -18,7 +18,7 @@ TypeScript packages for backend and web tooling.
 
 ## Starter template
 
-- `create-access-router-mongo-starter`: scaffolds a fullstack CRUD starter (Express + access-router + MongoDB + React/Vite) with Netlify deployment support into an existing repo. The template source is bundled inside the package under `template/`.
+- `create-access-router-mongo-starter`: scaffolds a fullstack CRUD starter (Express + access-router + MongoDB + React/Vite) with Netlify deployment support into an existing repo. The published CLI ships with a bundled staged template.
 
 ## Development
 

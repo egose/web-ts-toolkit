@@ -6,11 +6,17 @@ an existing repository.
 ## Usage
 
 ```sh
-# From within the web-ts-toolkit monorepo
-pnpm create-access-router-mongo-starter ./apps/my-app --name my-app
+# npx downloads and runs the published package automatically
+npx create-access-router-mongo-starter ./apps/my-app --name my-app
+
+# npm 7+ shorthand
+npm create access-router-mongo-starter ./apps/my-app --name my-app
+
+# pnpm shorthand
+pnpm create access-router-mongo-starter ./apps/my-app --name my-app
 
 # Interactive mode
-pnpm create-access-router-mongo-starter -i
+npx create-access-router-mongo-starter -i
 ```
 
 ## Options
@@ -34,20 +40,24 @@ pnpm create-access-router-mongo-starter -i
    all copied files.
 3. Prints next steps for local development and Netlify deployment.
 
+For npm publishing, the package build stages the bundled template into
+`dist/template/` so the released CLI can scaffold without needing the source
+workspace layout.
+
 ## Layout
 
 ```
 create-access-router-mongo-starter/
   src/
     cli.ts          # CLI entry — built to dist/cli.js by tsup
-  template/         # the starter source (copied at scaffold time)
+  template/         # the source starter template used during local development
     api/            # Express + access-router + Mongoose backend
     src/            # Vite + React frontend
     scripts/        # deploy-shared.ts + deploy-netlify.ts
     tests/
     package.json    # template with {{APP_NAME}} placeholder
     ...
-  dist/             # tsup build output
+  dist/             # built CLI plus staged template for npm publishing
   tsup.config.ts
   package.json
 ```

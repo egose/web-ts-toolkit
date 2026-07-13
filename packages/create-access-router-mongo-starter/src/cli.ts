@@ -5,7 +5,7 @@
  *   npx create-access-router-mongo-starter <target-dir> [options]
  *   pnpm create-access-router-mongo-starter <target-dir> [options]
  *
- * Copies the template from the sibling `access-router-mongo-starter` package,
+ * Copies the bundled starter template,
  * rewrites `{{APP_NAME}}`, `{{APP_TITLE}}`, and `{{DB_NAME}}` placeholders, and
  * prints next steps.
  */
@@ -18,9 +18,12 @@ import { cancel, intro, isCancel, outro, text } from '@clack/prompts';
 // Constants
 // ---------------------------------------------------------------------------
 
-// Works in both ESM (import.meta.url) and CJS (__dirname after tsup build).
+// Prefer a bundled template next to the built CLI (`dist/template`) and fall
+// back to the source template directory for local `tsx src/cli.ts` execution.
 const SCRIPT_DIR = typeof __dirname !== 'undefined' ? __dirname : fileURLToPath(new URL('.', import.meta.url));
-const TEMPLATE_DIR = resolve(SCRIPT_DIR, '..', 'template');
+const BUNDLED_TEMPLATE_DIR = resolve(SCRIPT_DIR, 'template');
+const SOURCE_TEMPLATE_DIR = resolve(SCRIPT_DIR, '..', 'template');
+const TEMPLATE_DIR = existsSync(BUNDLED_TEMPLATE_DIR) ? BUNDLED_TEMPLATE_DIR : SOURCE_TEMPLATE_DIR;
 
 const EXCLUDE_PATTERNS = [
   'node_modules',
