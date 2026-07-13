@@ -40,7 +40,8 @@
     "node": ">=20"
   },
   "dependencies": {
-    "serverless-http": "^4.0.0"
+    "serverless-http": "^4.0.0",
+    "tsup": "^8.5.1"
   },
   "peerDependencies": {
     "express": ">=5.0.0"
