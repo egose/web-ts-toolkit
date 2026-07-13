@@ -1,3 +1,17 @@
+## [0.10.0](https://github.com/egose/web-ts-toolkit/compare/v0.9.0...v0.10.0) (2026-07-13)
+
+### Features
+
+* add access-router mongo starter package and template ([19161d4](https://github.com/egose/web-ts-toolkit/commit/19161d4b0de9853cb75044b8a3b80fed674f8445))
+* add publish checklist and improve bundled template handling ([43c0e16](https://github.com/egose/web-ts-toolkit/commit/43c0e162a91d8fe029a0499e1c70480d1e376791))
+* **create-access-router-mongo-starter:** bundle and stage the published starter template ([f082507](https://github.com/egose/web-ts-toolkit/commit/f08250758b3e3bbd8b9e0fbac2d6295bcfb7e53b))
+* **express-runtime:** bundle serverless builds with tsup at runtime ([6deae5f](https://github.com/egose/web-ts-toolkit/commit/6deae5f252841ddacb314673ff0b8f0e22ed5a49))
+
+### Documentation
+
+* add release checklist for publishing the starter package ([8a3fe88](https://github.com/egose/web-ts-toolkit/commit/8a3fe88be4b80824f86316092800d65a58fb4a3a))
+* **express-runtime:** update build command guidance and references ([d6fac34](https://github.com/egose/web-ts-toolkit/commit/d6fac34abab957503818ea944247daca5855e0bf))
+
 ## [0.9.0](https://github.com/egose/web-ts-toolkit/compare/v0.8.0...v0.9.0) (2026-07-12)
 
 ### Features
