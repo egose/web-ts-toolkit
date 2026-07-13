@@ -138,7 +138,7 @@ Notes:
     For advanced dotenv features (multiline, expansion), --require dotenv/config instead.
   - --watch forks a child process running the same CLI without --watch. On file change,
     the child is killed (SIGTERM) and respawned after the debounce delay.
-  - In build mode, tsup is required: pnpm add -D tsup
+  - In build mode, express is always external. Add more externals with --external.
   - In start mode, the bundled handler file must be a JS/CJS module whose "handler"
     export (or default export) is a function: (event, context) => Promise<result>.
   - Init logic for dev mode (DB connections, etc.): add at the top level of your app module.
@@ -761,21 +761,15 @@ export function generateServerlessEntry(appPath: string, initPath?: string): str
 }
 
 /**
- * Bundle an Express app as a serverless handler using tsup. Writes a temporary
- * entry file to the user's cwd (for node_modules resolution), runs tsup, then
- * cleans up.
+ * Bundle an Express app as a serverless handler. Writes a temporary entry file
+ * to the user's cwd (for node_modules resolution), lazy-loads the bundled
+ * build tool, then cleans up.
  *
  * `express` is always external; additional externals can be passed via
- * `BuildArgs.external`. `tsup` must be installed (lazy `import('tsup')`).
+ * `BuildArgs.external`.
  */
 export async function buildServerless(args: BuildArgs): Promise<void> {
-  let tsupModule: typeof import('tsup');
-  try {
-    tsupModule = await import('tsup');
-  } catch {
-    throw new Error('`tsup` is required for the `build` command. Install it as a dev dependency:\n  pnpm add -D tsup');
-  }
-
+  const tsupModule: typeof import('tsup') = await import('tsup');
   const { build } = tsupModule;
   const entryContent = generateServerlessEntry(args.appPath, args.initPath);
   const tempEntryPath = pathResolve(process.cwd(), TEMP_ENTRY_FILENAME);
