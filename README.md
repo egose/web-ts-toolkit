@@ -16,6 +16,10 @@ TypeScript packages for backend and web tooling.
 - `@web-ts-toolkit/moo`: Mongoose helpers for schema fields, ObjectId checks, and document plugins
 - `@web-ts-toolkit/utils`: shared collection, object, async, and URL helpers used across workspace packages
 
+## Starter template
+
+- `create-access-router-mongo-starter`: scaffolds a fullstack CRUD starter (Express + access-router + MongoDB + React/Vite) with Netlify deployment support into an existing repo. The template source is bundled inside the package under `template/`.
+
 ## Development
 
 Install dependencies:

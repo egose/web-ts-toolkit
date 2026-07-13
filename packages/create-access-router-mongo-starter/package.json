@@ -1,0 +1,29 @@
+{
+  "name": "create-access-router-mongo-starter",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Scaffold a new access-router + MongoDB CRUD app from the web-ts-toolkit starter template",
+  "bin": {
+    "create-access-router-mongo-starter": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "files": [
+    "README.md",
+    "dist",
+    "template"
+  ],
+  "dependencies": {
+    "@clack/prompts": "^1.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsup": "^8.5.1",
+    "tsx": "^4.20.6"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
