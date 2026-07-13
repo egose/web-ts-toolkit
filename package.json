@@ -33,9 +33,9 @@
     "@commitlint/format": "^20.5.0",
     "@eslint/js": "^10.0.1",
     "@release-it/bumper": "^7.0.6",
-    "@repo-toolkit/changelog": "^0.7.1",
-    "@repo-toolkit/publish-packages": "^0.7.1",
-    "@repo-toolkit/release-artifact": "^0.7.1",
+    "@repo-toolkit/changelog": "^0.7.2",
+    "@repo-toolkit/publish-packages": "^0.7.2",
+    "@repo-toolkit/release-artifact": "^0.7.2",
     "@types/node": "^25.9.5",
     "eslint": "10.3.0",
     "globals": "^17.7.0",
@@ -43,7 +43,7 @@
     "release-it": "^20.2.1",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.63.0",
+    "typescript-eslint": "^8.64.0",
     "vitest": "^4.1.10"
   }
 }
