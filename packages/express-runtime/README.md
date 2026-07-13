@@ -25,7 +25,7 @@ pnpm add @web-ts-toolkit/express-runtime express
   shutdown that drains in-flight requests, and a configurable timeout.
 - CLI binary with three subcommands:
   - `dev` — run an Express app as a local dev server
-  - `build` — bundle the app as a serverless handler using `tsup`
+  - `build` — bundle the app as a serverless handler
   - `start` — smoke-test the bundled handler locally by translating HTTP ↔ serverless events
 
 ## Quick Start
@@ -134,8 +134,7 @@ npx tsx ./node_modules/@web-ts-toolkit/express-runtime/dist/cli.js dev ./src/app
 ### CLI — build (serverless bundle)
 
 The `build` command generates a temporary serverless entry that wraps the app
-with `createServerlessHandler`, then bundles it with `tsup` into a
-deployment-ready file:
+with `createServerlessHandler`, then bundles it into a deployment-ready file:
 
 ```sh
 npx wtt-express-runtime build ./src/app.ts --out-dir netlify/functions
@@ -158,8 +157,8 @@ This produces `netlify/functions/handler.js` (configurable via `--out-name`)
 that exports a `handler` function compatible with Netlify, Vercel, AWS Lambda,
 and any platform that calls `(event, context)`.
 
-> `tsup` is required for `build`: `pnpm add -D tsup`. `express` is always
-> external; additional externals can be added via `--external`.
+> `express` is always external; additional externals can be added via
+> `--external`.
 
 ### CLI — start (run a bundled handler locally)
 
@@ -302,7 +301,7 @@ Omitting `<command>` defaults to `dev` for backward compatibility.
 | Command | Description                                                                         |
 | ------- | ----------------------------------------------------------------------------------- |
 | `dev`   | Run the Express app as a local dev server (`http.createServer` + graceful shutdown) |
-| `build` | Bundle the Express app as a serverless handler using `tsup`                         |
+| `build` | Bundle the Express app as a serverless handler                                      |
 | `start` | Run a bundled serverless handler locally (HTTP ↔ serverless event adapter)          |
 
 #### dev options
@@ -357,10 +356,10 @@ exit the process after the server drains. TypeScript app modules require a TS
 loader (see the Quick Start CLI section for a `tsx` invocation).
 
 The `build` command generates a temporary entry file that imports the app
-module and wraps it with `createServerlessHandler`, then invokes `tsup` to
-produce a self-contained bundle. `express` is always external; all other
-dependencies (including `@web-ts-toolkit/express-runtime` and `serverless-http`)
-are bundled into the output unless marked external via `--external`.
+module and wraps it with `createServerlessHandler`, then produces a
+self-contained bundle. `express` is always external; all other dependencies
+(including `@web-ts-toolkit/express-runtime` and `serverless-http`) are
+bundled into the output unless marked external via `--external`.
 
 ## License
 
