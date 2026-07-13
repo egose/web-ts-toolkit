@@ -1,3 +1,9 @@
+## [0.10.3](https://github.com/egose/web-ts-toolkit/compare/v0.10.2...v0.10.3) (2026-07-13)
+
+### Documentation
+
+* **{{APP_NAME}}:** add template skill guides and agent index ([b9844c5](https://github.com/egose/web-ts-toolkit/commit/b9844c5b330c53bbab884ee12a927eccb1e6990d))
+
 ## [0.10.2](https://github.com/egose/web-ts-toolkit/compare/v0.10.1...v0.10.2) (2026-07-13)
 
 ## [0.10.1](https://github.com/egose/web-ts-toolkit/compare/v0.10.0...v0.10.1) (2026-07-13)
