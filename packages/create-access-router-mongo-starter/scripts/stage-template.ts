@@ -6,13 +6,13 @@ const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sourceTemplateDir = resolve(rootDir, 'template');
 const stagedTemplateDir = resolve(rootDir, 'dist', 'template');
 
-const EXCLUDED_PATHS = ['node_modules', 'dist', '.tmp', '.netlify', 'netlify', 'netlify.toml', 'api/functions'];
+export const EXCLUDED_PATHS = ['node_modules', 'dist', '.tmp', '.netlify', 'netlify', 'netlify.toml', 'api/functions'];
 
-function normalize(pathValue: string): string {
+export function normalize(pathValue: string): string {
   return pathValue.replace(/\\/g, '/');
 }
 
-function isExcluded(relativePath: string): boolean {
+export function isExcluded(relativePath: string): boolean {
   return EXCLUDED_PATHS.some((excluded) => relativePath === excluded || relativePath.startsWith(`${excluded}/`));
 }
 
