@@ -1,3 +1,9 @@
+## [0.11.0](https://github.com/egose/web-ts-toolkit/compare/v0.10.3...v0.11.0) (2026-07-14)
+
+### Features
+
+* move deployment tooling into package binaries and refresh starter docs ([12dc5d7](https://github.com/egose/web-ts-toolkit/commit/12dc5d77f004894dc52b511cf214216c485c72ba))
+
 ## [0.10.3](https://github.com/egose/web-ts-toolkit/compare/v0.10.2...v0.10.3) (2026-07-13)
 
 ### Documentation
