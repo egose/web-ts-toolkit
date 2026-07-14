@@ -162,6 +162,33 @@ export function run(cmd: string, args: string[], env: NodeJS.ProcessEnv, dry: bo
   if (r.status !== 0) bail(`Command failed (exit ${r.status}): ${pretty}`);
 }
 
+/**
+ * Run a command and capture stdout (stderr is inherited for live output).
+ * Returns the raw stdout string. In dry-run mode, prints the command and
+ * returns an empty string.
+ */
+export function runCapture(
+  cmd: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  dry: boolean,
+  cwd: string = SOURCE_DIR,
+): string {
+  const pretty = `${cmd} ${args.join(' ')}`;
+  const cwdTag = cwd !== SOURCE_DIR ? `  (cwd: ${cwd})` : '';
+  console.log(`\n$ ${pretty}${cwdTag}`);
+  if (dry) return '';
+  const r = spawnSync(cmd, args, { stdio: ['ignore', 'pipe', 'inherit'], cwd, env, shell: false, encoding: 'utf-8' });
+  if (r.error) {
+    if ((r.error as NodeJS.ErrnoException).code === 'ENOENT') {
+      bail(`Command not found: ${cmd}. Install it or add it to PATH.`);
+    }
+    throw r.error;
+  }
+  if (r.status !== 0) bail(`Command failed (exit ${r.status}): ${pretty}`);
+  return r.stdout ?? '';
+}
+
 // ---------------------------------------------------------------------------
 // Build
 // ---------------------------------------------------------------------------
