@@ -1,3 +1,9 @@
+## [0.14.0](https://github.com/egose/web-ts-toolkit/compare/v0.13.1...v0.14.0) (2026-07-14)
+
+### Features
+
+* **create-access-router-mongo-starter:** bundle netlify cli for deploy script ([95e22a4](https://github.com/egose/web-ts-toolkit/commit/95e22a4d501597f19a55c4bb57212c34366dc6cb))
+
 ## [0.13.1](https://github.com/egose/web-ts-toolkit/compare/v0.13.0...v0.13.1) (2026-07-14)
 
 ## [0.13.0](https://github.com/egose/web-ts-toolkit/compare/v0.12.0...v0.13.0) (2026-07-14)
