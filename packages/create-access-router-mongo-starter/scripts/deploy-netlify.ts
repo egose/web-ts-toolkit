@@ -20,8 +20,7 @@
  * unless `--keep-sandbox` is passed.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
 import { cancel, confirm, intro, isCancel, outro, password, select, text } from '@clack/prompts';
 import {
   bail,
@@ -48,12 +47,6 @@ import {
 } from './netlify-api';
 
 // ---------------------------------------------------------------------------
-// Pinned Netlify CLI spec for npx fallback
-// ---------------------------------------------------------------------------
-
-const NETLIFY_CLI_SPEC = 'netlify-cli@^18';
-
-// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -71,6 +64,11 @@ interface NetlifyDeployResult {
 }
 
 type EnvPresenceCheck = 'present' | 'missing' | 'unknown';
+
+interface NetlifyCli {
+  command: string;
+  argsPrefix: string[];
+}
 
 // ---------------------------------------------------------------------------
 // Env presence helpers
@@ -98,8 +96,52 @@ function envScopeLabel(options: Pick<NetlifyOptions, 'paidTier'>): string {
   return options.paidTier ? 'functions' : 'all scopes (free-tier compatible)';
 }
 
+function resolveNetlifyCli(): NetlifyCli {
+  if (typeof require !== 'function') {
+    bail(
+      'The Netlify deploy bin must run from the built package so it can resolve its bundled netlify-cli dependency.',
+    );
+  }
+
+  try {
+    const packageJsonPath = require.resolve('netlify-cli/package.json');
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { bin?: string | Record<string, string> };
+    const binPath = typeof packageJson.bin === 'string' ? packageJson.bin : packageJson.bin?.netlify;
+    if (!binPath)
+      bail('Could not resolve the installed netlify-cli binary. Reinstall create-access-router-mongo-starter.');
+    return {
+      command: process.execPath,
+      argsPrefix: [resolve(dirname(packageJsonPath), binPath)],
+    };
+  } catch {
+    bail('Could not find the bundled netlify-cli dependency. Reinstall create-access-router-mongo-starter.');
+  }
+}
+
+function runNetlify(
+  cli: NetlifyCli,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  dryRun: boolean,
+  cwd: string,
+  secrets: string[] = [],
+): void {
+  run(cli.command, [...cli.argsPrefix, ...args], env, dryRun, cwd, secrets);
+}
+
+function runCaptureNetlify(
+  cli: NetlifyCli,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  dryRun: boolean,
+  cwd: string,
+  secrets: string[] = [],
+): string {
+  return runCapture(cli.command, [...cli.argsPrefix, ...args], env, dryRun, cwd, secrets);
+}
+
 function verifyEnvPresence(
-  bin: 'netlify' | 'npx',
+  cli: NetlifyCli,
   env: NodeJS.ProcessEnv,
   cwd: string,
   authToken: string,
@@ -112,10 +154,7 @@ function verifyEnvPresence(
   const args = ['env:list', '--json', '--auth', authToken, '--site', siteRef, ...envScopeArgs({ paidTier })];
   if (context) args.push('--context', context);
 
-  const stdout =
-    bin === 'netlify'
-      ? runCapture('netlify', args, env, false, cwd, secrets)
-      : runCapture('npx', ['-y', '-p', NETLIFY_CLI_SPEC, 'netlify', ...args], env, false, cwd, secrets);
+  const stdout = runCaptureNetlify(cli, args, env, false, cwd, secrets);
 
   if (!stdout.trim()) return 'unknown';
 
@@ -575,15 +614,6 @@ async function prompt(options: NetlifyOptions): Promise<NetlifyOptions> {
 }
 
 // ---------------------------------------------------------------------------
-// Netlify binary resolution
-// ---------------------------------------------------------------------------
-
-function netlifyBinary(): 'netlify' | 'npx' {
-  const r = spawnSync('netlify', ['--version'], { stdio: 'ignore', shell: false });
-  return r.status === 0 ? 'netlify' : 'npx';
-}
-
-// ---------------------------------------------------------------------------
 // Deploy
 // ---------------------------------------------------------------------------
 
@@ -680,7 +710,7 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
   // --- Netlify-specific deploy ---
   ensureNetlifyToml(options, paths);
 
-  const bin = netlifyBinary();
+  const cli = resolveNetlifyCli();
   const secrets = collectSecrets(options.authToken, options.mongodbUri);
 
   const deployArgs: string[] = [
@@ -703,26 +733,14 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
   deployArgs.push('--json');
 
   console.log('\n─ Deploying to Netlify ─');
-  let stdout: string;
-  if (bin === 'netlify') {
-    stdout = runCapture(
-      'netlify',
-      ['deploy', ...deployArgs],
-      prepared.buildEnv,
-      options.dryRun,
-      paths.deployDir,
-      secrets,
-    );
-  } else {
-    stdout = runCapture(
-      'npx',
-      ['-y', '-p', NETLIFY_CLI_SPEC, 'netlify', 'deploy', ...deployArgs],
-      prepared.buildEnv,
-      options.dryRun,
-      paths.deployDir,
-      secrets,
-    );
-  }
+  const stdout = runCaptureNetlify(
+    cli,
+    ['deploy', ...deployArgs],
+    prepared.buildEnv,
+    options.dryRun,
+    paths.deployDir,
+    secrets,
+  );
 
   if (!options.dryRun && stdout) {
     try {
@@ -750,23 +768,12 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
       ...envScopeArgs(options),
     ];
     if (options.context) envSetArgs.push('--context', options.context);
-    if (bin === 'netlify') {
-      run('netlify', envSetArgs, prepared.buildEnv, options.dryRun, paths.deployDir, secrets);
-    } else {
-      run(
-        'npx',
-        ['-y', '-p', NETLIFY_CLI_SPEC, 'netlify', ...envSetArgs],
-        prepared.buildEnv,
-        options.dryRun,
-        paths.deployDir,
-        secrets,
-      );
-    }
+    runNetlify(cli, envSetArgs, prepared.buildEnv, options.dryRun, paths.deployDir, secrets);
     console.log('  OK — runtime function env updated.');
 
     console.log(`\n─ Verifying MONGODB_URI on the site (scope=${scopeLabel}, context=${envContextLabel}) ─`);
     const presence = verifyEnvPresence(
-      bin,
+      cli,
       prepared.buildEnv,
       paths.deployDir,
       options.authToken!,

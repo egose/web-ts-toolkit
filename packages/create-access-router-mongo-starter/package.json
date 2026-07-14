@@ -35,7 +35,8 @@
     "dist"
   ],
   "dependencies": {
-    "@clack/prompts": "^1.7.0"
+    "@clack/prompts": "^1.7.0",
+    "netlify-cli": "26.2.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
