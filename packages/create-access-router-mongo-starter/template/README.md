@@ -126,6 +126,24 @@ pnpm --dir <app-dir> exec create-access-router-mongo-starter-deploy-netlify --ep
 Run `... -- --help` for the full list of options, or `-i` for interactive
 prompts.
 
+### Deploy to staging / preview
+
+To create a draft deploy at a predictable URL instead of production, use
+`--alias`:
+
+```sh
+pnpm --dir <app-dir> exec create-access-router-mongo-starter-deploy-netlify --site <site> --alias staging
+```
+
+This produces a URL like `https://staging--<site-name>.netlify.app`.
+
+To set Netlify deploy context for environment variables (e.g.
+`branch:staging`, `deploy-preview`), pass `--context <ctx>`. This is
+forwarded to both `netlify deploy` and `netlify env:set`.
+
+The deploy URL is printed at the end of a successful deploy
+(`🌐 Deploy URL: …`), parsed from the Netlify CLI JSON output.
+
 ## Adding auth
 
 1. Declare permission keys in `api/src/access-router.d.ts`.
