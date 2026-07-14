@@ -27,6 +27,7 @@ import {
   bail,
   buildArtifacts,
   cleanupSandbox,
+  collectSecrets,
   keepSandboxOnFailure,
   projectRootOf,
   resolvePaths,
@@ -37,22 +38,24 @@ import {
   type DeployPaths,
   type SharedDeployOptions,
 } from './deploy-shared';
+import {
+  createSite,
+  defaultApiBaseUrl,
+  fetchSiteByName,
+  resolveSiteId,
+  resolveSiteTarget,
+  validateSiteName,
+} from './netlify-api';
 
 // ---------------------------------------------------------------------------
-// Netlify API
+// Pinned Netlify CLI spec for npx fallback
 // ---------------------------------------------------------------------------
 
-const NETLIFY_API = 'https://api.netlify.com/api/v1';
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SITE_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/i;
+const NETLIFY_CLI_SPEC = 'netlify-cli@^18';
 
-const defaultApiBaseUrl = (functionsName: string) => `/.netlify/functions/${functionsName}`;
-
-interface NetlifySite {
-  id?: string;
-  site_id?: string;
-  name?: string;
-}
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface NetlifyDeployResultLinks {
   deploy_url?: string;
@@ -67,106 +70,61 @@ interface NetlifyDeployResult {
   links?: NetlifyDeployResultLinks;
 }
 
-function bailOnAuth(status: number, body: string, action: string): never {
-  const msg =
-    status === 401
-      ? 'Netlify auth token is invalid or expired. The API responded with 401 Access Denied.'
-      : `Netlify API error (${status}) during ${action}: ${body}`;
-  bail(msg);
-}
+type EnvPresenceCheck = 'present' | 'missing' | 'unknown';
 
-async function fetchSiteById(authToken: string, id: string): Promise<NetlifySite | null> {
-  const res = await fetch(`${NETLIFY_API}/sites/${encodeURIComponent(id)}`, {
-    headers: { Authorization: `Bearer ${authToken}` },
-  });
-  if (res.ok) return (await res.json()) as NetlifySite;
-  if (res.status === 404) return null;
-  const body = await res.text();
-  if (res.status === 401) bailOnAuth(res.status, body, `looking up site "${id}"`);
-  return null;
-}
+// ---------------------------------------------------------------------------
+// Env presence helpers
+// ---------------------------------------------------------------------------
 
-async function fetchSiteByName(authToken: string, name: string): Promise<NetlifySite | null> {
-  const res = await fetch(`${NETLIFY_API}/sites?filter=${encodeURIComponent(name)}&per_page=100`, {
-    headers: { Authorization: `Bearer ${authToken}` },
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    bailOnAuth(res.status, body, 'listing sites');
+function jsonContainsEnvKey(value: unknown, envKey: string): boolean {
+  if (Array.isArray(value)) {
+    return value.some((item) => jsonContainsEnvKey(item, envKey));
   }
-  const arr = (await res.json()) as NetlifySite[];
-  return arr.find((s) => s.name === name) ?? null;
+
+  if (!value || typeof value !== 'object') return false;
+
+  const record = value as Record<string, unknown>;
+  if (record.key === envKey || record.name === envKey) return true;
+  if (envKey in record) return true;
+
+  return Object.values(record).some((item) => jsonContainsEnvKey(item, envKey));
 }
 
-async function canAccessSite(authToken: string, siteRef: string): Promise<boolean> {
-  const site = UUID_RE.test(siteRef)
-    ? await fetchSiteById(authToken, siteRef)
-    : await fetchSiteByName(authToken, siteRef);
-  if (!site && !UUID_RE.test(siteRef)) {
-    const byId = await fetchSiteById(authToken, siteRef);
-    return byId !== null;
-  }
-  return site !== null;
+function envScopeArgs(options: Pick<NetlifyOptions, 'paidTier'>): string[] {
+  return options.paidTier ? ['--scope', 'functions'] : [];
 }
 
-/**
- * Create a new site on Netlify.
- *   - Returns the new site on success (name was available).
- *   - Returns `null` on HTTP 422 (name is globally taken — possibly by the
- *     caller's own account, possibly by another user). The caller should
- *     then check `fetchSiteByName` to distinguish the two cases.
- *   - Bails with a clear message on any other error.
- */
-async function createSite(authToken: string, name: string, teamSlug?: string): Promise<NetlifySite | null> {
-  const url = teamSlug ? `${NETLIFY_API}/sites?account_slug=${encodeURIComponent(teamSlug)}` : `${NETLIFY_API}/sites`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
-  });
-  if (res.ok) return (await res.json()) as NetlifySite;
-  if (res.status === 422) return null; // name globally taken
-  const body = await res.text();
-  if (res.status === 401) bailOnAuth(res.status, body, `creating site "${name}"`);
-  bail(`Netlify API error (${res.status}) creating site "${name}": ${body}`);
+function envScopeLabel(options: Pick<NetlifyOptions, 'paidTier'>): string {
+  return options.paidTier ? 'functions' : 'all scopes (free-tier compatible)';
 }
 
-/**
- * Resolve a site name into a deployable target with the following rule:
- *   1. Attempt to create a new site with the name.
- *      - Success → new site, deploy to it.
- *      - 422 → name is globally taken. Fall through to step 2.
- *   2. Check if the name belongs to the caller's account.
- *      - Found → deploy to the existing site.
- *      - Not found → name is taken by another user — return null so the
- *        caller can re-prompt.
- *
- * Returns `{ siteId, created }` on success, or `null` when the name is
- * taken by another user and cannot be (re)used.
- */
-async function resolveSiteTarget(
+function verifyEnvPresence(
+  bin: 'netlify' | 'npx',
+  env: NodeJS.ProcessEnv,
+  cwd: string,
   authToken: string,
-  name: string,
-  teamSlug?: string,
-): Promise<{ siteId: string; created: boolean } | null> {
-  const created = await createSite(authToken, name, teamSlug);
-  if (created) {
-    if (!created.id) bail(`Unexpected: site created with no id for "${name}".`);
-    return { siteId: created.id, created: true };
+  siteRef: string,
+  envKey: string,
+  context: string | undefined,
+  paidTier: boolean,
+  secrets: string[] = [],
+): EnvPresenceCheck {
+  const args = ['env:list', '--json', '--auth', authToken, '--site', siteRef, ...envScopeArgs({ paidTier })];
+  if (context) args.push('--context', context);
+
+  const stdout =
+    bin === 'netlify'
+      ? runCapture('netlify', args, env, false, cwd, secrets)
+      : runCapture('npx', ['-y', '-p', NETLIFY_CLI_SPEC, 'netlify', ...args], env, false, cwd, secrets);
+
+  if (!stdout.trim()) return 'unknown';
+
+  try {
+    const parsed = JSON.parse(stdout) as unknown;
+    return jsonContainsEnvKey(parsed, envKey) ? 'present' : 'missing';
+  } catch {
+    return 'unknown';
   }
-
-  // 422 — name is globally taken. Check if it's in the caller's account.
-  const existing = await fetchSiteByName(authToken, name);
-  if (existing?.id) return { siteId: existing.id, created: false };
-
-  // Taken by another user.
-  return null;
-}
-
-function validateSiteName(name: string | undefined): string | undefined {
-  if (!name || !name.trim()) return 'Required';
-  if (!SITE_NAME_RE.test(name.trim())) return 'Lowercase letters, digits, and hyphens only';
-  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -247,6 +205,7 @@ interface NetlifyOptions extends SharedDeployOptions {
   siteName: string | undefined;
   team: string | undefined;
   prod: boolean;
+  paidTier: boolean;
   noRedirects: boolean;
   message: string | undefined;
   alias: string | undefined;
@@ -271,6 +230,10 @@ Options:
       --team <slug>           Team slug if a new site gets created
                               (--site-name). (env: NETLIFY_TEAM_SLUG)
   -p, --prod                  Deploy to production (default: draft/preview)
+      --paid-tier             Use paid-tier Netlify env scoping
+                              (--scope functions) when setting and
+                              verifying MONGODB_URI. Default: free-tier-
+                              compatible behavior with no --scope flag.
       --alias <name>          Create a draft deploy with a predictable URL:
                               https://<name>--<site-name>.netlify.app
                               Useful for staging, review apps, or named
@@ -308,6 +271,7 @@ function parseArgs(argv: string[]): NetlifyOptions {
     siteName: process.env.NETLIFY_SITE_NAME,
     team: process.env.NETLIFY_TEAM_SLUG,
     prod: false,
+    paidTier: false,
     noRedirects: false,
     message: undefined,
     alias: undefined,
@@ -347,6 +311,9 @@ function parseArgs(argv: string[]): NetlifyOptions {
       case '-p':
       case '--prod':
         o.prod = true;
+        break;
+      case '--paid-tier':
+        o.paidTier = true;
         break;
       case '--alias':
         o.alias = next();
@@ -630,7 +597,11 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
   }
 
   let siteRef: string | undefined;
-  const linked = readLinkedSite(stateFile);
+
+  // In sandbox/ephemeral mode the deploy directory doesn't have a
+  // `.netlify/state.json`, so fall back to the project root's link if one
+  // exists there.
+  const linked = readLinkedSite(stateFile) ?? readLinkedSite(resolve(projectRootOf(options), '.netlify', 'state.json'));
 
   if (options.site) {
     siteRef = options.site;
@@ -672,22 +643,34 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
     console.log(`• VITE_API_BASE_URL: ${options.apiBaseUrl} (overridden)`);
   }
 
+  const envContextLabel = options.context ?? 'all contexts';
+  const scopeLabel = envScopeLabel(options);
+
   if (options.mongodbUri) {
-    console.log(`• MONGODB_URI: provided (will be set on site env, scope=functions)`);
+    console.log(`• MONGODB_URI: provided (will be set on site env, scope=${scopeLabel}, context=${envContextLabel})`);
   } else if (options.prod) {
     bail('--mongodb-uri is required for production deploys (startDB() throws without it and there is no fallback).');
+  } else {
+    console.log(
+      '• MONGODB_URI: not provided, so Netlify env:set will be skipped. ' +
+        'Pass --mongodb-uri or export MONGODB_URI if you want this script to write it to Netlify.',
+    );
   }
 
   if (!options.dryRun && siteRef) {
     console.log(`\n• Validating site "${siteRef}" with Netlify API…`);
-    const accessible = await canAccessSite(options.authToken!, siteRef);
-    if (!accessible) {
+    const resolvedSiteId = await resolveSiteId(options.authToken!, siteRef);
+    if (!resolvedSiteId) {
       bail(
         `Site "${siteRef}" was not found or is not accessible with the provided auth token. ` +
           `Check --site/--site-name or delete ${stateFile} to start fresh. ` +
           `(The Netlify CLI itself reports this as "Project not found. Please rerun netlify link".)`,
       );
     }
+    if (resolvedSiteId !== siteRef) {
+      console.log(`  Resolved site id: ${resolvedSiteId}`);
+    }
+    siteRef = resolvedSiteId;
     console.log('  OK — site is accessible.');
   }
 
@@ -698,6 +681,8 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
   ensureNetlifyToml(options, paths);
 
   const bin = netlifyBinary();
+  const secrets = collectSecrets(options.authToken, options.mongodbUri);
+
   const deployArgs: string[] = [
     '--no-build',
     '--dir',
@@ -720,14 +705,22 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
   console.log('\n─ Deploying to Netlify ─');
   let stdout: string;
   if (bin === 'netlify') {
-    stdout = runCapture('netlify', ['deploy', ...deployArgs], prepared.buildEnv, options.dryRun, paths.deployDir);
-  } else {
     stdout = runCapture(
-      'npx',
-      ['-y', '-p', 'netlify-cli', 'netlify', 'deploy', ...deployArgs],
+      'netlify',
+      ['deploy', ...deployArgs],
       prepared.buildEnv,
       options.dryRun,
       paths.deployDir,
+      secrets,
+    );
+  } else {
+    stdout = runCapture(
+      'npx',
+      ['-y', '-p', NETLIFY_CLI_SPEC, 'netlify', 'deploy', ...deployArgs],
+      prepared.buildEnv,
+      options.dryRun,
+      paths.deployDir,
+      secrets,
     );
   }
 
@@ -745,31 +738,55 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
   }
 
   if (options.mongodbUri && !options.dryRun && siteRef) {
-    console.log('\n─ Setting MONGODB_URI on the site (scope=functions) ─');
+    console.log(`\n─ Setting MONGODB_URI on the site (scope=${scopeLabel}, context=${envContextLabel}) ─`);
     const envSetArgs = [
       'env:set',
       'MONGODB_URI',
       options.mongodbUri,
-      '--scope',
-      'functions',
       '--auth',
       options.authToken!,
       '--site',
       siteRef,
+      ...envScopeArgs(options),
     ];
     if (options.context) envSetArgs.push('--context', options.context);
     if (bin === 'netlify') {
-      run('netlify', envSetArgs, prepared.buildEnv, options.dryRun, paths.deployDir);
+      run('netlify', envSetArgs, prepared.buildEnv, options.dryRun, paths.deployDir, secrets);
     } else {
       run(
         'npx',
-        ['-y', '-p', 'netlify-cli', 'netlify', ...envSetArgs],
+        ['-y', '-p', NETLIFY_CLI_SPEC, 'netlify', ...envSetArgs],
         prepared.buildEnv,
         options.dryRun,
         paths.deployDir,
+        secrets,
       );
     }
     console.log('  OK — runtime function env updated.');
+
+    console.log(`\n─ Verifying MONGODB_URI on the site (scope=${scopeLabel}, context=${envContextLabel}) ─`);
+    const presence = verifyEnvPresence(
+      bin,
+      prepared.buildEnv,
+      paths.deployDir,
+      options.authToken!,
+      siteRef,
+      'MONGODB_URI',
+      options.context,
+      options.paidTier,
+      secrets,
+    );
+
+    if (presence === 'present') {
+      console.log('  OK — MONGODB_URI is present on the target site/context.');
+    } else if (presence === 'missing') {
+      bail(
+        'Netlify env:set completed, but MONGODB_URI was not found afterward. ' +
+          'Check the site, scope, and context being targeted.',
+      );
+    } else {
+      console.log('  Warning — could not verify MONGODB_URI presence from Netlify CLI JSON output.');
+    }
   }
 }
 

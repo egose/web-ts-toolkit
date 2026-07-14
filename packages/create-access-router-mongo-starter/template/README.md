@@ -111,7 +111,9 @@ The deploy command:
 - builds the Vite frontend and the `wtt-express-runtime` serverless bundle
 - creates or reuses a Netlify site
 - generates `netlify.toml` with an `/api/*` → function redirect
-- sets `MONGODB_URI` on the site's `functions` scope
+- sets `MONGODB_URI` on the site environment
+- defaults to free-tier-compatible env writes with no `--scope`
+- uses `--paid-tier` to opt into `--scope functions`
 
 By default, the command writes `dist/`, `netlify/functions/`, `.netlify/`,
 and `netlify.toml` into the project directory. To build and deploy from a
