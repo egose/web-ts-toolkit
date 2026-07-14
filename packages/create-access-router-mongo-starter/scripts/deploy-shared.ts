@@ -143,14 +143,55 @@ export function resolvePaths(options: SharedDeployOptions): DeployPaths {
 // ---------------------------------------------------------------------------
 
 /**
+ * Redact known secret values from a command pretty-print string so auth
+ * tokens and connection strings don't leak into stdout or CI logs.
+ *
+ * Each value in `secrets` that appears in the command string is replaced
+ * with `[REDACTED]`.
+ */
+export function redactCommand(pretty: string, secrets: Iterable<string>): string {
+  let result = pretty;
+  for (const secret of secrets) {
+    if (secret && secret.length > 0) {
+      result = result.split(secret).join('[REDACTED]');
+    }
+  }
+  return result;
+}
+
+/**
+ * Build the set of secret values to redact from command pretty-prints.
+ * Collects truthy, non-empty strings into an array.
+ */
+export function collectSecrets(...values: (string | undefined)[]): string[] {
+  return values.filter((v): v is string => !!v && v.length > 0);
+}
+
+function formatCommandLog(cmd: string, args: string[], cwd: string, secrets: string[]): string {
+  const pretty = `${cmd} ${args.join(' ')}`;
+  const redacted = secrets.length > 0 ? redactCommand(pretty, secrets) : pretty;
+  const cwdTag = cwd !== SOURCE_DIR ? `  (cwd: ${cwd})` : '';
+  return `$ ${redacted}${cwdTag}`;
+}
+
+/**
  * Run a command. Build commands run from projectRoot (so relative source
  * paths like `./api/app.ts` resolve); deploy commands run from the provided
  * cwd (the sandbox or repo dir).
+ *
+ * Pass `secrets` to redact sensitive values from the logged command line.
+ * The actual spawned process still receives the real values — only the
+ * console log is masked.
  */
-export function run(cmd: string, args: string[], env: NodeJS.ProcessEnv, dry: boolean, cwd: string = SOURCE_DIR): void {
-  const pretty = `${cmd} ${args.join(' ')}`;
-  const cwdTag = cwd !== SOURCE_DIR ? `  (cwd: ${cwd})` : '';
-  console.log(`\n$ ${pretty}${cwdTag}`);
+export function run(
+  cmd: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  dry: boolean,
+  cwd: string = SOURCE_DIR,
+  secrets: string[] = [],
+): void {
+  console.log(`\n${formatCommandLog(cmd, args, cwd, secrets)}`);
   if (dry) return;
   const r = spawnSync(cmd, args, { stdio: 'inherit', cwd, env, shell: false });
   if (r.error) {
@@ -159,13 +200,15 @@ export function run(cmd: string, args: string[], env: NodeJS.ProcessEnv, dry: bo
     }
     throw r.error;
   }
-  if (r.status !== 0) bail(`Command failed (exit ${r.status}): ${pretty}`);
+  if (r.status !== 0) bail(`Command failed (exit ${r.status}): ${formatCommandLog(cmd, args, cwd, secrets)}`);
 }
 
 /**
  * Run a command and capture stdout (stderr is inherited for live output).
  * Returns the raw stdout string. In dry-run mode, prints the command and
  * returns an empty string.
+ *
+ * Pass `secrets` to redact sensitive values from the logged command line.
  */
 export function runCapture(
   cmd: string,
@@ -173,10 +216,9 @@ export function runCapture(
   env: NodeJS.ProcessEnv,
   dry: boolean,
   cwd: string = SOURCE_DIR,
+  secrets: string[] = [],
 ): string {
-  const pretty = `${cmd} ${args.join(' ')}`;
-  const cwdTag = cwd !== SOURCE_DIR ? `  (cwd: ${cwd})` : '';
-  console.log(`\n$ ${pretty}${cwdTag}`);
+  console.log(`\n${formatCommandLog(cmd, args, cwd, secrets)}`);
   if (dry) return '';
   const r = spawnSync(cmd, args, { stdio: ['ignore', 'pipe', 'inherit'], cwd, env, shell: false, encoding: 'utf-8' });
   if (r.error) {
@@ -185,7 +227,7 @@ export function runCapture(
     }
     throw r.error;
   }
-  if (r.status !== 0) bail(`Command failed (exit ${r.status}): ${pretty}`);
+  if (r.status !== 0) bail(`Command failed (exit ${r.status}): ${formatCommandLog(cmd, args, cwd, secrets)}`);
   return r.stdout ?? '';
 }
 
