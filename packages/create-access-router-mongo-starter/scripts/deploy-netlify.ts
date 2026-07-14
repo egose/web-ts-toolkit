@@ -31,6 +31,7 @@ import {
   projectRootOf,
   resolvePaths,
   run,
+  runCapture,
   SHARED_DEFAULTS,
   BailError,
   type DeployPaths,
@@ -51,6 +52,19 @@ interface NetlifySite {
   id?: string;
   site_id?: string;
   name?: string;
+}
+
+interface NetlifyDeployResultLinks {
+  deploy_url?: string;
+  logs?: string;
+}
+
+interface NetlifyDeployResult {
+  deploy_url?: string;
+  url?: string;
+  ssl_url?: string;
+  logs?: string;
+  links?: NetlifyDeployResultLinks;
 }
 
 function bailOnAuth(status: number, body: string, action: string): never {
@@ -235,6 +249,8 @@ interface NetlifyOptions extends SharedDeployOptions {
   prod: boolean;
   noRedirects: boolean;
   message: string | undefined;
+  alias: string | undefined;
+  context: string | undefined;
 }
 
 const HELP = `access-router-mongo-starter Netlify deploy
@@ -255,6 +271,14 @@ Options:
       --team <slug>           Team slug if a new site gets created
                               (--site-name). (env: NETLIFY_TEAM_SLUG)
   -p, --prod                  Deploy to production (default: draft/preview)
+      --alias <name>          Create a draft deploy with a predictable URL:
+                              https://<name>--<site-name>.netlify.app
+                              Useful for staging, review apps, or named
+                              previews. Cannot be combined with --prod.
+      --context <ctx>         Netlify deploy context for env (e.g.
+                              "production", "deploy-preview",
+                              "branch-deploy", or "branch:staging").
+                              Passed to netlify deploy and env:set.
       --api-base-url <url>    VITE_API_BASE_URL for the frontend build
                               (default: "/.netlify/functions/<functions-name>")
       --mongodb-uri <uri>     MONGODB_URI for the serverless function
@@ -286,6 +310,8 @@ function parseArgs(argv: string[]): NetlifyOptions {
     prod: false,
     noRedirects: false,
     message: undefined,
+    alias: undefined,
+    context: undefined,
     mongodbUri: process.env.MONGODB_URI,
   };
 
@@ -321,6 +347,12 @@ function parseArgs(argv: string[]): NetlifyOptions {
       case '-p':
       case '--prod':
         o.prod = true;
+        break;
+      case '--alias':
+        o.alias = next();
+        break;
+      case '--context':
+        o.context = next();
         break;
       case '--api-base-url':
         o.apiBaseUrl = next();
@@ -498,6 +530,48 @@ async function prompt(options: NetlifyOptions): Promise<NetlifyOptions> {
     process.exit(0);
   } else options.prod = prod === true;
 
+  if (!options.prod && !options.alias) {
+    const wantAlias = await confirm({
+      message: 'Create a named draft deploy (--alias)?',
+      initialValue: false,
+    });
+    if (isCancel(wantAlias)) {
+      cancel('Cancelled');
+      process.exit(0);
+    } else if (wantAlias) {
+      const v = await text({
+        message: 'Alias name (creates https://<alias>--<site>.netlify.app)',
+        placeholder: 'staging, review-pr-42, …',
+        validate: (s) => (s && s.trim() ? undefined : 'Required'),
+      });
+      if (isCancel(v)) {
+        cancel('Cancelled');
+        process.exit(0);
+      } else options.alias = (v as string).trim();
+    }
+  }
+
+  if (!options.context) {
+    const wantContext = await confirm({
+      message: 'Set a Netlify deploy context (--context)?',
+      initialValue: false,
+    });
+    if (isCancel(wantContext)) {
+      cancel('Cancelled');
+      process.exit(0);
+    } else if (wantContext) {
+      const v = await text({
+        message: 'Deploy context',
+        placeholder: 'production, deploy-preview, branch-deploy, branch:staging',
+        validate: (s) => (s && s.trim() ? undefined : 'Required'),
+      });
+      if (isCancel(v)) {
+        cancel('Cancelled');
+        process.exit(0);
+      } else options.context = (v as string).trim();
+    }
+  }
+
   if (!options.mongodbUri) {
     const v = await password({
       message: options.prod
@@ -635,19 +709,39 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
   ];
   if (siteRef) deployArgs.push('--site', siteRef);
   if (options.prod) deployArgs.push('--prod');
+  if (options.alias) deployArgs.push('--alias', options.alias);
+  if (options.context) deployArgs.push('--context', options.context);
   if (options.message) deployArgs.push('--message', options.message);
 
+  // Use --json so we can capture the deploy URL from stdout.
+  // stderr is inherited so live deploy progress remains visible.
+  deployArgs.push('--json');
+
   console.log('\n─ Deploying to Netlify ─');
+  let stdout: string;
   if (bin === 'netlify') {
-    run('netlify', ['deploy', ...deployArgs], prepared.buildEnv, options.dryRun, paths.deployDir);
+    stdout = runCapture('netlify', ['deploy', ...deployArgs], prepared.buildEnv, options.dryRun, paths.deployDir);
   } else {
-    run(
+    stdout = runCapture(
       'npx',
       ['-y', '-p', 'netlify-cli', 'netlify', 'deploy', ...deployArgs],
       prepared.buildEnv,
       options.dryRun,
       paths.deployDir,
     );
+  }
+
+  if (!options.dryRun && stdout) {
+    try {
+      const deploy = JSON.parse(stdout) as NetlifyDeployResult;
+      const url = options.alias ? deploy.deploy_url : (deploy.url ?? deploy.deploy_url ?? deploy.ssl_url);
+      if (url) console.log(`\n🌐 Deploy URL: ${url}`);
+      const logsUrl = deploy.logs ?? deploy.links?.logs;
+      if (logsUrl) console.log(`📋 Logs:       ${logsUrl}`);
+    } catch {
+      // If JSON parsing fails, the user still saw the deploy output on stderr.
+      console.log('\n(Could not parse deploy JSON output from Netlify CLI.)');
+    }
   }
 
   if (options.mongodbUri && !options.dryRun && siteRef) {
@@ -663,6 +757,7 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
       '--site',
       siteRef,
     ];
+    if (options.context) envSetArgs.push('--context', options.context);
     if (bin === 'netlify') {
       run('netlify', envSetArgs, prepared.buildEnv, options.dryRun, paths.deployDir);
     } else {
@@ -691,6 +786,10 @@ async function main() {
   }
 
   if (!options.authToken) bail('Netlify auth token is required (use -t / --auth-token or NETLIFY_AUTH_TOKEN).');
+
+  if (options.prod && options.alias) {
+    bail('--prod and --alias are mutually exclusive. Use --alias for draft/preview deploys or --prod for production.');
+  }
 
   const paths = resolvePaths(options);
   let deployed = false;
