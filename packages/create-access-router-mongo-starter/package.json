@@ -20,10 +20,15 @@
     "react",
     "express"
   ],
-  "bin": "dist/cli.js",
+  "bin": {
+    "create-access-router-mongo-starter": "dist/cli.js",
+    "create-access-router-mongo-starter-deploy-netlify": "dist/deploy-netlify.js",
+    "create-access-router-mongo-starter-deploy-shared": "dist/deploy-shared.js"
+  },
   "scripts": {
-    "build": "tsup --config tsup.config.ts && node scripts/stage-template.mjs",
-    "typecheck": "tsc --noEmit"
+    "build": "tsup --config tsup.config.ts && tsx scripts/stage-template.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "files": [
     "README.md",
@@ -35,7 +40,8 @@
   "devDependencies": {
     "@types/node": "^25.9.1",
     "tsup": "^8.5.1",
-    "tsx": "^4.20.6"
+    "tsx": "^4.20.6",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=20"

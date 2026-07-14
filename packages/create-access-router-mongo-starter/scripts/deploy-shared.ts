@@ -10,12 +10,16 @@
  * Provider-specific concerns (site lookup, config generation, CLI calls, env
  * management) live in the corresponding adapter script (e.g.
  * `deploy-netlify.ts`).
+ *
+ * When used as a package bin, the project root defaults to the caller's
+ * working directory. Override with `--project-root <path>` when the deploy
+ * target is not the current directory.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 
-export const SOURCE_DIR = resolve(import.meta.dirname, '..');
+export const SOURCE_DIR = resolve(process.cwd());
 export const EPHEMERAL_ROOT = '/tmp/opencode';
 
 // ---------------------------------------------------------------------------
@@ -38,6 +42,7 @@ export function bail(msg: string): never {
 // ---------------------------------------------------------------------------
 
 export interface SharedDeployOptions {
+  projectRoot: string;
   apiBaseUrl: string | undefined;
   apiBaseUrlExplicit: boolean;
   mongodbUri: string | undefined;
@@ -65,7 +70,12 @@ export interface PreparedDeployment {
   buildEnv: NodeJS.ProcessEnv;
 }
 
+export function projectRootOf(options: SharedDeployOptions): string {
+  return resolve(options.projectRoot);
+}
+
 export const SHARED_DEFAULTS: SharedDeployOptions = {
+  projectRoot: SOURCE_DIR,
   apiBaseUrl: undefined,
   apiBaseUrlExplicit: false,
   mongodbUri: undefined,
@@ -83,21 +93,23 @@ export const SHARED_DEFAULTS: SharedDeployOptions = {
 // Path resolution
 // ---------------------------------------------------------------------------
 
-export function linkNodeModules(deployDir: string, dry: boolean): void {
+export function linkNodeModules(deployDir: string, projectRoot: string, dry: boolean): void {
   const target = resolve(deployDir, 'node_modules');
   if (existsSync(target)) return;
   if (dry) return;
-  symlinkSync(resolve(SOURCE_DIR, 'node_modules'), target, 'dir');
+  symlinkSync(resolve(projectRoot, 'node_modules'), target, 'dir');
 }
 
 export function resolvePaths(options: SharedDeployOptions): DeployPaths {
+  const projectRoot = projectRootOf(options);
+
   if (options.ephemeral) {
     if (options.sandboxDir) {
       bail('--ephemeral and --sandbox-dir are mutually exclusive.');
     }
     const prefix = join(EPHEMERAL_ROOT, 'access-router-mongo-starter-deploy-');
     const deployDir = options.dryRun ? `${prefix}<tmp>` : mkdtempSync(prefix);
-    linkNodeModules(deployDir, options.dryRun);
+    linkNodeModules(deployDir, projectRoot, options.dryRun);
     return {
       deployDir,
       distAbs: resolve(deployDir, options.distDir),
@@ -109,7 +121,7 @@ export function resolvePaths(options: SharedDeployOptions): DeployPaths {
   if (options.sandboxDir) {
     const deployDir = resolve(options.sandboxDir);
     if (!options.dryRun) mkdirSync(deployDir, { recursive: true });
-    linkNodeModules(deployDir, options.dryRun);
+    linkNodeModules(deployDir, projectRoot, options.dryRun);
     return {
       deployDir,
       distAbs: resolve(deployDir, options.distDir),
@@ -119,9 +131,9 @@ export function resolvePaths(options: SharedDeployOptions): DeployPaths {
   }
 
   return {
-    deployDir: SOURCE_DIR,
-    distAbs: resolve(SOURCE_DIR, options.distDir),
-    functionsAbs: resolve(SOURCE_DIR, options.functionsDir),
+    deployDir: projectRoot,
+    distAbs: resolve(projectRoot, options.distDir),
+    functionsAbs: resolve(projectRoot, options.functionsDir),
     isEphemeral: false,
   };
 }
@@ -131,9 +143,9 @@ export function resolvePaths(options: SharedDeployOptions): DeployPaths {
 // ---------------------------------------------------------------------------
 
 /**
- * Run a command. Build commands run from SOURCE_DIR (so relative source paths
- * like `./api/app.ts` resolve); deploy commands run from the provided cwd
- * (the sandbox or repo dir).
+ * Run a command. Build commands run from projectRoot (so relative source
+ * paths like `./api/app.ts` resolve); deploy commands run from the provided
+ * cwd (the sandbox or repo dir).
  */
 export function run(cmd: string, args: string[], env: NodeJS.ProcessEnv, dry: boolean, cwd: string = SOURCE_DIR): void {
   const pretty = `${cmd} ${args.join(' ')}`;
@@ -164,6 +176,7 @@ export function buildArtifacts(options: SharedDeployOptions, paths: DeployPaths)
     VITE_API_BASE_URL: options.apiBaseUrl,
   };
   if (options.mongodbUri) buildEnv.MONGODB_URI = options.mongodbUri;
+  const projectRoot = projectRootOf(options);
 
   if (options.noBuild) {
     console.log('\n─ Skipping build steps (--no-build) ─');
@@ -171,7 +184,7 @@ export function buildArtifacts(options: SharedDeployOptions, paths: DeployPaths)
   }
 
   console.log('\n─ Building frontend (vite build) ─');
-  run('vite', ['build', '--outDir', paths.distAbs, '--emptyOutDir'], buildEnv, options.dryRun, SOURCE_DIR);
+  run('vite', ['build', '--outDir', paths.distAbs, '--emptyOutDir'], buildEnv, options.dryRun, projectRoot);
 
   console.log('\n─ Building serverless backend (wtt-express-runtime build) ─');
   run(
@@ -192,7 +205,7 @@ export function buildArtifacts(options: SharedDeployOptions, paths: DeployPaths)
     ],
     buildEnv,
     options.dryRun,
-    SOURCE_DIR,
+    projectRoot,
   );
 
   return { paths, options, buildEnv };
@@ -217,4 +230,112 @@ export function keepSandboxOnFailure(paths: DeployPaths): void {
   if (paths.isEphemeral) {
     console.error(`\n✖ Ephemeral sandbox kept at ${paths.deployDir} for debugging.`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// CLI entrypoint (bin)
+// ---------------------------------------------------------------------------
+
+const SHARED_HELP = `access-router-mongo-starter deploy-shared
+
+Provider-agnostic build preparation for the access-router-mongo-starter.
+Runs the frontend (Vite) and serverless (wtt-express-runtime) builds and
+prints the prepared artifact paths. Provider adapters (e.g. deploy-netlify)
+call this internally; you usually don't need to run it directly.
+
+Usage: create-access-router-mongo-starter-deploy-shared [options]
+
+Options:
+      --project-root <path>  Target app directory (default: current directory)
+      --api-base-url <url>   VITE_API_BASE_URL for the frontend build
+      --mongodb-uri <uri>    MONGODB_URI for the serverless function
+                             (env: MONGODB_URI)
+      --dist-dir <path>      Frontend publish dir (default: "dist")
+      --functions-dir <path> Serverless output dir (default: "netlify/functions")
+      --functions-name <name> Serverless function name (default: "main")
+      --no-build             Skip the build steps; report existing artifacts
+      --ephemeral            Build into a temp dir under /tmp/opencode and
+                             remove it on success (keep with --keep-sandbox)
+      --sandbox-dir <path>   Build into the given directory (persistent)
+      --keep-sandbox         With --ephemeral, keep the sandbox after build
+      --dry-run              Print the commands without running them
+  -h, --help                 Show this help
+`;
+
+function parseSharedArgs(argv: string[]): SharedDeployOptions {
+  const o: SharedDeployOptions = {
+    ...SHARED_DEFAULTS,
+    projectRoot: process.cwd(),
+    mongodbUri: process.env.MONGODB_URI,
+  };
+
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    const next = (): string => {
+      const v = argv[++i];
+      if (v === undefined || v.startsWith('-')) throw new Error(`Missing value for ${a}`);
+      return v;
+    };
+    switch (a) {
+      case '--project-root':
+        o.projectRoot = next();
+        break;
+      case '--api-base-url':
+        o.apiBaseUrl = next();
+        o.apiBaseUrlExplicit = true;
+        break;
+      case '--mongodb-uri':
+        o.mongodbUri = next();
+        break;
+      case '--dist-dir':
+        o.distDir = next();
+        break;
+      case '--functions-dir':
+        o.functionsDir = next();
+        break;
+      case '--functions-name':
+        o.functionsName = next();
+        break;
+      case '--no-build':
+        o.noBuild = true;
+        break;
+      case '--ephemeral':
+        o.ephemeral = true;
+        break;
+      case '--sandbox-dir':
+        o.sandboxDir = next();
+        break;
+      case '--keep-sandbox':
+        o.keepSandbox = true;
+        break;
+      case '--dry-run':
+        o.dryRun = true;
+        break;
+      case '-h':
+      case '--help':
+        process.stdout.write(SHARED_HELP);
+        process.exit(0);
+        break;
+      default:
+        throw new Error(`Unknown option: ${a}\n\n${SHARED_HELP}`);
+    }
+  }
+  return o;
+}
+
+export function main() {
+  let options: SharedDeployOptions;
+  try {
+    options = parseSharedArgs(process.argv.slice(2));
+  } catch (err) {
+    console.error(`\n✖ ${err instanceof Error ? err.message : err}`);
+    process.exit(1);
+  }
+
+  const paths = resolvePaths(options);
+  buildArtifacts(options, paths);
+  cleanupSandbox(paths, options.keepSandbox, options.dryRun);
+  console.log('\n✓ Build finished.');
+  console.log(`  distAbs:      ${paths.distAbs}`);
+  console.log(`  functionsAbs: ${paths.functionsAbs}`);
 }

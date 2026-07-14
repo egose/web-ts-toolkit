@@ -11,7 +11,6 @@
 - `pnpm test` - run Vitest
 - `pnpm serverless` - bundle the backend into `api/functions/main.cjs`
 - `pnpm serverless:start` - run the bundled serverless handler locally
-- `pnpm deploy:netlify -- --help` - show Netlify deploy options
 
 ## Template Notes
 
@@ -20,13 +19,13 @@
 - Frontend and backend run as separate local processes: `pnpm dev` for the UI and `pnpm server` for the API.
 - Client and server routes must stay aligned: `src/api.ts` uses relative model paths, while `api/src/routers.ts` exposes `/api/...` routes.
 - `api/app.ts` must stay side-effect-free for serverless bundling. Database startup belongs in `api/app-dev.ts` for local dev and `api/init.ts` for serverless cold start.
-- `pnpm build` does not emit the serverless bundle. Use `pnpm serverless` or the deploy scripts when that artifact is needed.
+- `pnpm build` does not emit the serverless bundle. Use `pnpm serverless` to produce that artifact.
+- Netlify deploy is provided by the `create-access-router-mongo-starter` package bins (`create-access-router-mongo-starter-deploy-netlify`, `create-access-router-mongo-starter-deploy-shared`), not by scripts shipped in this template. Install that package at the parent/workspace level to enable deploy.
 
 ## Testing Notes
 
 - The default Vitest environment is `jsdom` with setup from `tests/setup.ts`.
-- `tests/deploy-shared.test.ts` runs in the Node environment and should stay independent from browser-only helpers.
-- When changing fields or contracts, update the matching frontend tests, deploy tests, and template docs together.
+- When changing fields or contracts, update the matching frontend tests and template docs together.
 
 Skills provide focused guidance for the main parts of this starter template.
 
@@ -55,11 +54,6 @@ Skills provide focused guidance for the main parts of this starter template.
 <name>template-backend-runtime</name>
 <description>api/src/express.ts, db.ts, config.ts, app.ts, app-dev.ts, init.ts, middleware, runtime startup. Use when changing Express wiring, DB lifecycle, runtime config, or serverless boot behavior.</description>
 <location>.agents/skills/template-backend-runtime/SKILL.md</location>
-</skill>
-<skill>
-<name>template-deploy-netlify</name>
-<description>deploy-shared.ts, deploy-netlify.ts, netlify.toml generation, sandbox deploys, dry-run behavior, serverless artifact paths. Use when changing build or Netlify deployment automation.</description>
-<location>.agents/skills/template-deploy-netlify/SKILL.md</location>
 </skill>
 <skill>
 <name>template-testing-and-scaffolding</name>

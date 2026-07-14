@@ -17,9 +17,11 @@ backed by MongoDB/Mongoose.
 - **Frontend** (`src/`) — Vite + React 19 + `react-router` +
   `@web-ts-toolkit/access-router-client` / `-react` + `react-hook-form` +
   `zod`, styled with `@egose/shadcn-theme` + Tailwind CSS v4.
-- **Deploy** (`scripts/`) — provider-agnostic build preparation
-  (`deploy-shared.ts`) + Netlify adapter (`deploy-netlify.ts`). Additional
-  cloud adapters can be added on top of the shared layer.
+- **Deploy** (`create-access-router-mongo-starter` bins) — provider-agnostic
+  build preparation (`create-access-router-mongo-starter-deploy-shared`) +
+  Netlify adapter (`create-access-router-mongo-starter-deploy-netlify`).
+  Install the `create-access-router-mongo-starter` package at the
+  parent/workspace level to enable deploy.
 
 ## Layout
 
@@ -45,9 +47,6 @@ src/
   pages/
     home-page.tsx  # CRUD UI using createModelHooks
     todo-form.tsx  # react-hook-form + zod form
-scripts/
-  deploy-shared.ts   # provider-agnostic build + path resolution
-  deploy-netlify.ts  # Netlify site management, config gen, CLI deploy
 tests/
   todo-form.test.tsx
 ```
@@ -60,7 +59,6 @@ tests/
 | `pnpm server`           | Start the backend in watch mode via `wtt-express-runtime dev` on :8000.   |
 | `pnpm serverless`       | Bundle the backend as a serverless handler into `api/functions/main.cjs`. |
 | `pnpm serverless:start` | Run the bundled serverless handler locally on :9000.                      |
-| `pnpm deploy:netlify`   | Build frontend + serverless and deploy to Netlify (see `--help`).         |
 | `pnpm build`            | Typecheck (app + server) and build the frontend.                          |
 | `pnpm typecheck`        | Typecheck only.                                                           |
 | `pnpm lint`             | ESLint.                                                                   |
@@ -100,31 +98,33 @@ pnpm serverless:start  # run the handler on http://localhost:9000
 
 ## Netlify deployment
 
-Build the frontend and serverless backend, then deploy both to Netlify:
+Netlify deploy is provided by the `create-access-router-mongo-starter` package
+bins, which must be installed at the parent/workspace level. Build the frontend
+and serverless backend, then deploy both to Netlify:
 
 ```sh
-pnpm deploy:netlify --site <name-or-id> --mongodb-uri <uri> --prod
+pnpm --dir <app-dir> exec create-access-router-mongo-starter-deploy-netlify --site <name-or-id> --mongodb-uri <uri> --prod
 ```
 
-The deploy script:
+The deploy command:
 
 - builds the Vite frontend and the `wtt-express-runtime` serverless bundle
 - creates or reuses a Netlify site
 - generates `netlify.toml` with an `/api/*` → function redirect
 - sets `MONGODB_URI` on the site's `functions` scope
 
-By default, the script writes `dist/`, `netlify/functions/`, `.netlify/`,
-and `netlify.toml` into the package directory. To build and deploy from a
+By default, the command writes `dist/`, `netlify/functions/`, `.netlify/`,
+and `netlify.toml` into the project directory. To build and deploy from a
 throwaway directory instead — leaving the repo untouched — pass `--ephemeral`
 (removed on success; keep with `--keep-sandbox`) or `--sandbox-dir <path>` for
 a persistent sandbox:
 
 ```sh
-pnpm deploy:netlify --ephemeral --site <site> --mongodb-uri <uri> --prod
+pnpm --dir <app-dir> exec create-access-router-mongo-starter-deploy-netlify --ephemeral --site <site> --mongodb-uri <uri> --prod
 ```
 
-Run `pnpm deploy:netlify -- --help` for the full list of options, or `-i` for
-interactive prompts.
+Run `... -- --help` for the full list of options, or `-i` for interactive
+prompts.
 
 ## Adding auth
 

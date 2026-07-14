@@ -15,5 +15,5 @@
     "noUnusedParameters": true,
     "types": ["node"]
   },
-  "include": ["src"]
+  "include": ["src", "scripts", "tests", "vitest.config.ts", "tsup.config.ts"]
 }

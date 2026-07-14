@@ -325,9 +325,9 @@ async function main() {
   console.log(`  cd ${relative(process.cwd(), targetDir) || '.'}`);
   console.log('  cp .env.example .env  # then edit MONGODB_URI');
   console.log('  pnpm install');
-  console.log('  pnpm server           # backend on :8000');
-  console.log('  pnpm dev              # frontend on :3000');
-  console.log('  pnpm deploy:netlify -- --help  # deploy to Netlify');
+  console.log('  pnpm server                                   # backend on :8000');
+  console.log('  pnpm dev                                      # frontend on :3000');
+  console.log('  pnpm --dir . exec create-access-router-mongo-starter-deploy-netlify -- --help  # deploy to Netlify');
 }
 
 main();

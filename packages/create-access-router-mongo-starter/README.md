@@ -38,7 +38,9 @@ npx create-access-router-mongo-starter -i
    output, `.env`, and lockfiles).
 2. Rewrites `{{APP_NAME}}`, `{{APP_TITLE}}`, and `{{DB_NAME}}` placeholders in
    all copied files.
-3. Prints next steps for local development and Netlify deployment.
+3. Prints next steps for local development and Netlify deployment (via the
+   `create-access-router-mongo-starter-deploy-netlify` bin after installing this
+   package at the parent/workspace level).
 
 For npm publishing, the package build stages the bundled template into
 `dist/template/` so the released CLI can scaffold without needing the source
@@ -49,15 +51,20 @@ workspace layout.
 ```
 create-access-router-mongo-starter/
   src/
-    cli.ts          # CLI entry — built to dist/cli.js by tsup
-  template/         # the source starter template used during local development
-    api/            # Express + access-router + Mongoose backend
-    src/            # Vite + React frontend
-    scripts/        # deploy-shared.ts + deploy-netlify.ts
+    cli.ts               # CLI entry — built to dist/cli.js by tsup
+  scripts/               # repo-owned deploy + staging helpers (also built to dist/)
+    stage-template.ts    # stages template/ into dist/template for publishing
+    deploy-shared.ts      # provider-agnostic build prep (bin)
+    deploy-netlify.ts     # Netlify deploy adapter (bin)
+  tests/
+    deploy-shared.test.ts # repo-only test for the deploy helpers
+  template/              # the source starter template (no deploy scripts)
+    api/                 # Express + access-router + Mongoose backend
+    src/                 # Vite + React frontend
     tests/
-    package.json    # template with {{APP_NAME}} placeholder
+    package.json         # template with {{APP_NAME}} placeholder
     ...
-  dist/             # built CLI plus staged template for npm publishing
+  dist/                  # built CLI + deploy bins + staged template for npm publishing
   tsup.config.ts
   package.json
 ```
@@ -66,11 +73,12 @@ create-access-router-mongo-starter/
 
 Use this before releasing `create-access-router-mongo-starter` to npm:
 
-1. Build and typecheck the package:
+1. Build, typecheck, and test the package:
 
    ```sh
    pnpm --dir packages/create-access-router-mongo-starter build
    pnpm --dir packages/create-access-router-mongo-starter typecheck
+   pnpm --dir packages/create-access-router-mongo-starter test
    ```
 
 2. Verify the published tarball contents locally:
