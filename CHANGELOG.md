@@ -1,3 +1,10 @@
+## [0.13.0](https://github.com/egose/web-ts-toolkit/compare/v0.12.0...v0.13.0) (2026-07-14)
+
+### Features
+
+* extract Netlify API helpers and add site/env verification ([8f30d01](https://github.com/egose/web-ts-toolkit/commit/8f30d01d41722d42f8a5881486628f4d326a20e7))
+* redact logged secrets in command runners ([a6d4270](https://github.com/egose/web-ts-toolkit/commit/a6d4270049a749adc338dd157f07d6c519ef746d))
+
 ## [0.12.0](https://github.com/egose/web-ts-toolkit/compare/v0.11.0...v0.12.0) (2026-07-14)
 
 ### Features
