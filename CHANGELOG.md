@@ -1,3 +1,13 @@
+## [0.12.0](https://github.com/egose/web-ts-toolkit/compare/v0.11.0...v0.12.0) (2026-07-14)
+
+### Features
+
+* add Netlify alias and context deploy support ([dea8eb3](https://github.com/egose/web-ts-toolkit/commit/dea8eb3b32d9146cee7e2491bf337f9b7600d085))
+
+### Documentation
+
+* document staging preview deploy options ([9803405](https://github.com/egose/web-ts-toolkit/commit/9803405a65800916c96cc465a6f23c1afcaf0035))
+
 ## [0.11.0](https://github.com/egose/web-ts-toolkit/compare/v0.10.3...v0.11.0) (2026-07-14)
 
 ### Features
