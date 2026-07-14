@@ -6,23 +6,13 @@ const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sourceTemplateDir = resolve(rootDir, 'template');
 const stagedTemplateDir = resolve(rootDir, 'dist', 'template');
 
-const EXCLUDED_PATHS = [
-  'node_modules',
-  'dist',
-  '.tmp',
-  '.netlify',
-  'netlify',
-  'netlify.toml',
-  'api/functions',
-  // Keep the starter's user-facing test, but skip the internal repo-only helper test.
-  'tests/deploy-shared.test.ts',
-];
+const EXCLUDED_PATHS = ['node_modules', 'dist', '.tmp', '.netlify', 'netlify', 'netlify.toml', 'api/functions'];
 
-function normalize(pathValue) {
+function normalize(pathValue: string): string {
   return pathValue.replace(/\\/g, '/');
 }
 
-function isExcluded(relativePath) {
+function isExcluded(relativePath: string): boolean {
   return EXCLUDED_PATHS.some((excluded) => relativePath === excluded || relativePath.startsWith(`${excluded}/`));
 }
 
@@ -35,7 +25,7 @@ mkdirSync(resolve(rootDir, 'dist'), { recursive: true });
 
 cpSync(sourceTemplateDir, stagedTemplateDir, {
   recursive: true,
-  filter(sourcePath) {
+  filter(sourcePath: string): boolean {
     const relativePath = normalize(relative(sourceTemplateDir, sourcePath));
     if (!relativePath) return true;
     return !isExcluded(relativePath);
