@@ -1,3 +1,9 @@
+## [0.16.2](https://github.com/egose/web-ts-toolkit/compare/v0.16.1...v0.16.2) (2026-07-15)
+
+### Bug Fixes
+
+* **create-access-router-mongo-starter:** use account-scoped env lookup for site variables ([614e698](https://github.com/egose/web-ts-toolkit/commit/614e698d7a1369b7bd599262aef64dc719afa633))
+
 ## [0.16.1](https://github.com/egose/web-ts-toolkit/compare/v0.16.0...v0.16.1) (2026-07-15)
 
 ## [0.16.0](https://github.com/egose/web-ts-toolkit/compare/v0.15.0...v0.16.0) (2026-07-15)
