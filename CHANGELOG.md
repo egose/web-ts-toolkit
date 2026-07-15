@@ -1,3 +1,9 @@
+## [0.18.1](https://github.com/egose/web-ts-toolkit/compare/v0.18.0...v0.18.1) (2026-07-15)
+
+### Bug Fixes
+
+* **create-access-router-mongo-starter:** resolve package version from the local package manifest ([03735af](https://github.com/egose/web-ts-toolkit/commit/03735af116dacfda0db67ecaa70c00754530bc84))
+
 ## [0.18.0](https://github.com/egose/web-ts-toolkit/compare/v0.17.0...v0.18.0) (2026-07-15)
 
 ### Features
