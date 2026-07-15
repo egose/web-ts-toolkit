@@ -7,7 +7,8 @@
  *   - direct `.netlify/state.json` writing (no `netlify link` CLI needed)
  *   - minimal `netlify.toml` generation for build/functions settings
  *   - `netlify deploy` CLI invocation (the only remaining CLI usage)
- *   - runtime env (`MONGODB_URI`) management via the `@netlify/api` SDK
+ *   - runtime env (`API_BASE_URL`, `MONGODB_URI`) management via the
+ *     `@netlify/api` SDK
  *
  * Run as the `create-access-router-mongo-starter-deploy-netlify` bin from the
  * target app directory. Pass `-i / --interactive` to be prompted for any flag
@@ -80,6 +81,12 @@ function envScopeLabel(options: Pick<NetlifyOptions, 'paidTier'>): string {
 
 export function resolveDeployContext(options: Pick<NetlifyOptions, 'prod' | 'context'>): string {
   return options.prod ? 'production' : (options.context ?? 'deploy-preview');
+}
+
+export function planRuntimeSiteEnvVars(apiBaseUrl: string, mongodbUri?: string): Array<{ key: string; value: string }> {
+  const envVars = [{ key: 'API_BASE_URL', value: apiBaseUrl }];
+  if (mongodbUri) envVars.push({ key: 'MONGODB_URI', value: mongodbUri });
+  return envVars;
 }
 
 function resolveNetlifyCli(): NetlifyCli {
@@ -225,9 +232,9 @@ Options:
                               (--site-name). (env: NETLIFY_TEAM_SLUG)
   -p, --prod                  Deploy to production (default: draft/preview)
       --paid-tier             Use paid-tier Netlify env scoping
-                              (--scope functions) when setting and
-                              verifying MONGODB_URI. Default: free-tier-
-                              compatible behavior with no --scope flag.
+                               (--scope functions) when setting and
+                               verifying site env vars. Default: free-tier-
+                               compatible behavior with no --scope flag.
       --alias <name>          Create a draft deploy with a predictable URL:
                               https://<name>--<site-name>.netlify.app
                               Useful for staging, review apps, or named
@@ -238,8 +245,9 @@ Options:
                                (env: NETLIFY_CONTEXT, default: "deploy-preview")
                                Ignored when --prod is set; production deploys
                                always use context "production".
-      --api-base-url <url>    VITE_API_BASE_URL for the frontend build
-                              (default: "/.netlify/functions/<functions-name>")
+      --api-base-url <url>    VITE_API_BASE_URL for the frontend build and
+                               API_BASE_URL for the serverless function
+                               (default: "/.netlify/functions/<functions-name>")
       --mongodb-uri <uri>     MONGODB_URI for the serverless function
                               (env: MONGODB_URI). Required for production
                               deploys (startDB() throws without it).
@@ -603,6 +611,10 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
   const envContextLabel = options.context ?? 'all contexts';
   const scopeLabel = envScopeLabel(options);
 
+  console.log(
+    `• API_BASE_URL: ${options.apiBaseUrl} (will be set on site env, scope=${scopeLabel}, context=${envContextLabel})`,
+  );
+
   if (options.mongodbUri) {
     console.log(`• MONGODB_URI: provided (will be set on site env, scope=${scopeLabel}, context=${envContextLabel})`);
   } else if (options.prod) {
@@ -646,31 +658,33 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
     ensureLinkedSite(stateFile, siteRef, options.dryRun);
   }
 
-  // Set MONGODB_URI env var *before* deploying so the serverless function
-  // has it available as soon as the deploy goes live.
-  if (options.mongodbUri && !options.dryRun && siteRef) {
-    console.log(`\n─ Setting MONGODB_URI on the site (scope=${scopeLabel}, context=${envContextLabel}) ─`);
-    await setSiteEnvVar(options.authToken!, siteRef, 'MONGODB_URI', options.mongodbUri, {
-      paidTier: options.paidTier,
-      context: options.context,
-    });
-    console.log('  OK — runtime function env updated.');
+  // Set runtime env vars *before* deploying so the serverless function has
+  // them available as soon as the deploy goes live.
+  if (!options.dryRun && siteRef) {
+    for (const envVar of planRuntimeSiteEnvVars(options.apiBaseUrl!, options.mongodbUri)) {
+      console.log(`\n─ Setting ${envVar.key} on the site (scope=${scopeLabel}, context=${envContextLabel}) ─`);
+      await setSiteEnvVar(options.authToken!, siteRef, envVar.key, envVar.value, {
+        paidTier: options.paidTier,
+        context: options.context,
+      });
+      console.log('  OK — runtime function env updated.');
 
-    console.log(`\n─ Verifying MONGODB_URI on the site (scope=${scopeLabel}, context=${envContextLabel}) ─`);
-    const presence = await verifySiteEnvVar(options.authToken!, siteRef, 'MONGODB_URI', {
-      context: options.context,
-      paidTier: options.paidTier,
-    });
+      console.log(`\n─ Verifying ${envVar.key} on the site (scope=${scopeLabel}, context=${envContextLabel}) ─`);
+      const presence = await verifySiteEnvVar(options.authToken!, siteRef, envVar.key, {
+        context: options.context,
+        paidTier: options.paidTier,
+      });
 
-    if (presence === 'present') {
-      console.log('  OK — MONGODB_URI is present on the target site/context.');
-    } else if (presence === 'missing') {
-      bail(
-        'Env var setup completed, but MONGODB_URI was not found afterward. ' +
-          'Check the site, scope, and context being targeted.',
-      );
-    } else {
-      console.log('  Warning — could not verify MONGODB_URI presence from Netlify API.');
+      if (presence === 'present') {
+        console.log(`  OK — ${envVar.key} is present on the target site/context.`);
+      } else if (presence === 'missing') {
+        bail(
+          `Env var setup completed, but ${envVar.key} was not found afterward. ` +
+            'Check the site, scope, and context being targeted.',
+        );
+      } else {
+        console.log(`  Warning — could not verify ${envVar.key} presence from Netlify API.`);
+      }
     }
   }
 
