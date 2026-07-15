@@ -1,3 +1,9 @@
+## [0.21.0](https://github.com/egose/web-ts-toolkit/compare/v0.20.0...v0.21.0) (2026-07-15)
+
+### Features
+
+* **{{APP_NAME}}:** introduce configurable API base URL across the template ([10eccfe](https://github.com/egose/web-ts-toolkit/commit/10eccfe3073f3e3ed74f2454b9816d515b124d03))
+
 ## [0.20.0](https://github.com/egose/web-ts-toolkit/compare/v0.19.0...v0.20.0) (2026-07-15)
 
 ### Features
