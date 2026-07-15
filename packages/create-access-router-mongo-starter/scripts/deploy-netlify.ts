@@ -4,6 +4,9 @@
  * Consumes the shared build/deploy preparation from `deploy-shared.ts` and
  * adds Netlify-specific concerns:
  *   - site lookup / creation via the Netlify API
+ *   - automatic `netlify link` of the active deploy directory so CLI
+ *     subcommands (`deploy`, `env:set`) can fall back to the local
+ *     `.netlify/state.json` when `--site` is not honored for a subcommand
  *   - `netlify.toml` generation
  *   - `netlify deploy` CLI invocation
  *   - runtime env (`MONGODB_URI`) management on the Netlify site
@@ -170,12 +173,12 @@ function verifyEnvPresence(
 // Linked-site state
 // ---------------------------------------------------------------------------
 
-interface LinkedSite {
+export interface LinkedSite {
   siteId?: string;
   siteName?: string;
 }
 
-function readLinkedSite(stateFile: string): LinkedSite | null {
+export function readLinkedSite(stateFile: string): LinkedSite | null {
   if (!existsSync(stateFile)) return null;
   try {
     const data = JSON.parse(readFileSync(stateFile, 'utf8')) as LinkedSite;
@@ -184,6 +187,42 @@ function readLinkedSite(stateFile: string): LinkedSite | null {
     /* ignore malformed state */
   }
   return null;
+}
+
+/**
+ * Ensure a `.netlify/state.json` exists in the active deploy directory pointing
+ * at the resolved site id before running CLI commands (`deploy`, `env:set`)
+ * that rely on the local link state.
+ *
+ * `netlify link --auth <token> --id <site-id>` writes that state file and is a
+ * no-op-friendly way to create it without interactive prompts or mutating
+ * anything in the real project root when running from a sandbox/ephemeral dir.
+ *
+ * The `--site <ref>` flag is always passed to subsequent CLI invocations as
+ * well, so linking is defensive: it covers the case where the Netlify CLI
+ * ignores `--site` for certain subcommands (e.g. `env:set`) in favor of the
+ * linked site.
+ */
+function ensureLinkedSite(
+  cli: NetlifyCli,
+  cwd: string,
+  stateFile: string,
+  authToken: string,
+  siteId: string,
+  dryRun: boolean,
+  secrets: string[] = [],
+): void {
+  const linked = readLinkedSite(stateFile);
+  if (linked?.siteId === siteId) {
+    console.log(`• Site link already present at ${stateFile}`);
+    return;
+  }
+
+  const args = ['link', '--auth', authToken, '--id', siteId];
+  console.log(`\n• Linking deploy directory to site "${siteId}" (netlify link)…`);
+  const linkEnv = { ...process.env, NETLIFY_AUTH_TOKEN: authToken } as NodeJS.ProcessEnv;
+  runNetlify(cli, args, linkEnv, dryRun, cwd, secrets);
+  console.log(`  OK — ${stateFile} now points at site ${siteId}.`);
 }
 
 // ---------------------------------------------------------------------------
@@ -713,6 +752,14 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
   const cli = resolveNetlifyCli();
   const secrets = collectSecrets(options.authToken, options.mongodbUri);
 
+  // Ensure the active deploy directory is linked to the resolved site before
+  // running any CLI subcommands. `netlify deploy` and `env:set` may fall back
+  // to the local `.netlify/state.json` link, so we create it up front from the
+  // already-resolved site id (no extra network round-trip).
+  if (!options.dryRun && siteRef) {
+    ensureLinkedSite(cli, paths.deployDir, stateFile, options.authToken!, siteRef, options.dryRun, secrets);
+  }
+
   const deployArgs: string[] = [
     '--no-build',
     '--dir',
@@ -834,4 +881,6 @@ async function main() {
   console.log('\n✓ Deploy finished.');
 }
 
-main();
+if (typeof require !== 'undefined' && require.main === module) {
+  void main();
+}
