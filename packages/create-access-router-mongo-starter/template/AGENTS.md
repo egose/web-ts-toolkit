@@ -15,7 +15,7 @@
 ## Template Notes
 
 - This directory is a scaffold template, not a concrete app. Preserve template placeholders unless the scaffolding system itself is being changed.
-- Placeholder tokens currently used by the template are `{{APP_NAME}}`, `{{APP_TITLE}}`, and `{{DB_NAME}}`.
+- Placeholder tokens currently used by the template are `{{APP_NAME}}`, `{{APP_TITLE}}`, `{{DB_NAME}}`, and `{{VERSION}}`. `{{VERSION}}` is replaced with the installed `create-access-router-mongo-starter` package version, and is used for `@web-ts-toolkit/*` dependency versions in `package.json`.
 - Frontend and backend run as separate local processes: `pnpm dev` for the UI and `pnpm server` for the API.
 - Client and server routes must stay aligned: `src/api.ts` uses relative model paths, while `api/src/routers.ts` exposes `/api/...` routes.
 - `api/app.ts` must stay side-effect-free for serverless bundling. Database startup belongs in `api/app-dev.ts` for local dev and `api/init.ts` for serverless cold start.

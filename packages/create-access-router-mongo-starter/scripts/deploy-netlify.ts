@@ -713,7 +713,8 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
   if (siteRef) deployArgs.push('--site', siteRef);
   if (options.prod) deployArgs.push('--prod');
   if (options.alias) deployArgs.push('--alias', options.alias);
-  if (options.context) deployArgs.push('--context', options.context);
+  // --context flag is only available when using the --build flag
+  // if (options.context) deployArgs.push('--context', options.context);
   if (options.message) deployArgs.push('--message', options.message);
 
   // Use --json so we can capture the deploy URL from stdout.
