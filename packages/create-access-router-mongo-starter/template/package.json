@@ -14,7 +14,7 @@
     "test": "vitest",
     "server": "wtt-express-runtime dev ./api/app-dev.ts --env .env --require tsx --watch ./api --ext ts --port 8000",
     "server:once": "wtt-express-runtime dev ./api/app-dev.ts --env .env --require tsx --port 8000",
-    "serverless": "wtt-express-runtime build ./api/app.ts --init ./api/init.ts --out-dir api/functions --out-name main --format cjs --target node20",
+    "serverless": "wtt-express-runtime build ./api/app.ts --init ./api/init.ts --out-dir api/functions --out-name main --format cjs --target node22",
     "serverless:start": "wtt-express-runtime start ./api/functions/main.cjs --port 9000 --env .env"
   },
   "dependencies": {

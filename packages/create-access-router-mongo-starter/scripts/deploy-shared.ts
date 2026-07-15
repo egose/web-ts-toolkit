@@ -270,7 +270,7 @@ export function buildArtifacts(options: SharedDeployOptions, paths: DeployPaths)
       '--format',
       'cjs',
       '--target',
-      'node20',
+      'node22',
     ],
     buildEnv,
     options.dryRun,

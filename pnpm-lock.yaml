@@ -363,6 +363,9 @@ importers:
       '@clack/prompts':
         specifier: ^1.7.0
         version: 1.7.0
+      '@netlify/api':
+        specifier: ^15.0.1
+        version: 15.0.1
       netlify-cli:
         specifier: 26.2.0
         version: 26.2.0(@types/node@25.9.5)(picomatch@4.0.4)(rollup@4.62.2)
@@ -2075,6 +2078,10 @@ packages:
   '@netlify/api@14.0.19':
     resolution: {integrity: sha512-oJ+7K+ioZ8sNoNzJbx+uIDmRynf5A+0ler2t9nHhhfwrrhx7mWgFaX5vGiEjvkpIxBAwfW8XyedhEdsm2OCK+w==}
     engines: {node: '>=18.14.0'}
+
+  '@netlify/api@15.0.1':
+    resolution: {integrity: sha512-Zns81DguJ1tK74Cw+1HzKdMWwL7rHcqkhA2QPrZvED0HiUz2ynrE9lPoqagc7fxFNpaLqppnELGau+x6To0asg==}
+    engines: {node: '>=22.12.0'}
 
   '@netlify/binary-info@1.0.0':
     resolution: {integrity: sha512-4wMPu9iN3/HL97QblBsBay3E1etIciR84izI3U+4iALY+JHCrI+a2jO0qbAZ/nxKoegypYEaiiqWXylm+/zfrw==}
@@ -11352,6 +11359,13 @@ snapshots:
       '@netlify/api': 14.0.19
 
   '@netlify/api@14.0.19':
+    dependencies:
+      '@netlify/open-api': 2.57.0
+      node-fetch: 3.3.2
+      p-wait-for: 5.0.2
+      picoquery: 2.5.0
+
+  '@netlify/api@15.0.1':
     dependencies:
       '@netlify/open-api': 2.57.0
       node-fetch: 3.3.2

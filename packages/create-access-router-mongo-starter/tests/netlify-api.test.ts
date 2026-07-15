@@ -1,7 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  parseLinkHeader,
   validateSiteName,
   SITE_NAME_RE,
   defaultApiBaseUrl,
@@ -10,35 +9,40 @@ import {
   resolveSiteId,
   createSite,
   resolveSiteTarget,
+  setSiteEnvVar,
+  verifySiteEnvVar,
+  type NetlifyApiClient,
 } from '../scripts/netlify-api';
+
+// ---------------------------------------------------------------------------
+// Mock client helper
+// ---------------------------------------------------------------------------
+
+const AUTH_TOKEN = 'test-token-abc';
+
+function makeMockClient(overrides: Partial<NetlifyApiClient> = {}): NetlifyApiClient {
+  return {
+    getSite: vi.fn(overrides.getSite ?? (async () => ({ id: 'mock-site-id', name: 'mock' }))),
+    listSites: vi.fn(overrides.listSites ?? (async () => [])),
+    createSite: vi.fn(overrides.createSite ?? (async () => ({ id: 'new-site-id', name: 'mock' }))),
+    createSiteInTeam: vi.fn(overrides.createSiteInTeam ?? (async () => ({ id: 'new-site-id', name: 'mock' }))),
+    getSiteEnvVars: vi.fn(overrides.getSiteEnvVars ?? (async () => [])),
+    createEnvVars: vi.fn(overrides.createEnvVars ?? (async () => ({}))),
+    updateEnvVar: vi.fn(overrides.updateEnvVar ?? (async () => ({}))),
+    setEnvVarValue: vi.fn(overrides.setEnvVarValue ?? (async () => ({}))),
+  };
+}
+
+function httpError(status: number, message: string = ''): Error {
+  const e = new Error(message) as Error & { status: number; json: { message: string } };
+  e.status = status;
+  e.json = { message };
+  return e;
+}
 
 // ---------------------------------------------------------------------------
 // Pure functions (no network)
 // ---------------------------------------------------------------------------
-
-describe('parseLinkHeader', () => {
-  it('extracts the URL for a given rel', () => {
-    const header =
-      '<https://api.netlify.com/api/v1/sites?page=2&per_page=100>; rel="next", <https://api.netlify.com/api/v1/sites?page=5&per_page=100>; rel="last"';
-    expect(parseLinkHeader(header, 'next')).toBe('https://api.netlify.com/api/v1/sites?page=2&per_page=100');
-    expect(parseLinkHeader(header, 'last')).toBe('https://api.netlify.com/api/v1/sites?page=5&per_page=100');
-  });
-
-  it('returns null when rel is not found', () => {
-    const header = '<https://api.netlify.com/api/v1/sites?page=2>; rel="next"';
-    expect(parseLinkHeader(header, 'prev')).toBeNull();
-  });
-
-  it('returns null for missing or empty header', () => {
-    expect(parseLinkHeader(null, 'next')).toBeNull();
-    expect(parseLinkHeader('', 'next')).toBeNull();
-  });
-
-  it('handles single entry without comma', () => {
-    const header = '<https://example.com/page2>; rel="next"';
-    expect(parseLinkHeader(header, 'next')).toBe('https://example.com/page2');
-  });
-});
 
 describe('validateSiteName', () => {
   it('rejects empty or whitespace', () => {
@@ -83,183 +87,281 @@ describe('defaultApiBaseUrl', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Mocked fetch tests
+// Mocked client tests
 // ---------------------------------------------------------------------------
 
-const AUTH_TOKEN = 'test-token-abc';
-
-function mockResponse(body: unknown, status: number = 200, headers: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json', ...headers },
-  });
-}
-
-const originalFetch = globalThis.fetch;
-
-beforeEach(() => {
-  vi.spyOn(console, 'log').mockImplementation(() => {});
-  vi.spyOn(console, 'error').mockImplementation(() => {});
-});
-
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-  vi.restoreAllMocks();
-});
-
 describe('fetchSiteById', () => {
-  it('returns the site on 200', async () => {
-    globalThis.fetch = vi
-      .fn()
-      .mockResolvedValue(mockResponse({ id: 'site-1', name: 'my-site' })) as unknown as typeof fetch;
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
-    const result = await fetchSiteById(AUTH_TOKEN, 'site-1');
+  it('returns the site on success', async () => {
+    const client = makeMockClient({
+      getSite: async () => ({ id: 'site-1', name: 'my-site' }),
+    });
+    const result = await fetchSiteById(AUTH_TOKEN, 'site-1', client);
     expect(result).toEqual({ id: 'site-1', name: 'my-site' });
   });
 
   it('returns null on 404', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(new Response('Not found', { status: 404 })) as unknown as typeof fetch;
-
-    const result = await fetchSiteById(AUTH_TOKEN, 'nonexistent');
+    const client = makeMockClient({
+      getSite: async () => {
+        throw httpError(404);
+      },
+    });
+    const result = await fetchSiteById(AUTH_TOKEN, 'nonexistent', client);
     expect(result).toBeNull();
   });
 });
 
-describe('fetchSiteByName with pagination', () => {
-  it('finds the site on the first page', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockResponse(
-        [
-          { id: 's1', name: 'other-site' },
-          { id: 's2', name: 'my-site' },
-        ],
-        200,
-        {},
-      ),
-    ) as unknown as typeof fetch;
+describe('fetchSiteByName', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
-    const result = await fetchSiteByName(AUTH_TOKEN, 'my-site');
+  it('finds the site on the first page', async () => {
+    const client = makeMockClient({
+      listSites: async () => [
+        { id: 's1', name: 'other-site' },
+        { id: 's2', name: 'my-site' },
+      ],
+    });
+    const result = await fetchSiteByName(AUTH_TOKEN, 'my-site', client);
     expect(result?.id).toBe('s2');
   });
 
   it('paginates through multiple pages to find the match', async () => {
     const callCount = { value: 0 };
-    globalThis.fetch = vi.fn().mockImplementation(() => {
-      callCount.value++;
-      if (callCount.value === 1) {
-        return Promise.resolve(
-          new Response(JSON.stringify([{ id: 's1', name: 'other' }]), {
-            status: 200,
-            headers: {
-              'content-type': 'application/json',
-              link: '<https://api.netlify.com/api/v1/sites?page=2&per_page=100&filter=name>; rel="next"',
-            },
-          }),
-        );
-      }
-      return Promise.resolve(
-        new Response(JSON.stringify([{ id: 's2', name: 'my-site' }]), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        }),
-      );
-    }) as unknown as typeof fetch;
-
-    const result = await fetchSiteByName(AUTH_TOKEN, 'my-site');
+    const client = makeMockClient({
+      listSites: async () => {
+        callCount.value++;
+        if (callCount.value === 1) {
+          // Full page of 100 → there are more pages
+          return Array.from({ length: 100 }, (_, i) => ({ id: `s${i}`, name: `other-${i}` }));
+        }
+        return [{ id: 's2', name: 'my-site' }];
+      },
+    });
+    const result = await fetchSiteByName(AUTH_TOKEN, 'my-site', client);
     expect(result?.id).toBe('s2');
     expect(callCount.value).toBe(2);
   });
 
   it('returns null when no match across all pages', async () => {
-    globalThis.fetch = vi
-      .fn()
-      .mockResolvedValue(mockResponse([{ id: 's1', name: 'not-it' }])) as unknown as typeof fetch;
-
-    const result = await fetchSiteByName(AUTH_TOKEN, 'my-site');
+    const client = makeMockClient({
+      listSites: async () => [{ id: 's1', name: 'not-it' }],
+    });
+    const result = await fetchSiteByName(AUTH_TOKEN, 'my-site', client);
     expect(result).toBeNull();
   });
 });
 
 describe('resolveSiteId', () => {
-  it('resolves by ID first', async () => {
-    globalThis.fetch = vi
-      .fn()
-      .mockResolvedValue(mockResponse({ id: 'site-id', name: 'my-site' })) as unknown as typeof fetch;
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
-    const result = await resolveSiteId(AUTH_TOKEN, 'site-id');
+  it('resolves by ID first', async () => {
+    const client = makeMockClient({
+      getSite: async () => ({ id: 'site-id', name: 'my-site' }),
+    });
+    const result = await resolveSiteId(AUTH_TOKEN, 'site-id', client);
     expect(result).toBe('site-id');
   });
 
-  it('falls back to name lookup', async () => {
-    const callCount = { value: 0 };
-    globalThis.fetch = vi.fn().mockImplementation(() => {
-      callCount.value++;
-      if (callCount.value === 1) {
-        return Promise.resolve(new Response('Not found', { status: 404 }));
-      }
-      return Promise.resolve(mockResponse([{ id: 'resolved-id', name: 'my-site' }]));
-    }) as unknown as typeof fetch;
-
-    const result = await resolveSiteId(AUTH_TOKEN, 'my-site');
+  it('falls back to name lookup when getSite throws 404', async () => {
+    const client = makeMockClient({
+      getSite: async () => {
+        throw httpError(404);
+      },
+      listSites: async () => [{ id: 'resolved-id', name: 'my-site' }],
+    });
+    const result = await resolveSiteId(AUTH_TOKEN, 'my-site', client);
     expect(result).toBe('resolved-id');
   });
 });
 
 describe('createSite', () => {
-  it('returns the new site on 200', async () => {
-    globalThis.fetch = vi
-      .fn()
-      .mockResolvedValue(mockResponse({ id: 'new-site-id', name: 'my-new-site' })) as unknown as typeof fetch;
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
-    const result = await createSite(AUTH_TOKEN, 'my-new-site');
+  it('returns the new site on success', async () => {
+    const client = makeMockClient({
+      createSite: async () => ({ id: 'new-site-id', name: 'my-new-site' }),
+    });
+    const result = await createSite(AUTH_TOKEN, 'my-new-site', undefined, client);
     expect(result).toEqual({ id: 'new-site-id', name: 'my-new-site' });
   });
 
   it('returns null on 422 (name taken)', async () => {
-    globalThis.fetch = vi
-      .fn()
-      .mockResolvedValue(new Response('Unprocessable', { status: 422 })) as unknown as typeof fetch;
-
-    const result = await createSite(AUTH_TOKEN, 'taken-name');
+    const client = makeMockClient({
+      createSite: async () => {
+        throw httpError(422);
+      },
+    });
+    const result = await createSite(AUTH_TOKEN, 'taken-name', undefined, client);
     expect(result).toBeNull();
   });
 });
 
 describe('resolveSiteTarget', () => {
-  it('returns created=true when the name is available', async () => {
-    globalThis.fetch = vi
-      .fn()
-      .mockResolvedValue(mockResponse({ id: 'new-id', name: 'fresh-name' })) as unknown as typeof fetch;
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
-    const result = await resolveSiteTarget(AUTH_TOKEN, 'fresh-name');
+  it('returns created=true when the name is available', async () => {
+    const client = makeMockClient({
+      createSite: async () => ({ id: 'new-id', name: 'fresh-name' }),
+    });
+    const result = await resolveSiteTarget(AUTH_TOKEN, 'fresh-name', undefined, client);
     expect(result).toEqual({ siteId: 'new-id', created: true });
   });
 
   it('returns created=false when the name is owned by the caller', async () => {
-    const callCount = { value: 0 };
-    globalThis.fetch = vi.fn().mockImplementation(() => {
-      callCount.value++;
-      if (callCount.value === 1) {
-        return Promise.resolve(new Response('Taken', { status: 422 }));
-      }
-      return Promise.resolve(mockResponse([{ id: 'existing-id', name: 'my-site' }]));
-    }) as unknown as typeof fetch;
-
-    const result = await resolveSiteTarget(AUTH_TOKEN, 'my-site');
+    const client = makeMockClient({
+      createSite: async () => {
+        throw httpError(422);
+      },
+      listSites: async () => [{ id: 'existing-id', name: 'my-site' }],
+    });
+    const result = await resolveSiteTarget(AUTH_TOKEN, 'my-site', undefined, client);
     expect(result).toEqual({ siteId: 'existing-id', created: false });
   });
 
   it('returns null when the name is taken by another user', async () => {
-    const callCount = { value: 0 };
-    globalThis.fetch = vi.fn().mockImplementation(() => {
-      callCount.value++;
-      if (callCount.value === 1) {
-        return Promise.resolve(new Response('Taken', { status: 422 }));
-      }
-      return Promise.resolve(mockResponse([{ id: 'other-user', name: 'not-yours' }]));
-    }) as unknown as typeof fetch;
-
-    const result = await resolveSiteTarget(AUTH_TOKEN, 'taken-by-other');
+    const client = makeMockClient({
+      createSite: async () => {
+        throw httpError(422);
+      },
+      listSites: async () => [{ id: 'other-user', name: 'not-yours' }],
+    });
+    const result = await resolveSiteTarget(AUTH_TOKEN, 'taken-by-other', undefined, client);
     expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Env var management tests
+// ---------------------------------------------------------------------------
+
+describe('setSiteEnvVar', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('creates a new env var when it does not exist', async () => {
+    const client = makeMockClient({
+      getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
+      getSiteEnvVars: async () => [],
+      createEnvVars: async () => ({}),
+    });
+    await setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', {}, client);
+    expect(client.createEnvVars).toHaveBeenCalledTimes(1);
+    expect(client.setEnvVarValue).not.toHaveBeenCalled();
+  });
+
+  it('updates an existing env var via setEnvVarValue', async () => {
+    const client = makeMockClient({
+      getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
+      getSiteEnvVars: async () => [{ key: 'MONGODB_URI' }],
+      setEnvVarValue: async () => ({}),
+    });
+    await setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', {}, client);
+    expect(client.setEnvVarValue).toHaveBeenCalledTimes(1);
+    expect(client.createEnvVars).not.toHaveBeenCalled();
+  });
+
+  it('passes context through to the value body', async () => {
+    const client = makeMockClient({
+      getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
+      getSiteEnvVars: async () => [],
+      createEnvVars: async () => ({}),
+    });
+    await setSiteEnvVar(
+      AUTH_TOKEN,
+      'site-1',
+      'MONGODB_URI',
+      'mongodb://localhost',
+      { context: 'branch:staging' },
+      client,
+    );
+    const call = (client.createEnvVars as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.body[0].values[0]).toEqual({
+      context: 'branch',
+      context_parameter: 'staging',
+      value: 'mongodb://localhost',
+    });
+  });
+
+  it('uses functions scope for paid tier', async () => {
+    const client = makeMockClient({
+      getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
+      getSiteEnvVars: async () => [],
+      createEnvVars: async () => ({}),
+    });
+    await setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', { paidTier: true }, client);
+    const call = (client.createEnvVars as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.body[0].scopes).toEqual(['functions']);
+  });
+});
+
+describe('verifySiteEnvVar', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns present when the key is found', async () => {
+    const client = makeMockClient({
+      getSiteEnvVars: async () => [{ key: 'MONGODB_URI' }, { key: 'OTHER' }],
+    });
+    const result = await verifySiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', {}, client);
+    expect(result).toBe('present');
+  });
+
+  it('returns missing when the key is not found', async () => {
+    const client = makeMockClient({
+      getSiteEnvVars: async () => [{ key: 'OTHER' }],
+    });
+    const result = await verifySiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', {}, client);
+    expect(result).toBe('missing');
+  });
+
+  it('returns unknown on error', async () => {
+    const client = makeMockClient({
+      getSiteEnvVars: async () => {
+        throw new Error('network');
+      },
+    });
+    const result = await verifySiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', {}, client);
+    expect(result).toBe('unknown');
   });
 });

@@ -16,8 +16,8 @@ dist-ssr
 api/functions
 netlify/functions
 
-# Netlify CLI local link state (auto-created by the deploy bin via
-# `netlify link`; siteId for `netlify deploy` and `env:set`)
+# Netlify CLI local link state (auto-created by the deploy bin;
+# siteId for `netlify deploy`)
 .netlify
 
 # Editor directories and files

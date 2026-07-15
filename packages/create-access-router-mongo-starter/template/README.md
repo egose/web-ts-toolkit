@@ -109,13 +109,10 @@ pnpm --dir <app-dir> exec create-access-router-mongo-starter-deploy-netlify --si
 The deploy command:
 
 - builds the Vite frontend and the `wtt-express-runtime` serverless bundle
-- creates or reuses a Netlify site
-- links the active deploy directory to the site with `netlify link --auth
-<token> --id <site-id>`, creating `.netlify/state.json` so CLI subcommands
-  (`deploy`, `env:set`) can resolve the target even when `--site` is not
-  honored for a subcommand
+- creates or reuses a Netlify site (via `@netlify/api` SDK)
+- writes `.netlify/state.json` directly (no `netlify link` CLI needed)
 - generates `netlify.toml` with an `/api/*` → function redirect
-- sets `MONGODB_URI` on the site environment
+- sets `MONGODB_URI` on the site environment (via `@netlify/api` SDK)
 - defaults to free-tier-compatible env writes with no `--scope`
 - uses `--paid-tier` to opt into `--scope functions`
 
@@ -143,9 +140,9 @@ pnpm --dir <app-dir> exec create-access-router-mongo-starter-deploy-netlify --si
 
 This produces a URL like `https://staging--<site-name>.netlify.app`.
 
-To set Netlify deploy context for environment variables (e.g.
-`branch:staging`, `deploy-preview`), pass `--context <ctx>`. This is
-forwarded to both `netlify deploy` and `netlify env:set`.
+The deploy context defaults to `deploy-preview`. To target a different
+context (e.g. `production`, `branch:staging`), pass `--context <ctx>`.
+This is forwarded to both `netlify deploy` and the env var setup API.
 
 The deploy URL is printed at the end of a successful deploy
 (`🌐 Deploy URL: …`), parsed from the Netlify CLI JSON output.

@@ -3,13 +3,11 @@
  *
  * Consumes the shared build/deploy preparation from `deploy-shared.ts` and
  * adds Netlify-specific concerns:
- *   - site lookup / creation via the Netlify API
- *   - automatic `netlify link` of the active deploy directory so CLI
- *     subcommands (`deploy`, `env:set`) can fall back to the local
- *     `.netlify/state.json` when `--site` is not honored for a subcommand
+ *   - site lookup / creation via the `@netlify/api` SDK
+ *   - direct `.netlify/state.json` writing (no `netlify link` CLI needed)
  *   - `netlify.toml` generation
- *   - `netlify deploy` CLI invocation
- *   - runtime env (`MONGODB_URI`) management on the Netlify site
+ *   - `netlify deploy` CLI invocation (the only remaining CLI usage)
+ *   - runtime env (`MONGODB_URI`) management via the `@netlify/api` SDK
  *
  * Run as the `create-access-router-mongo-starter-deploy-netlify` bin from the
  * target app directory. Pass `-i / --interactive` to be prompted for any flag
@@ -33,7 +31,6 @@ import {
   keepSandboxOnFailure,
   projectRootOf,
   resolvePaths,
-  run,
   runCapture,
   SHARED_DEFAULTS,
   BailError,
@@ -46,6 +43,8 @@ import {
   fetchSiteByName,
   resolveSiteId,
   resolveSiteTarget,
+  setSiteEnvVar,
+  verifySiteEnvVar,
   validateSiteName,
 } from './netlify-api';
 
@@ -66,34 +65,14 @@ interface NetlifyDeployResult {
   links?: NetlifyDeployResultLinks;
 }
 
-type EnvPresenceCheck = 'present' | 'missing' | 'unknown';
-
 interface NetlifyCli {
   command: string;
   argsPrefix: string[];
 }
 
 // ---------------------------------------------------------------------------
-// Env presence helpers
+// Env scope label (for display)
 // ---------------------------------------------------------------------------
-
-function jsonContainsEnvKey(value: unknown, envKey: string): boolean {
-  if (Array.isArray(value)) {
-    return value.some((item) => jsonContainsEnvKey(item, envKey));
-  }
-
-  if (!value || typeof value !== 'object') return false;
-
-  const record = value as Record<string, unknown>;
-  if (record.key === envKey || record.name === envKey) return true;
-  if (envKey in record) return true;
-
-  return Object.values(record).some((item) => jsonContainsEnvKey(item, envKey));
-}
-
-function envScopeArgs(options: Pick<NetlifyOptions, 'paidTier'>): string[] {
-  return options.paidTier ? ['--scope', 'functions'] : [];
-}
 
 function envScopeLabel(options: Pick<NetlifyOptions, 'paidTier'>): string {
   return options.paidTier ? 'functions' : 'all scopes (free-tier compatible)';
@@ -121,17 +100,6 @@ function resolveNetlifyCli(): NetlifyCli {
   }
 }
 
-function runNetlify(
-  cli: NetlifyCli,
-  args: string[],
-  env: NodeJS.ProcessEnv,
-  dryRun: boolean,
-  cwd: string,
-  secrets: string[] = [],
-): void {
-  run(cli.command, [...cli.argsPrefix, ...args], env, dryRun, cwd, secrets);
-}
-
 function runCaptureNetlify(
   cli: NetlifyCli,
   args: string[],
@@ -143,34 +111,8 @@ function runCaptureNetlify(
   return runCapture(cli.command, [...cli.argsPrefix, ...args], env, dryRun, cwd, secrets);
 }
 
-function verifyEnvPresence(
-  cli: NetlifyCli,
-  env: NodeJS.ProcessEnv,
-  cwd: string,
-  authToken: string,
-  siteRef: string,
-  envKey: string,
-  context: string | undefined,
-  paidTier: boolean,
-  secrets: string[] = [],
-): EnvPresenceCheck {
-  const args = ['env:list', '--json', '--auth', authToken, '--site', siteRef, ...envScopeArgs({ paidTier })];
-  if (context) args.push('--context', context);
-
-  const stdout = runCaptureNetlify(cli, args, env, false, cwd, secrets);
-
-  if (!stdout.trim()) return 'unknown';
-
-  try {
-    const parsed = JSON.parse(stdout) as unknown;
-    return jsonContainsEnvKey(parsed, envKey) ? 'present' : 'missing';
-  } catch {
-    return 'unknown';
-  }
-}
-
 // ---------------------------------------------------------------------------
-// Linked-site state
+// Linked-site state (write directly, no CLI needed)
 // ---------------------------------------------------------------------------
 
 export interface LinkedSite {
@@ -191,37 +133,25 @@ export function readLinkedSite(stateFile: string): LinkedSite | null {
 
 /**
  * Ensure a `.netlify/state.json` exists in the active deploy directory pointing
- * at the resolved site id before running CLI commands (`deploy`, `env:set`)
- * that rely on the local link state.
+ * at the resolved site id before running `netlify deploy`, which may fall back
+ * to the local link state.
  *
- * `netlify link --auth <token> --id <site-id>` writes that state file and is a
- * no-op-friendly way to create it without interactive prompts or mutating
- * anything in the real project root when running from a sandbox/ephemeral dir.
- *
- * The `--site <ref>` flag is always passed to subsequent CLI invocations as
- * well, so linking is defensive: it covers the case where the Netlify CLI
- * ignores `--site` for certain subcommands (e.g. `env:set`) in favor of the
- * linked site.
+ * Writes the file directly instead of shelling out to `netlify link`, so no
+ * CLI subprocess is needed and nothing in the real project root is mutated
+ * when running from a sandbox/ephemeral dir.
  */
-function ensureLinkedSite(
-  cli: NetlifyCli,
-  cwd: string,
-  stateFile: string,
-  authToken: string,
-  siteId: string,
-  dryRun: boolean,
-  secrets: string[] = [],
-): void {
+function ensureLinkedSite(stateFile: string, siteId: string, dryRun: boolean): void {
   const linked = readLinkedSite(stateFile);
   if (linked?.siteId === siteId) {
     console.log(`• Site link already present at ${stateFile}`);
     return;
   }
 
-  const args = ['link', '--auth', authToken, '--id', siteId];
-  console.log(`\n• Linking deploy directory to site "${siteId}" (netlify link)…`);
-  const linkEnv = { ...process.env, NETLIFY_AUTH_TOKEN: authToken } as NodeJS.ProcessEnv;
-  runNetlify(cli, args, linkEnv, dryRun, cwd, secrets);
+  console.log(`\n• Linking deploy directory to site "${siteId}" …`);
+  if (!dryRun) {
+    mkdirSync(resolve(stateFile, '..'), { recursive: true });
+    writeFileSync(stateFile, JSON.stringify({ siteId }, null, 2) + '\n');
+  }
   console.log(`  OK — ${stateFile} now points at site ${siteId}.`);
 }
 
@@ -319,7 +249,8 @@ Options:
       --context <ctx>         Netlify deploy context for env (e.g.
                               "production", "deploy-preview",
                               "branch-deploy", or "branch:staging").
-                              Passed to netlify deploy and env:set.
+                              (env: NETLIFY_CONTEXT, default: "deploy-preview")
+                              Passed to netlify deploy and env var setup.
       --api-base-url <url>    VITE_API_BASE_URL for the frontend build
                               (default: "/.netlify/functions/<functions-name>")
       --mongodb-uri <uri>     MONGODB_URI for the serverless function
@@ -353,7 +284,7 @@ function parseArgs(argv: string[]): NetlifyOptions {
     noRedirects: false,
     message: undefined,
     alias: undefined,
-    context: undefined,
+    context: process.env.NETLIFY_CONTEXT ?? 'deploy-preview',
     mongodbUri: process.env.MONGODB_URI,
   };
 
@@ -597,31 +528,14 @@ async function prompt(options: NetlifyOptions): Promise<NetlifyOptions> {
   }
 
   if (!options.context) {
-    const wantContext = await confirm({
-      message: 'Set a Netlify deploy context (--context)?',
-      initialValue: false,
-    });
-    if (isCancel(wantContext)) {
-      cancel('Cancelled');
-      process.exit(0);
-    } else if (wantContext) {
-      const v = await text({
-        message: 'Deploy context',
-        placeholder: 'production, deploy-preview, branch-deploy, branch:staging',
-        validate: (s) => (s && s.trim() ? undefined : 'Required'),
-      });
-      if (isCancel(v)) {
-        cancel('Cancelled');
-        process.exit(0);
-      } else options.context = (v as string).trim();
-    }
+    options.context = 'deploy-preview';
   }
 
   if (!options.mongodbUri) {
     const v = await password({
       message: options.prod
         ? 'MONGODB_URI for the serverless function (required for production)'
-        : 'MONGODB_URI for the serverless function (leave empty to skip env-set)',
+        : 'MONGODB_URI for the serverless function (leave empty to skip env var setup)',
       mask: '•',
       validate: (s) => (options.prod && !(s && s.trim()) ? 'Required for production deploys' : undefined),
     });
@@ -721,7 +635,7 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
     bail('--mongodb-uri is required for production deploys (startDB() throws without it and there is no fallback).');
   } else {
     console.log(
-      '• MONGODB_URI: not provided, so Netlify env:set will be skipped. ' +
+      '• MONGODB_URI: not provided, so env var setup will be skipped. ' +
         'Pass --mongodb-uri or export MONGODB_URI if you want this script to write it to Netlify.',
     );
   }
@@ -753,11 +667,38 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
   const secrets = collectSecrets(options.authToken, options.mongodbUri);
 
   // Ensure the active deploy directory is linked to the resolved site before
-  // running any CLI subcommands. `netlify deploy` and `env:set` may fall back
-  // to the local `.netlify/state.json` link, so we create it up front from the
-  // already-resolved site id (no extra network round-trip).
+  // running `netlify deploy`, which may fall back to `.netlify/state.json`.
+  // We write the file directly — no CLI subprocess needed.
   if (!options.dryRun && siteRef) {
-    ensureLinkedSite(cli, paths.deployDir, stateFile, options.authToken!, siteRef, options.dryRun, secrets);
+    ensureLinkedSite(stateFile, siteRef, options.dryRun);
+  }
+
+  // Set MONGODB_URI env var *before* deploying so the serverless function
+  // has it available as soon as the deploy goes live.
+  if (options.mongodbUri && !options.dryRun && siteRef) {
+    console.log(`\n─ Setting MONGODB_URI on the site (scope=${scopeLabel}, context=${envContextLabel}) ─`);
+    await setSiteEnvVar(options.authToken!, siteRef, 'MONGODB_URI', options.mongodbUri, {
+      paidTier: options.paidTier,
+      context: options.context,
+    });
+    console.log('  OK — runtime function env updated.');
+
+    console.log(`\n─ Verifying MONGODB_URI on the site (scope=${scopeLabel}, context=${envContextLabel}) ─`);
+    const presence = await verifySiteEnvVar(options.authToken!, siteRef, 'MONGODB_URI', {
+      context: options.context,
+      paidTier: options.paidTier,
+    });
+
+    if (presence === 'present') {
+      console.log('  OK — MONGODB_URI is present on the target site/context.');
+    } else if (presence === 'missing') {
+      bail(
+        'Env var setup completed, but MONGODB_URI was not found afterward. ' +
+          'Check the site, scope, and context being targeted.',
+      );
+    } else {
+      console.log('  Warning — could not verify MONGODB_URI presence from Netlify API.');
+    }
   }
 
   const deployArgs: string[] = [
@@ -799,47 +740,6 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
     } catch {
       // If JSON parsing fails, the user still saw the deploy output on stderr.
       console.log('\n(Could not parse deploy JSON output from Netlify CLI.)');
-    }
-  }
-
-  if (options.mongodbUri && !options.dryRun && siteRef) {
-    console.log(`\n─ Setting MONGODB_URI on the site (scope=${scopeLabel}, context=${envContextLabel}) ─`);
-    const envSetArgs = [
-      'env:set',
-      'MONGODB_URI',
-      options.mongodbUri,
-      '--auth',
-      options.authToken!,
-      '--site',
-      siteRef,
-      ...envScopeArgs(options),
-    ];
-    if (options.context) envSetArgs.push('--context', options.context);
-    runNetlify(cli, envSetArgs, prepared.buildEnv, options.dryRun, paths.deployDir, secrets);
-    console.log('  OK — runtime function env updated.');
-
-    console.log(`\n─ Verifying MONGODB_URI on the site (scope=${scopeLabel}, context=${envContextLabel}) ─`);
-    const presence = verifyEnvPresence(
-      cli,
-      prepared.buildEnv,
-      paths.deployDir,
-      options.authToken!,
-      siteRef,
-      'MONGODB_URI',
-      options.context,
-      options.paidTier,
-      secrets,
-    );
-
-    if (presence === 'present') {
-      console.log('  OK — MONGODB_URI is present on the target site/context.');
-    } else if (presence === 'missing') {
-      bail(
-        'Netlify env:set completed, but MONGODB_URI was not found afterward. ' +
-          'Check the site, scope, and context being targeted.',
-      );
-    } else {
-      console.log('  Warning — could not verify MONGODB_URI presence from Netlify CLI JSON output.');
     }
   }
 }

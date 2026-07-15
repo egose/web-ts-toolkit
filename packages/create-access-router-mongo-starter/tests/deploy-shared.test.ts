@@ -74,21 +74,15 @@ describe('redactCommand', () => {
   });
 
   it('redacts multiple secrets', () => {
-    const cmd = 'netlify env:set MONGODB_URI mongodb://user:pass@host --auth token123 --site abc';
+    const cmd = 'netlify deploy --auth token123 --site abc --mongodb-uri mongodb://user:pass@host';
     const redacted = redactCommand(cmd, ['mongodb://user:pass@host', 'token123']);
-    expect(redacted).toBe('netlify env:set MONGODB_URI [REDACTED] --auth [REDACTED] --site abc');
+    expect(redacted).toBe('netlify deploy --auth [REDACTED] --site abc --mongodb-uri [REDACTED]');
   });
 
   it('does not modify the command when no secrets match', () => {
     const cmd = 'netlify deploy --site my-site --prod';
     const redacted = redactCommand(cmd, ['nonexistent']);
     expect(redacted).toBe(cmd);
-  });
-
-  it('redacts auth token from a netlify link command', () => {
-    const cmd = 'netlify link --auth secret-token-123 --id site-abc';
-    const redacted = redactCommand(cmd, ['secret-token-123']);
-    expect(redacted).toBe('netlify link --auth [REDACTED] --id site-abc');
   });
 
   it('ignores empty secret strings', () => {
