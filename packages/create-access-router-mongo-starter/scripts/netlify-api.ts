@@ -45,6 +45,12 @@ export interface NetlifyApiClient {
   listSites(params: { name?: string; filter?: string; per_page?: number; page?: number }): Promise<NetlifySite[]>;
   createSite(params: { body: { name: string } }): Promise<NetlifySite>;
   createSiteInTeam(params: { account_slug: string; body: { name: string } }): Promise<NetlifySite>;
+  getEnvVars(params: {
+    account_id: string;
+    site_id?: string;
+    context_name?: string;
+    scope?: string;
+  }): Promise<unknown[]>;
   getSiteEnvVars(params: { site_id: string; context_name?: string; scope?: string }): Promise<unknown[]>;
   createEnvVars(params: { account_id: string; site_id?: string; body: unknown[] }): Promise<unknown>;
   updateEnvVar(params: { account_id: string; key: string; site_id?: string; body: unknown }): Promise<unknown>;
@@ -238,7 +244,24 @@ export async function resolveSiteTarget(
 // Environment variable management (replaces `netlify env:set` / `env:list`)
 // ---------------------------------------------------------------------------
 
-const ALL_ENVELOPE_SCOPES = ['builds', 'functions', 'runtime', 'post_processing'];
+const ALL_ENVELOPE_SCOPES = ['builds', 'functions', 'runtime', 'post-processing'];
+
+async function getAccountSiteEnvVars(
+  cli: NetlifyApiClient,
+  accountId: string,
+  siteId: string,
+  options?: { context?: string; paidTier?: boolean },
+): Promise<{ key?: string }[]> {
+  const params: { account_id: string; site_id: string; context_name?: string; scope?: string } = {
+    account_id: accountId,
+    site_id: siteId,
+  };
+
+  if (options?.context) params.context_name = options.context;
+  if (options?.paidTier) params.scope = 'functions';
+
+  return (await cli.getEnvVars(params)) as { key?: string }[];
+}
 
 /**
  * Translate a user-supplied `--context` flag into the API's env value shape.
@@ -290,7 +313,7 @@ export async function setSiteEnvVar(
   // Check if the env var already exists
   let existing: { key?: string } | undefined;
   try {
-    const envVars = (await cli.getSiteEnvVars({ site_id: siteId })) as { key?: string }[];
+    const envVars = await getAccountSiteEnvVars(cli, accountId, siteId);
     existing = envVars.find((v) => v.key === key);
   } catch (err) {
     if (isAuthError(err)) bail(`Netlify auth token is invalid or expired. The API responded with 401 Access Denied.`);
@@ -324,10 +347,13 @@ export async function verifySiteEnvVar(
 ): Promise<'present' | 'missing' | 'unknown'> {
   const cli = client ?? (await getClient(authToken));
   try {
-    const params: { site_id: string; context_name?: string; scope?: string } = { site_id: siteId };
-    if (options.context) params.context_name = options.context;
-    if (options.paidTier) params.scope = 'functions';
-    const envVars = (await cli.getSiteEnvVars(params)) as { key?: string }[];
+    const site = (await cli.getSite({ site_id: siteId })) as NetlifySite & {
+      account_id?: string;
+      account_slug?: string;
+    };
+    const accountId = site.account_id ?? site.account_slug;
+    if (!accountId) return 'unknown';
+    const envVars = await getAccountSiteEnvVars(cli, accountId, siteId, options);
     if (!Array.isArray(envVars)) return 'unknown';
     return envVars.some((v) => v.key === envKey) ? 'present' : 'missing';
   } catch {

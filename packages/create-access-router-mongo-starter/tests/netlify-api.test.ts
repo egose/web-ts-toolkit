@@ -26,6 +26,7 @@ function makeMockClient(overrides: Partial<NetlifyApiClient> = {}): NetlifyApiCl
     listSites: vi.fn(overrides.listSites ?? (async () => [])),
     createSite: vi.fn(overrides.createSite ?? (async () => ({ id: 'new-site-id', name: 'mock' }))),
     createSiteInTeam: vi.fn(overrides.createSiteInTeam ?? (async () => ({ id: 'new-site-id', name: 'mock' }))),
+    getEnvVars: vi.fn(overrides.getEnvVars ?? (async () => [])),
     getSiteEnvVars: vi.fn(overrides.getSiteEnvVars ?? (async () => [])),
     createEnvVars: vi.fn(overrides.createEnvVars ?? (async () => ({}))),
     updateEnvVar: vi.fn(overrides.updateEnvVar ?? (async () => ({}))),
@@ -277,7 +278,7 @@ describe('setSiteEnvVar', () => {
   it('creates a new env var when it does not exist', async () => {
     const client = makeMockClient({
       getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
-      getSiteEnvVars: async () => [],
+      getEnvVars: async () => [],
       createEnvVars: async () => ({}),
     });
     await setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', {}, client);
@@ -288,7 +289,7 @@ describe('setSiteEnvVar', () => {
   it('updates an existing env var via setEnvVarValue', async () => {
     const client = makeMockClient({
       getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
-      getSiteEnvVars: async () => [{ key: 'MONGODB_URI' }],
+      getEnvVars: async () => [{ key: 'MONGODB_URI' }],
       setEnvVarValue: async () => ({}),
     });
     await setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', {}, client);
@@ -299,7 +300,7 @@ describe('setSiteEnvVar', () => {
   it('passes context through to the value body', async () => {
     const client = makeMockClient({
       getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
-      getSiteEnvVars: async () => [],
+      getEnvVars: async () => [],
       createEnvVars: async () => ({}),
     });
     await setSiteEnvVar(
@@ -321,12 +322,23 @@ describe('setSiteEnvVar', () => {
   it('uses functions scope for paid tier', async () => {
     const client = makeMockClient({
       getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
-      getSiteEnvVars: async () => [],
+      getEnvVars: async () => [],
       createEnvVars: async () => ({}),
     });
     await setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', { paidTier: true }, client);
     const call = (client.createEnvVars as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.body[0].scopes).toEqual(['functions']);
+  });
+
+  it("uses Netlify's post-processing scope name for free tier", async () => {
+    const client = makeMockClient({
+      getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
+      getEnvVars: async () => [],
+      createEnvVars: async () => ({}),
+    });
+    await setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', {}, client);
+    const call = (client.createEnvVars as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.body[0].scopes).toEqual(['builds', 'functions', 'runtime', 'post-processing']);
   });
 });
 
@@ -341,7 +353,8 @@ describe('verifySiteEnvVar', () => {
 
   it('returns present when the key is found', async () => {
     const client = makeMockClient({
-      getSiteEnvVars: async () => [{ key: 'MONGODB_URI' }, { key: 'OTHER' }],
+      getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
+      getEnvVars: async () => [{ key: 'MONGODB_URI' }, { key: 'OTHER' }],
     });
     const result = await verifySiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', {}, client);
     expect(result).toBe('present');
@@ -349,7 +362,8 @@ describe('verifySiteEnvVar', () => {
 
   it('returns missing when the key is not found', async () => {
     const client = makeMockClient({
-      getSiteEnvVars: async () => [{ key: 'OTHER' }],
+      getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
+      getEnvVars: async () => [{ key: 'OTHER' }],
     });
     const result = await verifySiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', {}, client);
     expect(result).toBe('missing');
@@ -357,7 +371,8 @@ describe('verifySiteEnvVar', () => {
 
   it('returns unknown on error', async () => {
     const client = makeMockClient({
-      getSiteEnvVars: async () => {
+      getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
+      getEnvVars: async () => {
         throw new Error('network');
       },
     });
