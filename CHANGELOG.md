@@ -1,3 +1,9 @@
+## [0.18.2](https://github.com/egose/web-ts-toolkit/compare/v0.18.1...v0.18.2) (2026-07-15)
+
+### Bug Fixes
+
+* **create-access-router-mongo-starter:** resolve package metadata for bundled and source execution ([0cf06ad](https://github.com/egose/web-ts-toolkit/commit/0cf06ad0d0fb35974d9daf9de7cdc7d738e36c9d))
+
 ## [0.18.1](https://github.com/egose/web-ts-toolkit/compare/v0.18.0...v0.18.1) (2026-07-15)
 
 ### Bug Fixes
