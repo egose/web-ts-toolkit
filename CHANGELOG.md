@@ -1,3 +1,9 @@
+## [0.16.3](https://github.com/egose/web-ts-toolkit/compare/v0.16.2...v0.16.3) (2026-07-15)
+
+### Bug Fixes
+
+* **create-access-router-mongo-starter:** handle free-tier env var creation and 403 errors ([1a1be43](https://github.com/egose/web-ts-toolkit/commit/1a1be43a749f6b6498cf6f59d6091e0a41e565b6))
+
 ## [0.16.2](https://github.com/egose/web-ts-toolkit/compare/v0.16.1...v0.16.2) (2026-07-15)
 
 ### Bug Fixes
