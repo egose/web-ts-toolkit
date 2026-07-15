@@ -111,12 +111,13 @@ The deploy command:
 - builds the Vite frontend and the `wtt-express-runtime` serverless bundle
 - creates or reuses a Netlify site (via `@netlify/api` SDK)
 - writes `.netlify/state.json` directly (no `netlify link` CLI needed)
+- generates a minimal `netlify.toml` with `[build]` and `[functions]`
 - sets `MONGODB_URI` on the site environment (via `@netlify/api` SDK)
 - defaults to free-tier-compatible env writes with no `--scope`
 - uses `--paid-tier` to opt into `--scope functions`
 
-By default, the command writes `dist/`, `netlify/functions/`, and `.netlify/`
-into the project directory. To build and deploy from a
+By default, the command writes `dist/`, `netlify/functions/`, `.netlify/`,
+and `netlify.toml` into the project directory. To build and deploy from a
 throwaway directory instead — leaving the repo untouched — pass `--ephemeral`
 (removed on success; keep with `--keep-sandbox`) or `--sandbox-dir <path>` for
 a persistent sandbox:
