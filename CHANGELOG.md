@@ -1,3 +1,17 @@
+## [0.17.0](https://github.com/egose/web-ts-toolkit/compare/v0.16.3...v0.17.0) (2026-07-15)
+
+### Features
+
+* stamp template package versions from the scaffolder version ([0725ba3](https://github.com/egose/web-ts-toolkit/commit/0725ba345b0a53dbe3a69477be005b94f3ada296))
+
+### Bug Fixes
+
+* **create-access-router-mongo-starter:** skip unsupported netlify context flag ([15efe74](https://github.com/egose/web-ts-toolkit/commit/15efe74f180d66f92dee5d5ffe0000bc6c3164e2))
+
+### Documentation
+
+* document the version placeholder in the starter template ([7be6b97](https://github.com/egose/web-ts-toolkit/commit/7be6b97c26233656dded5ca2e857f25427dffba0))
+
 ## [0.16.3](https://github.com/egose/web-ts-toolkit/compare/v0.16.2...v0.16.3) (2026-07-15)
 
 ### Bug Fixes
