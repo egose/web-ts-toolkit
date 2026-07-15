@@ -14,6 +14,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { cancel, intro, isCancel, outro, text } from '@clack/prompts';
+import { resolveCliScriptPath } from './runtime-paths';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -21,8 +22,11 @@ import { cancel, intro, isCancel, outro, text } from '@clack/prompts';
 
 // Prefer a bundled template next to the built CLI (`dist/template`) and fall
 // back to the source template directory for local `tsx src/cli.ts` execution.
-const invokedScriptPath = process.argv[1] ? resolve(process.argv[1]) : resolve(process.cwd(), 'cli.js');
-const SCRIPT_DIR = dirname(invokedScriptPath);
+// Installed package bins are commonly symlinked, so resolve the actual CLI file
+// instead of relying on the raw argv entrypoint path.
+const SCRIPT_DIR = dirname(
+  resolveCliScriptPath(typeof __filename === 'string' ? __filename : undefined, process.argv[1]),
+);
 const BUNDLED_TEMPLATE_DIR = resolve(SCRIPT_DIR, 'template');
 const SOURCE_TEMPLATE_DIR = resolve(SCRIPT_DIR, '..', 'template');
 const TEMPLATE_DIR = existsSync(BUNDLED_TEMPLATE_DIR) ? BUNDLED_TEMPLATE_DIR : SOURCE_TEMPLATE_DIR;
