@@ -328,7 +328,7 @@ Omitting `<command>` defaults to `dev` for backward compatibility.
 | `--out-dir <path>`    | Output directory (default: `dist`)                                               |
 | `--out-name <name>`   | Output filename without extension (default: `handler`)                           |
 | `--format <cjs\|esm>` | Output format (default: `cjs`)                                                   |
-| `--target <target>`   | Compilation target (default: `node20`)                                           |
+| `--target <target>`   | Compilation target (default: `node22`)                                           |
 | `--external <pkg>`    | Mark package as external (repeatable; `express` is always external)              |
 | `--no-clean`          | Don't clean the output directory before building                                 |
 

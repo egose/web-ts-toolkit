@@ -4,6 +4,6 @@ export default defineConfig({
   entry: ['src/index.ts'],
   format: ['cjs', 'esm'],
   dts: true,
-  target: 'node20',
+  target: 'node22',
   outDir: 'dist',
 });

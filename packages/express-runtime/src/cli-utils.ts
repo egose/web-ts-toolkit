@@ -104,7 +104,7 @@ Build options:
   --out-dir <path>              Output directory (default: dist)
   --out-name <name>             Output filename without extension (default: handler)
   --format <cjs|esm>            Output format (default: cjs)
-  --target <target>             Compilation target (default: node20)
+  --target <target>             Compilation target (default: node22)
   --external <pkg>              Mark package as external (repeatable; express always external)
   --no-clean                    Don't clean the output directory before building
 
@@ -353,7 +353,7 @@ function parseBuildArgs(argv: string[]): BuildArgs {
     outDir: 'dist',
     outName: 'handler',
     format: 'cjs',
-    target: 'node20',
+    target: 'node22',
     external,
     clean: true,
   };

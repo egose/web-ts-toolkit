@@ -264,7 +264,7 @@ describe('parseArgs — build', () => {
     expect(result.build.outDir).toBe('dist');
     expect(result.build.outName).toBe('handler');
     expect(result.build.format).toBe('cjs');
-    expect(result.build.target).toBe('node20');
+    expect(result.build.target).toBe('node22');
     expect(result.build.external).toEqual([]);
     expect(result.build.clean).toBe(true);
     expect(result.build.initPath).toBeUndefined();

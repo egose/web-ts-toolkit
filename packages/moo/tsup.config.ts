@@ -12,7 +12,7 @@ export default defineConfig({
   ],
   format: ['cjs', 'esm'],
   dts: true,
-  target: 'node20',
+  target: 'node22',
   outDir: 'dist',
   clean: true,
   bundle: false,
