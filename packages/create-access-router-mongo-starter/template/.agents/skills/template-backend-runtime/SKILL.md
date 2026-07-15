@@ -29,7 +29,7 @@ Use this skill for Express wiring, environment-driven behavior, and database lif
 - `api/app-dev.ts` is the local dev entry and is allowed to await `startDB()` before returning the app.
 - `api/init.ts` is the serverless cold-start hook and owns DB startup for the bundled function.
 - `api/src/db.ts` requires `MONGODB_URI`; there is no silent fallback.
-- `api/src/express.ts` currently mounts `/api`, combines access-router routes, and handles `AppError` specially.
+- `api/src/config.ts` owns `API_BASE_URL`, which defaults to `/api` and is used by `api/src/express.ts` and `api/src/routers.ts`.
 
 ## Workflow
 
@@ -44,7 +44,7 @@ Use this skill for Express wiring, environment-driven behavior, and database lif
 - Prefer extending `createExpress()` over replacing the current app-construction flow.
 - Do not move DB startup into `api/app.ts`.
 - Keep environment-variable handling explicit in `api/src/config.ts` and `api/src/db.ts`.
-- Preserve the template placeholder in the `/api` response payload unless the scaffolding behavior is intentionally changing.
+- Preserve the template placeholder in the API root response payload unless the scaffolding behavior is intentionally changing.
 
 ## Verification
 

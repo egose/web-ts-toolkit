@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { combineRoutes, createAccessRuntime } from '@web-ts-toolkit/access-router';
 import { createExpressApp } from '@web-ts-toolkit/express-runtime';
+import { API_BASE_URL } from './config';
 import { AppError } from './errors';
 import './models';
 import { createRouters } from './routers';
@@ -12,7 +13,7 @@ export function createExpress() {
 
   return createExpressApp({
     finalize: (app) => {
-      app.get('/api', (_req: Request, res: Response) => {
+      app.get(API_BASE_URL, (_req: Request, res: Response) => {
         res.json({ name: '{{APP_NAME}}', ok: true });
       });
       app.use(apiRouter);

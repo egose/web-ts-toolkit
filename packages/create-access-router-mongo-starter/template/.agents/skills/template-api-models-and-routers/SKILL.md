@@ -42,7 +42,7 @@ Use this skill for persistence and access-router changes under `api/src/`.
 
 - Prefer small changes to the current `createRouters(runtime)` structure.
 - Keep request schemas explicit rather than relying on implicit Mongoose coercion.
-- Avoid changing server route prefixes casually; `src/api.ts` depends on them.
+- Avoid changing server route prefixes casually; `src/api.ts` depends on `API_BASE_URL` staying aligned.
 - Treat auth as a coordinated change across permissions, request extensions, and runtime middleware, not a one-file tweak.
 
 ## Verification
