@@ -330,7 +330,7 @@ describe('setSiteEnvVar', () => {
     expect(call.body[0].scopes).toEqual(['functions']);
   });
 
-  it("uses Netlify's post-processing scope name for free tier", async () => {
+  it('omits scopes on free tier to avoid 403 from granular-scope gating', async () => {
     const client = makeMockClient({
       getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
       getEnvVars: async () => [],
@@ -338,7 +338,22 @@ describe('setSiteEnvVar', () => {
     });
     await setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', {}, client);
     const call = (client.createEnvVars as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(call.body[0].scopes).toEqual(['builds', 'functions', 'runtime', 'post-processing']);
+    expect(call.body[0].scopes).toBeUndefined();
+    expect(call.body[0].key).toBe('MONGODB_URI');
+    expect(call.body[0].values[0]).toEqual({ context: 'all', value: 'mongodb://localhost' });
+  });
+
+  it('bails with a clear message on 403 from createEnvVars', async () => {
+    const client = makeMockClient({
+      getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
+      getEnvVars: async () => [],
+      createEnvVars: async () => {
+        throw httpError(403, 'Forbidden');
+      },
+    });
+    await expect(setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', {}, client)).rejects.toThrow(
+      /HTTP 403 Forbidden/,
+    );
   });
 });
 
