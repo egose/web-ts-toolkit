@@ -31,10 +31,10 @@ const BUNDLED_TEMPLATE_DIR = resolve(SCRIPT_DIR, 'template');
 const SOURCE_TEMPLATE_DIR = resolve(SCRIPT_DIR, '..', 'template');
 const TEMPLATE_DIR = existsSync(BUNDLED_TEMPLATE_DIR) ? BUNDLED_TEMPLATE_DIR : SOURCE_TEMPLATE_DIR;
 
-// Resolve this scaffolder's own version so it can be stamped into the template
-// `package.json` via the `{{VERSION}}` placeholder (e.g. `@web-ts-toolkit/*` deps).
-// When bundled, `dist/cli.js` → `../package.json` is the package root.
-const PKG_JSON_PATH = resolve(SCRIPT_DIR, '.', 'package.json');
+const BUNDLED_PKG_JSON_PATH = resolve(SCRIPT_DIR, 'package.json');
+const SOURCE_PKG_JSON_PATH = resolve(SCRIPT_DIR, '..', 'package.json');
+const PKG_JSON_PATH = existsSync(BUNDLED_PKG_JSON_PATH) ? BUNDLED_PKG_JSON_PATH : SOURCE_PKG_JSON_PATH;
+
 const SCAFFOLDER_VERSION = (() => {
   try {
     return (JSON.parse(readFileSync(PKG_JSON_PATH, 'utf8')) as { version?: string }).version ?? 'not_found_1';
