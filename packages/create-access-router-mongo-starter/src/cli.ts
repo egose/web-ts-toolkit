@@ -6,8 +6,10 @@
  *   pnpm create-access-router-mongo-starter <target-dir> [options]
  *
  * Copies the bundled starter template,
- * rewrites `{{APP_NAME}}`, `{{APP_TITLE}}`, and `{{DB_NAME}}` placeholders, and
- * prints next steps.
+ * rewrites `{{APP_NAME}}`, `{{APP_TITLE}}`, `{{DB_NAME}}`, and `{{VERSION}}`
+ * placeholders (the last is stamped with this scaffolder's own package version
+ * so `@web-ts-toolkit/*` deps in the template track the installed starter),
+ * and prints next steps.
  */
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -24,6 +26,18 @@ const SCRIPT_DIR = dirname(invokedScriptPath);
 const BUNDLED_TEMPLATE_DIR = resolve(SCRIPT_DIR, 'template');
 const SOURCE_TEMPLATE_DIR = resolve(SCRIPT_DIR, '..', 'template');
 const TEMPLATE_DIR = existsSync(BUNDLED_TEMPLATE_DIR) ? BUNDLED_TEMPLATE_DIR : SOURCE_TEMPLATE_DIR;
+
+// Resolve this scaffolder's own version so it can be stamped into the template
+// `package.json` via the `{{VERSION}}` placeholder (e.g. `@web-ts-toolkit/*` deps).
+// When bundled, `dist/cli.js` → `../package.json` is the package root.
+const PKG_JSON_PATH = resolve(SCRIPT_DIR, '..', 'package.json');
+const SCAFFOLDER_VERSION = (() => {
+  try {
+    return (JSON.parse(readFileSync(PKG_JSON_PATH, 'utf8')) as { version?: string }).version ?? '';
+  } catch {
+    return '';
+  }
+})();
 
 const EXCLUDE_PATTERNS = [
   'node_modules',
@@ -314,6 +328,7 @@ async function main() {
     '{{APP_NAME}}': name,
     '{{APP_TITLE}}': title,
     '{{DB_NAME}}': dbName,
+    '{{VERSION}}': SCAFFOLDER_VERSION,
   };
   if (!options.dryRun) rewritePlaceholders(targetDir, replacements);
   for (const [token, value] of Object.entries(replacements)) {
