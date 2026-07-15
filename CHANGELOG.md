@@ -1,3 +1,18 @@
+## [0.19.0](https://github.com/egose/web-ts-toolkit/compare/v0.18.2...v0.19.0) (2026-07-15)
+
+### Features
+
+* force production deploy context and add helper coverage ([9cbd105](https://github.com/egose/web-ts-toolkit/commit/9cbd105e9e611a76c8f21bb754c97dad455c6df0))
+
+### Bug Fixes
+
+* remove generated netlify.toml redirect handling ([82a5e9d](https://github.com/egose/web-ts-toolkit/commit/82a5e9d262e876e306654cd77c520fedda6d25be))
+
+### Documentation
+
+* clarify deploy context behavior in the template readme ([0bbd3bd](https://github.com/egose/web-ts-toolkit/commit/0bbd3bd816fd7f5ff5e2815ee7c6a88aec6cdded))
+* update deploy README for sandbox output ([b328f3a](https://github.com/egose/web-ts-toolkit/commit/b328f3a2f8d7285b7c4b98e770a5c7b0d837ef1a))
+
 ## [0.18.2](https://github.com/egose/web-ts-toolkit/compare/v0.18.1...v0.18.2) (2026-07-15)
 
 ### Bug Fixes
