@@ -1,3 +1,10 @@
+## [0.16.0](https://github.com/egose/web-ts-toolkit/compare/v0.15.0...v0.16.0) (2026-07-15)
+
+### Features
+
+* migrate Netlify deploy flow to the SDK and Node 22 ([e81681a](https://github.com/egose/web-ts-toolkit/commit/e81681a33d1235b84706ca2ff1f42d21597ce810))
+* raise node runtime requirements across packages ([f7b64eb](https://github.com/egose/web-ts-toolkit/commit/f7b64eb0018b007f9e5a6f906e6aeacc4081e6cb))
+
 ## [0.15.0](https://github.com/egose/web-ts-toolkit/compare/v0.14.0...v0.15.0) (2026-07-15)
 
 ### Features
