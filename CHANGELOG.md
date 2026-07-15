@@ -1,3 +1,9 @@
+## [0.18.0](https://github.com/egose/web-ts-toolkit/compare/v0.17.0...v0.18.0) (2026-07-15)
+
+### Features
+
+* **create-access-router-mongo-starter:** resolve symlinked cli entry paths ([a6f9ece](https://github.com/egose/web-ts-toolkit/commit/a6f9ecec0627841ec05fac9dd9f7875c44149975))
+
 ## [0.17.0](https://github.com/egose/web-ts-toolkit/compare/v0.16.3...v0.17.0) (2026-07-15)
 
 ### Features
