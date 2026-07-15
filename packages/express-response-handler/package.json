@@ -58,7 +58,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "@fast-csv/format": "^5.0.5",

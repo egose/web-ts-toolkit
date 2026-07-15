@@ -36,6 +36,7 @@
   ],
   "dependencies": {
     "@clack/prompts": "^1.7.0",
+    "@netlify/api": "^15.0.1",
     "netlify-cli": "26.2.0"
   },
   "devDependencies": {
@@ -45,6 +46,6 @@
     "vitest": "^4.1.10"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12.0"
   }
 }

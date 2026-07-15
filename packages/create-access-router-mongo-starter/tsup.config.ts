@@ -9,10 +9,10 @@ export default defineConfig([
     },
     format: ['cjs'],
     dts: false,
-    target: 'node20',
+    target: 'node22',
     outDir: 'dist',
     clean: true,
-    external: ['@clack/prompts'],
+    external: ['@clack/prompts', '@netlify/api'],
     banner: {
       js: '#!/usr/bin/env node',
     },

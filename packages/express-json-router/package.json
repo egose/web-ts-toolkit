@@ -33,7 +33,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "@web-ts-toolkit/express-response-handler": "workspace:*",
