@@ -110,6 +110,10 @@ The deploy command:
 
 - builds the Vite frontend and the `wtt-express-runtime` serverless bundle
 - creates or reuses a Netlify site
+- links the active deploy directory to the site with `netlify link --auth
+<token> --id <site-id>`, creating `.netlify/state.json` so CLI subcommands
+  (`deploy`, `env:set`) can resolve the target even when `--site` is not
+  honored for a subcommand
 - generates `netlify.toml` with an `/api/*` → function redirect
 - sets `MONGODB_URI` on the site environment
 - defaults to free-tier-compatible env writes with no `--scope`
