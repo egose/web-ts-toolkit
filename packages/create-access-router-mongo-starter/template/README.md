@@ -53,24 +53,25 @@ tests/
 
 ## Scripts
 
-| Script                  | What it does                                                              |
-| ----------------------- | ------------------------------------------------------------------------- |
-| `pnpm dev`              | Start the Vite dev server (UI) on :3000, proxying `/api` → :8000.         |
-| `pnpm server`           | Start the backend in watch mode via `wtt-express-runtime dev` on :8000.   |
-| `pnpm serverless`       | Bundle the backend as a serverless handler into `api/functions/main.cjs`. |
-| `pnpm serverless:start` | Run the bundled serverless handler locally on :9000.                      |
-| `pnpm build`            | Typecheck (app + server) and build the frontend.                          |
-| `pnpm typecheck`        | Typecheck only.                                                           |
-| `pnpm lint`             | ESLint.                                                                   |
-| `pnpm test`             | Vitest.                                                                   |
+| Script                  | What it does                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| `pnpm dev`              | Start the Vite dev server (UI) on :3000, proxying `API_BASE_URL` (default `/api`) → :8000. |
+| `pnpm server`           | Start the backend in watch mode via `wtt-express-runtime dev` on :8000.                    |
+| `pnpm serverless`       | Bundle the backend as a serverless handler into `api/functions/main.cjs`.                  |
+| `pnpm serverless:start` | Run the bundled serverless handler locally on :9000.                                       |
+| `pnpm build`            | Typecheck (app + server) and build the frontend.                                           |
+| `pnpm typecheck`        | Typecheck only.                                                                            |
+| `pnpm lint`             | ESLint.                                                                                    |
+| `pnpm test`             | Vitest.                                                                                    |
 
 ## Environment variables
 
-| Variable            | Required | Description                                                            |
-| ------------------- | -------- | ---------------------------------------------------------------------- |
-| `MONGODB_URI`       | Yes      | MongoDB connection string (local, Atlas, or other provider).           |
-| `VITE_API_BASE_URL` | No       | API base URL for the frontend. Defaults to `/api` (Vite proxy in dev). |
-| `PORT`              | No       | Backend dev server port (default: 8000).                               |
+| Variable            | Required | Description                                                                                     |
+| ------------------- | -------- | ----------------------------------------------------------------------------------------------- |
+| `MONGODB_URI`       | Yes      | MongoDB connection string (local, Atlas, or other provider).                                    |
+| `API_BASE_URL`      | No       | Shared API route prefix for backend routes, the Vite proxy, and the client. Defaults to `/api`. |
+| `VITE_API_BASE_URL` | No       | Optional frontend-only override for the client build. Falls back to `API_BASE_URL`.             |
+| `PORT`              | No       | Backend dev server port (default: 8000).                                                        |
 
 ## Running locally
 
@@ -86,8 +87,7 @@ pnpm dev           # frontend on http://localhost:3000 (in another terminal)
 ```
 
 The `Todo` and `Category` entities expose full CRUD through the access-router
-generated endpoints (`/api/todos`, `/api/categories`, `/api/root`). The UI lists,
-creates, edits, and deletes them via `createModelHooks`.
+generated endpoints under `API_BASE_URL` (default: `/api/todos`, `/api/categories`, `/api/root`). The UI lists, creates, edits, and deletes them via `createModelHooks`.
 
 ## Local serverless smoke test
 

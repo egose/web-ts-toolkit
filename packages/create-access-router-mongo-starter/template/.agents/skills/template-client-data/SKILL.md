@@ -1,6 +1,6 @@
 ---
 name: template-client-data
-description: src/api.ts, src/types.ts, createAdapter, createModelHooks, VITE_API_BASE_URL, list and mutation wiring. Use when changing frontend data fetching or client-server contract alignment in the access-router Mongo starter template.
+description: src/api.ts, src/types.ts, createAdapter, createModelHooks, API_BASE_URL, VITE_API_BASE_URL, list and mutation wiring. Use when changing frontend data fetching or client-server contract alignment in the access-router Mongo starter template.
 ---
 
 # Template Client Data
@@ -22,9 +22,9 @@ Use this skill for the frontend data layer and any client-side contract updates.
 
 ## Critical Contract Rules
 
-- `src/api.ts` configures `createAdapter({ baseURL })` using `VITE_API_BASE_URL ?? '/api'`.
+- `src/api.ts` configures `createAdapter({ baseURL })` using `API_BASE_URL ?? VITE_API_BASE_URL ?? '/api'`.
 - Model service `basePath` values are relative to that adapter base URL. They should stay as `todos`, `categories`, and similar relative segments, not `/api/todos`.
-- The server-side routers in `api/src/routers.ts` expose the matching absolute paths under `/api/...`.
+- The server-side routers in `api/src/routers.ts` expose the matching absolute paths under `${API_BASE_URL}/...` (default `/api/...`).
 - If one side changes, the other side must change in the same task.
 
 ## Workflow

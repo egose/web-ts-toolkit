@@ -17,7 +17,7 @@
 - This directory is a scaffold template, not a concrete app. Preserve template placeholders unless the scaffolding system itself is being changed.
 - Placeholder tokens currently used by the template are `{{APP_NAME}}`, `{{APP_TITLE}}`, `{{DB_NAME}}`, and `{{VERSION}}`. `{{VERSION}}` is replaced with the installed `create-access-router-mongo-starter` package version, and is used for `@web-ts-toolkit/*` dependency versions in `package.json`.
 - Frontend and backend run as separate local processes: `pnpm dev` for the UI and `pnpm server` for the API.
-- Client and server routes must stay aligned: `src/api.ts` uses relative model paths, while `api/src/routers.ts` exposes `/api/...` routes.
+- Client and server routes must stay aligned: `src/api.ts` uses relative model paths, while `api/src/routers.ts` exposes `${API_BASE_URL}/...` routes (default `/api/...`).
 - `api/app.ts` must stay side-effect-free for serverless bundling. Database startup belongs in `api/app-dev.ts` for local dev and `api/init.ts` for serverless cold start.
 - `pnpm build` does not emit the serverless bundle. Use `pnpm serverless` to produce that artifact.
 - Netlify deploy is provided by the `create-access-router-mongo-starter` package bins (`create-access-router-mongo-starter-deploy-netlify`, `create-access-router-mongo-starter-deploy-shared`), not by scripts shipped in this template. Install that package at the parent/workspace level to enable deploy.
@@ -42,7 +42,7 @@ Skills provide focused guidance for the main parts of this starter template.
 </skill>
 <skill>
 <name>template-client-data</name>
-<description>src/api.ts, src/types.ts, createAdapter, createModelHooks, VITE_API_BASE_URL, list and mutation wiring. Use when changing frontend data fetching or client-server contract alignment.</description>
+<description>src/api.ts, src/types.ts, createAdapter, createModelHooks, API_BASE_URL, VITE_API_BASE_URL, and list/mutation wiring. Use when changing frontend data fetching or client-server contract alignment.</description>
 <location>.agents/skills/template-client-data/SKILL.md</location>
 </skill>
 <skill>
