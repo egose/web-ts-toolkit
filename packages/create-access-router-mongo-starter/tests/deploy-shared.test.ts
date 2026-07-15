@@ -85,6 +85,12 @@ describe('redactCommand', () => {
     expect(redacted).toBe(cmd);
   });
 
+  it('redacts auth token from a netlify link command', () => {
+    const cmd = 'netlify link --auth secret-token-123 --id site-abc';
+    const redacted = redactCommand(cmd, ['secret-token-123']);
+    expect(redacted).toBe('netlify link --auth [REDACTED] --id site-abc');
+  });
+
   it('ignores empty secret strings', () => {
     const cmd = 'netlify deploy --auth abc --site my-site';
     const redacted = redactCommand(cmd, ['', 'abc']);
