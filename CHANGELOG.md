@@ -1,3 +1,9 @@
+## [0.15.0](https://github.com/egose/web-ts-toolkit/compare/v0.14.0...v0.15.0) (2026-07-15)
+
+### Features
+
+* link the deploy directory before Netlify CLI subcommands ([a983610](https://github.com/egose/web-ts-toolkit/commit/a983610a8a874f04489e5e30f366324910dfe9f9))
+
 ## [0.14.0](https://github.com/egose/web-ts-toolkit/compare/v0.13.1...v0.14.0) (2026-07-14)
 
 ### Features
