@@ -244,8 +244,6 @@ export async function resolveSiteTarget(
 // Environment variable management (replaces `netlify env:set` / `env:list`)
 // ---------------------------------------------------------------------------
 
-const ALL_ENVELOPE_SCOPES = ['builds', 'functions', 'runtime', 'post-processing'];
-
 async function getAccountSiteEnvVars(
   cli: NetlifyApiClient,
   accountId: string,
@@ -290,8 +288,10 @@ function contextToValue(
  *
  * - Resolves `account_id` from the site via `getSite`.
  * - If the env var already exists: updates the value for the given context.
- * - If it doesn't exist yet: creates it with the appropriate scopes.
- * - Free tier (paidTier=false): scopes = all four scopes (no `--scope` flag).
+ * - If it doesn't exist yet: creates it. On free tier, `scopes` is omitted
+ *   entirely (granular scopes are a Pro+ feature and sending them on a
+ *   free-tier account is rejected with HTTP 403). On paid tier, scopes are
+ *   narrowed to `['functions']`.
  * - Paid tier (paidTier=true): scopes = `['functions']`.
  */
 export async function setSiteEnvVar(
@@ -307,7 +307,6 @@ export async function setSiteEnvVar(
   const accountId = site.account_id ?? site.account_slug;
   if (!accountId) bail(`Could not determine account_id for site "${siteId}".`);
 
-  const scopes = options.paidTier ? ['functions'] : ALL_ENVELOPE_SCOPES;
   const val = contextToValue(options.context, value);
 
   // Check if the env var already exists
@@ -326,9 +325,31 @@ export async function setSiteEnvVar(
     // Update existing env var value for the given context
     await cli.setEnvVarValue({ ...params, body: val });
   } else {
-    // Create new env var
-    const body = [{ key, is_secret: false, scopes, values: [val] }];
-    await cli.createEnvVars({ ...params, body });
+    // Create new env var.
+    // On free tier, omit `scopes` entirely: granular scopes are a Pro+ feature
+    // and sending them on a free-tier account causes Netlify to return 403.
+    // Omitting scopes makes Netlify apply the default (all scopes) behavior.
+    const envVar: { key: string; is_secret: boolean; values: unknown[]; scopes?: string[] } = {
+      key,
+      is_secret: false,
+      values: [val],
+    };
+    if (options.paidTier) envVar.scopes = ['functions'];
+    const body = [envVar];
+    try {
+      await cli.createEnvVars({ ...params, body });
+    } catch (err) {
+      if (isAuthError(err)) bail(`Netlify auth token is invalid or expired. The API responded with 401 Access Denied.`);
+      const status = (err as SdkHttpError)?.status;
+      if (status === 403) {
+        bail(
+          `Netlify rejected setting the "${key}" env var on site "${siteId}" (HTTP 403 Forbidden).\n` +
+            `This usually means the token can read the site but is not allowed to manage its environment variables.\n` +
+            `Check that the token has site env:write permission, that you are a site owner or developer on the team, and that the site is not locked.`,
+        );
+      }
+      throw err;
+    }
   }
 }
 
