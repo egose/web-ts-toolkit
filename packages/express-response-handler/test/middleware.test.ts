@@ -9,9 +9,8 @@ import apiHandler, { ErrorFormats } from '../dist/index.mjs';
 const { handleResponse } = apiHandler;
 
 const app = express();
-app.set('port', 8080);
 const server = http.createServer(app);
-server.listen(8080);
+server.listen(0);
 
 afterAll(() => {
   server.close();
