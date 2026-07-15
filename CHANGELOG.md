@@ -1,3 +1,13 @@
+## [0.20.0](https://github.com/egose/web-ts-toolkit/compare/v0.19.0...v0.20.0) (2026-07-15)
+
+### Features
+
+* generate a minimal netlify config during deploy ([e0dccc0](https://github.com/egose/web-ts-toolkit/commit/e0dccc0392866946a8c2d0e46f45db258f0f2864))
+
+### Documentation
+
+* document netlify.toml output in the starter readme ([5064c93](https://github.com/egose/web-ts-toolkit/commit/5064c9322b4b29459cfa7aede42791e9de733513))
+
 ## [0.19.0](https://github.com/egose/web-ts-toolkit/compare/v0.18.2...v0.19.0) (2026-07-15)
 
 ### Features
