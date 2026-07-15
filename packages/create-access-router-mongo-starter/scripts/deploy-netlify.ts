@@ -78,6 +78,10 @@ function envScopeLabel(options: Pick<NetlifyOptions, 'paidTier'>): string {
   return options.paidTier ? 'functions' : 'all scopes (free-tier compatible)';
 }
 
+export function resolveDeployContext(options: Pick<NetlifyOptions, 'prod' | 'context'>): string {
+  return options.prod ? 'production' : (options.context ?? 'deploy-preview');
+}
+
 function resolveNetlifyCli(): NetlifyCli {
   if (typeof require !== 'function') {
     bail(
@@ -247,10 +251,11 @@ Options:
                               Useful for staging, review apps, or named
                               previews. Cannot be combined with --prod.
       --context <ctx>         Netlify deploy context for env (e.g.
-                              "production", "deploy-preview",
-                              "branch-deploy", or "branch:staging").
-                              (env: NETLIFY_CONTEXT, default: "deploy-preview")
-                              Passed to netlify deploy and env var setup.
+                               "production", "deploy-preview",
+                               "branch-deploy", or "branch:staging").
+                               (env: NETLIFY_CONTEXT, default: "deploy-preview")
+                               Ignored when --prod is set; production deploys
+                               always use context "production".
       --api-base-url <url>    VITE_API_BASE_URL for the frontend build
                               (default: "/.netlify/functions/<functions-name>")
       --mongodb-uri <uri>     MONGODB_URI for the serverless function
@@ -377,6 +382,9 @@ function parseArgs(argv: string[]): NetlifyOptions {
         throw new Error(`Unknown option: ${a}\n\n${HELP}`);
     }
   }
+
+  o.context = resolveDeployContext(o);
+
   return o;
 }
 
@@ -527,9 +535,7 @@ async function prompt(options: NetlifyOptions): Promise<NetlifyOptions> {
     }
   }
 
-  if (!options.context) {
-    options.context = 'deploy-preview';
-  }
+  options.context = resolveDeployContext(options);
 
   if (!options.mongodbUri) {
     const v = await password({
@@ -756,6 +762,8 @@ async function main() {
     options = await prompt(options);
     outro('Starting deploy');
   }
+
+  options.context = resolveDeployContext(options);
 
   if (!options.authToken) bail('Netlify auth token is required (use -t / --auth-token or NETLIFY_AUTH_TOKEN).');
 
