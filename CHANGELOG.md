@@ -1,3 +1,9 @@
+## [0.22.0](https://github.com/egose/web-ts-toolkit/compare/v0.21.0...v0.22.0) (2026-07-15)
+
+### Features
+
+* **create-access-router-mongo-starter:** set API_BASE_URL as a runtime env var during deploys ([48bd3aa](https://github.com/egose/web-ts-toolkit/commit/48bd3aa0916dd11edd445019f4ab59a6e83d1248))
+
 ## [0.21.0](https://github.com/egose/web-ts-toolkit/compare/v0.20.0...v0.21.0) (2026-07-15)
 
 ### Features
