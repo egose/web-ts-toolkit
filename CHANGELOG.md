@@ -1,3 +1,9 @@
+## [0.23.0](https://github.com/egose/web-ts-toolkit/compare/v0.22.0...v0.23.0) (2026-07-16)
+
+### Features
+
+* add branch deploy shorthand for Netlify ([71872b7](https://github.com/egose/web-ts-toolkit/commit/71872b73d12026484044f61bb018933dd3a0d86e))
+
 ## [0.22.0](https://github.com/egose/web-ts-toolkit/compare/v0.21.0...v0.22.0) (2026-07-15)
 
 ### Features
