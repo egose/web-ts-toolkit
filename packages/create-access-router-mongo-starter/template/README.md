@@ -140,6 +140,14 @@ pnpm --dir <app-dir> exec create-access-router-mongo-starter-deploy-netlify --si
 
 This produces a URL like `https://staging--<site-name>.netlify.app`.
 
+For a branch deploy, use `--branch <name>` as a shorthand that sets both
+`--alias <name>` and `--context branch:<name>`, overriding any explicit
+`--alias` / `--context`:
+
+```sh
+pnpm --dir <app-dir> exec create-access-router-mongo-starter-deploy-netlify --site <site> --branch staging
+```
+
 The deploy context defaults to `deploy-preview`. To target a different
 preview context (e.g. `branch:staging`), pass `--context <ctx>`.
 When `--prod` is set, the deploy context is forced to `production` and any
