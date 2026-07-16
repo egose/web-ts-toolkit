@@ -211,6 +211,7 @@ interface NetlifyOptions extends SharedDeployOptions {
   message: string | undefined;
   alias: string | undefined;
   context: string | undefined;
+  branch: string | undefined;
 }
 
 const HELP = `access-router-mongo-starter Netlify deploy
@@ -235,16 +236,23 @@ Options:
                                (--scope functions) when setting and
                                verifying site env vars. Default: free-tier-
                                compatible behavior with no --scope flag.
-      --alias <name>          Create a draft deploy with a predictable URL:
-                              https://<name>--<site-name>.netlify.app
-                              Useful for staging, review apps, or named
-                              previews. Cannot be combined with --prod.
-      --context <ctx>         Netlify deploy context for env (e.g.
-                               "production", "deploy-preview",
-                               "branch-deploy", or "branch:staging").
-                               (env: NETLIFY_CONTEXT, default: "deploy-preview")
-                               Ignored when --prod is set; production deploys
-                               always use context "production".
+--alias <name>          Create a draft deploy with a predictable URL:
+                               https://<name>--<site-name>.netlify.app
+                               Useful for staging, review apps, or named
+                               previews. Cannot be combined with --prod.
+       --branch <name>         Shorthand for a branch deploy: forces
+                               --alias <name> and --context branch:<name>,
+                               overriding any explicit --alias / --context.
+                               Produces https://<name>--<site-name>.netlify.app
+                               and scopes site env vars to that branch.
+                               Cannot be combined with --prod.
+       --context <ctx>         Netlify deploy context for env (e.g.
+                                "production", "deploy-preview",
+                                "branch-deploy", or "branch:staging").
+                                (env: NETLIFY_CONTEXT, default: "deploy-preview")
+                                Ignored when --prod is set; production deploys
+                                always use context "production".
+                                Overridden by --branch.
       --api-base-url <url>    VITE_API_BASE_URL for the frontend build and
                                API_BASE_URL for the serverless function
                                (default: "/.netlify/functions/<functions-name>")
@@ -278,6 +286,7 @@ function parseArgs(argv: string[]): NetlifyOptions {
     message: undefined,
     alias: undefined,
     context: process.env.NETLIFY_CONTEXT ?? 'deploy-preview',
+    branch: undefined,
     mongodbUri: process.env.MONGODB_URI,
   };
 
@@ -319,6 +328,9 @@ function parseArgs(argv: string[]): NetlifyOptions {
         break;
       case '--alias':
         o.alias = next();
+        break;
+      case '--branch':
+        o.branch = next();
         break;
       case '--context':
         o.context = next();
@@ -368,9 +380,22 @@ function parseArgs(argv: string[]): NetlifyOptions {
     }
   }
 
+  applyBranchOverride(o);
   o.context = resolveDeployContext(o);
 
   return o;
+}
+
+/**
+ * When `--branch <name>` is supplied it takes precedence over any explicit
+ * `--alias` / `--context`, synthesizing `alias = <name>` and
+ * `context = branch:<name>`. Call after option collection (both after CLI
+ * parsing and after interactive prompting) to keep the invariant consistent.
+ */
+export function applyBranchOverride(o: Pick<NetlifyOptions, 'branch' | 'alias' | 'context'>): void {
+  if (!o.branch) return;
+  o.alias = o.branch;
+  o.context = `branch:${o.branch}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -499,7 +524,7 @@ async function prompt(options: NetlifyOptions): Promise<NetlifyOptions> {
     process.exit(0);
   } else options.prod = prod === true;
 
-  if (!options.prod && !options.alias) {
+  if (!options.prod && !options.branch && !options.alias) {
     const wantAlias = await confirm({
       message: 'Create a named draft deploy (--alias)?',
       initialValue: false,
@@ -699,6 +724,8 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
   ];
   if (siteRef) deployArgs.push('--site', siteRef);
   if (options.prod) deployArgs.push('--prod');
+
+  // --branch flag has been renamed to --alias
   if (options.alias) deployArgs.push('--alias', options.alias);
   // --context flag is only available when using the --build flag
   // if (options.context) deployArgs.push('--context', options.context);
@@ -709,6 +736,7 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
   deployArgs.push('--json');
 
   console.log('\n─ Deploying to Netlify ─');
+  // See https://cli.netlify.com/commands/deploy/
   const stdout = runCaptureNetlify(
     cli,
     ['deploy', ...deployArgs],
@@ -744,12 +772,16 @@ async function main() {
     outro('Starting deploy');
   }
 
+  applyBranchOverride(options);
   options.context = resolveDeployContext(options);
 
   if (!options.authToken) bail('Netlify auth token is required (use -t / --auth-token or NETLIFY_AUTH_TOKEN).');
 
-  if (options.prod && options.alias) {
-    bail('--prod and --alias are mutually exclusive. Use --alias for draft/preview deploys or --prod for production.');
+  if (options.prod && (options.alias || options.branch)) {
+    bail(
+      '--prod cannot be combined with --alias or --branch. ' +
+        'Use --alias/--branch for draft/preview deploys or --prod for production.',
+    );
   }
 
   const paths = resolvePaths(options);

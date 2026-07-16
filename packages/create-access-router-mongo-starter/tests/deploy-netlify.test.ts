@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { planRuntimeSiteEnvVars, resolveDeployContext } from '../scripts/deploy-netlify';
+import { applyBranchOverride, planRuntimeSiteEnvVars, resolveDeployContext } from '../scripts/deploy-netlify';
 
 describe('resolveDeployContext', () => {
   it('defaults preview deploys to deploy-preview', () => {
@@ -13,6 +13,29 @@ describe('resolveDeployContext', () => {
 
   it('forces production context when --prod is set', () => {
     expect(resolveDeployContext({ prod: true, context: 'branch:staging' })).toBe('production');
+  });
+});
+
+describe('applyBranchOverride', () => {
+  it('derives alias and branch context from --branch', () => {
+    const o = { branch: 'staging', alias: undefined, context: undefined };
+    applyBranchOverride(o);
+    expect(o.alias).toBe('staging');
+    expect(o.context).toBe('branch:staging');
+  });
+
+  it('overrides explicit --alias and --context', () => {
+    const o = { branch: 'staging', alias: 'other', context: 'deploy-preview' };
+    applyBranchOverride(o);
+    expect(o.alias).toBe('staging');
+    expect(o.context).toBe('branch:staging');
+  });
+
+  it('is a no-op when --branch is absent', () => {
+    const o = { branch: undefined, alias: 'staging', context: 'deploy-preview' };
+    applyBranchOverride(o);
+    expect(o.alias).toBe('staging');
+    expect(o.context).toBe('deploy-preview');
   });
 });
 
