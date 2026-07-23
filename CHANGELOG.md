@@ -1,3 +1,9 @@
+## [0.25.0](https://github.com/egose/web-ts-toolkit/compare/v0.24.0...v0.25.0) (2026-07-23)
+
+### Features
+
+* **access-router-client:** merge adapter and service defaults for access services ([5aa6b5f](https://github.com/egose/web-ts-toolkit/commit/5aa6b5f8f40ab8d5d0b88e381e04ee04b8e0c538))
+
 ## [0.24.0](https://github.com/egose/web-ts-toolkit/compare/v0.23.0...v0.24.0) (2026-07-23)
 
 ### Features
