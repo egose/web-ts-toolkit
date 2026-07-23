@@ -24,12 +24,46 @@ const isModelQuery = (query: RootQueryMeta): query is Extract<RootQueryMeta, { t
 
 const serializeRequestConfig = (config?: AxiosRequestConfig) => JSON.stringify(normalizeConfigValue(config ?? {}));
 
-interface AdapterOptions {
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  value != null && typeof value === 'object' && !Array.isArray(value);
+
+const mergeServiceDefaults = <TDefaults extends object>(
+  adapterDefaults?: TDefaults,
+  serviceDefaults?: TDefaults,
+): TDefaults | undefined => {
+  if (!adapterDefaults && !serviceDefaults) return undefined;
+
+  const merged: Record<string, unknown> = {};
+  const adapterDefaultsRecord = (adapterDefaults ?? {}) as Record<string, unknown>;
+  const serviceDefaultsRecord = (serviceDefaults ?? {}) as Record<string, unknown>;
+  const keys = new Set([...Object.keys(adapterDefaultsRecord), ...Object.keys(serviceDefaultsRecord)]);
+
+  for (const key of keys) {
+    const adapterValue = adapterDefaultsRecord[key];
+    const serviceValue = serviceDefaultsRecord[key];
+
+    if (isObjectRecord(adapterValue) || isObjectRecord(serviceValue)) {
+      merged[key] = {
+        ...(isObjectRecord(adapterValue) ? adapterValue : {}),
+        ...(isObjectRecord(serviceValue) ? serviceValue : {}),
+      };
+      continue;
+    }
+
+    merged[key] = serviceValue ?? adapterValue;
+  }
+
+  return merged as TDefaults;
+};
+
+export interface AdapterOptions {
   rootRouterPath?: string;
   onSuccess?: ResponseCallback;
   onFailure?: ResponseCallback;
   throwOnError?: boolean;
   cacheTTL?: number;
+  modelDefaults?: Defaults;
+  dataDefaults?: DataDefaults;
 }
 
 interface ModelServiceOptions {
@@ -67,6 +101,8 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
     onFailure: onFailureRoot,
     throwOnError: throwOnErrorRoot,
     cacheTTL = 0,
+    modelDefaults: adapterModelDefaults,
+    dataDefaults: adapterDataDefaults,
   } = adapterOptions ?? {};
 
   if (cacheTTL > 0) useCacheInterceptors(instance, cacheTTL);
@@ -98,7 +134,7 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
           onFailure: onFailure ?? onFailureRoot,
           throwOnError: throwOnError ?? throwOnErrorRoot ?? false,
         },
-        defaults,
+        mergeServiceDefaults(adapterModelDefaults, defaults),
       );
     },
     createDataService: <T>(
@@ -115,7 +151,7 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
           onFailure: onFailure ?? onFailureRoot,
           throwOnError: throwOnError ?? throwOnErrorRoot ?? false,
         },
-        defaults,
+        mergeServiceDefaults(adapterDataDefaults, defaults),
       );
     },
     wrapGet: wraps.wrapGet,
