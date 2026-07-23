@@ -108,4 +108,38 @@ describe('access-router-client adapter integration', () => {
     expect(adminSecond.data).toEqual({ user: 'admin', requestCount: 1 });
     expect(guestFirst.data).toEqual({ user: 'guest', requestCount: 2 });
   });
+
+  it('falls back to adapter-level model defaults and lets service defaults override them', async () => {
+    const adapter = createAdapter(
+      { baseURL: suite.adapter.axios.defaults.baseURL },
+      { modelDefaults: { listArgs: { limit: 1 }, listOptions: { includeCount: true } } },
+    );
+    const userService = adapter.createModelService(
+      { modelName: 'AdapterJsIntegrationUser', basePath: 'users' },
+      { listArgs: { limit: 2 } },
+    );
+
+    const list = await userService.list(undefined, undefined, { headers: { user: 'admin' } });
+
+    expect(list.success).toBe(true);
+    expect(list.raw).toHaveLength(2);
+    expect(list.totalCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('falls back to adapter-level data defaults and lets service defaults override them', async () => {
+    const adapter = createAdapter(
+      { baseURL: suite.adapter.axios.defaults.baseURL },
+      { dataDefaults: { listArgs: { limit: 1 }, listOptions: { includeCount: true } } },
+    );
+    const petService = adapter.createDataService(
+      { dataName: 'pet-data', basePath: 'pets' },
+      { listArgs: { limit: 2 } },
+    );
+
+    const list = await petService.list(undefined, undefined, { headers: { user: 'admin' } });
+
+    expect(list.success).toBe(true);
+    expect(list.raw).toHaveLength(2);
+    expect(list.totalCount).toBe(3);
+  });
 });
