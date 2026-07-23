@@ -153,6 +153,10 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
       return;
     }
 
+    if (data === undefined) {
+      return;
+    }
+
     if (data instanceof Response) {
       res.status(data.statusCode).json(data.data);
       return;

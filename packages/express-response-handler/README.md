@@ -14,6 +14,7 @@ pnpm add @web-ts-toolkit/express-response-handler
 - return explicit `HttpResponse` wrappers for status control
 - throw typed HTTP errors
 - switch between simple, AIP-193, and RFC 9457-style error payloads
+- if a wrapped handler returns `undefined`, the library assumes the handler will manage the response itself
 
 ## Quick Start
 

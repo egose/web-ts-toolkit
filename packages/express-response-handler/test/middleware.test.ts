@@ -66,6 +66,48 @@ describe('Multiple Async Middlewares', () => {
   });
 });
 
+describe('Manual response handling', () => {
+  const syncKey = 'manual-response-sync';
+  const asyncKey = 'manual-response-async';
+  const awaitedKey = 'manual-response-awaited';
+
+  it('should not auto-send when a handler writes with res.json synchronously', async () => {
+    app.get(
+      `/${syncKey}`,
+      handleResponse((req, res) => {
+        res.json({ ok: true });
+      }),
+    );
+
+    await request(app).get(`/${syncKey}`).expect(200, { ok: true });
+  });
+
+  it('should not auto-send when a handler writes with res.json after async work without returning a value', async () => {
+    app.get(
+      `/${asyncKey}`,
+      handleResponse((req, res) => {
+        Promise.resolve().then(() => {
+          res.json({ ok: true });
+        });
+      }),
+    );
+
+    await request(app).get(`/${asyncKey}`).expect(200, { ok: true });
+  });
+
+  it('should not auto-send when an async handler awaits and writes with res.send without returning a value', async () => {
+    app.get(
+      `/${awaitedKey}`,
+      handleResponse(async (req, res) => {
+        await Promise.resolve();
+        res.send('ok');
+      }),
+    );
+
+    await request(app).get(`/${awaitedKey}`).expect(200, 'ok');
+  });
+});
+
 describe('Invalid value in Next Handling', () => {
   const key = 'invalid-value-in-next-handling';
   const status = 422;
