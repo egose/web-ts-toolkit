@@ -1,3 +1,9 @@
+## [0.24.0](https://github.com/egose/web-ts-toolkit/compare/v0.23.0...v0.24.0) (2026-07-23)
+
+### Features
+
+* **express-response-handler:** allow wrapped handlers to manage responses manually ([c2570b3](https://github.com/egose/web-ts-toolkit/commit/c2570b3cffae98bfb9e98ecc34a9dd3f97179ae2))
+
 ## [0.23.0](https://github.com/egose/web-ts-toolkit/compare/v0.22.0...v0.23.0) (2026-07-16)
 
 ### Features
