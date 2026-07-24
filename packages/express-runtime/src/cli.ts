@@ -1,7 +1,9 @@
 import {
+  buildRuntime,
   buildServerless,
   createServerlessAdapterApp,
   loadApp,
+  loadBuiltApp,
   loadEnvFiles,
   loadHandler,
   parseArgs,
@@ -39,11 +41,22 @@ async function main(): Promise<void> {
       loadEnvFiles(start.env);
     }
     await preloadModules(start.require);
-    const handler = await loadHandler(start.handlerPath);
+    const { app, init } = await loadBuiltApp(start.appPath);
+    startLocalServer(app, { ...start.options, init, exitAfterShutdown: true });
+  } else if (parsedArgs.subcommand === 'build') {
+    await buildRuntime(parsedArgs.build);
+  } else if (parsedArgs.subcommand === 'start-serverless') {
+    const { startServerless } = parsedArgs;
+
+    if (startServerless.env.length > 0) {
+      loadEnvFiles(startServerless.env);
+    }
+    await preloadModules(startServerless.require);
+    const handler = await loadHandler(startServerless.handlerPath);
     const app = createServerlessAdapterApp(handler);
-    startLocalServer(app, { ...start.options, exitAfterShutdown: true });
+    startLocalServer(app, { ...startServerless.options, exitAfterShutdown: true });
   } else {
-    await buildServerless(parsedArgs.build);
+    await buildServerless(parsedArgs.buildServerless);
   }
 }
 

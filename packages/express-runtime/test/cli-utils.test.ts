@@ -10,10 +10,12 @@ import {
   isExpressApp,
   extractExport,
   resolveExport,
+  generateRuntimeEntry,
   generateServerlessEntry,
   toServerlessEvent,
   applyServerlessResult,
   createServerlessAdapterApp,
+  loadBuiltApp,
   loadHandler,
   loadEnvFiles,
   parseEnvFile,
@@ -262,7 +264,7 @@ describe('parseArgs — build', () => {
     const result = parseArgs(['build', './src/app.ts']);
     if (result?.subcommand !== 'build') throw new Error('expected build subcommand');
     expect(result.build.outDir).toBe('dist');
-    expect(result.build.outName).toBe('handler');
+    expect(result.build.outName).toBe('app');
     expect(result.build.format).toBe('cjs');
     expect(result.build.target).toBe('node22');
     expect(result.build.external).toEqual([]);
@@ -356,6 +358,51 @@ describe('parseArgs — build', () => {
 
   it('throws on duplicate positional argument', () => {
     expect(() => parseArgs(['build', './a.ts', './b.ts'])).toThrow('Unexpected positional argument');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseArgs — build-serverless subcommand
+// ---------------------------------------------------------------------------
+
+describe('parseArgs — build-serverless', () => {
+  it('parses subcommand and app path', () => {
+    const result = parseArgs(['build-serverless', './src/app.ts']);
+    expect(result?.subcommand).toBe('build-serverless');
+    expect(result?.subcommand === 'build-serverless' && result.buildServerless.appPath).toBe('./src/app.ts');
+  });
+
+  it('uses serverless defaults', () => {
+    const result = parseArgs(['build-serverless', './src/app.ts']);
+    if (result?.subcommand !== 'build-serverless') throw new Error('expected build-serverless subcommand');
+    expect(result.buildServerless.outDir).toBe('dist');
+    expect(result.buildServerless.outName).toBe('handler');
+    expect(result.buildServerless.initPath).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generateRuntimeEntry
+// ---------------------------------------------------------------------------
+
+describe('generateRuntimeEntry', () => {
+  it('generates entry without init hook', () => {
+    const content = generateRuntimeEntry('./src/app.ts');
+    expect(content).toContain('export default app');
+    expect(content).toContain('export { app }');
+    expect(content).not.toContain('export { default as init }');
+  });
+
+  it('generates entry with init hook', () => {
+    const content = generateRuntimeEntry('./src/app.ts', './src/init.ts');
+    expect(content).toContain('export { default as init }');
+  });
+
+  it('resolves paths to absolute', () => {
+    const content = generateRuntimeEntry('./src/app.ts', './src/init.ts');
+    const cwd = process.cwd();
+    expect(content).toContain(JSON.stringify(`${cwd}/src/app.ts`));
+    expect(content).toContain(JSON.stringify(`${cwd}/src/init.ts`));
   });
 });
 
@@ -483,34 +530,34 @@ describe('resolveExport', () => {
 // ---------------------------------------------------------------------------
 
 describe('parseArgs — start', () => {
-  it('parses subcommand and handler path', () => {
-    const result = parseArgs(['start', './dist/handler.js']);
+  it('parses subcommand and app path', () => {
+    const result = parseArgs(['start', './dist/app.js']);
     expect(result?.subcommand).toBe('start');
-    expect(result?.subcommand === 'start' && result.start.handlerPath).toBe('./dist/handler.js');
+    expect(result?.subcommand === 'start' && result.start.appPath).toBe('./dist/app.js');
   });
 
   it('parses --port as a number', () => {
-    const result = parseArgs(['start', './handler.js', '--port', '9000']);
+    const result = parseArgs(['start', './app.js', '--port', '9000']);
     expect(result?.subcommand === 'start' && result.start.options.port).toBe(9000);
   });
 
   it('parses --port= form', () => {
-    const result = parseArgs(['start', './handler.js', '--port=9000']);
+    const result = parseArgs(['start', './app.js', '--port=9000']);
     expect(result?.subcommand === 'start' && result.start.options.port).toBe(9000);
   });
 
   it('parses --host', () => {
-    const result = parseArgs(['start', './handler.js', '--host', 'localhost']);
+    const result = parseArgs(['start', './app.js', '--host', 'localhost']);
     expect(result?.subcommand === 'start' && result.start.options.host).toBe('localhost');
   });
 
   it('parses --no-signals', () => {
-    const result = parseArgs(['start', './handler.js', '--no-signals']);
+    const result = parseArgs(['start', './app.js', '--no-signals']);
     expect(result?.subcommand === 'start' && result.start.options.signals).toBe(false);
   });
 
   it('parses --shutdown-timeout', () => {
-    const result = parseArgs(['start', './handler.js', '--shutdown-timeout', '3000']);
+    const result = parseArgs(['start', './app.js', '--shutdown-timeout', '3000']);
     expect(result?.subcommand === 'start' && result.start.options.shutdownTimeout).toBe(3000);
   });
 
@@ -521,7 +568,7 @@ describe('parseArgs — start', () => {
   });
 
   it('throws on unknown argument', () => {
-    expect(() => parseArgs(['start', './handler.js', '--bogus'])).toThrow('Unknown argument');
+    expect(() => parseArgs(['start', './app.js', '--bogus'])).toThrow('Unknown argument');
   });
 
   it('throws on duplicate positional argument', () => {
@@ -529,30 +576,48 @@ describe('parseArgs — start', () => {
   });
 
   it('parses --require (repeatable)', () => {
-    const result = parseArgs(['start', './handler.js', '--require', 'dotenv/config']);
+    const result = parseArgs(['start', './app.js', '--require', 'dotenv/config']);
     expect(result?.subcommand === 'start' && result.start.require).toEqual(['dotenv/config']);
   });
 
   it('parses --env', () => {
-    const result = parseArgs(['start', './handler.js', '--env', './.env']);
+    const result = parseArgs(['start', './app.js', '--env', './.env']);
     expect(result?.subcommand === 'start' && result.start.env).toEqual(['./.env']);
   });
 
   it('rejects --watch', () => {
-    expect(() => parseArgs(['start', './handler.js', '--watch', './src'])).toThrow(
+    expect(() => parseArgs(['start', './app.js', '--watch', './src'])).toThrow(
       '--watch/--ext/--delay are not supported with the start subcommand',
     );
   });
 
   it('rejects --ext', () => {
-    expect(() => parseArgs(['start', './handler.js', '--ext', 'ts'])).toThrow(
+    expect(() => parseArgs(['start', './app.js', '--ext', 'ts'])).toThrow(
       '--watch/--ext/--delay are not supported with the start subcommand',
     );
   });
 
   it('rejects --delay', () => {
-    expect(() => parseArgs(['start', './handler.js', '--delay', '500'])).toThrow(
+    expect(() => parseArgs(['start', './app.js', '--delay', '500'])).toThrow(
       '--watch/--ext/--delay are not supported with the start subcommand',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseArgs — start-serverless subcommand
+// ---------------------------------------------------------------------------
+
+describe('parseArgs — start-serverless', () => {
+  it('parses subcommand and handler path', () => {
+    const result = parseArgs(['start-serverless', './dist/handler.js']);
+    expect(result?.subcommand).toBe('start-serverless');
+    expect(result?.subcommand === 'start-serverless' && result.startServerless.handlerPath).toBe('./dist/handler.js');
+  });
+
+  it('rejects watch flags with a serverless-specific message', () => {
+    expect(() => parseArgs(['start-serverless', './handler.js', '--watch', './src'])).toThrow(
+      '--watch/--ext/--delay are not supported with the start-serverless subcommand',
     );
   });
 });
@@ -696,8 +761,22 @@ describe('createServerlessAdapterApp', () => {
 });
 
 // ---------------------------------------------------------------------------
-// loadHandler
+// loadBuiltApp / loadHandler
 // ---------------------------------------------------------------------------
+
+describe('loadBuiltApp', () => {
+  it('loads a built app bundle and optional init hook', async () => {
+    const path = new URL('../test/fixtures/built-app-module.mjs', import.meta.url).pathname;
+    const loaded = await loadBuiltApp(path);
+    expect(isExpressApp(loaded.app)).toBe(true);
+    expect(typeof loaded.init).toBe('function');
+  });
+
+  it('throws when init is present but not a function', async () => {
+    const path = new URL('../test/fixtures/built-app-invalid-init.mjs', import.meta.url).pathname;
+    await expect(loadBuiltApp(path)).rejects.toThrow('must export "init" as a function');
+  });
+});
 
 describe('loadHandler', () => {
   it('throws when the module has no "handler" function export', async () => {

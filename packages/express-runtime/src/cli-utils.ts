@@ -27,7 +27,7 @@ export function readValue(argv: string[], index: number, name: string): string {
 // Types
 // ---------------------------------------------------------------------------
 
-export type Subcommand = 'dev' | 'build' | 'start';
+export type Subcommand = 'dev' | 'build' | 'start' | 'build-serverless' | 'start-serverless';
 
 export interface DevArgs {
   appPath: string;
@@ -56,6 +56,15 @@ export interface BuildArgs {
 }
 
 export interface StartArgs {
+  appPath: string;
+  options: Omit<LocalServerOptions, 'onShutdown'>;
+  /** Modules to preload before loading the app bundle (repeatable `--require`). */
+  require: string[];
+  /** Env files to load before loading the app bundle (repeatable `--env`). */
+  env: string[];
+}
+
+export interface StartServerlessArgs {
   handlerPath: string;
   options: Omit<LocalServerOptions, 'init' | 'onShutdown'>;
   /** Modules to preload before loading the handler (repeatable `--require`). */
@@ -67,7 +76,9 @@ export interface StartArgs {
 export type ParsedArgs =
   | { subcommand: 'dev'; dev: DevArgs }
   | { subcommand: 'build'; build: BuildArgs }
+  | { subcommand: 'build-serverless'; buildServerless: BuildArgs }
   | { subcommand: 'start'; start: StartArgs }
+  | { subcommand: 'start-serverless'; startServerless: StartServerlessArgs }
   | null;
 
 // ---------------------------------------------------------------------------
@@ -77,7 +88,7 @@ export type ParsedArgs =
 export function printHelp(): void {
   console.log(`wtt-express-runtime
 
-Run an Express app locally, bundle it as a serverless handler, or run the bundle.
+Run an Express app locally, bundle it for local or serverless runtimes, or run the bundle.
 
 Usage:
   wtt-express-runtime <command> <app-module> [options]
@@ -85,8 +96,10 @@ Usage:
 
 Commands:
   dev                           Run the Express app as a local dev server
-  build                         Bundle the Express app as a serverless handler
-  start                         Run a bundled serverless handler locally
+  build                         Bundle the Express app as a local app module
+  start                         Run a bundled local app module
+  build-serverless              Bundle the Express app as a serverless handler
+  start-serverless              Run a bundled serverless handler locally
 
 Dev options:
   --port <number>               Port or named pipe (default: process.env.PORT or 8080)
@@ -102,13 +115,30 @@ Dev options:
 Build options:
   --init <path>                 Init hook module (default export, async function)
   --out-dir <path>              Output directory (default: dist)
-  --out-name <name>             Output filename without extension (default: handler)
+  --out-name <name>             Output filename without extension (default: app)
   --format <cjs|esm>            Output format (default: cjs)
   --target <target>             Compilation target (default: node22)
   --external <pkg>              Mark package as external (repeatable; express always external)
   --no-clean                    Don't clean the output directory before building
 
 Start options:
+  --port <number>               Port or named pipe (default: process.env.PORT or 8080)
+  --host <hostname>             Hostname to bind (default: process.env.HOST or 0.0.0.0)
+  --no-signals                  Disable SIGINT/SIGTERM handler registration
+  --shutdown-timeout <ms>       Max ms to wait for in-flight requests (default: 5000)
+  --require <module>            Module(s) to preload before app load (repeatable)
+  --env <path>                  Env file(s) to load (repeatable; existing env vars are not overridden)
+
+Build-serverless options:
+  --init <path>                 Init hook module (default export, async function)
+  --out-dir <path>              Output directory (default: dist)
+  --out-name <name>             Output filename without extension (default: handler)
+  --format <cjs|esm>            Output format (default: cjs)
+  --target <target>             Compilation target (default: node22)
+  --external <pkg>              Mark package as external (repeatable; express always external)
+  --no-clean                    Don't clean the output directory before building
+
+Start-serverless options:
   --port <number>               Port or named pipe (default: process.env.PORT or 8080)
   --host <hostname>             Hostname to bind (default: process.env.HOST or 0.0.0.0)
   --no-signals                  Disable SIGINT/SIGTERM handler registration
@@ -124,10 +154,12 @@ Examples:
   wtt-express-runtime dev ./dist/app.js
   wtt-express-runtime dev ./dist/app.js --port 3000 --host localhost
   wtt-express-runtime dev ./src/app.ts --env .env --require tsconfig-paths/register --watch ./src,./shared
-  wtt-express-runtime build ./src/app.ts --out-dir netlify/functions
-  wtt-express-runtime build ./src/app.ts --init ./src/init.ts --format esm
-  wtt-express-runtime start ./netlify/functions/handler.js --port 9000 --env .env
-  wtt-express-runtime build ./src/app.ts && wtt-express-runtime start ./dist/handler.js
+  wtt-express-runtime build ./src/app.ts --out-dir dist
+  wtt-express-runtime start ./dist/app.js --port 3000 --env .env
+  wtt-express-runtime build-serverless ./src/app.ts --out-dir netlify/functions
+  wtt-express-runtime build-serverless ./src/app.ts --init ./src/init.ts --format esm
+  wtt-express-runtime start-serverless ./netlify/functions/handler.js --port 9000 --env .env
+  wtt-express-runtime build-serverless ./src/app.ts && wtt-express-runtime start-serverless ./dist/handler.js
 
 Notes:
   - In dev mode, the CLI evaluates arbitrary code from <app-module> in the current process.
@@ -138,9 +170,11 @@ Notes:
     For advanced dotenv features (multiline, expansion), --require dotenv/config instead.
   - --watch forks a child process running the same CLI without --watch. On file change,
     the child is killed (SIGTERM) and respawned after the debounce delay.
-  - In build mode, express is always external. Add more externals with --external.
-  - In start mode, the bundled handler file must be a JS/CJS module whose "handler"
-    export (or default export) is a function: (event, context) => Promise<result>.
+  - In build/build-serverless mode, express is always external. Add more externals with --external.
+  - In start mode, the bundled app file must default-export an Express app (or export it as "app").
+    If the bundle exports "init", it runs before the server starts listening.
+  - In start-serverless mode, the bundled handler file must be a JS/CJS module whose
+    "handler" export (or default export) is a function: (event, context) => Promise<result>.
   - Init logic for dev mode (DB connections, etc.): add at the top level of your app module.
 `);
 }
@@ -158,7 +192,9 @@ function isHelp(arg: string): boolean {
 }
 
 function isSubcommand(arg: string): arg is Subcommand {
-  return arg === 'dev' || arg === 'build' || arg === 'start';
+  return (
+    arg === 'dev' || arg === 'build' || arg === 'start' || arg === 'build-serverless' || arg === 'start-serverless'
+  );
 }
 
 const DEFAULT_WATCH_EXTENSIONS = ['ts', 'js', 'mjs', 'cjs', 'json'];
@@ -319,10 +355,9 @@ function parseDevArgs(argv: string[]): DevArgs {
   };
 }
 
-function parseStartArgs(argv: string[]): StartArgs {
-  // start shares the same option set as dev (port, host, signals, etc.)
-  // but the positional argument is a bundled handler file, not an Express app.
-  // --watch/--ext/--delay are dev-only and rejected for start.
+function parseStartLikeArgs(argv: string[], subcommandName: 'start' | 'start-serverless'): DevArgs {
+  // start/start-serverless share the same option set as dev (port, host,
+  // signals, etc.) but reject watch-mode flags.
   for (const arg of argv) {
     if (
       arg === '--watch' ||
@@ -332,11 +367,25 @@ function parseStartArgs(argv: string[]): StartArgs {
       arg === '--delay' ||
       arg.startsWith('--delay=')
     ) {
-      throw new Error(`--watch/--ext/--delay are not supported with the start subcommand`);
+      throw new Error(`--watch/--ext/--delay are not supported with the ${subcommandName} subcommand`);
     }
   }
 
-  const result = parseDevArgs(argv);
+  return parseDevArgs(argv);
+}
+
+function parseStartArgs(argv: string[]): StartArgs {
+  const result = parseStartLikeArgs(argv, 'start');
+  return {
+    appPath: result.appPath,
+    options: result.options,
+    require: result.require,
+    env: result.env,
+  };
+}
+
+function parseStartServerlessArgs(argv: string[]): StartServerlessArgs {
+  const result = parseStartLikeArgs(argv, 'start-serverless');
   return {
     handlerPath: result.appPath,
     options: result.options,
@@ -345,13 +394,13 @@ function parseStartArgs(argv: string[]): StartArgs {
   };
 }
 
-function parseBuildArgs(argv: string[]): BuildArgs {
+function parseBuildArgs(argv: string[], outNameDefault: string): BuildArgs {
   let appPath: string | undefined;
   const external: string[] = [];
   const result: Omit<BuildArgs, 'appPath'> = {
     initPath: undefined,
     outDir: 'dist',
-    outName: 'handler',
+    outName: outNameDefault,
     format: 'cjs',
     target: 'node22',
     external,
@@ -461,6 +510,14 @@ function parseBuildArgs(argv: string[]): BuildArgs {
   return { appPath, ...result };
 }
 
+function parseLocalBuildArgs(argv: string[]): BuildArgs {
+  return parseBuildArgs(argv, 'app');
+}
+
+function parseBuildServerlessArgs(argv: string[]): BuildArgs {
+  return parseBuildArgs(argv, 'handler');
+}
+
 export function parseArgs(argv: string[]): ParsedArgs {
   // Empty argv → help
   if (argv.length === 0) {
@@ -485,10 +542,16 @@ export function parseArgs(argv: string[]): ParsedArgs {
     if (first === 'dev') {
       return { subcommand: 'dev', dev: parseDevArgs(rest) };
     }
+    if (first === 'build') {
+      return { subcommand: 'build', build: parseLocalBuildArgs(rest) };
+    }
     if (first === 'start') {
       return { subcommand: 'start', start: parseStartArgs(rest) };
     }
-    return { subcommand: 'build', build: parseBuildArgs(rest) };
+    if (first === 'build-serverless') {
+      return { subcommand: 'build-serverless', buildServerless: parseBuildServerlessArgs(rest) };
+    }
+    return { subcommand: 'start-serverless', startServerless: parseStartServerlessArgs(rest) };
   }
 
   // Backward compat: no subcommand → dev mode with all args
@@ -728,10 +791,13 @@ export function runWithWatch(args: DevArgs): void {
 }
 
 // ---------------------------------------------------------------------------
-// build (build mode)
+// build / build-serverless
 // ---------------------------------------------------------------------------
 
-const TEMP_ENTRY_FILENAME = '.express-runtime-build-entry.ts';
+const TEMP_BUILD_ENTRY_FILENAME = '.express-runtime-build-entry.ts';
+const TEMP_SERVERLESS_ENTRY_FILENAME = '.express-runtime-build-serverless-entry.ts';
+
+export type RuntimeModuleInit = () => Promise<void> | void;
 
 /**
  * Generate the temporary entry file content that wires the user's app and
@@ -761,23 +827,38 @@ export function generateServerlessEntry(appPath: string, initPath?: string): str
 }
 
 /**
- * Bundle an Express app as a serverless handler. Writes a temporary entry file
- * to the user's cwd (for node_modules resolution), lazy-loads the bundled
- * build tool, then cleans up.
+ * Generate the temporary entry file content that wires the user's app and
+ * optional init hook into a local runtime bundle.
  *
- * `express` is always external; additional externals can be passed via
- * `BuildArgs.external`.
+ * Exported for direct unit testing.
  */
-export async function buildServerless(args: BuildArgs): Promise<void> {
+export function generateRuntimeEntry(appPath: string, initPath?: string): string {
+  const absAppPath = pathResolve(process.cwd(), appPath);
+  const absInitPath = initPath ? pathResolve(process.cwd(), initPath) : undefined;
+
+  const lines: string[] = [
+    '// Auto-generated by @web-ts-toolkit/express-runtime CLI — do not edit.',
+    `import app from ${JSON.stringify(absAppPath)};`,
+    'export default app;',
+    'export { app };',
+  ];
+
+  if (absInitPath) {
+    lines.push(`export { default as init } from ${JSON.stringify(absInitPath)};`);
+  }
+
+  return lines.join('\n') + '\n';
+}
+
+async function buildBundle(args: BuildArgs, tempEntryFilename: string, entryContent: string): Promise<void> {
   const tsupModule: typeof import('tsup') = await import('tsup');
   const { build } = tsupModule;
-  const entryContent = generateServerlessEntry(args.appPath, args.initPath);
-  const tempEntryPath = pathResolve(process.cwd(), TEMP_ENTRY_FILENAME);
+  const tempEntryPath = pathResolve(process.cwd(), tempEntryFilename);
   writeFileSync(tempEntryPath, entryContent, 'utf8');
 
   try {
     await build({
-      config: false, // Don't auto-load tsup.config.ts from cwd
+      config: false,
       entry: { [args.outName]: tempEntryPath },
       format: [args.format],
       target: args.target,
@@ -793,12 +874,33 @@ export async function buildServerless(args: BuildArgs): Promise<void> {
   }
 }
 
+/**
+ * Bundle an Express app as a local runtime module. The output default-exports
+ * the app and may additionally export an `init` hook for the `start` command.
+ */
+export async function buildRuntime(args: BuildArgs): Promise<void> {
+  await buildBundle(args, TEMP_BUILD_ENTRY_FILENAME, generateRuntimeEntry(args.appPath, args.initPath));
+}
+
+/**
+ * Bundle an Express app as a serverless handler. Writes a temporary entry file
+ * to the user's cwd (for node_modules resolution), lazy-loads the bundled
+ * build tool, then cleans up.
+ *
+ * `express` is always external; additional externals can be passed via
+ * `BuildArgs.external`.
+ */
+export async function buildServerless(args: BuildArgs): Promise<void> {
+  await buildBundle(args, TEMP_SERVERLESS_ENTRY_FILENAME, generateServerlessEntry(args.appPath, args.initPath));
+}
+
 // ---------------------------------------------------------------------------
-// start (run a bundled serverless handler locally)
+// start-serverless adapter helpers
 // ---------------------------------------------------------------------------
 
 /**
- * A platform-agnostic serverless handler function (the output of `build`).
+ * A platform-agnostic serverless handler function (the output of
+ * `build-serverless`).
  */
 export type GenericHandler = (event: unknown, context: unknown) => Promise<unknown>;
 
@@ -907,6 +1009,31 @@ export function createServerlessAdapterApp(handler: GenericHandler): Express {
       res.status(500).end('Internal server error');
     },
   });
+}
+
+/**
+ * Load a bundled app module from the `build` output.
+ */
+export async function loadBuiltApp(appPath: string): Promise<{ app: Express; init?: RuntimeModuleInit }> {
+  const fullPath = pathResolve(process.cwd(), appPath);
+  const moduleUrl = pathToFileURL(fullPath).href;
+  const mod = (await import(moduleUrl)) as Record<string, unknown>;
+  const exported = extractExport(mod);
+  if (!exported) {
+    throw new Error(
+      `Module "${appPath}" must default-export an Express app or export it as "app". Exports: ${Object.keys(mod).join(', ')}`,
+    );
+  }
+
+  const init = mod.init;
+  if (init !== undefined && typeof init !== 'function') {
+    throw new Error(`Module "${appPath}" must export "init" as a function when present.`);
+  }
+
+  return {
+    app: await resolveExport(exported, appPath),
+    init: init as RuntimeModuleInit | undefined,
+  };
 }
 
 /**
