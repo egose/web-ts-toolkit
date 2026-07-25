@@ -1,21 +1,12 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import { buildDelegatedArgs, createGeneratedRuntimeFiles, resolveCliInvocation } from '../src/cli-utils';
+import { describe, expect, it } from 'vitest';
+import {
+  assertNoManualInit,
+  generateRuntimeEntryFromConfig,
+  generateServerlessEntryFromConfig,
+  resolveCliInvocation,
+} from '../src/cli-utils';
 
 describe('access-router-runtime CLI utils', () => {
-  const previousCwd = process.cwd();
-  const tempDirs: string[] = [];
-
-  afterEach(() => {
-    process.chdir(previousCwd);
-    for (const tempDir of tempDirs) {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
-    tempDirs.length = 0;
-  });
-
   it('defaults to dev mode when only a config path is provided', () => {
     const invocation = resolveCliInvocation(['./src/access-router.config.ts']);
     expect(invocation).toEqual({
@@ -26,43 +17,45 @@ describe('access-router-runtime CLI utils', () => {
     });
   });
 
-  it('injects generated app and init modules for build delegation', () => {
-    const invocation = resolveCliInvocation(['build', './src/access-router.config.ts', '--out-dir', 'dist']);
-    expect(invocation).not.toBeNull();
-
-    const delegatedArgs = buildDelegatedArgs(invocation!, {
-      appModulePath: '/tmp/app.mjs',
-      initModulePath: '/tmp/init.mjs',
+  it('marks start as a non-config-aware passthrough command', () => {
+    const invocation = resolveCliInvocation(['start', './dist/app.js', '--port', '3000']);
+    expect(invocation).toEqual({
+      subcommand: 'start',
+      targetPath: './dist/app.js',
+      passthroughArgs: ['--port', '3000'],
+      configAware: false,
     });
-
-    expect(delegatedArgs).toEqual(['build', '/tmp/app.mjs', '--init', '/tmp/init.mjs', '--out-dir', 'dist']);
   });
 
-  it('writes generated wrapper modules that load the runtime config', () => {
-    const tempDir = mkdtempSync(join(tmpdir(), 'access-router-runtime-'));
-    tempDirs.push(tempDir);
-    const previousCwd = process.cwd();
-    process.chdir(tempDir);
+  it('generates a local runtime entry that wires config loading, init, and shutdown signals', () => {
+    const entry = generateRuntimeEntryFromConfig('./src/access-router.config.ts');
 
-    const generated = createGeneratedRuntimeFiles('./access-router.config.ts');
+    expect(entry).toContain('createAccessRouterRuntime');
+    expect(entry).toContain('loadAccessRouterRuntimeConfigSync');
+    expect(entry).toContain('runtimeBundle.init()');
+    expect(entry).toContain("process.once('SIGINT', shutdown);");
+    expect(entry).toContain('export default app;');
+  });
 
-    const appContent = readFileSync(generated.appModulePath, 'utf8');
-    const initContent = readFileSync(generated.initModulePath, 'utf8');
+  it('generates a serverless entry that exports a handler directly from config', () => {
+    const entry = generateServerlessEntryFromConfig('./src/access-router.config.ts');
 
-    expect(appContent).toContain('runtimeBundle.app');
-    expect(appContent).toContain('runtimeBundle.init()');
-    expect(initContent).toContain('runtimeBundle.init()');
-
-    generated.cleanup();
-    process.chdir(previousCwd);
+    expect(entry).toContain('createAccessRouterRuntimeServerlessHandler');
+    expect(entry).toContain('loadAccessRouterRuntimeConfigSync');
+    expect(entry).toContain('export const handler = createAccessRouterRuntimeServerlessHandler(config);');
   });
 
   it('rejects manual --init on config-aware build commands', () => {
-    const invocation = resolveCliInvocation(['build', './src/access-router.config.ts', '--init', './src/init.ts']);
     expect(() =>
-      buildDelegatedArgs(invocation!, {
-        appModulePath: '/tmp/app.mjs',
-        initModulePath: '/tmp/init.mjs',
+      assertNoManualInit('build', {
+        appPath: './src/access-router.config.ts',
+        initPath: './src/init.ts',
+        outDir: 'dist',
+        outName: 'app',
+        format: 'cjs',
+        target: 'node22',
+        external: [],
+        clean: true,
       }),
     ).toThrow('build manages the init hook automatically. Remove --init.');
   });

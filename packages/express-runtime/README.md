@@ -321,6 +321,8 @@ interface Logger {
 
 ## CLI
 
+Programmatic CLI helpers are also available from the public subpath `@web-ts-toolkit/express-runtime/cli` when another package wants to reuse the same parsing, build, watch, env-loading, or start logic without shelling out to the `wtt-express-runtime` binary.
+
 ### `wtt-express-runtime <command> <app-module> [options]`
 
 Omitting `<command>` defaults to `dev` for backward compatibility.

@@ -26,6 +26,12 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli-api.d.ts",
+      "import": "./dist/cli-api.mjs",
+      "require": "./dist/cli-api.js",
+      "default": "./dist/cli-api.js"
     }
   },
   "scripts": {

@@ -55,6 +55,17 @@ export interface BuildArgs {
   clean: boolean;
 }
 
+export interface BuildEntryContentArgs {
+  entryContent: string;
+  tempEntryFilename: string;
+  outDir: string;
+  outName: string;
+  format: 'cjs' | 'esm';
+  target: string;
+  external: string[];
+  clean: boolean;
+}
+
 export interface StartArgs {
   appPath: string;
   options: Omit<LocalServerOptions, 'onShutdown'>;
@@ -850,11 +861,11 @@ export function generateRuntimeEntry(appPath: string, initPath?: string): string
   return lines.join('\n') + '\n';
 }
 
-async function buildBundle(args: BuildArgs, tempEntryFilename: string, entryContent: string): Promise<void> {
+export async function buildBundleFromEntryContent(args: BuildEntryContentArgs): Promise<void> {
   const tsupModule: typeof import('tsup') = await import('tsup');
   const { build } = tsupModule;
-  const tempEntryPath = pathResolve(process.cwd(), tempEntryFilename);
-  writeFileSync(tempEntryPath, entryContent, 'utf8');
+  const tempEntryPath = pathResolve(process.cwd(), args.tempEntryFilename);
+  writeFileSync(tempEntryPath, args.entryContent, 'utf8');
 
   try {
     await build({
@@ -879,7 +890,16 @@ async function buildBundle(args: BuildArgs, tempEntryFilename: string, entryCont
  * the app and may additionally export an `init` hook for the `start` command.
  */
 export async function buildRuntime(args: BuildArgs): Promise<void> {
-  await buildBundle(args, TEMP_BUILD_ENTRY_FILENAME, generateRuntimeEntry(args.appPath, args.initPath));
+  await buildBundleFromEntryContent({
+    entryContent: generateRuntimeEntry(args.appPath, args.initPath),
+    tempEntryFilename: TEMP_BUILD_ENTRY_FILENAME,
+    outDir: args.outDir,
+    outName: args.outName,
+    format: args.format,
+    target: args.target,
+    external: args.external,
+    clean: args.clean,
+  });
 }
 
 /**
@@ -891,7 +911,16 @@ export async function buildRuntime(args: BuildArgs): Promise<void> {
  * `BuildArgs.external`.
  */
 export async function buildServerless(args: BuildArgs): Promise<void> {
-  await buildBundle(args, TEMP_SERVERLESS_ENTRY_FILENAME, generateServerlessEntry(args.appPath, args.initPath));
+  await buildBundleFromEntryContent({
+    entryContent: generateServerlessEntry(args.appPath, args.initPath),
+    tempEntryFilename: TEMP_SERVERLESS_ENTRY_FILENAME,
+    outDir: args.outDir,
+    outName: args.outName,
+    format: args.format,
+    target: args.target,
+    external: args.external,
+    clean: args.clean,
+  });
 }
 
 // ---------------------------------------------------------------------------
