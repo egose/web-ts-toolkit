@@ -1,0 +1,27 @@
+{
+  "name": "access-router-runtime-example",
+  "private": true,
+  "scripts": {
+    "build:deps": "pnpm --filter @web-ts-toolkit/access-router-runtime... build",
+    "build": "pnpm run build:deps && wtt-access-router-runtime build ./access-router.config.ts --tsconfig ./tsconfig.json --out-dir dist --out-name app --format cjs --target node22",
+    "build:serverless": "pnpm run build:deps && wtt-access-router-runtime build-serverless ./access-router.config.ts --tsconfig ./tsconfig.json --out-dir dist --out-name handler --format cjs --target node22",
+    "dev": "wtt-access-router-runtime dev ./access-router.config.ts --tsconfig ./tsconfig.json --port 3000 --watch",
+    "dev:once": "wtt-access-router-runtime dev ./access-router.config.ts --tsconfig ./tsconfig.json --port 3000",
+    "start": "wtt-access-router-runtime start ./dist/app.js --port 3000",
+    "start:serverless": "wtt-access-router-runtime start-serverless ./dist/handler.js --port 9000",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@web-ts-toolkit/access-router-runtime": "workspace:*",
+    "express": "^5.2.1",
+    "mongodb-memory-server": "^11.1.0",
+    "mongoose": "^9.6.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.6.0",
+    "tsx": "^4.20.6",
+    "zod": "^4.1.12",
+    "typescript": "^6.0.3"
+  }
+}
