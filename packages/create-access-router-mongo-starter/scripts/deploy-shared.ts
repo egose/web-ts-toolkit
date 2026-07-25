@@ -4,7 +4,7 @@
  * Owns the parts of a deploy that are the same regardless of target cloud:
  *   - sandbox / ephemeral directory resolution
  *   - frontend (Vite) build
- *   - backend serverless bundle (`wtt-express-runtime build`)
+ *   - backend serverless bundle (`wtt-access-router-runtime build-serverless`)
  *   - artifact path metadata returned to provider adapters
  *
  * Provider-specific concerns (site lookup, config generation, CLI calls, env
@@ -18,24 +18,13 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { resolve, join } from 'node:path';
+import { readRequiredOptionValue } from '../src/shared/arg-parser';
+import { bail } from '../src/shared/bail';
+
+export { BailError, bail } from '../src/shared/bail';
 
 export const SOURCE_DIR = resolve(process.cwd());
 export const EPHEMERAL_ROOT = '/tmp/opencode';
-
-// ---------------------------------------------------------------------------
-// Errors
-// ---------------------------------------------------------------------------
-
-export class BailError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'BailError';
-  }
-}
-
-export function bail(msg: string): never {
-  throw new BailError(msg);
-}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -176,7 +165,7 @@ function formatCommandLog(cmd: string, args: string[], cwd: string, secrets: str
 
 /**
  * Run a command. Build commands run from projectRoot (so relative source
- * paths like `./api/app.ts` resolve); deploy commands run from the provided
+ * paths like `./api/access-router.config.ts` resolve); deploy commands run from the provided
  * cwd (the sandbox or repo dir).
  *
  * Pass `secrets` to redact sensitive values from the logged command line.
@@ -236,8 +225,8 @@ export function runCapture(
 // ---------------------------------------------------------------------------
 
 /**
- * Build the frontend (Vite) and serverless backend (`wtt-express-runtime
- * build`). Returns the prepared deployment metadata for provider adapters.
+ * Build the frontend (Vite) and serverless backend (`wtt-access-router-runtime
+ * build-serverless`). Returns the prepared deployment metadata for provider adapters.
  */
 export function buildArtifacts(options: SharedDeployOptions, paths: DeployPaths): PreparedDeployment {
   const buildEnv: NodeJS.ProcessEnv = {
@@ -255,14 +244,12 @@ export function buildArtifacts(options: SharedDeployOptions, paths: DeployPaths)
   console.log('\n─ Building frontend (vite build) ─');
   run('vite', ['build', '--outDir', paths.distAbs, '--emptyOutDir'], buildEnv, options.dryRun, projectRoot);
 
-  console.log('\n─ Building serverless backend (wtt-express-runtime build) ─');
+  console.log('\n─ Building serverless backend (wtt-access-router-runtime build-serverless) ─');
   run(
-    'wtt-express-runtime',
+    'wtt-access-router-runtime',
     [
-      'build',
-      './api/app.ts',
-      '--init',
-      './api/init.ts',
+      'build-serverless',
+      './api/access-router.config.ts',
       '--out-dir',
       paths.functionsAbs,
       '--out-name',
@@ -308,7 +295,7 @@ export function keepSandboxOnFailure(paths: DeployPaths): void {
 const SHARED_HELP = `access-router-mongo-starter deploy-shared
 
 Provider-agnostic build preparation for the access-router-mongo-starter.
-Runs the frontend (Vite) and serverless (wtt-express-runtime) builds and
+Runs the frontend (Vite) and serverless (wtt-access-router-runtime) builds and
 prints the prepared artifact paths. Provider adapters (e.g. deploy-netlify)
 call this internally; you usually don't need to run it directly.
 
@@ -340,30 +327,31 @@ function parseSharedArgs(argv: string[]): SharedDeployOptions {
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    const next = (): string => {
-      const v = argv[++i];
-      if (v === undefined || v.startsWith('-')) throw new Error(`Missing value for ${a}`);
-      return v;
-    };
     switch (a) {
       case '--project-root':
-        o.projectRoot = next();
+        o.projectRoot = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--api-base-url':
-        o.apiBaseUrl = next();
+        o.apiBaseUrl = readRequiredOptionValue(argv, i, a);
+        i += 1;
         o.apiBaseUrlExplicit = true;
         break;
       case '--mongodb-uri':
-        o.mongodbUri = next();
+        o.mongodbUri = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--dist-dir':
-        o.distDir = next();
+        o.distDir = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--functions-dir':
-        o.functionsDir = next();
+        o.functionsDir = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--functions-name':
-        o.functionsName = next();
+        o.functionsName = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--no-build':
         o.noBuild = true;
@@ -372,7 +360,8 @@ function parseSharedArgs(argv: string[]): SharedDeployOptions {
         o.ephemeral = true;
         break;
       case '--sandbox-dir':
-        o.sandboxDir = next();
+        o.sandboxDir = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--keep-sandbox':
         o.keepSandbox = true;

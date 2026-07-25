@@ -1,4 +1,4 @@
-import { startLocalServer } from './index';
+import { startLocalServer, type Express } from './index';
 import {
   CLI_VERSION,
   applyServerlessResult,
@@ -37,21 +37,63 @@ import {
 
 export type RuntimeCliCommand = Exclude<ParsedArgs, null>;
 
+export interface DevCommandRunner<TLoaded> {
+  load: (appPath: string) => Promise<TLoaded> | TLoaded;
+  start: (loaded: TLoaded, options: DevArgs['options'] & { exitAfterShutdown: true }) => void;
+  watch?: (args: DevArgs) => void;
+}
+
+export interface BuildEntryCommandOptions {
+  generateEntry: (appPath: string, initPath?: string) => string;
+  tempEntryFilename: string;
+  allowInit?: boolean;
+  initErrorMessage?: string;
+}
+
+export async function runDevCommand<TLoaded>(args: DevArgs, runner: DevCommandRunner<TLoaded>): Promise<void> {
+  if (args.watch.length > 0) {
+    (runner.watch ?? runWithWatch)(args);
+    return;
+  }
+
+  if (args.env.length > 0) {
+    loadEnvFiles(args.env);
+  }
+  await preloadModules(args.require);
+
+  const loaded = await runner.load(args.appPath);
+  runner.start(loaded, { ...args.options, exitAfterShutdown: true });
+}
+
+export async function runExpressDevCommand(args: DevArgs): Promise<void> {
+  await runDevCommand<Express>(args, {
+    load: loadApp,
+    start: (app, options) => {
+      startLocalServer(app, options);
+    },
+  });
+}
+
+export async function runBuildEntryCommand(args: BuildArgs, options: BuildEntryCommandOptions): Promise<void> {
+  if (options.allowInit === false && args.initPath) {
+    throw new Error(options.initErrorMessage ?? 'This build command manages init automatically. Remove --init.');
+  }
+
+  await buildBundleFromEntryContent({
+    entryContent: options.generateEntry(args.appPath, args.initPath),
+    tempEntryFilename: options.tempEntryFilename,
+    outDir: args.outDir,
+    outName: args.outName,
+    format: args.format,
+    target: args.target,
+    external: args.external,
+    clean: args.clean,
+  });
+}
+
 export async function runCliCommand(parsedArgs: RuntimeCliCommand): Promise<void> {
   if (parsedArgs.subcommand === 'dev') {
-    const { dev } = parsedArgs;
-
-    if (dev.watch.length > 0) {
-      runWithWatch(dev);
-      return;
-    }
-
-    if (dev.env.length > 0) {
-      loadEnvFiles(dev.env);
-    }
-    await preloadModules(dev.require);
-    const app = await loadApp(dev.appPath);
-    startLocalServer(app, { ...dev.options, exitAfterShutdown: true });
+    await runExpressDevCommand(parsedArgs.dev);
     return;
   }
 

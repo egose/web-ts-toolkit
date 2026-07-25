@@ -15,7 +15,7 @@ Use this skill for the template's safety rails: tests, docs, environment default
 - `tests/setup.ts`
 - `tests/todo-form.test.tsx`
 - `tests/deploy-shared.test.ts`
-- placeholder-bearing files such as `package.json`, `index.html`, `src/pages/home-page.tsx`, `api/src/config.ts`, and `api/src/express.ts`
+- placeholder-bearing files such as `package.json`, `index.html`, `src/pages/home-page.tsx`, `api/src/config.ts`, and `api/access-router.config.ts`
 
 ## Use This Skill When
 
@@ -44,7 +44,7 @@ Use this skill for the template's safety rails: tests, docs, environment default
 - Prefer updating the closest existing test file before adding a new test suite.
 - Keep examples copy-pasteable for a newly scaffolded app.
 - Do not replace template placeholders with concrete values just to make docs read like a finished app.
-- When editing environment variable docs, keep them consistent with `api/src/config.ts`, `api/src/db.ts`, `src/api.ts`, and deploy scripts.
+- When editing environment variable docs, keep them consistent with `api/src/config.ts`, `api/access-router.config.ts`, `src/api.ts`, and deploy scripts.
 
 ## Verification
 

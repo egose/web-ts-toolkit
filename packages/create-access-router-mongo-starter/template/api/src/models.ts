@@ -1,4 +1,4 @@
-import mongoose, { Schema, type InferSchemaType, type Model } from 'mongoose';
+import { Schema, type InferSchemaType } from 'mongoose';
 
 const categorySchemaDefinition = {
   name: { type: String, required: true, trim: true },
@@ -16,8 +16,3 @@ export const todoSchema = new Schema(todoSchemaDefinition, { timestamps: true })
 
 export type CategoryRecord = InferSchemaType<typeof categorySchema>;
 export type TodoRecord = InferSchemaType<typeof todoSchema>;
-
-export const CategoryModel =
-  (mongoose.models.Category as Model<CategoryRecord>) || mongoose.model<CategoryRecord>('Category', categorySchema);
-
-export const TodoModel = (mongoose.models.Todo as Model<TodoRecord>) || mongoose.model<TodoRecord>('Todo', todoSchema);

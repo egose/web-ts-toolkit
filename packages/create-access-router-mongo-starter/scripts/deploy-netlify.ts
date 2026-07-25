@@ -24,6 +24,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { cancel, confirm, intro, isCancel, outro, password, select, text } from '@clack/prompts';
+import { readRequiredOptionValue } from '../src/shared/arg-parser';
 import {
   bail,
   buildArtifacts,
@@ -258,7 +259,7 @@ Options:
                                (default: "/.netlify/functions/<functions-name>")
       --mongodb-uri <uri>     MONGODB_URI for the serverless function
                               (env: MONGODB_URI). Required for production
-                              deploys (startDB() throws without it).
+                              deploys (the runtime's DB config has no fallback).
       --dist-dir <path>       Frontend publish dir (default: "dist")
       --functions-dir <path>  Serverless output dir (default: "netlify/functions")
       --functions-name <name> Serverless function name (default: "main")
@@ -292,14 +293,10 @@ function parseArgs(argv: string[]): NetlifyOptions {
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    const next = (): string => {
-      const v = argv[++i];
-      if (v === undefined || v.startsWith('-')) throw new Error(`Missing value for ${a}`);
-      return v;
-    };
     switch (a) {
       case '--project-root':
-        o.projectRoot = next();
+        o.projectRoot = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '-i':
       case '--interactive':
@@ -307,17 +304,21 @@ function parseArgs(argv: string[]): NetlifyOptions {
         break;
       case '-t':
       case '--auth-token':
-        o.authToken = next();
+        o.authToken = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '-s':
       case '--site':
-        o.site = next();
+        o.site = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--site-name':
-        o.siteName = next();
+        o.siteName = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--team':
-        o.team = next();
+        o.team = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '-p':
       case '--prod':
@@ -327,33 +328,42 @@ function parseArgs(argv: string[]): NetlifyOptions {
         o.paidTier = true;
         break;
       case '--alias':
-        o.alias = next();
+        o.alias = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--branch':
-        o.branch = next();
+        o.branch = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--context':
-        o.context = next();
+        o.context = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--api-base-url':
-        o.apiBaseUrl = next();
+        o.apiBaseUrl = readRequiredOptionValue(argv, i, a);
+        i += 1;
         o.apiBaseUrlExplicit = true;
         break;
       case '--mongodb-uri':
-        o.mongodbUri = next();
+        o.mongodbUri = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--dist-dir':
-        o.distDir = next();
+        o.distDir = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--functions-dir':
-        o.functionsDir = next();
+        o.functionsDir = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--functions-name':
-        o.functionsName = next();
+        o.functionsName = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '-m':
       case '--message':
-        o.message = next();
+        o.message = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--no-build':
         o.noBuild = true;
@@ -362,7 +372,8 @@ function parseArgs(argv: string[]): NetlifyOptions {
         o.ephemeral = true;
         break;
       case '--sandbox-dir':
-        o.sandboxDir = next();
+        o.sandboxDir = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--keep-sandbox':
         o.keepSandbox = true;
@@ -643,7 +654,7 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
   if (options.mongodbUri) {
     console.log(`• MONGODB_URI: provided (will be set on site env, scope=${scopeLabel}, context=${envContextLabel})`);
   } else if (options.prod) {
-    bail('--mongodb-uri is required for production deploys (startDB() throws without it and there is no fallback).');
+    bail('--mongodb-uri is required for production deploys (the runtime DB config has no fallback).');
   } else {
     console.log(
       '• MONGODB_URI: not provided, so env var setup will be skipped. ' +

@@ -17,8 +17,8 @@
 - This directory is a scaffold template, not a concrete app. Preserve template placeholders unless the scaffolding system itself is being changed.
 - Placeholder tokens currently used by the template are `{{APP_NAME}}`, `{{APP_TITLE}}`, `{{DB_NAME}}`, and `{{VERSION}}`. `{{VERSION}}` is replaced with the installed `create-access-router-mongo-starter` package version, and is used for `@web-ts-toolkit/*` dependency versions in `package.json`.
 - Frontend and backend run as separate local processes: `pnpm dev` for the UI and `pnpm server` for the API.
-- Client and server routes must stay aligned: `src/api.ts` uses relative model paths, while `api/src/routers.ts` exposes `${API_BASE_URL}/...` routes (default `/api/...`).
-- `api/app.ts` must stay side-effect-free for serverless bundling. Database startup belongs in `api/app-dev.ts` for local dev and `api/init.ts` for serverless cold start.
+- Client and server routes must stay aligned: `src/api.ts` uses relative model paths, while `api/src/routers.ts` exposes `${API_BASE_URL}/...` routes (default `/api/...`) through `api/access-router.config.ts`.
+- `api/access-router.config.ts` is the single runtime entrypoint for local dev and serverless builds. Database startup belongs in its `db` config, not in ad hoc app entry modules.
 - `pnpm build` does not emit the serverless bundle. Use `pnpm serverless` to produce that artifact.
 - Netlify deploy is provided by the `create-access-router-mongo-starter` package bins (`create-access-router-mongo-starter-deploy-netlify`, `create-access-router-mongo-starter-deploy-shared`), not by scripts shipped in this template. Install that package at the parent/workspace level to enable deploy.
 
@@ -52,7 +52,7 @@ Skills provide focused guidance for the main parts of this starter template.
 </skill>
 <skill>
 <name>template-backend-runtime</name>
-<description>api/src/express.ts, db.ts, config.ts, app.ts, app-dev.ts, init.ts, middleware, runtime startup. Use when changing Express wiring, DB lifecycle, runtime config, or serverless boot behavior.</description>
+<description>api/access-router.config.ts, api/src/config.ts, middleware, DB lifecycle, and runtime startup. Use when changing runtime config, Express wiring, DB behavior, or serverless boot behavior.</description>
 <location>.agents/skills/template-backend-runtime/SKILL.md</location>
 </skill>
 <skill>

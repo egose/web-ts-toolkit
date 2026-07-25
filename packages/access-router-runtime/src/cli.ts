@@ -1,15 +1,12 @@
 import {
-  buildBundleFromEntryContent,
-  loadEnvFiles,
   parseArgs as parseExpressRuntimeArgs,
-  preloadModules,
+  runBuildEntryCommand,
+  runDevCommand,
   runCliCommand as runExpressRuntimeCliCommand,
-  runWithWatch,
 } from '@web-ts-toolkit/express-runtime/cli';
 import { loadAccessRouterRuntime } from './index';
 import {
   CLI_VERSION,
-  assertNoManualInit,
   generateRuntimeEntryFromConfig,
   generateServerlessEntryFromConfig,
   printHelp,
@@ -27,48 +24,31 @@ async function runConfigAwareCommand(invocation: NonNullable<ReturnType<typeof r
   }
 
   if (parsedArgs.subcommand === 'dev') {
-    const { dev } = parsedArgs;
-
-    if (dev.watch.length > 0) {
-      runWithWatch(dev);
-      return;
-    }
-
-    if (dev.env.length > 0) {
-      loadEnvFiles(dev.env);
-    }
-    await preloadModules(dev.require);
-    const runtime = loadAccessRouterRuntime(dev.appPath);
-    runtime.startLocalServer({ ...dev.options, exitAfterShutdown: true });
+    await runDevCommand(parsedArgs.dev, {
+      load: loadAccessRouterRuntime,
+      start: (runtime, options) => {
+        runtime.startLocalServer(options);
+      },
+    });
     return;
   }
 
   if (parsedArgs.subcommand === 'build') {
-    assertNoManualInit('build', parsedArgs.build);
-    await buildBundleFromEntryContent({
-      entryContent: generateRuntimeEntryFromConfig(parsedArgs.build.appPath),
+    await runBuildEntryCommand(parsedArgs.build, {
+      generateEntry: (configPath) => generateRuntimeEntryFromConfig(configPath),
       tempEntryFilename: '.access-router-runtime-build-entry.ts',
-      outDir: parsedArgs.build.outDir,
-      outName: parsedArgs.build.outName,
-      format: parsedArgs.build.format,
-      target: parsedArgs.build.target,
-      external: parsedArgs.build.external,
-      clean: parsedArgs.build.clean,
+      allowInit: false,
+      initErrorMessage: 'build manages the init hook automatically. Remove --init.',
     });
     return;
   }
 
   if (parsedArgs.subcommand === 'build-serverless') {
-    assertNoManualInit('build-serverless', parsedArgs.buildServerless);
-    await buildBundleFromEntryContent({
-      entryContent: generateServerlessEntryFromConfig(parsedArgs.buildServerless.appPath),
+    await runBuildEntryCommand(parsedArgs.buildServerless, {
+      generateEntry: (configPath) => generateServerlessEntryFromConfig(configPath),
       tempEntryFilename: '.access-router-runtime-build-serverless-entry.ts',
-      outDir: parsedArgs.buildServerless.outDir,
-      outName: parsedArgs.buildServerless.outName,
-      format: parsedArgs.buildServerless.format,
-      target: parsedArgs.buildServerless.target,
-      external: parsedArgs.buildServerless.external,
-      clean: parsedArgs.buildServerless.clean,
+      allowInit: false,
+      initErrorMessage: 'build-serverless manages the init hook automatically. Remove --init.',
     });
     return;
   }
