@@ -10,6 +10,7 @@ This site is the primary documentation home for the current `web-ts-toolkit` wor
 ## Available Packages
 
 - [`@web-ts-toolkit/access-router`](./access-router): access-policy Express routers and in-memory data services for Mongoose-backed APIs.
+- [`@web-ts-toolkit/access-router-runtime`](./access-router-runtime): config-driven runtime that composes `access-router` and `express-runtime` into resource REST APIs.
 - [`@web-ts-toolkit/access-router-deco`](./access-router-deco): decorator-based module and router configuration for `access-router`.
 - [`@web-ts-toolkit/access-router-client`](./access-router-client): typed client adapter, model wrapper, and batching helpers for `access-router` APIs.
 - [`@web-ts-toolkit/access-router-react`](./access-router-react): React hooks for `access-router-client` model services.

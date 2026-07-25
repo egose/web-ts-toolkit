@@ -23,10 +23,12 @@ pnpm add @web-ts-toolkit/express-runtime express
 - `startLocalServer()` — `http.createServer` + `listen` with friendly
   `EADDRINUSE` / `EACCES` errors, optional graceful `SIGINT` / `SIGTERM`
   shutdown that drains in-flight requests, and a configurable timeout.
-- CLI binary with three subcommands:
+- CLI binary with five subcommands:
   - `dev` — run an Express app as a local dev server
-  - `build` — bundle the app as a serverless handler
-  - `start` — smoke-test the bundled handler locally by translating HTTP ↔ serverless events
+  - `build` — bundle the app as a local runtime module
+  - `start` — start the bundled local app module
+  - `build-serverless` — bundle the app as a serverless handler
+  - `start-serverless` — smoke-test the bundled handler locally by translating HTTP ↔ serverless events
 
 ## Quick Start
 
@@ -131,19 +133,19 @@ npx tsx ./node_modules/@web-ts-toolkit/express-runtime/dist/cli.js dev ./src/app
 > be placed at the top level of your app module since `dev` does not expose an
 > `init` hook.
 
-### CLI — build (serverless bundle)
+### CLI — build (local runtime bundle)
 
-The `build` command generates a temporary serverless entry that wraps the app
-with `createServerlessHandler`, then bundles it into a deployment-ready file:
+The `build` command generates a temporary runtime entry that re-exports the app
+and optional `init` hook, then bundles it into a local runtime file:
 
 ```sh
-npx wtt-express-runtime build ./src/app.ts --out-dir netlify/functions
+npx wtt-express-runtime build ./src/app.ts --out-dir dist
 ```
 
 With an optional init hook (DB connections, cache warmup, etc.):
 
 ```sh
-npx wtt-express-runtime build ./src/app.ts --init ./src/init.ts --out-dir netlify/functions
+npx wtt-express-runtime build ./src/app.ts --init ./src/init.ts --out-dir dist
 ```
 
 ```ts
@@ -153,29 +155,54 @@ export default async () => {
 };
 ```
 
-This produces `netlify/functions/handler.js` (configurable via `--out-name`)
-that exports a `handler` function compatible with Netlify, Vercel, AWS Lambda,
-and any platform that calls `(event, context)`.
+This produces `dist/app.js` (configurable via `--out-name`) that default-exports
+the Express app and, when `--init` is used, also exports `init` for the `start`
+command to run before listening.
 
 > `express` is always external; additional externals can be added via
 > `--external`.
 
-### CLI — start (run a bundled handler locally)
+### CLI — start (run a bundled app locally)
 
-The `start` command runs a bundled serverless handler locally by translating
-HTTP requests into serverless events and the handler's results back into HTTP
-responses — letting you smoke-test the exact `build` output without a
-serverless platform:
+The `start` command runs the `build` output locally with `startLocalServer()`:
 
 ```sh
 npx wtt-express-runtime build ./src/app.ts --out-dir dist
-npx wtt-express-runtime start ./dist/handler.js --port 9000 --env .env
+npx wtt-express-runtime start ./dist/app.js --port 9000 --env .env
 ```
 
-The handler module must export a `handler` function (named or default) that
-accepts `(event, context)` and returns a result with `statusCode`, `headers`,
-and `body` — the same shape produced by `createServerlessHandler` via
-`serverless-http`.
+The bundled app module must default-export an Express app (or export it as
+`app`). If it exports `init`, that hook runs once before the server starts
+listening.
+
+### CLI — build-serverless (serverless bundle)
+
+The `build-serverless` command preserves the previous serverless bundling flow:
+
+```sh
+npx wtt-express-runtime build-serverless ./src/app.ts --out-dir netlify/functions
+```
+
+With an optional init hook:
+
+```sh
+npx wtt-express-runtime build-serverless ./src/app.ts --init ./src/init.ts --out-dir netlify/functions
+```
+
+This produces `netlify/functions/handler.js` (configurable via `--out-name`)
+that exports a `handler` function compatible with Netlify, Vercel, AWS Lambda,
+and any platform that calls `(event, context)`.
+
+### CLI — start-serverless (run a bundled handler locally)
+
+The `start-serverless` command runs a bundled serverless handler locally by
+translating HTTP requests into serverless events and the handler's results back
+into HTTP responses:
+
+```sh
+npx wtt-express-runtime build-serverless ./src/app.ts --out-dir dist
+npx wtt-express-runtime start-serverless ./dist/handler.js --port 9000 --env .env
+```
 
 > The adapter passes the raw request body as a Buffer (no body parsing) so the
 > handler's request hook, including the serverless-http #305 workaround, runs
@@ -298,11 +325,13 @@ interface Logger {
 
 Omitting `<command>` defaults to `dev` for backward compatibility.
 
-| Command | Description                                                                         |
-| ------- | ----------------------------------------------------------------------------------- |
-| `dev`   | Run the Express app as a local dev server (`http.createServer` + graceful shutdown) |
-| `build` | Bundle the Express app as a serverless handler                                      |
-| `start` | Run a bundled serverless handler locally (HTTP ↔ serverless event adapter)          |
+| Command            | Description                                                                         |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| `dev`              | Run the Express app as a local dev server (`http.createServer` + graceful shutdown) |
+| `build`            | Bundle the Express app as a local runtime module                                    |
+| `start`            | Run a bundled local app module with `startLocalServer()`                            |
+| `build-serverless` | Bundle the Express app as a serverless handler                                      |
+| `start-serverless` | Run a bundled serverless handler locally (HTTP ↔ serverless event adapter)          |
 
 #### dev options
 
@@ -326,7 +355,7 @@ Omitting `<command>` defaults to `dev` for backward compatibility.
 | `<app-module>`        | Module path whose **default export** is an Express app (sync, not async factory) |
 | `--init <path>`       | Init hook module (default export, async function) called once per cold start     |
 | `--out-dir <path>`    | Output directory (default: `dist`)                                               |
-| `--out-name <name>`   | Output filename without extension (default: `handler`)                           |
+| `--out-name <name>`   | Output filename without extension (default: `app`)                               |
 | `--format <cjs\|esm>` | Output format (default: `cjs`)                                                   |
 | `--target <target>`   | Compilation target (default: `node22`)                                           |
 | `--external <pkg>`    | Mark package as external (repeatable; `express` is always external)              |
@@ -334,15 +363,40 @@ Omitting `<command>` defaults to `dev` for backward compatibility.
 
 #### start options
 
-| Option                    | Description                                                                                |
-| ------------------------- | ------------------------------------------------------------------------------------------ |
-| `<handler-module>`        | JS/CJS module path exporting `handler` (named or default) — the output of `build`          |
-| `--port <number>`         | Port or named pipe (default: `process.env.PORT` or `8080`)                                 |
-| `--host <hostname>`       | Hostname to bind (default: `process.env.HOST` or `0.0.0.0`)                                |
-| `--no-signals`            | Disable `SIGINT` / `SIGTERM` handler registration                                          |
-| `--shutdown-timeout <ms>` | Max ms to wait for in-flight requests (default: `5000`)                                    |
-| `--require <module>`      | Module(s) to preload before handler load (repeatable; comma-separated values supported)    |
-| `--env <path>`            | Env file(s) to load before handler load (repeatable; existing env vars are not overridden) |
+| Option                    | Description                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------ |
+| `<app-module>`            | JS/CJS module path default-exporting an Express app (or exporting `app`) — the output of `build` |
+| `--port <number>`         | Port or named pipe (default: `process.env.PORT` or `8080`)                                       |
+| `--host <hostname>`       | Hostname to bind (default: `process.env.HOST` or `0.0.0.0`)                                      |
+| `--no-signals`            | Disable `SIGINT` / `SIGTERM` handler registration                                                |
+| `--shutdown-timeout <ms>` | Max ms to wait for in-flight requests (default: `5000`)                                          |
+| `--require <module>`      | Module(s) to preload before app load (repeatable; comma-separated values supported)              |
+| `--env <path>`            | Env file(s) to load before app load (repeatable; existing env vars are not overridden)           |
+
+#### build-serverless options
+
+| Option                | Description                                                                      |
+| --------------------- | -------------------------------------------------------------------------------- |
+| `<app-module>`        | Module path whose **default export** is an Express app (sync, not async factory) |
+| `--init <path>`       | Init hook module (default export, async function) called once per cold start     |
+| `--out-dir <path>`    | Output directory (default: `dist`)                                               |
+| `--out-name <name>`   | Output filename without extension (default: `handler`)                           |
+| `--format <cjs\|esm>` | Output format (default: `cjs`)                                                   |
+| `--target <target>`   | Compilation target (default: `node22`)                                           |
+| `--external <pkg>`    | Mark package as external (repeatable; `express` is always external)              |
+| `--no-clean`          | Don't clean the output directory before building                                 |
+
+#### start-serverless options
+
+| Option                    | Description                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------------------- |
+| `<handler-module>`        | JS/CJS module path exporting `handler` (named or default) — the output of `build-serverless` |
+| `--port <number>`         | Port or named pipe (default: `process.env.PORT` or `8080`)                                   |
+| `--host <hostname>`       | Hostname to bind (default: `process.env.HOST` or `0.0.0.0`)                                  |
+| `--no-signals`            | Disable `SIGINT` / `SIGTERM` handler registration                                            |
+| `--shutdown-timeout <ms>` | Max ms to wait for in-flight requests (default: `5000`)                                      |
+| `--require <module>`      | Module(s) to preload before handler load (repeatable; comma-separated values supported)      |
+| `--env <path>`            | Env file(s) to load before handler load (repeatable; existing env vars are not overridden)   |
 
 #### global options
 
@@ -355,11 +409,12 @@ The `dev` command sets `exitAfterShutdown: true` so `SIGINT` / `SIGTERM` cleanly
 exit the process after the server drains. TypeScript app modules require a TS
 loader (see the Quick Start CLI section for a `tsx` invocation).
 
-The `build` command generates a temporary entry file that imports the app
-module and wraps it with `createServerlessHandler`, then produces a
-self-contained bundle. `express` is always external; all other dependencies
-(including `@web-ts-toolkit/express-runtime` and `serverless-http`) are
-bundled into the output unless marked external via `--external`.
+The `build` command generates a temporary entry file that re-exports the app
+module and optional `init` hook, then produces a local runtime bundle. The
+`build-serverless` command instead wraps the app with `createServerlessHandler`
+and bundles the serverless runtime. `express` is always external; all other
+dependencies are bundled into the output unless marked external via
+`--external`.
 
 ## License
 
