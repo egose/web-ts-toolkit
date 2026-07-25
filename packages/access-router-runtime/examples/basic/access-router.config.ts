@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { defineAccessRouterRuntimeConfig } from '@web-ts-toolkit/access-router-runtime';
+import { defineRuntimeConfig } from '@web-ts-toolkit/access-router-runtime';
 
 const OPEN_ACCESS = {
   list: true,
@@ -21,7 +21,7 @@ const UserSchema = new mongoose.Schema(
   },
 );
 
-export default defineAccessRouterRuntimeConfig({
+export default defineRuntimeConfig({
   db: {
     url: process.env.MONGODB_URI,
   },

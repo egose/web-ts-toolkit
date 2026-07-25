@@ -102,7 +102,7 @@ function resolveModel(definition: AccessRouterRuntimeModelDefinition): RuntimeMo
     mongoose.model(modelName, definition.schema, definition.collection)) as unknown as RuntimeModel;
 }
 
-export function defineAccessRouterRuntimeConfig<TConfig extends AccessRouterRuntimeConfig>(config: TConfig): TConfig {
+export function defineRuntimeConfig<TConfig extends AccessRouterRuntimeConfig>(config: TConfig): TConfig {
   return config;
 }
 

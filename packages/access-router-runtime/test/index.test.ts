@@ -1,11 +1,7 @@
 import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  createAccessRouterRuntime,
-  defineAccessRouterRuntimeConfig,
-  type AccessRouterRuntimeConfig,
-} from '../src/index';
+import { createAccessRouterRuntime, defineRuntimeConfig, type AccessRouterRuntimeConfig } from '../src/index';
 
 describe('access-router-runtime', () => {
   afterEach(async () => {
@@ -18,7 +14,7 @@ describe('access-router-runtime', () => {
 
   it('builds an express app from model, data, root, and openapi config', async () => {
     const runtime = createAccessRouterRuntime(
-      defineAccessRouterRuntimeConfig({
+      defineRuntimeConfig({
         globalOptions: {
           globalPermissions() {
             return [];
