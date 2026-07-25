@@ -25,6 +25,8 @@ import {
 } from '@web-ts-toolkit/express-runtime';
 import { loadAccessRouterRuntimeConfigSync } from './config-loader';
 
+type RuntimeModel = mongoose.Model<unknown>;
+
 export interface AccessRouterRuntimeDbConfig {
   url?: string;
   options?: mongoose.ConnectOptions;
@@ -48,7 +50,7 @@ export interface AccessRouterRuntimeContext {
   config: AccessRouterRuntimeConfig;
   runtime: AccessRuntimeApi;
   app: ReturnType<typeof createExpressApp>;
-  models: Record<string, mongoose.Model<unknown>>;
+  models: Record<string, RuntimeModel>;
   modelRouters: ModelRouter<unknown>[];
   dataRouters: DataRouter<unknown>[];
   rootRouter?: RootRouter;
@@ -82,9 +84,9 @@ function resolveModelName(definition: AccessRouterRuntimeModelDefinition): strin
   return definition.name ?? definition.model?.modelName ?? definition.router.modelName ?? '';
 }
 
-function resolveModel(definition: AccessRouterRuntimeModelDefinition): mongoose.Model<unknown> {
+function resolveModel(definition: AccessRouterRuntimeModelDefinition): RuntimeModel {
   if (definition.model) {
-    return definition.model as unknown as mongoose.Model<unknown>;
+    return definition.model as unknown as RuntimeModel;
   }
 
   const modelName = resolveModelName(definition);
@@ -96,10 +98,8 @@ function resolveModel(definition: AccessRouterRuntimeModelDefinition): mongoose.
     throw new Error(`Model definition "${modelName}" requires either \`model\` or \`schema\`.`);
   }
 
-  return (
-    (mongoose.models[modelName] as unknown as mongoose.Model<unknown> | undefined) ??
-    mongoose.model(modelName, definition.schema, definition.collection)
-  );
+  return (mongoose.models[modelName] ??
+    mongoose.model(modelName, definition.schema, definition.collection)) as unknown as RuntimeModel;
 }
 
 export function defineAccessRouterRuntimeConfig<TConfig extends AccessRouterRuntimeConfig>(config: TConfig): TConfig {
@@ -116,7 +116,7 @@ export function createAccessRouterRuntime(config: AccessRouterRuntimeConfig): Ac
     runtime.setDefaultModelOptions(config.defaultModelOptions);
   }
 
-  const models: Record<string, mongoose.Model<unknown>> = {};
+  const models: Record<string, RuntimeModel> = {};
   const modelRouters: ModelRouter<unknown>[] = [];
   const dataRouters: DataRouter<unknown>[] = [];
 
