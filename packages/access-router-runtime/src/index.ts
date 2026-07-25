@@ -48,7 +48,7 @@ export interface AccessRouterRuntimeContext {
   config: AccessRouterRuntimeConfig;
   runtime: AccessRuntimeApi;
   app: ReturnType<typeof createExpressApp>;
-  models: Record<string, mongoose.Model<any>>;
+  models: Record<string, mongoose.Model<unknown>>;
   modelRouters: ModelRouter<unknown>[];
   dataRouters: DataRouter<unknown>[];
   rootRouter?: RootRouter;
@@ -82,9 +82,9 @@ function resolveModelName(definition: AccessRouterRuntimeModelDefinition): strin
   return definition.name ?? definition.model?.modelName ?? definition.router.modelName ?? '';
 }
 
-function resolveModel(definition: AccessRouterRuntimeModelDefinition): mongoose.Model<any> {
+function resolveModel(definition: AccessRouterRuntimeModelDefinition): mongoose.Model<unknown> {
   if (definition.model) {
-    return definition.model as mongoose.Model<any>;
+    return definition.model as unknown as mongoose.Model<unknown>;
   }
 
   const modelName = resolveModelName(definition);
@@ -97,7 +97,7 @@ function resolveModel(definition: AccessRouterRuntimeModelDefinition): mongoose.
   }
 
   return (
-    (mongoose.models[modelName] as mongoose.Model<any> | undefined) ??
+    (mongoose.models[modelName] as unknown as mongoose.Model<unknown> | undefined) ??
     mongoose.model(modelName, definition.schema, definition.collection)
   );
 }
@@ -116,7 +116,7 @@ export function createAccessRouterRuntime(config: AccessRouterRuntimeConfig): Ac
     runtime.setDefaultModelOptions(config.defaultModelOptions);
   }
 
-  const models: Record<string, mongoose.Model<any>> = {};
+  const models: Record<string, mongoose.Model<unknown>> = {};
   const modelRouters: ModelRouter<unknown>[] = [];
   const dataRouters: DataRouter<unknown>[] = [];
 
