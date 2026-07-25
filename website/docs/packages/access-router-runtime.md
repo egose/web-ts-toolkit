@@ -27,7 +27,7 @@ npm install @web-ts-toolkit/access-router-runtime @web-ts-toolkit/access-router 
 
 Main entrypoint:
 
-- `defineAccessRouterRuntimeConfig(...)`
+- `defineRuntimeConfig(...)`
 - `createAccessRouterRuntime(config)`
 - `createAccessRouterRuntimeApp(config)`
 - `createAccessRouterRuntimeServerlessHandler(config, options?)`
@@ -45,7 +45,7 @@ CLI binary:
 
 ```ts
 import mongoose from 'mongoose';
-import { defineAccessRouterRuntimeConfig } from '@web-ts-toolkit/access-router-runtime';
+import { defineRuntimeConfig } from '@web-ts-toolkit/access-router-runtime';
 
 const OPEN_ACCESS = { list: true, read: true, create: true, update: true, delete: true } as const;
 
@@ -54,7 +54,7 @@ const UserSchema = new mongoose.Schema({
   role: { type: String, default: 'user' },
 });
 
-export default defineAccessRouterRuntimeConfig({
+export default defineRuntimeConfig({
   db: {
     url: process.env.MONGODB_URI,
   },

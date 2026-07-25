@@ -24,7 +24,7 @@ For a fuller in-repo starter, see `examples/basic/access-router.config.ts`.
 ```ts
 // src/access-router.config.ts
 import mongoose from 'mongoose';
-import { defineAccessRouterRuntimeConfig } from '@web-ts-toolkit/access-router-runtime';
+import { defineRuntimeConfig } from '@web-ts-toolkit/access-router-runtime';
 
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -33,7 +33,7 @@ const UserSchema = new mongoose.Schema({
 
 const OPEN_ACCESS = { list: true, read: true, create: true, update: true, delete: true } as const;
 
-export default defineAccessRouterRuntimeConfig({
+export default defineRuntimeConfig({
   db: {
     url: process.env.MONGODB_URI,
   },
@@ -111,7 +111,7 @@ export const handler = runtime.createServerlessHandler();
 
 Main exports:
 
-- `defineAccessRouterRuntimeConfig(...)`
+- `defineRuntimeConfig(...)`
 - `createAccessRouterRuntime(config)`
 - `createAccessRouterRuntimeApp(config)`
 - `createAccessRouterRuntimeServerlessHandler(config, options?)`
@@ -150,7 +150,7 @@ interface AccessRouterRuntimeConfig {
 
 ## Notes
 
-- `dev`, `build`, and `build-serverless` read the config file and generate temporary wrapper modules before delegating to `@web-ts-toolkit/express-runtime`.
+- `dev`, `build`, and `build-serverless` read the config file and reuse the shared CLI helpers from `@web-ts-toolkit/express-runtime/cli`.
 - Model definitions can use either `model` or `schema`. When `schema` is used, the package registers the Mongoose model for you.
 - `runtime.init()` memoizes the first successful DB/init call; `runtime.shutdown()` clears that memoized state.
 - A copyable starter config lives at `examples/basic/access-router.config.ts` in this repo.
