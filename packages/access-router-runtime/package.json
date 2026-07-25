@@ -1,0 +1,57 @@
+{
+  "name": "@web-ts-toolkit/access-router-runtime",
+  "description": "Config-driven Express and serverless runtime for access-router resource APIs",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/access-router-runtime",
+  "version": "0.0.0-PLACEHOLDER",
+  "license": "PLACEHOLDER",
+  "sideEffects": false,
+  "repository": "PLACEHOLDER",
+  "keywords": [
+    "express",
+    "mongoose",
+    "access-router",
+    "serverless",
+    "runtime",
+    "crud"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "wtt-access-router-runtime": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "test": "pnpm --filter @web-ts-toolkit/access-router-runtime... build && vitest run --config vitest.config.ts"
+  },
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@web-ts-toolkit/access-router": "workspace:*",
+    "@web-ts-toolkit/express-runtime": "workspace:*",
+    "jiti": "^2.6.1"
+  },
+  "peerDependencies": {
+    "express": ">=5.0.0",
+    "mongoose": ">=8.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "express": "^5.2.1",
+    "mongoose": "^9.6.2",
+    "supertest": "^7.2.2"
+  }
+}
