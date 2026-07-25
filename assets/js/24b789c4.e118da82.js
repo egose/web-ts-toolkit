@@ -79,6 +79,17 @@ function _createMdxContent(props) {
         }), ": access-policy Express routers and in-memory data services for Mongoose-backed APIs."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./access-router-runtime",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/access-router-runtime"
+          })
+        }), ": config-driven runtime that composes ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access-router"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "express-runtime"
+        }), " into resource REST APIs."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
           href: "./access-router-deco",
           children: (0,jsx_runtime.jsx)(_components.code, {
             children: "@web-ts-toolkit/access-router-deco"
