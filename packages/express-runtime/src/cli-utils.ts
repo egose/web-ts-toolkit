@@ -890,15 +890,10 @@ export async function buildBundleFromEntryContent(args: BuildEntryContentArgs): 
  * the app and may additionally export an `init` hook for the `start` command.
  */
 export async function buildRuntime(args: BuildArgs): Promise<void> {
-  await buildBundleFromEntryContent({
-    entryContent: generateRuntimeEntry(args.appPath, args.initPath),
+  const { runBuildEntryCommand } = await import('./cli-api');
+  await runBuildEntryCommand(args, {
+    generateEntry: generateRuntimeEntry,
     tempEntryFilename: TEMP_BUILD_ENTRY_FILENAME,
-    outDir: args.outDir,
-    outName: args.outName,
-    format: args.format,
-    target: args.target,
-    external: args.external,
-    clean: args.clean,
   });
 }
 
@@ -911,15 +906,10 @@ export async function buildRuntime(args: BuildArgs): Promise<void> {
  * `BuildArgs.external`.
  */
 export async function buildServerless(args: BuildArgs): Promise<void> {
-  await buildBundleFromEntryContent({
-    entryContent: generateServerlessEntry(args.appPath, args.initPath),
+  const { runBuildEntryCommand } = await import('./cli-api');
+  await runBuildEntryCommand(args, {
+    generateEntry: generateServerlessEntry,
     tempEntryFilename: TEMP_SERVERLESS_ENTRY_FILENAME,
-    outDir: args.outDir,
-    outName: args.outName,
-    format: args.format,
-    target: args.target,
-    external: args.external,
-    clean: args.clean,
   });
 }
 

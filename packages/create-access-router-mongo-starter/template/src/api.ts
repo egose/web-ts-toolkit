@@ -1,10 +1,6 @@
 import { createAdapter } from '@web-ts-toolkit/access-router-client';
 import type { Category, Todo } from './types';
-
-function normalizeApiBaseURL(value: string | undefined) {
-  const normalized = value?.trim().replace(/^\/+|\/+$/g, '');
-  return normalized ? `/${normalized}` : '/api';
-}
+import { normalizeApiBaseURL } from './shared/normalize-api-base-url';
 
 // The adapter baseURL points at the Vite dev-server proxy (`API_BASE_URL`,
 // default `/api`), which forwards to the local backend started by the `server`

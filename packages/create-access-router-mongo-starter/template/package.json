@@ -12,10 +12,10 @@
     "lint-fix": "eslint --fix .",
     "preview": "vite preview",
     "test": "vitest",
-    "server": "wtt-express-runtime dev ./api/app-dev.ts --env .env --require tsx --watch ./api --ext ts --port 8000",
-    "server:once": "wtt-express-runtime dev ./api/app-dev.ts --env .env --require tsx --port 8000",
-    "serverless": "wtt-express-runtime build ./api/app.ts --init ./api/init.ts --out-dir api/functions --out-name main --format cjs --target node22",
-    "serverless:start": "wtt-express-runtime start ./api/functions/main.cjs --port 9000 --env .env"
+    "server": "wtt-access-router-runtime ./api/access-router.config.ts --env .env --watch ./api --ext ts --port 8000",
+    "server:once": "wtt-access-router-runtime ./api/access-router.config.ts --env .env --port 8000",
+    "serverless": "wtt-access-router-runtime build-serverless ./api/access-router.config.ts --out-dir api/functions --out-name main --format cjs --target node22",
+    "serverless:start": "wtt-access-router-runtime start-serverless ./api/functions/main.cjs --port 9000 --env .env"
   },
   "dependencies": {
     "@egose/shadcn-theme": "^0.1.10",
@@ -25,6 +25,7 @@
     "@web-ts-toolkit/access-router": "^{{VERSION}}",
     "@web-ts-toolkit/access-router-client": "^{{VERSION}}",
     "@web-ts-toolkit/access-router-react": "^{{VERSION}}",
+    "@web-ts-toolkit/access-router-runtime": "^{{VERSION}}",
     "axios": "^1.16.1",
     "express": "^5.2.1",
     "mongoose": "^9.7.4",
@@ -46,7 +47,6 @@
     "@types/react-dom": "^19.2.3",
     "@types/express": "^5.0.6",
     "@vitejs/plugin-react": "^6.0.2",
-    "@web-ts-toolkit/express-runtime": "^{{VERSION}}",
     "eslint": "^10.4.0",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react-hooks": "^7.1.1",

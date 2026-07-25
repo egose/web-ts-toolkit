@@ -15,6 +15,8 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statS
 import { dirname, join, relative, resolve } from 'node:path';
 import { cancel, intro, isCancel, outro, text } from '@clack/prompts';
 import { resolveCliScriptPath } from './runtime-paths';
+import { readRequiredOptionValue } from './shared/arg-parser';
+import { bail } from './shared/bail';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -106,20 +108,18 @@ function parseArgs(argv: string[]): Options {
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    const next = (): string => {
-      const v = argv[++i];
-      if (v === undefined || v.startsWith('-')) throw new Error(`Missing value for ${a}`);
-      return v;
-    };
     switch (a) {
       case '--name':
-        o.name = next();
+        o.name = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--title':
-        o.title = next();
+        o.title = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--db-name':
-        o.dbName = next();
+        o.dbName = readRequiredOptionValue(argv, i, a);
+        i += 1;
         break;
       case '--force':
         o.force = true;
@@ -155,11 +155,6 @@ function toTitleCase(name: string): string {
     .filter(Boolean)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');
-}
-
-function bail(msg: string): never {
-  console.error(`\n✖ ${msg}`);
-  process.exit(1);
 }
 
 function isExcluded(relPath: string): boolean {
@@ -349,4 +344,13 @@ async function main() {
   console.log('  pnpm --dir . exec create-access-router-mongo-starter-deploy-netlify -- --help  # deploy to Netlify');
 }
 
-main();
+main().catch((error: unknown) => {
+  if (error instanceof Error) {
+    console.error(`\n✖ ${error.message}`);
+    process.exit(1);
+    return;
+  }
+
+  console.error(error);
+  process.exit(1);
+});

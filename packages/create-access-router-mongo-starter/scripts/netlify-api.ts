@@ -95,8 +95,17 @@ interface SdkHttpError {
   message?: string;
 }
 
+const NETLIFY_AUTH_ERROR_MESSAGE =
+  'Netlify auth token is invalid or expired. The API responded with 401 Access Denied.';
+
 function isAuthError(err: unknown): boolean {
   return (err as SdkHttpError)?.status === 401;
+}
+
+function bailOnAuthError(err: unknown): void {
+  if (isAuthError(err)) {
+    bail(NETLIFY_AUTH_ERROR_MESSAGE);
+  }
 }
 
 function authErrorMessage(err: unknown): string {
@@ -119,7 +128,7 @@ export async function fetchSiteById(
     return (await cli.getSite({ site_id: id })) as NetlifySite;
   } catch (err) {
     if ((err as SdkHttpError)?.status === 404) return null;
-    if (isAuthError(err)) bail(`Netlify auth token is invalid or expired. The API responded with 401 Access Denied.`);
+    bailOnAuthError(err);
     throw err;
   }
 }
@@ -146,7 +155,7 @@ export async function fetchSiteByName(
     try {
       sites = (await cli.listSites({ name, filter: 'all', per_page: perPage, page })) as NetlifySite[];
     } catch (err) {
-      if (isAuthError(err)) bail(`Netlify auth token is invalid or expired. The API responded with 401 Access Denied.`);
+      bailOnAuthError(err);
       throw err;
     }
     const found = sites.find((s) => s.name === name);
@@ -196,7 +205,7 @@ export async function createSite(
     return (await cli.createSite({ body: { name } })) as NetlifySite;
   } catch (err) {
     if ((err as SdkHttpError)?.status === 422) return null; // name globally taken
-    if (isAuthError(err)) bail(`Netlify auth token is invalid or expired. The API responded with 401 Access Denied.`);
+    bailOnAuthError(err);
     const e = err as SdkHttpError;
     bail(`Netlify API error (${e?.status ?? 'unknown'}) creating site "${name}": ${authErrorMessage(err)}`);
   }
@@ -315,7 +324,7 @@ export async function setSiteEnvVar(
     const envVars = await getAccountSiteEnvVars(cli, accountId, siteId);
     existing = envVars.find((v) => v.key === key);
   } catch (err) {
-    if (isAuthError(err)) bail(`Netlify auth token is invalid or expired. The API responded with 401 Access Denied.`);
+    bailOnAuthError(err);
     throw err;
   }
 
@@ -339,7 +348,7 @@ export async function setSiteEnvVar(
     try {
       await cli.createEnvVars({ ...params, body });
     } catch (err) {
-      if (isAuthError(err)) bail(`Netlify auth token is invalid or expired. The API responded with 401 Access Denied.`);
+      bailOnAuthError(err);
       const status = (err as SdkHttpError)?.status;
       if (status === 403) {
         bail(

@@ -36,7 +36,7 @@ describe('isExcluded', () => {
 
   it('does not exclude non-matching paths', () => {
     expect(isExcluded('src/index.ts')).toBe(false);
-    expect(isExcluded('api/app.ts')).toBe(false);
+    expect(isExcluded('api/access-router.config.ts')).toBe(false);
     expect(isExcluded('tests/setup.ts')).toBe(false);
     expect(isExcluded('package.json')).toBe(false);
   });

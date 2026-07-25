@@ -11,9 +11,9 @@ backed by MongoDB/Mongoose.
 
 ## Stack
 
-- **Backend** (`api/`) — Express 5 + `@web-ts-toolkit/express-runtime` +
-  `@web-ts-toolkit/access-router` (functional API) + Mongoose, connecting to a
-  MongoDB instance via `MONGODB_URI` (local or hosted — Atlas, etc.).
+- **Backend** (`api/`) — Express 5 + `@web-ts-toolkit/access-router-runtime` +
+  `@web-ts-toolkit/access-router` + Mongoose, connecting to a MongoDB instance
+  via `MONGODB_URI` (local or hosted — Atlas, etc.).
 - **Frontend** (`src/`) — Vite + React 19 + `react-router` +
   `@web-ts-toolkit/access-router-client` / `-react` + `react-hook-form` +
   `zod`, styled with `@egose/shadcn-theme` + Tailwind CSS v4.
@@ -27,16 +27,12 @@ backed by MongoDB/Mongoose.
 
 ```
 api/
-  app.ts        # serverless entry (default-exports the Express app)
-  app-dev.ts    # local dev entry (async factory: start DB → return app)
-  init.ts       # serverless cold-start hook (starts the DB via MONGODB_URI)
+  access-router.config.ts  # shared local/serverless runtime config
   src/
     config.ts   # constants (DB name, port, host)
-    db.ts       # Mongoose connect/disconnect using MONGODB_URI
     errors.ts   # AppError
-    express.ts  # createExpress() — wires createExpressApp + access-router
     models.ts   # Mongoose models (Todo, Category)
-    routers.ts  # createAccessRuntime + ModelRouter + RootRouter
+    routers.ts  # access-router model/root router options
     access-router.d.ts  # module augmentation for request/permission types
 src/
   api.ts        # createAdapter + model services
@@ -56,7 +52,7 @@ tests/
 | Script                  | What it does                                                                               |
 | ----------------------- | ------------------------------------------------------------------------------------------ |
 | `pnpm dev`              | Start the Vite dev server (UI) on :3000, proxying `API_BASE_URL` (default `/api`) → :8000. |
-| `pnpm server`           | Start the backend in watch mode via `wtt-express-runtime dev` on :8000.                    |
+| `pnpm server`           | Start the backend in watch mode via `wtt-access-router-runtime` on :8000.                  |
 | `pnpm serverless`       | Bundle the backend as a serverless handler into `api/functions/main.cjs`.                  |
 | `pnpm serverless:start` | Run the bundled serverless handler locally on :9000.                                       |
 | `pnpm build`            | Typecheck (app + server) and build the frontend.                                           |
@@ -108,7 +104,7 @@ pnpm --dir <app-dir> exec create-access-router-mongo-starter-deploy-netlify --si
 
 The deploy command:
 
-- builds the Vite frontend and the `wtt-express-runtime` serverless bundle
+- builds the Vite frontend and the `wtt-access-router-runtime` serverless bundle
 - creates or reuses a Netlify site (via `@netlify/api` SDK)
 - writes `.netlify/state.json` directly (no `netlify link` CLI needed)
 - generates a minimal `netlify.toml` with `[build]` and `[functions]`
@@ -161,18 +157,18 @@ The deploy URL is printed at the end of a successful deploy
 1. Declare permission keys in `api/src/access-router.d.ts`.
 2. Set `globalPermissions` on the access-router runtime.
 3. Switch `operationAccess` from `true` to permission strings.
-4. Add a session middleware in `createExpressApp` (inside `api/src/express.ts`).
+4. Add a session middleware in the runtime config's `express` block (`api/access-router.config.ts`).
 
 ## Template customization
 
 This template uses three placeholders that are rewritten at install time by
 `create-access-router-mongo-starter`:
 
-| Placeholder     | Replaced with         | Found in                                |
-| --------------- | --------------------- | --------------------------------------- |
-| `{{APP_NAME}}`  | package/app name      | `package.json`, `api/src/express.ts`    |
-| `{{APP_TITLE}}` | display title         | `index.html`, `src/pages/home-page.tsx` |
-| `{{DB_NAME}}`   | MongoDB database name | `api/src/config.ts`, `.env.example`     |
+| Placeholder     | Replaced with         | Found in                                      |
+| --------------- | --------------------- | --------------------------------------------- |
+| `{{APP_NAME}}`  | package/app name      | `package.json`, `api/access-router.config.ts` |
+| `{{APP_TITLE}}` | display title         | `index.html`, `src/pages/home-page.tsx`       |
+| `{{DB_NAME}}`   | MongoDB database name | `api/src/config.ts`, `.env.example`           |
 
 If you cloned this template manually, search-and-replace these tokens in the
 files listed above.

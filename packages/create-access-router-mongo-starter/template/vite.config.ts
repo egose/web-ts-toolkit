@@ -3,11 +3,7 @@ import path from 'path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv } from 'vite';
-
-function normalizeApiBaseURL(value: string | undefined) {
-  const normalized = value?.trim().replace(/^\/+|\/+$/g, '');
-  return normalized ? `/${normalized}` : '/api';
-}
+import { normalizeApiBaseURL } from './src/shared/normalize-api-base-url';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');

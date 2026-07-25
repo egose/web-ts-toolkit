@@ -117,6 +117,17 @@ describe('fetchSiteById', () => {
     const result = await fetchSiteById(AUTH_TOKEN, 'nonexistent', client);
     expect(result).toBeNull();
   });
+
+  it('bails with a clear message on 401', async () => {
+    const client = makeMockClient({
+      getSite: async () => {
+        throw httpError(401, 'Access Denied');
+      },
+    });
+    await expect(fetchSiteById(AUTH_TOKEN, 'site-1', client)).rejects.toThrow(
+      'Netlify auth token is invalid or expired. The API responded with 401 Access Denied.',
+    );
+  });
 });
 
 describe('fetchSiteByName', () => {
@@ -353,6 +364,18 @@ describe('setSiteEnvVar', () => {
     });
     await expect(setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', {}, client)).rejects.toThrow(
       /HTTP 403 Forbidden/,
+    );
+  });
+
+  it('bails with a clear message on 401 while listing env vars', async () => {
+    const client = makeMockClient({
+      getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
+      getEnvVars: async () => {
+        throw httpError(401, 'Access Denied');
+      },
+    });
+    await expect(setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', {}, client)).rejects.toThrow(
+      'Netlify auth token is invalid or expired. The API responded with 401 Access Denied.',
     );
   });
 });
