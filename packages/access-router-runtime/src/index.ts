@@ -23,7 +23,7 @@ import {
   type ServerlessHandler,
   type ServerlessHandlerOptions,
 } from '@web-ts-toolkit/express-runtime';
-import { loadAccessRouterRuntimeConfigSync } from './config-loader';
+import { loadAccessRouterRuntimeConfigSync, type AccessRouterRuntimeConfigLoadOptions } from './config-loader';
 
 type RuntimeModel = mongoose.Model<unknown>;
 
@@ -57,6 +57,15 @@ export interface AccessRouterRuntimeContext {
   openApiRouter?: ReturnType<AccessRuntimeApi['createOpenApiRouter']>;
 }
 
+export interface AccessRouterRuntimeDevOptions {
+  /** Default watch paths for `wtt-access-router-runtime dev`. */
+  watch?: ReadonlyArray<string>;
+  /** Default watch extensions for `wtt-access-router-runtime dev`. */
+  ext?: ReadonlyArray<string>;
+  /** Default watch debounce delay in ms for `wtt-access-router-runtime dev`. */
+  delay?: number;
+}
+
 export interface AccessRouterRuntimeConfig {
   db?: AccessRouterRuntimeDbConfig;
   globalOptions?: GlobalOptions;
@@ -66,6 +75,7 @@ export interface AccessRouterRuntimeConfig {
   data?: ReadonlyArray<AccessRouterRuntimeDataDefinition>;
   openApi?: OpenApiRouterOptions | false;
   extraRoutes?: ReadonlyArray<CombinedRouteInput>;
+  dev?: AccessRouterRuntimeDevOptions;
   express?: Omit<ExpressAppOptions, 'router' | 'routers' | 'finalize'> & {
     finalize?: ExpressAppOptions['finalize'];
   };
@@ -251,13 +261,17 @@ export function createAccessRouterRuntimeServerlessHandler(
   return createAccessRouterRuntime(config).createServerlessHandler(options);
 }
 
-export function loadAccessRouterRuntime(configPath: string): AccessRouterRuntimeInstance {
-  return createAccessRouterRuntime(loadAccessRouterRuntimeConfigSync(configPath));
+export function loadAccessRouterRuntime(
+  configPath: string,
+  options: AccessRouterRuntimeConfigLoadOptions = {},
+): AccessRouterRuntimeInstance {
+  return createAccessRouterRuntime(loadAccessRouterRuntimeConfigSync(configPath, options));
 }
 
 export { loadAccessRouterRuntimeConfigSync };
 
 export type {
+  AccessRouterRuntimeConfigLoadOptions,
   CombinedRouteInput,
   DataRouterOptions,
   GlobalOptions,

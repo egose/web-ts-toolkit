@@ -187,6 +187,16 @@ describe('parseArgs — dev', () => {
     expect(result?.subcommand === 'dev' && result.dev.env).toEqual(['./.env', './.env.local']);
   });
 
+  it('parses --tsconfig', () => {
+    const result = parseArgs(['dev', './app.js', '--tsconfig', './tsconfig.runtime.json']);
+    expect(result?.subcommand === 'dev' && result.dev.tsconfigPath).toBe('./tsconfig.runtime.json');
+  });
+
+  it('parses --tsconfig=', () => {
+    const result = parseArgs(['dev', './app.js', '--tsconfig=./tsconfig.runtime.json']);
+    expect(result?.subcommand === 'dev' && result.dev.tsconfigPath).toBe('./tsconfig.runtime.json');
+  });
+
   it('parses --watch', () => {
     const result = parseArgs(['dev', './app.js', '--watch', './src']);
     expect(result?.subcommand === 'dev' && result.dev.watch).toEqual(['./src']);
@@ -270,6 +280,7 @@ describe('parseArgs — build', () => {
     expect(result.build.external).toEqual([]);
     expect(result.build.clean).toBe(true);
     expect(result.build.initPath).toBeUndefined();
+    expect(result.build.tsconfigPath).toBeUndefined();
   });
 
   it('parses --init', () => {
@@ -280,6 +291,16 @@ describe('parseArgs — build', () => {
   it('parses --init=', () => {
     const result = parseArgs(['build', './src/app.ts', '--init=./src/init.ts']);
     expect(result?.subcommand === 'build' && result.build.initPath).toBe('./src/init.ts');
+  });
+
+  it('parses --tsconfig', () => {
+    const result = parseArgs(['build', './src/app.ts', '--tsconfig', './tsconfig.runtime.json']);
+    expect(result?.subcommand === 'build' && result.build.tsconfigPath).toBe('./tsconfig.runtime.json');
+  });
+
+  it('parses --tsconfig=', () => {
+    const result = parseArgs(['build', './src/app.ts', '--tsconfig=./tsconfig.runtime.json']);
+    expect(result?.subcommand === 'build' && result.build.tsconfigPath).toBe('./tsconfig.runtime.json');
   });
 
   it('parses --out-dir', () => {
@@ -378,6 +399,14 @@ describe('parseArgs — build-serverless', () => {
     expect(result.buildServerless.outDir).toBe('dist');
     expect(result.buildServerless.outName).toBe('handler');
     expect(result.buildServerless.initPath).toBeUndefined();
+    expect(result.buildServerless.tsconfigPath).toBeUndefined();
+  });
+
+  it('parses --tsconfig for build-serverless', () => {
+    const result = parseArgs(['build-serverless', './src/app.ts', '--tsconfig', './tsconfig.runtime.json']);
+    expect(result?.subcommand === 'build-serverless' && result.buildServerless.tsconfigPath).toBe(
+      './tsconfig.runtime.json',
+    );
   });
 });
 
@@ -587,19 +616,25 @@ describe('parseArgs — start', () => {
 
   it('rejects --watch', () => {
     expect(() => parseArgs(['start', './app.js', '--watch', './src'])).toThrow(
-      '--watch/--ext/--delay are not supported with the start subcommand',
+      '--watch/--tsconfig/--ext/--delay are not supported with the start subcommand',
+    );
+  });
+
+  it('rejects --tsconfig', () => {
+    expect(() => parseArgs(['start', './app.js', '--tsconfig', './tsconfig.runtime.json'])).toThrow(
+      '--watch/--tsconfig/--ext/--delay are not supported with the start subcommand',
     );
   });
 
   it('rejects --ext', () => {
     expect(() => parseArgs(['start', './app.js', '--ext', 'ts'])).toThrow(
-      '--watch/--ext/--delay are not supported with the start subcommand',
+      '--watch/--tsconfig/--ext/--delay are not supported with the start subcommand',
     );
   });
 
   it('rejects --delay', () => {
     expect(() => parseArgs(['start', './app.js', '--delay', '500'])).toThrow(
-      '--watch/--ext/--delay are not supported with the start subcommand',
+      '--watch/--tsconfig/--ext/--delay are not supported with the start subcommand',
     );
   });
 });
@@ -617,7 +652,7 @@ describe('parseArgs — start-serverless', () => {
 
   it('rejects watch flags with a serverless-specific message', () => {
     expect(() => parseArgs(['start-serverless', './handler.js', '--watch', './src'])).toThrow(
-      '--watch/--ext/--delay are not supported with the start-serverless subcommand',
+      '--watch/--tsconfig/--ext/--delay are not supported with the start-serverless subcommand',
     );
   });
 });
@@ -879,6 +914,7 @@ describe('buildChildArgs', () => {
     const args = {
       appPath: './app.mts',
       options: {},
+      tsconfigPath: undefined,
       require: [],
       env: [],
       watch: ['./src'],
@@ -892,6 +928,7 @@ describe('buildChildArgs', () => {
     const args = {
       appPath: './app.mts',
       options: { port: 3000, host: 'localhost', shutdownTimeout: 2000, signals: false },
+      tsconfigPath: undefined,
       require: [],
       env: [],
       watch: [],
@@ -915,6 +952,7 @@ describe('buildChildArgs', () => {
     const args = {
       appPath: './app.mts',
       options: {},
+      tsconfigPath: './tsconfig.runtime.json',
       require: ['tsconfig-paths/register', 'dotenv/config'],
       env: ['./.env'],
       watch: [],
@@ -924,6 +962,8 @@ describe('buildChildArgs', () => {
     expect(buildChildArgs(args)).toEqual([
       'dev',
       './app.mts',
+      '--tsconfig',
+      './tsconfig.runtime.json',
       '--require',
       'tsconfig-paths/register',
       '--require',
@@ -937,6 +977,7 @@ describe('buildChildArgs', () => {
     const args = {
       appPath: './app.mts',
       options: {},
+      tsconfigPath: './tsconfig.runtime.json',
       require: [],
       env: [],
       watch: ['./src', './shared'],

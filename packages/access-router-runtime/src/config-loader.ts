@@ -3,14 +3,21 @@ import { pathToFileURL } from 'node:url';
 import { createJiti } from 'jiti';
 import type { AccessRouterRuntimeConfig } from './index';
 
+export interface AccessRouterRuntimeConfigLoadOptions {
+  tsconfigPath?: string;
+}
+
 type ConfigModule = {
   default?: AccessRouterRuntimeConfig | (() => AccessRouterRuntimeConfig);
   config?: AccessRouterRuntimeConfig;
 };
 
-const jiti = createJiti(pathToFileURL(pathResolve(process.cwd(), '.access-router-runtime.config.js')).href, {
-  interopDefault: true,
-});
+function createConfigJiti(options: AccessRouterRuntimeConfigLoadOptions = {}) {
+  return createJiti(pathToFileURL(pathResolve(process.cwd(), '.access-router-runtime.config.js')).href, {
+    interopDefault: true,
+    tsconfigPaths: options.tsconfigPath,
+  });
+}
 
 function normalizeConfigExport(raw: unknown, configPath: string): AccessRouterRuntimeConfig {
   const moduleValue = raw as ConfigModule;
@@ -24,7 +31,10 @@ function normalizeConfigExport(raw: unknown, configPath: string): AccessRouterRu
   return config as AccessRouterRuntimeConfig;
 }
 
-export function loadAccessRouterRuntimeConfigSync(configPath: string): AccessRouterRuntimeConfig {
+export function loadAccessRouterRuntimeConfigSync(
+  configPath: string,
+  options: AccessRouterRuntimeConfigLoadOptions = {},
+): AccessRouterRuntimeConfig {
   const fullPath = pathResolve(process.cwd(), configPath);
-  return normalizeConfigExport(jiti(fullPath), configPath);
+  return normalizeConfigExport(createConfigJiti(options)(fullPath), configPath);
 }

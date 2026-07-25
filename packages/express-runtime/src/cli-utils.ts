@@ -32,6 +32,8 @@ export type Subcommand = 'dev' | 'build' | 'start' | 'build-serverless' | 'start
 export interface DevArgs {
   appPath: string;
   options: Omit<LocalServerOptions, 'init' | 'onShutdown'>;
+  /** Optional tsconfig path for consumers that need TS path resolution. */
+  tsconfigPath?: string;
   /** Modules to preload before loading the app (repeatable `--require`). */
   require: string[];
   /** Env files to load before loading the app (repeatable `--env`). */
@@ -47,6 +49,7 @@ export interface DevArgs {
 export interface BuildArgs {
   appPath: string;
   initPath?: string;
+  tsconfigPath?: string;
   outDir: string;
   outName: string;
   format: 'cjs' | 'esm';
@@ -58,6 +61,7 @@ export interface BuildArgs {
 export interface BuildEntryContentArgs {
   entryContent: string;
   tempEntryFilename: string;
+  tsconfigPath?: string;
   outDir: string;
   outName: string;
   format: 'cjs' | 'esm';
@@ -119,12 +123,14 @@ Dev options:
   --shutdown-timeout <ms>       Max ms to wait for in-flight requests (default: 5000)
   --require <module>            Module(s) to preload before app load (repeatable)
   --env <path>                  Env file(s) to load (repeatable; existing env vars are not overridden)
+  --tsconfig <path>             Tsconfig used by config-aware consumers for TS path resolution
   --watch <paths>               Comma-separated paths to watch for restart (repeatable; dev only)
   --ext <extensions>            Comma-separated extensions to watch (default: ts,js,mjs,cjs,json)
   --delay <ms>                  Debounce ms before restarting on change (default: 500)
 
 Build options:
   --init <path>                 Init hook module (default export, async function)
+  --tsconfig <path>             Use a custom tsconfig for bundling
   --out-dir <path>              Output directory (default: dist)
   --out-name <name>             Output filename without extension (default: app)
   --format <cjs|esm>            Output format (default: cjs)
@@ -142,6 +148,7 @@ Start options:
 
 Build-serverless options:
   --init <path>                 Init hook module (default export, async function)
+  --tsconfig <path>             Use a custom tsconfig for bundling
   --out-dir <path>              Output directory (default: dist)
   --out-name <name>             Output filename without extension (default: handler)
   --format <cjs|esm>            Output format (default: cjs)
@@ -227,6 +234,7 @@ function parseDevArgs(argv: string[]): DevArgs {
   const watchPaths: string[] = [];
   let watchExt: string[] | undefined;
   let watchDelay: number | undefined;
+  let tsconfigPath: string | undefined;
   let appPath: string | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -303,6 +311,16 @@ function parseDevArgs(argv: string[]): DevArgs {
       continue;
     }
 
+    if (arg === '--tsconfig') {
+      tsconfigPath = readValue(argv, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith('--tsconfig=')) {
+      tsconfigPath = arg.slice('--tsconfig='.length);
+      continue;
+    }
+
     if (arg === '--watch') {
       index = parseRepeatable(argv, index, arg, watchPaths);
       continue;
@@ -358,6 +376,7 @@ function parseDevArgs(argv: string[]): DevArgs {
   return {
     appPath,
     options,
+    tsconfigPath,
     require: requireModules,
     env: envFiles,
     watch: watchPaths,
@@ -373,12 +392,14 @@ function parseStartLikeArgs(argv: string[], subcommandName: 'start' | 'start-ser
     if (
       arg === '--watch' ||
       arg.startsWith('--watch=') ||
+      arg === '--tsconfig' ||
+      arg.startsWith('--tsconfig=') ||
       arg === '--ext' ||
       arg.startsWith('--ext=') ||
       arg === '--delay' ||
       arg.startsWith('--delay=')
     ) {
-      throw new Error(`--watch/--ext/--delay are not supported with the ${subcommandName} subcommand`);
+      throw new Error(`--watch/--tsconfig/--ext/--delay are not supported with the ${subcommandName} subcommand`);
     }
   }
 
@@ -410,6 +431,7 @@ function parseBuildArgs(argv: string[], outNameDefault: string): BuildArgs {
   const external: string[] = [];
   const result: Omit<BuildArgs, 'appPath'> = {
     initPath: undefined,
+    tsconfigPath: undefined,
     outDir: 'dist',
     outName: outNameDefault,
     format: 'cjs',
@@ -436,6 +458,16 @@ function parseBuildArgs(argv: string[], outNameDefault: string): BuildArgs {
     }
     if (arg.startsWith('--init=')) {
       result.initPath = arg.slice('--init='.length);
+      continue;
+    }
+
+    if (arg === '--tsconfig') {
+      result.tsconfigPath = readValue(argv, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith('--tsconfig=')) {
+      result.tsconfigPath = arg.slice('--tsconfig='.length);
       continue;
     }
 
@@ -716,6 +748,7 @@ export function buildChildArgs(args: DevArgs): string[] {
   if (args.options.signals === false) result.push('--no-signals');
   if (args.options.shutdownTimeout !== undefined)
     result.push('--shutdown-timeout', String(args.options.shutdownTimeout));
+  if (args.tsconfigPath !== undefined) result.push('--tsconfig', args.tsconfigPath);
   for (const r of args.require) result.push('--require', r);
   for (const e of args.env) result.push('--env', e);
   return result;
@@ -871,6 +904,7 @@ export async function buildBundleFromEntryContent(args: BuildEntryContentArgs): 
     await build({
       config: false,
       entry: { [args.outName]: tempEntryPath },
+      tsconfig: args.tsconfigPath,
       format: [args.format],
       target: args.target,
       outDir: args.outDir,
