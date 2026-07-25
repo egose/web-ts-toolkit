@@ -94,6 +94,10 @@ const config: Config = {
               label: 'Access Router',
               to: '/docs/packages/access-router',
             },
+            {
+              label: 'Access Router Runtime',
+              to: '/docs/packages/access-router-runtime',
+            },
           ],
         },
         {
