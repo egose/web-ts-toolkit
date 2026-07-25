@@ -1,3 +1,11 @@
+## [0.27.0](https://github.com/egose/web-ts-toolkit/compare/v0.26.0...v0.27.0) (2026-07-25)
+
+### Features
+
+* rename config helper to defineRuntimeConfig ([082cbc4](https://github.com/egose/web-ts-toolkit/commit/082cbc408fb0ade9cffb3a514e8758c01ac872d5))
+* reuse express runtime cli helpers for access router commands ([fc8ca04](https://github.com/egose/web-ts-toolkit/commit/fc8ca0466e495fd6a4f179b9e851f78ad200eac5))
+* switch starter and runtime to access-router config entrypoints ([1bebf36](https://github.com/egose/web-ts-toolkit/commit/1bebf36e4072be93b515f2e37649013b135b85d0))
+
 ## [0.26.0](https://github.com/egose/web-ts-toolkit/compare/v0.25.0...v0.26.0) (2026-07-25)
 
 ### Features
