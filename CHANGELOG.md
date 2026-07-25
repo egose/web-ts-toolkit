@@ -1,3 +1,24 @@
+## [0.26.0](https://github.com/egose/web-ts-toolkit/compare/v0.25.0...v0.26.0) (2026-07-25)
+
+### Features
+
+* **access-router-runtime:** add access-router runtime package and CLI ([0ef9eed](https://github.com/egose/web-ts-toolkit/commit/0ef9eed624c2d4949165fd08755a917797cbd51f))
+* **express-runtime:** add local runtime bundle support and split serverless commands ([f590e80](https://github.com/egose/web-ts-toolkit/commit/f590e80bda6d9c3207f01c2192f2774594d6ec94))
+
+### Bug Fixes
+
+* **access-router-runtime:** tighten runtime model typings ([4dad948](https://github.com/egose/web-ts-toolkit/commit/4dad948bcd3323a44bf63ba76061c8ac9959f93c))
+
+### Documentation
+
+* **access-router-runtime:** update example error handler signature ([187d9ac](https://github.com/egose/web-ts-toolkit/commit/187d9acef9dff9cc4e89905ae73ed38aa9b560fd))
+* **express-runtime:** update CLI documentation for local and serverless workflows ([b7e81cc](https://github.com/egose/web-ts-toolkit/commit/b7e81cc6e859eee45c7eccbaa62fc9159a9e7866))
+* **website:** add website documentation for access-router runtime ([43958f2](https://github.com/egose/web-ts-toolkit/commit/43958f2717ebdd437fef7508ea11f6d7a4d5247d))
+
+### Code Refactoring
+
+* **access-router-runtime:** tighten runtime model typings ([86d3052](https://github.com/egose/web-ts-toolkit/commit/86d3052265adc7ac6b6e0302701407f6f2292581))
+
 ## [0.25.0](https://github.com/egose/web-ts-toolkit/compare/v0.24.0...v0.25.0) (2026-07-23)
 
 ### Features
