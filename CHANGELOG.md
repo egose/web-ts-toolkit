@@ -1,3 +1,26 @@
+## [0.28.0](https://github.com/egose/web-ts-toolkit/compare/v0.27.0...v0.28.0) (2026-07-26)
+
+### Features
+
+* add backchannel logout session revocation support ([85a929e](https://github.com/egose/web-ts-toolkit/commit/85a929e31a8044bb792a26aaa3cfa34f039d5c3e))
+* add bearer access-token middleware and jwt validator helper ([0c3c00f](https://github.com/egose/web-ts-toolkit/commit/0c3c00f2458706cbb2236d8b41792931aaca316b))
+* add cookie transport support for OIDC sessions ([4b4343d](https://github.com/egose/web-ts-toolkit/commit/4b4343d6181a32afb496007352ddf439e30bb706))
+* add example runtime app with config and tsconfig ([fe1cd1b](https://github.com/egose/web-ts-toolkit/commit/fe1cd1b6e9c0f8d3e294dd5946ea3a2290102ddb))
+* add oidc vault store packages and docs ([5380bc0](https://github.com/egose/web-ts-toolkit/commit/5380bc09ae61bf28b73463c1ed5d60d7e4dabcd4))
+* add tsconfig-aware runtime loading and dev defaults ([439bf68](https://github.com/egose/web-ts-toolkit/commit/439bf680c780aa0e95607c301ba622b0606e4497))
+* enforce trusted origins and atomic session rotation ([c6829b5](https://github.com/egose/web-ts-toolkit/commit/c6829b5706bc6b9dad29caac704d078b9edfd85e))
+
+### Bug Fixes
+
+* adapt express request augmentation and simplify transaction aliases ([0e2021c](https://github.com/egose/web-ts-toolkit/commit/0e2021c1ddefe1c47da4ab364e637ecd2217d655))
+* suppress unused next parameter in runtime error handler ([8587980](https://github.com/egose/web-ts-toolkit/commit/858798064c54c63b2fd029b1d5da974579cb7f0f))
+* update express request typing for authenticated middleware ([1f010ec](https://github.com/egose/web-ts-toolkit/commit/1f010ec5c305da0a825d7ad9d5ae0fa2420c018c))
+
+### Documentation
+
+* document access-token validation middleware ([f17ae72](https://github.com/egose/web-ts-toolkit/commit/f17ae724bafc69b6d3e10c7965bcf9db74eb8cc5))
+* document cookie transport usage and defaults ([2411472](https://github.com/egose/web-ts-toolkit/commit/2411472e27c12f4e13ed3fd87fcea26a0b05490b))
+
 ## [0.27.0](https://github.com/egose/web-ts-toolkit/compare/v0.26.0...v0.27.0) (2026-07-25)
 
 ### Features
