@@ -1,22 +1,13 @@
-import http from 'node:http';
-
 import { parse } from '@fast-csv/parse';
 import express from 'express';
 import request from 'supertest';
-import { afterAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import apiHandler from '../dist/index.mjs';
 import { CSVResponse } from '../dist/responses/csv.mjs';
 
 const { handleResponse, HttpResponse } = apiHandler;
 
 const app = express();
-app.set('port', 8082);
-const server = http.createServer(app);
-server.listen(8082);
-
-afterAll(() => {
-  server.close();
-});
 
 const parseCsv = async (input: string, headers: boolean) => {
   const result: Array<Record<string, string> | string[]> = [];
