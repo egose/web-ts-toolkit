@@ -107,7 +107,8 @@ export default defineRuntimeConfig({
         res.json({ ok: true, name: 'access-router-runtime-example' });
       });
     },
-    errorHandler(error, _req, res, _next) {
+    errorHandler(error, _req, res, next) {
+      void next;
       console.error(error);
       res.status(500).json({ success: false, message: 'Unexpected server error.' });
     },
