@@ -172,7 +172,7 @@ export interface OidcVaultJwtAccessTokenValidatorOptions {
   mapClaims?(claims: Record<string, unknown>): OidcVaultAccessTokenValidationResult;
 }
 
-declare module 'express-serve-static-core' {
+declare module 'express' {
   interface Request {
     auth?: OidcVaultAuthContext;
   }

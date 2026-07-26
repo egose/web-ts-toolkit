@@ -9,6 +9,7 @@ import { OidcVaultStoreConflictError } from './types';
 import type {
   AuthorizationTransaction,
   OidcVaultAccessTokenMiddlewareOptions,
+  OidcVaultAuthenticatedRequest,
   OidcVaultAuthContext,
   OidcVaultAccessTokenValidationResult,
   OidcVaultBackchannelLogoutResult,
@@ -1225,8 +1226,10 @@ export function createOidcVaultAccessTokenMiddleware(options: OidcVaultAccessTok
         ...validationResult,
       };
 
-      req.auth = auth;
-      await options.onAuthContext?.({ req, res, auth });
+      const authenticatedRequest = req as OidcVaultAuthenticatedRequest;
+
+      authenticatedRequest.auth = auth;
+      await options.onAuthContext?.({ req: authenticatedRequest, res, auth });
       next();
     } catch (error) {
       if (error instanceof OidcVaultHttpError) {
