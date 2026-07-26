@@ -6,7 +6,11 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createMemoryOidcVaultStore } from '../../express-oidc-vault-memory-store/src/index';
-import { createOidcVaultMiddleware } from '../src/index';
+import {
+  createOidcVaultAccessTokenMiddleware,
+  createOidcVaultMiddleware,
+  createOidcVaultJwtAccessTokenValidator,
+} from '../src/index';
 
 type StartedServer = {
   server: http.Server;
@@ -394,6 +398,151 @@ describe('createOidcVaultMiddleware', () => {
     expect(postLogoutRefreshResponse.status).toBe(400);
     expect(postLogoutRefreshResponse.body).toMatchObject({
       code: 'OIDC_VAULT_MISSING_SESSION_ID',
+    });
+  });
+
+  it('validates bearer access tokens with a separate middleware and attaches req.auth', async () => {
+    const app = express();
+
+    app.get(
+      '/protected',
+      createOidcVaultAccessTokenMiddleware({
+        validator: {
+          async validate(token) {
+            return {
+              subject: 'user_1',
+              sessionId: 'sess_1',
+              scope: 'read:profile',
+              claims: { token },
+            };
+          },
+        },
+      }),
+      (req, res) => {
+        res.json(req.auth ?? null);
+      },
+    );
+
+    const response = await request(app).get('/protected').set('Authorization', 'Bearer access_token_1');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      token: 'access_token_1',
+      subject: 'user_1',
+      sessionId: 'sess_1',
+      scope: 'read:profile',
+      claims: {
+        token: 'access_token_1',
+      },
+    });
+  });
+
+  it('rejects missing or invalid bearer headers with 401', async () => {
+    const app = express();
+
+    app.get(
+      '/protected',
+      createOidcVaultAccessTokenMiddleware({
+        validator: {
+          async validate(token) {
+            return { subject: token };
+          },
+        },
+      }),
+      (_req, res) => {
+        res.json({ ok: true });
+      },
+    );
+
+    const missingTokenResponse = await request(app).get('/protected');
+
+    expect(missingTokenResponse.status).toBe(401);
+    expect(missingTokenResponse.headers['www-authenticate']).toBe('Bearer');
+    expect(missingTokenResponse.body).toMatchObject({
+      code: 'OIDC_VAULT_MISSING_BEARER_TOKEN',
+    });
+
+    const malformedHeaderResponse = await request(app).get('/protected').set('Authorization', 'Token nope');
+
+    expect(malformedHeaderResponse.status).toBe(401);
+    expect(malformedHeaderResponse.body).toMatchObject({
+      code: 'OIDC_VAULT_INVALID_AUTHORIZATION_HEADER',
+    });
+  });
+
+  it('rejects invalid bearer tokens with 401', async () => {
+    const app = express();
+
+    app.get(
+      '/protected',
+      createOidcVaultAccessTokenMiddleware({
+        validator: {
+          async validate() {
+            throw new Error('token expired');
+          },
+        },
+      }),
+      (_req, res) => {
+        res.json({ ok: true });
+      },
+    );
+
+    const response = await request(app).get('/protected').set('Authorization', 'Bearer expired_token');
+
+    expect(response.status).toBe(401);
+    expect(response.headers['www-authenticate']).toBe('Bearer');
+    expect(response.body).toMatchObject({
+      code: 'OIDC_VAULT_INVALID_ACCESS_TOKEN',
+      message: 'token expired',
+    });
+  });
+
+  it('provides a JWT validator helper for access-token middleware', async () => {
+    const app = express();
+    const secret = new TextEncoder().encode('jwt-access-secret');
+
+    app.get(
+      '/protected',
+      createOidcVaultAccessTokenMiddleware({
+        validator: createOidcVaultJwtAccessTokenValidator({
+          key: secret,
+          issuer: 'https://issuer.example.com',
+          audience: 'api-audience',
+          algorithms: ['HS256'],
+        }),
+      }),
+      (req, res) => {
+        res.json(req.auth ?? null);
+      },
+    );
+
+    const token = await new SignJWT({
+      sub: 'user_1',
+      sid: 'sess_1',
+      scope: 'read:profile',
+      role: 'admin',
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuer('https://issuer.example.com')
+      .setAudience('api-audience')
+      .setIssuedAt()
+      .setExpirationTime('15m')
+      .sign(secret);
+
+    const response = await request(app).get('/protected').set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      token,
+      subject: 'user_1',
+      sessionId: 'sess_1',
+      scope: 'read:profile',
+      claims: {
+        sub: 'user_1',
+        sid: 'sess_1',
+        scope: 'read:profile',
+        role: 'admin',
+      },
     });
   });
 });

@@ -7,8 +7,13 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { resolveOidcVaultConfig, type OidcVaultResolvedConfig } from './config';
 import type {
   AuthorizationTransaction,
+  OidcVaultAccessTokenMiddlewareOptions,
+  OidcVaultAuthenticatedRequest,
+  OidcVaultAuthContext,
+  OidcVaultAccessTokenValidationResult,
   OidcVaultExchangeResult,
   OidcVaultHookContext,
+  OidcVaultJwtAccessTokenValidatorOptions,
   OidcVaultLogoutResult,
   OidcVaultOptions,
   OidcVaultRouteName,
@@ -265,6 +270,44 @@ const createExchangeResponse = (
   user: session.user,
   ...issuedToken,
 });
+
+const extractBearerToken = (authorizationHeader: string | undefined): string => {
+  if (!authorizationHeader) {
+    throw new OidcVaultHttpError(401, 'OIDC_VAULT_MISSING_BEARER_TOKEN', 'Missing bearer token.');
+  }
+
+  const [scheme, token, extra] = authorizationHeader.trim().split(/\s+/);
+
+  if (scheme?.toLowerCase() !== 'bearer' || !token || extra) {
+    throw new OidcVaultHttpError(
+      401,
+      'OIDC_VAULT_INVALID_AUTHORIZATION_HEADER',
+      'Authorization header must use the Bearer scheme.',
+    );
+  }
+
+  return token;
+};
+
+const setBearerChallengeHeader = (res: Response): void => {
+  res.setHeader('WWW-Authenticate', 'Bearer');
+};
+
+const defaultJwtClaimsMapper = (claims: Record<string, unknown>): OidcVaultAccessTokenValidationResult => {
+  const subject = getRequiredString(
+    claims.sub,
+    'JWT access token is missing sub.',
+    'OIDC_VAULT_INVALID_ACCESS_TOKEN',
+    401,
+  );
+
+  return {
+    subject,
+    sessionId: typeof claims.sid === 'string' ? claims.sid : undefined,
+    scope: typeof claims.scope === 'string' ? claims.scope : undefined,
+    claims,
+  };
+};
 
 const buildWellKnownUrl = (issuer: string): URL => {
   const normalizedIssuer = issuer.endsWith('/') ? issuer : `${issuer}/`;
@@ -911,6 +954,72 @@ function registerRoutes(router: Router, options: OidcVaultOptions, basePath: str
   router.post(OIDC_VAULT_ROUTE_PATHS.exchange, createExchangeHandler(options));
   router.post(OIDC_VAULT_ROUTE_PATHS.refresh, createRefreshHandler(options));
   router.post(OIDC_VAULT_ROUTE_PATHS.logout, createLogoutHandler(options));
+}
+
+/**
+ * Create a JWT-based access-token validator for use with
+ * `createOidcVaultAccessTokenMiddleware(...)`.
+ */
+export function createOidcVaultJwtAccessTokenValidator(options: OidcVaultJwtAccessTokenValidatorOptions): {
+  validate(token: string): Promise<OidcVaultAccessTokenValidationResult>;
+} {
+  return {
+    async validate(token: string): Promise<OidcVaultAccessTokenValidationResult> {
+      const result = await jwtVerify(token, options.key, {
+        issuer: options.issuer,
+        audience: options.audience,
+        algorithms: options.algorithms,
+      });
+
+      const claims = result.payload as Record<string, unknown>;
+      return options.mapClaims ? options.mapClaims(claims) : defaultJwtClaimsMapper(claims);
+    },
+  };
+}
+
+/**
+ * Create bearer-token validation middleware for app-issued access tokens.
+ */
+export function createOidcVaultAccessTokenMiddleware(options: OidcVaultAccessTokenMiddlewareOptions): RequestHandler {
+  return async (req, res, next) => {
+    try {
+      const token = extractBearerToken(req.get('authorization'));
+      const validationResult = await options.validator.validate(token);
+
+      const auth: OidcVaultAuthContext = {
+        token,
+        ...validationResult,
+      };
+
+      req.auth = auth;
+      await options.onAuthContext?.({ req, res, auth });
+      next();
+    } catch (error) {
+      if (error instanceof OidcVaultHttpError) {
+        setBearerChallengeHeader(res);
+        res.status(error.status).json({
+          code: error.code,
+          message: error.message,
+        });
+        return;
+      }
+
+      if (error instanceof Error) {
+        setBearerChallengeHeader(res);
+        res.status(401).json({
+          code: 'OIDC_VAULT_INVALID_ACCESS_TOKEN',
+          message: error.message || 'Access token validation failed.',
+        });
+        return;
+      }
+
+      setBearerChallengeHeader(res);
+      res.status(401).json({
+        code: 'OIDC_VAULT_INVALID_ACCESS_TOKEN',
+        message: 'Access token validation failed.',
+      });
+    }
+  };
 }
 
 /**

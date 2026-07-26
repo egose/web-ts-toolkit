@@ -1,4 +1,7 @@
+import type { KeyObject } from 'node:crypto';
+
 import type { Request, Response } from 'express';
+import type { JWK } from 'jose';
 
 export type OidcVaultRouteName = 'login' | 'callback' | 'exchange' | 'refresh' | 'logout';
 
@@ -113,6 +116,46 @@ export interface OidcVaultTokenIssueResult {
 
 export interface OidcVaultTokenIssuer {
   issue(input: IssueTokenInput): Promise<OidcVaultTokenIssueResult>;
+}
+
+export interface OidcVaultAccessTokenValidationResult {
+  subject: string;
+  sessionId?: string;
+  scope?: string;
+  claims?: Record<string, unknown>;
+}
+
+export interface OidcVaultAuthContext extends OidcVaultAccessTokenValidationResult {
+  token: string;
+}
+
+export interface OidcVaultAccessTokenValidator {
+  validate(token: string): Promise<OidcVaultAccessTokenValidationResult>;
+}
+
+export interface OidcVaultAccessTokenMiddlewareOptions {
+  validator: OidcVaultAccessTokenValidator;
+  onAuthContext?(input: { req: Request; res: Response; auth: OidcVaultAuthContext }): void | Promise<void>;
+}
+
+export interface OidcVaultAuthenticatedRequest extends Request {
+  auth?: OidcVaultAuthContext;
+}
+
+export interface OidcVaultJwtAccessTokenValidatorOptions {
+  key: CryptoKey | KeyObject | JWK | Uint8Array;
+  issuer?: string;
+  audience?: string | string[];
+  algorithms?: string[];
+  mapClaims?(claims: Record<string, unknown>): OidcVaultAccessTokenValidationResult;
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      auth?: OidcVaultAuthContext;
+    }
+  }
 }
 
 export interface OidcVaultConfig {
