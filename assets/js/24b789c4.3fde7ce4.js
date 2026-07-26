@@ -124,6 +124,40 @@ function _createMdxContent(props) {
         }), ": JSON-aware Express router wrapper built on the shared response handler."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./express-oidc-vault",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/express-oidc-vault"
+          })
+        }), ": cookie-free OIDC middleware for Express with server-side refresh-token storage."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./express-oidc-vault-memory-store",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/express-oidc-vault-memory-store"
+          })
+        }), ": in-memory store provider for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "express-oidc-vault"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./express-oidc-vault-redis-store",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/express-oidc-vault-redis-store"
+          })
+        }), ": Redis-backed store provider for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "express-oidc-vault"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./express-oidc-vault-mongodb-store",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/express-oidc-vault-mongodb-store"
+          })
+        }), ": MongoDB-backed store provider for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "express-oidc-vault"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
           href: "./express-response-handler",
           children: (0,jsx_runtime.jsx)(_components.code, {
             children: "@web-ts-toolkit/express-response-handler"

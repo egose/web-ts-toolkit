@@ -1,7 +1,7 @@
 "use strict";
-(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[575],{
+(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[743],{
 
-/***/ 1892
+/***/ 2792
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 // ESM COMPAT FLAG
@@ -13,12 +13,12 @@ __webpack_require__.d(__webpack_exports__, {
   contentTitle: () => (/* binding */ contentTitle),
   "default": () => (/* binding */ MDXContent),
   frontMatter: () => (/* binding */ frontMatter),
-  metadata: () => (/* reexport */ site_docs_packages_express_response_handler_md_83c_namespaceObject),
+  metadata: () => (/* reexport */ site_docs_packages_moo_md_b16_namespaceObject),
   toc: () => (/* binding */ toc)
 });
 
-;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-response-handler-md-83c.json
-const site_docs_packages_express_response_handler_md_83c_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-response-handler","title":"@web-ts-toolkit/express-response-handler","description":"FastAPI-style return-value responses for Express.","source":"@site/docs/packages/express-response-handler.md","sourceDirName":"packages","slug":"/packages/express-response-handler","permalink":"/docs/packages/express-response-handler","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":3,"frontMatter":{"sidebar_label":"Express Response Handler","sidebar_position":3},"sidebar":"packagesSidebar","previous":{"title":"Access Router React","permalink":"/docs/packages/access-router-react"},"next":{"title":"HTTP Errors","permalink":"/docs/packages/http-errors"}}');
+;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-moo-md-b16.json
+const site_docs_packages_moo_md_b16_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/moo","title":"@web-ts-toolkit/moo","description":"Helpers for common Mongoose patterns.","source":"@site/docs/packages/moo.md","sourceDirName":"packages","slug":"/packages/moo","permalink":"/docs/packages/moo","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":5,"frontMatter":{"sidebar_label":"Moo","sidebar_position":5},"sidebar":"packagesSidebar","previous":{"title":"OIDC Vault Redis Store","permalink":"/docs/packages/express-oidc-vault-redis-store"},"next":{"title":"OIDC Vault MongoDB Store","permalink":"/docs/packages/express-oidc-vault-mongodb-store"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -27,14 +27,14 @@ var lib = __webpack_require__(1982);
 var Tabs = __webpack_require__(5250);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@docusaurus+theme-classic@3.10.1_@types+react@19.2.14_react-dom@19.2.6_react@19.2.6__react@19.2.6_typescript@6.0.3/node_modules/@docusaurus/theme-classic/lib/theme/TabItem/index.js + 1 modules
 var TabItem = __webpack_require__(6574);
-;// ./docs/packages/express-response-handler.md
+;// ./docs/packages/moo.md
 
 
 const frontMatter = {
-	sidebar_label: 'Express Response Handler',
-	sidebar_position: 3
+	sidebar_label: 'Moo',
+	sidebar_position: 5
 };
-const contentTitle = '@web-ts-toolkit/express-response-handler';
+const contentTitle = '@web-ts-toolkit/moo';
 
 const assets = {
 
@@ -49,57 +49,25 @@ const toc = [{
   "id": "installation",
   "level": 2
 }, {
-  "value": "Quick Start",
-  "id": "quick-start",
+  "value": "Usage",
+  "id": "usage",
   "level": 2
 }, {
-  "value": "How It Works",
-  "id": "how-it-works",
-  "level": 2
-}, {
-  "value": "Examples",
-  "id": "examples",
-  "level": 2
-}, {
-  "value": "Return JSON with <code>200 OK</code>",
-  "id": "return-json-with-200-ok",
+  "value": "Schema helpers",
+  "id": "schema-helpers",
   "level": 3
 }, {
-  "value": "Return a custom success status",
-  "id": "return-a-custom-success-status",
+  "value": "ObjectId checks",
+  "id": "objectid-checks",
   "level": 3
 }, {
-  "value": "Throw HTTP errors",
-  "id": "throw-http-errors",
+  "value": "Model function plugin",
+  "id": "model-function-plugin",
   "level": 3
 }, {
-  "value": "Return CSV",
-  "id": "return-csv",
+  "value": "Cascade delete plugin",
+  "id": "cascade-delete-plugin",
   "level": 3
-}, {
-  "value": "Use more than one Express handler",
-  "id": "use-more-than-one-express-handler",
-  "level": 3
-}, {
-  "value": "Hooks",
-  "id": "hooks",
-  "level": 2
-}, {
-  "value": "Custom Error Messages",
-  "id": "custom-error-messages",
-  "level": 2
-}, {
-  "value": "Structured Error Format",
-  "id": "structured-error-format",
-  "level": 2
-}, {
-  "value": "Isolated Instances",
-  "id": "isolated-instances",
-  "level": 2
-}, {
-  "value": "When To Use It",
-  "id": "when-to-use-it",
-  "level": 2
 }];
 function _createMdxContent(props) {
   const _components = {
@@ -118,19 +86,25 @@ function _createMdxContent(props) {
   return (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, {
     children: [(0,jsx_runtime.jsx)(_components.header, {
       children: (0,jsx_runtime.jsx)(_components.h1, {
-        id: "web-ts-toolkitexpress-response-handler",
+        id: "web-ts-toolkitmoo",
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/express-response-handler"
+          children: "@web-ts-toolkit/moo"
         })
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "FastAPI-style return-value responses for Express."
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Instead of calling ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "res.json(...)"
-      }), " in every route, return a value. This package turns that return value into a ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "200 OK"
-      }), " JSON response, while still letting you return explicit response wrappers or throw errors when needed."]
+      children: "Helpers for common Mongoose patterns."
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "This package includes:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "partial-index helpers for nullable or empty string fields"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["an ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isObjectId(...)"
+        }), " guard for strict ObjectId checks"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "document plugins for model-bound helper functions and cascade deletes"
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
       children: "Installation"
@@ -141,7 +115,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @web-ts-toolkit/express-response-handler\n"
+            children: "npm install mongoose @web-ts-toolkit/moo\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -150,7 +124,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @web-ts-toolkit/express-response-handler\n"
+            children: "yarn add mongoose @web-ts-toolkit/moo\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -159,7 +133,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @web-ts-toolkit/express-response-handler\n"
+            children: "pnpm add mongoose @web-ts-toolkit/moo\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -168,245 +142,45 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @web-ts-toolkit/express-response-handler\n"
+            children: "bun add mongoose @web-ts-toolkit/moo\n"
           })
         })
       })]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "quick-start",
-      children: "Quick Start"
+      id: "usage",
+      children: "Usage"
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "schema-helpers",
+      children: "Schema helpers"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import express from 'express';\n\nimport apiHandler from '@web-ts-toolkit/express-response-handler';\nimport { NotFoundError } from '@web-ts-toolkit/http-errors';\n\nconst { handleResponse, HttpResponse } = apiHandler;\n\nconst app = express();\n\napp.get(\n  '/health',\n  handleResponse(() => {\n    return { ok: true };\n  }),\n);\n\napp.get(\n  '/users/:id',\n  handleResponse(async (req) => {\n    const user = await getUser(req.params.id);\n\n    if (!user) {\n      throw new NotFoundError('user not found');\n    }\n\n    return user;\n  }),\n);\n\napp.post(\n  '/jobs',\n  handleResponse(async () => {\n    const job = await createJob();\n    return HttpResponse.created(job);\n  }),\n);\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "how-it-works",
-      children: "How It Works"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "handleResponse(...)"
-      }), " wraps one or more Express handlers."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "When a handler runs:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["a plain returned value becomes ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "res.json(value)"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["a returned ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "HttpResponse.*(...)"
-        }), " wrapper controls the status code"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["a returned ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "HttpResponse.csv(...)"
-        }), " streams CSV"]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "a thrown error becomes an error response"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "a returned promise is awaited automatically"
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Supported forms:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "handleResponse(fn)"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "handleResponse(fn1, fn2)"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "handleResponse([fn1, fn2])"
-        })
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "examples",
-      children: "Examples"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.h3, {
-      id: "return-json-with-200-ok",
-      children: ["Return JSON with ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "200 OK"
-      })]
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "app.get(\n  '/profile',\n  handleResponse(async (req) => {\n    return {\n      id: req.user.id,\n      email: req.user.email,\n    };\n  }),\n);\n"
+        children: "import { Schema } from 'mongoose';\nimport { uniqueEmptiableString, uniqueNullableString } from '@web-ts-toolkit/moo';\n\nconst userSchema = new Schema({\n  email: uniqueNullableString('email'),\n  username: uniqueEmptiableString('username'),\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "return-a-custom-success-status",
-      children: "Return a custom success status"
+      id: "objectid-checks",
+      children: "ObjectId checks"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "app.post(\n  '/sessions',\n  handleResponse(async (req) => {\n    const session = await createSession(req.body);\n    return HttpResponse.created(session);\n  }),\n);\n"
+        children: "import { isObjectId } from '@web-ts-toolkit/moo';\n\nif (!isObjectId(value)) {\n  throw new Error('expected a valid MongoDB ObjectId');\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "throw-http-errors",
-      children: "Throw HTTP errors"
+      id: "model-function-plugin",
+      children: "Model function plugin"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { BadRequestError, NotFoundError } from '@web-ts-toolkit/http-errors';\n\napp.get(\n  '/projects/:id',\n  handleResponse(async (req) => {\n    if (!req.params.id) {\n      throw new BadRequestError('project id is required');\n    }\n\n    const project = await getProject(req.params.id);\n\n    if (!project) {\n      throw new NotFoundError('project not found');\n    }\n\n    return project;\n  }),\n);\n"
+        children: "import mongoose, { type Model } from 'mongoose';\nimport {\n  type ModelDocument,\n  type ModelFunctionInstanceMethods,\n  type ModelFunctionStaticMethods,\n  modelFunctionPlugin,\n} from '@web-ts-toolkit/moo';\n\ntype Cart = {\n  name: string;\n  price: number;\n};\n\ntype CartDocument = ModelDocument<Cart, CartMethods>;\n\ntype CartMethods = ModelFunctionInstanceMethods<'applyDiscount', [suffix: string, priceChange: number], CartDocument>;\n\ntype CartModel = Model<Cart, {}, CartMethods> &\n  ModelFunctionStaticMethods<'applyDiscount', CartDocument, [suffix: string, priceChange: number], CartDocument>;\n\nconst cartSchema = new mongoose.Schema<Cart, CartModel, CartMethods>({\n  name: { type: String, required: true },\n  price: { type: Number, required: true },\n});\n\ncartSchema.plugin(modelFunctionPlugin, {\n  fnName: 'applyDiscount',\n  fn: (cart: CartDocument, suffix: string, priceChange: number) => {\n    cart.name = `${cart.name}-${suffix}`;\n    cart.price += priceChange;\n    return cart;\n  },\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "return-csv",
-      children: "Return CSV"
+      id: "cascade-delete-plugin",
+      children: "Cascade delete plugin"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "app.get(\n  '/reports/users.csv',\n  handleResponse(async () => {\n    const rows = await getUserReportRows();\n\n    return HttpResponse.csv(rows, {\n      filename: 'users.csv',\n    });\n  }),\n);\n"
+        children: "import mongoose, { type Model, type Types } from 'mongoose';\nimport {\n  type CascadeDeleteDependencyMap,\n  type CascadeDeleteDocumentMethods,\n  type CascadeDeleteModelStatics,\n  cascadeDeletePlugin,\n} from '@web-ts-toolkit/moo/plugins';\n\nconst referenceModelName = 'Reference';\n\ntype Reference = {\n  name: string;\n};\n\ntype File = {\n  refs: Types.ObjectId[];\n};\n\ntype FileMethods = CascadeDeleteDocumentMethods<typeof referenceModelName, Reference>;\n\ntype FileModel = Model<File, {}, FileMethods> & CascadeDeleteModelStatics<typeof referenceModelName, Reference>;\n\ntype FileDependents = CascadeDeleteDependencyMap<typeof referenceModelName, Reference>;\n\nconst fileSchema = new mongoose.Schema<File, FileModel, FileMethods>({\n  refs: [{ type: mongoose.Schema.Types.ObjectId, ref: referenceModelName }],\n});\n\nfileSchema.plugin(cascadeDeletePlugin, {\n  model: referenceModelName,\n  localField: 'refs',\n  foreignField: '_id',\n});\n\nconst File = mongoose.model<File, FileModel>('File', fileSchema);\n\nasync function example(file: mongoose.HydratedDocument<File, FileMethods>) {\n  const dependents = (await file.findDependents()) as FileDependents;\n  const references = await file.findDependents(referenceModelName);\n  const orphans = await File.findOrphans(referenceModelName);\n\n  dependents.Reference;\n  references?.[0]?.name;\n  orphans?.[0]?.name;\n}\n"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "use-more-than-one-express-handler",
-      children: "Use more than one Express handler"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "app.get(\n  '/me',\n  handleResponse(requireAuth, async (req) => {\n    return req.user;\n  }),\n);\n"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["If you call ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "next()"
-      }), " with no arguments, Express middleware flow continues normally."]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Do not use ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "next(value)"
-      }), " for successful responses. Return the value instead."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "hooks",
-      children: "Hooks"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Hooks let you observe or modify response flow without repeating code in every route."
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Available setters:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "apiHandler.preJson = fn"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "apiHandler.postJson = fn"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "apiHandler.preError = fn"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "apiHandler.postError = fn"
-        })
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Example:"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "apiHandler.preJson = async function (data) {\n  console.log('about to send json response', data);\n};\n\napiHandler.preError = async function (err) {\n  console.error('request failed', err);\n};\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "custom-error-messages",
-      children: "Custom Error Messages"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Non-HTTP errors default to status ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "422"
-      }), " with a message resolved from the thrown value."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "You can customize that behavior:"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "apiHandler.errorMessageProvider = function (err) {\n  return {\n    message: 'request failed',\n    detail: err instanceof Error ? err.message : String(err),\n  };\n};\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "structured-error-format",
-      children: "Structured Error Format"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "The default error payload is intentionally small:"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-json",
-        children: "{ \"message\": \"project not found\" }\n"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["If you want an AIP-193-inspired error envelope, create a handler instance with ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "errorFormat: 'aip193'"
-      }), ":"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import apiHandler from '@web-ts-toolkit/express-response-handler';\nimport { ErrorFormats } from '@web-ts-toolkit/express-response-handler';\n\nconst structuredHandler = apiHandler.createHandler({\n  errorFormat: ErrorFormats.aip193,\n  errorDomain: 'api.example.com',\n});\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "That mode returns errors in this shape:"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-json",
-        children: "{\n  \"error\": {\n    \"code\": 404,\n    \"status\": \"NOT_FOUND\",\n    \"message\": \"project not found\",\n    \"details\": [\n      {\n        \"type\": \"error_info\",\n        \"reason\": \"NOT_FOUND\",\n        \"domain\": \"api.example.com\"\n      }\n    ]\n  }\n}\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "You can enrich HTTP errors with machine-readable fields:"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import { BadRequestError } from '@web-ts-toolkit/http-errors';\n\napp.get(\n  '/projects/:id',\n  structuredHandler.handleResponse(async () => {\n    throw new BadRequestError('invalid project id', {\n      reason: 'INVALID_PROJECT_ID',\n      metadata: { field: 'id' },\n      details: [\n        {\n          type: 'help',\n          links: [\n            {\n              description: 'Project ID format guide',\n              url: 'https://api.example.com/docs/errors/invalid-project-id',\n            },\n          ],\n        },\n      ],\n    });\n  }),\n);\n"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["If you want RFC 9457 problem details instead, create a handler instance with ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "errorFormat: 'rfc9457'"
-      }), ":"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import apiHandler from '@web-ts-toolkit/express-response-handler';\nimport { ErrorFormats } from '@web-ts-toolkit/express-response-handler';\n\nconst problemHandler = apiHandler.createHandler({\n  errorFormat: ErrorFormats.rfc9457,\n  errorDomain: 'api.example.com',\n});\n"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["That mode returns ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "application/problem+json"
-      }), " payloads in this shape:"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-json",
-        children: "{\n  \"type\": \"https://api.example.com/problems/invalid-project-id\",\n  \"title\": \"Invalid project id\",\n  \"status\": 400,\n  \"detail\": \"invalid project id\",\n  \"instance\": \"/problems/invalid-project-id/123\",\n  \"errors\": [\n    {\n      \"detail\": \"must be a valid project id\",\n      \"pointer\": \"#/id\"\n    }\n  ]\n}\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "You can enrich HTTP errors with problem detail fields:"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import { BadRequestError } from '@web-ts-toolkit/http-errors';\n\napp.get(\n  '/projects/:id',\n  problemHandler.handleResponse(async () => {\n    throw new BadRequestError('invalid project id', {\n      type: 'https://api.example.com/problems/invalid-project-id',\n      title: 'Invalid project id',\n      instance: '/problems/invalid-project-id/123',\n      errors: [\n        {\n          detail: 'must be a valid project id',\n          pointer: '#/id',\n        },\n      ],\n    });\n  }),\n);\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "isolated-instances",
-      children: "Isolated Instances"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "The default export is a ready-to-use singleton. If you want separate hook configuration per router or module, create an isolated instance:"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import apiHandler from '@web-ts-toolkit/express-response-handler';\n\nconst adminHandler = apiHandler.createHandler();\nconst publicHandler = apiHandler.createHandler();\n\nadminHandler.preError = async function (err) {\n  console.error('admin route failed', err);\n};\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "when-to-use-it",
-      children: "When To Use It"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "This package is a good fit when you want:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["Express routes that return values instead of calling ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "res.json(...)"
-        })]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "a small abstraction rather than a full framework"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "consistent JSON, error, and CSV response behavior"
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "It is less useful if you want fully explicit low-level Express response control in every route."
     })]
   });
 }

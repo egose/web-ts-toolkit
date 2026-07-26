@@ -1,7 +1,7 @@
 "use strict";
-(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[246],{
+(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[569],{
 
-/***/ 604
+/***/ 1847
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 // ESM COMPAT FLAG
@@ -13,12 +13,12 @@ __webpack_require__.d(__webpack_exports__, {
   contentTitle: () => (/* binding */ contentTitle),
   "default": () => (/* binding */ MDXContent),
   frontMatter: () => (/* binding */ frontMatter),
-  metadata: () => (/* reexport */ site_docs_packages_utils_md_485_namespaceObject),
+  metadata: () => (/* reexport */ site_docs_packages_express_oidc_vault_memory_store_md_e3d_namespaceObject),
   toc: () => (/* binding */ toc)
 });
 
-;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-utils-md-485.json
-const site_docs_packages_utils_md_485_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/utils","title":"@web-ts-toolkit/utils","description":"Shared utility helpers used across the workspace.","source":"@site/docs/packages/utils.md","sourceDirName":"packages","slug":"/packages/utils","permalink":"/docs/packages/utils","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":8,"frontMatter":{"sidebar_label":"Utils","sidebar_position":8},"sidebar":"packagesSidebar","previous":{"title":"Moo","permalink":"/docs/packages/moo"}}');
+;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-oidc-vault-memory-store-md-e3d.json
+const site_docs_packages_express_oidc_vault_memory_store_md_e3d_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-oidc-vault-memory-store","title":"@web-ts-toolkit/express-oidc-vault-memory-store","description":"In-memory store provider for @web-ts-toolkit/express-oidc-vault.","source":"@site/docs/packages/express-oidc-vault-memory-store.md","sourceDirName":"packages","slug":"/packages/express-oidc-vault-memory-store","permalink":"/docs/packages/express-oidc-vault-memory-store","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":4,"frontMatter":{"sidebar_label":"OIDC Vault Memory Store","sidebar_position":4},"sidebar":"packagesSidebar","previous":{"title":"Express Response Handler","permalink":"/docs/packages/express-response-handler"},"next":{"title":"HTTP Errors","permalink":"/docs/packages/http-errors"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -27,14 +27,14 @@ var lib = __webpack_require__(1982);
 var Tabs = __webpack_require__(5250);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@docusaurus+theme-classic@3.10.1_@types+react@19.2.14_react-dom@19.2.6_react@19.2.6__react@19.2.6_typescript@6.0.3/node_modules/@docusaurus/theme-classic/lib/theme/TabItem/index.js + 1 modules
 var TabItem = __webpack_require__(6574);
-;// ./docs/packages/utils.md
+;// ./docs/packages/express-oidc-vault-memory-store.md
 
 
 const frontMatter = {
-	sidebar_label: 'Utils',
-	sidebar_position: 8
+	sidebar_label: 'OIDC Vault Memory Store',
+	sidebar_position: 4
 };
-const contentTitle = '@web-ts-toolkit/utils';
+const contentTitle = '@web-ts-toolkit/express-oidc-vault-memory-store';
 
 const assets = {
 
@@ -49,36 +49,24 @@ const toc = [{
   "id": "installation",
   "level": 2
 }, {
-  "value": "What It Exposes",
-  "id": "what-it-exposes",
+  "value": "Use Cases",
+  "id": "use-cases",
   "level": 2
 }, {
-  "value": "Quick Start",
-  "id": "quick-start",
+  "value": "Production Note",
+  "id": "production-note",
   "level": 2
 }, {
-  "value": "Common Use Cases",
-  "id": "common-use-cases",
+  "value": "Usage",
+  "id": "usage",
   "level": 2
 }, {
-  "value": "Object-path reads and writes",
-  "id": "object-path-reads-and-writes",
-  "level": 3
+  "value": "Behavior",
+  "id": "behavior",
+  "level": 2
 }, {
-  "value": "URL normalization",
-  "id": "url-normalization",
-  "level": 3
-}, {
-  "value": "Boolean query parsing",
-  "id": "boolean-query-parsing",
-  "level": 3
-}, {
-  "value": "Stable collection sorting",
-  "id": "stable-collection-sorting",
-  "level": 3
-}, {
-  "value": "When To Use It",
-  "id": "when-to-use-it",
+  "value": "API",
+  "id": "api",
   "level": 2
 }];
 function _createMdxContent(props) {
@@ -86,7 +74,6 @@ function _createMdxContent(props) {
     code: "code",
     h1: "h1",
     h2: "h2",
-    h3: "h3",
     header: "header",
     li: "li",
     p: "p",
@@ -98,15 +85,15 @@ function _createMdxContent(props) {
   return (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, {
     children: [(0,jsx_runtime.jsx)(_components.header, {
       children: (0,jsx_runtime.jsx)(_components.h1, {
-        id: "web-ts-toolkitutils",
+        id: "web-ts-toolkitexpress-oidc-vault-memory-store",
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/utils"
+          children: "@web-ts-toolkit/express-oidc-vault-memory-store"
         })
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Shared utility helpers used across the workspace."
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "This package contains small focused helpers for object-path access, array and record transforms, lightweight type guards, async mapping, and URL normalization. It is intentionally low-level."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["In-memory store provider for ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/express-oidc-vault"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
       children: "Installation"
@@ -117,7 +104,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @web-ts-toolkit/utils\n"
+            children: "npm install @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-memory-store express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -126,7 +113,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @web-ts-toolkit/utils\n"
+            children: "yarn add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-memory-store express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -135,7 +122,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @web-ts-toolkit/utils\n"
+            children: "pnpm add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-memory-store express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -144,187 +131,68 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @web-ts-toolkit/utils\n"
+            children: "bun add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-memory-store express\n"
           })
         })
       })]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "what-it-exposes",
-      children: "What It Exposes"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "The package exports individual functions from the root entrypoint, including:"
+      id: "use-cases",
+      children: "Use Cases"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["object helpers: ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "get"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "set"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "pick"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "omit"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "assign"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "cloneDeep"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "keys"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "toStringRecord"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["array and collection helpers: ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "map"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "filter"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "reduce"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "find"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "forEach"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "flatten"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "flattenDeep"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "compact"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "uniq"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "difference"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "intersection"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "intersectionBy"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "orderBy"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["type guards: ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isArray"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isBoolean"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isEmpty"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isEqual"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isFunction"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isMatch"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isNaN"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isNil"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isNumber"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isObject"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isPlainObject"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isPromise"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isString"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isUndefined"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["URL helpers: ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "addLeadingSlash"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "removeConsecutiveSlashesFromUrl"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "normalizeUrlPath"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["async helpers: ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "mapValuesAsync"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "toAsyncFn"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["misc helpers: ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "castArray"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "arrayToRecord"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "mapValues"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "noop"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "padEnd"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "parseBooleanString"
-        })]
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "local development"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "tests"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "examples and smoke checks"
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "quick-start",
-      children: "Quick Start"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import { get, set, normalizeUrlPath, orderBy, parseBooleanString } from '@web-ts-toolkit/utils';\n\nconst payload = {\n  user: {\n    profile: {\n      name: 'Ada',\n    },\n  },\n};\n\nget(payload, 'user.profile.name');\nset(payload, 'user.profile.role', 'admin');\n\nnormalizeUrlPath('api//users/42');\nparseBooleanString('true', false);\n\norderBy(\n  [\n    { name: 'B', score: 2 },\n    { name: 'A', score: 2 },\n    { name: 'C', score: 1 },\n  ],\n  ['score', 'name'],\n  ['desc', 'asc'],\n);\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "common-use-cases",
-      children: "Common Use Cases"
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "object-path-reads-and-writes",
-      children: "Object-path reads and writes"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import { get, set } from '@web-ts-toolkit/utils';\n\nconst state = { filters: { status: 'active' } };\n\nget(state, 'filters.status');\nset(state, 'filters.page', 2);\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "url-normalization",
-      children: "URL normalization"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import { normalizeUrlPath } from '@web-ts-toolkit/utils';\n\nnormalizeUrlPath('api//users');\n// '/api/users'\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "boolean-query-parsing",
-      children: "Boolean query parsing"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import { parseBooleanString } from '@web-ts-toolkit/utils';\n\nparseBooleanString('true');\nparseBooleanString('false');\nparseBooleanString(undefined, true);\n"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "parseBooleanString(str, defaultValue)"
-      }), " returns ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "true"
-      }), " only for the exact string ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "'true'"
-      }), ", returns ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "false"
-      }), " for any other defined string, and falls back to ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "defaultValue"
-      }), " when the input is ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "undefined"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "stable-collection-sorting",
-      children: "Stable collection sorting"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import { orderBy } from '@web-ts-toolkit/utils';\n\nconst sorted = orderBy(users, ['lastName', 'firstName'], ['asc', 'asc']);\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "when-to-use-it",
-      children: "When To Use It"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/utils"
-      }), " when you want small shared helpers without pulling in a larger utility library."]
+      id: "production-note",
+      children: "Production Note"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "If you only need one or two language-level operations, native JavaScript is usually simpler."
+      children: "This package stores authorization transactions, exchange codes, and sessions in process memory."
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Do not use it for production or multi-instance deployments. Use the Redis or MongoDB store provider instead."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "usage",
+      children: "Usage"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import express from 'express';\nimport { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';\n\nconst app = express();\n\napp.use(\n  createOidcVaultMiddleware({\n    basePath: '/auth/oidc',\n    config: {\n      issuer: process.env.OIDC_ISSUER,\n      clientId: process.env.OIDC_CLIENT_ID,\n      clientSecret: process.env.OIDC_CLIENT_SECRET,\n    },\n    frontendRedirectUri: 'https://frontend.example.com/callback',\n    storeProvider: createMemoryOidcVaultStore(),\n  }),\n);\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "behavior",
+      children: "Behavior"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["sessions are stored in ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Map"
+        }), " instances in the current Node.js process"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "authorization transactions and one-time exchange codes are consumed once"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "expiry cleanup is opportunistic and happens during reads and writes"
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "api",
+      children: "API"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "createMemoryOidcVaultStore(options?)"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Creates an in-memory implementation of the core ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultStoreProvider"
+      }), " contract."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "MemoryOidcVaultStoreOptions"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Supports a custom ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "now()"
+      }), " function for deterministic tests."]
     })]
   });
 }
