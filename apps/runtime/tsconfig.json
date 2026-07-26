@@ -1,0 +1,8 @@
+{
+  "extends": "@web-ts-toolkit/access-router-runtime/tsconfig.json",
+  "compilerOptions": {
+    "ignoreDeprecations": "6.0",
+    "noEmit": true
+  },
+  "include": ["access-router.config.ts"]
+}

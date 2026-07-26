@@ -4,38 +4,51 @@ import {
   runDevCommand,
   runCliCommand as runExpressRuntimeCliCommand,
 } from '@web-ts-toolkit/express-runtime/cli';
-import { loadAccessRouterRuntime } from './index';
+import { createAccessRouterRuntime, loadAccessRouterRuntime, loadAccessRouterRuntimeConfigSync } from './index';
 import {
+  applyConfigDevDefaults,
+  buildConfigAwareDevArgv,
   CLI_VERSION,
   generateRuntimeEntryFromConfig,
   generateServerlessEntryFromConfig,
   printHelp,
+  readTsconfigPath,
   resolveCliInvocation,
 } from './cli-utils';
 
 async function runConfigAwareCommand(invocation: NonNullable<ReturnType<typeof resolveCliInvocation>>): Promise<void> {
-  const parsedArgs = parseExpressRuntimeArgs([
-    invocation.subcommand,
-    invocation.targetPath,
-    ...invocation.passthroughArgs,
-  ]);
+  const tsconfigPath = invocation.configAware ? readTsconfigPath(invocation.passthroughArgs) : undefined;
+  const config =
+    invocation.subcommand === 'dev'
+      ? loadAccessRouterRuntimeConfigSync(invocation.targetPath, { tsconfigPath })
+      : undefined;
+  const parsedArgs = parseExpressRuntimeArgs(
+    invocation.subcommand === 'dev' && config
+      ? buildConfigAwareDevArgv(invocation.targetPath, invocation.passthroughArgs, config)
+      : [invocation.subcommand, invocation.targetPath, ...invocation.passthroughArgs],
+  );
   if (!parsedArgs) {
     return;
   }
 
   if (parsedArgs.subcommand === 'dev') {
-    await runDevCommand(parsedArgs.dev, {
-      load: loadAccessRouterRuntime,
-      start: (runtime, options) => {
-        runtime.startLocalServer(options);
+    await runDevCommand(
+      config ? applyConfigDevDefaults(parsedArgs.dev, config, invocation.passthroughArgs) : parsedArgs.dev,
+      {
+        load: config
+          ? () => createAccessRouterRuntime(config)
+          : (configPath) => loadAccessRouterRuntime(configPath, { tsconfigPath }),
+        start: (runtime, options) => {
+          runtime.startLocalServer(options);
+        },
       },
-    });
+    );
     return;
   }
 
   if (parsedArgs.subcommand === 'build') {
     await runBuildEntryCommand(parsedArgs.build, {
-      generateEntry: (configPath) => generateRuntimeEntryFromConfig(configPath),
+      generateEntry: (configPath) => generateRuntimeEntryFromConfig(configPath, parsedArgs.build.tsconfigPath),
       tempEntryFilename: '.access-router-runtime-build-entry.ts',
       allowInit: false,
       initErrorMessage: 'build manages the init hook automatically. Remove --init.',
@@ -45,7 +58,8 @@ async function runConfigAwareCommand(invocation: NonNullable<ReturnType<typeof r
 
   if (parsedArgs.subcommand === 'build-serverless') {
     await runBuildEntryCommand(parsedArgs.buildServerless, {
-      generateEntry: (configPath) => generateServerlessEntryFromConfig(configPath),
+      generateEntry: (configPath) =>
+        generateServerlessEntryFromConfig(configPath, parsedArgs.buildServerless.tsconfigPath),
       tempEntryFilename: '.access-router-runtime-build-serverless-entry.ts',
       allowInit: false,
       initErrorMessage: 'build-serverless manages the init hook automatically. Remove --init.',

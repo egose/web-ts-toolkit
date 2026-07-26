@@ -38,12 +38,13 @@
     "@repo-toolkit/release-artifact": "^0.7.2",
     "@types/node": "^25.9.5",
     "eslint": "10.3.0",
-    "globals": "^17.7.0",
+    "globals": "^17.8.0",
+    "mongodb-memory-server": "^11.2.0",
     "prettier": "4.0.0-alpha.13",
     "release-it": "^20.2.1",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.64.0",
+    "typescript-eslint": "^8.65.0",
     "vitest": "^4.1.10"
   }
 }

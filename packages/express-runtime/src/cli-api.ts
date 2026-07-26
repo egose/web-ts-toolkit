@@ -82,6 +82,7 @@ export async function runBuildEntryCommand(args: BuildArgs, options: BuildEntryC
   await buildBundleFromEntryContent({
     entryContent: options.generateEntry(args.appPath, args.initPath),
     tempEntryFilename: options.tempEntryFilename,
+    tsconfigPath: args.tsconfigPath,
     outDir: args.outDir,
     outName: args.outName,
     format: args.format,

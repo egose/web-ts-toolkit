@@ -22,6 +22,14 @@
       "@web-ts-toolkit/access-router-deco/*": ["packages/access-router-deco/src/*"],
       "@web-ts-toolkit/express-runtime": ["packages/express-runtime/src/index.ts"],
       "@web-ts-toolkit/express-runtime/*": ["packages/express-runtime/src/*"],
+      "@web-ts-toolkit/express-oidc-vault": ["packages/express-oidc-vault/src/index.ts"],
+      "@web-ts-toolkit/express-oidc-vault/*": ["packages/express-oidc-vault/src/*"],
+      "@web-ts-toolkit/express-oidc-vault-memory-store": ["packages/express-oidc-vault-memory-store/src/index.ts"],
+      "@web-ts-toolkit/express-oidc-vault-memory-store/*": ["packages/express-oidc-vault-memory-store/src/*"],
+      "@web-ts-toolkit/express-oidc-vault-redis-store": ["packages/express-oidc-vault-redis-store/src/index.ts"],
+      "@web-ts-toolkit/express-oidc-vault-redis-store/*": ["packages/express-oidc-vault-redis-store/src/*"],
+      "@web-ts-toolkit/express-oidc-vault-mongodb-store": ["packages/express-oidc-vault-mongodb-store/src/index.ts"],
+      "@web-ts-toolkit/express-oidc-vault-mongodb-store/*": ["packages/express-oidc-vault-mongodb-store/src/*"],
       "@web-ts-toolkit/access-router-runtime": ["packages/access-router-runtime/src/index.ts"],
       "@web-ts-toolkit/access-router-runtime/*": ["packages/access-router-runtime/src/*"]
     }

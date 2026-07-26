@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -32,5 +32,40 @@ describe('config loader', () => {
 
     expect(config.db?.url).toBe('mongodb://example.test:27017/demo');
     expect(config.rootRouter?.basePath).toBe('/api/root');
+  });
+
+  it('supports tsconfig path aliases when a tsconfig path is provided', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'access-router-runtime-config-alias-'));
+    const configPath = join(tempDir, 'access-router.config.ts');
+    const sourceDir = join(tempDir, 'src');
+
+    mkdirSync(sourceDir);
+    writeFileSync(
+      join(tempDir, 'tsconfig.json'),
+      JSON.stringify(
+        {
+          compilerOptions: {
+            baseUrl: '.',
+            paths: {
+              '@app/config': ['src/runtime-config.ts'],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    writeFileSync(
+      join(sourceDir, 'runtime-config.ts'),
+      "export default { rootRouter: { basePath: '/aliased', operationAccess: true } };\n",
+      'utf8',
+    );
+    writeFileSync(configPath, "export { default } from '@app/config';\n", 'utf8');
+
+    process.chdir(tempDir);
+    const config = loadAccessRouterRuntimeConfigSync('./access-router.config.ts', { tsconfigPath: './tsconfig.json' });
+
+    expect(config.rootRouter?.basePath).toBe('/aliased');
   });
 });

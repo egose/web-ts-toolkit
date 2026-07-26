@@ -15,6 +15,10 @@ This site is the primary documentation home for the current `web-ts-toolkit` wor
 - [`@web-ts-toolkit/access-router-client`](./access-router-client): typed client adapter, model wrapper, and batching helpers for `access-router` APIs.
 - [`@web-ts-toolkit/access-router-react`](./access-router-react): React hooks for `access-router-client` model services.
 - [`@web-ts-toolkit/express-json-router`](./express-json-router): JSON-aware Express router wrapper built on the shared response handler.
+- [`@web-ts-toolkit/express-oidc-vault`](./express-oidc-vault): cookie-free OIDC middleware for Express with server-side refresh-token storage.
+- [`@web-ts-toolkit/express-oidc-vault-memory-store`](./express-oidc-vault-memory-store): in-memory store provider for `express-oidc-vault`.
+- [`@web-ts-toolkit/express-oidc-vault-redis-store`](./express-oidc-vault-redis-store): Redis-backed store provider for `express-oidc-vault`.
+- [`@web-ts-toolkit/express-oidc-vault-mongodb-store`](./express-oidc-vault-mongodb-store): MongoDB-backed store provider for `express-oidc-vault`.
 - [`@web-ts-toolkit/express-response-handler`](./express-response-handler): return-value response handling for Express routes.
 - [`@web-ts-toolkit/http-errors`](./http-errors): typed HTTP error classes and structured error payload helpers.
 - [`@web-ts-toolkit/moo`](./moo): Mongoose helpers for schema fields, ObjectId checks, and document plugins.
