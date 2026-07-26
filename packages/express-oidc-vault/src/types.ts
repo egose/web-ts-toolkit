@@ -1,0 +1,152 @@
+import type { Request, Response } from 'express';
+
+export type OidcVaultRouteName = 'login' | 'callback' | 'exchange' | 'refresh' | 'logout';
+
+export interface OidcVaultUserProfile {
+  sub: string;
+  email?: string;
+  name?: string;
+  preferredUsername?: string;
+  [key: string]: unknown;
+}
+
+export interface OidcVaultProviderMetadata {
+  issuer?: string;
+  clientId?: string;
+}
+
+export interface OidcVaultSession {
+  sessionId: string;
+  subject: string;
+  provider?: OidcVaultProviderMetadata;
+  refreshToken: string;
+  idToken: string;
+  accessToken?: string;
+  scope?: string;
+  expiresAt?: number;
+  createdAt: number;
+  updatedAt: number;
+  user?: OidcVaultUserProfile;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AuthorizationTransactionInput {
+  state: string;
+  nonce: string;
+  pkceVerifier: string;
+  codeChallenge: string;
+  returnTo?: string;
+  createdAt: number;
+  expiresAt: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AuthorizationTransaction extends AuthorizationTransactionInput {}
+
+export interface ExchangeCodeRecordInput {
+  code: string;
+  sessionId: string;
+  returnTo?: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
+export interface ExchangeCodeRecord extends ExchangeCodeRecordInput {}
+
+export interface OidcVaultSessionInput extends Omit<OidcVaultSession, 'createdAt' | 'updatedAt'> {
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface RotateSessionInput {
+  sessionId: string;
+  nextSession: OidcVaultSession;
+}
+
+export interface OidcVaultStoreProvider {
+  createAuthorizationTransaction(input: AuthorizationTransactionInput): Promise<void>;
+  consumeAuthorizationTransaction(state: string): Promise<AuthorizationTransaction | null>;
+  createExchangeCode(input: ExchangeCodeRecordInput): Promise<void>;
+  consumeExchangeCode(code: string): Promise<ExchangeCodeRecord | null>;
+  createSession(input: OidcVaultSessionInput): Promise<OidcVaultSession>;
+  getSession(sessionId: string): Promise<OidcVaultSession | null>;
+  rotateSession(input: RotateSessionInput): Promise<OidcVaultSession>;
+  deleteSession(sessionId: string): Promise<void>;
+}
+
+export interface OidcVaultHookContext {
+  route: OidcVaultRouteName;
+  req: Request;
+  res: Response;
+  session?: OidcVaultSession;
+  metadata?: Record<string, unknown>;
+}
+
+export interface OidcVaultErrorContext extends OidcVaultHookContext {
+  error: unknown;
+}
+
+export interface OidcVaultHooks {
+  onLoginStart?(context: OidcVaultHookContext): void | Promise<void>;
+  onAuthorizationUrl?(context: OidcVaultHookContext): void | Promise<void>;
+  onCallbackTokens?(context: OidcVaultHookContext): void | Promise<void>;
+  onUserInfo?(context: OidcVaultHookContext): void | Promise<void>;
+  onBeforeSessionCreate?(context: OidcVaultHookContext): void | Promise<void>;
+  onSessionCreated?(context: OidcVaultHookContext): void | Promise<void>;
+  onSessionRefreshed?(context: OidcVaultHookContext): void | Promise<void>;
+  onBeforeLogout?(context: OidcVaultHookContext): void | Promise<void>;
+  onLogout?(context: OidcVaultHookContext): void | Promise<void>;
+  onError?(context: OidcVaultErrorContext): void | Promise<void>;
+}
+
+export interface IssueTokenInput {
+  session: OidcVaultSession;
+  req: Request;
+  res: Response;
+}
+
+export interface OidcVaultTokenIssueResult {
+  accessToken: string;
+  expiresIn: number;
+  tokenType?: 'Bearer';
+}
+
+export interface OidcVaultTokenIssuer {
+  issue(input: IssueTokenInput): Promise<OidcVaultTokenIssueResult>;
+}
+
+export interface OidcVaultConfig {
+  issuer?: string;
+  authorizationEndpoint?: string;
+  tokenEndpoint?: string;
+  userInfoEndpoint?: string;
+  jwksUri?: string;
+  endSessionEndpoint?: string;
+  clientId?: string;
+  clientSecret?: string;
+  scopes?: string;
+}
+
+export interface OidcVaultLogoutResult {
+  loggedOut: true;
+  upstreamLogoutUrl?: string;
+}
+
+export interface OidcVaultExchangeResult extends Partial<OidcVaultTokenIssueResult> {
+  sessionId: string;
+  user?: OidcVaultUserProfile;
+}
+
+export interface OidcVaultOptions {
+  basePath?: string;
+  storeProvider: OidcVaultStoreProvider;
+  config?: OidcVaultConfig;
+  hooks?: OidcVaultHooks;
+  tokenIssuer?: OidcVaultTokenIssuer;
+  frontendRedirectUri?: string;
+  postLogoutRedirectUri?: string;
+  fetchUserInfo?: boolean;
+  authorizationTransactionTtlMs?: number;
+  exchangeCodeTtlMs?: number;
+  now?: () => number;
+}
