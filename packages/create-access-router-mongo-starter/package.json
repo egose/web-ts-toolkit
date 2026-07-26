@@ -36,13 +36,13 @@
   ],
   "dependencies": {
     "@clack/prompts": "^1.7.0",
-    "@netlify/api": "^15.0.1",
+    "@netlify/api": "^15.1.0",
     "netlify-cli": "26.2.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
     "tsup": "^8.5.1",
-    "tsx": "^4.20.6",
+    "tsx": "^4.23.1",
     "vitest": "^4.1.10"
   },
   "engines": {
