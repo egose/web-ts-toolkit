@@ -110,6 +110,34 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
     this.sessions.delete(sessionId);
   }
 
+  async deleteSessionsBySubject(subject: string): Promise<number> {
+    this.pruneExpiredRecords();
+    let deleted = 0;
+
+    for (const [sessionId, session] of this.sessions.entries()) {
+      if (session.subject === subject) {
+        this.sessions.delete(sessionId);
+        deleted += 1;
+      }
+    }
+
+    return deleted;
+  }
+
+  async deleteSessionsByProviderSessionId(providerSessionId: string): Promise<number> {
+    this.pruneExpiredRecords();
+    let deleted = 0;
+
+    for (const [sessionId, session] of this.sessions.entries()) {
+      if (session.providerSessionId === providerSessionId) {
+        this.sessions.delete(sessionId);
+        deleted += 1;
+      }
+    }
+
+    return deleted;
+  }
+
   private pruneExpiredRecords(): void {
     const now = this.now();
 

@@ -29,6 +29,8 @@ const parseJson = <T>(value: string | null): T | null => (value ? (JSON.parse(va
 
 const prefixKey = (keyPrefix: string, kind: string, id: string): string => `${keyPrefix}:${kind}:${id}`;
 
+const uniqueSessionIds = (sessionIds: string[]): string[] => [...new Set(sessionIds)];
+
 class RedisOidcVaultStore implements OidcVaultStoreProvider {
   private readonly client: OidcVaultRedisClient;
   private readonly keyPrefix: string;
@@ -63,6 +65,7 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     };
 
     await this.setJson(this.sessionKey(session.sessionId), session, session.expiresAt);
+    await this.addSessionIndexes(session);
     return session;
   }
 
@@ -71,13 +74,34 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
   }
 
   async rotateSession(input: RotateSessionInput): Promise<OidcVaultSession> {
+    const previousSession = await this.getSession(input.sessionId);
+
     await this.setJson(this.sessionKey(input.nextSession.sessionId), input.nextSession, input.nextSession.expiresAt);
+    await this.addSessionIndexes(input.nextSession);
     await this.client.del(this.sessionKey(input.sessionId));
+
+    if (previousSession) {
+      await this.removeSessionIndexes(previousSession);
+    }
+
     return input.nextSession;
   }
 
   async deleteSession(sessionId: string): Promise<void> {
+    const session = await this.getSession(sessionId);
     await this.client.del(this.sessionKey(sessionId));
+
+    if (session) {
+      await this.removeSessionIndexes(session);
+    }
+  }
+
+  async deleteSessionsBySubject(subject: string): Promise<number> {
+    return this.deleteSessionsFromIndex(this.subjectIndexKey(subject));
+  }
+
+  async deleteSessionsByProviderSessionId(providerSessionId: string): Promise<number> {
+    return this.deleteSessionsFromIndex(this.providerSessionIndexKey(providerSessionId));
   }
 
   private async setJson(key: string, value: unknown, expiresAt?: number): Promise<void> {
@@ -115,6 +139,81 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
 
   private sessionKey(sessionId: string): string {
     return prefixKey(this.keyPrefix, 'session', sessionId);
+  }
+
+  private subjectIndexKey(subject: string): string {
+    return prefixKey(this.keyPrefix, 'subject', subject);
+  }
+
+  private providerSessionIndexKey(providerSessionId: string): string {
+    return prefixKey(this.keyPrefix, 'provider-session', providerSessionId);
+  }
+
+  private async getSessionIndex(indexKey: string): Promise<string[]> {
+    return parseJson<string[]>(await this.client.get(indexKey)) ?? [];
+  }
+
+  private async setSessionIndex(indexKey: string, sessionIds: string[]): Promise<void> {
+    if (sessionIds.length === 0) {
+      await this.client.del(indexKey);
+      return;
+    }
+
+    await this.client.set(indexKey, serialize(uniqueSessionIds(sessionIds)));
+  }
+
+  private async addSessionIndexes(session: OidcVaultSession): Promise<void> {
+    await this.addSessionIdToIndex(this.subjectIndexKey(session.subject), session.sessionId);
+
+    if (session.providerSessionId) {
+      await this.addSessionIdToIndex(this.providerSessionIndexKey(session.providerSessionId), session.sessionId);
+    }
+  }
+
+  private async removeSessionIndexes(session: OidcVaultSession): Promise<void> {
+    await this.removeSessionIdFromIndex(this.subjectIndexKey(session.subject), session.sessionId);
+
+    if (session.providerSessionId) {
+      await this.removeSessionIdFromIndex(this.providerSessionIndexKey(session.providerSessionId), session.sessionId);
+    }
+  }
+
+  private async addSessionIdToIndex(indexKey: string, sessionId: string): Promise<void> {
+    const sessionIds = await this.getSessionIndex(indexKey);
+    sessionIds.push(sessionId);
+    await this.setSessionIndex(indexKey, sessionIds);
+  }
+
+  private async removeSessionIdFromIndex(indexKey: string, sessionId: string): Promise<void> {
+    const sessionIds = await this.getSessionIndex(indexKey);
+    await this.setSessionIndex(
+      indexKey,
+      sessionIds.filter((currentSessionId) => currentSessionId !== sessionId),
+    );
+  }
+
+  private async deleteSessionsFromIndex(indexKey: string): Promise<number> {
+    const sessionIds = uniqueSessionIds(await this.getSessionIndex(indexKey));
+
+    if (sessionIds.length === 0) {
+      return 0;
+    }
+
+    let deleted = 0;
+
+    for (const sessionId of sessionIds) {
+      const session = await this.getSession(sessionId);
+
+      if (!session) {
+        continue;
+      }
+
+      await this.deleteSession(sessionId);
+      deleted += 1;
+    }
+
+    await this.client.del(indexKey);
+    return deleted;
   }
 }
 

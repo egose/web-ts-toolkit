@@ -15,6 +15,7 @@ Cookie-free OIDC session middleware for Express with server-side storage of upst
 - one-time local exchange codes for the frontend callback handoff
 - session refresh with session ID rotation
 - upstream logout URL generation using stored `id_token`
+- OIDC backchannel logout handling via `logout_token`
 
 ## Installation
 
@@ -69,6 +70,8 @@ This mode stores `sessionId` in a backend-managed cookie.
 - `logout` reads the cookie and clears it
 - the frontend does not need to keep `sessionId` in `sessionStorage`
 
+Backchannel logout is separate from both transport modes because it is a server-to-server request from the IdP and does not rely on browser storage at all.
+
 Available cookie options:
 
 - `cookie.name`
@@ -88,6 +91,7 @@ The middleware exposes these routes under a configurable base path such as `/aut
 - `POST /auth/oidc/exchange`
 - `POST /auth/oidc/refresh`
 - `POST /auth/oidc/logout`
+- `POST /auth/oidc/backchannel-logout`
 
 ## Quick Start
 
@@ -240,6 +244,49 @@ For cross-origin cookie deployments, also remember:
 - the frontend requests must use `credentials: 'include'`
 - the backend CORS policy must allow credentials
 - the cookie typically needs `SameSite=None` and `Secure`
+
+## Backchannel Logout
+
+The package supports OIDC backchannel logout at:
+
+- `POST /auth/oidc/backchannel-logout`
+
+Expected request shape:
+
+- `application/x-www-form-urlencoded`
+- field: `logout_token=<provider-signed-jwt>`
+
+The middleware validates the `logout_token` against the provider JWKS and then revokes matching local sessions by:
+
+- upstream `sid` when present
+- otherwise `sub`
+
+Example request:
+
+```ts
+await fetch('/auth/oidc/backchannel-logout', {
+  method: 'POST',
+  headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  body: new URLSearchParams({
+    logout_token: '<provider-signed-logout-token>',
+  }),
+});
+```
+
+Example response:
+
+```json
+{
+  "loggedOut": true,
+  "revokedSessions": 1
+}
+```
+
+Notes:
+
+- this route is intended for the IdP to call directly, not the browser
+- cookie transport does not change how backchannel logout works
+- after a successful backchannel logout, the next browser refresh will fail because the local session is gone; in cookie mode the package clears the stale session cookie on that failed refresh
 
 ## Backend Wiring
 

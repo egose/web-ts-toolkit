@@ -41,6 +41,7 @@ describe('createOidcVaultMiddleware', () => {
   let issuerServer: http.Server | undefined;
   let publicJwk: JWK;
   let privateKey: CryptoKey;
+  let createBackchannelLogoutToken: ((input: { sid?: string; sub?: string }) => Promise<string>) | undefined;
 
   beforeAll(async () => {
     const issuerApp = express();
@@ -53,10 +54,24 @@ describe('createOidcVaultMiddleware', () => {
 
     const issuerPrefix = '/issuer';
 
-    const createIdToken = async (nonce?: string): Promise<string> => {
+    const createSignedToken = async (
+      payload: Record<string, unknown>,
+      options?: { audience?: string; issuer?: string; expiresIn?: number },
+    ): Promise<string> => {
       const now = Math.floor(Date.now() / 1000);
+      return new SignJWT(payload)
+        .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
+        .setIssuer(options?.issuer ?? `${issuerBaseUrl}${issuerPrefix}`)
+        .setAudience(options?.audience ?? 'client_1')
+        .setIssuedAt(now)
+        .setExpirationTime(now + (options?.expiresIn ?? 3600))
+        .sign(privateKey);
+    };
+
+    const createIdToken = async (nonce?: string): Promise<string> => {
       const payload: Record<string, unknown> = {
         sub: 'user_1',
+        sid: 'provider_sid_1',
         email: 'user@example.com',
       };
 
@@ -64,14 +79,17 @@ describe('createOidcVaultMiddleware', () => {
         payload.nonce = nonce;
       }
 
-      return new SignJWT(payload)
-        .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
-        .setIssuer(`${issuerBaseUrl}${issuerPrefix}`)
-        .setAudience('client_1')
-        .setIssuedAt(now)
-        .setExpirationTime(now + 3600)
-        .sign(privateKey);
+      return createSignedToken(payload);
     };
+
+    createBackchannelLogoutToken = async (input: { sid?: string; sub?: string }): Promise<string> =>
+      createSignedToken({
+        ...input,
+        jti: `logout_${Date.now()}`,
+        events: {
+          'http://schemas.openid.net/event/backchannel-logout': {},
+        },
+      });
 
     issuerApp.get(`${issuerPrefix}/.well-known/openid-configuration`, (_req, res) => {
       res.json({
@@ -399,6 +417,70 @@ describe('createOidcVaultMiddleware', () => {
     expect(postLogoutRefreshResponse.body).toMatchObject({
       code: 'OIDC_VAULT_MISSING_SESSION_ID',
     });
+  });
+
+  it('supports OIDC backchannel logout by upstream sid', async () => {
+    if (!createBackchannelLogoutToken) {
+      throw new Error('Backchannel logout token helper is not initialized.');
+    }
+
+    const app = express();
+
+    app.use(
+      createOidcVaultMiddleware({
+        basePath: '/auth/oidc',
+        config: {
+          issuer: `${issuerBaseUrl}/issuer`,
+          clientId: 'client_1',
+          clientSecret: 'secret_1',
+        },
+        frontendRedirectUri: 'https://frontend.example.com/callback',
+        storeProvider: createMemoryOidcVaultStore(),
+        tokenIssuer: {
+          async issue({ session }) {
+            return {
+              accessToken: `local:${session.sessionId}`,
+              expiresIn: 900,
+              tokenType: 'Bearer',
+            };
+          },
+        },
+      }),
+    );
+
+    const loginResponse = await request(app).get('/auth/oidc/login');
+    const authorizationUrl = new URL(loginResponse.headers.location);
+    const state = authorizationUrl.searchParams.get('state');
+    const nonce = authorizationUrl.searchParams.get('nonce');
+
+    const callbackResponse = await request(app)
+      .get('/auth/oidc/callback')
+      .query({
+        state,
+        code: `authcode:${nonce}`,
+      });
+    const frontendUrl = new URL(callbackResponse.headers.location);
+    const exchangeCode = frontendUrl.searchParams.get('code');
+
+    const exchangeResponse = await request(app).post('/auth/oidc/exchange').send({ code: exchangeCode });
+    const sessionId = exchangeResponse.body.sessionId as string;
+
+    const logoutToken = await createBackchannelLogoutToken({ sid: 'provider_sid_1' });
+
+    const backchannelLogoutResponse = await request(app)
+      .post('/auth/oidc/backchannel-logout')
+      .type('form')
+      .send({ logout_token: logoutToken });
+
+    expect(backchannelLogoutResponse.status).toBe(200);
+    expect(backchannelLogoutResponse.body).toMatchObject({
+      loggedOut: true,
+      revokedSessions: 1,
+    });
+
+    const refreshResponse = await request(app).post('/auth/oidc/refresh').send({ sessionId });
+
+    expect(refreshResponse.status).toBe(401);
   });
 
   it('validates bearer access tokens with a separate middleware and attaches req.auth', async () => {

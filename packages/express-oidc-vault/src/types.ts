@@ -3,7 +3,7 @@ import type { KeyObject } from 'node:crypto';
 import type { Request, Response } from 'express';
 import type { JWK } from 'jose';
 
-export type OidcVaultRouteName = 'login' | 'callback' | 'exchange' | 'refresh' | 'logout';
+export type OidcVaultRouteName = 'login' | 'callback' | 'exchange' | 'refresh' | 'logout' | 'backchannel-logout';
 
 export interface OidcVaultUserProfile {
   sub: string;
@@ -21,6 +21,7 @@ export interface OidcVaultProviderMetadata {
 export interface OidcVaultSession {
   sessionId: string;
   subject: string;
+  providerSessionId?: string;
   provider?: OidcVaultProviderMetadata;
   refreshToken: string;
   idToken: string;
@@ -75,6 +76,8 @@ export interface OidcVaultStoreProvider {
   getSession(sessionId: string): Promise<OidcVaultSession | null>;
   rotateSession(input: RotateSessionInput): Promise<OidcVaultSession>;
   deleteSession(sessionId: string): Promise<void>;
+  deleteSessionsBySubject(subject: string): Promise<number>;
+  deleteSessionsByProviderSessionId(providerSessionId: string): Promise<number>;
 }
 
 export interface OidcVaultHookContext {
@@ -173,6 +176,11 @@ export interface OidcVaultConfig {
 export interface OidcVaultLogoutResult {
   loggedOut: true;
   upstreamLogoutUrl?: string;
+}
+
+export interface OidcVaultBackchannelLogoutResult {
+  loggedOut: true;
+  revokedSessions: number;
 }
 
 export interface OidcVaultExchangeResult extends Partial<OidcVaultTokenIssueResult> {

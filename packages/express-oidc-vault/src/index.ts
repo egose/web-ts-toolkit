@@ -11,6 +11,7 @@ import type {
   OidcVaultAuthenticatedRequest,
   OidcVaultAuthContext,
   OidcVaultAccessTokenValidationResult,
+  OidcVaultBackchannelLogoutResult,
   OidcVaultExchangeResult,
   OidcVaultHookContext,
   OidcVaultJwtAccessTokenValidatorOptions,
@@ -36,6 +37,7 @@ export const OIDC_VAULT_ROUTE_PATHS: Record<OidcVaultRouteName, string> = {
   exchange: '/exchange',
   refresh: '/refresh',
   logout: '/logout',
+  'backchannel-logout': '/backchannel-logout',
 };
 
 type OidcProviderMetadata = {
@@ -61,6 +63,14 @@ type OidcTokenResponse = {
 };
 
 type OidcUserInfoResponse = Record<string, unknown>;
+type OidcBackchannelLogoutClaims = {
+  sid?: string;
+  sub?: string;
+  nonce?: unknown;
+  jti?: unknown;
+  events?: Record<string, unknown>;
+  [key: string]: unknown;
+};
 
 type ResolvedCookieOptions = {
   name: string;
@@ -293,6 +303,8 @@ const setBearerChallengeHeader = (res: Response): void => {
   res.setHeader('WWW-Authenticate', 'Bearer');
 };
 
+const BACKCHANNEL_LOGOUT_EVENT_CLAIM = 'http://schemas.openid.net/event/backchannel-logout';
+
 const defaultJwtClaimsMapper = (claims: Record<string, unknown>): OidcVaultAccessTokenValidationResult => {
   const subject = getRequiredString(
     claims.sub,
@@ -363,6 +375,15 @@ const readJsonResponse = async (response: globalThis.Response, errorCode: string
   } catch {
     throw new OidcVaultHttpError(response.status, errorCode, text);
   }
+};
+
+const getLogoutTokenFromRequest = (req: Request): string => {
+  const body = getBody(req);
+  return getRequiredString(
+    body.logout_token,
+    'Backchannel logout request is missing logout_token.',
+    'OIDC_VAULT_MISSING_LOGOUT_TOKEN',
+  );
 };
 
 const createHookContext = (
@@ -695,6 +716,64 @@ async function verifyIdToken(
   return result.payload as Record<string, unknown>;
 }
 
+async function verifyBackchannelLogoutToken(
+  metadata: OidcProviderMetadata,
+  logoutToken: string,
+): Promise<OidcBackchannelLogoutClaims> {
+  if (!metadata.jwksUri) {
+    throw new OidcVaultHttpError(
+      500,
+      'OIDC_VAULT_MISSING_JWKS_URI',
+      'OIDC jwksUri is required to validate logout_token.',
+    );
+  }
+
+  if (!metadata.clientId) {
+    throw new OidcVaultHttpError(
+      500,
+      'OIDC_VAULT_MISSING_CLIENT_ID',
+      'OIDC clientId is required to validate logout_token.',
+    );
+  }
+
+  const jwks = createRemoteJWKSet(new URL(metadata.jwksUri));
+  const result = await jwtVerify(logoutToken, jwks, {
+    audience: metadata.clientId,
+    issuer: metadata.issuer,
+  });
+  const claims = result.payload as OidcBackchannelLogoutClaims;
+
+  if (claims.nonce !== undefined) {
+    throw new OidcVaultHttpError(
+      400,
+      'OIDC_VAULT_INVALID_LOGOUT_TOKEN',
+      'Backchannel logout token must not contain nonce.',
+    );
+  }
+
+  if (!isRecord(claims.events) || !(BACKCHANNEL_LOGOUT_EVENT_CLAIM in claims.events)) {
+    throw new OidcVaultHttpError(
+      400,
+      'OIDC_VAULT_INVALID_LOGOUT_TOKEN',
+      'Backchannel logout token is missing the required event claim.',
+    );
+  }
+
+  if (!isString(claims.sid) && !isString(claims.sub)) {
+    throw new OidcVaultHttpError(
+      400,
+      'OIDC_VAULT_INVALID_LOGOUT_TOKEN',
+      'Backchannel logout token must include sid or sub.',
+    );
+  }
+
+  if (!isString(claims.jti)) {
+    throw new OidcVaultHttpError(400, 'OIDC_VAULT_INVALID_LOGOUT_TOKEN', 'Backchannel logout token must include jti.');
+  }
+
+  return claims;
+}
+
 async function resolveProviderMetadata(options: OidcVaultOptions): Promise<OidcProviderMetadata> {
   return discoverProviderMetadata(resolveOidcVaultConfig(options.config));
 }
@@ -788,6 +867,7 @@ const createCallbackHandler = (options: OidcVaultOptions, basePath: string): Req
     const session = {
       sessionId,
       subject,
+      providerSessionId: typeof claims.sid === 'string' ? claims.sid : undefined,
       provider: {
         issuer: metadata.issuer ?? (typeof claims.iss === 'string' ? claims.iss : undefined),
         clientId: metadata.clientId,
@@ -855,6 +935,10 @@ const createRefreshHandler = (options: OidcVaultOptions): RequestHandler =>
     const currentSession = await options.storeProvider.getSession(sessionId);
 
     if (!currentSession) {
+      if (usesCookieTransport(options)) {
+        clearSessionCookie(res, options);
+      }
+
       throw new OidcVaultHttpError(401, 'OIDC_VAULT_INVALID_SESSION', 'Session is missing or expired.');
     }
 
@@ -877,6 +961,7 @@ const createRefreshHandler = (options: OidcVaultOptions): RequestHandler =>
       ...currentSession,
       sessionId: createOpaqueId('sess'),
       subject,
+      providerSessionId: typeof claims.sid === 'string' ? claims.sid : currentSession.providerSessionId,
       refreshToken: isString(tokenResponse.refresh_token) ? tokenResponse.refresh_token : currentSession.refreshToken,
       idToken,
       accessToken: isString(tokenResponse.access_token) ? tokenResponse.access_token : currentSession.accessToken,
@@ -948,12 +1033,35 @@ const createLogoutHandler = (options: OidcVaultOptions): RequestHandler =>
     } satisfies OidcVaultLogoutResult);
   });
 
+const createBackchannelLogoutHandler = (options: OidcVaultOptions): RequestHandler =>
+  createAsyncHandler('backchannel-logout', options, async (req, res) => {
+    const metadata = await resolveProviderMetadata(options);
+    const logoutToken = getLogoutTokenFromRequest(req);
+    const claims = await verifyBackchannelLogoutToken(metadata, logoutToken);
+
+    const revokedSessions = isString(claims.sid)
+      ? await options.storeProvider.deleteSessionsByProviderSessionId(claims.sid)
+      : await options.storeProvider.deleteSessionsBySubject(String(claims.sub));
+
+    await callHook('backchannel-logout', options.hooks?.onLogout, req, res, undefined, {
+      providerSessionId: claims.sid,
+      subject: claims.sub,
+      revokedSessions,
+    });
+
+    res.status(200).json({
+      loggedOut: true,
+      revokedSessions,
+    } satisfies OidcVaultBackchannelLogoutResult);
+  });
+
 function registerRoutes(router: Router, options: OidcVaultOptions, basePath: string): void {
   router.get(OIDC_VAULT_ROUTE_PATHS.login, createLoginHandler(options, basePath));
   router.get(OIDC_VAULT_ROUTE_PATHS.callback, createCallbackHandler(options, basePath));
   router.post(OIDC_VAULT_ROUTE_PATHS.exchange, createExchangeHandler(options));
   router.post(OIDC_VAULT_ROUTE_PATHS.refresh, createRefreshHandler(options));
   router.post(OIDC_VAULT_ROUTE_PATHS.logout, createLogoutHandler(options));
+  router.post(OIDC_VAULT_ROUTE_PATHS['backchannel-logout'], createBackchannelLogoutHandler(options));
 }
 
 /**
@@ -1031,6 +1139,7 @@ export function createOidcVaultMiddleware(options: OidcVaultOptions): Router {
   const basePath = normalizeOidcVaultBasePath(options.basePath);
 
   baseRouter.use(express.json());
+  baseRouter.use(express.urlencoded({ extended: false }));
   registerRoutes(baseRouter, options, basePath);
   rootRouter.use(basePath, baseRouter);
 

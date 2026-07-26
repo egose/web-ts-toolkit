@@ -28,6 +28,7 @@ describe('createMongoOidcVaultStore', () => {
     const created = await store.createSession({
       sessionId: 'sess_1',
       subject: 'user_1',
+      providerSessionId: 'provider_sid_1',
       refreshToken: 'refresh_1',
       idToken: 'id_1',
       scope: 'openid email profile',
@@ -41,6 +42,7 @@ describe('createMongoOidcVaultStore', () => {
       nextSession: {
         ...created,
         sessionId: 'sess_2',
+        providerSessionId: 'provider_sid_1',
         refreshToken: 'refresh_2',
         idToken: 'id_2',
         updatedAt: 1001,
@@ -52,6 +54,26 @@ describe('createMongoOidcVaultStore', () => {
 
     await store.deleteSession('sess_2');
     expect(await store.getSession('sess_2')).toBeNull();
+
+    await store.createSession({
+      sessionId: 'sess_3',
+      subject: 'user_1',
+      providerSessionId: 'provider_sid_1',
+      refreshToken: 'refresh_3',
+      idToken: 'id_3',
+    });
+    await store.createSession({
+      sessionId: 'sess_4',
+      subject: 'user_1',
+      refreshToken: 'refresh_4',
+      idToken: 'id_4',
+    });
+
+    expect(await store.deleteSessionsByProviderSessionId('provider_sid_1')).toBe(1);
+    expect(await store.getSession('sess_3')).toBeNull();
+    expect(await store.getSession('sess_4')).not.toBeNull();
+    expect(await store.deleteSessionsBySubject('user_1')).toBe(1);
+    expect(await store.getSession('sess_4')).toBeNull();
   });
 
   it('consumes transaction records once and filters expired records without waiting for TTL cleanup', async () => {

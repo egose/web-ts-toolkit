@@ -13,6 +13,7 @@ Current implementation includes:
 - callback token exchange, server-side session creation, and one-time local exchange codes
 - session refresh with session ID rotation
 - upstream logout URL generation using stored `id_token`
+- OIDC backchannel logout handling via `logout_token`
 - public TypeScript interfaces for hooks, sessions, config helpers, and store providers
 
 ## Installation
@@ -64,6 +65,8 @@ This mode stores `sessionId` in a backend-managed cookie.
 - `logout` reads the cookie and clears it
 - the frontend does not need to keep `sessionId` in `sessionStorage`
 
+Backchannel logout is separate from both transport modes because it is a server-to-server request from the IdP and does not rely on browser storage at all.
+
 Available cookie options:
 
 - `cookie.name`
@@ -106,6 +109,7 @@ The core middleware exposes these endpoints under a configurable base path:
 - `POST /auth/oidc/exchange`
 - `POST /auth/oidc/refresh`
 - `POST /auth/oidc/logout`
+- `POST /auth/oidc/backchannel-logout`
 
 ## Quick Start
 
@@ -352,6 +356,49 @@ For cross-origin cookie deployments, also remember:
 - the backend CORS policy must allow credentials
 - the cookie typically needs `SameSite=None` and `Secure`
 
+## Backchannel Logout
+
+The package supports OIDC backchannel logout at:
+
+- `POST /auth/oidc/backchannel-logout`
+
+Expected request shape:
+
+- `application/x-www-form-urlencoded`
+- field: `logout_token=<provider-signed-jwt>`
+
+The middleware validates the `logout_token` against the provider JWKS and then revokes matching local sessions by:
+
+- upstream `sid` when present
+- otherwise `sub`
+
+Example request:
+
+```ts
+await fetch('/auth/oidc/backchannel-logout', {
+  method: 'POST',
+  headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  body: new URLSearchParams({
+    logout_token: '<provider-signed-logout-token>',
+  }),
+});
+```
+
+Example response:
+
+```json
+{
+  "loggedOut": true,
+  "revokedSessions": 1
+}
+```
+
+Notes:
+
+- this route is intended for the IdP to call directly, not the browser
+- cookie transport does not change how backchannel logout works
+- after a successful backchannel logout, the next browser refresh will fail because the local session is gone; in cookie mode the package clears the stale session cookie on that failed refresh
+
 ## Backend Wiring Examples
 
 Use one of the store packages depending on your deployment model.
@@ -509,6 +556,7 @@ app.use(
 - If `OIDC_ISSUER` is configured, issuer discovery should override explicit endpoint URLs.
 - `frontendRedirectUri` is the default browser return target after the backend completes the upstream callback.
 - `postLogoutRedirectUri` is added to the upstream logout URL when configured.
+- backchannel logout revokes local sessions by upstream `sid` when available, otherwise by `sub`
 
 ## Config Helpers
 

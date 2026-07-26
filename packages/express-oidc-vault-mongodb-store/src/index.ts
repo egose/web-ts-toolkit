@@ -36,6 +36,7 @@ const DEFAULT_COLLECTION_NAMES = {
 const sessionToDocument = (session: OidcVaultSession): SessionDocument => ({
   _id: session.sessionId,
   subject: session.subject,
+  providerSessionId: session.providerSessionId,
   provider: session.provider,
   refreshToken: session.refreshToken,
   idToken: session.idToken,
@@ -51,6 +52,7 @@ const sessionToDocument = (session: OidcVaultSession): SessionDocument => ({
 const documentToSession = (session: SessionDocument): OidcVaultSession => ({
   sessionId: session._id,
   subject: session.subject,
+  providerSessionId: session.providerSessionId,
   provider: session.provider,
   refreshToken: session.refreshToken,
   idToken: session.idToken,
@@ -192,11 +194,25 @@ class MongoOidcVaultStore implements OidcVaultStoreProvider {
     await this.sessions.deleteOne({ _id: sessionId });
   }
 
+  async deleteSessionsBySubject(subject: string): Promise<number> {
+    await this.ready;
+    const result = await this.sessions.deleteMany({ subject });
+    return result.deletedCount;
+  }
+
+  async deleteSessionsByProviderSessionId(providerSessionId: string): Promise<number> {
+    await this.ready;
+    const result = await this.sessions.deleteMany({ providerSessionId });
+    return result.deletedCount;
+  }
+
   private async ensureIndexes(): Promise<void> {
     await Promise.all([
       this.createTtlIndex(this.authorizationTransactions),
       this.createTtlIndex(this.exchangeCodes),
       this.createTtlIndex(this.sessions),
+      this.sessions.createIndex({ subject: 1 }, { name: 'subject_idx' }),
+      this.sessions.createIndex({ providerSessionId: 1 }, { name: 'provider_session_idx' }),
     ]);
   }
 
