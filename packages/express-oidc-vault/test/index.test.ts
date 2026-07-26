@@ -289,4 +289,111 @@ describe('createOidcVaultMiddleware', () => {
       code: 'OIDC_VAULT_INVALID_RETURN_TO',
     });
   });
+
+  it('supports cookie transport so refresh and logout do not require sessionId in the body', async () => {
+    const app = express();
+
+    app.use(
+      createOidcVaultMiddleware({
+        basePath: '/auth/oidc',
+        config: {
+          issuer: `${issuerBaseUrl}/issuer`,
+          clientId: 'client_1',
+          clientSecret: 'secret_1',
+        },
+        frontendRedirectUri: 'https://frontend.example.com/callback',
+        postLogoutRedirectUri: 'https://frontend.example.com/logout-complete',
+        sessionTransport: 'cookie',
+        cookie: {
+          deploymentMode: 'cross-site',
+          domain: '.example.com',
+        },
+        storeProvider: createMemoryOidcVaultStore(),
+        tokenIssuer: {
+          async issue({ session }) {
+            return {
+              accessToken: `local:${session.sessionId}`,
+              expiresIn: 900,
+              tokenType: 'Bearer',
+            };
+          },
+        },
+      }),
+    );
+
+    const loginResponse = await request(app).get('/auth/oidc/login');
+    const authorizationUrl = new URL(loginResponse.headers.location);
+    const state = authorizationUrl.searchParams.get('state');
+    const nonce = authorizationUrl.searchParams.get('nonce');
+
+    const callbackResponse = await request(app)
+      .get('/auth/oidc/callback')
+      .query({
+        state,
+        code: `authcode:${nonce}`,
+      });
+
+    const frontendUrl = new URL(callbackResponse.headers.location);
+    const exchangeCode = frontendUrl.searchParams.get('code');
+
+    const exchangeResponse = await request(app).post('/auth/oidc/exchange').send({ code: exchangeCode });
+
+    expect(exchangeResponse.status).toBe(200);
+    expect(exchangeResponse.body).toMatchObject({
+      accessToken: expect.stringMatching(/^local:sess_/),
+      tokenType: 'Bearer',
+      expiresIn: 900,
+      user: {
+        sub: 'user_1',
+      },
+    });
+    expect(exchangeResponse.body.sessionId).toBeUndefined();
+
+    const exchangeCookie = (exchangeResponse.headers['set-cookie'] ?? [])[0] as string | undefined;
+
+    expect(exchangeCookie).toContain('oidc_vault_session=');
+    expect(exchangeCookie).toContain('HttpOnly');
+    expect(exchangeCookie).toContain('SameSite=None');
+    expect(exchangeCookie).toContain('Secure');
+    expect(exchangeCookie).toContain('Domain=.example.com');
+
+    const sessionCookieHeader = exchangeCookie?.split(';', 1)[0];
+
+    const refreshResponse = await request(app)
+      .post('/auth/oidc/refresh')
+      .set('Cookie', sessionCookieHeader ?? '')
+      .send({});
+
+    expect(refreshResponse.status).toBe(200);
+    expect(refreshResponse.body.sessionId).toBeUndefined();
+    expect(refreshResponse.body.accessToken).toMatch(/^local:sess_/);
+
+    const refreshCookie = (refreshResponse.headers['set-cookie'] ?? [])[0] as string | undefined;
+
+    expect(refreshCookie).toContain('oidc_vault_session=');
+    expect(refreshCookie).toContain('SameSite=None');
+
+    const rotatedSessionCookieHeader = refreshCookie?.split(';', 1)[0];
+
+    const logoutResponse = await request(app)
+      .post('/auth/oidc/logout')
+      .set('Cookie', rotatedSessionCookieHeader ?? '')
+      .send({});
+
+    expect(logoutResponse.status).toBe(200);
+    expect(logoutResponse.body.loggedOut).toBe(true);
+
+    const clearedCookie = (logoutResponse.headers['set-cookie'] ?? [])[0] as string | undefined;
+
+    expect(clearedCookie).toContain('oidc_vault_session=');
+    expect(clearedCookie).toContain('Max-Age=0');
+    expect(clearedCookie).toContain('Expires=Thu, 01 Jan 1970 00:00:00 GMT');
+
+    const postLogoutRefreshResponse = await request(app).post('/auth/oidc/refresh').send({});
+
+    expect(postLogoutRefreshResponse.status).toBe(400);
+    expect(postLogoutRefreshResponse.body).toMatchObject({
+      code: 'OIDC_VAULT_MISSING_SESSION_ID',
+    });
+  });
 });

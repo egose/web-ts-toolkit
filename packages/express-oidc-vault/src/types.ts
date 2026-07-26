@@ -133,8 +133,24 @@ export interface OidcVaultLogoutResult {
 }
 
 export interface OidcVaultExchangeResult extends Partial<OidcVaultTokenIssueResult> {
-  sessionId: string;
+  sessionId?: string;
   user?: OidcVaultUserProfile;
+}
+
+export type OidcVaultSessionTransport = 'body' | 'cookie';
+
+export type OidcVaultCookieDeploymentMode = 'same-origin' | 'same-site' | 'cross-site';
+
+export type OidcVaultCookieSameSite = 'lax' | 'strict' | 'none';
+
+export interface OidcVaultCookieOptions {
+  name?: string;
+  deploymentMode?: OidcVaultCookieDeploymentMode;
+  sameSite?: OidcVaultCookieSameSite;
+  secure?: boolean;
+  domain?: string;
+  path?: string;
+  httpOnly?: boolean;
 }
 
 export interface OidcVaultOptions {
@@ -148,5 +164,7 @@ export interface OidcVaultOptions {
   fetchUserInfo?: boolean;
   authorizationTransactionTtlMs?: number;
   exchangeCodeTtlMs?: number;
+  sessionTransport?: OidcVaultSessionTransport;
+  cookie?: OidcVaultCookieOptions;
   now?: () => number;
 }

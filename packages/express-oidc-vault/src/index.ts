@@ -23,6 +23,7 @@ export * from './types';
 export const DEFAULT_OIDC_VAULT_BASE_PATH = '/auth/oidc';
 export const DEFAULT_AUTHORIZATION_TRANSACTION_TTL_MS = 10 * 60 * 1000;
 export const DEFAULT_EXCHANGE_CODE_TTL_MS = 30 * 1000;
+export const DEFAULT_SESSION_COOKIE_NAME = 'oidc_vault_session';
 
 export const OIDC_VAULT_ROUTE_PATHS: Record<OidcVaultRouteName, string> = {
   login: '/login',
@@ -56,6 +57,15 @@ type OidcTokenResponse = {
 
 type OidcUserInfoResponse = Record<string, unknown>;
 
+type ResolvedCookieOptions = {
+  name: string;
+  sameSite: 'lax' | 'strict' | 'none';
+  secure: boolean;
+  domain?: string;
+  path: string;
+  httpOnly: boolean;
+};
+
 const discoveryCache = new Map<string, Promise<OidcProviderMetadata>>();
 
 class OidcVaultHttpError extends Error {
@@ -85,6 +95,10 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const isString = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 
 const getNow = (options: OidcVaultOptions): number => (options.now ?? Date.now)();
+
+const getSessionTransport = (options: OidcVaultOptions): 'body' | 'cookie' => options.sessionTransport ?? 'body';
+
+const usesCookieTransport = (options: OidcVaultOptions): boolean => getSessionTransport(options) === 'cookie';
 
 const createOpaqueId = (prefix: string): string => `${prefix}_${randomBytes(16).toString('base64url')}`;
 
@@ -120,6 +134,137 @@ const getRequiredString = (value: unknown, message: string, code: string, status
 
   return value;
 };
+
+const parseCookieHeader = (headerValue: string | undefined): Record<string, string> => {
+  if (!headerValue) {
+    return {};
+  }
+
+  return headerValue.split(';').reduce<Record<string, string>>((cookies, part) => {
+    const separatorIndex = part.indexOf('=');
+
+    if (separatorIndex === -1) {
+      return cookies;
+    }
+
+    const name = part.slice(0, separatorIndex).trim();
+    const value = part.slice(separatorIndex + 1).trim();
+
+    if (!name) {
+      return cookies;
+    }
+
+    cookies[name] = decodeURIComponent(value);
+    return cookies;
+  }, {});
+};
+
+const resolveCookieOptions = (options: OidcVaultOptions): ResolvedCookieOptions => {
+  const cookieOptions = options.cookie ?? {};
+  const deploymentMode = cookieOptions.deploymentMode ?? 'same-origin';
+  const sameSite = cookieOptions.sameSite ?? (deploymentMode === 'cross-site' ? 'none' : 'lax');
+  const secure = cookieOptions.secure ?? (sameSite === 'none' || deploymentMode === 'cross-site');
+
+  return {
+    name: cookieOptions.name ?? DEFAULT_SESSION_COOKIE_NAME,
+    sameSite,
+    secure,
+    domain: cookieOptions.domain,
+    path: cookieOptions.path ?? '/',
+    httpOnly: cookieOptions.httpOnly ?? true,
+  };
+};
+
+const serializeCookie = (
+  name: string,
+  value: string,
+  options: ResolvedCookieOptions,
+  overrides?: { expires?: Date; maxAge?: number },
+): string => {
+  const sameSite = options.sameSite.charAt(0).toUpperCase() + options.sameSite.slice(1);
+  const parts = [`${name}=${encodeURIComponent(value)}`, `Path=${options.path}`, `SameSite=${sameSite}`];
+
+  if (options.httpOnly) {
+    parts.push('HttpOnly');
+  }
+
+  if (options.secure || options.sameSite === 'none') {
+    parts.push('Secure');
+  }
+
+  if (options.domain) {
+    parts.push(`Domain=${options.domain}`);
+  }
+
+  if (typeof overrides?.maxAge === 'number') {
+    parts.push(`Max-Age=${overrides.maxAge}`);
+  }
+
+  if (overrides?.expires) {
+    parts.push(`Expires=${overrides.expires.toUTCString()}`);
+  }
+
+  return parts.join('; ');
+};
+
+const setSessionCookie = (res: Response, options: OidcVaultOptions, sessionId: string): void => {
+  const cookieOptions = resolveCookieOptions(options);
+  res.append('Set-Cookie', serializeCookie(cookieOptions.name, sessionId, cookieOptions));
+};
+
+const clearSessionCookie = (res: Response, options: OidcVaultOptions): void => {
+  const cookieOptions = resolveCookieOptions(options);
+  res.append(
+    'Set-Cookie',
+    serializeCookie(cookieOptions.name, '', cookieOptions, {
+      maxAge: 0,
+      expires: new Date(0),
+    }),
+  );
+};
+
+const getSessionIdFromCookie = (req: Request, options: OidcVaultOptions): string | undefined => {
+  const cookies = parseCookieHeader(req.headers.cookie);
+  return cookies[resolveCookieOptions(options).name];
+};
+
+const getSessionIdFromRequest = (req: Request, options: OidcVaultOptions, action: 'refresh' | 'logout'): string => {
+  const body = getBody(req);
+
+  if (usesCookieTransport(options)) {
+    const cookieSessionId = getSessionIdFromCookie(req, options);
+
+    if (isString(cookieSessionId)) {
+      return cookieSessionId;
+    }
+
+    if (isString(body.sessionId)) {
+      return body.sessionId;
+    }
+
+    throw new OidcVaultHttpError(
+      400,
+      'OIDC_VAULT_MISSING_SESSION_ID',
+      `${action === 'refresh' ? 'Refresh' : 'Logout'} request is missing the session cookie.`,
+    );
+  }
+
+  return getRequiredString(
+    body.sessionId,
+    `${action === 'refresh' ? 'Refresh' : 'Logout'} request is missing sessionId.`,
+    'OIDC_VAULT_MISSING_SESSION_ID',
+  );
+};
+
+const createExchangeResponse = (
+  options: OidcVaultOptions,
+  session: OidcVaultSession,
+  issuedToken: Partial<OidcVaultTokenIssueResult>,
+): OidcVaultExchangeResult => ({
+  sessionId: usesCookieTransport(options) ? undefined : session.sessionId,
+  user: session.user,
+  ...issuedToken,
+});
 
 const buildWellKnownUrl = (issuer: string): URL => {
   const normalizedIssuer = issuer.endsWith('/') ? issuer : `${issuer}/`;
@@ -651,23 +796,19 @@ const createExchangeHandler = (options: OidcVaultOptions): RequestHandler =>
     }
 
     const issuedToken = await withIssuedToken(req, res, options, session);
-    const response: OidcVaultExchangeResult = {
-      sessionId: session.sessionId,
-      user: session.user,
-      ...issuedToken,
-    };
+
+    if (usesCookieTransport(options)) {
+      setSessionCookie(res, options, session.sessionId);
+    }
+
+    const response = createExchangeResponse(options, session, issuedToken);
 
     res.status(200).json(response);
   });
 
 const createRefreshHandler = (options: OidcVaultOptions): RequestHandler =>
   createAsyncHandler('refresh', options, async (req, res) => {
-    const body = getBody(req);
-    const sessionId = getRequiredString(
-      body.sessionId,
-      'Refresh request is missing sessionId.',
-      'OIDC_VAULT_MISSING_SESSION_ID',
-    );
+    const sessionId = getSessionIdFromRequest(req, options, 'refresh');
     const currentSession = await options.storeProvider.getSession(sessionId);
 
     if (!currentSession) {
@@ -713,11 +854,12 @@ const createRefreshHandler = (options: OidcVaultOptions): RequestHandler =>
     });
 
     const issuedToken = await withIssuedToken(req, res, options, rotatedSession);
-    const response: OidcVaultExchangeResult = {
-      sessionId: rotatedSession.sessionId,
-      user: rotatedSession.user,
-      ...issuedToken,
-    };
+
+    if (usesCookieTransport(options)) {
+      setSessionCookie(res, options, rotatedSession.sessionId);
+    }
+
+    const response = createExchangeResponse(options, rotatedSession, issuedToken);
 
     res.status(200).json(response);
   });
@@ -725,21 +867,25 @@ const createRefreshHandler = (options: OidcVaultOptions): RequestHandler =>
 const createLogoutHandler = (options: OidcVaultOptions): RequestHandler =>
   createAsyncHandler('logout', options, async (req, res) => {
     const body = getBody(req);
-    const sessionId = getRequiredString(
-      body.sessionId,
-      'Logout request is missing sessionId.',
-      'OIDC_VAULT_MISSING_SESSION_ID',
-    );
+    const sessionId = getSessionIdFromRequest(req, options, 'logout');
     const redirect = body.redirect === true;
     const session = await options.storeProvider.getSession(sessionId);
 
     if (!session) {
+      if (usesCookieTransport(options)) {
+        clearSessionCookie(res, options);
+      }
+
       res.status(200).json({ loggedOut: true } satisfies OidcVaultLogoutResult);
       return;
     }
 
     await callHook('logout', options.hooks?.onBeforeLogout, req, res, session, undefined);
     await options.storeProvider.deleteSession(sessionId);
+
+    if (usesCookieTransport(options)) {
+      clearSessionCookie(res, options);
+    }
 
     const metadata = await resolveProviderMetadata(options);
     const upstreamLogoutUrl = metadata.endSessionEndpoint
