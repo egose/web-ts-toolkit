@@ -30,7 +30,7 @@ npm install @web-ts-toolkit/express-oidc-vault-memory-store
 
 ## Frontend Storage Policy
 
-Recommended browser-side storage:
+Default browser-side transport:
 
 - mirror `sessionId` into `sessionStorage`
 - keep `accessToken` in memory only
@@ -41,6 +41,43 @@ Why:
 - `sessionId` needs to survive page refresh so the frontend can call `POST /auth/oidc/refresh` during app bootstrap
 - `accessToken` is the normal API credential and should remain non-persistent in the browser
 - `sessionStorage` narrows persistence compared with `localStorage`, but it is still readable by JavaScript, so XSS prevention remains critical
+
+Optional alternative:
+
+- set `sessionTransport: 'cookie'`
+- store `sessionId` in an `HttpOnly` browser cookie instead of `sessionStorage`
+- keep `accessToken` in memory only
+
+This mode simplifies the frontend and keeps the session pointer out of JavaScript-visible storage, but it reintroduces cookie deployment concerns such as `SameSite`, `Secure`, and cross-origin credential handling.
+
+## Session Transport Modes
+
+### `sessionTransport: 'body'`
+
+This is the default mode.
+
+- `exchange` and `refresh` responses include `sessionId`
+- the frontend stores `sessionId`, typically in `sessionStorage`
+- the frontend sends `sessionId` back in the JSON body for `refresh` and `logout`
+
+### `sessionTransport: 'cookie'`
+
+This mode stores `sessionId` in a backend-managed cookie.
+
+- `exchange` sets the session cookie and does not need to return `sessionId` in the JSON body
+- `refresh` reads the cookie, rotates the session, and updates the cookie
+- `logout` reads the cookie and clears it
+- the frontend does not need to keep `sessionId` in `sessionStorage`
+
+Available cookie options:
+
+- `cookie.name`
+- `cookie.deploymentMode`: `'same-origin' | 'same-site' | 'cross-site'`
+- `cookie.sameSite`: `'lax' | 'strict' | 'none'`
+- `cookie.secure`
+- `cookie.domain`
+- `cookie.path`
+- `cookie.httpOnly`
 
 ## Endpoints
 
@@ -150,6 +187,60 @@ async function ensureFreshAccessToken(): Promise<void> {
 }
 ```
 
+### Cookie transport frontend example
+
+When `sessionTransport` is `'cookie'`, the frontend no longer needs to store `sessionId`.
+
+```ts
+type AuthState = {
+  accessToken: string | null;
+};
+
+const authState: AuthState = {
+  accessToken: null,
+};
+
+let refreshPromise: Promise<void> | null = null;
+
+function setAuthState(payload: { accessToken?: string }): void {
+  authState.accessToken = payload.accessToken ?? null;
+}
+
+function clearAuthState(): void {
+  authState.accessToken = null;
+}
+
+async function refreshAuthState(): Promise<void> {
+  const response = await fetch('/auth/oidc/refresh', {
+    method: 'POST',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    clearAuthState();
+    throw new Error('OIDC refresh failed.');
+  }
+
+  setAuthState(await response.json());
+}
+
+async function ensureFreshAccessToken(): Promise<void> {
+  if (!refreshPromise) {
+    refreshPromise = refreshAuthState().finally(() => {
+      refreshPromise = null;
+    });
+  }
+
+  await refreshPromise;
+}
+```
+
+For cross-origin cookie deployments, also remember:
+
+- the frontend requests must use `credentials: 'include'`
+- the backend CORS policy must allow credentials
+- the cookie typically needs `SameSite=None` and `Secure`
+
 ## Backend Wiring
 
 ### Memory Store
@@ -215,6 +306,37 @@ createOidcVaultMiddleware({
   postLogoutRedirectUri: 'https://frontend.example.com/logged-out',
   storeProvider: createMongoOidcVaultStore({
     db: mongo.db('app-auth'),
+  }),
+});
+```
+
+### Cookie Transport
+
+```ts
+import { createClient } from 'redis';
+import { createRedisOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-redis-store';
+
+const redis = createClient({ url: process.env.REDIS_URL });
+await redis.connect();
+
+createOidcVaultMiddleware({
+  basePath: '/auth/oidc',
+  config: {
+    issuer: process.env.OIDC_ISSUER,
+    clientId: process.env.OIDC_CLIENT_ID,
+    clientSecret: process.env.OIDC_CLIENT_SECRET,
+  },
+  frontendRedirectUri: 'https://frontend.example.com/callback',
+  postLogoutRedirectUri: 'https://frontend.example.com/logged-out',
+  sessionTransport: 'cookie',
+  cookie: {
+    deploymentMode: 'same-site',
+    domain: '.example.com',
+    secure: true,
+  },
+  storeProvider: createRedisOidcVaultStore({
+    client: redis,
+    keyPrefix: 'oidc-vault',
   }),
 });
 ```
