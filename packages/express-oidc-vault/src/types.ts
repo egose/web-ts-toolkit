@@ -45,7 +45,7 @@ export interface AuthorizationTransactionInput {
   metadata?: Record<string, unknown>;
 }
 
-export interface AuthorizationTransaction extends AuthorizationTransactionInput {}
+export type AuthorizationTransaction = AuthorizationTransactionInput;
 
 export interface ExchangeCodeRecordInput {
   code: string;
@@ -55,7 +55,7 @@ export interface ExchangeCodeRecordInput {
   expiresAt: number;
 }
 
-export interface ExchangeCodeRecord extends ExchangeCodeRecordInput {}
+export type ExchangeCodeRecord = ExchangeCodeRecordInput;
 
 export interface OidcVaultSessionInput extends Omit<OidcVaultSession, 'createdAt' | 'updatedAt'> {
   createdAt?: number;
@@ -172,11 +172,9 @@ export interface OidcVaultJwtAccessTokenValidatorOptions {
   mapClaims?(claims: Record<string, unknown>): OidcVaultAccessTokenValidationResult;
 }
 
-declare global {
-  namespace Express {
-    interface Request {
-      auth?: OidcVaultAuthContext;
-    }
+declare module 'express-serve-static-core' {
+  interface Request {
+    auth?: OidcVaultAuthContext;
   }
 }
 

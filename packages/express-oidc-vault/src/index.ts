@@ -9,7 +9,6 @@ import { OidcVaultStoreConflictError } from './types';
 import type {
   AuthorizationTransaction,
   OidcVaultAccessTokenMiddlewareOptions,
-  OidcVaultAuthenticatedRequest,
   OidcVaultAuthContext,
   OidcVaultAccessTokenValidationResult,
   OidcVaultBackchannelLogoutResult,
