@@ -76,6 +76,7 @@ Available cookie options:
 - `cookie.domain`
 - `cookie.path`
 - `cookie.httpOnly`
+- `trustedOrigins`: required when cross-site cookie transport is enabled
 
 Default cookie behavior:
 
@@ -124,6 +125,11 @@ const storeProvider = createMemoryOidcVaultStore();
 app.use(
   createOidcVaultMiddleware({
     basePath: '/auth/oidc',
+    config: {
+      issuer: process.env.OIDC_ISSUER,
+      clientId: process.env.OIDC_CLIENT_ID,
+      clientSecret: process.env.OIDC_CLIENT_SECRET,
+    },
     frontendRedirectUri: 'https://frontend.example.com/callback',
     storeProvider,
   }),
@@ -355,6 +361,7 @@ For cross-origin cookie deployments, also remember:
 - the frontend requests must use `credentials: 'include'`
 - the backend CORS policy must allow credentials
 - the cookie typically needs `SameSite=None` and `Secure`
+- set `trustedOrigins` so refresh and logout only accept requests from your frontend origin
 
 ## Backchannel Logout
 
@@ -517,6 +524,7 @@ app.use(
       domain: '.example.com',
       secure: true,
     },
+    trustedOrigins: ['https://frontend.example.com'],
     storeProvider: createRedisOidcVaultStore({
       client: redis,
       keyPrefix: 'oidc-vault',
@@ -872,6 +880,7 @@ Use these defaults when deploying the package:
 - rotate `sessionId` on refresh and overwrite the mirrored `sessionStorage` value immediately
 - clear in-memory auth state and `sessionStorage` on logout, even if upstream logout fails
 - set `postLogoutRedirectUri` explicitly so logout destinations stay predictable
+- when using cross-site cookie transport, allow only your known frontend origins via `trustedOrigins`
 - protect any app-issued local access token with a short lifetime, such as 5 to 15 minutes
 - use Redis or MongoDB, not the memory store, for production or multi-instance deployments
 - monitor `onError` and other hooks so failed callback, refresh, and logout flows are visible in logs

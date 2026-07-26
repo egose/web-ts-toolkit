@@ -42,6 +42,7 @@ describe('createOidcVaultMiddleware', () => {
   let publicJwk: JWK;
   let privateKey: CryptoKey;
   let createBackchannelLogoutToken: ((input: { sid?: string; sub?: string }) => Promise<string>) | undefined;
+  let retryIssuerDiscoveryFailuresRemaining = 0;
 
   beforeAll(async () => {
     const issuerApp = express();
@@ -53,6 +54,7 @@ describe('createOidcVaultMiddleware', () => {
     privateKey = keyPair.privateKey;
 
     const issuerPrefix = '/issuer';
+    const retryIssuerPrefix = '/issuer-retry';
 
     const createSignedToken = async (
       payload: Record<string, unknown>,
@@ -99,6 +101,21 @@ describe('createOidcVaultMiddleware', () => {
         userinfo_endpoint: `${issuerBaseUrl}${issuerPrefix}/userinfo`,
         jwks_uri: `${issuerBaseUrl}${issuerPrefix}/jwks`,
         end_session_endpoint: `${issuerBaseUrl}${issuerPrefix}/logout`,
+      });
+    });
+
+    issuerApp.get(`${retryIssuerPrefix}/.well-known/openid-configuration`, (_req, res) => {
+      if (retryIssuerDiscoveryFailuresRemaining > 0) {
+        retryIssuerDiscoveryFailuresRemaining -= 1;
+        res.status(503).send('transient discovery failure');
+        return;
+      }
+
+      res.json({
+        issuer: `${issuerBaseUrl}${retryIssuerPrefix}`,
+        authorization_endpoint: `${issuerBaseUrl}${retryIssuerPrefix}/authorize`,
+        token_endpoint: `${issuerBaseUrl}${retryIssuerPrefix}/token`,
+        jwks_uri: `${issuerBaseUrl}${retryIssuerPrefix}/jwks`,
       });
     });
 
@@ -330,6 +347,7 @@ describe('createOidcVaultMiddleware', () => {
           deploymentMode: 'cross-site',
           domain: '.example.com',
         },
+        trustedOrigins: ['https://frontend.example.com'],
         storeProvider: createMemoryOidcVaultStore(),
         tokenIssuer: {
           async issue({ session }) {
@@ -383,6 +401,7 @@ describe('createOidcVaultMiddleware', () => {
 
     const refreshResponse = await request(app)
       .post('/auth/oidc/refresh')
+      .set('Origin', 'https://frontend.example.com')
       .set('Cookie', sessionCookieHeader ?? '')
       .send({});
 
@@ -399,6 +418,7 @@ describe('createOidcVaultMiddleware', () => {
 
     const logoutResponse = await request(app)
       .post('/auth/oidc/logout')
+      .set('Origin', 'https://frontend.example.com')
       .set('Cookie', rotatedSessionCookieHeader ?? '')
       .send({});
 
@@ -411,12 +431,162 @@ describe('createOidcVaultMiddleware', () => {
     expect(clearedCookie).toContain('Max-Age=0');
     expect(clearedCookie).toContain('Expires=Thu, 01 Jan 1970 00:00:00 GMT');
 
-    const postLogoutRefreshResponse = await request(app).post('/auth/oidc/refresh').send({});
+    const postLogoutRefreshResponse = await request(app)
+      .post('/auth/oidc/refresh')
+      .set('Origin', 'https://frontend.example.com')
+      .send({});
 
     expect(postLogoutRefreshResponse.status).toBe(400);
     expect(postLogoutRefreshResponse.body).toMatchObject({
       code: 'OIDC_VAULT_MISSING_SESSION_ID',
     });
+  });
+
+  it('rejects untrusted origins for cross-site cookie refresh requests', async () => {
+    const app = express();
+
+    app.use(
+      createOidcVaultMiddleware({
+        basePath: '/auth/oidc',
+        config: {
+          issuer: `${issuerBaseUrl}/issuer`,
+          clientId: 'client_1',
+          clientSecret: 'secret_1',
+        },
+        frontendRedirectUri: 'https://frontend.example.com/callback',
+        sessionTransport: 'cookie',
+        cookie: {
+          deploymentMode: 'cross-site',
+        },
+        trustedOrigins: ['https://frontend.example.com'],
+        storeProvider: createMemoryOidcVaultStore(),
+        tokenIssuer: {
+          async issue({ session }) {
+            return {
+              accessToken: `local:${session.sessionId}`,
+              expiresIn: 900,
+              tokenType: 'Bearer',
+            };
+          },
+        },
+      }),
+    );
+
+    const loginResponse = await request(app).get('/auth/oidc/login');
+    const authorizationUrl = new URL(loginResponse.headers.location);
+    const state = authorizationUrl.searchParams.get('state');
+    const nonce = authorizationUrl.searchParams.get('nonce');
+
+    const callbackResponse = await request(app)
+      .get('/auth/oidc/callback')
+      .query({ state, code: `authcode:${nonce}` });
+    const frontendUrl = new URL(callbackResponse.headers.location);
+    const exchangeCode = frontendUrl.searchParams.get('code');
+
+    const exchangeResponse = await request(app).post('/auth/oidc/exchange').send({ code: exchangeCode });
+    const sessionCookieHeader = ((exchangeResponse.headers['set-cookie'] ?? [])[0] as string | undefined)?.split(
+      ';',
+      1,
+    )[0];
+
+    const refreshResponse = await request(app)
+      .post('/auth/oidc/refresh')
+      .set('Origin', 'https://attacker.example.com')
+      .set('Cookie', sessionCookieHeader ?? '')
+      .send({});
+
+    expect(refreshResponse.status).toBe(403);
+    expect(refreshResponse.body).toMatchObject({
+      code: 'OIDC_VAULT_UNTRUSTED_ORIGIN',
+    });
+  });
+
+  it('retries issuer discovery after a transient failure instead of caching the rejection', async () => {
+    retryIssuerDiscoveryFailuresRemaining = 1;
+    const app = express();
+
+    app.use(
+      createOidcVaultMiddleware({
+        basePath: '/auth/oidc',
+        config: {
+          issuer: `${issuerBaseUrl}/issuer-retry`,
+          clientId: 'client_1',
+        },
+        frontendRedirectUri: 'https://frontend.example.com/callback',
+        storeProvider: createMemoryOidcVaultStore(),
+      }),
+    );
+
+    const firstResponse = await request(app).get('/auth/oidc/login');
+
+    expect(firstResponse.status).toBe(502);
+    expect(firstResponse.body).toMatchObject({
+      code: 'OIDC_VAULT_DISCOVERY_FAILED',
+    });
+
+    const secondResponse = await request(app).get('/auth/oidc/login');
+
+    expect(secondResponse.status).toBe(302);
+    expect(new URL(secondResponse.headers.location).pathname).toBe('/issuer-retry/authorize');
+  });
+
+  it('keeps the current session usable when refresh token issuance fails before rotation completes', async () => {
+    const app = express();
+    let issueCalls = 0;
+
+    app.use(
+      createOidcVaultMiddleware({
+        basePath: '/auth/oidc',
+        config: {
+          issuer: `${issuerBaseUrl}/issuer`,
+          clientId: 'client_1',
+          clientSecret: 'secret_1',
+        },
+        frontendRedirectUri: 'https://frontend.example.com/callback',
+        storeProvider: createMemoryOidcVaultStore(),
+        tokenIssuer: {
+          async issue({ session }) {
+            issueCalls += 1;
+
+            if (issueCalls === 2) {
+              throw new Error('token issuer unavailable');
+            }
+
+            return {
+              accessToken: `local:${session.sessionId}`,
+              expiresIn: 900,
+              tokenType: 'Bearer',
+            };
+          },
+        },
+      }),
+    );
+
+    const loginResponse = await request(app).get('/auth/oidc/login');
+    const authorizationUrl = new URL(loginResponse.headers.location);
+    const state = authorizationUrl.searchParams.get('state');
+    const nonce = authorizationUrl.searchParams.get('nonce');
+
+    const callbackResponse = await request(app)
+      .get('/auth/oidc/callback')
+      .query({ state, code: `authcode:${nonce}` });
+    const exchangeCode = new URL(callbackResponse.headers.location).searchParams.get('code');
+    const exchangeResponse = await request(app).post('/auth/oidc/exchange').send({ code: exchangeCode });
+    const originalSessionId = exchangeResponse.body.sessionId as string;
+
+    const failedRefreshResponse = await request(app).post('/auth/oidc/refresh').send({ sessionId: originalSessionId });
+
+    expect(failedRefreshResponse.status).toBe(500);
+    expect(failedRefreshResponse.body).toMatchObject({
+      message: 'token issuer unavailable',
+    });
+
+    const successfulRefreshResponse = await request(app)
+      .post('/auth/oidc/refresh')
+      .send({ sessionId: originalSessionId });
+
+    expect(successfulRefreshResponse.status).toBe(200);
+    expect(successfulRefreshResponse.body.sessionId).not.toBe(originalSessionId);
   });
 
   it('supports OIDC backchannel logout by upstream sid', async () => {

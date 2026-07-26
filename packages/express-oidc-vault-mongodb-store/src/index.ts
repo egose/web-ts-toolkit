@@ -1,3 +1,8 @@
+import {
+  OidcVaultStoreConflictError,
+  type DeleteSessionsByProviderSessionIdInput,
+  type DeleteSessionsBySubjectInput,
+} from '@web-ts-toolkit/express-oidc-vault';
 import type {
   AuthorizationTransaction,
   AuthorizationTransactionInput,
@@ -101,14 +106,27 @@ const exchangeDocumentToRecord = (record: ExchangeCodeDocument): ExchangeCodeRec
 const isExpired = (record: ExpirableDocument, now: number): boolean =>
   record.expiresAt instanceof Date && record.expiresAt.getTime() <= now;
 
+const toSubjectDeleteInput = (input: string | DeleteSessionsBySubjectInput): DeleteSessionsBySubjectInput =>
+  typeof input === 'string' ? { subject: input } : input;
+
+const toProviderSessionDeleteInput = (
+  input: string | DeleteSessionsByProviderSessionIdInput,
+): DeleteSessionsByProviderSessionIdInput => (typeof input === 'string' ? { providerSessionId: input } : input);
+
+const isTransactionCapableHelloResponse = (value: Record<string, unknown>): boolean =>
+  typeof value.setName === 'string' || value.msg === 'isdbgrid';
+
 class MongoOidcVaultStore implements OidcVaultStoreProvider {
+  private readonly db: Db;
   private readonly authorizationTransactions: Collection<AuthorizationTransactionDocument>;
   private readonly exchangeCodes: Collection<ExchangeCodeDocument>;
   private readonly sessions: Collection<SessionDocument>;
   private readonly now: () => number;
   private readonly ready: Promise<void>;
+  private readonly supportsTransactions: Promise<boolean>;
 
   constructor(options: MongoOidcVaultStoreOptions) {
+    this.db = options.db;
     this.authorizationTransactions = options.db.collection<AuthorizationTransactionDocument>(
       options.authorizationTransactionsCollectionName ?? DEFAULT_COLLECTION_NAMES.authorizationTransactions,
     );
@@ -120,6 +138,7 @@ class MongoOidcVaultStore implements OidcVaultStoreProvider {
     );
     this.now = options.now ?? (() => Date.now());
     this.ready = this.ensureIndexes();
+    this.supportsTransactions = this.detectTransactionSupport();
   }
 
   async createAuthorizationTransaction(input: AuthorizationTransactionInput): Promise<void> {
@@ -182,11 +201,45 @@ class MongoOidcVaultStore implements OidcVaultStoreProvider {
 
   async rotateSession(input: RotateSessionInput): Promise<OidcVaultSession> {
     await this.ready;
-    await this.sessions.replaceOne({ _id: input.nextSession.sessionId }, sessionToDocument(input.nextSession), {
-      upsert: true,
-    });
-    await this.sessions.deleteOne({ _id: input.sessionId });
+
+    if (await this.supportsTransactions) {
+      return this.rotateSessionWithTransaction(input);
+    }
+
+    return this.rotateSessionWithoutTransaction(input);
+  }
+
+  private async rotateSessionWithoutTransaction(input: RotateSessionInput): Promise<OidcVaultSession> {
+    await this.sessions.insertOne(sessionToDocument(input.nextSession));
+
+    const deleteResult = await this.sessions.deleteOne({ _id: input.sessionId });
+
+    if (deleteResult.deletedCount !== 1) {
+      await this.sessions.deleteOne({ _id: input.nextSession.sessionId });
+      throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
+    }
+
     return input.nextSession;
+  }
+
+  private async rotateSessionWithTransaction(input: RotateSessionInput): Promise<OidcVaultSession> {
+    const session = this.db.client.startSession();
+
+    try {
+      await session.withTransaction(async () => {
+        await this.sessions.insertOne(sessionToDocument(input.nextSession), { session });
+
+        const deleteResult = await this.sessions.deleteOne({ _id: input.sessionId }, { session });
+
+        if (deleteResult.deletedCount !== 1) {
+          throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
+        }
+      });
+
+      return input.nextSession;
+    } finally {
+      await session.endSession();
+    }
   }
 
   async deleteSession(sessionId: string): Promise<void> {
@@ -194,15 +247,37 @@ class MongoOidcVaultStore implements OidcVaultStoreProvider {
     await this.sessions.deleteOne({ _id: sessionId });
   }
 
-  async deleteSessionsBySubject(subject: string): Promise<number> {
+  async deleteSessionsBySubject(input: string | DeleteSessionsBySubjectInput): Promise<number> {
     await this.ready;
-    const result = await this.sessions.deleteMany({ subject });
+    const resolved = toSubjectDeleteInput(input);
+    const filter: Filter<SessionDocument> = { subject: resolved.subject };
+
+    if (resolved.issuer !== undefined) {
+      filter['provider.issuer'] = resolved.issuer;
+    }
+
+    if (resolved.clientId !== undefined) {
+      filter['provider.clientId'] = resolved.clientId;
+    }
+
+    const result = await this.sessions.deleteMany(filter);
     return result.deletedCount;
   }
 
-  async deleteSessionsByProviderSessionId(providerSessionId: string): Promise<number> {
+  async deleteSessionsByProviderSessionId(input: string | DeleteSessionsByProviderSessionIdInput): Promise<number> {
     await this.ready;
-    const result = await this.sessions.deleteMany({ providerSessionId });
+    const resolved = toProviderSessionDeleteInput(input);
+    const filter: Filter<SessionDocument> = { providerSessionId: resolved.providerSessionId };
+
+    if (resolved.issuer !== undefined) {
+      filter['provider.issuer'] = resolved.issuer;
+    }
+
+    if (resolved.clientId !== undefined) {
+      filter['provider.clientId'] = resolved.clientId;
+    }
+
+    const result = await this.sessions.deleteMany(filter);
     return result.deletedCount;
   }
 
@@ -214,6 +289,15 @@ class MongoOidcVaultStore implements OidcVaultStoreProvider {
       this.sessions.createIndex({ subject: 1 }, { name: 'subject_idx' }),
       this.sessions.createIndex({ providerSessionId: 1 }, { name: 'provider_session_idx' }),
     ]);
+  }
+
+  private async detectTransactionSupport(): Promise<boolean> {
+    try {
+      const hello = (await this.db.admin().command({ hello: 1 })) as Record<string, unknown>;
+      return isTransactionCapableHelloResponse(hello);
+    } catch {
+      return false;
+    }
   }
 
   private async createTtlIndex<T extends { _id: string }>(collection: Collection<T>): Promise<string> {

@@ -67,6 +67,25 @@ export interface RotateSessionInput {
   nextSession: OidcVaultSession;
 }
 
+export interface DeleteSessionsBySubjectInput {
+  subject: string;
+  issuer?: string;
+  clientId?: string;
+}
+
+export interface DeleteSessionsByProviderSessionIdInput {
+  providerSessionId: string;
+  issuer?: string;
+  clientId?: string;
+}
+
+export class OidcVaultStoreConflictError extends Error {
+  constructor(message = 'OIDC vault store operation conflicted with concurrent state changes.') {
+    super(message);
+    this.name = 'OidcVaultStoreConflictError';
+  }
+}
+
 export interface OidcVaultStoreProvider {
   createAuthorizationTransaction(input: AuthorizationTransactionInput): Promise<void>;
   consumeAuthorizationTransaction(state: string): Promise<AuthorizationTransaction | null>;
@@ -76,8 +95,8 @@ export interface OidcVaultStoreProvider {
   getSession(sessionId: string): Promise<OidcVaultSession | null>;
   rotateSession(input: RotateSessionInput): Promise<OidcVaultSession>;
   deleteSession(sessionId: string): Promise<void>;
-  deleteSessionsBySubject(subject: string): Promise<number>;
-  deleteSessionsByProviderSessionId(providerSessionId: string): Promise<number>;
+  deleteSessionsBySubject(input: string | DeleteSessionsBySubjectInput): Promise<number>;
+  deleteSessionsByProviderSessionId(input: string | DeleteSessionsByProviderSessionIdInput): Promise<number>;
 }
 
 export interface OidcVaultHookContext {
@@ -217,5 +236,6 @@ export interface OidcVaultOptions {
   exchangeCodeTtlMs?: number;
   sessionTransport?: OidcVaultSessionTransport;
   cookie?: OidcVaultCookieOptions;
+  trustedOrigins?: string[];
   now?: () => number;
 }

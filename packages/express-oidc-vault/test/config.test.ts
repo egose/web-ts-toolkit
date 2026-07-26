@@ -47,8 +47,17 @@ describe('resolveOidcVaultConfig', () => {
   });
 
   it('throws when manual mode is missing required endpoint configuration', () => {
-    expect(() => resolveOidcVaultConfig({ authorizationEndpoint: 'https://issuer.example.com/auth' })).toThrow(
-      'Missing required OIDC configuration for manual mode: tokenEndpoint, jwksUri',
+    expect(() =>
+      resolveOidcVaultConfig({
+        authorizationEndpoint: 'https://issuer.example.com/auth',
+        clientId: 'client_1',
+      }),
+    ).toThrow('Missing required OIDC configuration for manual mode: tokenEndpoint, jwksUri');
+  });
+
+  it('throws when clientId is missing', () => {
+    expect(() => resolveOidcVaultConfig({ issuer: 'https://issuer.example.com' })).toThrow(
+      'OIDC clientId is required.',
     );
   });
 });

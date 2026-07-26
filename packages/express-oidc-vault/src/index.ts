@@ -5,6 +5,7 @@ import type { NextFunction, Request, RequestHandler, Response, Router } from 'ex
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 import { resolveOidcVaultConfig, type OidcVaultResolvedConfig } from './config';
+import { OidcVaultStoreConflictError } from './types';
 import type {
   AuthorizationTransaction,
   OidcVaultAccessTokenMiddlewareOptions,
@@ -81,7 +82,11 @@ type ResolvedCookieOptions = {
   httpOnly: boolean;
 };
 
-const discoveryCache = new Map<string, Promise<OidcProviderMetadata>>();
+type DiscoveredOidcProviderMetadata = Omit<OidcProviderMetadata, 'clientId' | 'clientSecret' | 'scopes'>;
+type TrustedOrigins = ReadonlySet<string>;
+
+const discoveryCache = new Map<string, Promise<DiscoveredOidcProviderMetadata>>();
+const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
 class OidcVaultHttpError extends Error {
   readonly status: number;
@@ -188,6 +193,66 @@ const resolveCookieOptions = (options: OidcVaultOptions): ResolvedCookieOptions 
     path: cookieOptions.path ?? '/',
     httpOnly: cookieOptions.httpOnly ?? true,
   };
+};
+
+const usesCrossSiteCookieTransport = (options: OidcVaultOptions): boolean =>
+  usesCookieTransport(options) && resolveCookieOptions(options).sameSite === 'none';
+
+const resolveTrustedOrigins = (options: OidcVaultOptions): TrustedOrigins =>
+  new Set((options.trustedOrigins ?? []).map((value) => new URL(value).origin));
+
+const getRequestSourceOrigin = (req: Request): string | undefined => {
+  const origin = req.get('origin');
+
+  if (isString(origin)) {
+    return origin;
+  }
+
+  const referer = req.get('referer');
+
+  if (!isString(referer)) {
+    return undefined;
+  }
+
+  try {
+    return new URL(referer).origin;
+  } catch {
+    return undefined;
+  }
+};
+
+const assertTrustedOrigin = (
+  req: Request,
+  options: OidcVaultOptions,
+  trustedOrigins: TrustedOrigins,
+  action: 'refresh' | 'logout',
+): void => {
+  if (!usesCrossSiteCookieTransport(options)) {
+    return;
+  }
+
+  const origin = getRequestSourceOrigin(req);
+
+  if (!origin || !trustedOrigins.has(origin)) {
+    throw new OidcVaultHttpError(
+      403,
+      'OIDC_VAULT_UNTRUSTED_ORIGIN',
+      `${action === 'refresh' ? 'Refresh' : 'Logout'} request origin is not trusted.`,
+    );
+  }
+};
+
+const validateOidcVaultOptions = (
+  options: OidcVaultOptions,
+): { config: OidcVaultResolvedConfig; trustedOrigins: TrustedOrigins } => {
+  const config = resolveOidcVaultConfig(options.config);
+  const trustedOrigins = resolveTrustedOrigins(options);
+
+  if (usesCrossSiteCookieTransport(options) && trustedOrigins.size === 0) {
+    throw new Error('trustedOrigins is required when using cross-site cookie transport.');
+  }
+
+  return { config, trustedOrigins };
 };
 
 const serializeCookie = (
@@ -324,6 +389,17 @@ const defaultJwtClaimsMapper = (claims: Record<string, unknown>): OidcVaultAcces
 const buildWellKnownUrl = (issuer: string): URL => {
   const normalizedIssuer = issuer.endsWith('/') ? issuer : `${issuer}/`;
   return new URL('.well-known/openid-configuration', normalizedIssuer);
+};
+
+const resolveJwks = (jwksUri: string): ReturnType<typeof createRemoteJWKSet> => {
+  let jwks = jwksCache.get(jwksUri);
+
+  if (!jwks) {
+    jwks = createRemoteJWKSet(new URL(jwksUri));
+    jwksCache.set(jwksUri, jwks);
+  }
+
+  return jwks;
 };
 
 const appendQueryParam = (url: URL, name: string, value: string | undefined): void => {
@@ -531,32 +607,12 @@ function createAsyncHandler(
   };
 }
 
-async function discoverProviderMetadata(config: OidcVaultResolvedConfig): Promise<OidcProviderMetadata> {
-  if (config.mode === 'manual') {
-    return {
-      issuer: config.issuer,
-      authorizationEndpoint: config.authorizationEndpoint!,
-      tokenEndpoint: config.tokenEndpoint!,
-      jwksUri: config.jwksUri!,
-      userInfoEndpoint: config.userInfoEndpoint,
-      endSessionEndpoint: config.endSessionEndpoint,
-      clientId: config.clientId,
-      clientSecret: config.clientSecret,
-      scopes: config.scopes,
-    };
-  }
-
-  const cacheKey = config.issuer;
-
-  if (!cacheKey) {
-    throw new OidcVaultHttpError(500, 'OIDC_VAULT_INVALID_CONFIG', 'Issuer discovery requires an issuer URL.');
-  }
-
-  let discoveryPromise = discoveryCache.get(cacheKey);
+async function discoverIssuerMetadata(issuer: string): Promise<DiscoveredOidcProviderMetadata> {
+  let discoveryPromise = discoveryCache.get(issuer);
 
   if (!discoveryPromise) {
     discoveryPromise = (async () => {
-      const discoveryUrl = buildWellKnownUrl(cacheKey);
+      const discoveryUrl = buildWellKnownUrl(issuer);
       const response = await fetch(discoveryUrl);
 
       if (!response.ok) {
@@ -601,16 +657,45 @@ async function discoverProviderMetadata(config: OidcVaultResolvedConfig): Promis
         userInfoEndpoint: typeof discovered.userinfo_endpoint === 'string' ? discovered.userinfo_endpoint : undefined,
         endSessionEndpoint:
           typeof discovered.end_session_endpoint === 'string' ? discovered.end_session_endpoint : undefined,
-        clientId: config.clientId,
-        clientSecret: config.clientSecret,
-        scopes: config.scopes,
-      } satisfies OidcProviderMetadata;
+      } satisfies DiscoveredOidcProviderMetadata;
     })();
 
-    discoveryCache.set(cacheKey, discoveryPromise);
+    discoveryCache.set(issuer, discoveryPromise);
+    discoveryPromise.catch(() => {
+      if (discoveryCache.get(issuer) === discoveryPromise) {
+        discoveryCache.delete(issuer);
+      }
+    });
   }
 
   return discoveryPromise;
+}
+
+async function resolveProviderMetadata(config: OidcVaultResolvedConfig): Promise<OidcProviderMetadata> {
+  if (config.mode === 'manual') {
+    return {
+      issuer: config.issuer,
+      authorizationEndpoint: config.authorizationEndpoint!,
+      tokenEndpoint: config.tokenEndpoint!,
+      jwksUri: config.jwksUri!,
+      userInfoEndpoint: config.userInfoEndpoint,
+      endSessionEndpoint: config.endSessionEndpoint,
+      clientId: config.clientId,
+      clientSecret: config.clientSecret,
+      scopes: config.scopes,
+    };
+  }
+
+  if (!config.issuer) {
+    throw new OidcVaultHttpError(500, 'OIDC_VAULT_INVALID_CONFIG', 'Issuer discovery requires an issuer URL.');
+  }
+
+  return {
+    ...(await discoverIssuerMetadata(config.issuer)),
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
+    scopes: config.scopes,
+  };
 }
 
 async function requestToken(
@@ -703,7 +788,7 @@ async function verifyIdToken(
     );
   }
 
-  const jwks = createRemoteJWKSet(new URL(metadata.jwksUri));
+  const jwks = resolveJwks(metadata.jwksUri);
   const result = await jwtVerify(idToken, jwks, {
     audience: metadata.clientId,
     issuer: metadata.issuer,
@@ -736,7 +821,7 @@ async function verifyBackchannelLogoutToken(
     );
   }
 
-  const jwks = createRemoteJWKSet(new URL(metadata.jwksUri));
+  const jwks = resolveJwks(metadata.jwksUri);
   const result = await jwtVerify(logoutToken, jwks, {
     audience: metadata.clientId,
     issuer: metadata.issuer,
@@ -774,13 +859,13 @@ async function verifyBackchannelLogoutToken(
   return claims;
 }
 
-async function resolveProviderMetadata(options: OidcVaultOptions): Promise<OidcProviderMetadata> {
-  return discoverProviderMetadata(resolveOidcVaultConfig(options.config));
-}
-
-const createLoginHandler = (options: OidcVaultOptions, basePath: string): RequestHandler =>
+const createLoginHandler = (
+  options: OidcVaultOptions,
+  config: OidcVaultResolvedConfig,
+  basePath: string,
+): RequestHandler =>
   createAsyncHandler('login', options, async (req, res) => {
-    const metadata = await resolveProviderMetadata(options);
+    const metadata = await resolveProviderMetadata(config);
     await callHook('login', options.hooks?.onLoginStart, req, res, undefined, { provider: metadata });
 
     const now = getNow(options);
@@ -807,7 +892,11 @@ const createLoginHandler = (options: OidcVaultOptions, basePath: string): Reques
     res.redirect(302, authorizationUrl);
   });
 
-const createCallbackHandler = (options: OidcVaultOptions, basePath: string): RequestHandler =>
+const createCallbackHandler = (
+  options: OidcVaultOptions,
+  config: OidcVaultResolvedConfig,
+  basePath: string,
+): RequestHandler =>
   createAsyncHandler('callback', options, async (req, res) => {
     if (isString(req.query.error)) {
       throw new OidcVaultHttpError(400, 'OIDC_VAULT_CALLBACK_ERROR', req.query.error);
@@ -825,7 +914,7 @@ const createCallbackHandler = (options: OidcVaultOptions, basePath: string): Req
       throw new OidcVaultHttpError(400, 'OIDC_VAULT_INVALID_STATE', 'OIDC state is invalid or expired.');
     }
 
-    const metadata = await resolveProviderMetadata(options);
+    const metadata = await resolveProviderMetadata(config);
     const tokenResponse = await requestToken(metadata, {
       grant_type: 'authorization_code',
       code,
@@ -929,8 +1018,13 @@ const createExchangeHandler = (options: OidcVaultOptions): RequestHandler =>
     res.status(200).json(response);
   });
 
-const createRefreshHandler = (options: OidcVaultOptions): RequestHandler =>
+const createRefreshHandler = (
+  options: OidcVaultOptions,
+  config: OidcVaultResolvedConfig,
+  trustedOrigins: TrustedOrigins,
+): RequestHandler =>
   createAsyncHandler('refresh', options, async (req, res) => {
+    assertTrustedOrigin(req, options, trustedOrigins, 'refresh');
     const sessionId = getSessionIdFromRequest(req, options, 'refresh');
     const currentSession = await options.storeProvider.getSession(sessionId);
 
@@ -942,7 +1036,7 @@ const createRefreshHandler = (options: OidcVaultOptions): RequestHandler =>
       throw new OidcVaultHttpError(401, 'OIDC_VAULT_INVALID_SESSION', 'Session is missing or expired.');
     }
 
-    const metadata = await resolveProviderMetadata(options);
+    const metadata = await resolveProviderMetadata(config);
     const tokenResponse = await requestToken(metadata, {
       grant_type: 'refresh_token',
       refresh_token: currentSession.refreshToken,
@@ -972,16 +1066,30 @@ const createRefreshHandler = (options: OidcVaultOptions): RequestHandler =>
       user: mergeUserProfile(subject, claims, userInfo ?? currentSession.user),
     };
 
-    const rotatedSession = await options.storeProvider.rotateSession({
-      sessionId: currentSession.sessionId,
-      nextSession,
-    });
+    const issuedToken = await withIssuedToken(req, res, options, nextSession);
+
+    let rotatedSession: OidcVaultSession;
+
+    try {
+      rotatedSession = await options.storeProvider.rotateSession({
+        sessionId: currentSession.sessionId,
+        nextSession,
+      });
+    } catch (error) {
+      if (error instanceof OidcVaultStoreConflictError) {
+        if (usesCookieTransport(options)) {
+          clearSessionCookie(res, options);
+        }
+
+        throw new OidcVaultHttpError(401, 'OIDC_VAULT_INVALID_SESSION', 'Session is missing or expired.');
+      }
+
+      throw error;
+    }
 
     await callHook('refresh', options.hooks?.onSessionRefreshed, req, res, rotatedSession, {
       previousSessionId: currentSession.sessionId,
     });
-
-    const issuedToken = await withIssuedToken(req, res, options, rotatedSession);
 
     if (usesCookieTransport(options)) {
       setSessionCookie(res, options, rotatedSession.sessionId);
@@ -992,8 +1100,13 @@ const createRefreshHandler = (options: OidcVaultOptions): RequestHandler =>
     res.status(200).json(response);
   });
 
-const createLogoutHandler = (options: OidcVaultOptions): RequestHandler =>
+const createLogoutHandler = (
+  options: OidcVaultOptions,
+  config: OidcVaultResolvedConfig,
+  trustedOrigins: TrustedOrigins,
+): RequestHandler =>
   createAsyncHandler('logout', options, async (req, res) => {
+    assertTrustedOrigin(req, options, trustedOrigins, 'logout');
     const body = getBody(req);
     const sessionId = getSessionIdFromRequest(req, options, 'logout');
     const redirect = body.redirect === true;
@@ -1015,7 +1128,7 @@ const createLogoutHandler = (options: OidcVaultOptions): RequestHandler =>
       clearSessionCookie(res, options);
     }
 
-    const metadata = await resolveProviderMetadata(options);
+    const metadata = await resolveProviderMetadata(config);
     const upstreamLogoutUrl = metadata.endSessionEndpoint
       ? buildLogoutUrl(metadata.endSessionEndpoint, session.idToken, options.postLogoutRedirectUri)
       : undefined;
@@ -1033,15 +1146,23 @@ const createLogoutHandler = (options: OidcVaultOptions): RequestHandler =>
     } satisfies OidcVaultLogoutResult);
   });
 
-const createBackchannelLogoutHandler = (options: OidcVaultOptions): RequestHandler =>
+const createBackchannelLogoutHandler = (options: OidcVaultOptions, config: OidcVaultResolvedConfig): RequestHandler =>
   createAsyncHandler('backchannel-logout', options, async (req, res) => {
-    const metadata = await resolveProviderMetadata(options);
+    const metadata = await resolveProviderMetadata(config);
     const logoutToken = getLogoutTokenFromRequest(req);
     const claims = await verifyBackchannelLogoutToken(metadata, logoutToken);
 
     const revokedSessions = isString(claims.sid)
-      ? await options.storeProvider.deleteSessionsByProviderSessionId(claims.sid)
-      : await options.storeProvider.deleteSessionsBySubject(String(claims.sub));
+      ? await options.storeProvider.deleteSessionsByProviderSessionId({
+          providerSessionId: claims.sid,
+          issuer: metadata.issuer,
+          clientId: metadata.clientId,
+        })
+      : await options.storeProvider.deleteSessionsBySubject({
+          subject: String(claims.sub),
+          issuer: metadata.issuer,
+          clientId: metadata.clientId,
+        });
 
     await callHook('backchannel-logout', options.hooks?.onLogout, req, res, undefined, {
       providerSessionId: claims.sid,
@@ -1055,13 +1176,19 @@ const createBackchannelLogoutHandler = (options: OidcVaultOptions): RequestHandl
     } satisfies OidcVaultBackchannelLogoutResult);
   });
 
-function registerRoutes(router: Router, options: OidcVaultOptions, basePath: string): void {
-  router.get(OIDC_VAULT_ROUTE_PATHS.login, createLoginHandler(options, basePath));
-  router.get(OIDC_VAULT_ROUTE_PATHS.callback, createCallbackHandler(options, basePath));
+function registerRoutes(
+  router: Router,
+  options: OidcVaultOptions,
+  config: OidcVaultResolvedConfig,
+  trustedOrigins: TrustedOrigins,
+  basePath: string,
+): void {
+  router.get(OIDC_VAULT_ROUTE_PATHS.login, createLoginHandler(options, config, basePath));
+  router.get(OIDC_VAULT_ROUTE_PATHS.callback, createCallbackHandler(options, config, basePath));
   router.post(OIDC_VAULT_ROUTE_PATHS.exchange, createExchangeHandler(options));
-  router.post(OIDC_VAULT_ROUTE_PATHS.refresh, createRefreshHandler(options));
-  router.post(OIDC_VAULT_ROUTE_PATHS.logout, createLogoutHandler(options));
-  router.post(OIDC_VAULT_ROUTE_PATHS['backchannel-logout'], createBackchannelLogoutHandler(options));
+  router.post(OIDC_VAULT_ROUTE_PATHS.refresh, createRefreshHandler(options, config, trustedOrigins));
+  router.post(OIDC_VAULT_ROUTE_PATHS.logout, createLogoutHandler(options, config, trustedOrigins));
+  router.post(OIDC_VAULT_ROUTE_PATHS['backchannel-logout'], createBackchannelLogoutHandler(options, config));
 }
 
 /**
@@ -1134,13 +1261,14 @@ export function createOidcVaultAccessTokenMiddleware(options: OidcVaultAccessTok
  * Create the core OIDC vault middleware.
  */
 export function createOidcVaultMiddleware(options: OidcVaultOptions): Router {
+  const { config, trustedOrigins } = validateOidcVaultOptions(options);
   const rootRouter = express.Router();
   const baseRouter = express.Router();
   const basePath = normalizeOidcVaultBasePath(options.basePath);
 
   baseRouter.use(express.json());
   baseRouter.use(express.urlencoded({ extended: false }));
-  registerRoutes(baseRouter, options, basePath);
+  registerRoutes(baseRouter, options, config, trustedOrigins, basePath);
   rootRouter.use(basePath, baseRouter);
 
   return rootRouter;

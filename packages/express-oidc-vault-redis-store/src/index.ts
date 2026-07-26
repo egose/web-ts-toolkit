@@ -1,3 +1,8 @@
+import {
+  OidcVaultStoreConflictError,
+  type DeleteSessionsByProviderSessionIdInput,
+  type DeleteSessionsBySubjectInput,
+} from '@web-ts-toolkit/express-oidc-vault';
 import type {
   AuthorizationTransaction,
   AuthorizationTransactionInput,
@@ -19,9 +24,81 @@ export interface OidcVaultRedisClient {
 export interface RedisOidcVaultStoreOptions {
   client: OidcVaultRedisClient;
   keyPrefix?: string;
+  now?: () => number;
 }
 
 const DEFAULT_KEY_PREFIX = 'oidc-vault';
+const NON_EXPIRING_INDEX_SCORE = Number.MAX_SAFE_INTEGER;
+
+const WRITE_SESSION_SCRIPT = `
+local value = ARGV[1]
+local expiresAt = ARGV[2]
+local sessionId = ARGV[3]
+local score = tonumber(ARGV[4])
+local providerIndexKey = ARGV[5]
+
+if expiresAt ~= '' then
+  redis.call('SET', KEYS[1], value, 'PXAT', expiresAt)
+else
+  redis.call('SET', KEYS[1], value)
+end
+
+redis.call('ZADD', KEYS[2], score, sessionId)
+
+if providerIndexKey ~= '' then
+  redis.call('ZADD', providerIndexKey, score, sessionId)
+end
+
+return 1
+`;
+
+const DELETE_SESSION_SCRIPT = `
+local sessionId = ARGV[1]
+local providerIndexKey = ARGV[2]
+
+redis.call('DEL', KEYS[1])
+redis.call('ZREM', KEYS[2], sessionId)
+
+if providerIndexKey ~= '' then
+  redis.call('ZREM', providerIndexKey, sessionId)
+end
+
+return 1
+`;
+
+const ROTATE_SESSION_SCRIPT = `
+local newValue = ARGV[1]
+local newExpiresAt = ARGV[2]
+local oldSessionId = ARGV[3]
+local newSessionId = ARGV[4]
+local newScore = tonumber(ARGV[5])
+local oldProviderIndexKey = ARGV[6]
+local newProviderIndexKey = ARGV[7]
+
+if redis.call('EXISTS', KEYS[1]) == 0 then
+  return 0
+end
+
+if newExpiresAt ~= '' then
+  redis.call('SET', KEYS[2], newValue, 'PXAT', newExpiresAt)
+else
+  redis.call('SET', KEYS[2], newValue)
+end
+
+redis.call('DEL', KEYS[1])
+redis.call('ZREM', KEYS[3], oldSessionId)
+redis.call('ZADD', KEYS[4], newScore, newSessionId)
+
+if oldProviderIndexKey ~= '' then
+  redis.call('ZREM', oldProviderIndexKey, oldSessionId)
+end
+
+if newProviderIndexKey ~= '' then
+  redis.call('ZADD', newProviderIndexKey, newScore, newSessionId)
+end
+
+return 1
+`;
 
 const serialize = (value: unknown): string => JSON.stringify(value);
 
@@ -29,15 +106,43 @@ const parseJson = <T>(value: string | null): T | null => (value ? (JSON.parse(va
 
 const prefixKey = (keyPrefix: string, kind: string, id: string): string => `${keyPrefix}:${kind}:${id}`;
 
-const uniqueSessionIds = (sessionIds: string[]): string[] => [...new Set(sessionIds)];
+const toSubjectDeleteInput = (input: string | DeleteSessionsBySubjectInput): DeleteSessionsBySubjectInput =>
+  typeof input === 'string' ? { subject: input } : input;
+
+const toProviderSessionDeleteInput = (
+  input: string | DeleteSessionsByProviderSessionIdInput,
+): DeleteSessionsByProviderSessionIdInput => (typeof input === 'string' ? { providerSessionId: input } : input);
+
+const toIndexScore = (expiresAt?: number): number => expiresAt ?? NON_EXPIRING_INDEX_SCORE;
+
+const matchesProviderScope = (
+  session: OidcVaultSession,
+  input: DeleteSessionsBySubjectInput | DeleteSessionsByProviderSessionIdInput,
+): boolean => {
+  if (input.issuer !== undefined && session.provider?.issuer !== input.issuer) {
+    return false;
+  }
+
+  if (input.clientId !== undefined && session.provider?.clientId !== input.clientId) {
+    return false;
+  }
+
+  return true;
+};
 
 class RedisOidcVaultStore implements OidcVaultStoreProvider {
   private readonly client: OidcVaultRedisClient;
   private readonly keyPrefix: string;
+  private readonly now: () => number;
 
   constructor(options: RedisOidcVaultStoreOptions) {
+    if (!options.client.sendCommand) {
+      throw new Error('Redis store client must implement sendCommand for atomic vault operations.');
+    }
+
     this.client = options.client;
     this.keyPrefix = options.keyPrefix ?? DEFAULT_KEY_PREFIX;
+    this.now = options.now ?? Date.now;
   }
 
   async createAuthorizationTransaction(input: AuthorizationTransactionInput): Promise<void> {
@@ -57,15 +162,14 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
   }
 
   async createSession(input: OidcVaultSessionInput): Promise<OidcVaultSession> {
-    const timestamp = Date.now();
+    const timestamp = this.now();
     const session: OidcVaultSession = {
       ...input,
       createdAt: input.createdAt ?? timestamp,
       updatedAt: input.updatedAt ?? timestamp,
     };
 
-    await this.setJson(this.sessionKey(session.sessionId), session, session.expiresAt);
-    await this.addSessionIndexes(session);
+    await this.writeSessionRecord(session);
     return session;
   }
 
@@ -76,12 +180,14 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
   async rotateSession(input: RotateSessionInput): Promise<OidcVaultSession> {
     const previousSession = await this.getSession(input.sessionId);
 
-    await this.setJson(this.sessionKey(input.nextSession.sessionId), input.nextSession, input.nextSession.expiresAt);
-    await this.addSessionIndexes(input.nextSession);
-    await this.client.del(this.sessionKey(input.sessionId));
+    if (!previousSession) {
+      throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
+    }
 
-    if (previousSession) {
-      await this.removeSessionIndexes(previousSession);
+    const rotated = await this.rotateSessionRecord(previousSession, input.nextSession);
+
+    if (!rotated) {
+      throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
     }
 
     return input.nextSession;
@@ -89,19 +195,23 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
 
   async deleteSession(sessionId: string): Promise<void> {
     const session = await this.getSession(sessionId);
-    await this.client.del(this.sessionKey(sessionId));
 
-    if (session) {
-      await this.removeSessionIndexes(session);
+    if (!session) {
+      await this.client.del(this.sessionKey(sessionId));
+      return;
     }
+
+    await this.deleteSessionRecord(session);
   }
 
-  async deleteSessionsBySubject(subject: string): Promise<number> {
-    return this.deleteSessionsFromIndex(this.subjectIndexKey(subject));
+  async deleteSessionsBySubject(input: string | DeleteSessionsBySubjectInput): Promise<number> {
+    const resolved = toSubjectDeleteInput(input);
+    return this.deleteSessionsFromIndex(this.subjectIndexKey(resolved.subject), resolved);
   }
 
-  async deleteSessionsByProviderSessionId(providerSessionId: string): Promise<number> {
-    return this.deleteSessionsFromIndex(this.providerSessionIndexKey(providerSessionId));
+  async deleteSessionsByProviderSessionId(input: string | DeleteSessionsByProviderSessionIdInput): Promise<number> {
+    const resolved = toProviderSessionDeleteInput(input);
+    return this.deleteSessionsFromIndex(this.providerSessionIndexKey(resolved.providerSessionId), resolved);
   }
 
   private async setJson(key: string, value: unknown, expiresAt?: number): Promise<void> {
@@ -114,19 +224,8 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
   }
 
   private async consumeJson<T>(key: string): Promise<T | null> {
-    if (this.client.sendCommand) {
-      const value = await this.client.sendCommand(['GETDEL', key]);
-      return typeof value === 'string' ? parseJson<T>(value) : null;
-    }
-
-    const value = await this.client.get(key);
-
-    if (value === null) {
-      return null;
-    }
-
-    await this.client.del(key);
-    return parseJson<T>(value);
+    const value = await this.sendCommand(['GETDEL', key]);
+    return typeof value === 'string' ? parseJson<T>(value) : null;
   }
 
   private authorizationTransactionKey(state: string): string {
@@ -149,51 +248,76 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     return prefixKey(this.keyPrefix, 'provider-session', providerSessionId);
   }
 
-  private async getSessionIndex(indexKey: string): Promise<string[]> {
-    return parseJson<string[]>(await this.client.get(indexKey)) ?? [];
+  private async writeSessionRecord(session: OidcVaultSession): Promise<void> {
+    await this.sendCommand([
+      'EVAL',
+      WRITE_SESSION_SCRIPT,
+      '2',
+      this.sessionKey(session.sessionId),
+      this.subjectIndexKey(session.subject),
+      serialize(session),
+      this.serializeExpiresAt(session.expiresAt),
+      session.sessionId,
+      String(toIndexScore(session.expiresAt)),
+      session.providerSessionId ? this.providerSessionIndexKey(session.providerSessionId) : '',
+    ]);
   }
 
-  private async setSessionIndex(indexKey: string, sessionIds: string[]): Promise<void> {
-    if (sessionIds.length === 0) {
-      await this.client.del(indexKey);
-      return;
-    }
-
-    await this.client.set(indexKey, serialize(uniqueSessionIds(sessionIds)));
+  private async deleteSessionRecord(session: OidcVaultSession): Promise<void> {
+    await this.sendCommand([
+      'EVAL',
+      DELETE_SESSION_SCRIPT,
+      '2',
+      this.sessionKey(session.sessionId),
+      this.subjectIndexKey(session.subject),
+      session.sessionId,
+      session.providerSessionId ? this.providerSessionIndexKey(session.providerSessionId) : '',
+    ]);
   }
 
-  private async addSessionIndexes(session: OidcVaultSession): Promise<void> {
-    await this.addSessionIdToIndex(this.subjectIndexKey(session.subject), session.sessionId);
+  private async rotateSessionRecord(
+    previousSession: OidcVaultSession,
+    nextSession: OidcVaultSession,
+  ): Promise<boolean> {
+    const result = await this.sendCommand([
+      'EVAL',
+      ROTATE_SESSION_SCRIPT,
+      '4',
+      this.sessionKey(previousSession.sessionId),
+      this.sessionKey(nextSession.sessionId),
+      this.subjectIndexKey(previousSession.subject),
+      this.subjectIndexKey(nextSession.subject),
+      serialize(nextSession),
+      this.serializeExpiresAt(nextSession.expiresAt),
+      previousSession.sessionId,
+      nextSession.sessionId,
+      String(toIndexScore(nextSession.expiresAt)),
+      previousSession.providerSessionId ? this.providerSessionIndexKey(previousSession.providerSessionId) : '',
+      nextSession.providerSessionId ? this.providerSessionIndexKey(nextSession.providerSessionId) : '',
+    ]);
 
-    if (session.providerSessionId) {
-      await this.addSessionIdToIndex(this.providerSessionIndexKey(session.providerSessionId), session.sessionId);
-    }
+    return result === 1 || result === '1';
   }
 
-  private async removeSessionIndexes(session: OidcVaultSession): Promise<void> {
-    await this.removeSessionIdFromIndex(this.subjectIndexKey(session.subject), session.sessionId);
-
-    if (session.providerSessionId) {
-      await this.removeSessionIdFromIndex(this.providerSessionIndexKey(session.providerSessionId), session.sessionId);
-    }
+  private async cleanupExpiredIndexMembers(indexKey: string): Promise<void> {
+    await this.sendCommand(['ZREMRANGEBYSCORE', indexKey, '-inf', String(this.now())]);
   }
 
-  private async addSessionIdToIndex(indexKey: string, sessionId: string): Promise<void> {
-    const sessionIds = await this.getSessionIndex(indexKey);
-    sessionIds.push(sessionId);
-    await this.setSessionIndex(indexKey, sessionIds);
+  private async getSessionIdsFromIndex(indexKey: string): Promise<string[]> {
+    const response = await this.sendCommand(['ZRANGE', indexKey, '0', '-1']);
+    return Array.isArray(response) ? response.filter((value): value is string => typeof value === 'string') : [];
   }
 
   private async removeSessionIdFromIndex(indexKey: string, sessionId: string): Promise<void> {
-    const sessionIds = await this.getSessionIndex(indexKey);
-    await this.setSessionIndex(
-      indexKey,
-      sessionIds.filter((currentSessionId) => currentSessionId !== sessionId),
-    );
+    await this.sendCommand(['ZREM', indexKey, sessionId]);
   }
 
-  private async deleteSessionsFromIndex(indexKey: string): Promise<number> {
-    const sessionIds = uniqueSessionIds(await this.getSessionIndex(indexKey));
+  private async deleteSessionsFromIndex(
+    indexKey: string,
+    scope: DeleteSessionsBySubjectInput | DeleteSessionsByProviderSessionIdInput,
+  ): Promise<number> {
+    await this.cleanupExpiredIndexMembers(indexKey);
+    const sessionIds = await this.getSessionIdsFromIndex(indexKey);
 
     if (sessionIds.length === 0) {
       return 0;
@@ -205,15 +329,27 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
       const session = await this.getSession(sessionId);
 
       if (!session) {
+        await this.removeSessionIdFromIndex(indexKey, sessionId);
         continue;
       }
 
-      await this.deleteSession(sessionId);
+      if (!matchesProviderScope(session, scope)) {
+        continue;
+      }
+
+      await this.deleteSessionRecord(session);
       deleted += 1;
     }
 
-    await this.client.del(indexKey);
     return deleted;
+  }
+
+  private serializeExpiresAt(expiresAt?: number): string {
+    return typeof expiresAt === 'number' ? String(expiresAt) : '';
+  }
+
+  private async sendCommand(args: string[]): Promise<unknown> {
+    return this.client.sendCommand!(args);
   }
 }
 

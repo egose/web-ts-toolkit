@@ -50,6 +50,10 @@ export function resolveOidcVaultConfig(config: OidcVaultConfig = {}): OidcVaultR
   const clientSecret = normalizeOptionalString(config.clientSecret);
   const scopes = normalizeOptionalString(config.scopes) ?? DEFAULT_OIDC_SCOPES;
 
+  if (!clientId) {
+    throw new Error('OIDC clientId is required.');
+  }
+
   if (issuer) {
     const resolved: Partial<OidcVaultResolvedConfig> = {
       mode: 'issuer',

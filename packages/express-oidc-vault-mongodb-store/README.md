@@ -57,6 +57,7 @@ app.use(
 - use MongoDB when your team already standardizes on Mongo and you want the auth vault data in the same operational platform
 - the provider uses separate collections for authorization transactions, exchange codes, and sessions
 - TTL indexes are created on `expiresAt`, and the provider also checks expiration on reads so behavior does not depend on Mongo's background TTL monitor timing
+- session rotation uses MongoDB transactions when connected to a replica set or sharded deployment, and falls back to conflict-safe rollback behavior on standalone servers
 
 ## Main Exports
 

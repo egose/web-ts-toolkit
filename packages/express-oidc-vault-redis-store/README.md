@@ -58,7 +58,9 @@ app.use(
 
 - use Redis in production when you need shared session state across multiple app instances
 - the provider stores JSON payloads under prefixed keys for sessions, auth transactions, and one-time exchange codes
-- one-time records use `GETDEL` when available, and fall back to `get` plus `del` for compatible client adapters
+- one-time records are consumed atomically through Redis commands instead of `get` plus `del`
+- session rotation and session indexes are updated atomically so concurrent refreshes do not fork multiple active sessions
+- the client must support `sendCommand(...)`; the official `redis` package already does
 
 ## Main Exports
 

@@ -1,3 +1,8 @@
+import {
+  OidcVaultStoreConflictError,
+  type DeleteSessionsByProviderSessionIdInput,
+  type DeleteSessionsBySubjectInput,
+} from '@web-ts-toolkit/express-oidc-vault';
 import type {
   AuthorizationTransaction,
   AuthorizationTransactionInput,
@@ -21,6 +26,28 @@ const cloneRecord = <T>(value: T): T => structuredClone(value);
 
 const isExpiredRecord = (value: ExpirableRecord, now: number): boolean =>
   typeof value.expiresAt === 'number' && value.expiresAt <= now;
+
+const matchesProviderScope = (
+  session: OidcVaultSession,
+  input: DeleteSessionsBySubjectInput | DeleteSessionsByProviderSessionIdInput,
+): boolean => {
+  if (input.issuer !== undefined && session.provider?.issuer !== input.issuer) {
+    return false;
+  }
+
+  if (input.clientId !== undefined && session.provider?.clientId !== input.clientId) {
+    return false;
+  }
+
+  return true;
+};
+
+const toSubjectDeleteInput = (input: string | DeleteSessionsBySubjectInput): DeleteSessionsBySubjectInput =>
+  typeof input === 'string' ? { subject: input } : input;
+
+const toProviderSessionDeleteInput = (
+  input: string | DeleteSessionsByProviderSessionIdInput,
+): DeleteSessionsByProviderSessionIdInput => (typeof input === 'string' ? { providerSessionId: input } : input);
 
 class MemoryOidcVaultStore implements OidcVaultStoreProvider {
   private readonly authorizationTransactions = new Map<string, AuthorizationTransaction>();
@@ -92,6 +119,11 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
 
   async rotateSession(input: RotateSessionInput): Promise<OidcVaultSession> {
     this.pruneExpiredRecords();
+
+    if (!this.sessions.has(input.sessionId)) {
+      throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
+    }
+
     this.sessions.delete(input.sessionId);
 
     const nextSession = cloneRecord(input.nextSession);
@@ -110,12 +142,13 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
     this.sessions.delete(sessionId);
   }
 
-  async deleteSessionsBySubject(subject: string): Promise<number> {
+  async deleteSessionsBySubject(input: string | DeleteSessionsBySubjectInput): Promise<number> {
     this.pruneExpiredRecords();
+    const resolved = toSubjectDeleteInput(input);
     let deleted = 0;
 
     for (const [sessionId, session] of this.sessions.entries()) {
-      if (session.subject === subject) {
+      if (session.subject === resolved.subject && matchesProviderScope(session, resolved)) {
         this.sessions.delete(sessionId);
         deleted += 1;
       }
@@ -124,12 +157,13 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
     return deleted;
   }
 
-  async deleteSessionsByProviderSessionId(providerSessionId: string): Promise<number> {
+  async deleteSessionsByProviderSessionId(input: string | DeleteSessionsByProviderSessionIdInput): Promise<number> {
     this.pruneExpiredRecords();
+    const resolved = toProviderSessionDeleteInput(input);
     let deleted = 0;
 
     for (const [sessionId, session] of this.sessions.entries()) {
-      if (session.providerSessionId === providerSessionId) {
+      if (session.providerSessionId === resolved.providerSessionId && matchesProviderScope(session, resolved)) {
         this.sessions.delete(sessionId);
         deleted += 1;
       }
