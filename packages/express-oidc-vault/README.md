@@ -480,6 +480,8 @@ app.use(
 
 ## Main Exports
 
+- `createOidcVaultAccessTokenMiddleware(...)`
+- `createOidcVaultJwtAccessTokenValidator(...)`
 - `createOidcVaultMiddleware(...)`
 - `DEFAULT_OIDC_VAULT_BASE_PATH`
 - `DEFAULT_AUTHORIZATION_TRANSACTION_TTL_MS`
@@ -493,6 +495,9 @@ app.use(
 - `type OidcVaultHooks`
 - `type OidcVaultStoreProvider`
 - `type OidcVaultSession`
+- `type OidcVaultAccessTokenValidator`
+- `type OidcVaultAuthenticatedRequest`
+- `type OidcVaultJwtAccessTokenValidatorOptions`
 - `type OidcVaultTokenIssuer`
 
 ## Key Integration Notes
@@ -618,6 +623,117 @@ That local token is separate from the upstream IdP access token:
 - the upstream refresh token stays in the server-side vault
 - the frontend receives only the app-issued access token and the opaque `sessionId`
 - the app-issued access token can contain only the claims your backend APIs actually need
+
+## Access Token Validation Middleware
+
+The OIDC route/session middleware and the normal API bearer-token middleware are separate concerns.
+
+Use `createOidcVaultMiddleware(...)` for:
+
+- login
+- callback
+- exchange
+- refresh
+- logout
+
+Use `createOidcVaultAccessTokenMiddleware(...)` for:
+
+- validating the app-issued local access token on protected API routes
+- attaching authenticated auth context to `req.auth`
+- rejecting missing, malformed, invalid, or expired bearer tokens with `401`
+
+```ts
+import express from 'express';
+import { createOidcVaultAccessTokenMiddleware } from '@web-ts-toolkit/express-oidc-vault';
+import { jwtVerify } from 'jose';
+
+const app = express();
+const jwtSecret = new TextEncoder().encode(process.env.APP_JWT_SECRET ?? 'dev-secret-change-me');
+
+app.get(
+  '/api/me',
+  createOidcVaultAccessTokenMiddleware({
+    validator: {
+      async validate(token) {
+        const result = await jwtVerify(token, jwtSecret, {
+          algorithms: ['HS256'],
+        });
+
+        return {
+          subject: String(result.payload.sub),
+          sessionId: typeof result.payload.sid === 'string' ? result.payload.sid : undefined,
+          scope: typeof result.payload.scope === 'string' ? result.payload.scope : undefined,
+          claims: result.payload as Record<string, unknown>,
+        };
+      },
+    },
+  }),
+  (req, res) => {
+    res.json({
+      subject: req.auth?.subject,
+      sessionId: req.auth?.sessionId,
+      scope: req.auth?.scope,
+    });
+  },
+);
+```
+
+Returned auth context shape:
+
+- `req.auth.token`
+- `req.auth.subject`
+- `req.auth.sessionId`
+- `req.auth.scope`
+- `req.auth.claims`
+
+The package augments Express request typing so `req.auth` is available without casting in TypeScript route handlers.
+
+### JWT validator helper
+
+If your local access token is a JWT, you can avoid rewriting the same `jwtVerify(...)` adapter each time.
+
+```ts
+import {
+  createOidcVaultAccessTokenMiddleware,
+  createOidcVaultJwtAccessTokenValidator,
+} from '@web-ts-toolkit/express-oidc-vault';
+
+const jwtSecret = new TextEncoder().encode(process.env.APP_JWT_SECRET ?? 'dev-secret-change-me');
+
+app.get(
+  '/api/me',
+  createOidcVaultAccessTokenMiddleware({
+    validator: createOidcVaultJwtAccessTokenValidator({
+      key: jwtSecret,
+      issuer: 'https://api.example.com',
+      audience: 'api-audience',
+      algorithms: ['HS256'],
+    }),
+  }),
+  (req, res) => {
+    res.json({
+      subject: req.auth?.subject,
+      sessionId: req.auth?.sessionId,
+      scope: req.auth?.scope,
+    });
+  },
+);
+```
+
+Default JWT claim mapping:
+
+- `sub` -> `auth.subject`
+- `sid` -> `auth.sessionId`
+- `scope` -> `auth.scope`
+- full verified payload -> `auth.claims`
+
+If you need a custom mapping, pass `mapClaims(...)` to `createOidcVaultJwtAccessTokenValidator(...)`.
+
+Recommended separation:
+
+- keep login/session lifecycle in `createOidcVaultMiddleware(...)`
+- keep normal API bearer validation in `createOidcVaultAccessTokenMiddleware(...)`
+- keep authorization decisions outside the validator middleware
 
 ## Hook Examples
 

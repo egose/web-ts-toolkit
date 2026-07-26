@@ -428,6 +428,94 @@ createOidcVaultMiddleware({
 
 That local access token is separate from the upstream IdP token. The upstream refresh token stays only in the server-side vault.
 
+## Access Token Validation Middleware
+
+Use a separate middleware for validating the app-issued local access token on normal API routes.
+
+```ts
+import express from 'express';
+import { createOidcVaultAccessTokenMiddleware } from '@web-ts-toolkit/express-oidc-vault';
+import { jwtVerify } from 'jose';
+
+const app = express();
+const jwtSecret = new TextEncoder().encode(process.env.APP_JWT_SECRET ?? 'dev-secret-change-me');
+
+app.get(
+  '/api/me',
+  createOidcVaultAccessTokenMiddleware({
+    validator: {
+      async validate(token) {
+        const result = await jwtVerify(token, jwtSecret, {
+          algorithms: ['HS256'],
+        });
+
+        return {
+          subject: String(result.payload.sub),
+          sessionId: typeof result.payload.sid === 'string' ? result.payload.sid : undefined,
+          scope: typeof result.payload.scope === 'string' ? result.payload.scope : undefined,
+          claims: result.payload as Record<string, unknown>,
+        };
+      },
+    },
+  }),
+  (req, res) => {
+    res.json({
+      subject: req.auth?.subject,
+      sessionId: req.auth?.sessionId,
+      scope: req.auth?.scope,
+    });
+  },
+);
+```
+
+This middleware:
+
+- reads `Authorization: Bearer ...`
+- delegates token validation to your `validator`
+- attaches `req.auth`
+- rejects missing, malformed, invalid, or expired tokens with `401`
+
+The package augments Express request typing so `req.auth` is available without casting in TypeScript route handlers.
+
+### JWT validator helper
+
+If your local access token is a JWT, you can use a built-in helper instead of writing the same `jwtVerify(...)` adapter manually.
+
+```ts
+import {
+  createOidcVaultAccessTokenMiddleware,
+  createOidcVaultJwtAccessTokenValidator,
+} from '@web-ts-toolkit/express-oidc-vault';
+
+const jwtSecret = new TextEncoder().encode(process.env.APP_JWT_SECRET ?? 'dev-secret-change-me');
+
+app.get(
+  '/api/me',
+  createOidcVaultAccessTokenMiddleware({
+    validator: createOidcVaultJwtAccessTokenValidator({
+      key: jwtSecret,
+      issuer: 'https://api.example.com',
+      audience: 'api-audience',
+      algorithms: ['HS256'],
+    }),
+  }),
+  (req, res) => {
+    res.json({
+      subject: req.auth?.subject,
+      sessionId: req.auth?.sessionId,
+      scope: req.auth?.scope,
+    });
+  },
+);
+```
+
+Default JWT claim mapping:
+
+- `sub` -> `auth.subject`
+- `sid` -> `auth.sessionId`
+- `scope` -> `auth.scope`
+- full verified payload -> `auth.claims`
+
 ## Hook Examples
 
 Hooks let the app observe or extend the OIDC flow without forking the middleware.
