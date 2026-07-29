@@ -1,3 +1,14 @@
+## [0.31.0](https://github.com/egose/web-ts-toolkit/compare/v0.30.0...v0.31.0) (2026-07-29)
+
+### Features
+
+* add model custom routes to access router runtime ([a21c9bc](https://github.com/egose/web-ts-toolkit/commit/a21c9bcf6422a30ffa2f480501cab86158fd8e79))
+
+### Documentation
+
+* expand package docs and utility exports ([cb89d2c](https://github.com/egose/web-ts-toolkit/commit/cb89d2c42b94402f2ccbbd5f354bc9110cf808a2))
+* refresh package and website documentation ([79f2fe5](https://github.com/egose/web-ts-toolkit/commit/79f2fe501c719763a95fc6269e5c1d0b27051459))
+
 ## [0.30.0](https://github.com/egose/web-ts-toolkit/compare/v0.29.0...v0.30.0) (2026-07-29)
 
 ### Features
