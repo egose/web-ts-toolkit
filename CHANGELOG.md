@@ -1,3 +1,15 @@
+## [0.29.0](https://github.com/egose/web-ts-toolkit/compare/v0.28.0...v0.29.0) (2026-07-29)
+
+### Features
+
+* add message request reservations and idempotent batch handling ([94875a7](https://github.com/egose/web-ts-toolkit/commit/94875a7a45049b091d0a91a5b50c147cb2f46506))
+* **utils:** add collection and string helpers ([1469447](https://github.com/egose/web-ts-toolkit/commit/14694474abe41d766d07127844cce00d00a9e7e1))
+
+### Bug Fixes
+
+* harden router handlers and CLI/runtime compatibility ([5e0d8e5](https://github.com/egose/web-ts-toolkit/commit/5e0d8e5212f75e6ca7d91eb69dad28efc2c7253b))
+* prevent prototype path mutations in utility helpers ([02c4004](https://github.com/egose/web-ts-toolkit/commit/02c40043156d01d260f7ce71cea1ee0a981e872e))
+
 ## [0.28.0](https://github.com/egose/web-ts-toolkit/compare/v0.27.0...v0.28.0) (2026-07-26)
 
 ### Features
