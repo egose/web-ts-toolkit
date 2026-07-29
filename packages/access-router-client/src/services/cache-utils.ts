@@ -1,4 +1,5 @@
 import { AxiosHeaders } from 'axios';
+import { omitBy } from '@web-ts-toolkit/utils';
 
 export const normalizeConfigValue = (value: unknown): unknown => {
   if (value == null) return value;
@@ -12,8 +13,7 @@ export const normalizeConfigValue = (value: unknown): unknown => {
   }
 
   if (typeof value === 'object') {
-    return Object.entries(value)
-      .filter(([, item]) => item !== undefined)
+    return Object.entries(omitBy(value as Record<string, unknown>, (item) => item === undefined))
       .sort(([left], [right]) => left.localeCompare(right))
       .reduce<Record<string, unknown>>((acc, [key, item]) => {
         acc[key] = normalizeConfigValue(item);

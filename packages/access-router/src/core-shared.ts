@@ -1,6 +1,7 @@
 import {
   castArray,
   arrayToRecord,
+  hasOwn,
   isArray,
   isBoolean,
   isEmpty,
@@ -59,7 +60,7 @@ function optimizeAndFilter<T = unknown>(clausesInput: unknown[]): Filter<T> | nu
     let canMerge = true;
 
     for (const [key, value] of Object.entries(clause)) {
-      if (Object.prototype.hasOwnProperty.call(mergedClause, key) && !isEqual(mergedClause[key], value)) {
+      if (hasOwn(mergedClause, key) && !isEqual(mergedClause[key], value)) {
         canMerge = false;
         break;
       }

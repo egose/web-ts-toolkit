@@ -1,5 +1,13 @@
 import { AxiosRequestConfig } from 'axios';
-import { assign as assignObject, cloneDeep, get as getValue, omit, pick, set as setValue } from '@web-ts-toolkit/utils';
+import {
+  assign as assignObject,
+  cloneDeep,
+  get as getValue,
+  hasOwn,
+  omit,
+  pick,
+  set as setValue,
+} from '@web-ts-toolkit/utils';
 import { Document } from './types';
 import { ModelService } from './services';
 
@@ -111,7 +119,7 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     const currentKeys = Object.keys(this._data);
     for (let x = 0; x < currentKeys.length; x++) {
       const key = currentKeys[x] as keyof TData;
-      if (!Object.prototype.hasOwnProperty.call(nextData, key)) {
+      if (!hasOwn(nextData, key)) {
         delete this._data[key];
       }
     }
@@ -177,7 +185,7 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
 
       Object.defineProperty(this, key, {
         enumerable: true,
-        get: () => (Object.prototype.hasOwnProperty.call(this._data, key) ? this._data[key as keyof TData] : null),
+        get: () => (hasOwn(this._data, key) ? this._data[key as keyof TData] : null),
         set: (value) => (this._data[key as keyof TData] = value),
       });
     }
