@@ -61,6 +61,7 @@ type ExpressRouter = ReturnType<typeof express.Router>;
 type JsonRouterMiddlewares = JsonRouterCallback | JsonRouterCallback[];
 type SharedHandlerProperty = 'errorMessageProvider' | 'preJson' | 'postJson' | 'preError' | 'postError';
 type RouteHandler = (...args: unknown[]) => unknown;
+type HandlerDefaults = Pick<ExpressResponseHandler, SharedHandlerProperty>;
 
 const success = {
   OK,
@@ -91,6 +92,18 @@ const toMiddlewareList = (middlewares?: JsonRouterCallback | JsonRouterCallback[
   }
 
   return Array.isArray(middlewares) ? middlewares : [middlewares];
+};
+
+const createResponseHandlerFromDefaults = (defaults: HandlerDefaults): ExpressResponseHandler => {
+  const handler = createHandler();
+
+  handler.errorMessageProvider = defaults.errorMessageProvider;
+  handler.preJson = defaults.preJson;
+  handler.postJson = defaults.postJson;
+  handler.preError = defaults.preError;
+  handler.postError = defaults.postError;
+
+  return handler;
 };
 
 /**
@@ -133,26 +146,34 @@ class JsonRouter {
   unlock!: RouteRegistrar;
   unsubscribe!: RouteRegistrar;
   private readonly _router: ExpressRouter;
+  private static defaultHandlerDefaults: HandlerDefaults = {
+    errorMessageProvider: DEFAULT_RESPONSE_HANDLER.errorMessageProvider,
+    preJson: DEFAULT_RESPONSE_HANDLER.preJson,
+    postJson: DEFAULT_RESPONSE_HANDLER.postJson,
+    preError: DEFAULT_RESPONSE_HANDLER.preError,
+    postError: DEFAULT_RESPONSE_HANDLER.postError,
+  };
 
-  private static getSharedHandlerProperty<Name extends SharedHandlerProperty>(
-    name: Name,
-  ): (typeof DEFAULT_RESPONSE_HANDLER)[Name] {
-    return DEFAULT_RESPONSE_HANDLER[name];
+  private static getSharedHandlerProperty<Name extends SharedHandlerProperty>(name: Name): HandlerDefaults[Name] {
+    return JsonRouter.defaultHandlerDefaults[name];
   }
 
   private static setSharedHandlerProperty<Name extends SharedHandlerProperty>(
     name: Name,
-    value: (typeof DEFAULT_RESPONSE_HANDLER)[Name],
+    value: HandlerDefaults[Name],
   ): void {
-    DEFAULT_RESPONSE_HANDLER[name] = value;
+    JsonRouter.defaultHandlerDefaults[name] = value;
   }
 
   static readonly clientErrors = clientErrors;
   static readonly success = success;
-  static readonly defaultHandler = DEFAULT_RESPONSE_HANDLER;
   static readonly HttpResponse = HttpResponse;
   static readonly ErrorFormats = ErrorFormats;
   static readonly createHandler = createHandler;
+
+  static get defaultHandler(): ExpressResponseHandler {
+    return createResponseHandlerFromDefaults(JsonRouter.defaultHandlerDefaults);
+  }
 
   static get errorMessageProvider(): typeof DEFAULT_RESPONSE_HANDLER.errorMessageProvider {
     return JsonRouter.getSharedHandlerProperty('errorMessageProvider');
@@ -197,7 +218,7 @@ class JsonRouter {
   constructor(
     basePath = '',
     middlewares?: JsonRouterMiddlewares,
-    responseHandler: ExpressResponseHandler = DEFAULT_RESPONSE_HANDLER,
+    responseHandler: ExpressResponseHandler = JsonRouter.defaultHandler,
   ) {
     this.basePath = normalizeBasePath(basePath);
     this.middlewares = toMiddlewareList(middlewares);

@@ -3,6 +3,30 @@ import { ResponseCallback } from '../types';
 import { CustomHeaders } from '../enums';
 import { ResultError, ServiceError } from './service';
 
+type ListResultShape = {
+  raw: unknown;
+  data: unknown;
+  totalCount?: number;
+  headers: Record<string, unknown>;
+};
+
+const toResultError = (result: { success: boolean } & Partial<ResultError>): ResultError => ({
+  success: false,
+  raw: result.raw ?? null,
+  data: result.data ?? null,
+  message: result.message ?? '',
+  status: result.status ?? 0,
+  headers: result.headers ?? {},
+});
+
+const isLegacyListPayload = <TData>(value: unknown): value is { count: number; rows: TData[] } => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  return 'count' in value && typeof value.count === 'number' && 'rows' in value && Array.isArray(value.rows);
+};
+
 export const setDefaultObjectProp = (obj: object, key: string, value: unknown) => {
   if (!get(obj, key)) {
     set(obj, key, value);
@@ -17,7 +41,7 @@ export const createResponseHandler = (
   const successHandler = onSuccess ?? noop;
   const failureHandler = onFailure ?? noop;
 
-  return <T extends { success: boolean }>(res: T, shouldThrowOnError = throwOnError) => {
+  return <T extends { success: boolean }>(res: T, shouldThrowOnError = throwOnError): T => {
     if (res.success) {
       successHandler(res);
       return res;
@@ -25,7 +49,7 @@ export const createResponseHandler = (
 
     failureHandler(res);
     if (shouldThrowOnError) {
-      throw new ServiceError(res as unknown as ResultError);
+      throw new ServiceError(toResultError(res));
     }
 
     return res;
@@ -33,10 +57,10 @@ export const createResponseHandler = (
 };
 
 export function processListResult<TResult, TData>(
-  result: TResult,
+  result: TResult & ListResultShape,
   { includeCount, includeExtraHeaders }: { includeCount: boolean; includeExtraHeaders: boolean },
   wrapItem?: (item: TData) => unknown,
-): TResult {
+): TResult & ListResultShape {
   const wrappedRows = get(result, 'raw.data');
   const wrappedTotalCount = get(result, 'raw.meta.totalCount');
 
@@ -57,9 +81,13 @@ export function processListResult<TResult, TData>(
       const totalCount = get(result, `headers.${CustomHeaders.TotalCount}`, 0);
       result.totalCount = Number(totalCount);
     } else {
-      const listData = result.raw as unknown as { count: number; rows: TData[] };
-      result.totalCount = listData.count;
-      result.raw = listData.rows;
+      if (isLegacyListPayload<TData>(result.raw)) {
+        result.totalCount = result.raw.count;
+        result.raw = result.raw.rows;
+      } else {
+        result.totalCount = 0;
+        result.raw = [];
+      }
     }
   }
 

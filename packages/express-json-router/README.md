@@ -41,6 +41,32 @@ app.use(router.original);
 - `JsonRouter.createHandler(...)`
 - `JsonRouter.ErrorFormats`
 
+## Handler Defaults
+
+`JsonRouter` still exposes static customization points such as:
+
+- `JsonRouter.errorMessageProvider`
+- `JsonRouter.preJson`
+- `JsonRouter.postJson`
+- `JsonRouter.preError`
+- `JsonRouter.postError`
+
+These now behave as defaults for future `new JsonRouter(...)` instances.
+
+- Updating a static property affects routers created after that change.
+- Existing routers keep the response-handler instance they were constructed with.
+- For fully isolated behavior, pass an explicit handler instance as the third constructor argument.
+
+```ts
+const handler = JsonRouter.createHandler({
+  errorFormat: JsonRouter.ErrorFormats.rfc9457,
+});
+
+handler.errorMessageProvider = () => 'custom-error';
+
+const router = new JsonRouter('/api', undefined, handler);
+```
+
 ## Documentation
 
 Full package documentation lives in `website/docs/packages/express-json-router.md`.

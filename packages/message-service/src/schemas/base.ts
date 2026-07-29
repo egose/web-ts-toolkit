@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 /** Model name constants — use these when calling mongoose.model() or getModel() */
 export const MESSAGE_MODEL_NAME = 'Message';
 export const MESSAGE_ARCHIVE_MODEL_NAME = 'MessageArchive';
+export const MESSAGE_REQUEST_MODEL_NAME = 'MessageRequest';
 
 export const MessageContentSchema = new mongoose.Schema(
   {
@@ -40,4 +41,5 @@ export const BaseMessageFields: Record<string, mongoose.SchemaTypeOptions<unknow
   payload: { type: mongoose.Schema.Types.Mixed, default: {} },
   display: { type: mongoose.Schema.Types.Mixed, default: {} },
   clientRequestId: { type: String, default: null },
+  clientRequestItemIndex: { type: Number, default: null },
 };

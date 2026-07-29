@@ -285,19 +285,40 @@ export class Base<TModel = unknown> {
   }
 
   private async includeDocsCount(docs, include: Include) {
-    const { model, path, localField, foreignField, filter: _filters } = include;
+    const { model, path, localField, foreignField, filter: _filters, args = {}, options = {} } = include;
 
     const svc = this.req.macl.getPublicService(model);
     if (!svc) return docs;
 
+    const includeLocalValues = [];
+    forEach(docs, (doc) => {
+      includeLocalValues.push(get(doc, localField));
+    });
+
+    const filter = { ...(_filters ?? {}), [foreignField]: { $in: flatten(includeLocalValues) } };
+    const result = await svc.find(
+      filter,
+      {
+        ...(args as Record<string, unknown>),
+        select: [foreignField],
+      },
+      {
+        ...(options as Record<string, unknown>),
+        lean: true,
+        includePermissions: false,
+        includeCount: false,
+      },
+    );
+
+    if (!result.success) return docs;
+
     for (let y = 0; y < docs.length; y++) {
       const doc = docs[y];
       const localValue = get(doc, localField);
-      const filter = { ...(_filters ?? {}), [foreignField]: localValue };
-      const result = await svc.count(filter);
-      if (!result.success) continue;
+      const filterFn = (row) =>
+        intersectionBy(castArray(localValue), castArray(get(row, foreignField)), String).length > 0;
 
-      setDocValue(doc, path, result.data);
+      setDocValue(doc, path, result.data.filter(filterFn).length);
     }
 
     return docs;

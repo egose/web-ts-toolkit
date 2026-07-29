@@ -172,6 +172,16 @@ export function buildMessageSchema(config?: MessageSchemaConfig): mongoose.Schem
 
   schema.index({ createdAt: 1 });
   schema.index({ clientRequestId: 1 }, { sparse: true });
+  schema.index(
+    { clientRequestId: 1, clientRequestItemIndex: 1 },
+    {
+      unique: true,
+      partialFilterExpression: {
+        clientRequestId: { $type: 'string' },
+        clientRequestItemIndex: { $type: 'number' },
+      },
+    },
+  );
 
   schema.methods.isSender = isSender;
   schema.methods.isReceiver = isReceiver;

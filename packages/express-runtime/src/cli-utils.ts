@@ -715,7 +715,7 @@ export function loadEnvFiles(paths: string[]): void {
 }
 
 const moduleRequire: NodeRequire = createRequire(
-  (typeof import.meta !== 'undefined' && import.meta.url) || pathResolve(process.cwd(), 'x').replace(/x$/, ''),
+  pathToFileURL(pathResolve(process.cwd(), '__wtt_runtime_preload__.js')),
 );
 
 /**
@@ -1020,7 +1020,11 @@ export function applyServerlessResult(result: unknown, res: Response): void {
   if (r.headers && typeof r.headers === 'object') {
     for (const [key, value] of Object.entries(r.headers)) {
       if (value !== undefined) {
-        res.setHeader(key, Array.isArray(value) ? value.join(',') : value);
+        if (Array.isArray(value) && key.toLowerCase() === 'set-cookie') {
+          res.setHeader(key, value);
+        } else {
+          res.setHeader(key, Array.isArray(value) ? value.join(',') : value);
+        }
       }
     }
   }

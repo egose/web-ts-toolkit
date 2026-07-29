@@ -15,8 +15,8 @@ Peer dependencies:
 
 ## Highlights
 
-- **Message & MessageArchive schemas** — drop-in Mongoose schemas with timestamps, indexes, and archiving
-- **Schema factories** — `buildMessageSchema(config?)` and `buildMessageArchiveSchema()` for per-app configuration
+- **Message persistence schemas** — `Message`, `MessageArchive`, and `MessageRequest` schemas with timestamps, indexes, archiving, and idempotency reservations
+- **Schema factories** — `buildMessageSchema(config?)`, `buildMessageArchiveSchema()`, and `buildMessageRequestSchema()` for per-app configuration
 - **Template engine** — Handlebars interpolation for sender/receiver content
 - **Template registry** — register and lookup templates by `templateCd` (per-instance or global)
 - **Action system** — validate permissions, run handlers, archive messages, send notifications
@@ -29,9 +29,23 @@ Peer dependencies:
 
 ```typescript
 import mongoose from 'mongoose';
-import { createMessageRoutes, defaultRegistry, MessageTemplate } from '@web-ts-toolkit/message-service';
+import {
+  buildMessageArchiveSchema,
+  buildMessageRequestSchema,
+  buildMessageSchema,
+  createMessageRoutes,
+  defaultRegistry,
+  MESSAGE_ARCHIVE_MODEL_NAME,
+  MESSAGE_MODEL_NAME,
+  MESSAGE_REQUEST_MODEL_NAME,
+  MessageTemplate,
+} from '@web-ts-toolkit/message-service';
 
 await mongoose.connect('mongodb://localhost/mydb');
+
+mongoose.model(MESSAGE_MODEL_NAME, buildMessageSchema());
+mongoose.model(MESSAGE_ARCHIVE_MODEL_NAME, buildMessageArchiveSchema());
+mongoose.model(MESSAGE_REQUEST_MODEL_NAME, buildMessageRequestSchema());
 
 const myTemplate: MessageTemplate = {
   /* ... */
@@ -133,13 +147,29 @@ registry.clear();
 ### Schema factories
 
 ```typescript
-import { buildMessageSchema, buildMessageArchiveSchema, MESSAGE_MODEL_NAME } from '@web-ts-toolkit/message-service';
+import {
+  buildMessageSchema,
+  buildMessageArchiveSchema,
+  buildMessageRequestSchema,
+  MESSAGE_MODEL_NAME,
+  MESSAGE_ARCHIVE_MODEL_NAME,
+  MESSAGE_REQUEST_MODEL_NAME,
+} from '@web-ts-toolkit/message-service';
 
 const Message = mongoose.model(MESSAGE_MODEL_NAME, buildMessageSchema());
-const MessageArchive = mongoose.model('MessageArchive', buildMessageArchiveSchema());
+const MessageArchive = mongoose.model(MESSAGE_ARCHIVE_MODEL_NAME, buildMessageArchiveSchema());
+const MessageRequest = mongoose.model(MESSAGE_REQUEST_MODEL_NAME, buildMessageRequestSchema());
 ```
 
 `buildMessageSchema({ emailNotifier, emailNotificationExclusions, userModelName, archiveModelName })` lets you opt in to email notifications with per-template exclusions. When `emailNotifier` is `null` (the default), no pre-save hook is registered.
+
+When you use `clientRequestId`, register all three models. `MessageRequest` stores the reservation record that prevents duplicate side effects during concurrent duplicate requests.
+
+### Idempotent create notes
+
+- `clientRequestId` is safe for concurrent retries only when `MessageRequest` is registered.
+- The winning request reserves the idempotency key before template preparation or payment-session creation runs.
+- Losing requests wait for the winning request to finish, then return the same created messages or the same empty result.
 
 ### Typed errors
 

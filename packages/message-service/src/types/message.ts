@@ -64,6 +64,8 @@ export interface IBaseMessage {
   paymentCd: string;
   payload: Record<string, unknown>;
   display: Record<string, unknown>;
+  clientRequestId: string | null;
+  clientRequestItemIndex: number | null;
   createdAt: Date;
   updatedAt: Date;
 }

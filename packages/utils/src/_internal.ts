@@ -3,6 +3,7 @@ export type Dictionary<T = unknown> = Record<string, T>;
 export type Collection<T = unknown> = T[] | Dictionary<T> | null | undefined;
 
 const pathPattern = /[^.[\]]+|\[(?:([^"'[\]]+)|["']([^"']+)["'])\]/g;
+const unsafePathParts = new Set(['__proto__', 'constructor', 'prototype']);
 
 export function isObject(value: unknown): value is object {
   return value !== null && (typeof value === 'object' || typeof value === 'function');
@@ -43,6 +44,17 @@ export function toPath(path: PropertyPath): Array<string | number> {
   });
 
   return result.length > 0 ? result : [input];
+}
+
+function hasUnsafePathPart(parts: Array<string | number>): boolean {
+  for (let index = 0; index < parts.length; index++) {
+    const part = parts[index];
+    if (typeof part === 'string' && unsafePathParts.has(part)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export function hasPath(value: unknown, path: PropertyPath): boolean {
@@ -89,7 +101,7 @@ export function setPath<T>(target: T, path: PropertyPath, value: unknown): T {
   }
 
   const parts = toPath(path);
-  if (parts.length === 0) {
+  if (parts.length === 0 || hasUnsafePathPart(parts)) {
     return target;
   }
 
@@ -116,7 +128,7 @@ export function deletePath(target: unknown, path: PropertyPath) {
   }
 
   const parts = toPath(path);
-  if (parts.length === 0) {
+  if (parts.length === 0 || hasUnsafePathPart(parts)) {
     return;
   }
 

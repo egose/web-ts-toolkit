@@ -11,8 +11,29 @@ import type { ModelRouterOptions } from '@web-ts-toolkit/access-router';
 import { createAdapter, DataService, ModelService } from '../../src';
 
 const MONGO_TIMEOUT = 120_000;
+const MONGO_START_RETRY_COUNT = 3;
 const USER_MODEL_NAME = 'AdapterJsIntegrationUser';
 const ORG_MODEL_NAME = 'AdapterJsIntegrationOrg';
+
+const isPortInUseError = (error: unknown): boolean =>
+  error instanceof Error && /Port ".+" already in use/.test(error.message);
+
+async function createMongoMemoryServerWithRetry(): Promise<MongoMemoryServer> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < MONGO_START_RETRY_COUNT; attempt++) {
+    try {
+      return await MongoMemoryServer.create();
+    } catch (error) {
+      lastError = error;
+      if (!isPortInUseError(error) || attempt === MONGO_START_RETRY_COUNT - 1) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError;
+}
 
 export interface Org {
   _id?: string;
@@ -143,7 +164,7 @@ export function setupIntegrationSuite() {
   } as unknown as NonNullable<ModelRouterOptions<User>['requestSchemas']>;
 
   beforeAll(async () => {
-    mongoServer = await MongoMemoryServer.create();
+    mongoServer = await createMongoMemoryServerWithRetry();
     await mongoose.connect(mongoServer.getUri(), { dbName: 'access-router-client-test' });
 
     const runtime = createAccessRuntime();
@@ -308,15 +329,21 @@ export function setupIntegrationSuite() {
   });
 
   afterAll(async () => {
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => {
-        if (error) reject(error);
-        else resolve();
+    if (server) {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
       });
-    });
+    }
 
-    await mongoose.disconnect();
-    await mongoServer.stop();
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.disconnect();
+    }
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
   }, MONGO_TIMEOUT);
 
   return {
