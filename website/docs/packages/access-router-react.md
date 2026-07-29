@@ -17,6 +17,13 @@ npm install react @web-ts-toolkit/access-router-react @web-ts-toolkit/access-rou
 
 Peer dependencies: `react ^18 || ^19` and `@web-ts-toolkit/access-router-client`.
 
+## What It Exposes
+
+- `createModelHooks(...)`
+- query hooks: `useRead`, `useList`, `useCount`, `useDistinct`
+- mutation hooks: `useCreate`, `useUpdate`, `useUpsert`, `useDelete`
+- hook option and result types for the query and mutation APIs
+
 ## Quick Start
 
 ```tsx
@@ -42,9 +49,11 @@ function OrganizationList() {
 
   return (
     <ul>
+
       {data.map((org) => (
         <li key={org._id}>{org.name}</li>
       ))}
+
     </ul>
   );
 }
@@ -267,3 +276,8 @@ Use explicit mutation hooks when you want local pending and error state around a
 - They are thin stateful wrappers over `ModelService` from `@web-ts-toolkit/access-router-client`.
 - `requestConfig` is forwarded to the underlying client request and can include headers, `signal`, and transport-specific options.
 - If you need cache orchestration, use these services underneath a query library.
+
+## Related Packages
+
+- [`@web-ts-toolkit/access-router-client`](./access-router-client)
+- [`@web-ts-toolkit/access-router`](./access-router)

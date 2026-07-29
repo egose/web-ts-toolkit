@@ -19,7 +19,32 @@ This package includes:
 npm install mongoose @web-ts-toolkit/moo
 ```
 
-## Usage
+## What It Exposes
+
+### Published Entry Points
+
+Root entrypoint:
+
+- schema helpers such as `uniqueNullableString(...)`
+- `isObjectId(...)`
+
+Published subpaths:
+
+- `@web-ts-toolkit/moo/schema` for schema field helpers
+- `@web-ts-toolkit/moo/is` for type guards such as `isObjectId(...)`
+- `@web-ts-toolkit/moo/utils` for schema and reference helpers such as `isSchema(...)`, `isObjectIdType(...)`, and `isReference(...)`
+- `@web-ts-toolkit/moo/plugins` for the shared plugin entrypoint
+- `@web-ts-toolkit/moo/plugins/cascade-delete` for the cascade-delete plugin
+- `@web-ts-toolkit/moo/plugins/model-function` for the model-function plugin
+
+Example subpath imports:
+
+```ts
+import { isObjectId } from '@web-ts-toolkit/moo/is';
+import { cascadeDeletePlugin } from '@web-ts-toolkit/moo/plugins/cascade-delete';
+```
+
+## Quick Start
 
 ### Schema helpers
 
@@ -33,6 +58,12 @@ const userSchema = new Schema({
 });
 ```
 
+The dedicated schema subpath is also available when you want the import to point directly at field helpers:
+
+```ts
+import { uniqueNullableString } from '@web-ts-toolkit/moo/schema';
+```
+
 ### ObjectId checks
 
 ```ts
@@ -41,6 +72,20 @@ import { isObjectId } from '@web-ts-toolkit/moo';
 if (!isObjectId(value)) {
   throw new Error('expected a valid MongoDB ObjectId');
 }
+```
+
+### Utilities subpath
+
+```ts
+import { Schema } from 'mongoose';
+import { isReference, isSchema } from '@web-ts-toolkit/moo/utils';
+
+const userSchema = new Schema({
+  manager: { type: Schema.Types.ObjectId, ref: 'User' },
+});
+
+isSchema(userSchema);
+isReference({ type: Schema.Types.ObjectId, ref: 'User' }, 'User');
 ```
 
 ### Model function plugin
@@ -130,3 +175,14 @@ async function example(file: mongoose.HydratedDocument<File, FileMethods>) {
   orphans?.[0]?.name;
 }
 ```
+
+If you prefer importing the plugin from its dedicated published entrypoint instead of the grouped `plugins` subpath, use:
+
+```ts
+import { cascadeDeletePlugin } from '@web-ts-toolkit/moo/plugins/cascade-delete';
+```
+
+## Related Packages
+
+- [`@web-ts-toolkit/access-router`](./access-router)
+- [`@web-ts-toolkit/access-router-runtime`](./access-router-runtime)

@@ -31,7 +31,12 @@ Main entrypoint:
 - `createAccessRouterRuntime(config)`
 - `createAccessRouterRuntimeApp(config)`
 - `createAccessRouterRuntimeServerlessHandler(config, options?)`
+- `loadAccessRouterRuntime(path, options?)`
 - `loadAccessRouterRuntimeConfigSync(path)`
+
+Published extras:
+
+- `@web-ts-toolkit/access-router-runtime/tsconfig.json` for a reusable strict TypeScript config base when authoring runtime config modules
 
 CLI binary:
 
@@ -96,6 +101,39 @@ export default defineRuntimeConfig({
 });
 ```
 
+For a fuller in-repo starter, see `packages/access-router-runtime/examples/basic/access-router.config.ts`.
+
+## CLI
+
+The runtime CLI mirrors the `express-runtime` commands, but starts from a config file instead of a hand-wired app module.
+
+### Local dev
+
+```bash
+wtt-access-router-runtime dev ./src/access-router.config.ts --env .env --port 3000
+```
+
+### Build a local runtime bundle
+
+```bash
+wtt-access-router-runtime build ./src/access-router.config.ts --out-dir dist
+```
+
+### Build a serverless bundle
+
+```bash
+wtt-access-router-runtime build-serverless ./src/access-router.config.ts --out-dir netlify/functions
+```
+
+### Start built artifacts
+
+These are pass-through wrappers to `wtt-express-runtime`:
+
+```bash
+wtt-access-router-runtime start ./dist/app.js --port 3000
+wtt-access-router-runtime start-serverless ./netlify/functions/handler.js --port 9000
+```
+
 ## Relationship To The Lower-Level Packages
 
 `access-router-runtime` does not replace the two core packages. It composes them.
@@ -105,6 +143,45 @@ export default defineRuntimeConfig({
 - `@web-ts-toolkit/access-router-runtime` adds a config layer so those two packages can be used with less application boilerplate.
 
 If you want full low-level control over app wiring, use the two core packages directly. If your API is mostly generated model/data/root routes, this package is the shorter path.
+
+## Loading A Runtime Instance
+
+If you want a fully constructed runtime from a config file path, use `loadAccessRouterRuntime(...)` instead of loading the config and wiring the runtime separately.
+
+```ts
+import { loadAccessRouterRuntime } from '@web-ts-toolkit/access-router-runtime';
+
+const runtime = loadAccessRouterRuntime('./src/access-router.config.ts');
+
+export const app = runtime.app;
+export const handler = runtime.createServerlessHandler();
+```
+
+## Programmatic Runtime Creation
+
+If your app already owns the config object in code, create the runtime directly:
+
+```ts
+import config from './access-router.config';
+import { createAccessRouterRuntime } from '@web-ts-toolkit/access-router-runtime';
+
+const runtime = createAccessRouterRuntime(config);
+
+export const app = runtime.app;
+export const handler = runtime.createServerlessHandler();
+```
+
+## TypeScript Config Helper
+
+The package also publishes `@web-ts-toolkit/access-router-runtime/tsconfig.json`.
+
+Use it when you want a small shared baseline for runtime-config files:
+
+```json
+{
+  "extends": "@web-ts-toolkit/access-router-runtime/tsconfig.json"
+}
+```
 
 ## Config Shape
 
@@ -146,37 +223,6 @@ customRoutes: [
 ```
 
 With `basePath: '/api/users'`, that route mounts at `/api/users/:id/profile`.
-
-## CLI
-
-The CLI mirrors the `express-runtime` commands, but `dev`, `build`, and `build-serverless` start from a config file instead of a hand-written app module.
-
-### Local dev
-
-```bash
-wtt-access-router-runtime dev ./src/access-router.config.ts --env .env --port 3000
-```
-
-### Build a local runtime bundle
-
-```bash
-wtt-access-router-runtime build ./src/access-router.config.ts --out-dir dist
-```
-
-### Build a serverless bundle
-
-```bash
-wtt-access-router-runtime build-serverless ./src/access-router.config.ts --out-dir netlify/functions
-```
-
-### Start built artifacts
-
-These are pass-through wrappers to `wtt-express-runtime`:
-
-```bash
-wtt-access-router-runtime start ./dist/app.js --port 3000
-wtt-access-router-runtime start-serverless ./netlify/functions/handler.js --port 9000
-```
 
 ## In-Repo Example
 

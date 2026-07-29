@@ -20,16 +20,28 @@ npm install @web-ts-toolkit/utils
 The package exports individual functions from the root entrypoint, including:
 
 - object helpers: `get`, `set`, `hasOwn`, `pick`, `pickBy`, `omit`, `omitBy`, `assign`, `cloneDeep`, `keys`, `toStringRecord`
-- array and collection helpers: `map`, `filter`, `reduce`, `find`, `forEach`, `flatten`, `flattenDeep`, `compact`, `uniq`, `uniqBy`, `difference`, `intersection`, `intersectionBy`, `orderBy`
+- array and collection helpers: `map`, `filter`, `reduce`, `find`, `forEach`, `flatten`, `flattenDeep`, `compact`, `uniq`, `uniqBy`, `difference`, `intersection`, `intersectionBy`, `groupBy`, `sum`, `sumBy`, `orderBy`
 - type guards: `isArray`, `isBoolean`, `isEmpty`, `isEqual`, `isFunction`, `isMatch`, `isNaN`, `isNil`, `isNumber`, `isObject`, `isPlainObject`, `isPromise`, `isString`, `isUndefined`
 - URL helpers: `addLeadingSlash`, `removeConsecutiveSlashesFromUrl`, `normalizeUrlPath`
 - async helpers: `mapValuesAsync`, `toAsyncFn`
-- misc helpers: `castArray`, `arrayToRecord`, `mapValues`, `noop`, `padEnd`, `parseBooleanString`
+- string helpers: `startCase`, `upperCase`
+- misc helpers: `castArray`, `arrayToRecord`, `mapValues`, `mapKeys`, `noop`, `padEnd`, `parseBooleanString`
 
 ## Quick Start
 
 ```ts
-import { get, hasOwn, normalizeUrlPath, orderBy, parseBooleanString, set, uniqBy } from '@web-ts-toolkit/utils';
+import {
+  get,
+  groupBy,
+  hasOwn,
+  normalizeUrlPath,
+  orderBy,
+  parseBooleanString,
+  set,
+  startCase,
+  sumBy,
+  uniqBy,
+} from '@web-ts-toolkit/utils';
 
 const payload = {
   user: {
@@ -55,6 +67,15 @@ uniqBy(
   'id',
 );
 
+groupBy(
+  [
+    { type: 'fruit', name: 'apple' },
+    { type: 'fruit', name: 'banana' },
+    { type: 'vegetable', name: 'carrot' },
+  ],
+  'type',
+);
+
 orderBy(
   [
     { name: 'B', score: 2 },
@@ -64,6 +85,9 @@ orderBy(
   ['score', 'name'],
   ['desc', 'asc'],
 );
+
+startCase('api_response_time');
+sumBy([{ hours: 2 }, { hours: 3 }], 'hours');
 ```
 
 ## Common Use Cases
@@ -108,6 +132,49 @@ import { orderBy } from '@web-ts-toolkit/utils';
 const sorted = orderBy(users, ['lastName', 'firstName'], ['asc', 'asc']);
 ```
 
+### Grouping and totals
+
+```ts
+import { groupBy, sumBy } from '@web-ts-toolkit/utils';
+
+const grouped = groupBy(
+  [
+    { team: 'api', hours: 3 },
+    { team: 'api', hours: 5 },
+    { team: 'web', hours: 2 },
+  ],
+  'team',
+);
+
+const totalHours = sumBy(grouped.api, 'hours');
+```
+
+### Async object mapping
+
+```ts
+import { mapValuesAsync } from '@web-ts-toolkit/utils';
+
+const result = await mapValuesAsync(
+  {
+    users: '/api/users/count',
+    projects: '/api/projects/count',
+  },
+  async (url) => {
+    const response = await fetch(url);
+    return await response.json();
+  },
+);
+```
+
+### String normalization helpers
+
+```ts
+import { startCase, upperCase } from '@web-ts-toolkit/utils';
+
+startCase('api_response_time');
+upperCase('build id');
+```
+
 ### Filtering object records
 
 ```ts
@@ -121,3 +188,8 @@ const requestHeaders = omitBy(headers, (value) => value === undefined);
 Use `@web-ts-toolkit/utils` when you want small shared helpers without pulling in a larger utility library.
 
 If you only need one or two language-level operations, native JavaScript is usually simpler.
+
+## Related Packages
+
+- [`@web-ts-toolkit/http-errors`](./http-errors)
+- [`@web-ts-toolkit/moo`](./moo)

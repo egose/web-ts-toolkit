@@ -122,7 +122,29 @@ Main exports:
 - `createAccessRouterRuntime(config)`
 - `createAccessRouterRuntimeApp(config)`
 - `createAccessRouterRuntimeServerlessHandler(config, options?)`
+- `loadAccessRouterRuntime(path, options?)`
 - `loadAccessRouterRuntimeConfigSync(path)`
+
+You can also load and instantiate the runtime directly from a config path:
+
+```ts
+import { loadAccessRouterRuntime } from '@web-ts-toolkit/access-router-runtime';
+
+const runtime = loadAccessRouterRuntime('./src/access-router.config.ts');
+
+export const app = runtime.app;
+export const handler = runtime.createServerlessHandler();
+```
+
+## TypeScript Config Helper
+
+The package also publishes `@web-ts-toolkit/access-router-runtime/tsconfig.json`.
+
+```json
+{
+  "extends": "@web-ts-toolkit/access-router-runtime/tsconfig.json"
+}
+```
 
 ## Config Shape
 

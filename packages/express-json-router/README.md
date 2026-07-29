@@ -38,6 +38,7 @@ app.use(router.original);
 - `JsonRouter`
 - `JsonRouter.HttpResponse`
 - `JsonRouter.clientErrors`
+- `JsonRouter.success`
 - `JsonRouter.createHandler(...)`
 - `JsonRouter.ErrorFormats`
 

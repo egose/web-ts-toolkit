@@ -28,6 +28,7 @@ Peer dependencies:
 ## Quick Start
 
 ```typescript
+import express from 'express';
 import mongoose from 'mongoose';
 import {
   buildMessageArchiveSchema,
@@ -40,6 +41,9 @@ import {
   MESSAGE_REQUEST_MODEL_NAME,
   MessageTemplate,
 } from '@web-ts-toolkit/message-service';
+
+const app = express();
+const myAuthMiddleware: express.RequestHandler = (_req, _res, next) => next();
 
 await mongoose.connect('mongodb://localhost/mydb');
 
@@ -191,9 +195,13 @@ The route factory translates these to 404/400/403 HTTP responses via `@web-ts-to
 ```typescript
 import { EmailProvider } from '@web-ts-toolkit/message-service';
 
+async function sendWithProvider(to: string, subject: string, text: string): Promise<void> {
+  void { to, subject, text };
+}
+
 class SendGridEmailProvider implements EmailProvider {
   async sendNotification(to: string, title: string, body: string) {
-    await sgMail.send({ to, from: 'noreply@example.com', subject: title, text: body });
+    await sendWithProvider(to, title, body);
   }
 }
 ```
@@ -205,18 +213,28 @@ Pass it to `buildMessageSchema({ emailNotifier: provider.sendNotification.bind(p
 ```typescript
 import { PaymentProvider } from '@web-ts-toolkit/message-service';
 
+async function createCheckoutSession(user: unknown, code: string, priceArgs: unknown): Promise<string> {
+  void { user, code, priceArgs };
+  return 'session_123';
+}
+
+async function expireCheckoutSession(sessionId: string): Promise<void> {
+  void sessionId;
+}
+
+async function refundCheckoutSession(sessionId: string): Promise<void> {
+  void sessionId;
+}
+
 class StripePaymentProvider implements PaymentProvider {
   async createSession(user, code, priceArgs) {
-    const session = await stripe.checkout.sessions.create({
-      /* ... */
-    });
-    return session.id;
+    return await createCheckoutSession(user, code, priceArgs);
   }
   async expireSession(sessionId) {
-    await stripe.checkout.sessions.expire(sessionId);
+    await expireCheckoutSession(sessionId);
   }
   async refundPayment(sessionId) {
-    await stripe.refunds.create({ payment_intent: sessionId });
+    await refundCheckoutSession(sessionId);
   }
 }
 ```

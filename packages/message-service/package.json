@@ -5,10 +5,6 @@
   "version": "0.0.0-PLACEHOLDER",
   "license": "PLACEHOLDER",
   "repository": "PLACEHOLDER",
-  "sideEffects": [
-    "./dist/schemas/message.js",
-    "./dist/schemas/message-archive.js"
-  ],
   "keywords": [
     "mongoose",
     "messaging",

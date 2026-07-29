@@ -195,3 +195,9 @@ Use `access-router-client` when you want:
 - a consistent error contract without hand-writing Axios wrappers
 
 If you only need HTTP requests and do not use `access-router`, plain Axios is usually simpler.
+
+## Related Packages
+
+- [`@web-ts-toolkit/access-router`](../access-router)
+- [`@web-ts-toolkit/access-router-react`](../access-router-react)
+- [`@web-ts-toolkit/access-router-runtime`](../access-router-runtime)
