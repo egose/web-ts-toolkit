@@ -19,7 +19,7 @@ pnpm add @web-ts-toolkit/utils
 ## Quick Start
 
 ```ts
-import { get, set, normalizeUrlPath, parseBooleanString } from '@web-ts-toolkit/utils';
+import { get, groupBy, normalizeUrlPath, parseBooleanString, startCase, sumBy } from '@web-ts-toolkit/utils';
 
 const payload = {
   user: {
@@ -30,15 +30,25 @@ const payload = {
 };
 
 get(payload, 'user.profile.name');
-set(payload, 'user.profile.role', 'admin');
+groupBy(
+  [
+    { type: 'fruit', name: 'apple' },
+    { type: 'fruit', name: 'banana' },
+    { type: 'vegetable', name: 'carrot' },
+  ],
+  'type',
+);
+startCase('api_response_time');
+sumBy([{ hours: 2 }, { hours: 3 }], 'hours');
 normalizeUrlPath('api//users');
 parseBooleanString('true', false);
 ```
 
 ## Main Exports
 
-- object helpers: `get`, `set`, `pick`, `omit`, `assign`, `cloneDeep`
-- collection helpers: `map`, `filter`, `reduce`, `find`, `flatten`, `uniq`, `orderBy`
+- object helpers: `get`, `set`, `pick`, `pickBy`, `omit`, `assign`, `cloneDeep`, `mapKeys`
+- collection helpers: `map`, `filter`, `reduce`, `find`, `flatten`, `uniq`, `orderBy`, `groupBy`, `sum`, `sumBy`
+- string helpers: `startCase`, `upperCase`
 - guards: `isArray`, `isPlainObject`, `isString`, `isPromise`
 - URL helpers: `addLeadingSlash`, `removeConsecutiveSlashesFromUrl`, `normalizeUrlPath`
 
