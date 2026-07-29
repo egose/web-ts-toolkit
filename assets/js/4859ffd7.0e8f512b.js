@@ -77,6 +77,10 @@ const toc = [{
   "id": "stable-collection-sorting",
   "level": 3
 }, {
+  "value": "Filtering object records",
+  "id": "filtering-object-records",
+  "level": 3
+}, {
   "value": "When To Use It",
   "id": "when-to-use-it",
   "level": 2
@@ -160,9 +164,15 @@ function _createMdxContent(props) {
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "set"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "hasOwn"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "pick"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "pickBy"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "omit"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "omitBy"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "assign"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
@@ -191,6 +201,8 @@ function _createMdxContent(props) {
           children: "compact"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "uniq"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "uniqBy"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "difference"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
@@ -265,7 +277,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { get, set, normalizeUrlPath, orderBy, parseBooleanString } from '@web-ts-toolkit/utils';\n\nconst payload = {\n  user: {\n    profile: {\n      name: 'Ada',\n    },\n  },\n};\n\nget(payload, 'user.profile.name');\nset(payload, 'user.profile.role', 'admin');\n\nnormalizeUrlPath('api//users/42');\nparseBooleanString('true', false);\n\norderBy(\n  [\n    { name: 'B', score: 2 },\n    { name: 'A', score: 2 },\n    { name: 'C', score: 1 },\n  ],\n  ['score', 'name'],\n  ['desc', 'asc'],\n);\n"
+        children: "import { get, hasOwn, normalizeUrlPath, orderBy, parseBooleanString, set, uniqBy } from '@web-ts-toolkit/utils';\n\nconst payload = {\n  user: {\n    profile: {\n      name: 'Ada',\n    },\n  },\n};\n\nget(payload, 'user.profile.name');\nset(payload, 'user.profile.role', 'admin');\nhasOwn(payload.user.profile, 'name');\n\nnormalizeUrlPath('api//users/42');\nparseBooleanString('true', false);\n\nuniqBy(\n  [\n    { id: 'a', name: 'Ada' },\n    { id: 'a', name: 'Ada Lovelace' },\n    { id: 'b', name: 'Grace' },\n  ],\n  'id',\n);\n\norderBy(\n  [\n    { name: 'B', score: 2 },\n    { name: 'A', score: 2 },\n    { name: 'C', score: 1 },\n  ],\n  ['score', 'name'],\n  ['desc', 'asc'],\n);\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "common-use-cases",
@@ -315,6 +327,14 @@ function _createMdxContent(props) {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
         children: "import { orderBy } from '@web-ts-toolkit/utils';\n\nconst sorted = orderBy(users, ['lastName', 'firstName'], ['asc', 'asc']);\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "filtering-object-records",
+      children: "Filtering object records"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { omitBy } from '@web-ts-toolkit/utils';\n\nconst requestHeaders = omitBy(headers, (value) => value === undefined);\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "when-to-use-it",
