@@ -211,8 +211,8 @@ export class Base<TModel = unknown> {
     });
 
     // include Include local fields and paths
-    let includeLocalFields = [];
-    let includePaths = [];
+    let includeLocalFields: string[] = [];
+    let includePaths: string[] = [];
 
     forEach(includes, (inc) => {
       includeLocalFields.push(inc.localField);

@@ -11,7 +11,7 @@ pnpm add @web-ts-toolkit/utils
 ## Highlights
 
 - object-path helpers such as `get(...)`, `set(...)`, and `hasOwn(...)`
-- collection helpers such as `map(...)`, `filter(...)`, `uniq(...)`, `uniqBy(...)`, and `orderBy(...)`
+- collection helpers such as `map(...)`, `filter(...)`, `eachRight(...)`, `join(...)`, `uniq(...)`, `uniqBy(...)`, and `orderBy(...)`
 - small type guards
 - URL helpers such as `normalizeUrlPath(...)`
 - async helpers such as `mapValuesAsync(...)`
@@ -65,7 +65,7 @@ parseBooleanString('true', false);
 ## Main Exports
 
 - object helpers: `get`, `set`, `hasOwn`, `pick`, `pickBy`, `omit`, `omitBy`, `assign`, `cloneDeep`, `mapKeys`
-- collection helpers: `map`, `filter`, `reduce`, `find`, `flatten`, `uniq`, `uniqBy`, `orderBy`, `groupBy`, `sum`, `sumBy`
+- collection helpers: `map`, `filter`, `eachRight`, `join`, `reduce`, `find`, `flatten`, `uniq`, `uniqBy`, `orderBy`, `groupBy`, `sum`, `sumBy`
 - string helpers: `startCase`, `upperCase`
 - guards: `isArray`, `isPlainObject`, `isString`, `isPromise`
 - URL helpers: `addLeadingSlash`, `removeConsecutiveSlashesFromUrl`, `normalizeUrlPath`

@@ -678,7 +678,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     return { success: true, kind: 'single', code: Codes.Success, data: await this.model.countDocuments(filter), query };
   }
 
-  public getDocPermissions(doc) {
+  public getDocPermissions(doc: unknown): Record<string, unknown> {
     return getDocPermissions(this.modelName, doc);
   }
 

@@ -27,6 +27,10 @@ import type {
 import { defaultLogger } from './logger-default';
 import { OptionsManager, getNestedOption } from './options/manager';
 
+type ModelReferenceMap = {
+  [key: string]: string | ModelReferenceMap;
+};
+
 mschema2Jsonschema(mongoose);
 const pluralize = mongoose.pluralize();
 
@@ -148,7 +152,7 @@ export class AccessRuntime {
   private readonly modelOptions: Record<string, OptionsManager<ModelRouterOptions, ExtendedModelRouterOptions>> = {};
   private readonly modelJsonSchemas: Record<string, Record<string, unknown>> = {};
   private readonly dataOptions: Record<string, OptionsManager<DataRouterOptions, ExtendedDataRouterOptions>> = {};
-  private readonly modelRefs: Record<string, Record<string, unknown>> = {};
+  private readonly modelRefs: Record<string, ModelReferenceMap> = {};
   private readonly modelSubs: Record<string, string[]> = {};
   private readonly modelAtts: Record<string, string[]> = {};
   private readonly openApiRegistry = new OpenApiRegistry();
@@ -394,19 +398,20 @@ export class AccessRuntime {
     this.modelAtts[modelName] = keys(schema.obj);
   }
 
-  getModelRef(modelName: string, refPath: string) {
+  getModelRef(modelName: string, refPath: string): string | null {
     this.ensureModelMeta(modelName);
-    return get(this.modelRefs, `${modelName}.${refPath}`, null);
+    const value = get(this.modelRefs, `${modelName}.${refPath}`, null) as string | ModelReferenceMap | null;
+    return isString(value) ? value : null;
   }
 
-  getModelSub(modelName: string) {
+  getModelSub(modelName: string): string[] {
     this.ensureModelMeta(modelName);
     return get(this.modelSubs, modelName, []) as string[];
   }
 
-  getModelAtt(modelName: string) {
+  getModelAtt(modelName: string): string[] {
     this.ensureModelMeta(modelName);
-    return get(this.modelAtts, modelName, []);
+    return get(this.modelAtts, modelName, []) as string[];
   }
 }
 
