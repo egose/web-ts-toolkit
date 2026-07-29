@@ -13,6 +13,7 @@ import {
   pick,
   set,
   uniq,
+  uniqBy,
 } from '@web-ts-toolkit/utils';
 import { diff } from 'just-diff';
 import Model from '../model';
@@ -742,7 +743,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
   }
 
   private async getFieldPermissionAccess(ids: unknown[]) {
-    const uniqueIds = uniq(ids.map((id) => String(id)).filter(Boolean));
+    const uniqueIds = compact(uniqBy(ids, (id) => String(id)).map((id) => String(id)));
     if (uniqueIds.length === 0) {
       return {
         readIds: new Set<string>(),

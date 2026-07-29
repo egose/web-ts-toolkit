@@ -1,3 +1,5 @@
+import { hasOwn } from '@web-ts-toolkit/utils';
+
 interface BooleanObject {
   [key: string]: boolean;
 }
@@ -32,7 +34,7 @@ class Permission {
   }
 
   hasKey(permission: PermissionName) {
-    return Object.prototype.hasOwnProperty.call(this.permissions, permission);
+    return hasOwn(this.permissions, permission);
   }
 
   has(permission: PermissionName) {

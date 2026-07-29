@@ -14,7 +14,7 @@ import {
 export function Module(metadata: ModuleMetadata): ClassDecorator {
   return (target: object) => {
     for (const property in metadata) {
-      if (Object.prototype.hasOwnProperty.call(metadata, property)) {
+      if (Object.hasOwn(metadata, property)) {
         Reflect.defineMetadata(property, (metadata as any)[property], target);
       }
     }
