@@ -104,3 +104,9 @@ Use this before releasing `create-access-router-mongo-starter` to npm:
 The GitHub workflow in `.github/workflows/publish.yml` publishes all eligible
 `packages/*` entries on version tags, and this package is already wired into
 that flow.
+
+## Documentation
+
+Full package documentation lives in `website/docs/packages/create-access-router-mongo-starter.md`.
+
+- live docs: https://web-ts-toolkit.pages.dev/docs/packages/create-access-router-mongo-starter

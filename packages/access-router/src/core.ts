@@ -150,7 +150,8 @@ export class Core {
       permissionSchema,
       access,
       baseFields,
-      hasPermission: (key) => permissions.has(key) || docPermissions[this.removePrefix(key, modelPermissionPrefix)],
+      hasPermission: (key) =>
+        permissions.has(key) || Boolean(docPermissions[this.removePrefix(key, modelPermissionPrefix)]),
       functionArgs: [permissions, docPermissions],
     });
   }
@@ -170,7 +171,8 @@ export class Core {
       permissionSchema,
       access,
       baseFields,
-      hasPermission: (key) => permissions.has(key) || docPermissions[this.removePrefix(key, modelPermissionPrefix)],
+      hasPermission: (key) =>
+        permissions.has(key) || Boolean(docPermissions[this.removePrefix(key, modelPermissionPrefix)]),
       functionArgs: [permissions, docPermissions],
     });
   }
@@ -452,11 +454,11 @@ export class Core {
     await setResolvedRequestPermissions(this.req);
   }
 
-  async canActivate(routeGuard: Validation) {
+  async canActivate(routeGuard: Validation): Promise<boolean> {
     return canActivateRequest(this.req, routeGuard);
   }
 
-  async isAllowed(modelName: string, access: RouteGuardAccess | string) {
+  async isAllowed(modelName: string, access: RouteGuardAccess | string): Promise<boolean> {
     if (access.startsWith('subs')) {
       const keys = access.split('.');
       if (keys.length < 3) {

@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Response, NextFunction, type RequestHandler } from 'express';
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import { isArray, isFunction, isPlainObject, isString } from '@web-ts-toolkit/utils';
 import { setCore } from './core';
@@ -15,7 +15,7 @@ export default function macl() {
 }
 
 export interface GuardModelConditionID {
-  type: string;
+  type: 'param' | 'query';
   key: string;
 }
 
@@ -25,10 +25,10 @@ export interface GuardModelCondition {
   condition: string | string[];
 }
 
-export function guard(condition: string);
-export function guard(conditions: string[]);
-export function guard(conditionFunc: GuardHook<ModelRequest>);
-export function guard(modelCondition: GuardModelCondition);
+export function guard(condition: string): RequestHandler;
+export function guard(conditions: string[]): RequestHandler;
+export function guard(conditionFunc: GuardHook<ModelRequest>): RequestHandler;
+export function guard(modelCondition: GuardModelCondition): RequestHandler;
 
 export function guard(condition: unknown) {
   return async (req: ModelRequest, _res: Response, next: NextFunction) => {
@@ -66,7 +66,7 @@ export function guard(condition: unknown) {
       }
 
       const docPermissions = getDocPermissions(modelName, result.data);
-      phas = (key) => permissions.has(key) || docPermissions[key];
+      phas = (key) => permissions.has(key) || Boolean(docPermissions[key]);
       cond = _cond;
     }
 

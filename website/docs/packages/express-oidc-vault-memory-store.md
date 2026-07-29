@@ -25,7 +25,7 @@ This package stores authorization transactions, exchange codes, and sessions in 
 
 Do not use it for production or multi-instance deployments. Use the Redis or MongoDB store provider instead.
 
-## Usage
+## Quick Start
 
 ```ts
 import express from 'express';
@@ -48,11 +48,37 @@ app.use(
 );
 ```
 
+For local development, this is the simplest store because it has no external infrastructure requirements.
+
+### Test-friendly clock override
+
+The store accepts a custom `now()` function, which is useful in deterministic tests.
+
+```ts
+const storeProvider = createMemoryOidcVaultStore({
+  now: () => 1_700_000_000_000,
+});
+```
+
+That lets tests control expiry behavior without waiting for real time to pass.
+
 ## Behavior
 
 - sessions are stored in `Map` instances in the current Node.js process
 - authorization transactions and one-time exchange codes are consumed once
 - expiry cleanup is opportunistic and happens during reads and writes
+- session rotation fails with a conflict if the original session no longer exists
+- `deleteSessionsBySubject(...)` and `deleteSessionsByProviderSessionId(...)` are supported for logout and backchannel logout flows
+
+## When To Use It
+
+Choose the memory store when you want:
+
+- the shortest local-development setup
+- integration tests without Redis or MongoDB
+- predictable in-process behavior for smoke tests and examples
+
+Do not choose it when sessions must survive process restarts or be shared across multiple Node.js instances.
 
 ## API
 
@@ -63,3 +89,9 @@ Creates an in-memory implementation of the core `OidcVaultStoreProvider` contrac
 `MemoryOidcVaultStoreOptions`
 
 Supports a custom `now()` function for deterministic tests.
+
+## Related Packages
+
+- [`@web-ts-toolkit/express-oidc-vault`](./express-oidc-vault)
+- [`@web-ts-toolkit/express-oidc-vault-redis-store`](./express-oidc-vault-redis-store)
+- [`@web-ts-toolkit/express-oidc-vault-mongodb-store`](./express-oidc-vault-mongodb-store)

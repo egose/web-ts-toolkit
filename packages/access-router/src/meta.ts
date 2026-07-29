@@ -7,10 +7,10 @@ export const ensureModelMeta = (modelName: string) => {
   getRuntime(modelName).ensureModelMeta(modelName);
 };
 
-export const getModelRef = (modelName: string, refPath: string) => {
+export const getModelRef = (modelName: string, refPath: string): string | null => {
   return getRuntime(modelName).getModelRef(modelName, refPath);
 };
 
-export const getModelSub = (modelName: string) => {
+export const getModelSub = (modelName: string): string[] => {
   return getRuntime(modelName).getModelSub(modelName);
 };

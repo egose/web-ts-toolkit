@@ -13,6 +13,17 @@ HTTP error classes for backend APIs, including 4xx client errors and 5xx server 
 npm install @web-ts-toolkit/http-errors
 ```
 
+## What It Exposes
+
+Main exports:
+
+- `HttpError`, `ClientError`, and `ServerError`
+- specific 4xx and 5xx error classes such as `BadRequestError`, `ForbiddenError`, `NotFoundError`, and `ServiceUnavailableError`
+- status helpers and typed error metadata from the root package surface
+- `toAip193ErrorPayload(...)`
+- `toRfc9457ErrorPayload(...)`
+- `toRfc9457ValidationErrorPayload(...)`
+
 ## Usage
 
 ### Basic TypeScript usage
@@ -113,6 +124,49 @@ The base `HttpError` carries optional structured fields that are useful when bui
 - `details`: structured detail entries
 - `errors`: validation or field-level error payloads
 
+## Common Patterns
+
+### Throw domain-specific errors and serialize later
+
+Use the error classes close to your business logic, then serialize them near the HTTP boundary.
+
+```ts
+import { ConflictError } from '@web-ts-toolkit/http-errors';
+
+function ensureProjectSlugAvailable(slug: string, existing: Set<string>) {
+  if (existing.has(slug)) {
+    throw new ConflictError('project slug already exists', {
+      reason: 'PROJECT_SLUG_CONFLICT',
+      metadata: { slug },
+    });
+  }
+}
+```
+
+### Use with `express-response-handler` or `express-json-router`
+
+These errors are especially useful with the other web-ts-toolkit Express packages because throwing them is enough to produce the final HTTP response.
+
+```ts
+import JsonRouter from '@web-ts-toolkit/express-json-router';
+
+async function getProject(id: string) {
+  return id === 'missing' ? null : { id, name: 'Toolkit' };
+}
+
+const router = new JsonRouter('/api');
+
+router.get('/projects/:id', async (req) => {
+  const project = await getProject(req.params.id);
+
+  if (!project) {
+    throw new JsonRouter.clientErrors.NotFoundError('project not found');
+  }
+
+  return project;
+});
+```
+
 ### Convert an error to an AIP-193-style payload
 
 ```ts
@@ -172,6 +226,12 @@ const error = new BadRequestError('Email must be a valid address.', {
 
 const payload = toRfc9457ValidationErrorPayload(error);
 ```
+
+### Choose the right serialization helper
+
+- use `toAip193ErrorPayload(...)` when your API follows the AIP-193-style envelope used by some Google-style APIs
+- use `toRfc9457ErrorPayload(...)` for general problem-details responses
+- use `toRfc9457ValidationErrorPayload(...)` when you want the returned payload typed specifically as a validation-style RFC 9457 response
 
 ### Express route example
 
@@ -261,6 +321,11 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 
 `ServerError` is the base class for 5xx responses.
 
+That gives you two common styles:
+
+- throw a specific class such as `NotFoundError` when the status is known up front
+- throw `ClientError` or `ServerError` when the exact status is decided dynamically
+
 ## Client Errors
 
 | Code | Description                     | Class Name                        | Default Message                                                                                            |
@@ -308,3 +373,8 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 | 508  | Loop Detected                   | LoopDetectedError                  | The server detected an infinite loop while processing the request               |
 | 510  | Not Extended                    | NotExtendedError                   | Further extensions to the request are required for the server to fulfill it     |
 | 511  | Network Authentication Required | NetworkAuthenticationRequiredError | The client needs to authenticate to gain network access                         |
+
+## Related Packages
+
+- [`@web-ts-toolkit/express-response-handler`](./express-response-handler)
+- [`@web-ts-toolkit/express-json-router`](./express-json-router)

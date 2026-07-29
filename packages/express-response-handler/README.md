@@ -26,6 +26,14 @@ import { NotFoundError } from '@web-ts-toolkit/http-errors';
 const { handleResponse, HttpResponse } = apiHandler;
 const app = express();
 
+async function getUser(id: string) {
+  return id === 'missing' ? null : { id, name: 'Ada' };
+}
+
+async function createJob() {
+  return { id: 'job_1' };
+}
+
 app.get(
   '/health',
   handleResponse(() => ({ ok: true })),
@@ -70,6 +78,10 @@ Subpath entrypoints:
 
 ```ts
 import { Created, NoContent } from '@web-ts-toolkit/express-response-handler/responses/success';
+
+async function createUser() {
+  return { id: 'user_1' };
+}
 
 app.post(
   '/users',

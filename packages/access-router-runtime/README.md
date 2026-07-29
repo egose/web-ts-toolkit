@@ -58,6 +58,13 @@ export default defineRuntimeConfig({
           role: OPEN_ACCESS,
         },
       },
+      customRoutes: [
+        {
+          method: 'get',
+          path: '/:id/profile',
+          handler: async (req) => ({ id: req.params.id, profile: true }),
+        },
+      ],
     },
   ],
   openApi: {
@@ -115,7 +122,29 @@ Main exports:
 - `createAccessRouterRuntime(config)`
 - `createAccessRouterRuntimeApp(config)`
 - `createAccessRouterRuntimeServerlessHandler(config, options?)`
+- `loadAccessRouterRuntime(path, options?)`
 - `loadAccessRouterRuntimeConfigSync(path)`
+
+You can also load and instantiate the runtime directly from a config path:
+
+```ts
+import { loadAccessRouterRuntime } from '@web-ts-toolkit/access-router-runtime';
+
+const runtime = loadAccessRouterRuntime('./src/access-router.config.ts');
+
+export const app = runtime.app;
+export const handler = runtime.createServerlessHandler();
+```
+
+## TypeScript Config Helper
+
+The package also publishes `@web-ts-toolkit/access-router-runtime/tsconfig.json`.
+
+```json
+{
+  "extends": "@web-ts-toolkit/access-router-runtime/tsconfig.json"
+}
+```
 
 ## Config Shape
 
@@ -135,6 +164,11 @@ interface AccessRouterRuntimeConfig {
     schema?: mongoose.Schema;
     collection?: string;
     router: ModelRouterOptions;
+    customRoutes?: Array<{
+      method: 'all' | 'delete' | 'get' | 'head' | 'options' | 'patch' | 'post' | 'put';
+      path: string;
+      handler: (req, res, next) => unknown | Promise<unknown>;
+    }>;
   }>;
   data?: Array<{
     name: string;
@@ -152,6 +186,7 @@ interface AccessRouterRuntimeConfig {
 
 - `dev`, `build`, and `build-serverless` read the config file and reuse the shared CLI helpers from `@web-ts-toolkit/express-runtime/cli`.
 - Model definitions can use either `model` or `schema`. When `schema` is used, the package registers the Mongoose model for you.
+- `models[].customRoutes[].path` is relative to the model router `basePath`, so `/:id/profile` mounts under `/api/users/:id/profile` when the model `basePath` is `/api/users`.
 - `runtime.init()` memoizes the first successful DB/init call; `runtime.shutdown()` clears that memoized state.
 - A copyable starter config lives at `examples/basic/access-router.config.ts` in this repo.
 

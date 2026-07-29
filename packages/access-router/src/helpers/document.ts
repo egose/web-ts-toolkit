@@ -29,9 +29,10 @@ export function setDocValue(doc: unknown, path: string, value: unknown) {
   }
 }
 
-export function getDocPermissions(modelName: string, doc: unknown) {
+export function getDocPermissions(modelName: string, doc: unknown): Record<string, unknown> {
   const docPermissionField = getModelOption(modelName, 'documentPermissionField');
-  return getDocValue(doc as DocValue, docPermissionField, {});
+  const permissions = getDocValue(doc as DocValue, docPermissionField, {});
+  return isPlainObject(permissions) ? permissions : {};
 }
 
 export function toObject<T>(doc: T | DocumentLike): T | Record<string, unknown> {

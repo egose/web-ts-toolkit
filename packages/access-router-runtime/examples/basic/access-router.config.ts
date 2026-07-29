@@ -47,6 +47,13 @@ export default defineRuntimeConfig({
           active: OPEN_ACCESS,
         },
       },
+      customRoutes: [
+        {
+          method: 'get',
+          path: '/:id/profile',
+          handler: async (req) => ({ id: req.params.id, profile: 'custom-route' }),
+        },
+      ],
     },
   ],
   data: [

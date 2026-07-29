@@ -48,6 +48,7 @@ function OrganizationList() {
       <button disabled={isPending} onClick={() => mutate({ name: 'Northwind Labs' })}>
         Create
       </button>
+
       <ul>
         {data.map((org) => (
           <li key={org._id}>{org.name}</li>
@@ -61,6 +62,7 @@ function OrganizationList() {
 ## Main Exports
 
 - `createModelHooks(...)`
+- hooks returned by the factory: `useRead`, `useList`, `useCreate`, `useUpdate`, `useUpsert`, `useDelete`, `useCount`, `useDistinct`
 - hook option and result types such as `UseReadQueryOptions` and `UseCreateMutateResult`
 
 ## Documentation

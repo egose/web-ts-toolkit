@@ -31,7 +31,12 @@ Main entrypoint:
 - `createAccessRouterRuntime(config)`
 - `createAccessRouterRuntimeApp(config)`
 - `createAccessRouterRuntimeServerlessHandler(config, options?)`
+- `loadAccessRouterRuntime(path, options?)`
 - `loadAccessRouterRuntimeConfigSync(path)`
+
+Published extras:
+
+- `@web-ts-toolkit/access-router-runtime/tsconfig.json` for a reusable strict TypeScript config base when authoring runtime config modules
 
 CLI binary:
 
@@ -75,6 +80,13 @@ export default defineRuntimeConfig({
           role: OPEN_ACCESS,
         },
       },
+      customRoutes: [
+        {
+          method: 'get',
+          path: '/:id/profile',
+          handler: async (req) => ({ id: req.params.id, profile: true }),
+        },
+      ],
     },
   ],
   rootRouter: {
@@ -89,39 +101,11 @@ export default defineRuntimeConfig({
 });
 ```
 
-## Relationship To The Lower-Level Packages
-
-`access-router-runtime` does not replace the two core packages. It composes them.
-
-- `@web-ts-toolkit/access-router` still owns router generation, permissions, hooks, validation, and OpenAPI metadata.
-- `@web-ts-toolkit/express-runtime` still owns the Express app factory, local server lifecycle, serverless wrapper, and bundling CLI behavior.
-- `@web-ts-toolkit/access-router-runtime` adds a config layer so those two packages can be used with less application boilerplate.
-
-If you want full low-level control over app wiring, use the two core packages directly. If your API is mostly generated model/data/root routes, this package is the shorter path.
-
-## Config Shape
-
-The config object can describe:
-
-- `db`: MongoDB connection URL and `mongoose.connect(...)` options
-- `globalOptions`: global `access-router` options
-- `defaultModelOptions`: shared model-router defaults
-- `models`: model-backed resource routers from `schema` or existing `model`
-- `data`: in-memory data routers
-- `rootRouter`: grouped root batch route
-- `openApi`: generated JSON and Swagger UI routes
-- `extraRoutes`: extra Express/access-router routes to mount alongside generated routers
-- `express`: Express middleware, parser, and error-handler options
-- `init` / `shutdown`: runtime lifecycle hooks
-
-Model definitions can use either:
-
-- `model`: an already-created Mongoose model
-- `schema`: a schema plus `name`, so the runtime registers the model for you
+For a fuller in-repo starter, see `packages/access-router-runtime/examples/basic/access-router.config.ts`.
 
 ## CLI
 
-The CLI mirrors the `express-runtime` commands, but `dev`, `build`, and `build-serverless` start from a config file instead of a hand-written app module.
+The runtime CLI mirrors the `express-runtime` commands, but starts from a config file instead of a hand-wired app module.
 
 ### Local dev
 
@@ -150,13 +134,103 @@ wtt-access-router-runtime start ./dist/app.js --port 3000
 wtt-access-router-runtime start-serverless ./netlify/functions/handler.js --port 9000
 ```
 
+## Relationship To The Lower-Level Packages
+
+`access-router-runtime` does not replace the two core packages. It composes them.
+
+- `@web-ts-toolkit/access-router` still owns router generation, permissions, hooks, validation, and OpenAPI metadata.
+- `@web-ts-toolkit/express-runtime` still owns the Express app factory, local server lifecycle, serverless wrapper, and bundling CLI behavior.
+- `@web-ts-toolkit/access-router-runtime` adds a config layer so those two packages can be used with less application boilerplate.
+
+If you want full low-level control over app wiring, use the two core packages directly. If your API is mostly generated model/data/root routes, this package is the shorter path.
+
+## Loading A Runtime Instance
+
+If you want a fully constructed runtime from a config file path, use `loadAccessRouterRuntime(...)` instead of loading the config and wiring the runtime separately.
+
+```ts
+import { loadAccessRouterRuntime } from '@web-ts-toolkit/access-router-runtime';
+
+const runtime = loadAccessRouterRuntime('./src/access-router.config.ts');
+
+export const app = runtime.app;
+export const handler = runtime.createServerlessHandler();
+```
+
+## Programmatic Runtime Creation
+
+If your app already owns the config object in code, create the runtime directly:
+
+```ts
+import config from './access-router.config';
+import { createAccessRouterRuntime } from '@web-ts-toolkit/access-router-runtime';
+
+const runtime = createAccessRouterRuntime(config);
+
+export const app = runtime.app;
+export const handler = runtime.createServerlessHandler();
+```
+
+## TypeScript Config Helper
+
+The package also publishes `@web-ts-toolkit/access-router-runtime/tsconfig.json`.
+
+Use it when you want a small shared baseline for runtime-config files:
+
+```json
+{
+  "extends": "@web-ts-toolkit/access-router-runtime/tsconfig.json"
+}
+```
+
+## Config Shape
+
+The config object can describe:
+
+- `db`: MongoDB connection URL and `mongoose.connect(...)` options
+- `globalOptions`: global `access-router` options
+- `defaultModelOptions`: shared model-router defaults
+- `models`: model-backed resource routers from `schema` or existing `model`
+- `models[].customRoutes`: extra model-scoped routes mounted through the model router's `JsonRouter`
+- `data`: in-memory data routers
+- `rootRouter`: grouped root batch route
+- `openApi`: generated JSON and Swagger UI routes
+- `extraRoutes`: extra Express/access-router routes to mount alongside generated routers
+- `express`: Express middleware, parser, and error-handler options
+- `init` / `shutdown`: runtime lifecycle hooks
+
+Model definitions can use either:
+
+- `model`: an already-created Mongoose model
+- `schema`: a schema plus `name`, so the runtime registers the model for you
+
+Model definitions can also include `customRoutes` when you need model-specific endpoints alongside the generated CRUD routes.
+
+- `customRoutes[].path` is relative to the model router `basePath`
+- `customRoutes[].method` supports `all`, `get`, `post`, `put`, `patch`, `delete`, `head`, and `options`
+- `customRoutes[].handler` uses `@web-ts-toolkit/express-json-router` semantics, so returning plain data works
+
+Example:
+
+```ts
+customRoutes: [
+  {
+    method: 'get',
+    path: '/:id/profile',
+    handler: async (req) => ({ id: req.params.id, profile: true }),
+  },
+];
+```
+
+With `basePath: '/api/users'`, that route mounts at `/api/users/:id/profile`.
+
 ## In-Repo Example
 
 A copyable starter config lives in the package source:
 
 - `packages/access-router-runtime/examples/basic/access-router.config.ts`
 
-That example shows one model router, one data router, a root router, OpenAPI setup, global permissions, and Express finalize/error handling.
+That example shows one model router, one data router, a root router, OpenAPI setup, a model-level custom route, global permissions, and Express finalize/error handling.
 
 ## When To Use It
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import eachRight from '../src/eachRight';
 import groupBy from '../src/groupBy';
+import join from '../src/join';
 import mapKeys from '../src/mapKeys';
 import pickBy from '../src/pickBy';
 import startCase from '../src/startCase';
@@ -8,6 +10,30 @@ import sumBy from '../src/sumBy';
 import upperCase from '../src/upperCase';
 
 describe('collection and string helpers', () => {
+  it('iterates collections from right to left', () => {
+    const arrayVisits: string[] = [];
+    const numbers = [1, 2, 3];
+
+    expect(
+      eachRight(numbers, (value, index) => {
+        arrayVisits.push(`${index}:${value}`);
+      }),
+    ).toBe(numbers);
+    expect(arrayVisits).toEqual(['2:3', '1:2', '0:1']);
+
+    const objectVisits: string[] = [];
+    const record = { first: 'Ada', second: 'Grace', third: 'Linus' };
+    eachRight(record, (value, key) => {
+      objectVisits.push(`${key}:${value}`);
+      if (key === 'second') {
+        return false;
+      }
+    });
+
+    expect(objectVisits).toEqual(['third:Linus', 'second:Grace']);
+    expect(eachRight(null, () => true)).toBeNull();
+  });
+
   it('groups values with property-path and function iteratees', () => {
     expect(
       groupBy(
@@ -67,5 +93,12 @@ describe('collection and string helpers', () => {
     expect(upperCase('fooBar_baz-qux')).toBe('FOO BAR BAZ QUX');
     expect(upperCase('__FOO_BAR__')).toBe('FOO BAR');
     expect(upperCase(undefined)).toBe('');
+  });
+
+  it('joins arrays with the requested separator', () => {
+    expect(join(['Ada', 'Grace', 'Linus'])).toBe('Ada,Grace,Linus');
+    expect(join(['Ada', 'Grace', 'Linus'], ' | ')).toBe('Ada | Grace | Linus');
+    expect(join([1, null, undefined], '-')).toBe('1--');
+    expect(join(null)).toBe('');
   });
 });

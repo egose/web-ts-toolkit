@@ -27,6 +27,14 @@ const { handleResponse, HttpResponse } = apiHandler;
 
 const app = express();
 
+async function getUser(id: string) {
+  return id === 'missing' ? null : { id, name: 'Ada' };
+}
+
+async function createJob() {
+  return { id: 'job_1' };
+}
+
 app.get(
   '/health',
   handleResponse(() => {
@@ -56,6 +64,58 @@ app.post(
 );
 ```
 
+## What It Exposes
+
+Root entrypoint:
+
+- default handler instance
+- `handleResponse(...)`
+- `HttpResponse`
+- `createHandler(...)`
+- `ErrorFormats`
+
+Published subpaths:
+
+- `@web-ts-toolkit/express-response-handler/types` for public handler and middleware types such as `ExpressResponseHandlerOptions` and `HandleResponse`
+- `@web-ts-toolkit/express-response-handler/responses` for response-wrapper exports
+- `@web-ts-toolkit/express-response-handler/responses/csv` for `CSVResponse`
+- `@web-ts-toolkit/express-response-handler/responses/success` for concrete success wrappers such as `Created`, `Accepted`, and `NoContent`
+
+Example subpath import:
+
+```ts
+import { Created, NoContent } from '@web-ts-toolkit/express-response-handler/responses/success';
+
+async function createUser() {
+  return { id: 'user_1' };
+}
+
+app.post(
+  '/users',
+  handleResponse(async () => Created(await createUser())),
+);
+app.delete(
+  '/users/:id',
+  handleResponse(async () => NoContent()),
+);
+```
+
+### Import styles
+
+The package supports both a default export and named exports:
+
+```ts
+import apiHandler from '@web-ts-toolkit/express-response-handler';
+
+const { handleResponse, HttpResponse } = apiHandler;
+```
+
+```ts
+import { handleResponse, HttpResponse } from '@web-ts-toolkit/express-response-handler';
+```
+
+Use one style consistently within a module so route code stays easy to scan.
+
 ## How It Works
 
 `handleResponse(...)` wraps one or more Express handlers.
@@ -65,6 +125,7 @@ When a handler runs:
 - a plain returned value becomes `res.json(value)`
 - a returned `HttpResponse.*(...)` wrapper controls the status code
 - a returned `HttpResponse.csv(...)` streams CSV
+- a returned `undefined` means the handler is managing the response directly
 - a thrown error becomes an error response
 - a returned promise is awaited automatically
 
@@ -75,6 +136,8 @@ Supported forms:
 - `handleResponse([fn1, fn2])`
 
 ## Examples
+
+In the focused snippets below, helpers such as `createSession(...)`, `getProject(...)`, `getUserReportRows(...)`, and `requireAuth` are application-specific placeholders.
 
 ### Return JSON with `200 OK`
 
@@ -336,3 +399,8 @@ This package is a good fit when you want:
 - consistent JSON, error, and CSV response behavior
 
 It is less useful if you want fully explicit low-level Express response control in every route.
+
+## Related Packages
+
+- [`@web-ts-toolkit/express-json-router`](./express-json-router)
+- [`@web-ts-toolkit/http-errors`](./http-errors)

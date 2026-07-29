@@ -29,6 +29,16 @@ For local development and tests, also install the memory store:
 npm install @web-ts-toolkit/express-oidc-vault-memory-store
 ```
 
+## What It Exposes
+
+Main exports:
+
+- `createOidcVaultMiddleware(...)`
+- `createOidcVaultAccessTokenMiddleware(...)`
+- `createOidcVaultJwtAccessTokenValidator(...)`
+- route-path and default-value constants such as `DEFAULT_OIDC_VAULT_BASE_PATH` and `OIDC_VAULT_ROUTE_PATHS`
+- public types for sessions, hooks, token issuing, validators, config, and store-provider interfaces
+
 ## Frontend Storage Policy
 
 Default browser-side transport:
@@ -636,6 +646,12 @@ async function upsertLocalUser(input: { oidcSubject: string; email?: string; dis
 - use Redis or MongoDB, not the memory store, for production or multi-instance deployments
 
 ## Store Packages
+
+- [`@web-ts-toolkit/express-oidc-vault-memory-store`](./express-oidc-vault-memory-store)
+- [`@web-ts-toolkit/express-oidc-vault-redis-store`](./express-oidc-vault-redis-store)
+- [`@web-ts-toolkit/express-oidc-vault-mongodb-store`](./express-oidc-vault-mongodb-store)
+
+## Related Packages
 
 - [`@web-ts-toolkit/express-oidc-vault-memory-store`](./express-oidc-vault-memory-store)
 - [`@web-ts-toolkit/express-oidc-vault-redis-store`](./express-oidc-vault-redis-store)

@@ -1,3 +1,10 @@
 packages:
 - packages/*
 - apps/*
+allowBuilds:
+  '@parcel/watcher': false
+  esbuild: false
+  mongodb-memory-server: false
+  netlify-cli: false
+  sharp: false
+  unix-dgram: false

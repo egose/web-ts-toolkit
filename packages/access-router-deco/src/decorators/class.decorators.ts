@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import type { RootRouterOptions, ModelRouterOptions } from '@web-ts-toolkit/access-router';
-import type { DefaultModelRouterOptions } from '@web-ts-toolkit/access-router/interfaces/root';
+import type { DefaultModelRouterOptions } from '@web-ts-toolkit/access-router/advanced';
 import { ModuleMetadata } from '../interfaces';
 import {
   ROOT_ROUTER_WATERMARK,

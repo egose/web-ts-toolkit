@@ -179,11 +179,11 @@ export class DataCore {
     await setResolvedRequestPermissions(this.req);
   }
 
-  async canActivate(routeGuard: Validation) {
+  async canActivate(routeGuard: Validation): Promise<boolean> {
     return canActivateRequest(this.req, routeGuard);
   }
 
-  async isAllowed(dataName: string, access: RouteGuardAccess | string) {
+  async isAllowed(dataName: string, access: RouteGuardAccess | string): Promise<boolean> {
     const operationAccess = getDataOption(dataName, `operationAccess.${access}`) as Validation;
     return this.canActivate(operationAccess);
   }

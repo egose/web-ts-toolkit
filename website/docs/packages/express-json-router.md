@@ -13,7 +13,7 @@ Express router wrapper that wires route handlers through `@web-ts-toolkit/expres
 npm install @web-ts-toolkit/express-json-router express
 ```
 
-## Usage
+## Quick Start
 
 ```ts
 import express from 'express';
@@ -37,6 +37,80 @@ JsonRouter.errorMessageProvider = (error) => {
 };
 
 app.use(router.original);
+```
+
+`JsonRouter` is a good fit when you want Express routes to behave more like small return-value handlers than manual `res.json(...)` controllers.
+
+## What It Exposes
+
+Main exports:
+
+- default `JsonRouter` class export
+- `JsonRouter.HttpResponse`
+- `JsonRouter.clientErrors`
+- `JsonRouter.success`
+- `JsonRouter.createHandler(...)`
+- `JsonRouter.ErrorFormats`
+
+There are no documented subpaths for this package. The public surface is the root package export.
+
+## Common Patterns
+
+### Route-level middleware
+
+Pass middleware in the constructor when every route on the router should share the same request preconditions.
+
+```ts
+import type { RequestHandler } from 'express';
+
+const requireAuth: RequestHandler = (_req, _res, next) => next();
+const requireProjectScope: RequestHandler = (_req, _res, next) => next();
+
+const router = new JsonRouter('/api', [requireAuth, requireProjectScope]);
+
+router.get('/me', (req) => ({ userId: req.get('x-user-id') ?? 'anonymous' }));
+router.get('/projects', async () => []);
+```
+
+Those middleware functions run before the final JSON-aware handler on each registered route.
+
+### Chained route registration
+
+Use `router.route(path)` when you want grouped handlers for the same path.
+
+```ts
+async function getUser(id: string) {
+  return { id };
+}
+
+async function updateUser(id: string, body: unknown) {
+  return { id, body };
+}
+
+router
+  .route('/users/:id')
+  .get(async (req) => getUser(req.params.id))
+  .patch(async (req) => updateUser(req.params.id, req.body))
+  .delete(async (req) => JsonRouter.HttpResponse.noContent());
+```
+
+### Endpoint introspection
+
+`getEndpoints()` is useful for debugging, tests, or building lightweight route documentation.
+
+```ts
+async function createJob() {
+  return { id: 'job_1' };
+}
+
+router.get('/health', () => ({ ok: true }));
+router.post('/jobs', async () => JsonRouter.HttpResponse.created(await createJob()));
+
+router.getEndpoints();
+// [
+//   { method: 'GET', path: '/api/health' },
+//   { method: 'POST', path: '/api/jobs' },
+// ]
 ```
 
 ## Structured Error Formats
@@ -70,6 +144,33 @@ router.get('/users', () => {
 
 The static hook properties such as `JsonRouter.preJson` and `JsonRouter.errorMessageProvider` still proxy the shared default handler. When you pass a custom handler instance, configure that handler directly before giving it to the router.
 
+### Handler defaults vs isolated handlers
+
+Static properties configure defaults for routers created after the change:
+
+```ts
+JsonRouter.preError = async (error) => {
+  console.error('shared router error', error);
+};
+
+const firstRouter = new JsonRouter('/api');
+```
+
+If you want isolated behavior per router, create and pass an explicit handler:
+
+```ts
+const handler = JsonRouter.createHandler({
+  errorFormat: JsonRouter.ErrorFormats.aip193,
+  errorDomain: 'api.example.com',
+});
+
+handler.preError = async (error) => {
+  console.error('admin router error', error);
+};
+
+const adminRouter = new JsonRouter('/admin', undefined, handler);
+```
+
 ## Behavior
 
 - Route handlers can return plain values, promises, `JsonRouter.HttpResponse.*` helpers, or throw `JsonRouter.clientErrors.*` errors.
@@ -77,6 +178,7 @@ The static hook properties such as `JsonRouter.preJson` and `JsonRouter.errorMes
 - A custom response-handler instance can be passed as the third constructor argument when you need `aip193` or `rfc9457` error formatting.
 - `router.route(path)` supports the same JSON-aware handler behavior as `router.get(path, ...)`, `router.post(path, ...)`, and the other Express router methods exposed by the instance.
 - `router.getEndpoints()` returns a snapshot of the registered endpoints in registration order.
+- `router.use(...)` and `router.param(...)` are still available on the instance when you need normal Express router behavior.
 
 ## Hooks
 
@@ -111,6 +213,10 @@ Returns the underlying Express router so it can be mounted with `app.use(...)`.
 `router.route(path)`
 
 Builds chained route registrations such as `router.route('/users').get(...).post(...)`.
+
+`router.use(...)` and `router.param(...)`
+
+Forward directly to the underlying Express router for compatibility with normal Express middleware and param handling.
 
 `router.getEndpoints()`
 
@@ -147,3 +253,8 @@ Overrides the error-to-payload mapping used for non-HTTP errors.
 `JsonRouter.preJson`, `JsonRouter.postJson`, `JsonRouter.preError`, `JsonRouter.postError`
 
 Expose the shared serialization and error hooks from `@web-ts-toolkit/express-response-handler`.
+
+## Related Packages
+
+- [`@web-ts-toolkit/express-response-handler`](./express-response-handler)
+- [`@web-ts-toolkit/http-errors`](./http-errors)
