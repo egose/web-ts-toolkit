@@ -157,9 +157,8 @@ describe('express-json-router', () => {
     await expectJson(app, 'get', '/next', 200, 'next-test');
   });
 
-  it('proxies static error configuration to the shared response handler', async () => {
+  it('applies static handler defaults to newly created routers', async () => {
     const app = express();
-    const router = new JsonRouter();
     let preJsonValue: unknown;
 
     JsonRouter.preJson = (value) => {
@@ -167,6 +166,8 @@ describe('express-json-router', () => {
     };
 
     JsonRouter.errorMessageProvider = () => 'custom-error-message';
+
+    const router = new JsonRouter();
 
     router.get('/value', () => 'apple');
     router.get('/error', () => {
@@ -183,9 +184,30 @@ describe('express-json-router', () => {
     expect(errorResponse.body).toEqual({ message: 'custom-error-message' });
   });
 
-  it('proxies post-json and error hooks to the shared response handler', async () => {
+  it('keeps existing routers isolated from later static default changes', async () => {
     const app = express();
-    const router = new JsonRouter();
+    const firstRouter = new JsonRouter();
+
+    JsonRouter.errorMessageProvider = () => 'custom-error-message';
+
+    const secondRouter = new JsonRouter();
+
+    firstRouter.get('/first-error', () => {
+      throw new Error('first-router-message');
+    });
+    secondRouter.get('/second-error', () => {
+      throw new Error('second-router-message');
+    });
+
+    app.use(firstRouter.original);
+    app.use(secondRouter.original);
+
+    await request(app).get('/first-error').expect(422, { message: 'first-router-message' });
+    await request(app).get('/second-error').expect(422, { message: 'custom-error-message' });
+  });
+
+  it('applies post-json and error hooks to newly created routers', async () => {
+    const app = express();
     const observed: string[] = [];
 
     JsonRouter.postJson = (value) => {
@@ -201,6 +223,8 @@ describe('express-json-router', () => {
     expect(JsonRouter.postJson).toBeTypeOf('function');
     expect(JsonRouter.preError).toBeTypeOf('function');
     expect(JsonRouter.postError).toBeTypeOf('function');
+
+    const router = new JsonRouter();
 
     router.get('/value', () => ({ ok: true }));
     router.get('/error', () => {

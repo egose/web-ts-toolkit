@@ -17,7 +17,7 @@ import {
 import { diff } from 'just-diff';
 import Model from '../model';
 import { getModelOption, getModelOptions } from '../options';
-import { getDocPermissions, genPagination, normalizeSelect, populateDoc, matchElement, toObject } from '../helpers';
+import { getDocPermissions, genPagination, normalizeSelect, populateDoc, toObject } from '../helpers';
 import {
   Filter,
   Include,
@@ -368,10 +368,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const _decorate: (...args: unknown[]) => unknown = isFunction(decorate) ? decorate : (v) => v;
 
-    const createdDocs = (await this.model.create(items)) as unknown as Array<ModelDocument<TModel>>;
+    const createdDocs = (await this.model.create(items)) as Array<ModelDocument<TModel>>;
     const docs = await Promise.all(
       createdDocs.map(async (doc, index) => {
-        contexts[index].currentDocument = doc as unknown as ModelDocument<TModel>;
+        contexts[index].currentDocument = doc;
         doc = assertModelDocument<TModel>(
           await this.afterPersist(doc, 'create', contexts[index]),
           this.modelName,
@@ -458,7 +458,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     doc = await this.addDocPermissions(doc, 'update', context);
 
     context.docPermissions = this.getDocPermissions(doc) as Record<string, unknown>;
-    context.currentDocument = doc as unknown as ModelDocument<TModel>;
+    context.currentDocument = doc;
 
     const allowedFields = await this.genAllowedFields(doc, 'update');
     const allowedData = pick(data, allowedFields);
@@ -555,18 +555,14 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const { populate, overrides } = this.resolveUpsertArgs(args);
     const { skim, includePermissions, populateAccess } = this.resolveUpsertOptions(options);
     const { filter: overrideFilter, populate: overridePopulate } = overrides ?? {};
+    const _filter = await (overrideFilter || this.genFilter('update', filter));
+    const query = { filter: _filter };
 
-    const theone = await this.model.findOne({ filter });
+    logger.debug(JSON.stringify({ op: 'upsert', query }));
+    if (_filter === false) return { success: false, code: Codes.Forbidden, query };
+
+    const theone = await this.model.findOne({ filter: _filter });
     if (theone) {
-      const _filter = await (overrideFilter || this.genFilter('update', filter));
-      const query = { filter: _filter };
-
-      logger.debug(JSON.stringify({ op: 'upsert', query }));
-      if (_filter === false) return { success: false, code: Codes.Forbidden, query };
-
-      const matched = matchElement(theone, _filter);
-      if (!matched) return { success: false, code: Codes.Forbidden, query };
-
       return this.updateOne(
         null,
         data,
@@ -610,7 +606,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
       modelName: this.modelName,
       operation: 'delete',
       originalDocumentSnapshot: toObject(doc) as Record<string, unknown>,
-      currentDocument: doc as unknown as ModelDocument<TModel>,
+      currentDocument: doc,
       resolvedQuery: query,
     };
 

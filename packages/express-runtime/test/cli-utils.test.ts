@@ -740,6 +740,16 @@ describe('applyServerlessResult', () => {
     const res = await request(app).get('/test');
     expect(res.headers['x-custom']).toBe('a=1,b=2');
   });
+
+  it('preserves multiple Set-Cookie headers', async () => {
+    const app = express();
+    app.get('/test', (_req, res) => {
+      applyServerlessResult({ headers: { 'set-cookie': ['a=1; Path=/', 'b=2; Path=/'] }, body: '' }, res);
+    });
+
+    const res = await request(app).get('/test');
+    expect(res.headers['set-cookie']).toEqual(['a=1; Path=/', 'b=2; Path=/']);
+  });
 });
 
 // ---------------------------------------------------------------------------
