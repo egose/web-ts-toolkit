@@ -49,11 +49,9 @@ function OrganizationList() {
 
   return (
     <ul>
-
       {data.map((org) => (
         <li key={org._id}>{org.name}</li>
       ))}
-
     </ul>
   );
 }
