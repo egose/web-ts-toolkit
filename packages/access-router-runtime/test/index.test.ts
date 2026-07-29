@@ -92,6 +92,56 @@ describe('access-router-runtime', () => {
     expect(shutdownHook).toHaveBeenCalledTimes(1);
   });
 
+  it('mounts model custom routes that return JSON values', async () => {
+    const runtime = createAccessRouterRuntime({
+      models: [
+        {
+          name: 'AccessRouterRuntimeUser',
+          schema: new mongoose.Schema({ name: String }),
+          router: {
+            basePath: '/api/users',
+            operationAccess: false,
+          },
+          customRoutes: [
+            {
+              method: 'get',
+              path: '/:id/custom',
+              handler: async (req) => ({ id: req.params.id, ok: true }),
+            },
+          ],
+        },
+      ],
+    });
+
+    await request(runtime.app).get('/api/users/123/custom').expect(200, { id: '123', ok: true });
+  });
+
+  it('mounts model custom routes that use the response object directly', async () => {
+    const runtime = createAccessRouterRuntime({
+      models: [
+        {
+          name: 'AccessRouterRuntimeMember',
+          schema: new mongoose.Schema({ name: String }),
+          router: {
+            basePath: '/api/members',
+            operationAccess: false,
+          },
+          customRoutes: [
+            {
+              method: 'post',
+              path: '/status',
+              handler: (_req, res) => {
+                res.status(201).json({ created: true });
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    await request(runtime.app).post('/api/members/status').expect(201, { created: true });
+  });
+
   it('creates a serverless handler that preserves caller init hooks', async () => {
     const runtimeInit = vi.fn();
     const userInit = vi.fn();

@@ -75,6 +75,13 @@ export default defineRuntimeConfig({
           role: OPEN_ACCESS,
         },
       },
+      customRoutes: [
+        {
+          method: 'get',
+          path: '/:id/profile',
+          handler: async (req) => ({ id: req.params.id, profile: true }),
+        },
+      ],
     },
   ],
   rootRouter: {
@@ -107,6 +114,7 @@ The config object can describe:
 - `globalOptions`: global `access-router` options
 - `defaultModelOptions`: shared model-router defaults
 - `models`: model-backed resource routers from `schema` or existing `model`
+- `models[].customRoutes`: extra model-scoped routes mounted through the model router's `JsonRouter`
 - `data`: in-memory data routers
 - `rootRouter`: grouped root batch route
 - `openApi`: generated JSON and Swagger UI routes
@@ -118,6 +126,26 @@ Model definitions can use either:
 
 - `model`: an already-created Mongoose model
 - `schema`: a schema plus `name`, so the runtime registers the model for you
+
+Model definitions can also include `customRoutes` when you need model-specific endpoints alongside the generated CRUD routes.
+
+- `customRoutes[].path` is relative to the model router `basePath`
+- `customRoutes[].method` supports `all`, `get`, `post`, `put`, `patch`, `delete`, `head`, and `options`
+- `customRoutes[].handler` uses `@web-ts-toolkit/express-json-router` semantics, so returning plain data works
+
+Example:
+
+```ts
+customRoutes: [
+  {
+    method: 'get',
+    path: '/:id/profile',
+    handler: async (req) => ({ id: req.params.id, profile: true }),
+  },
+];
+```
+
+With `basePath: '/api/users'`, that route mounts at `/api/users/:id/profile`.
 
 ## CLI
 
@@ -156,7 +184,7 @@ A copyable starter config lives in the package source:
 
 - `packages/access-router-runtime/examples/basic/access-router.config.ts`
 
-That example shows one model router, one data router, a root router, OpenAPI setup, global permissions, and Express finalize/error handling.
+That example shows one model router, one data router, a root router, OpenAPI setup, a model-level custom route, global permissions, and Express finalize/error handling.
 
 ## When To Use It
 

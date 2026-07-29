@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import type { NextFunction, Request, Response } from 'express';
 import {
   combineRoutes,
   createAccessRuntime,
@@ -27,6 +28,28 @@ import { loadAccessRouterRuntimeConfigSync, type AccessRouterRuntimeConfigLoadOp
 
 type RuntimeModel = mongoose.Model<unknown>;
 
+export type AccessRouterRuntimeCustomRouteMethod =
+  | 'all'
+  | 'delete'
+  | 'get'
+  | 'head'
+  | 'options'
+  | 'patch'
+  | 'post'
+  | 'put';
+
+export type AccessRouterRuntimeCustomRouteHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => unknown | Promise<unknown>;
+
+export interface AccessRouterRuntimeCustomRoute {
+  method: AccessRouterRuntimeCustomRouteMethod;
+  path: string;
+  handler: AccessRouterRuntimeCustomRouteHandler;
+}
+
 export interface AccessRouterRuntimeDbConfig {
   url?: string;
   options?: mongoose.ConnectOptions;
@@ -39,6 +62,7 @@ export interface AccessRouterRuntimeModelDefinition<TModel = unknown> {
   schema?: mongoose.Schema<TModel>;
   collection?: string;
   router: ModelRouterOptions<TModel>;
+  customRoutes?: ReadonlyArray<AccessRouterRuntimeCustomRoute>;
 }
 
 export interface AccessRouterRuntimeDataDefinition<TData = unknown> {
@@ -133,9 +157,16 @@ export function createAccessRouterRuntime(config: AccessRouterRuntimeConfig): Ac
   for (const definition of config.models ?? []) {
     const model = resolveModel(definition);
     models[model.modelName] = model;
-    modelRouters.push(
-      runtime.createRouter(model, definition.router as ModelRouterOptions<unknown>) as ModelRouter<unknown>,
-    );
+    const modelRouter = runtime.createRouter(
+      model,
+      definition.router as ModelRouterOptions<unknown>,
+    ) as ModelRouter<unknown>;
+
+    for (const route of definition.customRoutes ?? []) {
+      modelRouter.router[route.method](route.path, route.handler);
+    }
+
+    modelRouters.push(modelRouter);
   }
 
   for (const definition of config.data ?? []) {
