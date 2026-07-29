@@ -19,8 +19,8 @@ npm install @web-ts-toolkit/utils
 
 The package exports individual functions from the root entrypoint, including:
 
-- object helpers: `get`, `set`, `pick`, `omit`, `assign`, `cloneDeep`, `keys`, `toStringRecord`
-- array and collection helpers: `map`, `filter`, `reduce`, `find`, `forEach`, `flatten`, `flattenDeep`, `compact`, `uniq`, `difference`, `intersection`, `intersectionBy`, `orderBy`
+- object helpers: `get`, `set`, `hasOwn`, `pick`, `pickBy`, `omit`, `omitBy`, `assign`, `cloneDeep`, `keys`, `toStringRecord`
+- array and collection helpers: `map`, `filter`, `reduce`, `find`, `forEach`, `flatten`, `flattenDeep`, `compact`, `uniq`, `uniqBy`, `difference`, `intersection`, `intersectionBy`, `orderBy`
 - type guards: `isArray`, `isBoolean`, `isEmpty`, `isEqual`, `isFunction`, `isMatch`, `isNaN`, `isNil`, `isNumber`, `isObject`, `isPlainObject`, `isPromise`, `isString`, `isUndefined`
 - URL helpers: `addLeadingSlash`, `removeConsecutiveSlashesFromUrl`, `normalizeUrlPath`
 - async helpers: `mapValuesAsync`, `toAsyncFn`
@@ -29,7 +29,7 @@ The package exports individual functions from the root entrypoint, including:
 ## Quick Start
 
 ```ts
-import { get, set, normalizeUrlPath, orderBy, parseBooleanString } from '@web-ts-toolkit/utils';
+import { get, hasOwn, normalizeUrlPath, orderBy, parseBooleanString, set, uniqBy } from '@web-ts-toolkit/utils';
 
 const payload = {
   user: {
@@ -41,9 +41,19 @@ const payload = {
 
 get(payload, 'user.profile.name');
 set(payload, 'user.profile.role', 'admin');
+hasOwn(payload.user.profile, 'name');
 
 normalizeUrlPath('api//users/42');
 parseBooleanString('true', false);
+
+uniqBy(
+  [
+    { id: 'a', name: 'Ada' },
+    { id: 'a', name: 'Ada Lovelace' },
+    { id: 'b', name: 'Grace' },
+  ],
+  'id',
+);
 
 orderBy(
   [
@@ -96,6 +106,14 @@ parseBooleanString(undefined, true);
 import { orderBy } from '@web-ts-toolkit/utils';
 
 const sorted = orderBy(users, ['lastName', 'firstName'], ['asc', 'asc']);
+```
+
+### Filtering object records
+
+```ts
+import { omitBy } from '@web-ts-toolkit/utils';
+
+const requestHeaders = omitBy(headers, (value) => value === undefined);
 ```
 
 ## When To Use It

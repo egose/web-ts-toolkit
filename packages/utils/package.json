@@ -25,7 +25,8 @@
     }
   },
   "scripts": {
-    "build": "tsup --config tsup.config.ts"
+    "build": "tsup --config tsup.config.ts",
+    "test": "pnpm --filter @web-ts-toolkit/utils... build && vitest run --config ../../vitest.config.ts"
   },
   "files": [
     "README.md",
