@@ -188,6 +188,17 @@ export function getIteratee(iteratee?: string | number | ((...args: unknown[]) =
   return (value: unknown) => getPath(value, iteratee);
 }
 
+const wordPattern = /[A-Z]{2,}(?=[A-Z][a-z]|\b)|[A-Z]?[a-z]+[0-9]*|[A-Z]+|[0-9]+/g;
+
+export function words(value: unknown): string[] {
+  const input = String(value ?? '');
+  if (input.length === 0) {
+    return [];
+  }
+
+  return input.replace(/[']/g, '').match(wordPattern) ?? [];
+}
+
 export function compareAscending(left: unknown, right: unknown) {
   if (sameValueZero(left, right)) {
     return 0;
