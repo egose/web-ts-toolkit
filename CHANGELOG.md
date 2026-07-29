@@ -1,3 +1,13 @@
+## [0.30.0](https://github.com/egose/web-ts-toolkit/compare/v0.29.0...v0.30.0) (2026-07-29)
+
+### Features
+
+* add common utility helpers and export them from utils ([b247045](https://github.com/egose/web-ts-toolkit/commit/b247045dc798d9a7ba37cefda3f0ce83073c7871))
+
+### Code Refactoring
+
+* replace ad hoc ownership and dedupe checks with shared helpers ([a078466](https://github.com/egose/web-ts-toolkit/commit/a0784667d4fd5ba909b4ec6f3aa2345decc825cd))
+
 ## [0.29.0](https://github.com/egose/web-ts-toolkit/compare/v0.28.0...v0.29.0) (2026-07-29)
 
 ### Features
