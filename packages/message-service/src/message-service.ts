@@ -14,7 +14,7 @@ import type {
 import type { PaymentProvider } from './providers/payment';
 import { interpolateTemplate, isActionAllowed } from './template-engine';
 import { TemplateRegistry, defaultRegistry } from './template-registry';
-import { MESSAGE_MODEL_NAME, MESSAGE_ARCHIVE_MODEL_NAME } from './schemas/base';
+import { MESSAGE_MODEL_NAME, MESSAGE_ARCHIVE_MODEL_NAME, MESSAGE_REQUEST_MODEL_NAME } from './schemas/base';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -38,6 +38,15 @@ export interface MessageServiceOptions {
 
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_LIST_LIMIT = 100;
+const DUPLICATE_KEY_ERROR_CODE = 11000;
+const CLIENT_REQUEST_BATCH_RETRY_COUNT = 20;
+const CLIENT_REQUEST_BATCH_RETRY_DELAY_MS = 10;
+
+interface MessageRequestRecord {
+  clientRequestId: string;
+  state: 'pending' | 'completed';
+  itemCount: number | null;
+}
 
 /**
  * The `templateCd` used for generic notifications created via
@@ -199,9 +208,81 @@ export class MessageService {
     } = params;
 
     if (clientRequestId) {
-      const existing = await this.findByClientRequestId(clientRequestId);
-      if (existing) return existing;
+      return this.createMessageWithReservation({
+        templateCd,
+        user,
+        roles,
+        identity,
+        permissions,
+        payload,
+        payerUser,
+        req,
+        clientRequestId,
+      });
     }
+
+    return this.createPreparedMessageBatch({
+      templateCd,
+      user,
+      roles,
+      identity,
+      permissions,
+      payload,
+      payerUser,
+      req,
+    });
+  }
+
+  private async createMessageWithReservation(params: {
+    templateCd: string;
+    user: MessageUser;
+    roles: string[];
+    identity: Record<string, unknown>;
+    permissions: Record<string, boolean>;
+    payload: Record<string, unknown>;
+    payerUser?: MessageUser;
+    req?: unknown;
+    clientRequestId: string;
+  }): Promise<IMessage[]> {
+    while (true) {
+      const existing = await this.findByClientRequestId(params.clientRequestId);
+      if (existing) {
+        return existing;
+      }
+
+      const acquired = await this.tryCreateClientRequestReservation(params.clientRequestId);
+      if (acquired) {
+        break;
+      }
+
+      const waited = await this.waitForClientRequestOutcome(params.clientRequestId);
+      if (waited !== null) {
+        return waited;
+      }
+    }
+
+    try {
+      const results = await this.createPreparedMessageBatch(params);
+      await this.completeClientRequestReservation(params.clientRequestId, results.length);
+      return results;
+    } catch (error) {
+      await this.releaseClientRequestReservation(params.clientRequestId);
+      throw error;
+    }
+  }
+
+  private async createPreparedMessageBatch(params: {
+    templateCd: string;
+    user: MessageUser;
+    roles: string[];
+    identity: Record<string, unknown>;
+    permissions: Record<string, boolean>;
+    payload: Record<string, unknown>;
+    payerUser?: MessageUser;
+    req?: unknown;
+    clientRequestId?: string;
+  }): Promise<IMessage[]> {
+    const { templateCd, user, roles, identity, permissions, payload, payerUser, req, clientRequestId } = params;
 
     const template = this.registry.find(templateCd);
     if (!template) throw new TemplateNotFoundError(templateCd);
@@ -221,9 +302,11 @@ export class MessageService {
     const ctx: CreateContext = { user, roles, identity, permissions, payload, payerUser, req };
     const items = Array.isArray(messageData) ? messageData : [messageData];
     const results: IMessage[] = [];
-    for (const m of items) {
-      results.push(await this.persistItem(template, m, ctx, clientRequestId));
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      results.push(await this.persistItem(template, item, ctx, clientRequestId, clientRequestId ? index : null));
     }
+
     return results;
   }
 
@@ -391,6 +474,7 @@ export class MessageService {
     m: PrepareResult,
     ctx: CreateContext,
     clientRequestId: string | undefined,
+    clientRequestItemIndex: number | null,
   ): Promise<IMessage> {
     const toUser = m.toUser ?? null;
     const toRoles = (m.toRoles && m.toRoles.length > 0 ? m.toRoles : this.adminRoles).slice();
@@ -424,6 +508,7 @@ export class MessageService {
       payload: m.payload || ctx.payload,
       display: m.display,
       clientRequestId: clientRequestId ?? null,
+      clientRequestItemIndex,
     }) as unknown as Promise<IMessage>;
   }
 
@@ -480,6 +565,76 @@ export class MessageService {
     const Message = this.getModel(MESSAGE_MODEL_NAME);
     const docs = await Message.find({ clientRequestId }).sort({ createdAt: 1, _id: 1 }).limit(Number.MAX_SAFE_INTEGER);
     return docs.length > 0 ? (docs as unknown as IMessage[]) : null;
+  }
+
+  private async waitForClientRequestOutcome(clientRequestId: string): Promise<IMessage[] | [] | null> {
+    for (let attempt = 0; attempt < CLIENT_REQUEST_BATCH_RETRY_COUNT; attempt++) {
+      const docs = await this.findByClientRequestId(clientRequestId);
+      if (docs) {
+        return docs;
+      }
+
+      const reservation = await this.findClientRequestReservation(clientRequestId);
+      if (!reservation) {
+        return null;
+      }
+
+      if (reservation.state === 'completed') {
+        return [];
+      }
+
+      await this.delay(CLIENT_REQUEST_BATCH_RETRY_DELAY_MS);
+    }
+
+    const docs = await this.findByClientRequestId(clientRequestId);
+    if (docs) {
+      return docs;
+    }
+
+    const reservation = await this.findClientRequestReservation(clientRequestId);
+    if (reservation?.state === 'completed') {
+      return [];
+    }
+
+    return null;
+  }
+
+  private async tryCreateClientRequestReservation(clientRequestId: string): Promise<boolean> {
+    const MessageRequest = this.getModel(MESSAGE_REQUEST_MODEL_NAME);
+
+    try {
+      await MessageRequest.create({ clientRequestId, state: 'pending', itemCount: null });
+      return true;
+    } catch (error) {
+      if (this.isDuplicateKeyError(error)) {
+        return false;
+      }
+
+      throw error;
+    }
+  }
+
+  private async findClientRequestReservation(clientRequestId: string): Promise<MessageRequestRecord | null> {
+    const MessageRequest = this.getModel(MESSAGE_REQUEST_MODEL_NAME);
+    return (await MessageRequest.findOne({ clientRequestId })) as MessageRequestRecord | null;
+  }
+
+  private async completeClientRequestReservation(clientRequestId: string, itemCount: number): Promise<void> {
+    const MessageRequest = this.getModel(MESSAGE_REQUEST_MODEL_NAME);
+    await MessageRequest.updateOne({ clientRequestId }, { state: 'completed', itemCount });
+  }
+
+  private async releaseClientRequestReservation(clientRequestId: string): Promise<void> {
+    const MessageRequest = this.getModel(MESSAGE_REQUEST_MODEL_NAME);
+    await MessageRequest.deleteOne({ clientRequestId });
+  }
+
+  private isDuplicateKeyError(error: unknown): error is { code: number } {
+    return error instanceof Error && 'code' in error && error.code === DUPLICATE_KEY_ERROR_CODE;
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private isArchivedMessage(message: IMessage | IMessageArchive): message is IMessageArchive {

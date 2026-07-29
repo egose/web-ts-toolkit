@@ -34,12 +34,14 @@ export type {
 export {
   MESSAGE_MODEL_NAME,
   MESSAGE_ARCHIVE_MODEL_NAME,
+  MESSAGE_REQUEST_MODEL_NAME,
   MessageContentSchema,
   BaseMessageFields,
 } from './schemas/base';
 export { MessageSchema, buildMessageSchema } from './schemas/message';
 export type { EmailNotifier, MessageSchemaConfig } from './schemas/message';
 export { MessageArchiveSchema, buildMessageArchiveSchema } from './schemas/message-archive';
+export { MessageRequestSchema, buildMessageRequestSchema } from './schemas/message-request';
 
 // --- Template Engine ---
 export { interpolateTemplate, filterActions, isActionAllowed } from './template-engine';

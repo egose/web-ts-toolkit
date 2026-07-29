@@ -53,6 +53,31 @@ describe('NoopPaymentProvider', () => {
 
 describe('MessageService', () => {
   const mockMessages: any[] = [];
+  const mockMessageRequests: any[] = [];
+  let createBarrier: Promise<void> | null = null;
+  let releaseCreateBarrier: (() => void) | null = null;
+  let requestCreateBarrier: Promise<void> | null = null;
+  let releaseRequestCreateBarrier: (() => void) | null = null;
+
+  const blockCreates = () => {
+    createBarrier = new Promise<void>((resolve) => {
+      releaseCreateBarrier = () => {
+        createBarrier = null;
+        releaseCreateBarrier = null;
+        resolve();
+      };
+    });
+  };
+
+  const blockRequestCreates = () => {
+    requestCreateBarrier = new Promise<void>((resolve) => {
+      releaseRequestCreateBarrier = () => {
+        requestCreateBarrier = null;
+        releaseRequestCreateBarrier = null;
+        resolve();
+      };
+    });
+  };
 
   const sortMessages = (docs: any[]) =>
     docs.slice().sort((a, b) => {
@@ -91,6 +116,26 @@ describe('MessageService', () => {
 
   const mockMessageModel = {
     create: vi.fn(async (data: any) => {
+      if (createBarrier) {
+        await createBarrier;
+      }
+
+      if (
+        data.clientRequestId !== null &&
+        data.clientRequestId !== undefined &&
+        data.clientRequestItemIndex !== null &&
+        data.clientRequestItemIndex !== undefined &&
+        mockMessages.some(
+          (message) =>
+            message.clientRequestId === data.clientRequestId &&
+            message.clientRequestItemIndex === data.clientRequestItemIndex,
+        )
+      ) {
+        const error = new Error('E11000 duplicate key error');
+        (error as Error & { code: number }).code = 11000;
+        throw error;
+      }
+
       const doc = {
         ...data,
         _id: `msg-${mockMessages.length}`,
@@ -117,6 +162,42 @@ describe('MessageService', () => {
     countDocuments: vi.fn(async (query: any) => mockMessages.filter((m) => matchesQuery(m, query)).length),
   };
 
+  const mockMessageRequestModel = {
+    create: vi.fn(async (data: any) => {
+      if (requestCreateBarrier) {
+        await requestCreateBarrier;
+      }
+
+      if (mockMessageRequests.some((request) => request.clientRequestId === data.clientRequestId)) {
+        const error = new Error('E11000 duplicate key error');
+        (error as Error & { code: number }).code = 11000;
+        throw error;
+      }
+
+      const doc = { ...data };
+      mockMessageRequests.push(doc);
+      return doc;
+    }),
+    findOne: vi.fn(
+      async (query: any) =>
+        mockMessageRequests.find((request) => request.clientRequestId === query.clientRequestId) || null,
+    ),
+    updateOne: vi.fn(async (query: any, data: any) => {
+      const request = mockMessageRequests.find((entry) => entry.clientRequestId === query.clientRequestId);
+      if (request) {
+        Object.assign(request, data);
+      }
+      return { acknowledged: true };
+    }),
+    deleteOne: vi.fn(async (query: any) => {
+      const index = mockMessageRequests.findIndex((entry) => entry.clientRequestId === query.clientRequestId);
+      if (index >= 0) {
+        mockMessageRequests.splice(index, 1);
+      }
+      return { acknowledged: true };
+    }),
+  };
+
   const mockArchiveModel = {
     create: vi.fn(async (data: any) => ({ ...data, _id: `arch-${Date.now()}` })),
     findById: vi.fn(async () => null),
@@ -125,6 +206,7 @@ describe('MessageService', () => {
   const getModel = (name: string) => {
     if (name === 'Message') return mockMessageModel;
     if (name === 'MessageArchive') return mockArchiveModel;
+    if (name === 'MessageRequest') return mockMessageRequestModel;
     throw new Error(`Unknown model: ${name}`);
   };
 
@@ -324,6 +406,7 @@ describe('MessageService', () => {
     const service = new MessageService({ getModel });
 
     mockMessages.length = 0;
+    mockMessageRequests.length = 0;
     const first = await service.createMessage({
       templateCd: 'svc-test',
       user: { _id: 'u1' },
@@ -355,6 +438,7 @@ describe('MessageService', () => {
     const service = new MessageService({ getModel });
 
     mockMessages.length = 0;
+    mockMessageRequests.length = 0;
     const first = await service.createMessage({
       templateCd: 'multi-test',
       user: { _id: 'u1' },
@@ -370,6 +454,120 @@ describe('MessageService', () => {
     expect(second).toHaveLength(2);
     expect(second.map((item) => item._id)).toEqual(first.map((item) => item._id));
     expect(mockMessages).toHaveLength(2);
+  });
+
+  it('should return the existing batch when concurrent requests share a clientRequestId', async () => {
+    const multiTemplate: MessageTemplate = {
+      ...testTemplate,
+      templateCd: 'multi-concurrent',
+      prepareMessage: async ({ user }) => [
+        { fromUser: user._id, toUser: 'u2', payload: { slot: 1 } },
+        { fromUser: user._id, toUser: 'u3', payload: { slot: 2 } },
+      ],
+    };
+    defaultRegistry.register(multiTemplate);
+    const service = new MessageService({ getModel });
+
+    mockMessages.length = 0;
+    mockMessageRequests.length = 0;
+    mockMessageModel.create.mockClear();
+    blockRequestCreates();
+
+    const firstRequest = service.createMessage({
+      templateCd: 'multi-concurrent',
+      user: { _id: 'u1' },
+      clientRequestId: 'idem-concurrent',
+    });
+
+    releaseRequestCreateBarrier?.();
+    blockCreates();
+
+    const secondRequest = service.createMessage({
+      templateCd: 'multi-concurrent',
+      user: { _id: 'u1' },
+      clientRequestId: 'idem-concurrent',
+    });
+
+    releaseCreateBarrier?.();
+
+    const [first, second] = await Promise.all([firstRequest, secondRequest]);
+
+    expect(first).toHaveLength(2);
+    expect(second).toHaveLength(2);
+    expect(second.map((item) => item._id)).toEqual(first.map((item) => item._id));
+    expect(mockMessages).toHaveLength(2);
+  });
+
+  it('should not duplicate payment session creation for concurrent duplicate requests', async () => {
+    const paymentProvider = {
+      createSession: vi.fn(async () => 'session-1'),
+      expireSession: vi.fn(async () => undefined),
+      refundPayment: vi.fn(async () => undefined),
+    };
+    const paymentTemplate: MessageTemplate = {
+      ...testTemplate,
+      templateCd: 'payment-test',
+      paymentCd: 'payment-code',
+      prepareMessage: async ({ user }) => ({ fromUser: user._id, toUser: 'u2', payload: { slot: 1 } }),
+    };
+    defaultRegistry.register(paymentTemplate);
+    const service = new MessageService({ getModel, paymentProvider });
+
+    mockMessages.length = 0;
+    mockMessageRequests.length = 0;
+    blockRequestCreates();
+
+    const firstRequest = service.createMessage({
+      templateCd: 'payment-test',
+      user: { _id: 'u1' },
+      clientRequestId: 'idem-payment',
+    });
+
+    releaseRequestCreateBarrier?.();
+    blockCreates();
+
+    const secondRequest = service.createMessage({
+      templateCd: 'payment-test',
+      user: { _id: 'u1' },
+      clientRequestId: 'idem-payment',
+    });
+
+    releaseCreateBarrier?.();
+
+    const [first, second] = await Promise.all([firstRequest, secondRequest]);
+
+    expect(first).toHaveLength(1);
+    expect(second).toHaveLength(1);
+    expect(paymentProvider.createSession).toHaveBeenCalledOnce();
+    expect(first[0]._id).toBe(second[0]._id);
+  });
+
+  it('should preserve empty results for duplicate clientRequestId requests', async () => {
+    const emptyTemplate: MessageTemplate = {
+      ...testTemplate,
+      templateCd: 'empty-test',
+      prepareMessage: async () => null,
+    };
+    defaultRegistry.register(emptyTemplate);
+    const service = new MessageService({ getModel });
+
+    mockMessages.length = 0;
+    mockMessageRequests.length = 0;
+
+    const first = await service.createMessage({
+      templateCd: 'empty-test',
+      user: { _id: 'u1' },
+      clientRequestId: 'idem-empty',
+    });
+    const second = await service.createMessage({
+      templateCd: 'empty-test',
+      user: { _id: 'u1' },
+      clientRequestId: 'idem-empty',
+    });
+
+    expect(first).toEqual([]);
+    expect(second).toEqual([]);
+    expect(mockMessageRequests).toEqual([{ clientRequestId: 'idem-empty', state: 'completed', itemCount: 0 }]);
   });
 
   it('should list messages for a user', async () => {

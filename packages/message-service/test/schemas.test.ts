@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { buildMessageSchema } from '../src/schemas/message';
 import { buildMessageArchiveSchema } from '../src/schemas/message-archive';
-import { MESSAGE_MODEL_NAME, MESSAGE_ARCHIVE_MODEL_NAME } from '../src/schemas/base';
+import { buildMessageRequestSchema } from '../src/schemas/message-request';
+import { MESSAGE_MODEL_NAME, MESSAGE_ARCHIVE_MODEL_NAME, MESSAGE_REQUEST_MODEL_NAME } from '../src/schemas/base';
 
 describe('buildMessageSchema (factory)', () => {
   it('should return a fresh schema each call', () => {
@@ -27,6 +28,7 @@ describe('buildMessageSchema (factory)', () => {
       'payload',
       'display',
       'clientRequestId',
+      'clientRequestItemIndex',
     ]) {
       expect(paths).toContain(field);
     }
@@ -56,6 +58,23 @@ describe('buildMessageSchema (factory)', () => {
     const schema = buildMessageSchema({});
     const paths = Object.keys(schema.paths);
     expect(paths).toContain('clientRequestId');
+    expect(paths).toContain('clientRequestItemIndex');
+  });
+
+  it('should enforce unique clientRequestId item indexes', () => {
+    const schema = buildMessageSchema({});
+    const index = schema
+      .indexes()
+      .find(([fields]) => fields.clientRequestId === 1 && fields.clientRequestItemIndex === 1);
+
+    expect(index).toBeDefined();
+    expect(index?.[1]).toMatchObject({
+      unique: true,
+      partialFilterExpression: {
+        clientRequestId: { $type: 'string' },
+        clientRequestItemIndex: { $type: 'number' },
+      },
+    });
   });
 
   it('should default senderContent and receiverContent to full IMessageContent shape', () => {
@@ -87,9 +106,27 @@ describe('buildMessageArchiveSchema (factory)', () => {
   });
 });
 
+describe('buildMessageRequestSchema (factory)', () => {
+  it('should return a fresh schema each call', () => {
+    const a = buildMessageRequestSchema();
+    const b = buildMessageRequestSchema();
+    expect(a).not.toBe(b);
+  });
+
+  it('should include reservation fields and a unique clientRequestId index', () => {
+    const schema = buildMessageRequestSchema();
+    const index = schema.indexes().find(([fields]) => fields.clientRequestId === 1);
+
+    expect(Object.keys(schema.paths)).toEqual(expect.arrayContaining(['clientRequestId', 'state', 'itemCount']));
+    expect(index).toBeDefined();
+    expect(index?.[1]).toMatchObject({ unique: true });
+  });
+});
+
 describe('model name constants', () => {
   it('should export the standard names', () => {
     expect(MESSAGE_MODEL_NAME).toBe('Message');
     expect(MESSAGE_ARCHIVE_MODEL_NAME).toBe('MessageArchive');
+    expect(MESSAGE_REQUEST_MODEL_NAME).toBe('MessageRequest');
   });
 });
