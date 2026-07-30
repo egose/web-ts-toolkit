@@ -1,3 +1,10 @@
+## [0.31.5](https://github.com/egose/web-ts-toolkit/compare/v0.31.4...v0.31.5) (2026-07-30)
+
+### Bug Fixes
+
+* **access-router-runtime-example:** run runtime CLI directly from built output ([7f187bd](https://github.com/egose/web-ts-toolkit/commit/7f187bd1b6e933a3831806b098c8ad1b4da8608b))
+* allow npm scripts during setup ([e8d93dc](https://github.com/egose/web-ts-toolkit/commit/e8d93dc1c5c7be9b284391b6e9db891383a1bdf1))
+
 ## [0.31.4](https://github.com/egose/web-ts-toolkit/compare/v0.31.3...v0.31.4) (2026-07-30)
 
 ### Bug Fixes
