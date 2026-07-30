@@ -66,3 +66,29 @@ This issue is most likely when all of the following are true:
 - A consumer app bundler may appear to "fix" it only because the dependency is bundled or resolved by a more permissive loader.
 - If a bad package version is already published, changing the repo config is not enough; publish a new package version and update the consumer.
 - This belongs in repo documentation, not an OpenCode skill. A skill would only make sense if we were teaching OpenCode a reusable workflow for package publishing decisions.
+
+## Bundled Multi-Entry Caveat
+
+When a package publishes both a root entrypoint and subpath entrypoints, bundling can duplicate class definitions across those outputs.
+
+That means checks like these can become unreliable across entrypoints:
+
+```ts
+value instanceof Response;
+value instanceof CSVResponse;
+```
+
+Example failure mode:
+
+1. A consumer creates an object from a subpath entry such as `@web-ts-toolkit/express-response-handler/responses/success`.
+2. The root bundle checks it against a class in `@web-ts-toolkit/express-response-handler`.
+3. The classes are structurally identical but not the same runtime identity.
+4. `instanceof` returns `false`.
+
+For bundled multi-entry packages, prefer stable cross-entry checks such as:
+
+- shared `Symbol.for(...)` brands
+- explicit shape checks
+- discriminant properties
+
+Avoid relying on cross-entry `instanceof` unless the class is guaranteed to come from a single shared runtime module.
