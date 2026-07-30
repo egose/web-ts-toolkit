@@ -3,12 +3,12 @@
   "private": true,
   "scripts": {
     "build:deps": "pnpm --filter @web-ts-toolkit/access-router-runtime... build",
-    "build": "pnpm run build:deps && pnpm exec wtt-access-router-runtime build ./access-router.config.ts --tsconfig ./tsconfig.json --out-dir dist --out-name app --format cjs --target node22",
-    "build:serverless": "pnpm run build:deps && pnpm exec wtt-access-router-runtime build-serverless ./access-router.config.ts --tsconfig ./tsconfig.json --out-dir dist --out-name handler --format cjs --target node22",
-    "dev": "pnpm exec wtt-access-router-runtime dev ./access-router.config.ts --tsconfig ./tsconfig.json --port 3000 --watch",
-    "dev:once": "pnpm exec wtt-access-router-runtime dev ./access-router.config.ts --tsconfig ./tsconfig.json --port 3000",
-    "start": "pnpm exec wtt-access-router-runtime start ./dist/app.js --port 3000",
-    "start:serverless": "pnpm exec wtt-access-router-runtime start-serverless ./dist/handler.js --port 9000",
+    "build": "pnpm run build:deps && node ../../packages/access-router-runtime/dist/cli.js build ./access-router.config.ts --tsconfig ./tsconfig.json --out-dir dist --out-name app --format cjs --target node22",
+    "build:serverless": "pnpm run build:deps && node ../../packages/access-router-runtime/dist/cli.js build-serverless ./access-router.config.ts --tsconfig ./tsconfig.json --out-dir dist --out-name handler --format cjs --target node22",
+    "dev": "node ../../packages/access-router-runtime/dist/cli.js dev ./access-router.config.ts --tsconfig ./tsconfig.json --port 3000 --watch",
+    "dev:once": "node ../../packages/access-router-runtime/dist/cli.js dev ./access-router.config.ts --tsconfig ./tsconfig.json --port 3000",
+    "start": "node ../../packages/access-router-runtime/dist/cli.js start ./dist/app.js --port 3000",
+    "start:serverless": "node ../../packages/access-router-runtime/dist/cli.js start-serverless ./dist/handler.js --port 9000",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
