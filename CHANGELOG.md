@@ -1,3 +1,9 @@
+## [0.31.2](https://github.com/egose/web-ts-toolkit/compare/v0.31.1...v0.31.2) (2026-07-30)
+
+### Bug Fixes
+
+* **access-router:** allow nested populate parents in access checks ([a13e8b9](https://github.com/egose/web-ts-toolkit/commit/a13e8b95562066e31fdc1c33c895e57bda4af255))
+
 ## [0.31.1](https://github.com/egose/web-ts-toolkit/compare/v0.31.0...v0.31.1) (2026-07-30)
 
 ### Bug Fixes
