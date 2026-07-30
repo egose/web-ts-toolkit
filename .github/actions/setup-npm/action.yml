@@ -7,6 +7,7 @@ runs:
     uses: egose/actions/pnpm-packages@799b388fb3497236093c6eb7e3eac0b4c8f956ce
     with:
       frozen: 'true'
+      ignore-scripts: 'true'
       paths: |
         .
         website
