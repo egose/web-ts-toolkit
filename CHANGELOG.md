@@ -1,3 +1,15 @@
+## [0.31.1](https://github.com/egose/web-ts-toolkit/compare/v0.31.0...v0.31.1) (2026-07-30)
+
+### Bug Fixes
+
+* bundle node entrypoints for esm packages ([7cc8093](https://github.com/egose/web-ts-toolkit/commit/7cc8093de293183568f614786cddbc137b5365e8))
+* **express-response-handler:** use branded runtime guards for response handling ([a5b43ad](https://github.com/egose/web-ts-toolkit/commit/a5b43ad5633325c3b26d2aea85152a64d8151be6))
+
+### Documentation
+
+* document tsup node esm compatibility guidance ([3f93a69](https://github.com/egose/web-ts-toolkit/commit/3f93a694606d086122fc1b40618ebebd16f14ff8))
+* **express-response-handler:** add multi-entry bundling caveat ([2991d6e](https://github.com/egose/web-ts-toolkit/commit/2991d6e26f1091a3e85db86015f13d687c93e85b))
+
 ## [0.31.0](https://github.com/egose/web-ts-toolkit/compare/v0.30.0...v0.31.0) (2026-07-29)
 
 ### Features
