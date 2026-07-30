@@ -17,3 +17,7 @@ Each package's test script rebuilds itself and its transitive deps via
 multiple `tsup` processes to write to the same shared `dist/` (e.g.
 `express-response-handler`) at once and race on CI. Keep the run serialized
 unless the per-package pre-build is removed in favor of a single root build.
+
+## Packaging notes
+
+- Packages that publish `.mjs` for direct Node runtime use should not use `tsup` with `bundle: false` when source files use bundler-style relative specifiers like `./plugins` or `./create-handler`. Plain Node ESM will not resolve directory imports or extensionless relative imports from published output.

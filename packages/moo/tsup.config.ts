@@ -15,5 +15,6 @@ export default defineConfig({
   target: 'node22',
   outDir: 'dist',
   clean: true,
-  bundle: false,
+  bundle: true,
+  splitting: false,
 });

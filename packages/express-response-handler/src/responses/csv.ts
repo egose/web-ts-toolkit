@@ -15,7 +15,24 @@ type CsvStreamResponse = {
   end(): void;
 };
 
+export const csvResponseBrand = Symbol.for('@web-ts-toolkit/express-response-handler.csv-response');
+
+export const isCSVResponse = (value: unknown): value is CSVResponse => {
+  if (value instanceof CSVResponse) {
+    return true;
+  }
+
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as CSVResponse & Record<typeof csvResponseBrand, unknown>;
+
+  return candidate[csvResponseBrand] === true && typeof candidate.streamCsv === 'function';
+};
+
 export class CSVResponse {
+  readonly [csvResponseBrand] = true;
   readonly dataset: unknown[];
   readonly filename: string;
   readonly processor: CsvProcessor;

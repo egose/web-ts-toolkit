@@ -1,8 +1,8 @@
 import assert from 'assert';
 import { isArray, isFunction, isPromise } from '@web-ts-toolkit/utils';
 
-import { CSVResponse } from './responses/csv';
-import { Response } from './responses';
+import { isCSVResponse } from './responses/csv';
+import { isResponse } from './responses';
 import { HttpResponse } from './http-response';
 import {
   defaultErrorMessageProvider,
@@ -157,12 +157,12 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
       return;
     }
 
-    if (data instanceof Response) {
+    if (isResponse(data)) {
       res.status(data.statusCode).json(data.data);
       return;
     }
 
-    if (data instanceof CSVResponse) {
+    if (isCSVResponse(data)) {
       data.streamCsv(res);
       return;
     }
