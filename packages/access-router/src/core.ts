@@ -225,8 +225,14 @@ export class Core {
                 select: normalizeSelect(p.select),
               };
 
-          const allowedParentPaths = await this.genSelect(modelName, populateAccess as SelectAccess, [ret.path], false);
-          if (!allowedParentPaths.includes(ret.path)) return null;
+          const parentPath = ret.path.includes('.') ? ret.path.split('.')[0] : ret.path;
+          const allowedParentPaths = await this.genSelect(
+            modelName,
+            populateAccess as SelectAccess,
+            [parentPath],
+            false,
+          );
+          if (!allowedParentPaths.includes(parentPath)) return null;
 
           const refModelName = getModelRef(modelName, ret.path);
           if (!refModelName) return null;
