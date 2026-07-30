@@ -1,3 +1,9 @@
+## [0.31.4](https://github.com/egose/web-ts-toolkit/compare/v0.31.3...v0.31.4) (2026-07-30)
+
+### Bug Fixes
+
+* **access-router-runtime-example:** invoke runtime CLI through pnpm exec in app scripts ([8083a81](https://github.com/egose/web-ts-toolkit/commit/8083a817e69b7778fe38011f07d20b86f8d25477))
+
 ## [0.31.3](https://github.com/egose/web-ts-toolkit/compare/v0.31.2...v0.31.3) (2026-07-30)
 
 ## [0.31.2](https://github.com/egose/web-ts-toolkit/compare/v0.31.1...v0.31.2) (2026-07-30)
