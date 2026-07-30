@@ -45,19 +45,15 @@ function OrganizationList() {
 
   return (
     <div>
-
       <button disabled={isPending} onClick={() => mutate({ name: 'Northwind Labs' })}>
-                Create
+        Create
       </button>
 
       <ul>
-
         {data.map((org) => (
           <li key={org._id}>{org.name}</li>
         ))}
-
       </ul>
-
     </div>
   );
 }
