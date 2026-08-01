@@ -9,9 +9,13 @@ It is a drop-in-shaped proxy: code that reads like Mongoose persists offline.
 ```sh
 pnpm add @web-ts-toolkit/mongoose-rxdb
 pnpm add rxdb rxjs
-# optional, for SQLite storage:
+# Optional. For production-grade local SQLite storage:
 pnpm add rxdb-premium
 ```
+
+> No `sqlite3` install is required on Node 22+: the built-in `node:sqlite` module is
+> auto-detected and used by the free trial SQLite storage (subject to its limits).
+> For older Node / non-Node runtimes, install npm `sqlite3` and it will be picked up.
 
 ## Highlights
 
@@ -66,7 +70,13 @@ await conn.disconnect();
 The package is storage-agnostic. `@web-ts-toolkit/mongoose-rxdb/storage` exports:
 
 - `createMemoryDatabase(opts?)` — in-process memory storage (great for tests).
-- `createSqliteDatabase(opts?)` — uses `rxdb-premium`'s SQLite storage when available, falling back to memory otherwise.
+- `createSqliteDatabase(opts?)` — local SQLite. Resolution order is automatic:
+  1. `rxdb-premium`'s `getRxStorageSqlite` (production-grade; needs a license token at install).
+  2. RxDB's free **trial** `getRxStorageSQLiteTrial` driven by Node 22+'s built-in `node:sqlite` — writes a real file at `opts.filePath`, prints a warning each load, capped at ~500 docs/collection, no indexes.
+  3. Same trial but with npm `sqlite3` (older Node / non-Node runtimes), if installed.
+  4. In-memory `getRxStorageMemory` as a last resort (logged to stderr) so consumer code never crashes when no SQLite backend is available.
+
+  On success a one-line `[mongoose-rxdb] createSqliteDatabase: using <backend> SQLite at <path>` warning is printed (with the trial caveat for level 2 and 3). For real production SQLite, install `rxdb-premium`.
 
 Pass any RxDB database factory to `Connection#connect(factory)`.
 

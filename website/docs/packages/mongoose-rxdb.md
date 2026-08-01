@@ -17,17 +17,25 @@ against an RxDB collection.
 npm install @web-ts-toolkit/mongoose-rxdb rxdb rxjs
 ```
 
-For local SQLite storage, also install RxDB Premium:
+For production-grade local SQLite storage, also install RxDB Premium (licensed; needs an
+access token at install time):
 
 ```bash npm2yarn
 npm install rxdb-premium
 ```
 
+No `sqlite3` install is required on Node 22+: the built-in `node:sqlite` module is
+auto-detected and used by the free **trial** SQLite storage (it writes a real file but
+is capped at ~500 docs/collection, has no indexes, and prints a warning each load).
+For older Node / non-Node runtimes, install npm `sqlite3` and it will be picked up
+instead. For real production SQLite, install `rxdb-premium`.
+
 Peer dependencies:
 
 - `rxdb >= 16`
 - `rxjs >= 7`
-- `rxdb-premium` (optional — only for the SQLite storage helper)
+- `rxdb-premium` (optional — only for the production-grade SQLite storage)
+- `sqlite3` (optional — only for the trial SQLite path on runtimes without `node:sqlite`)
 
 ## What It Exposes
 
@@ -48,7 +56,13 @@ From the root entrypoint:
 From the `@web-ts-toolkit/mongoose-rxdb/storage` subpath:
 
 - `createMemoryDatabase(opts?)` — in-process memory storage (tests and quick prototyping)
-- `createSqliteDatabase(opts?)` — RxDB Premium SQLite storage, with a memory fallback when `rxdb-premium` is not installed
+- `createSqliteDatabase(opts?)` — local SQLite. Resolution order is automatic:
+  1. `rxdb-premium`'s `getRxStorageSqlite` (production-grade; needs a license token at install).
+  2. RxDB's free **trial** `getRxStorageSQLiteTrial` driven by Node 22+'s built-in `node:sqlite` — writes a real file at `opts.filePath`, prints a warning each load, capped at ~500 docs/collection, no indexes.
+  3. Same trial with npm `sqlite3` (older Node / non-Node runtimes), if installed.
+  4. In-memory `getRxStorageMemory` as a last resort (logged to stderr) so consumer code never crashes when no SQLite backend is available.
+
+  On success a one-line `[mongoose-rxdb] createSqliteDatabase: using <backend> SQLite at <path>` warning is printed (with the trial caveat for tiers 2 and 3). For real production SQLite, install `rxdb-premium`.
 
 ## Quick Start
 
@@ -236,9 +250,11 @@ await conn.connect(() => createMemoryDatabase({ name: 'myapp' }));
 Storage subpath helpers:
 
 - `createMemoryDatabase({ name? })` — fast in-process storage, default for tests
-- `createSqliteDatabase({ name?, filePath? })` — uses `rxdb-premium` SQLite when installed,
-  otherwise falls back to memory storage so the call never throws in environments without the
-  premium package
+- `createSqliteDatabase({ name?, filePath? })` — local SQLite resolved automatically
+  1. `rxdb-premium` (production-grade; needs a license token at install)
+  2. RxDB free trial `getRxStorageSQLiteTrial` driven by Node 22+'s built-in `node:sqlite` (writes a real file at `filePath`, but capped at ~500 docs/collection, no indexes, prints a warning each load)
+  3. Same trial with npm `sqlite3` (older Node / non-Node runtimes), if installed
+  4. In-memory `getRxStorageMemory` as a last resort (logged to stderr) so the call never throws in environments without any SQLite backend
 
 A shared default connection is also available for simple apps:
 
