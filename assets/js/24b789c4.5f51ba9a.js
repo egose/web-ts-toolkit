@@ -186,6 +186,13 @@ function _createMdxContent(props) {
         }), ": template-driven messaging service with Mongoose schemas, route factory, and provider hooks."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./mongoose-rxdb",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/mongoose-rxdb"
+          })
+        }), ": Mongoose-shaped Schema/Document/Query/Model/middleware proxy persisted locally via RxDB (SQLite)."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
           href: "./moo",
           children: (0,jsx_runtime.jsx)(_components.code, {
             children: "@web-ts-toolkit/moo"
