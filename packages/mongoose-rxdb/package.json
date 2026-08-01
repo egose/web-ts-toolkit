@@ -1,0 +1,66 @@
+{
+  "name": "@web-ts-toolkit/mongoose-rxdb",
+  "description": "Mongoose-like Schema, Document, Query, Model, and Middleware proxy backed by RxDB (SQLite storage)",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/mongoose-rxdb",
+  "version": "0.0.0-PLACEHOLDER",
+  "license": "PLACEHOLDER",
+  "sideEffects": false,
+  "repository": "PLACEHOLDER",
+  "keywords": [
+    "mongoose",
+    "rxdb",
+    "sqlite",
+    "offline",
+    "local-db",
+    "typescript"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./storage": {
+      "types": "./dist/storage/index.d.ts",
+      "import": "./dist/storage/index.mjs",
+      "require": "./dist/storage/index.js",
+      "default": "./dist/storage/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "test": "pnpm --filter @web-ts-toolkit/mongoose-rxdb... build && vitest run --config ../../vitest.config.ts"
+  },
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@web-ts-toolkit/utils": "workspace:*"
+  },
+  "peerDependencies": {
+    "rxdb": ">=16",
+    "rxjs": ">=7"
+  },
+  "peerDependenciesMeta": {
+    "rxdb": {
+      "optional": true
+    },
+    "rxjs": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.5",
+    "rxdb": "^17.4.0",
+    "rxdb-premium": "^17.4.0",
+    "rxjs": "^7.8.2"
+  }
+}
