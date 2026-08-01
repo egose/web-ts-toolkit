@@ -23,20 +23,19 @@ export class RxCollectionAdapter implements RxLikeCollection {
   }
 
   async find(compiled: CompiledQuery): Promise<RxLikeDoc[]> {
-    const query = this.native().find({
+    let query = this.native().find({
       selector: compiled.selector,
     });
-    if (compiled.sort)
-      for (const [k, v] of Object.entries(compiled.sort)) query.sort(k === '_id' ? '_id' : k, v === 1 ? 'asc' : 'desc');
-    if (compiled.limit !== undefined) query.limit(compiled.limit);
+    if (compiled.sort) query = query.sort(compiled.sort as any);
+    if (compiled.limit !== undefined) query = query.limit(compiled.limit);
     let docs: RxDocument[] = await query.exec();
     if (compiled.skip !== undefined && compiled.skip > 0) docs = docs.slice(compiled.skip);
     return docs.map((d) => d.toJSON(true));
   }
 
   async findOne(compiled: CompiledQuery): Promise<RxLikeDoc | null> {
-    const query = this.native().findOne({ selector: compiled.selector });
-    if (compiled.sort) for (const [k, v] of Object.entries(compiled.sort)) query.sort(k, v === 1 ? 'asc' : 'desc');
+    let query = this.native().findOne({ selector: compiled.selector });
+    if (compiled.sort) query = query.sort(compiled.sort as any);
     const doc: RxDocument | null = await query.exec();
     return doc ? doc.toJSON(true) : null;
   }

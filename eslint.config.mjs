@@ -89,4 +89,11 @@ export default tseslint.config(
       'prefer-const': 'off',
     },
   },
+  {
+    files: ['apps/mongoose-rxdb-example/**/*.{ts,mts,cts,js,mjs,cjs}'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    },
+  },
 );

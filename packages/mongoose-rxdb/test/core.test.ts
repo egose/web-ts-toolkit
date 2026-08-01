@@ -123,6 +123,18 @@ describe('CRUD through Model (RxDB memory storage)', () => {
     const n = await User.countDocuments({ age: { $lte: 2 } });
     expect(n).toBeGreaterThanOrEqual(2);
   });
+
+  it('respects sort order via the query builder (rxdb query-builder plugin)', async () => {
+    const User = makeUserModel();
+    const a = await User.create({ name: 'SortedA', age: 3 });
+    const b = await User.create({ name: 'SortedB', age: 1 });
+    const c = await User.create({ name: 'SortedC', age: 2 });
+    const asc = await User.find({ name: { $in: [a.toObject().name, b.toObject().name, c.toObject().name] } })
+      .sort({ age: 1 })
+      .exec();
+    expect(asc.map((u: any) => u.age)).toEqual([1, 2, 3]);
+    await User.deleteMany({ age: { $lte: 3 } });
+  });
 });
 
 describe('middleware', () => {

@@ -7,7 +7,7 @@ export type RxDocument = {
 
 export interface RxQuery<T = any> {
   exec(): Promise<T>;
-  sort(field: string, direction?: 'asc' | 'desc'): RxQuery<T>;
+  sort(params: string | Record<string, 'asc' | 'desc'>): RxQuery<T>;
   limit(n: number): RxQuery<T>;
 }
 
