@@ -1,0 +1,21 @@
+{
+  "name": "mongoose-rxdb-example",
+  "private": true,
+  "scripts": {
+    "build:deps": "pnpm --filter @web-ts-toolkit/mongoose-rxdb... build",
+    "build": "pnpm run build:deps && tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@web-ts-toolkit/mongoose-rxdb": "workspace:*",
+    "rxdb": "^17.4.0",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsx": "^4.20.6",
+    "typescript": "^6.0.3"
+  }
+}

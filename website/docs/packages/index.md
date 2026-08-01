@@ -23,6 +23,7 @@ This site is the primary documentation home for the current `web-ts-toolkit` wor
 - [`@web-ts-toolkit/express-response-handler`](./express-response-handler): return-value response handling for Express routes.
 - [`@web-ts-toolkit/http-errors`](./http-errors): typed HTTP error classes and structured error payload helpers.
 - [`@web-ts-toolkit/message-service`](./message-service): template-driven messaging service with Mongoose schemas, route factory, and provider hooks.
+- [`@web-ts-toolkit/mongoose-rxdb`](./mongoose-rxdb): Mongoose-shaped Schema/Document/Query/Model/middleware proxy persisted locally via RxDB (SQLite).
 - [`@web-ts-toolkit/moo`](./moo): Mongoose helpers for schema fields, ObjectId checks, and document plugins.
 - [`@web-ts-toolkit/utils`](./utils): shared collection, object, async, and URL helpers used across the workspace.
 - [`create-access-router-mongo-starter`](./create-access-router-mongo-starter): starter CLI that scaffolds a MongoDB-backed `access-router` + React app.

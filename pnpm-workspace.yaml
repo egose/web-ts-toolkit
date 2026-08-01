@@ -3,8 +3,11 @@ packages:
 - apps/*
 allowBuilds:
   '@parcel/watcher': false
+  eccrypto: false
   esbuild: false
   mongodb-memory-server: false
   netlify-cli: false
+  rxdb-premium: false
+  secp256k1: false
   sharp: false
   unix-dgram: false
