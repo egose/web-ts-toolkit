@@ -1,3 +1,14 @@
+## [0.32.0](https://github.com/egose/web-ts-toolkit/compare/v0.31.5...v0.32.0) (2026-08-01)
+
+### Features
+
+* add example app and improve sqlite fallback support ([3e9469f](https://github.com/egose/web-ts-toolkit/commit/3e9469fe4ad45f00810617cd50f37d70847de1f8))
+* add mongoose-rxdb package backed by RxDB storage ([0e56e30](https://github.com/egose/web-ts-toolkit/commit/0e56e30c07e9f072e912ba2a3bd45b8d1dc51c3c))
+
+### Documentation
+
+* update package and website storage guidance ([8307a55](https://github.com/egose/web-ts-toolkit/commit/8307a55b84ce466c89b9fc00d2337090f4431232))
+
 ## [0.31.5](https://github.com/egose/web-ts-toolkit/compare/v0.31.4...v0.31.5) (2026-07-30)
 
 ### Bug Fixes
