@@ -1,4 +1,5 @@
 import { Schema, Connection, sanitizeFilter } from '@web-ts-toolkit/mongoose-rxdb';
+import type { Document, FilterQuery, Model } from '@web-ts-toolkit/mongoose-rxdb';
 import { createMemoryDatabase, createSqliteDatabase } from '@web-ts-toolkit/mongoose-rxdb/storage';
 
 interface UserDoc {
@@ -9,6 +10,27 @@ interface UserDoc {
   role: 'admin' | 'user';
   tags: string[];
 }
+
+type UserDocument = Document<UserDoc> &
+  UserDoc & {
+    isAdmin: boolean;
+    addTag(tag: string): string[];
+  };
+
+type UserModel = Model<UserDoc> & {
+  adults(): Promise<UserDocument[]>;
+  create(docs: Partial<UserDoc>): Promise<UserDocument>;
+  create(docs: Partial<UserDoc>[]): Promise<UserDocument[]>;
+  find(filter?: FilterQuery<UserDoc>): {
+    where(field: string): ReturnType<Model<UserDoc>['find']>;
+    exec(): Promise<UserDocument[]>;
+    sort(spec: Record<string, 1 | -1 | 'asc' | 'desc'>): ReturnType<Model<UserDoc>['find']>;
+  };
+  findOne(filter?: FilterQuery<UserDoc>): {
+    exec(): Promise<UserDocument | null>;
+  };
+  findById(id: string): Promise<UserDocument | null>;
+};
 
 async function main() {
   // 1) Connection with pluggable storage. Two modes:
@@ -39,32 +61,32 @@ async function main() {
   );
 
   // 3) Middleware: a pre-save hook that observes the document being persisted.
-  userSchema.pre('save', function (next) {
+  userSchema.pre('save', function (this: UserDocument, next: (err?: Error) => void) {
     console.log(`  [pre-save] saving "${this.name}" (age=${this.age}, role=${this.role})`);
     next();
   });
 
-  userSchema.post('save', function () {
+  userSchema.post('save', function (this: UserDocument) {
     console.log(`  [post-save] saved "${this.name}"`);
   });
 
   // 4) Virtuals: computed properties that never touch the storage.
-  userSchema.virtual('isAdmin').get(function () {
+  userSchema.virtual('isAdmin').get(function (this: UserDocument) {
     return this.role === 'admin';
   });
 
   // 5) An instance method available on every hydrated document.
-  userSchema.method('addTag', function (tag: string) {
+  userSchema.method('addTag', function (this: UserDocument, tag: string) {
     if (!this.tags.includes(tag)) this.tags.push(tag);
     return this.tags.slice();
   });
 
   // 6) A static method available on the compiled model.
-  userSchema.static('adults', function () {
-    return (this as any).find().where('age').gte(18).exec();
+  userSchema.static('adults', function (this: UserModel) {
+    return this.find().where('age').gte(18).exec() as Promise<UserDocument[]>;
   });
 
-  const User = conn.model<UserDoc>('User', userSchema, 'users');
+  const User = conn.model<UserDoc>('User', userSchema, 'users') as UserModel;
 
   console.log('\n== create ==');
   const ada = await User.create({
@@ -90,15 +112,15 @@ async function main() {
   for (const u of adults) console.log(`  ${u.name.padEnd(18)} ${u.age}`);
 
   console.log('\n== find: mango-style filter (await thenable) ==');
-  const admins = (await User.findOne({ role: 'admin' }))!;
+  const admins = (await User.findOne({ role: 'admin' }).exec())!;
   console.log('findOne admin =', admins.name);
 
   console.log('\n== static method on Model ==');
-  const viaStatic = await (User as any).adults();
+  const viaStatic = await User.adults();
   console.log('User.adults() count =', viaStatic.length);
 
   console.log('\n== dirty-tracking save ==');
-  const loaded = (await User.findById(grace._id!))!;
+  const loaded = ((await User.findById(grace._id!)) as UserDocument | null)!;
   console.log('loaded.isNew =', loaded.isNew, ' isModified(age) =', loaded.isModified('age'));
   loaded.age = 86;
   console.log('after mutate isModified(age) =', loaded.isModified('age'), ' modifiedPaths =', loaded.modifiedPaths());
@@ -106,13 +128,13 @@ async function main() {
   console.log('after save isModified(age) =', loaded.isModified('age'));
 
   console.log('\n== updateOne / countDocuments ==');
-  const updated = await User.updateOne({ name: 'Grace Hopper' }, { $inc: { age: 1 } });
+  const updated = await User.updateOne({ name: 'Grace Hopper' }, { $inc: { age: 1 } }).exec();
   console.log('updateOne matched/modified =', updated.matchedCount, '/', updated.modifiedCount);
-  const count = await User.countDocuments({ age: { $gte: 18 } });
+  const count = await User.countDocuments({ age: { $gte: 18 } }).exec();
   console.log('countDocuments(age>=18) =', count);
 
   console.log('\n== explicit _id (allowed at create) & immutability ==');
-  const custom = await User.create({ _id: 'custom-id-42', name: 'Custom', age: 30, role: 'user' } as any);
+  const custom = await User.create({ _id: 'custom-id-42', name: 'Custom', age: 30, role: 'user', tags: [] });
   console.log('custom._id =', custom._id);
   // custom._id = 'other' would be a no-op: _id is read-only after construction (RxDB PK rule).
 
@@ -120,19 +142,19 @@ async function main() {
   // Simulate a filter coming from request body. An attacker tries a `$where`-style injection
   // as an extra top-level field. sanitizeFilter wraps nested operator-like objects as literal
   // `$eq` values so they cannot be interpreted as Mongo operators.
-  const userFilter = { name: 'Ada Lovelace', role: { $where: 'this.age > 0' } } as any;
+  const userFilter = { name: 'Ada Lovelace', role: { $where: 'this.age > 0' } } as FilterQuery<UserDoc>;
   const safe = sanitizeFilter(userFilter);
   console.log('raw filter  =', JSON.stringify(userFilter));
   console.log('sanitized   =', JSON.stringify(safe));
-  const found = (await User.findOne({ name: 'Ada Lovelace' } as any))!;
+  const found = (await User.findOne({ name: 'Ada Lovelace' }).exec())!;
   console.log('findOne(name=Ada) =', found.name);
-  const none = await User.findOne(safe as any);
+  const none = await User.findOne(safe).exec();
   console.log('findOne(sanitized-with role.$where) = ', none ? none.name : '<null as expected>');
   // Without sanitization, the `$where` object could be misinterpreted as an operator map.
 
   console.log('\n== deleteMany / cleanup ==');
-  await User.deleteMany({});
-  console.log('remaining users =', await User.countDocuments({}));
+  await User.deleteMany({}).exec();
+  console.log('remaining users =', await User.countDocuments({}).exec());
 
   await conn.disconnect();
   console.log('\ndone.');

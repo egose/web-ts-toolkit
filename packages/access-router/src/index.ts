@@ -8,6 +8,7 @@ import { createSetCore } from './core';
 import { RootRouter, ModelRouter, DataRouter, combineRoutes } from './routers';
 import { createOpenApiRouter } from './openapi/router';
 import { OpenApiCollisionError } from './openapi/errors';
+import { OpenApiRegistry } from './openapi/registry';
 import type {
   OpenApiDocumentOptions,
   OpenApiMethod,
@@ -130,6 +131,7 @@ export {
   getModelInstance,
   createOpenApiRouter,
   OpenApiCollisionError,
+  OpenApiRegistry,
 };
 export type { OpenApiRegistryOptions };
 export type {

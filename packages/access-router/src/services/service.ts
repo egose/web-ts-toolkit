@@ -64,7 +64,8 @@ import {
 } from '../interfaces';
 import { Codes, StatusCodes } from '../enums';
 import { Base } from './base';
-import { debug as debugLog } from '../logger-helpers';
+import type { OpLogContext } from '../logger-helpers';
+import { debug as debugLog, summarizeFilter } from '../logger-helpers';
 import { isDocument } from '../lib';
 import {
   bulkUpdateSub as bulkUpdateSubImpl,
@@ -142,8 +143,54 @@ export class Service<TModel = unknown> extends Base<TModel> {
   protected baseFields: string[];
   protected baseFieldsExt: string[];
 
+  public findRawParentDoc(args: {
+    filter: Filter<TModel>;
+    select: string;
+    populate: unknown;
+    lean: boolean;
+  }): ReturnType<Model['findOne']> {
+    return this.model.findOne({
+      ...args,
+      filter: args.filter as unknown as Filter,
+      populate: args.populate as string | Populate[],
+    });
+  }
+
   private asServiceHookContext(context: ModelHookContext): ServiceHookContext {
     return context as ServiceHookContext;
+  }
+
+  private beginOp(
+    op: string,
+    filter: unknown,
+    extra?: Omit<OpLogContext, 'op' | 'startedAt' | 'filterKeyValueCount'>,
+  ): number {
+    const startedAt = Date.now();
+    debugLog({
+      op,
+      modelName: this.modelName,
+      filterKeyValueCount: summarizeFilter(filter).filterKeyValueCount,
+      startedAt,
+      ...(extra ?? {}),
+    } as OpLogContext);
+    return startedAt;
+  }
+
+  private completeOp(
+    op: string,
+    startedAt: number,
+    resultCode: string | number,
+    filter: unknown,
+    extra?: Omit<OpLogContext, 'op' | 'startedAt' | 'durationMs' | 'resultCode' | 'filterKeyValueCount'>,
+  ): void {
+    debugLog({
+      op,
+      modelName: this.modelName,
+      filterKeyValueCount: summarizeFilter(filter).filterKeyValueCount,
+      durationMs: Date.now() - startedAt,
+      resultCode,
+      ...(extra ?? {}),
+    } as OpLogContext);
   }
 
   constructor(req: ModelRequest, modelName: string) {
@@ -162,7 +209,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     options?: FindOneOptions,
   ): Promise<SingleResult<TModel> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
-    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+    if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
     const { select, sort, populate, include, overrides } = this.resolveFindOneArgs(args);
     const { skim, includePermissions, access, populateAccess, lean } = this.resolveFindOneOptions(options);
@@ -194,19 +241,22 @@ export class Service<TModel = unknown> extends Base<TModel> {
       populate: _populate,
     };
 
-    debugLog({
-      op: 'findOne',
-      modelName: this.modelName,
+    const startedAt = this.beginOp('findOne', _filter, {
       sort,
       selectCount: finalSelect.length,
       populateCount: Array.isArray(_populate) ? _populate.length : _populate ? 1 : 0,
-      query: { filter: _filter },
     });
 
-    if (_filter === false) return { success: false, code: Codes.Forbidden, query };
+    if (_filter === false) {
+      this.completeOp('findOne', startedAt, Codes.Forbidden, _filter);
+      return { success: false, kind: 'error', code: Codes.Forbidden, query };
+    }
 
     let doc = await this.model.findOne({ ...query, lean });
-    if (!doc) return { success: false, code: Codes.NotFound, query };
+    if (!doc) {
+      this.completeOp('findOne', startedAt, Codes.NotFound, _filter);
+      return { success: false, kind: 'error', code: Codes.NotFound, query };
+    }
 
     const context: ModelHookContext = {
       mongooseModel: this.model.model,
@@ -220,7 +270,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
       doc = await this.includeDocs(doc, includes);
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
-      if (result) return { ...result, query };
+      if (result) {
+        this.completeOp('findOne', startedAt, result.code, _filter);
+        return { ...result, query };
+      }
       throw error;
     }
 
@@ -237,6 +290,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     );
     if (!includePermissions) doc = this.addEmptyPermissions(doc);
 
+    this.completeOp('findOne', startedAt, Codes.Success, _filter);
     return { success: true, kind: 'single', code: Codes.Success, data: doc as TModel, query, context };
   }
 
@@ -270,10 +324,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
     filter: Filter<TModel>,
     args?: FindArgs<TModel>,
     options?: FindOptions,
-    decorate?: Function,
+    decorate?: (doc: unknown, context?: ModelHookContext) => unknown,
   ): Promise<ListResult<TModel> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
-    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+    if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
     const { select, populate, include, sort, skip, limit, page, pageSize, overrides } = this.resolveFindArgs(args);
     const { skim, includePermissions, includeCount, populateAccess, lean } = this.resolveFindOptions(options);
@@ -314,18 +368,18 @@ export class Service<TModel = unknown> extends Base<TModel> {
       ...pagination,
     };
 
-    debugLog({
-      op: 'find',
-      modelName: this.modelName,
+    const startedAt = this.beginOp('find', _filter, {
       sort,
       skip: pagination.skip,
       limit: pagination.limit,
       selectCount: finalSelect.concat(includeLocalFields).length,
       populateCount: Array.isArray(filteredPopulate) ? filteredPopulate.length : filteredPopulate ? 1 : 0,
-      query: { filter: _filter },
     });
 
-    if (_filter === false) return { success: false, code: Codes.Forbidden, query };
+    if (_filter === false) {
+      this.completeOp('find', startedAt, Codes.Forbidden, _filter);
+      return { success: false, kind: 'error', code: Codes.Forbidden, query };
+    }
 
     let docs = await this.model.find({
       ...query,
@@ -347,7 +401,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
       docs = await this.includeDocs(docs, includes);
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
-      if (result) return { ...result, query };
+      if (result) {
+        this.completeOp('find', startedAt, result.code, _filter);
+        return { ...result, query };
+      }
       throw error;
     }
 
@@ -377,6 +434,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
       }),
     );
 
+    this.completeOp('find', startedAt, Codes.Success, _filter);
     return {
       success: true,
       kind: 'list',
@@ -390,10 +448,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
   }
 
   public async create(
-    data,
+    data: Record<string, unknown> | Record<string, unknown>[],
     args?: CreateArgs,
     options?: CreateOptions,
-    decorate?: Function,
+    decorate?: (doc: unknown, context?: ModelHookContext) => unknown,
   ): Promise<ListResult<TModel> | ErrorResult> {
     const { populate } = this.resolveCreateArgs(args);
     const { skim, includePermissions, populateAccess } = this.resolveCreateOptions(options);
@@ -404,6 +462,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     if (dataArr.length > maxBulkItems) {
       return {
         success: false,
+        kind: 'error',
         code: Codes.BadRequest,
         errors: [{ detail: `Bulk create exceeds maximum item count of ${maxBulkItems}` }],
       };
@@ -421,10 +480,14 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const contexts: ModelHookContext[] = [];
 
-    let validationError: ErrorResult | null = null;
+    // ARF-05: validate every admitted item with bounded concurrency and
+    // collect per-item errors in stable input-index order. The previous
+    // implementation used a single shared `validationError` and skipped
+    // remaining items once any worker failed, which made the winning item
+    // nondeterministic under concurrency > 1 and dropped errors from other
+    // invalid items.
+    const validationErrors: Array<{ index: number; errors: unknown[] }> = [];
     const validationItems = await mapWithConcurrencyLimit(dataArr, maxBulkConcurrency, async (item, index) => {
-      if (validationError) return undefined;
-
       const context: ModelHookContext = {
         mongooseModel: this.model.model,
         modelName: this.modelName,
@@ -441,16 +504,15 @@ export class Service<TModel = unknown> extends Base<TModel> {
       const validated = await this.validate(allowedData, 'create', context);
       if (isBoolean(validated)) {
         if (!validated) {
-          validationError = { success: false, code: Codes.BadRequest };
+          validationErrors.push({ index, errors: [] });
           return undefined;
         }
       } else if (isArray(validated)) {
         if (validated.length > 0) {
-          validationError = {
-            success: false,
-            code: Codes.BadRequest,
+          validationErrors.push({
+            index,
             errors: isArr ? validated.map((issue) => this.formatBulkValidationIssue(issue, index)) : validated,
-          };
+          });
           return undefined;
         }
       }
@@ -459,7 +521,23 @@ export class Service<TModel = unknown> extends Base<TModel> {
       return allowedData;
     });
 
-    if (validationError) return validationError;
+    if (validationErrors.length > 0) {
+      const aggregate = validationErrors
+        .slice()
+        .sort((a, b) => a.index - b.index)
+        .flatMap((entry) => entry.errors);
+
+      if (isArr) {
+        return { success: false, kind: 'error', code: Codes.BadRequest, errors: aggregate };
+      }
+      const single = validationErrors[0];
+      return {
+        success: false,
+        kind: 'error',
+        code: Codes.BadRequest,
+        errors: single?.errors ?? [],
+      };
+    }
 
     const items = await mapWithConcurrencyLimit(validationItems, maxBulkConcurrency, async (allowedData, index) => {
       const preparedData = await this.prepare(allowedData, 'create', contexts[index]);
@@ -561,13 +639,13 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
   public async updateOne(
     filter: Filter<TModel>,
-    data,
+    data: Record<string, unknown>,
     args?: UpdateOneArgs<TModel>,
     options?: UpdateOneOptions,
-    decorate?: Function,
+    decorate?: (doc: unknown, context?: ModelHookContext) => unknown,
   ): Promise<SingleResult<TModel> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
-    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+    if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
     const { populate, overrides } = this.resolveUpdateOneArgs(args);
     const { skim, includePermissions, populateAccess } = this.resolveUpdateOneOptions(options);
@@ -580,17 +658,20 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const query = { filter: _filter, populate: _populate };
 
-    debugLog({
-      op: 'updateOne',
-      modelName: this.modelName,
+    const startedAt = this.beginOp('updateOne', _filter, {
       populateCount: Array.isArray(_populate) ? _populate.length : _populate ? 1 : 0,
-      query: { filter: _filter },
     });
 
-    if (_filter === false) return { success: false, code: Codes.Forbidden, query };
+    if (_filter === false) {
+      this.completeOp('updateOne', startedAt, Codes.Forbidden, _filter);
+      return { success: false, kind: 'error', code: Codes.Forbidden, query };
+    }
 
     let doc = (await this.model.findOne({ filter: _filter })) as ModelDocument<TModel> | null;
-    if (!doc) return { success: false, code: Codes.NotFound, query };
+    if (!doc) {
+      this.completeOp('updateOne', startedAt, Codes.NotFound, _filter);
+      return { success: false, kind: 'error', code: Codes.NotFound, query };
+    }
 
     const context: ModelHookContext = {
       mongooseModel: this.model.model,
@@ -603,7 +684,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
       data = await this.parseClientData(data);
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
-      if (result) return result;
+      if (result) {
+        this.completeOp('updateOne', startedAt, result.code, _filter);
+        return result;
+      }
       throw error;
     }
 
@@ -623,9 +707,15 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const validated = await this.validate(allowedData, 'update', context);
     if (isBoolean(validated)) {
-      if (!validated) return { success: false, code: Codes.BadRequest };
+      if (!validated) {
+        this.completeOp('updateOne', startedAt, Codes.BadRequest, _filter);
+        return { success: false, kind: 'error', code: Codes.BadRequest };
+      }
     } else if (isArray(validated)) {
-      if (validated.length > 0) return { success: false, code: Codes.BadRequest, errors: validated };
+      if (validated.length > 0) {
+        this.completeOp('updateOne', startedAt, Codes.BadRequest, _filter);
+        return { success: false, kind: 'error', code: Codes.BadRequest, errors: validated };
+      }
     }
 
     const prepared = await this.prepare(allowedData, 'update', context);
@@ -669,15 +759,16 @@ export class Service<TModel = unknown> extends Base<TModel> {
     if (isFunction(decorate)) outputDoc = await decorate(outputDoc, context);
     if (!includePermissions) outputDoc = this.addEmptyPermissions(outputDoc);
 
+    this.completeOp('updateOne', startedAt, Codes.Success, _filter);
     return { success: true, kind: 'single', code: Codes.Success, data: outputDoc as TModel, input: prepared };
   }
 
   public async updateById(
     id: string,
-    data,
+    data: Record<string, unknown>,
     args: UpdateByIdArgs<TModel> = {},
     options: UpdateByIdOptions = {},
-    decorate?: Function,
+    decorate?: (doc: unknown, context?: ModelHookContext) => unknown,
   ): Promise<SingleResult<TModel> | ErrorResult> {
     const { populate, overrides } = this.resolveUpdateByIdArgs(args);
     const { skim, includePermissions, populateAccess } = this.resolveUpdateByIdOptions(options);
@@ -700,13 +791,13 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
   public async upsert(
     filter: Filter<TModel>,
-    data,
+    data: Record<string, unknown>,
     args?: UpsertArgs<TModel>,
     options?: UpsertOptions,
-    decorate?: Function,
+    decorate?: (doc: unknown, context?: ModelHookContext) => unknown,
   ): Promise<ServiceResult<TModel>> {
     const filterErrors = this.validateClientFilter(filter);
-    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+    if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
     const { populate, overrides } = this.resolveUpsertArgs(args);
     const { skim, includePermissions, populateAccess } = this.resolveUpsertOptions(options);
@@ -714,12 +805,16 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const _filter = await (overrideFilter || this.genFilter('update', filter));
     const query = { filter: _filter };
 
-    debugLog({ op: 'upsert', modelName: this.modelName, query: { filter: _filter } });
-    if (_filter === false) return { success: false, code: Codes.Forbidden, query };
+    const startedAt = this.beginOp('upsert', _filter);
+    if (_filter === false) {
+      this.completeOp('upsert', startedAt, Codes.Forbidden, _filter);
+      return { success: false, kind: 'error', code: Codes.Forbidden, query };
+    }
 
     const theone = await this.model.findOne({ filter: _filter });
+    let result: ServiceResult<TModel>;
     if (theone) {
-      return this.updateOne(
+      result = await this.updateOne(
         null,
         data,
         {
@@ -733,7 +828,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
         decorate,
       );
     } else {
-      return this.create(
+      result = await this.create(
         data,
         { populate },
         {
@@ -744,6 +839,9 @@ export class Service<TModel = unknown> extends Base<TModel> {
         decorate,
       );
     }
+
+    this.completeOp('upsert', startedAt, result.code, _filter);
+    return result;
   }
 
   public async delete(id: string): Promise<SingleResult<unknown> | ErrorResult> {
@@ -751,11 +849,17 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const query = { filter };
 
-    debugLog({ op: 'delete', modelName: this.modelName, query: { filter } });
+    const startedAt = this.beginOp('delete', filter);
 
-    if (filter === false) return { success: false, code: Codes.Forbidden, query };
+    if (filter === false) {
+      this.completeOp('delete', startedAt, Codes.Forbidden, filter);
+      return { success: false, kind: 'error', code: Codes.Forbidden, query };
+    }
     let doc = (await this.model.findOne({ filter })) as ModelDocument<TModel> | null;
-    if (!doc) return { success: false, code: Codes.NotFound, query };
+    if (!doc) {
+      this.completeOp('delete', startedAt, Codes.NotFound, filter);
+      return { success: false, kind: 'error', code: Codes.NotFound, query };
+    }
 
     const context: ModelHookContext = {
       mongooseModel: this.model.model,
@@ -776,6 +880,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     context.finalDocumentSnapshot = toObject(doc) as Record<string, unknown>;
     await this.afterDelete(doc, context);
 
+    this.completeOp('delete', startedAt, Codes.Success, filter);
     return { success: true, kind: 'single', code: Codes.Success, data: doc._id, query };
   }
 
@@ -786,7 +891,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
   public async exists(filter: Filter<TModel>, options?: ExistsOptions): Promise<SingleResult<boolean> | ErrorResult>;
   public async exists(filter: Filter<TModel>, options?: ExistsOptions): Promise<SingleResult<unknown> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
-    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+    if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
     const { access, includeId } = this.resolveExistsOptions(options);
 
@@ -823,6 +928,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     if (!isAllowed) {
       return {
         success: false,
+        kind: 'error',
         code: Codes.Forbidden,
         errors: [{ detail: `Distinct field not allowed: ${field}` }],
       };
@@ -835,6 +941,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     if (!this.isValidDistinctFieldName(field)) {
       return {
         success: false,
+        kind: 'error',
         code: Codes.BadRequest,
         errors: [{ detail: `Invalid distinct field: ${field}` }],
       };
@@ -845,13 +952,13 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     let { filter } = args ?? {};
     const filterErrors = this.validateClientFilter(filter);
-    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+    if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
     filter = await this.genFilter('read', filter);
 
     const query = { filter };
 
-    if (filter === false) return { success: false, code: Codes.Forbidden, query };
+    if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query };
 
     const result = await this.model.distinct(field, filter);
 
@@ -863,13 +970,13 @@ export class Service<TModel = unknown> extends Base<TModel> {
     access: BaseFilterAccess = 'list',
   ): Promise<SingleResult<number> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
-    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+    if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
     filter = await this.genFilter(access, filter);
 
     const query = { filter };
 
-    if (filter === false) return { success: false, code: Codes.Forbidden, query };
+    if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query };
 
     return { success: true, kind: 'single', code: Codes.Success, data: await this.model.countDocuments(filter), query };
   }

@@ -1,3 +1,22 @@
+## [Unreleased](https://github.com/egose/web-ts-toolkit/compare/v0.10.0...HEAD)
+
+### Bug Fixes
+
+* **access-router:** harden authorization, request budgets, and public response contracts
+  - read-scoped subqueries no longer fall back to list access without separately authorizing the target model's list operation
+  - recursive `$$sq` payloads, subdocument filters, pagination arithmetic, bulk validation ordering, and data-service sort authorization are now bounded and validated consistently across direct and root routes
+  - distinct/count/select/output shaping and structured logging no longer leak denied fields or raw request values through sort paths, error details, or serializer crossings
+  - the published package now ships stricter `noImplicitAny`-clean source declarations, explicit public result DTO boundaries, and executable packed-consumer/documentation compatibility checks
+
+### Documentation
+
+* **access-router:** add release migration notes for security and contract remediation
+  - root `count` requests now reject legacy `access` and `options.access` input instead of silently accepting it
+  - OpenAPI route registration now throws on collisions by default, so duplicate operation ids or method/path pairs must be resolved explicitly
+  - public result DTOs are serializer-only types; direct assignment from internal service results is no longer supported
+  - strict consumer type checks now reject invalid filter paths, invalid guard id shapes, and invalid runtime option types at compile time
+  - review request-complexity limits, cross-resource authorization behavior, and any integration that relied on unpublished runtime shims or undocumented schema-mutation side effects
+
 ## [0.10.0](https://github.com/egose/web-ts-toolkit/compare/v0.9.0...v0.10.0) (2026-07-13)
 
 ### Features

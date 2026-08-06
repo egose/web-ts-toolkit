@@ -234,6 +234,7 @@ export class Base<TModel = unknown> {
   protected throwClientRequestError(code: ErrorResult['code'], detail: string): never {
     throw new ClientRequestError({
       success: false,
+      kind: 'error',
       code,
       errors: [{ detail }],
     });
@@ -277,34 +278,34 @@ export class Base<TModel = unknown> {
     };
   }
 
-  protected async includeDocs(docs, include: Include | Include[]) {
+  protected async includeDocs<TDoc>(docs: TDoc | TDoc[], include: Include | Include[]): Promise<TDoc | TDoc[]> {
     if (!include) return docs;
 
     const includes = compact(castArray(include));
     if (includes.length === 0) return docs;
 
     const isSingle = !isArray(docs);
-    if (isSingle) docs = [docs];
+    let docList: TDoc[] = isSingle ? [docs as TDoc] : (docs as TDoc[]);
 
     for (let x = 0; x < includes.length; x++) {
       const include = includes[x];
 
       if (include.op === 'count') {
-        docs = await this.includeDocsCount(docs, include);
+        docList = await this.includeDocsCount<TDoc>(docList, include);
       } else {
-        docs = await this.includeDocsList(docs, include);
+        docList = await this.includeDocsList<TDoc>(docList, include);
       }
     }
 
-    return isSingle ? docs[0] : docs;
+    return isSingle ? docList[0] : docList;
   }
 
-  private async includeDocsList(docs, include: Include) {
+  private async includeDocsList<TDoc>(docs: TDoc[], include: Include): Promise<TDoc[]> {
     const { model, op, path, localField, foreignField, filter: _filters, args = {}, options = {} } = include;
 
     const svc = await this.getAuthorizedTargetService(model, op);
 
-    const includeLocalValues = [];
+    const includeLocalValues: unknown[] = [];
     forEach(docs, (doc, i) => {
       includeLocalValues.push(get(doc, localField));
     });
@@ -330,7 +331,7 @@ export class Base<TModel = unknown> {
     for (let y = 0; y < docs.length; y++) {
       const doc = docs[y];
       const localValue = get(doc, localField);
-      const filterFn = (row) =>
+      const filterFn = (row: unknown) =>
         intersectionBy(castArray(localValue), castArray(get(row, foreignField)), String).length > 0;
       const matches = trustedResult.data.filter(filterFn);
       setDocValue(doc, path, op === 'list' ? matches : matches[0]);
@@ -339,12 +340,12 @@ export class Base<TModel = unknown> {
     return docs;
   }
 
-  private async includeDocsCount(docs, include: Include) {
+  private async includeDocsCount<TDoc>(docs: TDoc[], include: Include): Promise<TDoc[]> {
     const { model, path, localField, foreignField, filter: _filters, args = {}, options = {} } = include;
 
     const svc = await this.getAuthorizedTargetService(model, 'count');
 
-    const includeLocalValues = [];
+    const includeLocalValues: unknown[] = [];
     forEach(docs, (doc) => {
       includeLocalValues.push(get(doc, localField));
     });
@@ -371,7 +372,7 @@ export class Base<TModel = unknown> {
     for (let y = 0; y < docs.length; y++) {
       const doc = docs[y];
       const localValue = get(doc, localField);
-      const filterFn = (row) =>
+      const filterFn = (row: unknown) =>
         intersectionBy(castArray(localValue), castArray(get(row, foreignField)), String).length > 0;
 
       setDocValue(doc, path, result.data.filter(filterFn).length);
@@ -405,10 +406,14 @@ export class Base<TModel = unknown> {
       result = await svc._list(filter, args as never, options as never);
     } else if (op === 'read') {
       const svc = await this.getAuthorizedTargetService(model, 'read');
+      // ARF-01: cross-resource read subqueries must not fall back to the
+      // target list access path. The fallback is authorized separately above
+      // and target list row/field policy would never be re-evaluated.
+      const readOptions = { ...(options as object), tryList: false } as never;
       if (id) {
-        result = await svc._read(id, args as never, options as never);
+        result = await svc._read(id, args as never, readOptions);
       } else if (filter) {
-        result = await svc._readFilter(filter, args as never, options as never);
+        result = await svc._readFilter(filter, args as never, readOptions);
       } else {
         this.throwClientRequestError(Codes.BadRequest, `Subquery for field ${key} requires an id or filter`);
       }

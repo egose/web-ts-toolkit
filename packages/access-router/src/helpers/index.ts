@@ -8,7 +8,7 @@ import { isSchema, isReference } from '../lib';
 import { FilterOperator } from '../enums';
 
 type SchemaTree = Record<string, unknown>;
-type ReferenceMap = Record<string, string | ReferenceMap>;
+type ReferenceMap = { [key: string]: string | ReferenceMap };
 type QueryHandler = (operator: FilterOperator, value: unknown, key: string) => unknown | Promise<unknown>;
 
 function recurseObject(obj: unknown): string | ReferenceMap | null {
@@ -18,7 +18,7 @@ function recurseObject(obj: unknown): string | ReferenceMap | null {
 
   if (!isObject(obj)) return null;
   if (isReference(obj)) {
-    return obj.ref;
+    return obj.ref as unknown as string;
   }
 
   let ret: string | ReferenceMap | null = null;
@@ -107,7 +107,7 @@ export const createValidator = (fn: (key: string) => boolean) => {
       .split(' ')
       .every((v) => fn(v));
 
-  const arrayHandler = (arr: string[] | string[][]) =>
+  const arrayHandler = (arr: string[] | string[][]): boolean =>
     arr.some((item) => {
       if (isString(item)) return stringHandler(item);
       else if (isArray(item)) return arrayHandler(item);

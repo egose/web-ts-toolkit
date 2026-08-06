@@ -69,7 +69,7 @@ const normalizeBasePath = (name: string, value: string | null | undefined) => {
   return isString(value) ? addLeadingSlash(value) : '';
 };
 
-const hasModelPermission = (value: unknown, modelPermissionPrefix: string) => {
+const hasModelPermission = (value: unknown, modelPermissionPrefix: string): boolean => {
   if (!modelPermissionPrefix) {
     return true;
   }

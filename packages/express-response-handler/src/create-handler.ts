@@ -36,7 +36,7 @@ const promisify =
     Promise.resolve().then(() => fn(value));
 
 const invokePostHook = (hook: AsyncHook, value: unknown): void => {
-  void hook(value).catch(() => undefined);
+  void hook(value).catch(() => {});
 };
 
 const RFC_9457_CONTENT_TYPE = 'application/problem+json';

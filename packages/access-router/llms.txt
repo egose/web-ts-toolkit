@@ -35,6 +35,7 @@ const docsRouter = acl.createOpenApiRouter({ title: 'Example API', version: '1.0
 Validation adapters:
 
 ```ts
+import { z } from 'zod';
 import { fromZod, defineRequestSchema } from '@web-ts-toolkit/access-router';
 const validator = fromZod(z.object({ name: z.string() }));
 const schema = defineRequestSchema(validator);
@@ -44,9 +45,11 @@ Isolated runtime (no global state shared with default `acl`):
 
 ```ts
 import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+import mongoose from 'mongoose';
 const runtime = createAccessRuntime();
 runtime.setGlobalOptions({ globalPermissions: () => [] });
 runtime.createRouter('User', { basePath: '/users' });
+const UserModel = mongoose.model('User', new mongoose.Schema({ name: String }));
 runtime.registerModelInstance('User', UserModel);
 ```
 

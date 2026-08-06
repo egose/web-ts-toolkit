@@ -309,4 +309,118 @@ describe('cross-resource authorization (AR-06)', () => {
       ],
     });
   });
+
+  it('does not fall back to target list access for read subqueries (ARF-01)', async () => {
+    const orgModelName = `AclMongoCrossOrgRf${++modelCounter}`;
+    const userModelName = `AclMongoCrossUserRf${modelCounter}`;
+
+    const Org = mongoose.model(orgModelName, new mongoose.Schema({ name: String, tenant: String }));
+
+    const userSchema = new mongoose.Schema({
+      name: String,
+      orgId: { type: mongoose.Schema.Types.ObjectId, ref: orgModelName },
+    });
+    userSchema.plugin(permissionsPlugin, { modelName: userModelName });
+    const User = mongoose.model(userModelName, userSchema);
+
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions(req: express.Request) {
+        return String(req.headers['x-perms'] ?? '')
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean);
+      },
+    });
+
+    const org = await Org.create({ name: 'org-1', tenant: 'other' });
+    await User.create([{ name: 'user-1', orgId: org._id }]);
+
+    const orgRouter = acl.createRouter(orgModelName, {
+      basePath: '/cross-orgs-rf',
+      operationAccess: {
+        list: 'canListOrgs',
+        read: 'canReadOrgs',
+      },
+      permissionSchema: {
+        name: true,
+        orgId: true,
+      },
+      baseFilter: {
+        // read is restricted to tenant "mine"; list has no restriction so
+        // falling back to list would expose the other-tenant org.
+        read: () => ({ tenant: 'mine' }),
+      },
+    });
+
+    const userRouter = acl.createRouter(userModelName, {
+      basePath: '/cross-users-rf',
+      operationAccess: { list: true, read: true },
+      permissionSchema: { name: true, orgId: true },
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.use(orgRouter.routes);
+    app.use(userRouter.routes);
+
+    // Caller has read but NOT list on the target org model.
+    // The org lives in tenant "other", so read-scope excludes it.
+    // Before ARF-01, _read() fell back to list access and returned the org
+    // even though the target list operation guard was never authorized; that
+    // yielded a 200 with user-1 in the result.
+    // After ARF-01, the read subquery returns NotFound and the user list is
+    // empty because the $in filter resolves to no org ids.
+    const noFallbackResponse = await request(app)
+      .post('/cross-users-rf/__query')
+      .set('x-perms', 'canReadOrgs')
+      .send({
+        filter: {
+          orgId: {
+            $in: {
+              $$sq: {
+                model: orgModelName,
+                op: 'read',
+                id: String(org._id),
+                sqOptions: { path: '_id', compact: true },
+              },
+            },
+          },
+        },
+      })
+      .expect(404)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(noFallbackResponse.body.status).toBe(404);
+
+    // Sanity: with both read and list perms AND a matching tenant, the
+    // subquery still works for legitimate callers.
+    const myOrg = await Org.create({ name: 'my-org', tenant: 'mine' });
+    await User.create([{ name: 'user-2', orgId: myOrg._id }]);
+
+    const okResponse = await request(app)
+      .post('/cross-users-rf/__query')
+      .set('x-perms', 'canReadOrgs,canListOrgs')
+      .send({
+        filter: {
+          orgId: {
+            $in: {
+              $$sq: {
+                model: orgModelName,
+                op: 'read',
+                id: String(myOrg._id),
+                sqOptions: { path: '_id', compact: true },
+              },
+            },
+          },
+        },
+      })
+      .expect(200);
+
+    expect(okResponse.body.data.length).toBe(1);
+    expect(okResponse.body.data[0].name).toBe('user-2');
+
+    mongoose.deleteModel(orgModelName);
+    mongoose.deleteModel(userModelName);
+  });
 });

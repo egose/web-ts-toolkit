@@ -141,4 +141,72 @@ describe('AR-18 optimize data list hot paths', () => {
     expect(response.body.meta.totalCount).toBe(30);
     expect(response.body.meta.returnedCount).toBe(5);
   });
+
+  it('rejects sorting by a denied/malformed field before ordering (ARF-06)', async () => {
+    const dataName = `AclDataSortAuth${++modelCounter}`;
+
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => ['isAdmin'],
+    });
+
+    const dataset = Array.from({ length: 12 }, (_, i) => ({
+      id: `s-${i + 1}`,
+      name: `N-${i}`,
+      secret: `hidden-${i}`,
+      secretRank: 12 - i,
+      public: true,
+    }));
+
+    const router = acl.createDataRouter(dataName, {
+      basePath: '/sort-auth',
+      idField: 'id',
+      operationAccess: { list: true, read: true },
+      data: dataset,
+      permissionSchema: {
+        id: true,
+        name: true,
+        public: true,
+        // secret and secretRank are not in the permission schema — denied.
+      },
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.use(router.routes);
+
+    // Sorting by a denied field must be rejected before ordering.
+    const deniedField = await request(app)
+      .post('/sort-auth/__query')
+      .send({ sort: 'secret', limit: 3 })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(deniedField.body.status).toBe(400);
+    expect(deniedField.body.errors[0].detail).toContain('Sort field is not allowed: secret');
+
+    const deniedDescField = await request(app)
+      .post('/sort-auth/__query')
+      .send({ sort: '-secretRank', limit: 3 })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(deniedDescField.body.errors[0].detail).toContain('Sort field is not allowed: secretRank');
+
+    // Malformed field paths are rejected.
+    const malformed = await request(app)
+      .post('/sort-auth/__query')
+      .send({ sort: '$where', limit: 3 })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(malformed.body.errors[0].detail).toContain('Invalid sort field');
+
+    // Permitted ascending and descending sort remains deterministic.
+    const ascOk = await request(app).post('/sort-auth/__query').send({ sort: 'name', limit: 3 }).expect(200);
+    expect((ascOk.body.data as Array<{ name: string }>).map((d) => d.name)).toEqual(['N-0', 'N-1', 'N-10']);
+
+    const descOk = await request(app).post('/sort-auth/__query').send({ sort: '-name', limit: 3 }).expect(200);
+    expect((descOk.body.data as Array<{ name: string }>).map((d) => d.name)).toEqual(['N-9', 'N-8', 'N-7']);
+  });
 });

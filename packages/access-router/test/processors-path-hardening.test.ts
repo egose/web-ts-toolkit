@@ -149,10 +149,8 @@ describe('processors/copyAndDepopulate path hardening (AR-21)', () => {
     });
 
     it('does not mutate Object.prototype when an attacker supplies a __proto__ destination', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(() => copyAndDepopulate({ a: { _id: 1 } }, [{ src: 'a', dest: '__proto__' }])).toThrow();
-      // eslint-disable-next-line no-proto
-      expect(({} as any).polluted).toBeUndefined();
+      expect(({} as { polluted?: unknown }).polluted).toBeUndefined();
     });
   });
 

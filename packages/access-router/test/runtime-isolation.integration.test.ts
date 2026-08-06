@@ -231,4 +231,155 @@ describe('AR-11 runtime model ownership isolation', () => {
     await connA.destroy();
     await connB.destroy();
   });
+
+  // ARF-12 #5: Concurrent same-name isolated-runtime requests prove separate
+  // base filters and AsyncLocalStorage isolation. Two runtimes register the
+  // SAME model name on separate connections, each with a different
+  // `baseFilter.list`. Both runtimes share the same underlying database
+  // name in this test (different connections to the same mongo-memory
+  // primary), and each runtime stores both a public and a private document.
+  // Runtime A's base filter exposes only `public:true` rows. Runtime B's
+  // base filter exposes only `public:false` rows. Concurrent HTTP list
+  // requests must each observe their own runtime's base filter — a buggy
+  // AsyncLocalStorage propagation (or one that leaked the store across
+  // requests) would mix the results.
+  it('concurrent same-name isolated-runtime requests each see their own runtime base filter', async () => {
+    await ensurePrimaryConnection();
+    const sharedName = `AclRuntimeConcurrentUser${++modelCounter}`;
+
+    const connA = await createIsolatedConnection('acl-concurrent-a');
+    const connB = await createIsolatedConnection('acl-concurrent-b');
+
+    const runtimeA = createAccessRuntime();
+    runtimeA.setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => ['isAdmin'],
+    });
+
+    const runtimeB = createAccessRuntime();
+    runtimeB.setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => ['isAdmin'],
+    });
+
+    const modelA = defineUserModel(sharedName, connA);
+    const modelB = defineUserModel(sharedName, connB);
+
+    // Differing base filters are the determining identity of each runtime
+    // here. Runtime A -> public users; runtime B -> private users.
+    const routerA = runtimeA.createRouter(modelA, {
+      basePath: '/users',
+      operationAccess: {
+        list: true,
+        read: true,
+        create: true,
+      },
+      permissionSchema: { name: true, role: true, public: true },
+      baseFilter: {
+        list: () => ({ public: true }),
+        read: () => ({}),
+        update: () => ({}),
+        delete: () => ({}),
+      },
+    });
+    const routerB = runtimeB.createRouter(modelB, {
+      basePath: '/users',
+      operationAccess: {
+        list: true,
+        read: true,
+        create: true,
+      },
+      permissionSchema: { name: true, role: true, public: true },
+      baseFilter: {
+        list: () => ({ public: false }),
+        read: () => ({}),
+        update: () => ({}),
+        delete: () => ({}),
+      },
+    });
+
+    const appA = express();
+    appA.use(express.json());
+    appA.use(routerA.routes);
+
+    const appB = express();
+    appB.use(express.json());
+    appB.use(routerB.routes);
+
+    // Seed each runtime's store with one public and one private document so
+    // the base filter — not the data — is the deciding factor.
+    await request(appA)
+      .post('/users?include_permissions=false')
+      .send({ name: 'a-public', role: 'user', public: true })
+      .expect(201);
+    await request(appA)
+      .post('/users?include_permissions=false')
+      .send({ name: 'a-private', role: 'user', public: false })
+      .expect(201);
+
+    await request(appB)
+      .post('/users?include_permissions=false')
+      .send({ name: 'b-public', role: 'user', public: true })
+      .expect(201);
+    await request(appB)
+      .post('/users?include_permissions=false')
+      .send({ name: 'b-private', role: 'user', public: false })
+      .expect(201);
+
+    // Fire two concurrent HTTP requests against the two runtimes using the
+    // same model name. Each request must resolve to its own runtime's
+    // base filter only.
+    const CONCURRENT = 8;
+    const requests: Promise<request.Response>[] = [];
+    for (let i = 0; i < CONCURRENT; i++) {
+      const useA = i % 2 === 0;
+      requests.push(
+        useA
+          ? request(appA).get('/users?include_permissions=false')
+          : request(appB).get('/users?include_permissions=false'),
+      );
+    }
+
+    const responses = await Promise.all(requests);
+    expect(responses).toHaveLength(CONCURRENT);
+    for (let i = 0; i < CONCURRENT; i++) {
+      const useA = i % 2 === 0;
+      const response = responses[i];
+      expect(response.status).toBe(200);
+      const names = (response.body.data as Array<{ name: string }>).map((row) => row.name).sort();
+      if (useA) {
+        // Runtime A: only public rows from connection A. The a-private row
+        // is filtered out by runtime A's base filter.
+        expect(names).toEqual(['a-public']);
+      } else {
+        // Runtime B: only private rows from connection B. The b-public row
+        // is filtered out by runtime B's base filter.
+        expect(names).toEqual(['b-private']);
+      }
+    }
+
+    // Repeat the same concurrency burst a few times to make a cross-thread
+    // leak much more likely to surface if AsyncLocalStorage is bugged.
+    for (let burst = 0; burst < 3; burst++) {
+      const round: Promise<request.Response>[] = [];
+      for (let i = 0; i < CONCURRENT; i++) {
+        const useA = (burst + i) % 2 === 0;
+        round.push(
+          useA
+            ? request(appA).get('/users?include_permissions=false')
+            : request(appB).get('/users?include_permissions=false'),
+        );
+      }
+
+      const roundResponses = await Promise.all(round);
+      for (let i = 0; i < CONCURRENT; i++) {
+        const useA = (burst + i) % 2 === 0;
+        const names = (roundResponses[i].body.data as Array<{ name: string }>).map((row) => row.name).sort();
+        expect(names).toEqual(useA ? ['a-public'] : ['b-private']);
+      }
+    }
+
+    await connA.destroy();
+    await connB.destroy();
+  });
 });

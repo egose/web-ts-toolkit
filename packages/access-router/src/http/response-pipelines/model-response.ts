@@ -23,7 +23,13 @@ export function formatModelCreatedResponse<T>(result: ListResult<T>) {
 }
 
 export function formatModelUpsertResponse<T>(result: ServiceResult<T>) {
-  return result.kind === 'list'
-    ? new success.Created(formatUpsertCreatedData(result))
-    : toPublicSingleResult(result).data;
+  if (result.kind === 'list') {
+    return new success.Created(formatUpsertCreatedData(result));
+  }
+
+  if (result.kind === 'single') {
+    return toPublicSingleResult(result).data;
+  }
+
+  throw new Error(`Unexpected ServiceResult kind: ${String(result.kind)}`);
 }

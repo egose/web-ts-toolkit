@@ -322,4 +322,21 @@ describe('model router route coverage', () => {
       errors: [{ parameter: 'limit' }],
     });
   });
+
+  it('does not crash on an individually-safe page and limit whose product overflows (ARF-04)', async () => {
+    const { app } = await createRoutesApp();
+
+    // page and limit are individually safe integers that pass schema
+    // validation, but (page - 1) * limit would overflow MAX_SAFE_INTEGER
+    // without the ARF-04 guard. The route should respond with a controlled
+    // 200 (empty page) rather than an unhandled error.
+    const response = await request(app)
+      .post('/route-users/__query')
+      .send({ page: Number.MAX_SAFE_INTEGER, limit: 100 })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    expect(Array.isArray(response.body.data)).toBe(true);
+    expect(response.body.data).toEqual([]);
+  });
 });

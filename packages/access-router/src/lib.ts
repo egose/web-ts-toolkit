@@ -12,7 +12,8 @@ export class InternalDocument extends Document {
 
 export const isSchema = (val: unknown): val is Schema => val instanceof Schema;
 export const isObjectIdType = (val: unknown) => val === 'ObjectId' || val === Schema.Types.ObjectId;
-export const isReference = (val: unknown) => isPlainObject(val) && !!val.ref && isObjectIdType(val.type);
+export const isReference = (val: unknown): val is { ref: unknown; type: unknown } & Record<string, unknown> =>
+  isPlainObject(val) && !!val.ref && isObjectIdType(val.type);
 
 export const isDocument = function isDocument(doc: unknown): doc is InternalDocument {
   return doc instanceof Document;

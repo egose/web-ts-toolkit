@@ -12,6 +12,16 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
+const escapeInlineScriptJson = (value: string) => {
+  return value
+    .replace(/<\/script/gi, '<\\/script')
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+};
+
 const renderDocsHtml = (specPath: string, title: string, cssUrl: string, bundleUrl: string) => `<!doctype html>
 <html lang="en">
 <head>
@@ -25,7 +35,7 @@ const renderDocsHtml = (specPath: string, title: string, cssUrl: string, bundleU
   <script src="${escapeHtml(bundleUrl)}"></script>
   <script>
     window.ui = SwaggerUIBundle({
-      url: ${JSON.stringify(specPath)},
+      url: ${escapeInlineScriptJson(JSON.stringify(specPath))},
       dom_id: '#swagger-ui',
       deepLinking: true,
       presets: [SwaggerUIBundle.presets.apis],

@@ -117,7 +117,7 @@ const rootModelSubReadArgsSchema = z
   })
   .passthrough();
 
-const rootModelCountOptionsSchema = z.object({}).passthrough().optional();
+const rootModelCountOptionsSchema = z.object({}).strict().optional();
 
 const rootDataListArgsSchema = z
   .object({

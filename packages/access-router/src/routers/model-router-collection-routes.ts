@@ -159,7 +159,7 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
 
     const svc = context.getPublicService(req);
     const result = await svc._create(
-      data,
+      data as Record<string, unknown> | Record<string, unknown>[],
       { select, populate, tasks },
       {
         includePermissions: includePermissions ?? parseBooleanString(include_permissions),

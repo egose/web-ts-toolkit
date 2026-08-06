@@ -43,10 +43,11 @@ export function mapCodeToStatusCode(code: string) {
   }
 }
 
-export function handleResultError<T>(
-  result: ServiceResult<T>,
-): asserts result is Exclude<ServiceResult<T>, ErrorResult> {
+export function handleResultError<T, TError = unknown>(
+  result: ServiceResult<T, TError>,
+): asserts result is Exclude<ServiceResult<T, TError>, ErrorResult<TError>> {
   if (result.success) return;
+  if (result.kind !== 'error') return;
 
   const { code, errors = [] } = result;
   const errorOptions = { errors };

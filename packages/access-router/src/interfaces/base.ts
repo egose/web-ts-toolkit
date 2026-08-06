@@ -179,10 +179,7 @@ export interface RootModelDistinctQueryEntry extends RootQueryEntryBase<'model',
 
 export interface RootModelCountQueryEntry extends RootQueryEntryBase<'model', 'count'> {
   filter?: Filter;
-  options?: {
-    access?: BaseFilterAccess;
-    [key: string]: unknown;
-  };
+  options?: Record<string, never>;
 }
 
 export interface RootDataListQueryEntry extends RootQueryEntryBase<'data', 'list'> {
@@ -282,6 +279,7 @@ export type Request = AccessRouterBaseRequest;
 
 export interface ErrorResult<TError = unknown, TQuery = unknown> {
   success: false;
+  kind: 'error';
   code: Codes.BadRequest | Codes.Unauthorized | Codes.Forbidden | Codes.NotFound;
   errors?: TError[];
   query?: TQuery;
@@ -314,10 +312,23 @@ export type ServiceResult<T = unknown, TError = unknown, TInput = unknown, TQuer
   | ListResult<T, TInput, TQuery>
   | ErrorResult<TError, TQuery>;
 
+/**
+ * Type-only nominal brand that marks an object as a fully-formed public DTO
+ * produced by one of the `toPublic*` serializers. It has no runtime value, so
+ * the serialized JSON shape is unchanged; its only purpose is to make the
+ * internal {@link SingleResult}/{@link ListResult}/{@link ErrorResult} shapes
+ * structurally incompatible with the public DTOs at the type level. Direct
+ * assignment from an internal service result to a public DTO fails to compile
+ * because the internal result does not carry this brand, and crossing the
+ * boundary requires the explicit serializer (or an explicit cast).
+ */
+declare const publicResultBrand: unique symbol;
+
 export interface PublicErrorResult<TError = unknown> {
   success: false;
   code: Codes.BadRequest | Codes.Unauthorized | Codes.Forbidden | Codes.NotFound;
   errors?: TError[];
+  [publicResultBrand]: 'public-error';
 }
 
 export interface PublicSingleResult<T = unknown> {
@@ -325,6 +336,7 @@ export interface PublicSingleResult<T = unknown> {
   kind: 'single';
   code: Codes.Success | Codes.Created;
   data: T;
+  [publicResultBrand]: 'public-single';
 }
 
 export interface PublicListResult<T = unknown> {
@@ -334,6 +346,7 @@ export interface PublicListResult<T = unknown> {
   data: T[];
   count: number;
   totalCount?: number | null;
+  [publicResultBrand]: 'public-list';
 }
 
 export type PublicServiceResult<T = unknown, TError = unknown> =

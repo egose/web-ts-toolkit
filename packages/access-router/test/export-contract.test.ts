@@ -60,12 +60,28 @@ import type {
 
 import * as advancedModule from '../dist/advanced.mjs';
 import * as processorsModule from '../dist/processors.mjs';
+import * as rootModule from '../dist/index.mjs';
 import { copyAndDepopulate } from '../dist/processors.mjs';
 
 import type {
   ProcessCopy as ProcessCopyType,
   CopyAndDepopulateOptions as CopyOptionsType,
 } from '../dist/processors.d.ts';
+
+import { Codes } from '../src/enums';
+import type {
+  ErrorResult,
+  ListResult,
+  PublicErrorResult,
+  PublicListResult,
+  PublicSingleResult,
+  SingleResult,
+} from '../src/interfaces';
+import {
+  toPublicErrorResult,
+  toPublicListResult,
+  toPublicSingleResult,
+} from '../src/http/response-pipelines/service-result';
 
 const require = createRequire(import.meta.url);
 const aclCjs = require('../dist/index.js');
@@ -106,6 +122,32 @@ describe('AR-14 published export contract', () => {
 
     it('declares sideEffects accurately (only entries that perform runtime mutation)', () => {
       expect(Array.isArray(pkg.sideEffects) || pkg.sideEffects === false).toBe(true);
+    });
+
+    it('every sideEffects path resolves to an emitted package entry (ARF-15)', () => {
+      expect(Array.isArray(pkg.sideEffects)).toBe(true);
+      const sideEffects = pkg.sideEffects as string[];
+      expect(sideEffects.length).toBeGreaterThan(0);
+      const emittedCandidates = ['dist/index.js', 'dist/index.mjs', 'dist/advanced.js', 'dist/advanced.mjs'];
+      for (const declared of sideEffects) {
+        expect(typeof declared).toBe('string');
+        const matcher = new RegExp(
+          '^' +
+            declared
+              .replace(/^\.\//, '')
+              .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+              .replace(/\*\*/g, '.*')
+              .replace(/\*/g, '[^/]*') +
+            '$',
+        );
+        const matches = emittedCandidates.filter((candidate) => matcher.test(candidate));
+        expect(matches.length).toBeGreaterThan(0);
+        for (const match of matches) {
+          const resolved = path.resolve(packageRoot, match);
+          expect(existsSync(resolved)).toBe(true);
+          expect(statSync(resolved).size).toBeGreaterThan(0);
+        }
+      }
     });
   });
 
@@ -318,6 +360,147 @@ describe('AR-14 published export contract', () => {
     });
   });
 
+  describe('ARF-13 public service/result type boundary', () => {
+    it('serializers construct public DTOs that drop internal metadata', () => {
+      const internalSingle: SingleResult<{ id: string }, { hidden: true }, unknown> = {
+        success: true,
+        kind: 'single',
+        code: Codes.Success,
+        data: { id: 'user-1' },
+        input: { hidden: true },
+        query: { skip: 1 },
+        context: { operation: 'read' } as never,
+      };
+      const internalList: ListResult<{ id: string }, { hidden: true }, unknown> = {
+        success: true,
+        kind: 'list',
+        code: Codes.Success,
+        data: [{ id: 'user-1' }],
+        count: 1,
+        totalCount: 5,
+        input: { hidden: true },
+        query: { skip: 2, limit: 1 },
+        contexts: [{ operation: 'list' } as never],
+      };
+      const internalError: ErrorResult<{ msg: string }, unknown> = {
+        success: false,
+        code: Codes.BadRequest,
+        errors: [{ msg: 'bad' }],
+        query: { skip: 0 },
+      };
+
+      // Serializer output must NOT carry input/query/contexts/context.
+      expect(toPublicSingleResult(internalSingle)).toEqual({
+        success: true,
+        kind: 'single',
+        code: Codes.Success,
+        data: { id: 'user-1' },
+      });
+      expect(toPublicListResult(internalList)).toEqual({
+        success: true,
+        kind: 'list',
+        code: Codes.Success,
+        data: [{ id: 'user-1' }],
+        count: 1,
+        totalCount: 5,
+      });
+      expect(toPublicErrorResult(internalError)).toEqual({
+        success: false,
+        code: Codes.BadRequest,
+        errors: [{ msg: 'bad' }],
+      });
+    });
+
+    it('serializer output is assignable to public DTOs at the type level and internal results are not', async () => {
+      const ts = require('typescript') as typeof import('typescript');
+      const interfacesFile = path.resolve(packageRoot, 'src/interfaces/index.ts');
+      const serviceResultFile = path.resolve(packageRoot, 'src/http/response-pipelines/service-result.ts');
+      const enumsFile = path.resolve(packageRoot, 'src/enums.ts');
+      const tmp = '/tmp/access-router-arf13-type-boundary.ts';
+
+      // The snippet deliberately imports the internal interfaces and the public
+      // DTOs from the package source, then attempts three direct crossings
+      // (each guarded by `@ts-expect-error`) and three serializer crossings
+      // (expected to compile). Requiring a zero-diagnostic compile proves both
+      // that the direct crossings still error and that the serializer crossings
+      // succeed: a freed-up `@ts-expect-error` (no real error to suppress) is
+      // itself reported as TS2578 ("Unused '@ts-expect-error' directive"), and a
+      // missing-brand error on a serializer path is reported as TS2352/TS2741.
+      const snippet = `
+        import type {
+          ErrorResult,
+          ListResult,
+          PublicErrorResult,
+          PublicListResult,
+          PublicSingleResult,
+          SingleResult,
+        } from '${interfacesFile}';
+        import {
+          toPublicErrorResult,
+          toPublicListResult,
+          toPublicSingleResult,
+        } from '${serviceResultFile}';
+        import { Codes } from '${enumsFile}';
+
+        declare const internalList: ListResult<number>;
+        declare const internalSingle: SingleResult<number>;
+        declare const internalError: ErrorResult;
+
+        // Direct crossings from internal service results to public DTOs must
+        // fail because the public DTOs carry the type-only nominal brand that
+        // internal results do not.
+        // @ts-expect-error internal ListResult is not assignable to PublicListResult
+        const badList: PublicListResult<number> = internalList;
+        // @ts-expect-error internal SingleResult is not assignable to PublicSingleResult
+        const badSingle: PublicSingleResult<number> = internalSingle;
+        // @ts-expect-error internal ErrorResult is not assignable to PublicErrorResult
+        const badError: PublicErrorResult = internalError;
+
+        // Serializer crossings: the explicit serializer is the only crossing
+        // point, and its declared return type is the branded public DTO.
+        const goodList: PublicListResult<number> = toPublicListResult(internalList);
+        const goodSingle: PublicSingleResult<number> = toPublicSingleResult(internalSingle);
+        const goodError: PublicErrorResult = toPublicErrorResult(internalError);
+        void [
+          badList,
+          badSingle,
+          badError,
+          goodList,
+          goodSingle,
+          goodError,
+          Codes.Success,
+        ];
+      `;
+      const fs = require('node:fs') as typeof import('node:fs');
+      fs.writeFileSync(tmp, snippet);
+
+      const program = ts.createProgram([tmp, interfacesFile, serviceResultFile, enumsFile], {
+        target: ts.ScriptTarget.ESNext,
+        module: ts.ModuleKind.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+        strict: true,
+        noEmit: true,
+        allowImportingTsExtensions: true,
+        skipLibCheck: true,
+        types: [],
+      });
+
+      // Only diagnostics in the consumer snippet matter; transitive source
+      // files may emit unrelated diagnostics under this stripped-down config.
+      const diagnostics = ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === tmp);
+      const messages = diagnostics.map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'));
+
+      // Zero diagnostics in the snippet means: every @ts-expect-error
+      // suppressed a real error (no TS2578), every serializer crossing
+      // compiled (no TS2352/TS2741), and the public DTO brand is doing the
+      // work. Reverting the brand surfaces exactly three TS2578 "Unused
+      // '@ts-expect-error' directive" diagnostics instead.
+      expect(messages).toEqual([]);
+
+      fs.rmSync(tmp, { force: true });
+    });
+  });
+
   describe('export allowlist snapshot', () => {
     it('root entry runtime export shape matches the recorded snapshot', () => {
       const allowlist = [
@@ -383,6 +566,143 @@ describe('AR-14 published export contract', () => {
     it('processors entry exports only copyAndDepopulate-derived symbols', () => {
       const topKeys = Object.keys(processorsCjs).filter((k) => k !== 'default' && k !== '__esModule');
       expect(topKeys).toEqual(['copyAndDepopulate']);
+    });
+
+    // ARF-09: an exact-equals snapshot of every runtime export of the three
+    // published subpaths. The presence-only allowlists above cover required
+    // exports; this snapshot fails on *any* added or removed public export,
+    // so accidental leaks (e.g. an `export *` that pulls internals forward) or
+    // accidental removals surface as a deliberate contract update rather than
+    // a silent regression. ESM and CJS share the same key set because the
+    // package is built with `tsup` and a single CJS/ESM dual shape.
+    it('ARF-09 root entry exports exactly the recorded public surface (no additions, no removals)', () => {
+      const rootKeysEsm = Object.keys(rootModule as Record<string, unknown>).filter(
+        (k) => k !== 'default' && k !== '__esModule',
+      );
+      const rootKeysCjs = Object.keys(aclCjs as Record<string, unknown>).filter(
+        (k) => k !== 'default' && k !== '__esModule',
+      );
+      const expectedRootExports = [
+        'AccessRuntime',
+        'DataRouter',
+        'ModelRouter',
+        'OpenApiCollisionError',
+        'OpenApiRegistry',
+        'RootRouter',
+        'acl',
+        'combineRoutes',
+        'createAccessRuntime',
+        'createOpenApiRouter',
+        'defaultRuntime',
+        'defineRequestSchema',
+        'fromAjv',
+        'fromArkType',
+        'fromIoTs',
+        'fromJoi',
+        'fromStandardSchema',
+        'fromSuperstruct',
+        'fromValibot',
+        'fromVine',
+        'fromYup',
+        'fromZod',
+        'getDefaultModelOption',
+        'getDefaultModelOptions',
+        'getGlobalOption',
+        'getGlobalOptions',
+        'getModelInstance',
+        'getModelJsonSchema',
+        'getModelNames',
+        'getModelOption',
+        'getModelOptions',
+        'guard',
+        'hasModelInstance',
+        'isLevelEnabled',
+        'permissionsPlugin',
+        'redactFilter',
+        'redactPayload',
+        'registerModelInstance',
+        'safeStringify',
+        'setDefaultModelOption',
+        'setDefaultModelOptions',
+        'setGlobalOption',
+        'setGlobalOptions',
+        'setModelOption',
+        'setModelOptions',
+      ];
+      expect(rootKeysEsm.sort()).toEqual(expectedRootExports.slice().sort());
+      expect(rootKeysCjs.sort()).toEqual(expectedRootExports.slice().sort());
+    });
+
+    it('ARF-09 /advanced entry exports exactly the recorded public surface (no additions, no removals)', () => {
+      const advancedKeysEsm = Object.keys(advancedModule as Record<string, unknown>).filter(
+        (k) => k !== 'default' && k !== '__esModule',
+      );
+      const advancedKeysCjs = Object.keys(advancedCjs as Record<string, unknown>).filter(
+        (k) => k !== 'default' && k !== '__esModule',
+      );
+      const expectedAdvancedExports = [
+        'Codes',
+        'CustomHeaders',
+        'DATA_MIDDLEWARE',
+        'FilterOperator',
+        'MIDDLEWARE',
+        'PERMISSIONS',
+        'PERMISSION_KEYS',
+        'StatusCodes',
+        'advancedCreateBodySchema',
+        'advancedUpdateBodySchema',
+        'advancedUpsertBodySchema',
+        'countBodySchema',
+        'createBodySchema',
+        'createQuerySchema',
+        'dataListBodySchema',
+        'dataReadByIdBodySchema',
+        'dataReadFilterBodySchema',
+        'defineRequestSchema',
+        'distinctBodySchema',
+        'fromAjv',
+        'fromArkType',
+        'fromIoTs',
+        'fromJoi',
+        'fromStandardSchema',
+        'fromSuperstruct',
+        'fromValibot',
+        'fromVine',
+        'fromYup',
+        'fromZod',
+        'listBodySchema',
+        'listQuerySchema',
+        'parseBody',
+        'parseBodyWithSchema',
+        'parseNestedBodyWithSchema',
+        'parsePathParam',
+        'parseQuery',
+        'readByIdBodySchema',
+        'readFilterBodySchema',
+        'readQuerySchema',
+        'requestSchemas',
+        'rootQuerySchema',
+        'subListBodySchema',
+        'subMutationBodySchema',
+        'subReadBodySchema',
+        'updateBodySchema',
+        'updateQuerySchema',
+        'upsertBodySchema',
+        'upsertQuerySchema',
+      ];
+      expect(advancedKeysEsm.sort()).toEqual(expectedAdvancedExports.slice().sort());
+      expect(advancedKeysCjs.sort()).toEqual(expectedAdvancedExports.slice().sort());
+    });
+
+    it('ARF-09 /processors entry exports exactly the recorded public surface (no additions, no removals)', () => {
+      const processorsKeysEsm = Object.keys(processorsModule as Record<string, unknown>).filter(
+        (k) => k !== 'default' && k !== '__esModule',
+      );
+      const processorsKeysCjs = Object.keys(processorsCjs as Record<string, unknown>).filter(
+        (k) => k !== 'default' && k !== '__esModule',
+      );
+      expect(processorsKeysEsm.sort()).toEqual(['copyAndDepopulate']);
+      expect(processorsKeysCjs.sort()).toEqual(['copyAndDepopulate']);
     });
   });
 

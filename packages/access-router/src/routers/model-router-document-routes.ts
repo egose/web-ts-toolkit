@@ -251,7 +251,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     const svc = context.getPublicService(req);
     const result = await svc._update(
       id,
-      data,
+      data as Record<string, unknown>,
       { select, populate, tasks },
       {
         returningAll: returningAll ?? parseBooleanString(returning_all),

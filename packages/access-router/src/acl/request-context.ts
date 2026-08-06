@@ -43,7 +43,7 @@ export async function initializeAclRequest<TCore>({
 
   assignCore(core);
   req[PERMISSIONS] = core.getPermissions();
-  req[PERMISSION_KEYS] = req[PERMISSIONS].keys;
+  req[PERMISSION_KEYS] = [...req[PERMISSIONS].keys];
   req[flag] = true;
 
   return core;

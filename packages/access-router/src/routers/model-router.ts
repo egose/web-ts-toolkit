@@ -5,7 +5,7 @@ import { forEach, isPlainObject, isString, isUndefined, normalizeUrlPath, padEnd
 import Model from '../model';
 import { createSetCore } from '../core';
 import { ModelRouterOptions, ExtendedModelRouterOptions, ModelRequest } from '../interfaces';
-import { logger } from '../logger';
+import { logInfoMessage } from '../logger-helpers';
 import type { AccessRuntime } from '../runtime';
 import { defaultRuntime } from '../runtime';
 import { runWithRuntime } from '../runtime-context';
@@ -140,7 +140,7 @@ export class ModelRouter<TModel = unknown> {
   private logEndpoints() {
     runWithRuntime(this.runtime, () => {
       forEach(this.router.endpoints, ({ method, path }) => {
-        logger.info(`${padEnd(method, 6)} ${normalizeUrlPath(this.options.parentPath + path)}`);
+        logInfoMessage(`${padEnd(method, 6)} ${normalizeUrlPath(this.options.parentPath + path)}`);
       });
     });
   }

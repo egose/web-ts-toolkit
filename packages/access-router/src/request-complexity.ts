@@ -124,6 +124,12 @@ export function validateRequestComplexity(
           pushError(`Request exceeds maximum subquery count of ${limits.maxSubQueryCount}`, path.concat(key));
           return;
         }
+        // ARF-02: the $$sq payload is entirely client-supplied at validation
+        // time. Recurse into it so nested depth, nodes, include count, nested
+        // subqueries, collection limits, and dangerous keys are all bounded
+        // before any target service work begins.
+        visit(child, path.concat(key), depth + 1, key);
+        if (errors.length > 0) return;
         continue;
       }
 

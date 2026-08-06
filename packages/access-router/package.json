@@ -5,12 +5,10 @@
   "version": "0.0.0-PLACEHOLDER",
   "license": "PLACEHOLDER",
   "sideEffects": [
-    "./dist/runtime.js",
-    "./dist/runtime.mjs",
-    "./dist/index.js",
-    "./dist/index.mjs",
-    "./dist/advanced.js",
-    "./dist/advanced.mjs"
+    "./**/index.js",
+    "./**/index.mjs",
+    "./**/advanced.js",
+    "./**/advanced.mjs"
   ],
   "repository": "PLACEHOLDER",
   "keywords": [
@@ -47,6 +45,7 @@
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
+    "typecheck": "pnpm --filter @web-ts-toolkit/access-router... build && tsc --noEmit -p tsconfig.typecheck.json",
     "test": "pnpm --filter @web-ts-toolkit/access-router... build && vitest run --config vitest.config.ts"
   },
   "files": [

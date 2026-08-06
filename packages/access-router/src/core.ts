@@ -138,7 +138,7 @@ export class Core {
     return str;
   }
 
-  async genAllowedFields(modelName: string, doc: unknown, access: SelectAccess, baseFields = []) {
+  async genAllowedFields(modelName: string, doc: unknown, access: SelectAccess, baseFields: string[] = []) {
     const permissionSchema = getModelOption(modelName, 'permissionSchema');
 
     const modelPermissionPrefix = getModelOption(modelName, 'modelPermissionPrefix', '');
@@ -157,7 +157,7 @@ export class Core {
     });
   }
 
-  async pickAllowedFields<T>(modelName: string, doc: T, access: SelectAccess, baseFields = []) {
+  async pickAllowedFields<T>(modelName: string, doc: T, access: SelectAccess, baseFields: string[] = []) {
     const permissionSchema = getModelOption(modelName, 'permissionSchema') as
       | Record<string, unknown>
       | null
@@ -183,7 +183,7 @@ export class Core {
     access: SelectAccess,
     targetFields: Projection = null,
     skipChecks = true,
-    subPaths = [],
+    subPaths: string[] = [],
   ) {
     const permissionSchema = getModelOption(modelName, ['permissionSchema'].concat(subPaths).join('.')) as
       | Record<string, unknown>
@@ -404,20 +404,20 @@ export class Core {
 
     const viewObj = reduce(
       views,
-      (ret, view) => {
+      (ret: Record<string, boolean>, view: string) => {
         ret[view] = true;
         return ret;
       },
-      {},
+      {} as Record<string, boolean>,
     );
 
     const editObj = reduce(
       edits,
-      (ret, view) => {
+      (ret: Record<string, boolean>, view: string) => {
         ret[view] = true;
         return ret;
       },
-      {},
+      {} as Record<string, boolean>,
     );
 
     setDocValue(doc, `${docPermissionField}._view`, viewObj);

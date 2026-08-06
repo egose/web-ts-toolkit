@@ -177,10 +177,15 @@ describe('AR-19 service logging call sites', () => {
       .expect(200);
 
     expect(debugSpy).toHaveBeenCalled();
-    const loggedMessage = String(debugSpy.mock.calls[0]?.[0] ?? '');
-    expect(loggedMessage).toContain('REDACTED');
-    expect(loggedMessage).not.toContain('hunter2');
-    expect(loggedMessage).toContain('alice');
+    for (const call of debugSpy.mock.calls) {
+      const loggedMessage = String(call[0] ?? '');
+      // ARF-07: raw query/filter values must never appear, even under
+      // non-sensitive key names. Only structure/cardinality metadata is logged.
+      expect(loggedMessage).not.toContain('hunter2');
+      expect(loggedMessage).not.toContain('alice');
+      expect(loggedMessage).not.toContain('REDACTED');
+      expect(loggedMessage).not.toContain('"query"');
+    }
   });
 
   it('logging failures never break an HTTP operation', async () => {

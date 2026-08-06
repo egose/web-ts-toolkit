@@ -1,16 +1,65 @@
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+
+/**
+ * Resolve the real production manifest transformer (`createPublishPackageJson`)
+ * from `@repo-toolkit/publish-package`.
+ *
+ * `@repo-toolkit/publish-package` is the implementation backing
+ * `repo-toolkit-publish-package` / `repo-toolkit-publish-packages` at release
+ * time: it strips `dist/` prefixes from `main`/`module`/`types`/`bin`/`exports`,
+ * replaces the version placeholder, rewrites `workspace:` ranges on internal
+ * dependencies to the target version, drops devDependencies/scripts/private,
+ * copies author/bugs/engines/license/repository metadata from the workspace
+ * root, and sets the publish files allowlist. It is a transitive dependency of
+ * the directly installed `@repo-toolkit/release-artifact` / `publish-packages`,
+ * so it is resolvable only through a `createRequire` chained off one of those
+ * hoisted packages. Importing the real transformer (rather than rewriting
+ * manifests by hand) means a regression in the production release
+ * transformation fails this compatibility test instead of being silently
+ * masked. Separately, the CLI release artifact pipeline (`pnpm build-artifact`
+ * / `pnpm verify-artifact`) is exercised from the command line per the ARF-09
+ * acceptance criteria.
+ */
+const publisherRequire = createRequire(require.resolve('@repo-toolkit/release-artifact')) as NodeRequire;
+const { createPublishPackageJson, DEFAULT_PACKAGE_FILES, DEFAULT_VERSION_PLACEHOLDER } = publisherRequire(
+  '@repo-toolkit/publish-package',
+) as {
+  createPublishPackageJson: (
+    packageJson: Record<string, unknown>,
+    options: {
+      version: string;
+      internalPackageNames: Set<string>;
+      rootMetadata?: {
+        author?: unknown;
+        bugs?: unknown;
+        engines?: unknown;
+        license?: unknown;
+        repository?: unknown;
+      };
+      rewrite?: { versionPlaceholder?: string; publishDir?: string };
+    },
+  ) => Record<string, unknown>;
+  DEFAULT_PACKAGE_FILES: string[];
+  DEFAULT_VERSION_PLACEHOLDER: string;
+};
 
 type PackageJson = {
   name: string;
   version: string;
   license?: string;
   repository?: string | { type?: string; url?: string };
+  sideEffects?: string[] | boolean;
   files?: string[];
-  exports?: Record<string, Record<string, string>>;
+  main?: string;
+  module?: string;
+  types?: string;
+  bin?: Record<string, string> | string;
+  exports?: Record<string, Record<string, string> | string>;
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
@@ -23,16 +72,33 @@ type PackedWorkspace = {
   manifests: Record<string, PackageJson>;
 };
 
+type ReleaseArtifactWorkspace = {
+  artifactRoot: string;
+  packageDirs: Record<string, string>;
+};
+
 const workspaceRoot = path.resolve(__dirname, '..', '..', '..');
 const packageRoot = path.resolve(__dirname, '..');
 const rootPackageJson = JSON.parse(readFileSync(path.resolve(workspaceRoot, 'package.json'), 'utf8')) as {
   version: string;
   license: string;
+  author?: string;
+  bugs?: unknown;
+  engines?: Record<string, string>;
   repository: { type?: string; url?: string };
   devDependencies: Record<string, string>;
 };
+
+/**
+ * Test version stamped into every packed tarball and the resolved manifest.
+ * A non-released sentinel version is used so an accidental registry lookup of
+ * these tarballs (e.g. via a leaked lockfile entry) cannot collide with a
+ * published release. The release pipeline is exercised at this same version
+ * via `pnpm build-artifact` / `pnpm verify-artifact` (see ARF-09 acceptance
+ * evidence in the task document).
+ */
+const testVersion = '0.99.0-test';
 const rootLicensePath = path.resolve(workspaceRoot, 'LICENSE');
-const releaseVersion = rootPackageJson.version;
 const typescriptVersion = rootPackageJson.devDependencies.typescript;
 const nodeTypesVersion = rootPackageJson.devDependencies['@types/node'];
 
@@ -57,55 +123,92 @@ function run(command: string, args: string[], cwd: string): string {
   });
 }
 
-function rewriteDependencyBlock(
-  block: Record<string, string> | undefined,
-  workspaceNames: Set<string>,
-): Record<string, string> | undefined {
-  if (block == null) {
+/**
+ * Seed an asdf `.tool-versions` into a temp directory so spawned `pnpm` /
+ * `node` / `tsc` processes (started from a consumer tree under `/tmp`)
+ * resolve the same runtime versions the workspace pins. Without this, asdf
+ * walks up from the consumer dir to `/` and `pnpm` falls back to "no version
+ * is set", failing the install. This keeps the test self-contained rather
+ * than relying on ambient `/tmp/.tool-versions` state (see ARF-12 evidence
+ * note in the task document).
+ */
+function seedToolVersions(dir: string): string {
+  const workspaceToolVersions = path.resolve(workspaceRoot, '.tool-versions');
+  if (!existsSync(workspaceToolVersions)) {
+    return dir;
+  }
+  const targetToolVersions = path.resolve(dir, '.tool-versions');
+  if (!existsSync(targetToolVersions)) {
+    cpSync(workspaceToolVersions, targetToolVersions);
+  }
+  return dir;
+}
+
+/**
+ * Compute the real production-rewritten manifest for a workspace package using
+ * `createPublishPackageJson` from `@repo-toolkit/publish-package`. This is the
+ * exact transformation `repo-toolkit-publish-package` performs at release time:
+ * it strips `dist/` prefixes from `main`/`module`/`types`/`bin`/`exports`,
+ * replaces the version placeholder, rewrites `workspace:` ranges on internal
+ * dependencies to the target version, drops `devDependencies`/`scripts`/
+ * `private`, copies `author`/`bugs`/`engines`/`license`/`repository` metadata
+ * from the workspace root, and sets the publish files allowlist to all
+ * non-sourcemap files. A regression in any of those steps will surface as a
+ * manifest diff in the assertions below.
+ */
+function buildPublishedManifest(
+  sourceManifest: PackageJson,
+  internalPackageNames: Set<string>,
+  packageDirRelative: string,
+): PackageJson {
+  const rootMetadata = {
+    author: rootPackageJson.author,
+    bugs: rootPackageJson.bugs,
+    engines: rootPackageJson.engines,
+    license: rootPackageJson.license,
+    repository: mergeRootRepository(rootPackageJson.repository, packageDirRelative),
+  };
+  return createPublishPackageJson(sourceManifest as Record<string, unknown>, {
+    version: testVersion,
+    internalPackageNames,
+    rootMetadata,
+    rewrite: { versionPlaceholder: DEFAULT_VERSION_PLACEHOLDER, publishDir: 'dist' },
+  }) as PackageJson;
+}
+
+function mergeRootRepository(
+  rootRepository: { type?: string; url?: string } | undefined,
+  packageDirRelative: string,
+): { type?: string; url?: string; directory?: string } | undefined {
+  if (!rootRepository || (typeof rootRepository !== 'object' && typeof rootRepository !== 'string')) {
     return undefined;
   }
-
-  return Object.fromEntries(
-    Object.entries(block).map(([name, version]) => {
-      if (typeof version === 'string' && version.startsWith('workspace:') && workspaceNames.has(name)) {
-        return [name, releaseVersion];
-      }
-
-      return [name, version];
-    }),
-  );
+  if (typeof rootRepository === 'string') {
+    return rootRepository as unknown as { type?: string; url?: string };
+  }
+  return { ...rootRepository, directory: packageDirRelative };
 }
 
-function rewriteManifest(manifest: PackageJson, workspaceNames: Set<string>): PackageJson {
-  const repository =
-    manifest.repository === 'PLACEHOLDER' ||
-    (typeof manifest.repository === 'object' && manifest.repository?.url === 'PLACEHOLDER')
-      ? rootPackageJson.repository
-      : manifest.repository;
-
-  return {
-    ...manifest,
-    version: releaseVersion,
-    license: manifest.license === 'PLACEHOLDER' ? rootPackageJson.license : manifest.license,
-    repository,
-    dependencies: rewriteDependencyBlock(manifest.dependencies, workspaceNames),
-    peerDependencies: rewriteDependencyBlock(manifest.peerDependencies, workspaceNames),
-    devDependencies: rewriteDependencyBlock(manifest.devDependencies, workspaceNames),
-    optionalDependencies: rewriteDependencyBlock(manifest.optionalDependencies, workspaceNames),
-  };
-}
-
-function stagePackage(stageDir: string, sourceDir: string, manifest: PackageJson): void {
+/**
+ * Stage a package exactly as `repo-toolkit-publish-package` would stage its
+ * publish directory: copy the existing built `dist/` outputs as the package
+ * root, copy package files (README.md, llms.txt) and root files (LICENSE)
+ * flattened into the staging root, and write the production-rewritten
+ * `package.json`. The staged tree matches the layout `npm publish` would pack.
+ */
+function stagePublishedPackage(stageDir: string, sourceDir: string, manifest: PackageJson): void {
   mkdirSync(stageDir, { recursive: true });
 
-  for (const entry of manifest.files ?? []) {
-    const source = path.resolve(sourceDir, entry);
-    if (!existsSync(source)) {
-      continue;
-    }
+  const distSource = path.resolve(sourceDir, 'dist');
+  if (existsSync(distSource)) {
+    cpSync(distSource, stageDir, { recursive: true });
+  }
 
-    const target = path.resolve(stageDir, entry);
-    cpSync(source, target, { recursive: true });
+  for (const entry of DEFAULT_PACKAGE_FILES) {
+    const source = path.resolve(sourceDir, entry);
+    if (existsSync(source)) {
+      cpSync(source, path.resolve(stageDir, path.basename(entry)));
+    }
   }
 
   if (existsSync(rootLicensePath)) {
@@ -132,30 +235,40 @@ function containsDisallowedPublishedValue(value: unknown): boolean {
 }
 
 let packedWorkspaceCache: PackedWorkspace | undefined;
+let releaseArtifactWorkspaceCache: ReleaseArtifactWorkspace | undefined;
 
 function preparePackedWorkspace(): PackedWorkspace {
   if (packedWorkspaceCache) {
     return packedWorkspaceCache;
   }
 
-  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'access-router-ar22-'));
+  if (!existsSync(path.resolve(workspaceRoot, 'release-artifact.config.json'))) {
+    throw new Error('release-artifact.config.json not found at workspace root');
+  }
+
+  const internalPackageNames = new Set(workspacePackages.map((pkg) => pkg.name));
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'access-router-arf09-'));
   tempRoots.push(tempRoot);
+  seedToolVersions(tempRoot);
   const tarballDir = path.resolve(tempRoot, 'tarballs');
   mkdirSync(tarballDir, { recursive: true });
-  const workspaceNames = new Set(workspacePackages.map((pkg) => pkg.name));
   const tarballs: Record<string, string> = {};
   const manifests: Record<string, PackageJson> = {};
 
   for (const pkg of workspacePackages) {
     const rawManifest = JSON.parse(readFileSync(path.resolve(pkg.dir, 'package.json'), 'utf8')) as PackageJson;
-    const manifest = rewriteManifest(rawManifest, workspaceNames);
+    const packageDirRelative = path.relative(workspaceRoot, pkg.dir).replace(/\\/g, '/');
+    const manifest = buildPublishedManifest(rawManifest, internalPackageNames, packageDirRelative);
     const stageDir = path.resolve(tempRoot, pkg.name.replace(/[@/]/g, '_'));
-    stagePackage(stageDir, pkg.dir, manifest);
+    stagePublishedPackage(stageDir, pkg.dir, manifest);
+    seedToolVersions(stageDir);
     run('pnpm', ['pack', '--pack-destination', tarballDir], stageDir);
-    tarballs[pkg.name] = path.resolve(
-      tarballDir,
-      `${pkg.name.replace('@web-ts-toolkit/', 'web-ts-toolkit-')}-${releaseVersion}.tgz`,
-    );
+    const tarballName = pkg.name.replace('@web-ts-toolkit/', 'web-ts-toolkit-');
+    const resolvedTarball = path.resolve(tarballDir, `${tarballName}-${testVersion}.tgz`);
+    if (!existsSync(resolvedTarball)) {
+      throw new Error(`pnpm pack did not produce expected tarball: ${resolvedTarball}`);
+    }
+    tarballs[pkg.name] = resolvedTarball;
     manifests[pkg.name] = manifest;
   }
 
@@ -163,45 +276,112 @@ function preparePackedWorkspace(): PackedWorkspace {
   return packedWorkspaceCache;
 }
 
-function unpackTarball(tarballPath: string): PackageJson {
-  const unpackRoot = mkdtempSync(path.join(os.tmpdir(), 'access-router-ar22-unpack-'));
+function unpackTarballToDir(tarballPath: string): string {
+  const unpackRoot = mkdtempSync(path.join(os.tmpdir(), 'access-router-arf09-unpack-'));
   tempRoots.push(unpackRoot);
   run('tar', ['-xzf', tarballPath, '-C', unpackRoot], workspaceRoot);
-  return JSON.parse(readFileSync(path.resolve(unpackRoot, 'package/package.json'), 'utf8')) as PackageJson;
+  return path.resolve(unpackRoot, 'package');
+}
+
+function unpackTarball(tarballPath: string): PackageJson {
+  return JSON.parse(readFileSync(path.resolve(unpackTarballToDir(tarballPath), 'package.json'), 'utf8')) as PackageJson;
+}
+
+function prepareReleaseArtifactWorkspace(): ReleaseArtifactWorkspace {
+  if (releaseArtifactWorkspaceCache) {
+    return releaseArtifactWorkspaceCache;
+  }
+
+  const artifactRoot = path.resolve(workspaceRoot, 'dist', `web-ts-toolkit-${testVersion}`);
+  if (!existsSync(artifactRoot)) {
+    run('pnpm', ['build-artifact', '--', '--version', testVersion], workspaceRoot);
+  }
+
+  const packageDirs = Object.fromEntries(
+    workspacePackages.map((pkg) => [
+      pkg.name,
+      path.resolve(artifactRoot, 'packages', pkg.name.replace('@web-ts-toolkit/', '')),
+    ]),
+  );
+
+  for (const packageDir of Object.values(packageDirs)) {
+    if (!existsSync(packageDir)) {
+      throw new Error(`release artifact missing expected package directory: ${packageDir}`);
+    }
+  }
+
+  releaseArtifactWorkspaceCache = { artifactRoot, packageDirs };
+  return releaseArtifactWorkspaceCache;
+}
+
+function installConsumer(
+  internalDependencies: Record<string, string>,
+  expressVersion: string,
+  mongooseVersion: string,
+): string {
+  const consumerDir = mkdtempSync(path.join(os.tmpdir(), 'access-router-consumer-'));
+  tempRoots.push(consumerDir);
+  seedToolVersions(consumerDir);
+
+  // Installing the access-router package alone would let pnpm recurse into its
+  // transitive `@web-ts-toolkit/*` dependencies and fetch them from the npm
+  // registry, which silently defeats the point of staging a local release
+  // closure. Pin every internal workspace package to the prepared local source
+  // (either packed tarballs or the extracted build-artifact package dirs) via a
+  // `pnpm-workspace.yaml` override so the resolved closure is exactly what this
+  // test prepared, and an accidental registry lookup of the sentinel
+  // `0.99.0-test` version fails loudly.
+  writeFileSync(
+    path.resolve(consumerDir, 'package.json'),
+    JSON.stringify(
+      {
+        name: 'access-router-consumer',
+        private: true,
+        type: 'module',
+        dependencies: {
+          ...internalDependencies,
+          express: expressVersion,
+          mongoose: mongooseVersion,
+        },
+        devDependencies: {
+          typescript: typescriptVersion,
+          '@types/node': nodeTypesVersion,
+          '@types/express': '^5.0.0',
+        },
+      },
+      null,
+      2,
+    ),
+  );
+
+  writeFileSync(
+    path.resolve(consumerDir, 'pnpm-workspace.yaml'),
+    ['packages: []', 'overrides:']
+      .concat(Object.entries(internalDependencies).map(([name, source]) => `  '${name}': ${source}`))
+      .join('\n') + '\n',
+  );
+
+  run('pnpm', ['install'], consumerDir);
+
+  return consumerDir;
 }
 
 function installPackedConsumer(expressVersion: string, mongooseVersion: string): string {
   const packed = preparePackedWorkspace();
-  const consumerDir = mkdtempSync(path.join(os.tmpdir(), 'access-router-consumer-'));
-  tempRoots.push(consumerDir);
-
-  writeFileSync(
-    path.resolve(consumerDir, 'package.json'),
-    JSON.stringify({ name: 'access-router-consumer', private: true, type: 'module' }, null, 2),
+  return installConsumer(
+    Object.fromEntries(workspacePackages.map((pkg) => [pkg.name, `file:${packed.tarballs[pkg.name]}`])),
+    expressVersion,
+    mongooseVersion,
   );
+}
 
-  run(
-    'pnpm',
-    [
-      'add',
-      packed.tarballs['@web-ts-toolkit/utils'],
-      packed.tarballs['@web-ts-toolkit/http-errors'],
-      packed.tarballs['@web-ts-toolkit/express-response-handler'],
-      packed.tarballs['@web-ts-toolkit/express-json-router'],
-      packed.tarballs['@web-ts-toolkit/access-router'],
-      `express@${expressVersion}`,
-      `mongoose@${mongooseVersion}`,
-    ],
-    consumerDir,
+function installArtifactConsumer(expressVersion: string, mongooseVersion: string): string {
+  const artifact = prepareReleaseArtifactWorkspace();
+  return installConsumer(
+    Object.fromEntries(workspacePackages.map((pkg) => [pkg.name, `file:${artifact.packageDirs[pkg.name]}`])),
+    expressVersion,
+    mongooseVersion,
   );
-
-  run(
-    'pnpm',
-    ['add', '-D', `typescript@${typescriptVersion}`, `@types/node@${nodeTypesVersion}`, '@types/express@^5.0.0'],
-    consumerDir,
-  );
-
-  return consumerDir;
 }
 
 function writeConsumerFiles(consumerDir: string): void {
@@ -317,8 +497,16 @@ void [acl, runtime, condition, MIDDLEWARE, out];
   );
 }
 
+/**
+ * Execute the ESM runtime (`esm.mjs`), the CJS runtime (`cjs.cjs`), and the
+ * NodeNext/Bundler TypeScript type checks against the installed consumer tree.
+ * The ESM smoke file was previously written but never executed, which left
+ * ESM-only import failures undetected (ARF-09 finding #2). All four execution
+ * paths must pass against the real release-artifact tarballs.
+ */
 function runConsumerSmokeTests(consumerDir: string): void {
   writeConsumerFiles(consumerDir);
+  run('node', ['esm.mjs'], consumerDir);
   run('node', ['cjs.cjs'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.json'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.bundler.json'], consumerDir);
@@ -330,47 +518,107 @@ afterAll(() => {
   }
 });
 
-describe('AR-22 packed-package compatibility and manifest verification', () => {
-  it('rewrites packed manifest metadata and internal dependency versions for release artifacts', () => {
+describe('ARF-09 packed-package compatibility using the real release-artifact pipeline', () => {
+  it('applies the real `@repo-toolkit/publish-package` manifest transformation to the access-router tarball', () => {
     const packed = preparePackedWorkspace();
-    const accessRouterManifest = unpackTarball(packed.tarballs['@web-ts-toolkit/access-router']);
+    const stagedManifest = packed.manifests['@web-ts-toolkit/access-router'];
+    const accessRouterPackageRoot = unpackTarballToDir(packed.tarballs['@web-ts-toolkit/access-router']);
+    const accessRouterManifest = JSON.parse(
+      readFileSync(path.resolve(accessRouterPackageRoot, 'package.json'), 'utf8'),
+    ) as PackageJson;
 
-    expect(accessRouterManifest.version).toBe(releaseVersion);
+    // The resolved manifest fields are produced by the real publisher
+    // transformation (`createPublishPackageJson`), then re-read from the packed
+    // tarball to prove the staging + `pnpm pack` round-trips the same fields.
+    expect(accessRouterManifest).toEqual(stagedManifest);
+    expect(accessRouterManifest.version).toBe(testVersion);
     expect(accessRouterManifest.license).toBe(rootPackageJson.license);
-    expect(accessRouterManifest.repository).toEqual(rootPackageJson.repository);
-    expect(accessRouterManifest.files).toEqual(expect.arrayContaining(['README.md', 'llms.txt', 'dist']));
-    expect(accessRouterManifest.exports).toMatchObject({
-      '.': expect.objectContaining({
-        types: './dist/index.d.ts',
-        import: './dist/index.mjs',
-        require: './dist/index.js',
-      }),
-      './advanced': expect.objectContaining({
-        types: './dist/advanced.d.ts',
-        import: './dist/advanced.mjs',
-        require: './dist/advanced.js',
-      }),
-      './processors': expect.objectContaining({
-        types: './dist/processors.d.ts',
-        import: './dist/processors.mjs',
-        require: './dist/processors.js',
-      }),
+    expect(accessRouterManifest.repository).toEqual({
+      ...rootPackageJson.repository,
+      directory: 'packages/access-router',
     });
+    expect(accessRouterManifest.files).toEqual(['**/*', '!**/*.map']);
+    expect(accessRouterManifest.main).toBe('./index.js');
+    expect(accessRouterManifest.module).toBe('./index.mjs');
+    expect(accessRouterManifest.types).toBe('./index.d.ts');
+    expect(accessRouterManifest.exports).toEqual({
+      '.': {
+        types: './index.d.ts',
+        import: './index.mjs',
+        require: './index.js',
+        default: './index.js',
+      },
+      './advanced': {
+        types: './advanced.d.ts',
+        import: './advanced.mjs',
+        require: './advanced.js',
+        default: './advanced.js',
+      },
+      './processors': {
+        types: './processors.d.ts',
+        import: './processors.mjs',
+        require: './processors.js',
+        default: './processors.js',
+      },
+    });
+    expect(accessRouterManifest.sideEffects).toEqual([
+      './**/index.js',
+      './**/index.mjs',
+      './**/advanced.js',
+      './**/advanced.mjs',
+    ]);
     expect(accessRouterManifest.dependencies).toMatchObject({
-      '@web-ts-toolkit/express-json-router': releaseVersion,
-      '@web-ts-toolkit/utils': releaseVersion,
+      '@web-ts-toolkit/express-json-router': testVersion,
+      '@web-ts-toolkit/utils': testVersion,
     });
+    expect(accessRouterManifest.devDependencies).toBeUndefined();
+    expect(accessRouterManifest.scripts).toBeUndefined();
     expect(containsDisallowedPublishedValue(accessRouterManifest)).toBe(false);
+    for (const emitted of ['index.js', 'index.mjs', 'advanced.js', 'advanced.mjs']) {
+      expect(existsSync(path.resolve(accessRouterPackageRoot, emitted))).toBe(true);
+    }
+  });
+
+  it('rewrites every internal workspace dependency to the test version in all packed tarballs', () => {
+    const packed = preparePackedWorkspace();
+    for (const pkg of workspacePackages) {
+      const manifest = unpackTarball(packed.tarballs[pkg.name]);
+      expect(manifest.version).toBe(testVersion);
+      expect(containsDisallowedPublishedValue(manifest)).toBe(false);
+      for (const blockField of ['dependencies', 'peerDependencies', 'optionalDependencies'] as const) {
+        const block = manifest[blockField];
+        if (block) {
+          for (const [name, range] of Object.entries(block)) {
+            if (name.startsWith('@web-ts-toolkit/')) {
+              expect(range).toBe(testVersion);
+            }
+          }
+        }
+      }
+    }
   });
 
   it.each([
     ['minimum peers', '5.0.0', '8.0.0'],
     ['current majors', '5.2.1', '9.8.0'],
   ])(
-    'supports %s from packed tarballs in CJS runtime plus NodeNext and Bundler TypeScript consumers',
+    'supports %s from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers',
     (_label, expressVersion, mongooseVersion) => {
       const consumerDir = installPackedConsumer(expressVersion, mongooseVersion);
       runConsumerSmokeTests(consumerDir);
     },
+    60000,
+  );
+
+  it.each([
+    ['minimum peers', '5.0.0', '8.0.0'],
+    ['current majors', '5.2.1', '9.8.0'],
+  ])(
+    'supports %s from the actual build-artifact package tree across ESM, CJS, NodeNext, and Bundler consumers',
+    (_label, expressVersion, mongooseVersion) => {
+      const consumerDir = installArtifactConsumer(expressVersion, mongooseVersion);
+      runConsumerSmokeTests(consumerDir);
+    },
+    60000,
   );
 });

@@ -41,7 +41,7 @@ const createComplexityApp = async () => {
     requestPermissionField: '_permissions',
     globalPermissions: () => ['isAdmin'],
     requestComplexity: {
-      maxDepth: 4,
+      maxDepth: 8,
       maxNodes: 40,
       maxLogicalClauses: 3,
       maxInValues: 2,
@@ -273,5 +273,195 @@ describe('request complexity budgets (AR-10)', () => {
 
     expect(response.body.status).toBe(400);
     expect(response.body.errors[0].detail).toContain('Bulk subdocument update exceeds maximum item count');
+  });
+
+  it('aggregates bulk validation errors deterministically across multiple invalid items (ARF-05)', async () => {
+    const modelName = `AclMongoBulkAgg${++modelCounter}`;
+    const schema = new mongoose.Schema({ name: String, role: String });
+    schema.plugin(permissionsPlugin, { modelName });
+    const User = mongoose.model(modelName, schema);
+
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => ['isAdmin'],
+      requestComplexity: {
+        maxDepth: 8,
+        maxNodes: 500,
+        maxLogicalClauses: 50,
+        maxInValues: 100,
+        maxBulkItems: 100,
+        maxIncludeCount: 10,
+        maxSubQueryCount: 10,
+        maxBulkConcurrency: 1,
+      },
+    });
+
+    const prepareCalls: Array<Record<string, unknown>> = [];
+
+    const router = acl.createRouter(modelName, {
+      basePath: '/bulk-agg-users',
+      operationAccess: { list: true, create: true },
+      permissionSchema: { name: true, role: true },
+      validate: {
+        create(data) {
+          const value = data as { name?: string; role?: string };
+          const errors = [] as Array<{ detail: string; path: string[] }>;
+          if (!value.name) errors.push({ detail: 'name required', path: ['name'] });
+          if (!value.role) errors.push({ detail: 'role required', path: ['role'] });
+          return errors;
+        },
+      },
+      prepare: {
+        create(data) {
+          prepareCalls.push(data as Record<string, unknown>);
+          return data;
+        },
+      },
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.use(router.routes);
+
+    // Three invalid items at distinct indices plus valid items between them.
+    // With maxBulkConcurrency=1, the old shared-validationError code skipped
+    // all items after the first failure, so the index-4 error would never be
+    // reported. ARF-05 validates every item regardless of earlier failures.
+    const response = await request(app)
+      .post('/bulk-agg-users')
+      .send([
+        { name: 'a', role: 'user' }, // valid → index 0
+        { name: 'b', role: 'user' }, // valid → index 1
+        { role: 'user' }, // missing name → index 2
+        { name: 'c', role: 'user' }, // valid → index 3
+        { name: 'x' }, // missing role → index 4
+      ])
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(prepareCalls).toHaveLength(0);
+
+    // All five items validated; pointers preserve the input index.
+    const pointers = response.body.errors.map((error: { pointer?: string }) => error.pointer);
+    expect(pointers).toContain('#/2/name');
+    expect(pointers).toContain('#/4/role');
+    // The valid items contribute no errors.
+    expect(pointers.filter((p: string) => p.startsWith('#/0/'))).toEqual([]);
+    expect(pointers.filter((p: string) => p.startsWith('#/1/'))).toEqual([]);
+    expect(pointers.filter((p: string) => p.startsWith('#/3/'))).toEqual([]);
+
+    // Repeated runs produce the same error set (deterministic ordering).
+    const response2 = await request(app)
+      .post('/bulk-agg-users')
+      .send([
+        { name: 'a', role: 'user' },
+        { name: 'b', role: 'user' },
+        { role: 'user' },
+        { name: 'c', role: 'user' },
+        { name: 'x' },
+      ])
+      .expect(400);
+
+    expect(response2.body.errors.map((e: { pointer?: string }) => e.pointer)).toEqual(pointers);
+
+    mongoose.deleteModel(modelName);
+  });
+
+  it('validates complete $$sq subquery payloads, not just the count (ARF-02)', async () => {
+    const { app, postModelName } = await createComplexityApp();
+
+    // One $$sq entry (count=1, within budget) but with oversized $in values
+    // inside the subquery filter. ARF-02 must recurse into $$sq so this fails
+    // with a controlled 400 rather than reaching the target service.
+    const oversizedInSubQuery = await request(app)
+      .post('/complex-users/__query')
+      .send({
+        filter: {
+          orgId: {
+            $in: {
+              $$sq: {
+                model: postModelName,
+                op: 'list',
+                filter: { ownerId: { $in: ['a', 'b', 'c'] } },
+                sqOptions: { path: 'ownerId', compact: true },
+              },
+            },
+          },
+        },
+      })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(oversizedInSubQuery.body.status).toBe(400);
+    expect(oversizedInSubQuery.body.errors[0].detail).toContain('$in');
+
+    // One $$sq with a dangerous prototype-pollution key inside its filter.
+    const dangerousKeySubQuery = await request(app)
+      .post('/complex-users/__query')
+      .send({
+        filter: {
+          orgId: {
+            $$sq: {
+              model: postModelName,
+              op: 'list',
+              filter: { constructor: { x: 1 } },
+              sqOptions: { path: 'ownerId', compact: true },
+            },
+          },
+        },
+      })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(dangerousKeySubQuery.body.errors[0].detail).toContain('constructor');
+
+    // One $$sq with a nested $$sq inside it — this exceeds the subquery budget.
+    const nestedSubQuery = await request(app)
+      .post('/complex-users/__query')
+      .send({
+        filter: {
+          orgId: {
+            $$sq: {
+              model: postModelName,
+              op: 'list',
+              filter: {
+                ownerId: {
+                  $$sq: { model: postModelName, op: 'list', sqOptions: { path: 'ownerId' } },
+                },
+              },
+              sqOptions: { path: 'ownerId', compact: true },
+            },
+          },
+        },
+      })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(nestedSubQuery.body.errors[0].detail).toContain('subquery');
+
+    // One $$sq with an excessive include list inside it.
+    const includeInsideSubQuery = await request(app)
+      .post('/complex-users/__query')
+      .send({
+        filter: {
+          orgId: {
+            $$sq: {
+              model: postModelName,
+              op: 'list',
+              args: {
+                include: [
+                  { model: postModelName, op: 'read', path: 'p1', localField: 'ownerId', foreignField: 'ownerId' },
+                  { model: postModelName, op: 'read', path: 'p2', localField: 'ownerId', foreignField: 'ownerId' },
+                ],
+              },
+              sqOptions: { path: 'ownerId', compact: true },
+            },
+          },
+        },
+      })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(includeInsideSubQuery.body.errors[0].detail).toContain('include');
   });
 });

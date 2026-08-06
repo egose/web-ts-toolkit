@@ -1,17 +1,17 @@
 import { Schema } from 'mongoose';
-import sift from 'sift';
+import sift, { Query as SiftQuery } from 'sift';
 import { filter, find } from '@web-ts-toolkit/utils';
 
-export const filterCollection = <T>(collection: T[], predicate): T[] => {
+export const filterCollection = <T>(collection: T[], predicate: SiftQuery<unknown>): T[] => {
   return filter<T>(collection, sift(predicate));
 };
 
-export const findElement = <T>(collection: T[], predicate): T | undefined => {
+export const findElement = <T>(collection: T[], predicate: SiftQuery<unknown>): T | undefined => {
   return find<T>(collection, sift(predicate));
 };
 
-export const matchElement = (element, predicate) => {
-  return sift(predicate)(element);
+export const matchElement = (element: unknown, predicate: SiftQuery<unknown>): boolean => {
+  return sift(predicate)(element) as boolean;
 };
 
 type DocId = string | Schema.Types.ObjectId;

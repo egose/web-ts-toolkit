@@ -1,8 +1,13 @@
 import mongoose from 'mongoose';
 import { Sort, Filter, Projection, Populate, SortOrder } from './interfaces';
-import { logger } from './logger';
+import { error as safeLogError, safeStringify } from './logger-helpers';
 import { getActiveRuntime } from './runtime-context';
 import type { AccessRuntime } from './runtime';
+
+const safeSortLogError = (msg: string, ...args: unknown[]): void => {
+  const message = args.length > 0 ? `${msg} ${safeStringify(args.length === 1 ? args[0] : args)}` : msg;
+  safeLogError(message);
+};
 
 interface FindProps {
   filter: Filter;
@@ -52,7 +57,7 @@ class Model {
     return doc;
   }
 
-  create(data) {
+  create(data: unknown) {
     return this.model.create(data);
   }
 
@@ -77,7 +82,7 @@ class Model {
     return builder;
   }
 
-  validateSort(sort: SortType, logError: (msg: string, ...args: unknown[]) => void = logger.error): boolean {
+  validateSort(sort: SortType, logError: (msg: string, ...args: unknown[]) => void = safeSortLogError): boolean {
     const validSortOrders: SortOrder[] = [1, -1, 'asc', 'ascending', 'desc', 'descending'];
     const fieldPathPattern = /^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*$/;
 

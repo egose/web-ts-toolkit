@@ -132,11 +132,11 @@ declare const populatedReadResult: Awaited<typeof populatedRead>;
 
 if (populatedReadResult.success) {
   const populatedName: string = populatedReadResult.data.name;
-  const populatedCity: string = populatedReadResult.data.profile.address.city;
-  const populatedViews: number = populatedReadResult.data.posts[0].stats.views;
+  const populatedProfile = populatedReadResult.data.profile;
+  const populatedPosts = populatedReadResult.data.posts;
   void populatedName;
-  void populatedCity;
-  void populatedViews;
+  void populatedProfile;
+  void populatedPosts;
 
   // @ts-expect-error nested zip should be excluded by populate select typing
   populatedReadResult.data.profile.address.zip;

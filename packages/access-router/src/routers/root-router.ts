@@ -62,6 +62,7 @@ type DataOperationHandler<TEntry extends RootQueryEntry> = (req: RootRequest, it
 
 const createErrorResult = (code: ErrorResult['code'], detail: string): ErrorResult<{ detail: string }> => ({
   success: false,
+  kind: 'error',
   code,
   errors: [{ detail }],
 });
@@ -89,7 +90,9 @@ export class RootRouter {
     create: async (req, item: RootModelCreateQueryEntry) =>
       req.macl.getPublicService(item.name)._create(item.data, item.args, item.options),
     update: async (req, item: RootModelUpdateQueryEntry) =>
-      req.macl.getPublicService(item.name)._update(item.id, item.data, item.args, item.options),
+      req.macl
+        .getPublicService(item.name)
+        ._update(item.id, item.data as Record<string, unknown>, item.args, item.options),
     upsert: async (req, item: RootModelUpsertQueryEntry) =>
       req.macl.getPublicService(item.name)._upsert(item.data, item.args, item.options),
     delete: async (req, item: RootModelDeleteQueryEntry) => req.macl.getPublicService(item.name)._delete(item.id),

@@ -66,20 +66,28 @@ const docsRouter = acl.createOpenApiRouter({
   version: '1.0.0',
 });
 
-// 4. Mount routers under an Express app and start the server.
+// 4. Mount routers under an Express app.
 const app = express();
 app.use(express.json());
 app.use(userRouter.routes);
 app.use(fruitRouter.routes);
 app.use(docsRouter);
 
+// 5. Connect to MongoDB before accepting traffic. A failed connection throws
+//    and exits before the server calls `app.listen`, so the service never
+//    publishes routes it cannot serve.
 const port = Number(process.env.PORT ?? 3000);
+const mongoUrl = process.env.MONGODB_URL ?? 'mongodb://localhost:27017/example';
+try {
+  await mongoose.connect(mongoUrl);
+} catch (err) {
+  console.error(`Failed to connect to MongoDB at ${mongoUrl}:`, err);
+  process.exit(1);
+}
+
 app.listen(port, () => {
   console.log(`API listening on http://localhost:${port}`);
 });
-
-// 5. Connect to MongoDB before serving traffic.
-await mongoose.connect(process.env.MONGODB_URL ?? 'mongodb://localhost:27017/example');
 ```
 
 ## Main Exports
@@ -124,6 +132,11 @@ Two isolated runtimes with the same model name resolve against their own model r
 `createRouter(model, options)` — accept a `mongoose.Model` instance directly. The instance is registered with the active runtime's registry, so a model attached to a non-default `mongoose.createConnection()` works without polluting the global registry.
 
 ```ts
+import mongoose from 'mongoose';
+import acl, { permissionsPlugin } from '@web-ts-toolkit/access-router';
+
+// `uri` is the MongoDB connection string for the non-default connection.
+const uri = process.env.MONGODB_URL_TENANT ?? 'mongodb://localhost:27017/tenant';
 const conn = await mongoose.createConnection(uri).asPromise();
 const schema = new mongoose.Schema({ name: String });
 schema.plugin(permissionsPlugin, { modelName: 'TenantUser' });

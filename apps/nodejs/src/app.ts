@@ -33,7 +33,7 @@ export function createApp() {
   const runtime = createAccessRuntime();
   runtime.setGlobalOptions({
     requestPermissionField: '_permissions',
-    globalPermissions(req) {
+    globalPermissions(req: AppRequest) {
       return req.currentUserId ? ['authenticated'] : [];
     },
   });

@@ -1,6 +1,7 @@
 import { formatModelCreatedResponse, unwrapServiceData } from '../http/response-pipelines/model-response';
 import { getModelSub } from '../meta';
 import type {
+  Filter,
   ModelRequest,
   SubdocumentBulkUpdateInput,
   SubdocumentCreateInput,
@@ -54,7 +55,10 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
           context.getRequestSchema('requestSchemas.subList'),
         )) as SubListBody;
         const svc = context.getPublicService(req);
-        const result = await svc.listSub(id, sub, { filter: body.filter ?? {}, select: body.select ?? [] });
+        const result = await svc.listSub(id, sub, {
+          filter: (body.filter ?? {}) as unknown as Filter<TModel>,
+          select: body.select ?? [],
+        });
 
         handleResultError(result);
         return unwrapServiceData(result);

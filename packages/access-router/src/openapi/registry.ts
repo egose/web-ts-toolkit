@@ -46,8 +46,8 @@ export class OpenApiRegistry {
 
   constructor(options: OpenApiRegistryOptions = {}) {
     this.options = {
-      rejectConflicts: options.rejectConflicts ?? false,
-      rejectDuplicateOperationIds: options.rejectDuplicateOperationIds ?? false,
+      rejectConflicts: options.rejectConflicts ?? true,
+      rejectDuplicateOperationIds: options.rejectDuplicateOperationIds ?? true,
     };
   }
 
@@ -63,6 +63,7 @@ export class OpenApiRegistry {
     const existing = this.routes[existingIndex];
 
     if (route.allowReplace) {
+      this.assertOperationIdAvailable(route, existing);
       this.routes[existingIndex] = route;
       return;
     }
@@ -91,11 +92,19 @@ export class OpenApiRegistry {
     this.routes[existingIndex] = route;
   }
 
-  private assertOperationIdAvailable(route: OpenApiRouteDescriptor) {
+  private assertOperationIdAvailable(route: OpenApiRouteDescriptor, replacing?: OpenApiRouteDescriptor) {
     if (!this.options.rejectDuplicateOperationIds) return;
     if (!route.operationId) return;
-    const clash = this.routes.find((item) => item.operationId && item.operationId === route.operationId);
+    const clash = this.routes.find(
+      (item) => item.operationId && item.operationId === route.operationId && item !== replacing,
+    );
     if (clash) {
+      // Descriptors flagged idempotent on both sides represent reserved
+      // operations (e.g. the root batch `root.query`) that may be mounted at
+      // multiple paths on the same runtime. Allow them to share the
+      // operationId as an explicit opt-in so registering the same router
+      // blueprint at several base paths is not blocked.
+      if (route.idempotent && (clash as OpenApiRouteDescriptor).idempotent) return;
       throw new OpenApiCollisionError(
         `OpenAPI operationId collision: "${route.operationId}" is already bound to ` +
           `${clash.method.toUpperCase()} ${clash.path}. Each operationId must be unique across the spec.`,

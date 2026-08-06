@@ -99,6 +99,49 @@ export const safeStringify = (value: unknown): string => {
   }
 };
 
+const countFilterKeys = (filter: unknown): number => {
+  if (filter === null || typeof filter === 'undefined') return 0;
+  if (typeof filter !== 'object') return 0;
+  if (Array.isArray(filter)) return 0;
+
+  let count = 0;
+  const stack: unknown[] = [filter];
+  const seen = new WeakSet<object>();
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current === null || typeof current !== 'object' || Array.isArray(current)) continue;
+    if (seen.has(current as object)) continue;
+    seen.add(current as object);
+
+    for (const [key, value] of Object.entries(current as Record<string, unknown>)) {
+      // Count own key names; do not traverse into values or record them.
+      // Operator keys ($and, $or, $in, etc.) carry nested predicates and count
+      // as structural nodes themselves but their nested predicates are walked
+      // to surface cardinality without ever serializing their values.
+      count += 1;
+
+      if (typeof key === 'string' && key.startsWith('$') && value !== null && typeof value === 'object') {
+        if (Array.isArray(value)) {
+          for (const entry of value) {
+            if (entry !== null && typeof entry === 'object' && !Array.isArray(entry)) {
+              stack.push(entry);
+            }
+          }
+        } else {
+          stack.push(value);
+        }
+      }
+    }
+  }
+
+  return count;
+};
+
+export const summarizeFilter = <T>(filter: T): { filterKeyValueCount: number } => {
+  return { filterKeyValueCount: countFilterKeys(filter) };
+};
+
 const resolveLogger = (): AccessRouterLogger => {
   return getGlobalOption('logger') ?? defaultLogger;
 };
@@ -122,7 +165,6 @@ export interface OpLogContext {
   op: string;
   modelName?: string;
   dataName?: string;
-  query?: unknown;
   populateCount?: number;
   selectCount?: number;
   page?: number;
@@ -153,10 +195,9 @@ const buildOpMessage = (ctx: OpLogContext): string => {
   }
   if (ctx.durationMs != null) trimmed.durationMs = ctx.durationMs;
   if (ctx.resultCode != null) trimmed.resultCode = ctx.resultCode;
-  if (ctx.query != null) {
-    const redacted = redactObjectKeys(ctx.query, SENSITIVE_FILTER_KEYS, new WeakSet());
-    trimmed.query = redacted;
-  }
+  // ARF-07: never emit raw query/filter/input values. Only structure/cardinality
+  // metadata (filterKeyValueCount) is recorded; raw client filter values (emails,
+  // names, IDs, tenant keys) and redacted copies are intentionally omitted.
   return safeStringify(trimmed);
 };
 
@@ -187,6 +228,13 @@ export const warn = (message: string, meta?: Record<string, unknown>): void => {
   const target = resolveLogger();
   const fn = target?.warn ?? defaultLogger.warn;
   safeApply(fn as (...a: unknown[]) => unknown, target ?? defaultLogger, meta != null ? [message, meta] : [message]);
+};
+
+export const logInfoMessage = (message: string, ...args: unknown[]): void => {
+  const target = resolveLogger();
+  const fn = target?.info ?? defaultLogger.info;
+  const payload = args.length > 0 ? [message, ...args] : [message];
+  safeApply(fn as (...a: unknown[]) => unknown, target ?? defaultLogger, payload);
 };
 
 export const error = (error: unknown): void => {

@@ -22,7 +22,7 @@ export function genPagination(
     page?: number | string;
     pageSize?: number | string;
   },
-  hardLimit,
+  hardLimit: number,
 ) {
   let _skip = 0;
   let _limit = normalizeSafeInteger(limit ?? pageSize, 1) ?? hardLimit;
@@ -35,7 +35,17 @@ export function genPagination(
     _skip = normalizedSkip;
   } else if (normalizedPage !== null) {
     const npage = normalizedPage;
-    if (npage > 1) _skip = (npage - 1) * _limit;
+    if (npage > 1) {
+      const derivedSkip = (npage - 1) * _limit;
+      _skip = Number.isSafeInteger(derivedSkip) ? derivedSkip : Number.MAX_SAFE_INTEGER;
+    }
+  }
+
+  // ARF-04: guard against an impossible offset. An overshoot at the very end
+  // of the safe integer range is harmless (returns an empty page), but a
+  // negative or non-finite value must never reach the persistence adapter.
+  if (!Number.isSafeInteger(_skip) || _skip < 0) {
+    return { skip: 0, limit: _limit };
   }
 
   return { skip: _skip, limit: _limit };

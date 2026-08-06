@@ -48,8 +48,8 @@ export function pickDocFields(doc: unknown, fields: string[] = []) {
   }
 }
 
-export async function populateDoc(doc: Document, target: unknown) {
-  let p = doc.populate(target);
+export async function populateDoc(doc: Document, target: unknown): Promise<unknown> {
+  let p = doc.populate(target as Parameters<Document['populate']>[0]);
   if (isPromise(p)) return p;
 
   // for backward compatibility, utilize the 'execPopulate' method to populate the target fields.
@@ -60,7 +60,7 @@ export const normalizeSubPopulate = (
   populate?: SubPopulate | SubPopulate[] | string | string[] | null,
 ): SubPopulate | SubPopulate[] =>
   isArray(populate)
-    ? populate.map((item) => (isString(item) ? { path: item } : item))
+    ? populate.map((item): SubPopulate => (isString(item) ? { path: item } : item))
     : isString(populate)
       ? { path: populate }
       : (populate ?? []);
@@ -68,8 +68,8 @@ export const normalizeSubPopulate = (
 export const genSubPopulate = (sub: string, popul?: SubPopulate | SubPopulate[] | string | string[]): SubPopulate[] => {
   if (!popul) return [];
 
-  let populate = isArray(popul) ? popul : [popul];
-  populate = populate.map((p: SubPopulate | string) => {
+  let populate: (SubPopulate | string)[] = isArray(popul) ? popul : [popul];
+  populate = populate.map((p: SubPopulate | string): SubPopulate => {
     const ret: SubPopulate = isString(p)
       ? { path: `${sub}.${p}` }
       : {
@@ -80,5 +80,5 @@ export const genSubPopulate = (sub: string, popul?: SubPopulate | SubPopulate[] 
     return ret;
   });
 
-  return populate;
+  return populate as SubPopulate[];
 };

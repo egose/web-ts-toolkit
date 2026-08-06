@@ -8,6 +8,7 @@ import {
   createOpenApiRouter,
   defaultRuntime,
   OpenApiCollisionError,
+  OpenApiRegistry,
   permissionsPlugin,
   setGlobalOptions,
 } from '../dist/index.mjs';
@@ -117,6 +118,34 @@ describe('AR-20 OpenAPI collision and edge-case behavior', () => {
       ).not.toThrow();
     });
 
+    it('rejects allowReplace:true that reuses an operationId owned by another route (ARF-08)', () => {
+      const api = createAccessRuntime();
+      api.runtime.enableOpenApiCollisionDetection();
+
+      const first = { method: 'post' as const, path: '/items', operationId: 'items.create' };
+      api.runtime.registerOpenApiRoute(first);
+
+      // A second route on a different path owns operationId="items.lookup"
+      api.runtime.registerOpenApiRoute({ method: 'get', path: '/items/{id}', operationId: 'items.lookup' });
+
+      // Replacing the /items POST must not be allowed to steal the foreign operationId.
+      try {
+        api.runtime.registerOpenApiRoute({
+          method: 'post',
+          path: '/items',
+          operationId: 'items.lookup',
+          allowReplace: true,
+        });
+        throw new Error('expected throw');
+      } catch (err) {
+        expect(err).toBeInstanceOf(OpenApiCollisionError);
+        const collisionErr = err as OpenApiCollisionError;
+        expect(collisionErr.collisionKind).toBe('operationId');
+        expect(collisionErr.operationId).toBe('items.lookup');
+        expect(collisionErr.existing).toEqual({ method: 'get', path: '/items/{id}', operationId: 'items.lookup' });
+      }
+    });
+
     it('throws OpenApiCollisionError on duplicate operationId bound to a different path in strict mode', () => {
       const api = createAccessRuntime();
       api.runtime.enableOpenApiCollisionDetection();
@@ -145,7 +174,7 @@ describe('AR-20 OpenAPI collision and edge-case behavior', () => {
       }
     });
 
-    it('does not throw when strict mode is disabled (default behavior preserves backwards compat)', () => {
+    it('throws by default for conflicting method/path registrations (strict-by-default)', () => {
       const api = createAccessRuntime();
 
       api.runtime.registerOpenApiRoute({
@@ -160,7 +189,17 @@ describe('AR-20 OpenAPI collision and edge-case behavior', () => {
           path: '/users',
           operationId: 'users.list.2',
         }),
-      ).not.toThrow();
+      ).toThrow(OpenApiCollisionError);
+    });
+
+    it('allows conflicting re-registration when OpenApiRegistry is constructed in legacy lenient mode', () => {
+      const registry = new OpenApiRegistry({
+        rejectConflicts: false,
+        rejectDuplicateOperationIds: false,
+      });
+
+      registry.register({ method: 'get', path: '/users', operationId: 'users.list.1' });
+      expect(() => registry.register({ method: 'get', path: '/users', operationId: 'users.list.2' })).not.toThrow();
     });
   });
 
@@ -310,6 +349,55 @@ describe('AR-20 OpenAPI collision and edge-case behavior', () => {
       expect(response.body.servers[0].description).toContain('<b>server</b>');
       // Make sure the JSON itself is well-formed (parsing succeeded via supertest json()).
       expect(response.headers['content-type']).toMatch(/application\/json/);
+    });
+
+    it('escapes </script>, quotes, ampersands, and Unicode separators in jsonPath inline script (ARF-08)', async () => {
+      const api = createAccessRuntime();
+      const app = express();
+      // Construct a jsonPath containing characters that would terminate or
+      // otherwise break an inline <script>: a literal </script> sequence,
+      // double quotes, an ampersand, and the U+2028 / U+2029 line/paragraph
+      // separator characters that are valid in JSON but terminate string
+      // literals in JavaScript pre-ES2019. We use `alert_1_` rather than
+      // `alert(1)` because Express' path-to-regexp rejects parentheses.
+      const maliciousPath = `/evil</script>alert_1_</script>&q="X"\u2028\u2029.json`;
+      app.use(
+        createOpenApiRouter(api.runtime, {
+          jsonPath: maliciousPath,
+          docsPath: '/docs',
+          title: 'Inline Script Test',
+        }),
+      );
+
+      const response = await request(app).get('/docs').expect(200);
+      const html = response.text;
+
+      // The inline script section must not contain a literal </script>
+      // sequence other than the legitimate closing tags of the two script
+      // elements emitted by the template (the bundle src script and the
+      // inline config script).
+      const scriptCloseCount = (html.match(/<\/script>/g) ?? []).length;
+      expect(scriptCloseCount).toBe(2);
+
+      // The inline `url:` payload must not inline a raw `</script` that
+      // could close the script element early.
+      expect(html).not.toMatch(/url:\s*"\/evil<\/script/);
+      // The literal U+2028 / U+2029 characters must not be embedded raw;
+      // they should be replaced by JS string escape sequences.
+      expect(html).not.toMatch(/\u2028|\u2029/);
+      // The escape helper should have produced the JSON string with JS escape
+      // sequences replacing the dangerous characters.
+      expect(html).toContain('\\u003c');
+      expect(html).toContain('\\u003e');
+      expect(html).toContain('\\u0026');
+      // The original dangerous path value must round-trip back to its raw
+      // form when the script is parsed as JSON. The `/` inside `</script>`
+      // should have been escaped to `\\/` so the inline script stays
+      // intact, while the leading path chars survive verbatim after the
+      // opening quote. `getRelativeSpecPath` strips the leading `/`, so the
+      // embedded JSON begins right at `evil`.
+      expect(html).toContain('"evil\\u003c');
+      expect(html).toContain('\\/script');
     });
   });
 });

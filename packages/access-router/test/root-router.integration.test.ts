@@ -703,6 +703,37 @@ describe('root router integration', () => {
     ]);
   });
 
+  it('rejects legacy client-controlled count access overrides through root batch (ARF-03)', async () => {
+    const { app: countApp, modelName: countModelName } = await createRootRouterCountAccessApp();
+
+    // Top-level access (already rejected before ARF-03; verify it stays rejected).
+    const topLevelAccess = await request(countApp)
+      .post('/root-count')
+      .send([{ target: 'model', name: countModelName, op: 'count', access: 'read' }])
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(topLevelAccess.body.status).toBe(400);
+
+    // options.access — the gap ARF-03 closes: previously passthrough let it through.
+    const optionsAccess = await request(countApp)
+      .post('/root-count')
+      .send([{ target: 'model', name: countModelName, op: 'count', options: { access: 'read' } }])
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(optionsAccess.body.status).toBe(400);
+
+    // Unknown count option fields must not pass through silently.
+    const unknownOption = await request(countApp)
+      .post('/root-count')
+      .send([{ target: 'model', name: countModelName, op: 'count', options: { bogus: true } }])
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(unknownOption.body.status).toBe(400);
+  });
+
   it('supports batched data-router list and read operations', async () => {
     const { app, dataName } = await createRootRouterDataApp();
 

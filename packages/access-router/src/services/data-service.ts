@@ -43,7 +43,7 @@ export class DataService<T> {
     options?: DataFindOneOptions,
   ): Promise<SingleResult<SelectedPublicOutput<T, TSelect>> | ErrorResult> {
     const filterErrors = validateClientFilter(filter);
-    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+    if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
     const { select } = args ?? {};
     const { access = 'read' } = options ?? {};
@@ -55,10 +55,10 @@ export class DataService<T> {
       select: _select,
     };
 
-    if (_filter === false) return { success: false, code: Codes.Forbidden, query };
+    if (_filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query };
 
     let doc = (await findElement(this.data, _filter)) as T | undefined;
-    if (!doc) return { success: false, code: Codes.NotFound, query };
+    if (!doc) return { success: false, kind: 'error', code: Codes.NotFound, query };
     doc = (await this.trimOutputFields(doc, access)) as T;
     if (_select.length > 0) doc = pick(doc as object, _select) as T;
 
@@ -89,7 +89,7 @@ export class DataService<T> {
     options?: DataFindOptions,
   ): Promise<ListResult<SelectedPublicOutput<T, TSelect>> | ErrorResult> {
     const filterErrors = validateClientFilter(filter);
-    if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
+    if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
     const { select, sort, skip, limit, page, pageSize } = args ?? {};
 
@@ -106,7 +106,17 @@ export class DataService<T> {
       ...pagination,
     };
 
-    if (_filter === false) return { success: false, code: Codes.Forbidden, query };
+    if (_filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query };
+
+    // ARF-06: authorize the requested sort field(s) against the list field
+    // policy before ordering. Without this, a caller could infer denied data
+    // through ordering even when the field is later removed from the output.
+    if (sort) {
+      const sortFieldErrors = await this.validateSortFields(sort, 'list');
+      if (sortFieldErrors.length > 0) {
+        return { success: false, kind: 'error', code: Codes.BadRequest, errors: sortFieldErrors, query };
+      }
+    }
 
     let docs = await filterCollection(this.data, _filter);
     const totalCount = docs.length;
@@ -181,5 +191,38 @@ export class DataService<T> {
 
   public trimOutputFields<TDoc>(doc: TDoc, access: SelectAccess, baseFields?: string[]): Promise<TDoc> {
     return this.pickAllowedFields(doc, access, baseFields);
+  }
+
+  private async validateSortFields(
+    sort: string,
+    access: SelectAccess,
+  ): Promise<Array<{ detail: string; pointer?: string }>> {
+    const fieldPathPattern = /^[A-Za-z_][A-Za-z0-9_$]*(\.[A-Za-z_][A-Za-z0-9_$]*)*$/;
+    const fields = sort
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((field) => ({
+        raw: field,
+        name: field.startsWith('-') ? field.slice(1) : field,
+      }));
+
+    const errors: Array<{ detail: string; pointer?: string }> = [];
+
+    for (const { raw, name } of fields) {
+      if (!fieldPathPattern.test(name)) {
+        errors.push({ detail: `Invalid sort field: ${raw}`, pointer: `#/sort` });
+        continue;
+      }
+
+      if (name === 'id' || name === '_id') continue;
+
+      const allowed = await this.genAllowedFields({}, access);
+      if (!allowed.includes(name)) {
+        errors.push({ detail: `Sort field is not allowed: ${name}`, pointer: `#/sort` });
+      }
+    }
+
+    return errors;
   }
 }
