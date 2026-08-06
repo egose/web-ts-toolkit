@@ -4,10 +4,10 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'],
+    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**', 'packages/**/src/**/*.js'],
   },
   {
-    ignores: ['packages/access-router/_tmp_examples/**', 'website/**', 'packages/create-access-router-mongo-starter/template/**'],
+    ignores: ['packages/access-router/_tmp_examples/**', 'website/**', 'packages/create-access-router-mongo-starter/template/**', '.mongoose/**'],
   },
   {
     files: ['**/*.{js,mjs,cjs,ts,mts,cts}'],

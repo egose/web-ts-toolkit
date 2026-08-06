@@ -153,11 +153,6 @@ describe('model router route coverage', () => {
 
     const newResponse = await request(app).get('/route-users/new').expect(200).expect('Content-Type', /json/);
     const countResponse = await request(app).get('/route-users/count').expect(200).expect('Content-Type', /json/);
-    const readCountResponse = await request(app)
-      .post('/route-users/count')
-      .send({ options: { access: 'read' } })
-      .expect(200)
-      .expect('Content-Type', /json/);
     const distinctResponse = await request(app)
       .get('/route-users/distinct/role')
       .expect(200)
@@ -188,7 +183,6 @@ describe('model router route coverage', () => {
       _id: expect.any(String),
     });
     expect(Number(countResponse.text)).toBe(1);
-    expect(Number(readCountResponse.text)).toBe(3);
     expect(distinctResponse.body.sort()).toEqual(['admin', 'user']);
     expect(filteredDistinctResponse.body).toEqual(['user']);
     expect(listResponse.body).toMatchObject({
@@ -288,5 +282,61 @@ describe('model router route coverage', () => {
       status: 400,
       errors: [{ pointer: '#/query' }],
     });
+  });
+
+  it('rejects invalid pagination values on collection list routes', async () => {
+    const { app } = await createRoutesApp();
+
+    const invalidQueryLimit = await request(app)
+      .get('/route-users?limit=0')
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    const invalidBodyPageSize = await request(app)
+      .post('/route-users/__query')
+      .send({ pageSize: 0 })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    const overflowQueryLimit = await request(app)
+      .get('/route-users?limit=9007199254740992')
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidQueryLimit.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ parameter: 'limit' }],
+    });
+    expect(invalidBodyPageSize.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/pageSize' }],
+    });
+    expect(overflowQueryLimit.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ parameter: 'limit' }],
+    });
+  });
+
+  it('does not crash on an individually-safe page and limit whose product overflows (ARF-04)', async () => {
+    const { app } = await createRoutesApp();
+
+    // page and limit are individually safe integers that pass schema
+    // validation, but (page - 1) * limit would overflow MAX_SAFE_INTEGER
+    // without the ARF-04 guard. The route should respond with a controlled
+    // 200 (empty page) rather than an unhandled error.
+    const response = await request(app)
+      .post('/route-users/__query')
+      .send({ page: Number.MAX_SAFE_INTEGER, limit: 100 })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    expect(Array.isArray(response.body.data)).toBe(true);
+    expect(response.body.data).toEqual([]);
   });
 });

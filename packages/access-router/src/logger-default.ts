@@ -16,8 +16,8 @@ export const defaultLogger = createLogger({
     format.label({ label: '[WTT]' }),
     format.timestamp(),
     format.printf(({ level, label, message, timestamp, stack, ...meta }) => {
-      const formattedLabel = colorizer.colorize(level, label);
-      const formattedLevel = colorizer.colorize(level, `[${level.toUpperCase()}]`);
+      const formattedLabel = colorizer.colorize(level, String(label));
+      const formattedLevel = colorizer.colorize(level, `[${String(level).toUpperCase()}]`);
       const formattedMessage = colorizer.colorize(level, inspectValue(stack ?? message));
       const formattedMeta = Object.keys(meta).length > 0 ? ` ${inspectValue(meta)}` : '';
 

@@ -3,10 +3,13 @@ import {
   includeSchema,
   fieldsSchema,
   nonNegativeIntegerSchema,
+  nonNegativeIntegerString,
   objectOrArraySchema,
+  positiveIntegerSchema,
   populateSchema,
   positiveIntegerString,
   projectionSchema,
+  rejectKeys,
   sortSchema,
   subPopulateSchema,
   tasksSchema,
@@ -15,7 +18,7 @@ import {
 const rootEntryBaseSchema = {
   target: z.enum(['model', 'data']),
   name: z.string().min(1),
-  order: z.number().int().optional(),
+  order: nonNegativeIntegerSchema.optional(),
 };
 
 const rootModelListArgsSchema = z
@@ -24,10 +27,10 @@ const rootModelListArgsSchema = z
     populate: populateSchema.optional(),
     include: includeSchema.optional(),
     sort: sortSchema.optional(),
-    skip: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
-    limit: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
-    page: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
-    pageSize: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    skip: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),
+    limit: z.union([positiveIntegerSchema, positiveIntegerString]).optional(),
+    page: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),
+    pageSize: z.union([positiveIntegerSchema, positiveIntegerString]).optional(),
     tasks: tasksSchema.optional(),
   })
   .passthrough();
@@ -114,20 +117,16 @@ const rootModelSubReadArgsSchema = z
   })
   .passthrough();
 
-const rootModelCountOptionsSchema = z
-  .object({
-    access: z.unknown().optional(),
-  })
-  .passthrough();
+const rootModelCountOptionsSchema = z.object({}).strict().optional();
 
 const rootDataListArgsSchema = z
   .object({
     select: projectionSchema.optional(),
     sort: z.string().optional(),
-    skip: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
-    limit: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
-    page: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
-    pageSize: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    skip: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),
+    limit: z.union([positiveIntegerSchema, positiveIntegerString]).optional(),
+    page: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),
+    pageSize: z.union([positiveIntegerSchema, positiveIntegerString]).optional(),
   })
   .passthrough();
 
@@ -143,8 +142,29 @@ const rootDataReadArgsSchema = z
   })
   .passthrough();
 
+const rootModelNewArgsSchema = z
+  .object({
+    select: projectionSchema.optional(),
+  })
+  .passthrough();
+
+const rootModelNewOptionsSchema = z
+  .object({
+    skim: z.boolean().optional(),
+    includePermissions: z.boolean().optional(),
+  })
+  .passthrough();
+
 const rootModelQueryEntrySchema = z.union([
-  z.object({ ...rootEntryBaseSchema, target: z.literal('model'), op: z.literal('new') }).passthrough(),
+  z
+    .object({
+      ...rootEntryBaseSchema,
+      target: z.literal('model'),
+      op: z.literal('new'),
+      args: rootModelNewArgsSchema.optional(),
+      options: rootModelNewOptionsSchema.optional(),
+    })
+    .passthrough(),
   z
     .object({
       ...rootEntryBaseSchema,
@@ -289,7 +309,8 @@ const rootModelQueryEntrySchema = z.union([
       filter: objectOrArraySchema.optional(),
       options: rootModelCountOptionsSchema.optional(),
     })
-    .passthrough(),
+    .passthrough()
+    .superRefine((body, ctx) => rejectKeys(body, ctx, ['access'])),
 ]);
 
 const rootDataQueryEntrySchema = z.union([

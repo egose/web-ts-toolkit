@@ -47,6 +47,7 @@ import { isDocument } from './lib';
 import { MIDDLEWARE } from './symbols';
 import { Cache } from './cache';
 import { logger } from './logger';
+import { warn as warnLog } from './logger-helpers';
 import {
   canActivateRequest,
   getGlobalPermissions,
@@ -63,7 +64,7 @@ import {
 } from './acl/select-resolution';
 import type { AccessRuntime } from './runtime';
 import { defaultRuntime } from './runtime';
-import { runWithRuntime } from './runtime-context';
+import { getActiveRuntime, runWithRuntime } from './runtime-context';
 import { callHookChain } from './core-shared';
 
 type InternalModelHookContext = ModelHookContext & {
@@ -137,7 +138,7 @@ export class Core {
     return str;
   }
 
-  async genAllowedFields(modelName: string, doc: unknown, access: SelectAccess, baseFields = []) {
+  async genAllowedFields(modelName: string, doc: unknown, access: SelectAccess, baseFields: string[] = []) {
     const permissionSchema = getModelOption(modelName, 'permissionSchema');
 
     const modelPermissionPrefix = getModelOption(modelName, 'modelPermissionPrefix', '');
@@ -156,7 +157,7 @@ export class Core {
     });
   }
 
-  async pickAllowedFields<T>(modelName: string, doc: T, access: SelectAccess, baseFields = []) {
+  async pickAllowedFields<T>(modelName: string, doc: T, access: SelectAccess, baseFields: string[] = []) {
     const permissionSchema = getModelOption(modelName, 'permissionSchema') as
       | Record<string, unknown>
       | null
@@ -182,7 +183,7 @@ export class Core {
     access: SelectAccess,
     targetFields: Projection = null,
     skipChecks = true,
-    subPaths = [],
+    subPaths: string[] = [],
   ) {
     const permissionSchema = getModelOption(modelName, ['permissionSchema'].concat(subPaths).join('.')) as
       | Record<string, unknown>
@@ -236,6 +237,16 @@ export class Core {
 
           const refModelName = getModelRef(modelName, ret.path);
           if (!refModelName) return null;
+
+          const runtime = getActiveRuntime();
+          if (runtime && !runtime.hasModel(refModelName)) {
+            return null;
+          }
+
+          const allowedTargetOperation = await this.req.macl.isAllowed(refModelName, populateAccess);
+          if (!allowedTargetOperation) {
+            return null;
+          }
 
           ret.select = await this.genSelect(refModelName, populateAccess as SelectAccess, ret.select, false);
           const filter = await this.genFilter(refModelName, populateAccess as BaseFilterAccess, null);
@@ -320,9 +331,14 @@ export class Core {
       try {
         docPermissions = await docPermissionsFn.call(this.req, doc, permissions, context);
       } catch (error) {
-        logger.warn(
-          `docPermissions hook failed for model=${modelName} access=${access}: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        // docPermissions failures are fail-closed: keep request handling alive,
+        // attach an empty permissions object, and emit a structured warning.
+        warnLog('docPermissions hook failed; applying empty document permissions', {
+          modelName,
+          access,
+          operation: context.operation,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -388,20 +404,20 @@ export class Core {
 
     const viewObj = reduce(
       views,
-      (ret, view) => {
+      (ret: Record<string, boolean>, view: string) => {
         ret[view] = true;
         return ret;
       },
-      {},
+      {} as Record<string, boolean>,
     );
 
     const editObj = reduce(
       edits,
-      (ret, view) => {
+      (ret: Record<string, boolean>, view: string) => {
         ret[view] = true;
         return ret;
       },
-      {},
+      {} as Record<string, boolean>,
     );
 
     setDocValue(doc, `${docPermissionField}._view`, viewObj);

@@ -1,16 +1,18 @@
 import { assign, get, set } from '@web-ts-toolkit/utils';
 
+type PropertyPath = string | number | Array<string | number>;
+
 export const getNestedOption = <T extends object, K extends keyof T>(
   manager: OptionsManager<object, T>,
   key: K | string,
   defaultValue?: T[K],
-) => {
+): unknown => {
   const keys = String(key).split('.');
   if (keys.length === 1) {
     return manager.get(key, defaultValue);
   }
 
-  let option = manager.get(key, undefined);
+  let option: unknown = manager.get(key, undefined);
   if (option !== undefined) {
     return option;
   }
@@ -36,10 +38,10 @@ export class OptionsManager<T1 extends object, T2 extends object> {
     const _this = this;
 
     this.currentOptions = new Proxy({} as T1, {
-      set(target, key, value) {
+      set(target, key: string | symbol, value: unknown): boolean {
         const keystr = String(key);
-        const oldvalue = target[key];
-        target[key] = value;
+        const oldvalue = (target as Record<string, unknown>)[keystr];
+        (target as Record<string, unknown>)[keystr] = value;
         _this.listeners[keystr] && _this.listeners[keystr].call(_this, value, keystr, target, oldvalue);
         return true;
       },
@@ -52,11 +54,11 @@ export class OptionsManager<T1 extends object, T2 extends object> {
   }
 
   get<K extends keyof T2>(key: K | string, defaultValue?: T2[K]) {
-    return get(this.currentOptions, key, defaultValue);
+    return get(this.currentOptions, key as PropertyPath, defaultValue);
   }
 
   set<K extends keyof T2>(key: K | string, value: T2[K]) {
-    set(this.currentOptions, key, value);
+    set(this.currentOptions, key as PropertyPath, value);
   }
 
   fetch() {
@@ -71,7 +73,7 @@ export class OptionsManager<T1 extends object, T2 extends object> {
     key: K | string,
     func: (value: unknown, key: string, target: T1, oldValue: unknown) => void,
   ) {
-    set(this.listeners, key, func);
+    set(this.listeners, key as PropertyPath, func);
     return this;
   }
 }

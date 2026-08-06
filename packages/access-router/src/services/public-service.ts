@@ -73,7 +73,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     TSelect extends Projection | undefined = undefined,
     TPopulate extends Populate[] | string | undefined = undefined,
   >(
-    data,
+    data: unknown,
     args?: Omit<PublicCreateArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
     options?: PublicCreateOptions,
   ): Promise<ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
@@ -81,16 +81,16 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     const { skim, includePermissions, populateAccess } = this.resolvePublicCreateOptions(options);
 
     const result = await this.create(
-      data,
+      data as Record<string, unknown> | Record<string, unknown>[],
       { populate },
       { skim, includePermissions, populateAccess },
-      async (doc, context: ModelHookContext) => {
-        doc = toObject(doc);
-        doc = await this.decorate(doc, 'create', context);
-        doc = this.runTasks(doc as Record<string, unknown>, tasks);
+      async (doc, context: ModelHookContext): Promise<unknown> => {
+        let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
+        d = (await this.decorate(d, 'create', context)) as Record<string, unknown>;
+        d = this.runTasks(d, tasks);
 
-        if (select) doc = pick(doc, [...normalizeSelect(select), ...this.baseFieldsExt]);
-        return doc;
+        if (select) d = pick(d, [...normalizeSelect(select), ...this.baseFieldsExt]);
+        return d;
       },
     );
 
@@ -101,8 +101,11 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     return result as ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>>;
   }
 
-  async _new(): Promise<SingleResult<PublicOutput<TModel>>> {
-    return this.new() as Promise<SingleResult<PublicOutput<TModel>>>;
+  async _new(
+    args?: { select?: string[] },
+    options?: { skim?: boolean; includePermissions?: boolean },
+  ): Promise<SingleResult<PublicOutput<TModel>>> {
+    return this.new(args, options) as Promise<SingleResult<PublicOutput<TModel>>>;
   }
 
   async _read<
@@ -213,7 +216,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     TPopulate extends Populate[] | string | undefined = undefined,
   >(
     id: string,
-    data,
+    data: Record<string, unknown>,
     args?: Omit<PublicUpdateArgs, 'select' | 'populate'> & { select?: TSelect; populate?: TPopulate },
     options?: PublicUpdateOptions,
   ): Promise<SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
@@ -225,15 +228,15 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
       data,
       { populate },
       { skim, includePermissions, populateAccess },
-      async (doc, context: ModelHookContext) => {
-        doc = toObject(doc);
-        doc = await this.decorate(doc, 'update', context);
-        doc = this.runTasks(doc, tasks);
+      async (doc, context: ModelHookContext): Promise<unknown> => {
+        let d: Record<string, unknown> = toObject(doc) as Record<string, unknown>;
+        d = (await this.decorate(d, 'update', context)) as Record<string, unknown>;
+        d = this.runTasks(d, tasks);
 
-        if (select) doc = pick(doc, [...normalizeSelect(select), ...this.baseFieldsExt]);
-        else if (!returningAll) doc = pick(doc, [...Object.keys(data), '_id']);
+        if (select) d = pick(d, [...normalizeSelect(select), ...this.baseFieldsExt]);
+        else if (!returningAll) d = pick(d, [...Object.keys(data), '_id']);
 
-        return doc;
+        return d;
       },
     );
 
@@ -254,7 +257,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
   ): Promise<ServiceResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>> | ErrorResult> {
     const idKey = this.getIdentifier();
     if (idKey !== '_id') {
-      return { success: false, code: Codes.BadRequest, errors: ['not supported custom id field'] };
+      return { success: false, kind: 'error', code: Codes.BadRequest, errors: ['not supported custom id field'] };
     }
 
     const { [idKey]: idVal, ...otherData } = data;
@@ -267,7 +270,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
       }
 
       if (!existing.data) {
-        return { success: false, code: Codes.Unauthorized, errors: ['Unauthorized'] };
+        return { success: false, kind: 'error', code: Codes.Unauthorized, errors: ['Unauthorized'] };
       }
 
       return this._update(upsertId, otherData, args, options);

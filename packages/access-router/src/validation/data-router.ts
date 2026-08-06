@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import {
   nonNegativeIntegerSchema,
+  nonNegativeIntegerString,
   objectOrArraySchema,
+  positiveIntegerSchema,
   positiveIntegerString,
   projectionSchema,
   rejectKeys,
@@ -12,10 +14,10 @@ export const dataListBodySchema = z
     filter: objectOrArraySchema.optional(),
     select: projectionSchema.optional(),
     sort: z.string().optional(),
-    skip: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
-    limit: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
-    page: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
-    pageSize: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    skip: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),
+    limit: z.union([positiveIntegerSchema, positiveIntegerString]).optional(),
+    page: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),
+    pageSize: z.union([positiveIntegerSchema, positiveIntegerString]).optional(),
     options: z
       .object({
         includeCount: z.boolean().optional(),

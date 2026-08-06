@@ -1,5 +1,6 @@
 import { CustomHeaders } from '../../enums';
 import type { ListResult, Request } from '../../interfaces';
+import { toPublicListResult } from './service-result';
 
 type ListQuery = {
   skip?: number;
@@ -8,11 +9,12 @@ type ListQuery = {
 
 export const formatListResponse = <T>(
   req: Request,
-  result: Pick<ListResult<T>, 'data' | 'count' | 'totalCount' | 'query'>,
+  result: ListResult<T>,
   includeCount?: boolean,
   includeExtraHeaders?: boolean,
 ) => {
-  const { data, count: returnedCount, totalCount } = result;
+  const publicResult = toPublicListResult(result);
+  const { data, count: returnedCount, totalCount } = publicResult;
   const query = (result.query ?? {}) as ListQuery;
   const rawLimit = Number(query.limit ?? 0);
   const skip = Number(query.skip ?? 0);
@@ -53,9 +55,11 @@ export const formatListResponse = <T>(
 };
 
 export const formatCreatedData = <T>(result: Pick<ListResult<T>, 'count' | 'data'>) => {
-  return result.count === 1 ? result.data[0] : result.data;
+  const publicResult = toPublicListResult(result as ListResult<T>);
+  return publicResult.count === 1 ? publicResult.data[0] : publicResult.data;
 };
 
 export const formatUpsertCreatedData = <T>(result: Pick<ListResult<T>, 'data'>) => {
-  return result.data.length > 0 ? result.data[0] : null;
+  const publicResult = toPublicListResult(result as ListResult<T>);
+  return publicResult.data.length > 0 ? publicResult.data[0] : null;
 };

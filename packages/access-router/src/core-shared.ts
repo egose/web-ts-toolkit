@@ -18,13 +18,17 @@ import Permission, { Permissions } from './permission';
 
 type OptionGetter = (key: string, defaultValue?: unknown) => unknown;
 
-function isAndFilter<T = unknown>(
-  filter: Filter<T> | null | undefined,
-): filter is Record<string, unknown> & { $and: unknown[] } {
-  return !!filter && isPlainObject(filter) && Object.keys(filter).length === 1 && isArray(filter.$and);
+type FilterRecord = Record<string, unknown>;
+
+type AndFilterRecord = FilterRecord & { $and: FilterRecord[] };
+
+function isAndFilter<T = unknown>(filter: Filter<T> | null | undefined): filter is Filter<T> & AndFilterRecord {
+  return (
+    !!filter && isPlainObject(filter) && Object.keys(filter).length === 1 && isArray((filter as FilterRecord).$and)
+  );
 }
 
-function isMergeableClause<T = unknown>(filter: Filter<T> | null | undefined): filter is Record<string, unknown> {
+function isMergeableClause<T = unknown>(filter: Filter<T> | null | undefined): filter is Filter<T> & FilterRecord {
   return !!filter && isPlainObject(filter) && Object.keys(filter).every((key) => !key.startsWith('$'));
 }
 
@@ -39,13 +43,34 @@ function optimizeAndFilter<T = unknown>(clausesInput: unknown[]): Filter<T> | nu
     if (isAndFilter(clause)) {
       clauses.push(...clause.$and);
     } else {
-      clauses.push(clause);
+      clauses.push(clause as FilterRecord);
     }
   }
 
-  const dedupedClauses = clauses.filter(
-    (clause, index) => clauses.findIndex((item) => isEqual(item, clause)) === index,
-  );
+  const dedupeKey = (value: unknown): string => {
+    if (isArray(value)) {
+      return `[${value.map(dedupeKey).join(',')}]`;
+    }
+
+    if (isPlainObject(value)) {
+      return `{${Object.keys(value)
+        .sort()
+        .map((key) => `${key}:${dedupeKey((value as Record<string, unknown>)[key])}`)
+        .join(',')}}`;
+    }
+
+    return JSON.stringify(value);
+  };
+
+  const dedupedClauses: Record<string, unknown>[] = [];
+  const seenClauses = new Set<string>();
+  for (let x = 0; x < clauses.length; x++) {
+    const clause = clauses[x];
+    const key = dedupeKey(clause);
+    if (seenClauses.has(key)) continue;
+    seenClauses.add(key);
+    dedupedClauses.push(clause);
+  }
 
   const mergedClause: Record<string, unknown> = {};
   const remainingClauses: Record<string, unknown>[] = [];
@@ -77,7 +102,7 @@ function optimizeAndFilter<T = unknown>(clausesInput: unknown[]): Filter<T> | nu
   const finalClauses = isEmpty(mergedClause) ? remainingClauses : [mergedClause, ...remainingClauses];
 
   if (finalClauses.length === 0) return null;
-  if (finalClauses.length === 1) return finalClauses[0];
+  if (finalClauses.length === 1) return finalClauses[0] as Filter<T>;
 
   return { $and: finalClauses } as Filter<T>;
 }
@@ -157,7 +182,7 @@ export async function resolveAccessFilter<T = unknown>({
 
 export function getRequestPermissions(req: AccessRouterBaseRequest) {
   const requestPermissionField = getGlobalOption('requestPermissionField');
-  return new Permission(req[requestPermissionField] || {});
+  return new Permission((req[requestPermissionField] as { [key: string]: boolean }) || {});
 }
 
 export async function setRequestPermissions(req: AccessRouterBaseRequest) {
@@ -169,7 +194,7 @@ export async function setRequestPermissions(req: AccessRouterBaseRequest) {
 
   const permissions = await globalPermissions.call(req, req);
   if (isPlainObject(permissions)) req[requestPermissionField] = permissions;
-  else if (isArray(permissions)) req[requestPermissionField] = arrayToRecord(permissions);
+  else if (isArray(permissions)) req[requestPermissionField] = arrayToRecord(permissions as string[]);
   else if (isString(permissions)) req[requestPermissionField] = { [permissions]: true };
 }
 
@@ -178,7 +203,7 @@ export async function evaluateRouteGuard(
   permissions: Permissions,
   routeGuard: Validation,
 ) {
-  const phas = (key) => permissions.has(key);
+  const phas = (key: string) => permissions.has(key);
   const { stringHandler, arrayHandler } = createValidator(phas);
 
   if (isBoolean(routeGuard)) {
@@ -243,14 +268,14 @@ export async function collectSchemaFields({
     if (baseFields.includes(key)) continue;
 
     const val = permissionSchema[key];
-    const value = (val && val[access]) || val;
+    const value = (val && (val as Record<string, unknown>)[access]) || val;
 
     if (isBoolean(value)) {
       if (value) fields.push(key);
     } else if (isString(value)) {
       if (stringHandler(value)) fields.push(key);
     } else if (isArray(value)) {
-      if (arrayHandler(value)) fields.push(key);
+      if (arrayHandler(value as string[] | string[][])) fields.push(key);
     } else if (isFunction(value)) {
       if (await value.call(req, ...functionArgs)) fields.push(key);
     }

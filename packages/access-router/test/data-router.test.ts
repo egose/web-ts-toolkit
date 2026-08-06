@@ -323,6 +323,48 @@ describe('data router', () => {
     expect(filteredRead.body).toEqual({ name: 'Max', age: 1, sex: 'male' });
   });
 
+  it('rejects invalid pagination values for data list routes', async () => {
+    const app = createPetApp();
+
+    const invalidQueryLimit = await request(app)
+      .get('/pets?limit=0')
+      .set('user', 'admin')
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    const invalidBodyPageSize = await request(app)
+      .post('/pets/__query')
+      .set('user', 'admin')
+      .send({ pageSize: 0 })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    const overflowQueryLimit = await request(app)
+      .get('/pets?limit=9007199254740992')
+      .set('user', 'admin')
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidQueryLimit.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ parameter: 'limit' }],
+    });
+    expect(invalidBodyPageSize.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/pageSize' }],
+    });
+    expect(overflowQueryLimit.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ parameter: 'limit' }],
+    });
+  });
+
   it('does not reuse merged base filters across different data genFilter calls in one request', async () => {
     const app = createPetApp();
 

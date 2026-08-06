@@ -137,5 +137,20 @@ Default error responses are documented with `application/problem+json` payloads.
 ## Notes
 
 - The generated document is OpenAPI `3.1.0`.
-- Duplicate routes are replaced by `method + path`, so later registrations win.
+- By default the OpenAPI registry is strict: registering the same `method` + `path`
+  with a non-equivalent descriptor throws `OpenApiCollisionError`, and reusing an
+  `operationId` already bound to another route throws as well. Equivalent
+  re-registrations marked with `idempotent: true` (for example the root batch
+  route `root.query`) are still accepted as no-ops, so mounting the same routers
+  more than once on the same runtime is safe.
+- To override an existing descriptor intentionally, set `allowReplace: true` on
+  the new descriptor. `allowReplace` still validates operation-ID uniqueness, so
+  it cannot be used to steal another route's `operationId`.
+- Low-level callers that need legacy silent-replacement behavior for migration
+  can construct `OpenApiRegistry` directly with
+  `{ rejectConflicts: false, rejectDuplicateOperationIds: false }`.
+- The inline Swagger UI script safely embeds the spec path; characters such as
+  `</script>`, quotes, ampersands, and the U+2028 / U+2029 line separators in a
+  custom `jsonPath` are escaped so they remain data and cannot terminate the
+  `<script>` element.
 - The OpenAPI router documents generated routes only; your custom Express endpoints need separate registration if you want them in the same spec.

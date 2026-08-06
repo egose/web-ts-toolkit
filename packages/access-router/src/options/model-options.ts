@@ -1,11 +1,12 @@
+import mongoose from 'mongoose';
 import { ModelRouterOptions, ExtendedModelRouterOptions } from '../interfaces';
 import { defaultRuntime } from '../runtime';
-import { getActiveRuntime, getRuntimeForModelName } from '../runtime-context';
+import { getActiveRuntime } from '../runtime-context';
 
-const getRuntime = (modelName: string) => getRuntimeForModelName(modelName) ?? getActiveRuntime() ?? defaultRuntime;
+const getRuntime = () => getActiveRuntime() ?? defaultRuntime;
 
 export const setModelOptions = <TModel = unknown>(modelName: string, options: ModelRouterOptions<TModel>) => {
-  getRuntime(modelName).setModelOptions(modelName, options);
+  getRuntime().setModelOptions(modelName, options);
 };
 
 export const setModelOption = <K extends keyof ExtendedModelRouterOptions<TModel>, TModel = unknown>(
@@ -13,11 +14,11 @@ export const setModelOption = <K extends keyof ExtendedModelRouterOptions<TModel
   key: K,
   value: ExtendedModelRouterOptions<TModel>[K],
 ) => {
-  getRuntime(modelName).setModelOption(modelName, key, value);
+  getRuntime().setModelOption(modelName, key, value);
 };
 
 export const getModelOptions = <TModel = unknown>(modelName: string) => {
-  return getRuntime(modelName).getModelOptions<TModel>(modelName);
+  return getRuntime().getModelOptions<TModel>(modelName);
 };
 
 export const getModelOption = <K extends keyof ExtendedModelRouterOptions<TModel>, TModel = unknown>(
@@ -25,14 +26,14 @@ export const getModelOption = <K extends keyof ExtendedModelRouterOptions<TModel
   key: K | string,
   defaultValue?: ExtendedModelRouterOptions<TModel>[K],
 ) => {
-  return getRuntime(modelName).getModelOption(modelName, key, defaultValue);
+  return getRuntime().getModelOption(modelName, key, defaultValue);
 };
 
 export const getExactModelOption = <K extends keyof ExtendedModelRouterOptions<TModel>, TModel = unknown>(
   modelName: string,
   key: K | string,
 ) => {
-  return getRuntime(modelName).getExactModelOption(modelName, key);
+  return getRuntime().getExactModelOption(modelName, key);
 };
 
 export const getModelNames = () => {
@@ -40,5 +41,17 @@ export const getModelNames = () => {
 };
 
 export const getModelJsonSchema = (modelName: string) => {
-  return getRuntime(modelName).getModelJsonSchema(modelName);
+  return getRuntime().getModelJsonSchema(modelName);
+};
+
+export const registerModelInstance = (modelName: string, model: mongoose.Model<unknown>): void => {
+  getRuntime().registerModelInstance(modelName, model);
+};
+
+export const hasModelInstance = (modelName: string): boolean => {
+  return getRuntime().hasModelInstance(modelName);
+};
+
+export const getModelInstance = (modelName: string): mongoose.Model<unknown> | null => {
+  return getRuntime().getModelInstance(modelName);
 };

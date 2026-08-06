@@ -2,9 +2,18 @@ import { z, type RefinementCtx } from 'zod';
 
 export const stringOrStringArray = z.union([z.string(), z.array(z.string())]);
 
+const safeIntegerString = (min: number, message: string) =>
+  z
+    .string()
+    .regex(/^\d+$/, message)
+    .refine((value) => Number.isSafeInteger(Number(value)), 'Expected a safe integer')
+    .refine((value) => Number(value) >= min, message);
+
 export const queryBooleanString = z.enum(['true', 'false']);
-export const positiveIntegerString = z.string().regex(/^\d+$/, 'Expected a non-negative integer');
-export const nonNegativeIntegerSchema = z.number().int().min(0);
+export const nonNegativeIntegerString = safeIntegerString(0, 'Expected a non-negative integer');
+export const positiveIntegerString = safeIntegerString(1, 'Expected a positive integer');
+export const nonNegativeIntegerSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+export const positiveIntegerSchema = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 
 export const unknownRecord = z.record(z.string(), z.unknown());
 export const projectionObjectSchema = z.record(z.string(), z.union([z.literal(1), z.literal(-1)]));

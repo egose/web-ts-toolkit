@@ -34,7 +34,7 @@ export function guard(condition: unknown) {
   return async (req: ModelRequest, _res: Response, next: NextFunction) => {
     const permissions = req[PERMISSIONS] as Permission;
     let cond = condition;
-    let phas = (key) => permissions.has(key);
+    let phas = (key: string) => permissions.has(key);
 
     if (isPlainObject(condition)) {
       const { modelName, id, condition: _cond } = condition as unknown as GuardModelCondition;
@@ -48,7 +48,7 @@ export function guard(condition: unknown) {
           const paramValue = req.params[key];
           _id = isArray(paramValue) ? (paramValue[0] ?? null) : (paramValue ?? null);
         } else if (type === 'query') {
-          const _qval = req.query[key];
+          const _qval = (req.query as Record<string, string>)[key];
           if (isArray(_qval)) _id = _qval.length > 0 ? (_qval[0] as string) : null;
           else _id = _qval as string;
         } else {

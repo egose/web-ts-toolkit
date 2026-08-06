@@ -1,5 +1,5 @@
 import { formatModelUpsertResponse, unwrapServiceData } from '../http/response-pipelines/model-response';
-import type { BaseFilterAccess, Filter, ModelRequest, PopulateAccess } from '../interfaces';
+import type { Filter, ModelRequest, PopulateAccess } from '../interfaces';
 import {
   type AdvancedReadBody,
   type AdvancedReadFilterBody,
@@ -78,16 +78,13 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
   router.post('/count', async (req: ModelRequest) => {
     await context.assertAllowed(req, 'count');
 
-    const { filter, options: countOptions = {} }: CountBody = await parseBodyWithSchema(
+    const { filter }: CountBody = await parseBodyWithSchema(
       countBodySchema,
       req.body,
       context.getRequestSchema('requestSchemas.count'),
     );
     const svc = context.getPublicService(req);
-    const result = await svc._count(
-      (filter ?? {}) as Filter<TModel>,
-      countOptions.access as BaseFilterAccess | undefined,
-    );
+    const result = await svc._count((filter ?? {}) as Filter<TModel>);
 
     handleResultError(result);
 
@@ -254,7 +251,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     const svc = context.getPublicService(req);
     const result = await svc._update(
       id,
-      data,
+      data as Record<string, unknown>,
       { select, populate, tasks },
       {
         returningAll: returningAll ?? parseBooleanString(returning_all),

@@ -1,26 +1,35 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { ListResult, Request, ServiceResult, SingleResult } from '../../interfaces';
 import { formatCreatedData, formatListResponse, formatUpsertCreatedData } from './list-response';
+import { toPublicListResult, toPublicSingleResult } from './service-result';
 
 const success = JsonRouter.success;
 
 export function unwrapServiceData<T>(result: SingleResult<T> | ListResult<T>) {
-  return result.data;
+  return result.kind === 'list' ? toPublicListResult(result).data : toPublicSingleResult(result).data;
 }
 
 export function formatModelListResponse<T>(
   req: Request,
-  result: Pick<ListResult<T>, 'data' | 'count' | 'totalCount' | 'query'>,
+  result: ListResult<T>,
   includeCount?: boolean,
   includeExtraHeaders?: boolean,
 ) {
   return formatListResponse(req, result, includeCount, includeExtraHeaders);
 }
 
-export function formatModelCreatedResponse<T>(result: Pick<ListResult<T>, 'count' | 'data'>) {
+export function formatModelCreatedResponse<T>(result: ListResult<T>) {
   return new success.Created(formatCreatedData(result));
 }
 
 export function formatModelUpsertResponse<T>(result: ServiceResult<T>) {
-  return result.kind === 'list' ? new success.Created(formatUpsertCreatedData(result)) : result.data;
+  if (result.kind === 'list') {
+    return new success.Created(formatUpsertCreatedData(result));
+  }
+
+  if (result.kind === 'single') {
+    return toPublicSingleResult(result).data;
+  }
+
+  throw new Error(`Unexpected ServiceResult kind: ${String(result.kind)}`);
 }

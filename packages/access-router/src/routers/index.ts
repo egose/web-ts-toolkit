@@ -6,7 +6,7 @@ export * from './model-router';
 export * from './root-router';
 export * from './data-router';
 import JsonRouter from '@web-ts-toolkit/express-json-router';
-import { logger } from '../logger';
+import { error as errorLog } from '../logger-helpers';
 export { createOpenApiRouter } from '../openapi';
 
 type AccessRouterInstance = ModelRouter<any> | DataRouter<any> | RootRouter;
@@ -39,6 +39,6 @@ export const accessRouterResponseHandler = JsonRouter.createHandler({
 accessRouterResponseHandler.errorMessageProvider = function (error) {
   const errorLike = error as { message?: string; _message?: string };
 
-  logger.error(error);
+  errorLog(error);
   return errorLike.message || errorLike._message || String(error);
 };

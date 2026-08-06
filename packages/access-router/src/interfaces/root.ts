@@ -1,4 +1,5 @@
 import express from 'express';
+import type { RequestComplexityOptions } from '../request-complexity';
 import {
   DataHookContext,
   DataRequest,
@@ -122,17 +123,22 @@ export interface AccessRouterLogger {
   info?: (...args: unknown[]) => unknown;
   warn?: (...args: unknown[]) => unknown;
   error?: (...args: unknown[]) => unknown;
+  isLevelEnabled?: (level: string) => boolean;
 }
 
 export interface GlobalOptions {
   requestPermissionField?: string;
   globalPermissions?: (this: AccessRouterRequest, req: AccessRouterRequest) => MaybePromise<GlobalPermissionValue>;
   logger?: AccessRouterLogger;
+  requestComplexity?: RequestComplexityOptions;
 }
 
 export interface RootRouterOptions {
   basePath: string;
   operationAccess?: Validation;
+  maxBatchEntries?: number;
+  maxOrderGroups?: number;
+  maxConcurrentOperations?: number;
 }
 
 interface OperationAccess {

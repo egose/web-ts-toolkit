@@ -1,6 +1,13 @@
 import mongoose from 'mongoose';
 import { Sort, Filter, Projection, Populate, SortOrder } from './interfaces';
-import { logger } from './logger';
+import { error as safeLogError, safeStringify } from './logger-helpers';
+import { getActiveRuntime } from './runtime-context';
+import type { AccessRuntime } from './runtime';
+
+const safeSortLogError = (msg: string, ...args: unknown[]): void => {
+  const message = args.length > 0 ? `${msg} ${safeStringify(args.length === 1 ? args[0] : args)}` : msg;
+  safeLogError(message);
+};
 
 interface FindProps {
   filter: Filter;
@@ -8,6 +15,7 @@ interface FindProps {
   sort?: Sort;
   populate?: Populate[] | string;
   limit?: string | number;
+  hardLimit?: number;
   skip?: string | number;
   lean?: boolean;
 }
@@ -32,18 +40,16 @@ type SortType =
 class Model {
   modelName: string;
   model: mongoose.Model<any>;
+  runtime: AccessRuntime | null;
 
-  constructor(modelName: string) {
+  constructor(modelName: string, runtime?: AccessRuntime) {
     this.modelName = modelName;
-    this.model = mongoose.model(modelName);
+    this.runtime = runtime ?? null;
+    const resolvedRuntime = runtime ?? getActiveRuntime();
+    const registered = resolvedRuntime?.getModelInstance(modelName) ?? null;
+    const global = mongoose.models[modelName] as mongoose.Model<unknown> | undefined;
+    this.model = (registered ?? global ?? mongoose.model(modelName)) as mongoose.Model<any>;
     if (!this.model) return;
-
-    // Enable optimistic concurrency to ensure atomicity when
-    // updating the document using find(), findOne(), and save().
-    this.model.schema.set('optimisticConcurrency', true);
-    // In order to use optimistic concurrency, a version key must be set on the schema.
-    const currVersionKey = this.model.schema.get('versionKey');
-    if (!currVersionKey) this.model.schema.set('versionKey', '__v');
   }
 
   new() {
@@ -51,11 +57,11 @@ class Model {
     return doc;
   }
 
-  create(data) {
+  create(data: unknown) {
     return this.model.create(data);
   }
 
-  find({ filter, select, sort, populate, limit, skip, lean }: FindProps) {
+  find({ filter, select, sort, populate, limit, hardLimit, skip, lean }: FindProps) {
     if (!this.validateSort(sort as SortType)) {
       sort = null;
     }
@@ -63,7 +69,12 @@ class Model {
     const builder = this.model.find(filter as Record<string, unknown>);
     if (select) builder.select(select);
     if (skip) builder.skip(Number(skip));
-    if (limit) builder.limit(Number(limit));
+    const normalizedLimit = Number(limit);
+    if (Number.isSafeInteger(normalizedLimit) && normalizedLimit > 0) {
+      builder.limit(normalizedLimit);
+    } else if (Number.isSafeInteger(hardLimit) && Number(hardLimit) > 0) {
+      builder.limit(Number(hardLimit));
+    }
     if (sort) builder.sort(sort);
     if (populate) builder.populate(populate as mongoose.PopulateOptions | Array<string | mongoose.PopulateOptions>);
     if (lean) builder.lean();
@@ -71,7 +82,7 @@ class Model {
     return builder;
   }
 
-  validateSort(sort: SortType, logError: (msg: string, ...args: unknown[]) => void = logger.error): boolean {
+  validateSort(sort: SortType, logError: (msg: string, ...args: unknown[]) => void = safeSortLogError): boolean {
     const validSortOrders: SortOrder[] = [1, -1, 'asc', 'ascending', 'desc', 'descending'];
     const fieldPathPattern = /^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*$/;
 
@@ -167,9 +178,9 @@ class Model {
     return builder;
   }
 
-  exists(filter) {
+  exists(filter: Filter): ReturnType<typeof Model.prototype.findOne> | null {
     if (!filter) return null;
-    return this.findOne(filter).select('_id').lean();
+    return this.findOne({ filter }).select('_id').lean();
   }
 
   // see https://mongoosejs.com/docs/api.html#query_Query-countDocuments

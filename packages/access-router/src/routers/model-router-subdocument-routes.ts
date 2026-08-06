@@ -1,7 +1,12 @@
-import { isString } from '@web-ts-toolkit/utils';
 import { formatModelCreatedResponse, unwrapServiceData } from '../http/response-pipelines/model-response';
 import { getModelSub } from '../meta';
-import type { ModelRequest, SubPopulate } from '../interfaces';
+import type {
+  Filter,
+  ModelRequest,
+  SubdocumentBulkUpdateInput,
+  SubdocumentCreateInput,
+  SubdocumentRecord,
+} from '../interfaces';
 import {
   type SubListBody,
   type SubReadBody,
@@ -11,7 +16,7 @@ import {
   subMutationBodySchema,
   subReadBodySchema,
 } from './validation';
-import { handleResultError } from '../helpers';
+import { handleResultError, normalizeSubPopulate } from '../helpers';
 import type { ModelRouterRouteContext } from './model-router-route-context';
 import { defineOpenApiSchemaResolver } from '../openapi/schemas';
 
@@ -50,7 +55,10 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
           context.getRequestSchema('requestSchemas.subList'),
         )) as SubListBody;
         const svc = context.getPublicService(req);
-        const result = await svc.listSub(id, sub, { filter: body.filter ?? {}, select: body.select ?? [] });
+        const result = await svc.listSub(id, sub, {
+          filter: (body.filter ?? {}) as unknown as Filter<TModel>,
+          select: body.select ?? [],
+        });
 
         handleResultError(result);
         return unwrapServiceData(result);
@@ -74,7 +82,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
         context.getRequestSchema('requestSchemas.subBulkUpdate'),
       );
       const svc = context.getPublicService(req);
-      const result = await svc.bulkUpdateSub(id, sub, data);
+      const result = await svc.bulkUpdateSub(id, sub, data as SubdocumentBulkUpdateInput);
 
       handleResultError(result);
       return unwrapServiceData(result);
@@ -119,14 +127,11 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
           req.body,
           context.getRequestSchema('requestSchemas.subRead'),
         )) as SubReadBody;
-        const populate = body.populate;
-        const normalizedPopulate: SubPopulate | SubPopulate[] = Array.isArray(populate)
-          ? populate.map((item) => (isString(item) ? { path: item } : item))
-          : isString(populate)
-            ? { path: populate }
-            : (populate ?? []);
         const svc = context.getPublicService(req);
-        const result = await svc.readSub(id, sub, subId, { select: body.select ?? [], populate: normalizedPopulate });
+        const result = await svc.readSub(id, sub, subId, {
+          select: body.select ?? [],
+          populate: normalizeSubPopulate(body.populate),
+        });
 
         handleResultError(result);
         return unwrapServiceData(result);
@@ -151,7 +156,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
         context.getRequestSchema('requestSchemas.subUpdate'),
       );
       const svc = context.getPublicService(req);
-      const result = await svc.updateSub(id, sub, subId, data);
+      const result = await svc.updateSub(id, sub, subId, data as SubdocumentRecord);
 
       handleResultError(result);
       return unwrapServiceData(result);
@@ -176,7 +181,7 @@ export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteConte
         context.getRequestSchema('requestSchemas.subCreate'),
       );
       const svc = context.getPublicService(req);
-      const result = await svc.createSub(id, sub, data);
+      const result = await svc.createSub(id, sub, data as SubdocumentCreateInput);
 
       handleResultError(result);
 

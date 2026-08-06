@@ -76,7 +76,7 @@ export class DataCore {
     });
   }
 
-  async genAllowedFields(dataName: string, _doc: unknown, access: SelectAccess, baseFields = []) {
+  async genAllowedFields(dataName: string, _doc: unknown, access: SelectAccess, baseFields: string[] = []) {
     const permissionSchema = getDataOption(dataName, 'permissionSchema');
 
     const permissions = this.getGlobalPermissions();
@@ -91,7 +91,12 @@ export class DataCore {
     });
   }
 
-  async pickAllowedFields<TDoc>(dataName: string, doc: TDoc, access: SelectAccess, baseFields = []): Promise<TDoc> {
+  async pickAllowedFields<TDoc>(
+    dataName: string,
+    doc: TDoc,
+    access: SelectAccess,
+    baseFields: string[] = [],
+  ): Promise<TDoc> {
     const permissionSchema = getDataOption(dataName, 'permissionSchema') as Record<string, unknown> | null | undefined;
     const permissions = this.getGlobalPermissions();
 
@@ -111,7 +116,7 @@ export class DataCore {
     access: SelectAccess,
     targetFields: Projection = null,
     skipChecks = true,
-    subPaths = [],
+    subPaths: string[] = [],
   ) {
     const permissionSchema = getDataOption(dataName, ['permissionSchema'].concat(subPaths).join('.')) as
       | Record<string, unknown>
