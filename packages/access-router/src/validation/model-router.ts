@@ -3,7 +3,9 @@ import {
   fieldsSchema,
   includeSchema,
   nonNegativeIntegerSchema,
+  nonNegativeIntegerString,
   objectOrArraySchema,
+  positiveIntegerSchema,
   populateSchema,
   positiveIntegerString,
   projectionSchema,
@@ -16,9 +18,9 @@ import {
 
 export const listQuerySchema = z
   .object({
-    skip: positiveIntegerString.optional(),
+    skip: nonNegativeIntegerString.optional(),
     limit: positiveIntegerString.optional(),
-    page: positiveIntegerString.optional(),
+    page: nonNegativeIntegerString.optional(),
     page_size: positiveIntegerString.optional(),
     skim: queryBooleanString.optional(),
     include_permissions: queryBooleanString.optional(),
@@ -62,10 +64,10 @@ export const listBodySchema = z
     populate: populateSchema.optional(),
     include: includeSchema.optional(),
     tasks: tasksSchema.optional(),
-    skip: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
-    limit: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
-    page: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
-    pageSize: z.union([nonNegativeIntegerSchema, positiveIntegerString]).optional(),
+    skip: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),
+    limit: z.union([positiveIntegerSchema, positiveIntegerString]).optional(),
+    page: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),
+    pageSize: z.union([positiveIntegerSchema, positiveIntegerString]).optional(),
     options: z
       .object({
         skim: z.boolean().optional(),
@@ -83,15 +85,9 @@ export const listBodySchema = z
 export const countBodySchema = z
   .object({
     filter: objectOrArraySchema.optional(),
-    options: z
-      .object({
-        access: z.unknown().optional(),
-      })
-      .passthrough()
-      .optional(),
   })
   .passthrough()
-  .superRefine((body, ctx) => rejectKeys(body, ctx, ['query', 'access']));
+  .superRefine((body, ctx) => rejectKeys(body, ctx, ['query', 'access', 'options']));
 
 export const readFilterBodySchema = z
   .object({

@@ -1,5 +1,7 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import { z } from 'zod';
+import { getGlobalOption } from '../options';
+import { validateRequestComplexity } from '../request-complexity';
 import { stringOrStringArray } from './common';
 import type {
   AjvErrorObjectLike,
@@ -53,6 +55,11 @@ export function parsePathParam(value: string | string[] | undefined, parameter: 
 }
 
 export function parseQuery<TSchema extends z.ZodTypeAny>(schema: TSchema, value: unknown): z.output<TSchema> {
+  const complexityErrors = validateRequestComplexity(value, getGlobalOption('requestComplexity'), 'request');
+  if (complexityErrors.length > 0) {
+    throw new clientErrors.BadRequestError('Bad Request', { errors: complexityErrors });
+  }
+
   const result = schema.safeParse(value);
   if (!result.success) {
     throwValidationError(normalizeIssues(result.error.issues), undefined, 'parameter');
@@ -62,6 +69,11 @@ export function parseQuery<TSchema extends z.ZodTypeAny>(schema: TSchema, value:
 }
 
 export function parseBody<TSchema extends z.ZodTypeAny>(schema: TSchema, value: unknown): z.output<TSchema> {
+  const complexityErrors = validateRequestComplexity(value ?? {}, getGlobalOption('requestComplexity'), 'request');
+  if (complexityErrors.length > 0) {
+    throw new clientErrors.BadRequestError('Bad Request', { errors: complexityErrors });
+  }
+
   const result = schema.safeParse(value ?? {});
   if (!result.success) {
     throwValidationError(normalizeIssues(result.error.issues), undefined, 'pointer');

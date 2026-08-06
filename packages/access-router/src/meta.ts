@@ -1,16 +1,16 @@
 import { defaultRuntime } from './runtime';
-import { getActiveRuntime, getRuntimeForModelName } from './runtime-context';
+import { getActiveRuntime } from './runtime-context';
 
-const getRuntime = (modelName: string) => getRuntimeForModelName(modelName) ?? getActiveRuntime() ?? defaultRuntime;
+const getRuntime = () => getActiveRuntime() ?? defaultRuntime;
 
 export const ensureModelMeta = (modelName: string) => {
-  getRuntime(modelName).ensureModelMeta(modelName);
+  getRuntime().ensureModelMeta(modelName);
 };
 
 export const getModelRef = (modelName: string, refPath: string): string | null => {
-  return getRuntime(modelName).getModelRef(modelName, refPath);
+  return getRuntime().getModelRef(modelName, refPath);
 };
 
 export const getModelSub = (modelName: string): string[] => {
-  return getRuntime(modelName).getModelSub(modelName);
+  return getRuntime().getModelSub(modelName);
 };

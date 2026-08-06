@@ -1,10 +1,11 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
-import { isNumber as _isNumber, isString, normalizeUrlPath, orderBy as _orderBy } from '@web-ts-toolkit/utils';
+import { isNumber as _isNumber, normalizeUrlPath, orderBy as _orderBy } from '@web-ts-toolkit/utils';
 import { createSetCore } from '../core';
 import { createSetDataCore } from '../core-data';
 import { decorateDataListResult, decorateDataSingleResult } from '../http/response-pipelines/data-response';
-import { mapCodeToMessage, mapCodeToStatusCode } from '../helpers';
+import { mapCodeToMessage, mapCodeToStatusCode, normalizeSubPopulate } from '../helpers';
+import { toPublicServiceResult } from '../http/response-pipelines/service-result';
 import { accessRouterResponseHandler } from './index';
 import type { AccessRuntime } from '../runtime';
 import { defaultRuntime } from '../runtime';
@@ -17,7 +18,6 @@ import {
   ModelRequest,
   DataRequest,
   ServiceResult,
-  BaseFilterAccess,
   RootOperationResult,
   RootModelOperation,
   RootDataOperation,
@@ -40,6 +40,9 @@ import {
   RootDataListQueryEntry,
   RootDataReadByIdQueryEntry,
   RootDataReadByFilterQueryEntry,
+  SubdocumentBulkUpdateInput,
+  SubdocumentCreateInput,
+  SubdocumentRecord,
 } from '../interfaces';
 import { Codes } from '../enums';
 import { parseBody, rootQuerySchema } from './validation';
@@ -47,6 +50,10 @@ import type { OpenApiRouteDescriptor } from '../openapi';
 import { registerOpenApiRoute } from '../openapi/route-registration';
 
 const clientErrors = JsonRouter.clientErrors;
+
+const DEFAULT_MAX_BATCH_ENTRIES = 100;
+const DEFAULT_MAX_ORDER_GROUPS = 25;
+const DEFAULT_MAX_CONCURRENT_OPERATIONS = 10;
 
 type RootRequest = ModelRequest & DataRequest;
 type IndexedRootQueryEntry = { item: RootQueryEntry; index: number };
@@ -59,23 +66,18 @@ const createErrorResult = (code: ErrorResult['code'], detail: string): ErrorResu
   errors: [{ detail }],
 });
 
-const normalizeSubPopulate = (
-  populate: RootModelSubReadQueryEntry['args'] extends { populate?: infer TPopulate } ? TPopulate : never,
-) =>
-  Array.isArray(populate)
-    ? populate.map((item) => (isString(item) ? { path: item } : item))
-    : isString(populate)
-      ? { path: populate }
-      : (populate ?? []);
-
 export class RootRouter {
   readonly runtime: AccessRuntime;
   router: JsonRouter;
   basename: string;
   operationAccess: Validation;
+  maxBatchEntries: number;
+  maxOrderGroups: number;
+  maxConcurrentOperations: number;
 
   private readonly modelOperations: Record<RootModelOperation, ModelOperationHandler<any>> = {
-    new: async (req, item: RootModelNewQueryEntry) => req.macl.getPublicService(item.name)._new(),
+    new: async (req, item: RootModelNewQueryEntry) =>
+      req.macl.getPublicService(item.name)._new(item.args, item.options),
     list: async (req, item: RootModelListQueryEntry) =>
       req.macl.getPublicService(item.name)._list((item.filter ?? {}) as Filter, item.args, item.options),
     read: async (req, item: RootModelReadByIdQueryEntry | RootModelReadByFilterQueryEntry) => {
@@ -102,19 +104,17 @@ export class RootRouter {
         populate: normalizeSubPopulate(item.args?.populate),
       }),
     subCreate: async (req, item: RootModelSubCreateQueryEntry) =>
-      req.macl.getPublicService(item.name).createSub(item.id, item.sub, item.data),
+      req.macl.getPublicService(item.name).createSub(item.id, item.sub, item.data as SubdocumentCreateInput),
     subUpdate: async (req, item: RootModelSubUpdateQueryEntry) =>
-      req.macl.getPublicService(item.name).updateSub(item.id, item.sub, item.subId, item.data),
+      req.macl.getPublicService(item.name).updateSub(item.id, item.sub, item.subId, item.data as SubdocumentRecord),
     subBulkUpdate: async (req, item: RootModelSubBulkUpdateQueryEntry) =>
-      req.macl.getPublicService(item.name).bulkUpdateSub(item.id, item.sub, item.data),
+      req.macl.getPublicService(item.name).bulkUpdateSub(item.id, item.sub, item.data as SubdocumentBulkUpdateInput),
     subDelete: async (req, item: RootModelSubDeleteQueryEntry) =>
       req.macl.getPublicService(item.name).deleteSub(item.id, item.sub, item.subId),
     distinct: async (req, item: RootModelDistinctQueryEntry) =>
       req.macl.getPublicService(item.name)._distinct(item.field, { filter: item.filter }),
     count: async (req, item: RootModelCountQueryEntry) =>
-      req.macl
-        .getPublicService(item.name)
-        ._count((item.filter ?? {}) as Filter, item.options?.access as BaseFilterAccess | undefined),
+      req.macl.getPublicService(item.name)._count((item.filter ?? {}) as Filter),
   };
 
   private readonly dataOperations: Record<RootDataOperation, DataOperationHandler<any>> = {
@@ -162,11 +162,17 @@ export class RootRouter {
     options: RootRouterOptions = { basePath: '', operationAccess: true },
     runtime: AccessRuntime = defaultRuntime,
   ) {
-    const { basePath, operationAccess } = options;
+    const { basePath, operationAccess, maxBatchEntries, maxOrderGroups, maxConcurrentOperations } = options;
 
     this.runtime = runtime;
     this.basename = basePath || '';
     this.operationAccess = operationAccess;
+    this.maxBatchEntries = this.normalizePositiveLimit(maxBatchEntries, DEFAULT_MAX_BATCH_ENTRIES);
+    this.maxOrderGroups = this.normalizePositiveLimit(maxOrderGroups, DEFAULT_MAX_ORDER_GROUPS);
+    this.maxConcurrentOperations = this.normalizePositiveLimit(
+      maxConcurrentOperations,
+      DEFAULT_MAX_CONCURRENT_OPERATIONS,
+    );
     this.router = new JsonRouter(
       this.basename,
       [createSetCore(this.runtime), createSetDataCore(this.runtime)],
@@ -185,7 +191,7 @@ export class RootRouter {
       target: item.target,
       name: item.name,
       op: item.op,
-      result,
+      result: toPublicServiceResult(result),
       message: mapCodeToMessage(result.code),
       statusCode: mapCodeToStatusCode(result.code),
     };
@@ -245,20 +251,80 @@ export class RootRouter {
   }
 
   private groupItemsByOrder(items: RootQueryEntry[]) {
-    return items.reduce((acc: IndexedRootQueryEntry[][], item: RootQueryEntry, index: number) => {
-      let order = 0;
+    const groups = new Map<number, IndexedRootQueryEntry[]>();
 
-      if (_isNumber(item.order)) {
-        order = item.order < 0 ? 0 : item.order;
+    items.forEach((item: RootQueryEntry, index: number) => {
+      const order = _isNumber(item.order) ? item.order : 0;
+      const group = groups.get(order);
+
+      if (group) {
+        group.push({ index, item });
+        return;
       }
 
-      if (!acc[order]) {
-        acc[order] = [];
+      groups.set(order, [{ index, item }]);
+    });
+
+    return Array.from(groups.entries())
+      .sort(([leftOrder], [rightOrder]) => leftOrder - rightOrder)
+      .map(([, group]) => group);
+  }
+
+  private normalizePositiveLimit(value: number | undefined, fallback: number) {
+    return Number.isSafeInteger(value) && Number(value) > 0 ? Number(value) : fallback;
+  }
+
+  private validateBatch(items: RootQueryEntry[]) {
+    if (items.length > this.maxBatchEntries) {
+      throw new clientErrors.BadRequestError('Bad Request', {
+        errors: [{ detail: `Root batch exceeds maximum size of ${this.maxBatchEntries}` }],
+      });
+    }
+
+    const orders = new Set<number>();
+    for (const item of items) {
+      const order = item.order ?? 0;
+
+      if (!Number.isSafeInteger(order) || order < 0) {
+        throw new clientErrors.BadRequestError('Bad Request', {
+          errors: [{ detail: 'Root batch order must be a non-negative safe integer' }],
+        });
       }
 
-      acc[order].push({ index, item });
-      return acc;
-    }, []);
+      if (order > this.maxOrderGroups) {
+        throw new clientErrors.BadRequestError('Bad Request', {
+          errors: [{ detail: `Root batch order exceeds maximum group index of ${this.maxOrderGroups}` }],
+        });
+      }
+
+      orders.add(order);
+    }
+
+    if (orders.size > this.maxOrderGroups) {
+      throw new clientErrors.BadRequestError('Bad Request', {
+        errors: [{ detail: `Root batch exceeds maximum order groups of ${this.maxOrderGroups}` }],
+      });
+    }
+  }
+
+  private async runGroup(req: RootRequest, entries: IndexedRootQueryEntry[]): Promise<RootOperationResult[]> {
+    const results: RootOperationResult[] = new Array(entries.length);
+    let cursor = 0;
+    const workerCount = Math.min(this.maxConcurrentOperations, entries.length);
+
+    await Promise.all(
+      Array.from({ length: workerCount }, async () => {
+        while (cursor < entries.length) {
+          const current = cursor;
+          cursor += 1;
+
+          const { item, index } = entries[current];
+          results[current] = await this.processOp(req, item, index);
+        }
+      }),
+    );
+
+    return results;
   }
 
   private async assertAllowed(req: RootRequest) {
@@ -271,11 +337,12 @@ export class RootRouter {
       await this.assertAllowed(req);
 
       const items = parseBody(rootQuerySchema, req.body) as RootQueryEntry[];
+      this.validateBatch(items);
       const groupedItems = this.groupItemsByOrder(items);
 
       const results: RootOperationResult[] = [];
       for (let x = 0; x < groupedItems.length; x++) {
-        const arrResult = await Promise.all(groupedItems[x].map(({ item, index }) => this.processOp(req, item, index)));
+        const arrResult = await this.runGroup(req, groupedItems[x]);
         results.push(...arrResult);
       }
 
@@ -288,6 +355,7 @@ export class RootRouter {
       operationId: 'root.query',
       summary: 'Execute batched model and data operations',
       body: rootQuerySchema,
+      idempotent: true,
     });
   }
 

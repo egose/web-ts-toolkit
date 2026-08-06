@@ -1,7 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import request from 'supertest';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import acl, { guard, permissionsPlugin, setGlobalOptions } from '../dist/index.mjs';
@@ -143,7 +143,7 @@ const createIntegrationApp = async () => {
   return { app, modelName };
 };
 
-const createPopulateIntegrationApp = async () => {
+const createPopulateIntegrationApp = async (orgReadAccess: boolean = true) => {
   const orgModelName = `AclMongoOrg${++modelCounter}`;
   const userModelName = `AclMongoPopulateUser${++modelCounter}`;
 
@@ -172,7 +172,7 @@ const createPopulateIntegrationApp = async () => {
 
   const orgRouter = acl.createRouter(orgModelName, {
     basePath: '/orgs',
-    operationAccess: { list: true, read: true },
+    operationAccess: { list: true, read: orgReadAccess },
     permissionSchema: {
       name: { list: true, read: true },
       secret: { list: 'isAdmin', read: 'isAdmin' },
@@ -456,6 +456,68 @@ afterEach(() => {
 });
 
 describe('model router integration', () => {
+  it('fails closed and emits a structured warning when docPermissions throws', async () => {
+    const modelName = `AclMongoUserDocPermissions${++modelCounter}`;
+    const schema = new mongoose.Schema({
+      name: String,
+    });
+
+    schema.plugin(permissionsPlugin, { modelName });
+
+    const User = mongoose.model(modelName, schema);
+    const warn = vi.fn();
+
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => [],
+      logger: {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn,
+        error: vi.fn(),
+      },
+    });
+
+    const router = acl.createRouter(modelName, {
+      basePath: '/doc-permission-users',
+      documentPermissionField: '__acl',
+      operationAccess: {
+        read: true,
+      },
+      permissionSchema: {
+        name: { read: true },
+      },
+      docPermissions() {
+        throw new Error('docPermissions exploded');
+      },
+      resolveIdFilter(id: string) {
+        return { name: id };
+      },
+    });
+
+    await User.create({ name: 'user1' });
+
+    const app = express();
+    app.use(express.json());
+    app.use(router.routes);
+
+    const response = await request(app).get('/doc-permission-users/user1').expect(200).expect('Content-Type', /json/);
+
+    expect(response.body).toMatchObject({
+      name: 'user1',
+      __acl: {},
+    });
+    expect(warn).toHaveBeenCalledWith(
+      'docPermissions hook failed; applying empty document permissions',
+      expect.objectContaining({
+        modelName,
+        access: 'read',
+        operation: 'read',
+        error: 'docPermissions exploded',
+      }),
+    );
+  });
+
   it('applies baseFilter and permissionSchema for list and read requests', async () => {
     const { app } = await createIntegrationApp();
 
@@ -817,6 +879,29 @@ describe('model router integration', () => {
       path: 'org',
       match: {},
     });
+  });
+
+  it('fails closed for populate when the target model denies the requested operation', async () => {
+    const { app } = await createPopulateIntegrationApp(false);
+
+    const populateQuery = await request(app)
+      .get('/members/custom/populate-query')
+      .set('user', 'admin')
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    const readWithPopulate = await request(app)
+      .post('/members/__query/user1')
+      .set('user', 'admin')
+      .send({ populate: ['org'] })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    expect(populateQuery.body).toEqual([]);
+    expect(readWithPopulate.body).toMatchObject({
+      name: 'user1',
+    });
+    expect(readWithPopulate.body.org).toEqual(expect.any(String));
   });
 
   it('supports user-defined requestSchemas for create and advanced mutation data', async () => {

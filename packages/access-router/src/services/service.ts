@@ -52,10 +52,19 @@ import {
   SingleResult,
   SubQueryEntry,
   FindAccess,
+  SubdocumentBulkUpdateInput,
+  SubdocumentCreateInput,
+  SubdocumentCreateOptions,
+  SubdocumentId,
+  SubdocumentListOptions,
+  SubdocumentName,
+  SubdocumentParentArgs,
+  SubdocumentParentOptions,
+  SubdocumentReadOptions,
 } from '../interfaces';
 import { Codes, StatusCodes } from '../enums';
 import { Base } from './base';
-import { logger } from '../logger';
+import { debug as debugLog } from '../logger-helpers';
 import { isDocument } from '../lib';
 import {
   bulkUpdateSub as bulkUpdateSubImpl,
@@ -104,6 +113,28 @@ const assertModelDocument = <TModel>(
   throw new Error(`${hookName} hook for model=${modelName} must return a Mongoose document instance`);
 };
 
+const mapWithConcurrencyLimit = async <TInput, TOutput>(
+  items: TInput[],
+  limit: number,
+  iteratee: (item: TInput, index: number) => Promise<TOutput>,
+) => {
+  const results: TOutput[] = new Array(items.length);
+  let cursor = 0;
+  const workerCount = Math.min(Math.max(limit, 1), items.length || 1);
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (cursor < items.length) {
+        const current = cursor;
+        cursor += 1;
+        results[current] = await iteratee(items[current], current);
+      }
+    }),
+  );
+
+  return results;
+};
+
 export class Service<TModel = unknown> extends Base<TModel> {
   protected model: Model;
   protected options: ModelRouterOptions<TModel>;
@@ -138,8 +169,17 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const { filter: overrideFilter, select: overrideSelect, populate: overridePopulate } = overrides ?? {};
 
+    let parsedFilter: Filter<TModel>;
+    try {
+      parsedFilter = await this.parseClientData(filter);
+    } catch (error) {
+      const result = this.getClientRequestErrorResult(error);
+      if (result) return result;
+      throw error;
+    }
+
     let [_filter, _select, _populate] = await Promise.all([
-      overrideFilter || this.genFilter(access, await this.parseClientData(filter)),
+      overrideFilter || this.genFilter(access, parsedFilter),
       overrideSelect || this.genQuerySelect(access, select),
       overridePopulate || this.genPopulate(populateAccess || access, populate),
     ]);
@@ -154,7 +194,14 @@ export class Service<TModel = unknown> extends Base<TModel> {
       populate: _populate,
     };
 
-    logger.debug(JSON.stringify({ op: 'findOne', query }));
+    debugLog({
+      op: 'findOne',
+      modelName: this.modelName,
+      sort,
+      selectCount: finalSelect.length,
+      populateCount: Array.isArray(_populate) ? _populate.length : _populate ? 1 : 0,
+      query: { filter: _filter },
+    });
 
     if (_filter === false) return { success: false, code: Codes.Forbidden, query };
 
@@ -169,7 +216,13 @@ export class Service<TModel = unknown> extends Base<TModel> {
       resolvedQuery: query,
     };
 
-    doc = await this.includeDocs(doc, includes);
+    try {
+      doc = await this.includeDocs(doc, includes);
+    } catch (error) {
+      const result = this.getClientRequestErrorResult(error);
+      if (result) return { ...result, query };
+      throw error;
+    }
 
     let includeDocPermissions = includePermissions;
     if (!includeDocPermissions && !skim) {
@@ -227,8 +280,17 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const { filter: overrideFilter, select: overrideSelect, populate: overridePopulate } = overrides ?? {};
 
+    let parsedFilter: Filter<TModel>;
+    try {
+      parsedFilter = await this.parseClientData(filter);
+    } catch (error) {
+      const result = this.getClientRequestErrorResult(error);
+      if (result) return result;
+      throw error;
+    }
+
     const [_filter, _select, _populate, pagination] = await Promise.all([
-      overrideFilter || this.genFilter('list', await this.parseClientData(filter)),
+      overrideFilter || this.genFilter('list', parsedFilter),
       overrideSelect || this.genQuerySelect('list', select),
       overridePopulate || this.genPopulate(populateAccess, populate),
       genPagination({ skip, limit, page, pageSize }, this.options.listHardLimit),
@@ -252,12 +314,22 @@ export class Service<TModel = unknown> extends Base<TModel> {
       ...pagination,
     };
 
-    logger.debug(JSON.stringify({ op: 'find', query }));
+    debugLog({
+      op: 'find',
+      modelName: this.modelName,
+      sort,
+      skip: pagination.skip,
+      limit: pagination.limit,
+      selectCount: finalSelect.concat(includeLocalFields).length,
+      populateCount: Array.isArray(filteredPopulate) ? filteredPopulate.length : filteredPopulate ? 1 : 0,
+      query: { filter: _filter },
+    });
 
     if (_filter === false) return { success: false, code: Codes.Forbidden, query };
 
     let docs = await this.model.find({
       ...query,
+      hardLimit: this.options.listHardLimit,
       lean,
     });
 
@@ -271,7 +343,13 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const _decorate: (...args: unknown[]) => unknown = isFunction(decorate) ? decorate : (v) => v;
 
-    docs = await this.includeDocs(docs, includes);
+    try {
+      docs = await this.includeDocs(docs, includes);
+    } catch (error) {
+      const result = this.getClientRequestErrorResult(error);
+      if (result) return { ...result, query };
+      throw error;
+    }
 
     const fieldPermissionAccess = includePermissions
       ? await this.getFieldPermissionAccess(docs.map((doc) => doc._id))
@@ -322,78 +400,98 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const isArr = Array.isArray(data);
     let dataArr = isArr ? data : [data];
-    dataArr = await Promise.all(dataArr.map((d) => this.parseClientData(d)));
+    const { maxBulkItems, maxBulkConcurrency } = this.getRequestComplexity();
+    if (dataArr.length > maxBulkItems) {
+      return {
+        success: false,
+        code: Codes.BadRequest,
+        errors: [{ detail: `Bulk create exceeds maximum item count of ${maxBulkItems}` }],
+      };
+    }
+
+    try {
+      dataArr = await Promise.all(dataArr.map((d) => this.parseClientData(d)));
+    } catch (error) {
+      const result = this.getClientRequestErrorResult(error);
+      if (result) return result;
+      throw error;
+    }
 
     const resolvedPopulate = populate ? await this.genPopulate(populateAccess, populate) : [];
 
     const contexts: ModelHookContext[] = [];
 
-    let validationError = null;
-    const items = await Promise.all(
-      dataArr.map(async (item, index) => {
-        const context: ModelHookContext = {
-          mongooseModel: this.model.model,
-          modelName: this.modelName,
-          operation: 'create',
-          originalData: item,
-          resolvedQuery: resolvedPopulate.length > 0 ? { populate: resolvedPopulate } : {},
-        };
+    let validationError: ErrorResult | null = null;
+    const validationItems = await mapWithConcurrencyLimit(dataArr, maxBulkConcurrency, async (item, index) => {
+      if (validationError) return undefined;
 
-        const allowedFields = await this.genAllowedFields(item, 'create');
-        const allowedData = pick(item, allowedFields);
-        context.allowedFields = allowedFields;
-        context.allowedData = allowedData;
+      const context: ModelHookContext = {
+        mongooseModel: this.model.model,
+        modelName: this.modelName,
+        operation: 'create',
+        originalData: item,
+        resolvedQuery: resolvedPopulate.length > 0 ? { populate: resolvedPopulate } : {},
+      };
 
-        const validated = await this.validate(allowedData, 'create', context);
-        if (isBoolean(validated)) {
-          if (!validated) {
-            validationError = { success: false, code: Codes.BadRequest };
-            return;
-          }
-        } else if (isArray(validated)) {
-          if (validated.length > 0) {
-            validationError = { success: false, code: Codes.BadRequest, errors: validated };
-            return;
-          }
+      const allowedFields = await this.genAllowedFields(item, 'create');
+      const allowedData = pick(item, allowedFields);
+      context.allowedFields = allowedFields;
+      context.allowedData = allowedData;
+
+      const validated = await this.validate(allowedData, 'create', context);
+      if (isBoolean(validated)) {
+        if (!validated) {
+          validationError = { success: false, code: Codes.BadRequest };
+          return undefined;
         }
+      } else if (isArray(validated)) {
+        if (validated.length > 0) {
+          validationError = {
+            success: false,
+            code: Codes.BadRequest,
+            errors: isArr ? validated.map((issue) => this.formatBulkValidationIssue(issue, index)) : validated,
+          };
+          return undefined;
+        }
+      }
 
-        const preparedData = await this.prepare(allowedData, 'create', context);
-
-        context.preparedData = preparedData;
-        contexts[index] = context;
-        return preparedData;
-      }),
-    );
+      contexts[index] = context;
+      return allowedData;
+    });
 
     if (validationError) return validationError;
+
+    const items = await mapWithConcurrencyLimit(validationItems, maxBulkConcurrency, async (allowedData, index) => {
+      const preparedData = await this.prepare(allowedData, 'create', contexts[index]);
+      contexts[index].preparedData = preparedData;
+      return preparedData;
+    });
 
     const _decorate: (...args: unknown[]) => unknown = isFunction(decorate) ? decorate : (v) => v;
 
     const createdDocs = (await this.model.create(items)) as Array<ModelDocument<TModel>>;
-    const docs = await Promise.all(
-      createdDocs.map(async (doc, index) => {
-        contexts[index].currentDocument = doc;
-        doc = assertModelDocument<TModel>(
-          await this.afterPersist(doc, 'create', contexts[index]),
-          this.modelName,
-          'afterPersist',
-        );
-        contexts[index].currentDocument = doc;
-        contexts[index].finalDocumentSnapshot = doc.toObject({ virtuals: false }) as Record<string, unknown>;
-        let includeDocPermissions = includePermissions;
-        if (!includeDocPermissions && !skim) {
-          includeDocPermissions = this.checkIfModelPermissionExists(['create', 'read', 'update']);
-        }
-        if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'create', contexts[index]);
-        if (includePermissions) doc = await this.addFieldPermissions(doc, 'read', contexts[index]);
-        if (resolvedPopulate.length > 0) await populateDoc(doc as Document, resolvedPopulate);
-        doc = await this.trimOutputFields(doc, 'read', this.baseFieldsExt);
-        let outputDoc = await _decorate(doc, contexts[index]);
-        if (!includePermissions) outputDoc = this.addEmptyPermissions(outputDoc);
+    const docs = await mapWithConcurrencyLimit(createdDocs, maxBulkConcurrency, async (doc, index) => {
+      contexts[index].currentDocument = doc;
+      doc = assertModelDocument<TModel>(
+        await this.afterPersist(doc, 'create', contexts[index]),
+        this.modelName,
+        'afterPersist',
+      );
+      contexts[index].currentDocument = doc;
+      contexts[index].finalDocumentSnapshot = doc.toObject({ virtuals: false }) as Record<string, unknown>;
+      let includeDocPermissions = includePermissions;
+      if (!includeDocPermissions && !skim) {
+        includeDocPermissions = this.checkIfModelPermissionExists(['create', 'read', 'update']);
+      }
+      if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'create', contexts[index]);
+      if (includePermissions) doc = await this.addFieldPermissions(doc, 'read', contexts[index]);
+      if (resolvedPopulate.length > 0) await populateDoc(doc as Document, resolvedPopulate);
+      doc = await this.trimOutputFields(doc, 'read', this.baseFieldsExt);
+      let outputDoc = await _decorate(doc, contexts[index]);
+      if (!includePermissions) outputDoc = this.addEmptyPermissions(outputDoc);
 
-        return outputDoc;
-      }),
-    );
+      return outputDoc;
+    });
 
     return {
       success: true,
@@ -405,13 +503,59 @@ export class Service<TModel = unknown> extends Base<TModel> {
     };
   }
 
-  public async new(): Promise<SingleResult<TModel>> {
+  private formatBulkValidationIssue(issue: unknown, index: number | null) {
+    if (!issue || typeof issue !== 'object') {
+      return {
+        detail: typeof issue === 'string' && issue.length > 0 ? issue : 'Bad Request',
+        ...(index === null ? {} : { pointer: `#/${index}` }),
+      };
+    }
+
+    const typedIssue = issue as { detail?: string; message?: string; pointer?: string; path?: Array<string | number> };
+    const detail = typedIssue.detail ?? typedIssue.message ?? 'Bad Request';
+
+    if (index === null) {
+      return typedIssue.pointer || typedIssue.path
+        ? {
+            detail,
+            ...(typedIssue.pointer ? { pointer: typedIssue.pointer } : {}),
+          }
+        : { detail };
+    }
+
+    if (typedIssue.pointer?.startsWith('#/')) {
+      return { ...typedIssue, detail, pointer: `#/${index}${typedIssue.pointer.slice(1)}` };
+    }
+
+    if (typedIssue.path) {
+      return { ...typedIssue, detail, pointer: `#/${[index, ...typedIssue.path].join('/')}` };
+    }
+
+    return { ...typedIssue, detail, pointer: `#/${index}` };
+  }
+
+  public async new(
+    args?: { select?: string[] },
+    options?: { skim?: boolean; includePermissions?: boolean },
+  ): Promise<SingleResult<TModel>> {
+    const { skim, includePermissions } = options ?? {};
     const data = await this.model.new();
+
+    let doc: unknown = data;
+    doc = await this.trimOutputFields(doc, 'create', this.baseFieldsExt);
+
+    let includeDocPermissions = includePermissions;
+    if (!includeDocPermissions && !skim) {
+      includeDocPermissions = this.checkIfModelPermissionExists(['create', 'read', 'update']);
+    }
+    if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'create', {} as ModelHookContext);
+    if (!includePermissions) doc = this.addEmptyPermissions(doc);
+
     return {
       success: true,
       kind: 'single',
       code: Codes.Success,
-      data: data as TModel,
+      data: doc as TModel,
     };
   }
 
@@ -436,7 +580,12 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const query = { filter: _filter, populate: _populate };
 
-    logger.debug(JSON.stringify({ op: 'updateOne', query }));
+    debugLog({
+      op: 'updateOne',
+      modelName: this.modelName,
+      populateCount: Array.isArray(_populate) ? _populate.length : _populate ? 1 : 0,
+      query: { filter: _filter },
+    });
 
     if (_filter === false) return { success: false, code: Codes.Forbidden, query };
 
@@ -450,7 +599,13 @@ export class Service<TModel = unknown> extends Base<TModel> {
       resolvedQuery: query,
     };
 
-    data = await this.parseClientData(data);
+    try {
+      data = await this.parseClientData(data);
+    } catch (error) {
+      const result = this.getClientRequestErrorResult(error);
+      if (result) return result;
+      throw error;
+    }
 
     // see https://mongoosejs.com/docs/api/document.html#Document.prototype.toObject()
     context.originalDocumentSnapshot = doc.toObject({ virtuals: false }) as Record<string, unknown>;
@@ -559,7 +714,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const _filter = await (overrideFilter || this.genFilter('update', filter));
     const query = { filter: _filter };
 
-    logger.debug(JSON.stringify({ op: 'upsert', query }));
+    debugLog({ op: 'upsert', modelName: this.modelName, query: { filter: _filter } });
     if (_filter === false) return { success: false, code: Codes.Forbidden, query };
 
     const theone = await this.model.findOne({ filter: _filter });
@@ -596,7 +751,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const query = { filter };
 
-    logger.debug(JSON.stringify({ op: 'delete', query }));
+    debugLog({ op: 'delete', modelName: this.modelName, query: { filter } });
 
     if (filter === false) return { success: false, code: Codes.Forbidden, query };
     let doc = (await this.model.findOne({ filter })) as ModelDocument<TModel> | null;
@@ -646,7 +801,48 @@ export class Service<TModel = unknown> extends Base<TModel> {
     };
   }
 
+  protected isValidDistinctFieldName(field: unknown): boolean {
+    if (typeof field !== 'string' || field.length === 0) return false;
+    if (field.includes('$')) return false;
+    if (field.includes('..')) return false;
+    if (field.startsWith('.') || field.endsWith('.')) return false;
+    if (/\s/.test(field)) return false;
+    return true;
+  }
+
+  protected async authorizeDistinctField(field: string): Promise<ErrorResult | null> {
+    const allowedFields = await this.genAllowedFields(null, 'read');
+
+    const isAllowed = allowedFields.some((allowed) => {
+      if (allowed === field) return true;
+      if (allowed.startsWith(`${field}.`)) return true;
+      if (field.startsWith(`${allowed}.`)) return true;
+      return false;
+    });
+
+    if (!isAllowed) {
+      return {
+        success: false,
+        code: Codes.Forbidden,
+        errors: [{ detail: `Distinct field not allowed: ${field}` }],
+      };
+    }
+
+    return null;
+  }
+
   public async distinct(field: string, args?: DistinctArgs<TModel>): Promise<ListResult<unknown> | ErrorResult> {
+    if (!this.isValidDistinctFieldName(field)) {
+      return {
+        success: false,
+        code: Codes.BadRequest,
+        errors: [{ detail: `Invalid distinct field: ${field}` }],
+      };
+    }
+
+    const fieldError = await this.authorizeDistinctField(field);
+    if (fieldError) return fieldError;
+
     let { filter } = args ?? {};
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
@@ -768,40 +964,62 @@ export class Service<TModel = unknown> extends Base<TModel> {
     return new Set(docs.map((doc) => String(doc._id)));
   }
 
-  async listSub(id, sub, options?: { filter: Filter; select: string[] }): Promise<ListResult | ErrorResult> {
+  async listSub(
+    id: SubdocumentId,
+    sub: SubdocumentName,
+    options?: SubdocumentListOptions<TModel>,
+  ): Promise<ListResult | ErrorResult> {
     return listSubImpl(this, id, sub, options);
   }
 
   public async readSub(
-    id,
-    sub,
-    subId,
-    options?: { select: string[]; populate: SubPopulate | SubPopulate[] },
+    id: SubdocumentId,
+    sub: SubdocumentName,
+    subId: SubdocumentId,
+    options?: SubdocumentReadOptions,
   ): Promise<SingleResult | ErrorResult> {
     return readSubImpl(this, id, sub, subId, options);
   }
 
-  public async updateSub(id, sub, subId, data): Promise<SingleResult | ErrorResult> {
+  public async updateSub(
+    id: SubdocumentId,
+    sub: SubdocumentName,
+    subId: SubdocumentId,
+    data: Record<string, unknown>,
+  ): Promise<SingleResult | ErrorResult> {
     return updateSubImpl(this, id, sub, subId, data);
   }
 
-  public async bulkUpdateSub(id, sub, data): Promise<ListResult | ErrorResult> {
+  public async bulkUpdateSub(
+    id: SubdocumentId,
+    sub: SubdocumentName,
+    data: SubdocumentBulkUpdateInput | Record<string, unknown>,
+  ): Promise<ListResult | ErrorResult> {
     return bulkUpdateSubImpl(this, id, sub, castArray(data));
   }
 
-  public async createSub(id, sub, data, options?: { addFirst: boolean }): Promise<ListResult | ErrorResult> {
+  public async createSub(
+    id: SubdocumentId,
+    sub: SubdocumentName,
+    data: SubdocumentCreateInput,
+    options?: SubdocumentCreateOptions,
+  ): Promise<ListResult | ErrorResult> {
     return createSubImpl(this, id, sub, data, options);
   }
 
-  public async deleteSub(id, sub, subId): Promise<SingleResult | ErrorResult> {
+  public async deleteSub(
+    id: SubdocumentId,
+    sub: SubdocumentName,
+    subId: SubdocumentId,
+  ): Promise<SingleResult | ErrorResult> {
     return deleteSubImpl(this, id, sub, subId);
   }
 
   public async getParentDoc(
-    id,
-    sub,
-    args?: { populate?: SubPopulate | SubPopulate[] },
-    options?: { access?: BaseFilterAccess; lean?: boolean },
+    id: SubdocumentId,
+    sub: SubdocumentName,
+    args?: SubdocumentParentArgs,
+    options?: SubdocumentParentOptions,
   ) {
     return getParentDocImpl(this, id, sub, args, options);
   }

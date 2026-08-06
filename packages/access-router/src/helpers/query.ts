@@ -1,5 +1,14 @@
-import { flattenDeep, isNaN, isNil, isPlainObject, isString, reduce } from '@web-ts-toolkit/utils';
+import { flattenDeep, isNil, isPlainObject, isString, reduce } from '@web-ts-toolkit/utils';
 import { Projection, KeyValueProjection } from '../interfaces';
+
+const normalizeSafeInteger = (value: number | string | undefined, min: number): number | null => {
+  if (isNil(value)) return null;
+
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < min) return null;
+
+  return parsed;
+};
 
 export function genPagination(
   {
@@ -16,13 +25,16 @@ export function genPagination(
   hardLimit,
 ) {
   let _skip = 0;
-  let _limit = Number(limit ?? pageSize);
-  if (isNaN(_limit) || _limit > hardLimit) _limit = hardLimit;
+  let _limit = normalizeSafeInteger(limit ?? pageSize, 1) ?? hardLimit;
+  if (!Number.isSafeInteger(_limit) || _limit > hardLimit) _limit = hardLimit;
 
-  if (!isNil(skip)) {
-    _skip = Number(skip);
-  } else if (!isNil(page)) {
-    const npage = Number(page);
+  const normalizedSkip = normalizeSafeInteger(skip, 0);
+  const normalizedPage = normalizeSafeInteger(page, 0);
+
+  if (normalizedSkip !== null) {
+    _skip = normalizedSkip;
+  } else if (normalizedPage !== null) {
+    const npage = normalizedPage;
     if (npage > 1) _skip = (npage - 1) * _limit;
   }
 

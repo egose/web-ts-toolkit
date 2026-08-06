@@ -17,7 +17,10 @@ const resetGlobalOptions = () => {
   });
 };
 
-const createRootRouterApp = async (rootOperationAccess: true | string = true) => {
+const createRootRouterApp = async (
+  rootOperationAccess: true | string = true,
+  rootRouterOptions: Record<string, unknown> = {},
+) => {
   const modelName = `AclMongoRootUser${++modelCounter}`;
   const schema = new mongoose.Schema({
     name: String,
@@ -63,6 +66,7 @@ const createRootRouterApp = async (rootOperationAccess: true | string = true) =>
   const rootRouter = acl.createRouter({
     basePath: '/root',
     operationAccess: rootOperationAccess,
+    ...rootRouterOptions,
   });
 
   await User.create([
@@ -76,6 +80,58 @@ const createRootRouterApp = async (rootOperationAccess: true | string = true) =>
   app.use(rootRouter.routes);
 
   return { app, modelName };
+};
+
+const createRootRouterConcurrencyApp = async (maxConcurrentOperations = 2) => {
+  const modelName = `AclMongoRootConcurrencyUser${++modelCounter}`;
+  const schema = new mongoose.Schema({
+    name: String,
+  });
+
+  schema.plugin(permissionsPlugin, { modelName });
+
+  const User = mongoose.model(modelName, schema);
+
+  let inFlight = 0;
+  let peakInFlight = 0;
+
+  setGlobalOptions({
+    requestPermissionField: '_permissions',
+    globalPermissions: () => [],
+  });
+
+  acl.createRouter(modelName, {
+    basePath: '/concurrency-users',
+    operationAccess: {
+      list: true,
+    },
+    permissionSchema: {
+      name: true,
+    },
+    baseFilter: {
+      async list() {
+        inFlight += 1;
+        peakInFlight = Math.max(peakInFlight, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        inFlight -= 1;
+        return {};
+      },
+    },
+  });
+
+  const rootRouter = acl.createRouter({
+    basePath: '/root-concurrency',
+    operationAccess: true,
+    maxConcurrentOperations,
+  });
+
+  await User.create([{ name: 'user-1' }]);
+
+  const app = express();
+  app.use(express.json());
+  app.use(rootRouter.routes);
+
+  return { app, modelName, getPeakInFlight: () => peakInFlight };
 };
 
 const createRootRouterCountAccessApp = async () => {
@@ -307,6 +363,7 @@ afterEach(() => {
   mongoose.deleteModel(/AclMongoRootCountUser.*/);
   mongoose.deleteModel(/AclMongoRootUpsertUser.*/);
   mongoose.deleteModel(/AclMongoRootSubPost.*/);
+  mongoose.deleteModel(/AclMongoRootConcurrencyUser.*/);
 });
 
 describe('root router integration', () => {
@@ -374,6 +431,9 @@ describe('root router integration', () => {
       'user1',
       'user2',
     ]);
+    expect(response.body[0].result.query).toBeUndefined();
+    expect(response.body[1].result.context).toBeUndefined();
+    expect(response.body[2].result.contexts).toBeUndefined();
   });
 
   it('returns per-item failures for unauthorized and unknown root operations', async () => {
@@ -406,7 +466,7 @@ describe('root router integration', () => {
       target: 'model',
       name: modelName,
       op: 'count',
-      statusCode: 422,
+      statusCode: 401,
       result: {
         success: false,
         code: 'unauthorized',
@@ -453,6 +513,7 @@ describe('root router integration', () => {
         },
       },
     });
+    expect(response.body[1].result.query).toBeUndefined();
   });
 
   it('enforces the root route guard before evaluating batched operations', async () => {
@@ -488,6 +549,95 @@ describe('root router integration', () => {
       status: 400,
       errors: [{ pointer: '#/0' }],
     });
+  });
+
+  it('rejects invalid pagination values in root batch list args', async () => {
+    const { app, modelName } = await createRootRouterApp();
+
+    const response = await request(app)
+      .post('/root')
+      .set('user', 'admin')
+      .send([{ target: 'model', name: modelName, op: 'list', args: { limit: 0 } }])
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    const overflowResponse = await request(app)
+      .post('/root')
+      .set('user', 'admin')
+      .send([{ target: 'model', name: modelName, op: 'list', args: { limit: '9007199254740992' } }])
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(response.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/0/args/limit' }],
+    });
+    expect(overflowResponse.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/0/args/limit' }],
+    });
+  });
+
+  it('rejects oversized root batches before executing service work', async () => {
+    const { app, modelName } = await createRootRouterApp(true, { maxBatchEntries: 2 });
+
+    const response = await request(app)
+      .post('/root')
+      .set('user', 'admin')
+      .send([
+        { target: 'model', name: modelName, op: 'list' },
+        { target: 'model', name: modelName, op: 'list' },
+        { target: 'model', name: modelName, op: 'list' },
+      ])
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(response.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ detail: 'Root batch exceeds maximum size of 2' }],
+    });
+  });
+
+  it('rejects excessive root batch order values without sparse allocation', async () => {
+    const { app, modelName } = await createRootRouterApp(true, { maxOrderGroups: 2 });
+
+    const response = await request(app)
+      .post('/root')
+      .set('user', 'admin')
+      .send([{ target: 'model', name: modelName, op: 'list', order: 3 }])
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(response.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ detail: 'Root batch order exceeds maximum group index of 2' }],
+    });
+  });
+
+  it('bounds concurrent root batch execution within an order group', async () => {
+    const { app, modelName, getPeakInFlight } = await createRootRouterConcurrencyApp(2);
+
+    await request(app)
+      .post('/root-concurrency')
+      .send([
+        { target: 'model', name: modelName, op: 'list', order: 0 },
+        { target: 'model', name: modelName, op: 'list', order: 0 },
+        { target: 'model', name: modelName, op: 'list', order: 0 },
+        { target: 'model', name: modelName, op: 'list', order: 0 },
+        { target: 'model', name: modelName, op: 'list', order: 0 },
+      ])
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    expect(getPeakInFlight()).toBeLessThanOrEqual(2);
   });
 
   it('passes create options and count access overrides through the root batch payload', async () => {
@@ -527,15 +677,15 @@ describe('root router integration', () => {
       public: true,
     });
     expect(createResponse.body[0].result.data[0]._permissions).toBeDefined();
+    expect(createResponse.body[0].result.input).toBeUndefined();
+    expect(createResponse.body[0].result.query).toBeUndefined();
+    expect(createResponse.body[0].result.contexts).toBeUndefined();
 
     const { app: countApp, modelName: countModelName } = await createRootRouterCountAccessApp();
 
     const countResponse = await request(countApp)
       .post('/root-count')
-      .send([
-        { target: 'model', name: countModelName, op: 'count' },
-        { target: 'model', name: countModelName, op: 'count', options: { access: 'read' } },
-      ])
+      .send([{ target: 'model', name: countModelName, op: 'count' }])
       .expect(200)
       .expect('Content-Type', /json/);
 
@@ -548,16 +698,6 @@ describe('root router integration', () => {
           success: true,
           code: 'success',
           data: 1,
-        },
-      },
-      {
-        target: 'model',
-        name: countModelName,
-        op: 'count',
-        result: {
-          success: true,
-          code: 'success',
-          data: 3,
         },
       },
     ]);

@@ -56,6 +56,15 @@ export async function populateDoc(doc: Document, target: unknown) {
   return 'execPopulate' in p && (p as LegacyPopulateResult).execPopulate?.();
 }
 
+export const normalizeSubPopulate = (
+  populate?: SubPopulate | SubPopulate[] | string | string[] | null,
+): SubPopulate | SubPopulate[] =>
+  isArray(populate)
+    ? populate.map((item) => (isString(item) ? { path: item } : item))
+    : isString(populate)
+      ? { path: populate }
+      : (populate ?? []);
+
 export const genSubPopulate = (sub: string, popul?: SubPopulate | SubPopulate[] | string | string[]): SubPopulate[] => {
   if (!popul) return [];
 

@@ -82,7 +82,10 @@ interface RootQueryEntryBase<TTarget extends RootTarget, TOp extends string> {
   order?: number;
 }
 
-export interface RootModelNewQueryEntry extends RootQueryEntryBase<'model', 'new'> {}
+export interface RootModelNewQueryEntry extends RootQueryEntryBase<'model', 'new'> {
+  args?: { select?: string[] };
+  options?: { skim?: boolean; includePermissions?: boolean };
+}
 
 export interface RootModelListQueryEntry extends RootQueryEntryBase<'model', 'list'> {
   filter?: Filter;
@@ -222,12 +225,12 @@ export type RootQueryEntry =
   | RootDataReadByIdQueryEntry
   | RootDataReadByFilterQueryEntry;
 
-export interface RootOperationResult<T = unknown, TError = unknown, TInput = unknown, TQuery = unknown> {
+export interface RootOperationResult<T = unknown, TError = unknown> {
   index: number;
   target: RootTarget;
   name: string;
   op: RootModelOperation | RootDataOperation;
-  result: ServiceResult<T, TError, TInput, TQuery>;
+  result: PublicServiceResult<T, TError>;
   statusCode: number;
   message: string;
 }
@@ -310,3 +313,30 @@ export type ServiceResult<T = unknown, TError = unknown, TInput = unknown, TQuer
   | SingleResult<T, TInput, TQuery>
   | ListResult<T, TInput, TQuery>
   | ErrorResult<TError, TQuery>;
+
+export interface PublicErrorResult<TError = unknown> {
+  success: false;
+  code: Codes.BadRequest | Codes.Unauthorized | Codes.Forbidden | Codes.NotFound;
+  errors?: TError[];
+}
+
+export interface PublicSingleResult<T = unknown> {
+  success: true;
+  kind: 'single';
+  code: Codes.Success | Codes.Created;
+  data: T;
+}
+
+export interface PublicListResult<T = unknown> {
+  success: true;
+  kind: 'list';
+  code: Codes.Success | Codes.Created;
+  data: T[];
+  count: number;
+  totalCount?: number | null;
+}
+
+export type PublicServiceResult<T = unknown, TError = unknown> =
+  | PublicSingleResult<T>
+  | PublicListResult<T>
+  | PublicErrorResult<TError>;

@@ -25,12 +25,32 @@ Peer dependencies:
 ## Quick Start
 
 ```ts
-import acl from '@web-ts-toolkit/access-router';
+import express from 'express';
+import mongoose from 'mongoose';
+import acl, { permissionsPlugin } from '@web-ts-toolkit/access-router';
 
+// 1. Configure how request permissions are resolved globally.
 acl.setGlobalOptions({
+  requestPermissionField: '_permissions',
   globalPermissions(req) {
     return req.headers.user === 'admin' ? ['isAdmin'] : [];
   },
+});
+
+// 2. Register a Mongoose model and schema. The schema opts in to the
+//    permissions plugin so generated routers can enforce field access.
+const userSchema = new mongoose.Schema({ name: String, role: String, public: Boolean });
+userSchema.plugin(permissionsPlugin, { modelName: 'User' });
+const UserModel = mongoose.model('User', userSchema);
+
+// 3. Create routers. Pass either the model name or the mongoose.Model
+//    instance. Passing the instance preserves an explicit connection
+//    (useful for multi-connection setups) and registers it with the
+//    active runtime.
+const userRouter = acl.createRouter('User', {
+  basePath: '/users',
+  operationAccess: { list: true, create: true, read: true, update: true, delete: true },
+  permissionSchema: { name: true, role: 'isAdmin', public: true },
 });
 
 const fruitRouter = acl.createDataRouter('fruit', {
@@ -38,41 +58,81 @@ const fruitRouter = acl.createDataRouter('fruit', {
   idField: 'id',
   operationAccess: { list: true, read: true },
   data: [{ id: 'apple', name: 'Apple', public: true }],
-  permissionSchema: {
-    id: true,
-    name: 'isAdmin',
-    public: true,
-  },
-});
-
-const userRouter = acl.createRouter('User', {
-  basePath: '/users',
+  permissionSchema: { id: true, name: 'isAdmin', public: true },
 });
 
 const docsRouter = acl.createOpenApiRouter({
   title: 'Example API',
   version: '1.0.0',
 });
+
+// 4. Mount routers under an Express app and start the server.
+const app = express();
+app.use(express.json());
+app.use(userRouter.routes);
+app.use(fruitRouter.routes);
+app.use(docsRouter);
+
+const port = Number(process.env.PORT ?? 3000);
+app.listen(port, () => {
+  console.log(`API listening on http://localhost:${port}`);
+});
+
+// 5. Connect to MongoDB before serving traffic.
+await mongoose.connect(process.env.MONGODB_URL ?? 'mongodb://localhost:27017/example');
 ```
 
 ## Main Exports
 
 Root entrypoint (`@web-ts-toolkit/access-router`):
 
-- default export `acl`
-- `createAccessRuntime()`
-- `createOpenApiRouter(...)`
-- `combineRoutes(...)`
-- `guard(...)`
-- `RootRouter`, `ModelRouter`, `DataRouter`
-- validation adapters such as `fromZod(...)` and `defineRequestSchema(...)`
+- default export `acl` — the default-runtime API (functions bound to the shared `AccessRuntime`)
+- `createAccessRuntime()` — create an isolated runtime with its own options and model registry
+- `AccessRuntime`, `RootRouter`, `ModelRouter`, `DataRouter` — router/runtime classes
+- `registerModelInstance(name, model)`, `hasModelInstance(name)`, `getModelInstance(name)` — explicit runtime-owned model registry helpers
+- `guard(...)` and `GuardModelCondition`, `GuardModelConditionID` types
+- `combineRoutes(...)` and `createOpenApiRouter(runtime, options)` (note: prefer `acl.createOpenApiRouter(options)` for the default runtime)
+- validation adapters: `defineRequestSchema(...)`, `fromZod(...)`, `fromYup(...)`, `fromJoi(...)`, `fromAjv(...)`, `fromStandardSchema(...)`, `fromValibot(...)`, `fromArkType(...)`, `fromIoTs(...)`, `fromSuperstruct(...)`, `fromVine(...)`
+- option helpers: `setGlobalOptions`, `setGlobalOption`, `getGlobalOptions`, `getGlobalOption`, `setModelOptions`, `setModelOption`, `getModelOptions`, `getModelOption`, `getModelNames`, `getModelJsonSchema`, `setDefaultModelOptions`, `setDefaultModelOption`, `getDefaultModelOptions`, `getDefaultModelOption`
 
 Subpath entrypoints:
 
-- `@web-ts-toolkit/access-router/advanced` — runtime context and advanced internals
-- `@web-ts-toolkit/access-router/processors` — field processors
+- `@web-ts-toolkit/access-router/advanced` — low-level runtime context, symbols (`MIDDLEWARE`, `PERMISSIONS`, ...), enums (`Codes`, `StatusCodes`), internals (`parseBody`, `parseQuery`, request schemas). Does NOT export `acl`, `defaultRuntime`, or router-creation helpers.
+- `@web-ts-toolkit/access-router/processors` — `copyAndDepopulate` and its `ProcessCopy` / `CopyAndDepopulateOptions` types for transforming populated documents.
 
-### Import styles
+## Default runtime vs. isolated runtime
+
+The default export `acl` is bound to a single shared `AccessRuntime`, which is fine for most services.
+For tests, multi-tenant services, or libraries that must avoid global state, create an isolated runtime:
+
+```ts
+import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+
+const runtime = createAccessRuntime();
+runtime.setGlobalOptions({ globalPermissions: () => [] });
+
+// `runtime.createRouter(...)`, `runtime.createDataRouter(...)`,
+// `runtime.createOpenApiRouter(...)`, `runtime.registerModelInstance(...)`, ...
+```
+
+Two isolated runtimes with the same model name resolve against their own model registry and options without interference.
+
+## createRouter overloads
+
+`createRouter(modelName, options)` — accept the Mongoose model name registered with `mongoose.model(name, schema)`.
+
+`createRouter(model, options)` — accept a `mongoose.Model` instance directly. The instance is registered with the active runtime's registry, so a model attached to a non-default `mongoose.createConnection()` works without polluting the global registry.
+
+```ts
+const conn = await mongoose.createConnection(uri).asPromise();
+const schema = new mongoose.Schema({ name: String });
+schema.plugin(permissionsPlugin, { modelName: 'TenantUser' });
+const TenantUser = conn.model('TenantUser', schema);
+
+const tenantRouter = acl.createRouter(TenantUser, { basePath: '/tenant-users' });
+```
+
+## Import styles
 
 The package ships both a default export and named exports:
 
@@ -81,32 +141,23 @@ The package ships both a default export and named exports:
 import acl from '@web-ts-toolkit/access-router';
 
 // named exports (useful when you only need specific helpers)
-import { createOpenApiRouter, fromZod } from '@web-ts-toolkit/access-router';
+import { createAccessRuntime, fromZod } from '@web-ts-toolkit/access-router';
 ```
 
 ### Subpath import example
 
 ```ts
-import { setGlobalOptions } from '@web-ts-toolkit/access-router';
 import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';
 
-setGlobalOptions({
-  globalPermissions(req) {
-    return [];
-  },
-});
-
-const depopulated = copyAndDepopulate({ items: [{ _id: 'a1', name: 'Apple' }] }, [{ src: 'items', dest: 'items' }]);
+const { items } = copyAndDepopulate(
+  { items: [{ _id: 'a1', name: 'Apple' }] },
+  [{ src: 'items', dest: 'itemsSnapshot' }],
+  { mutable: false },
+);
+// `items` is now `['a1']`; `itemsSnapshot` holds the original objects.
 ```
 
 ## Documentation
 
-Full package documentation lives in `website/docs/packages/access-router/`.
-
 - live docs: https://web-ts-toolkit.pages.dev/docs/packages/access-router
-- overview: `website/docs/packages/access-router/index.mdx`
-- routing: `website/docs/packages/access-router/routing.mdx`
-- configuration: `website/docs/packages/access-router/configuration.mdx`
-- hooks: `website/docs/packages/access-router/hooks.mdx`
-- validation: `website/docs/packages/access-router/validation.mdx`
-- OpenAPI: `website/docs/packages/access-router/openapi.mdx`
+- source docs live in the website/docs package of this repository; paths may move as the docs site evolves.

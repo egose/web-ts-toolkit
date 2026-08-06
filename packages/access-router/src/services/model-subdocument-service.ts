@@ -1,16 +1,35 @@
 import { forEach, get, pick } from '@web-ts-toolkit/utils';
 import { filterCollection, findElement, findElementById, genSubPopulate, toObject } from '../helpers';
-import type { BaseFilterAccess, ErrorResult, Filter, ListResult, SingleResult, SubPopulate } from '../interfaces';
+import type {
+  ErrorResult,
+  Filter,
+  ListResult,
+  SingleResult,
+  SubdocumentBulkRecord,
+  SubdocumentBulkUpdateInput,
+  SubdocumentCreateInput,
+  SubdocumentCreateOptions,
+  SubdocumentId,
+  SubdocumentListOptions,
+  SubdocumentName,
+  SubdocumentParentArgs,
+  SubdocumentParentOptions,
+  SubdocumentReadOptions,
+} from '../interfaces';
 import { Codes } from '../enums';
+import { validateClientFilter } from './base';
 import type { Service } from './service';
 
 export async function listSub<TModel>(
   service: Service<TModel>,
-  id,
-  sub,
-  options?: { filter: Filter; select: string[] },
+  id: SubdocumentId,
+  sub: SubdocumentName,
+  options?: SubdocumentListOptions<TModel>,
 ): Promise<ListResult | ErrorResult> {
   const { filter: ft, select } = options ?? {};
+
+  const filterErrors = validateClientFilter(ft as Filter<TModel>);
+  if (filterErrors.length > 0) return { success: false, code: Codes.BadRequest, errors: filterErrors };
 
   const parentDoc = await getParentDoc(service, id, sub, null, { access: 'read' });
   if (!parentDoc) return { success: false, code: Codes.NotFound };
@@ -31,10 +50,10 @@ export async function listSub<TModel>(
 
 export async function readSub<TModel>(
   service: Service<TModel>,
-  id,
-  sub,
-  subId,
-  options?: { select: string[]; populate: SubPopulate | SubPopulate[] },
+  id: SubdocumentId,
+  sub: SubdocumentName,
+  subId: SubdocumentId,
+  options?: SubdocumentReadOptions,
 ): Promise<SingleResult | ErrorResult> {
   const { select, populate } = options ?? {};
 
@@ -58,10 +77,10 @@ export async function readSub<TModel>(
 
 export async function updateSub<TModel>(
   service: Service<TModel>,
-  id,
-  sub,
-  subId,
-  data,
+  id: SubdocumentId,
+  sub: SubdocumentName,
+  subId: SubdocumentId,
+  data: Record<string, unknown>,
 ): Promise<SingleResult | ErrorResult> {
   const parentDoc = await getParentDoc(service, id, sub, null, { access: 'update' });
   if (!parentDoc) return { success: false, code: Codes.NotFound };
@@ -88,13 +107,22 @@ export async function updateSub<TModel>(
 
 export async function bulkUpdateSub<TModel>(
   service: Service<TModel>,
-  id,
-  sub,
-  data,
+  id: SubdocumentId,
+  sub: SubdocumentName,
+  data: SubdocumentBulkUpdateInput,
 ): Promise<ListResult | ErrorResult> {
+  const { maxBulkItems } = service.getRequestComplexity();
+  if (data.length > maxBulkItems) {
+    return {
+      success: false,
+      code: Codes.BadRequest,
+      errors: [{ detail: `Bulk subdocument update exceeds maximum item count of ${maxBulkItems}` }],
+    };
+  }
+
   const parentDoc = await getParentDoc(service, id, sub, null, { access: 'update' });
   if (!parentDoc) return { success: false, code: Codes.NotFound };
-  let result = get(parentDoc, sub) as Array<Record<string, unknown> & { _id?: unknown }>;
+  let result = get(parentDoc, sub) as SubdocumentBulkRecord[];
 
   const [subFilter, subReadSelect, subUpdateSelect] = await Promise.all([
     service.genFilter(`subs.${sub}.update`, { _id: { $in: data.map((v) => v._id) } }),
@@ -105,7 +133,7 @@ export async function bulkUpdateSub<TModel>(
   if (subFilter === false) return { success: false, code: Codes.Forbidden };
 
   result = filterCollection(result, subFilter);
-  forEach(result, (subdoc: Record<string, unknown> & { _id?: unknown }) => {
+  forEach(result, (subdoc: SubdocumentBulkRecord) => {
     const tdata = findElementById(data, subdoc._id as string);
     if (!tdata) return;
 
@@ -120,12 +148,21 @@ export async function bulkUpdateSub<TModel>(
 
 export async function createSub<TModel>(
   service: Service<TModel>,
-  id,
-  sub,
-  data,
-  options?: { addFirst: boolean },
+  id: SubdocumentId,
+  sub: SubdocumentName,
+  data: SubdocumentCreateInput,
+  options?: SubdocumentCreateOptions,
 ): Promise<ListResult | ErrorResult> {
   const { addFirst } = options ?? {};
+  const { maxBulkItems } = service.getRequestComplexity();
+
+  if (Array.isArray(data) && data.length > maxBulkItems) {
+    return {
+      success: false,
+      code: Codes.BadRequest,
+      errors: [{ detail: `Bulk subdocument create exceeds maximum item count of ${maxBulkItems}` }],
+    };
+  }
 
   const parentDoc = await getParentDoc(service, id, sub, null, { access: 'update' });
   if (!parentDoc) return { success: false, code: Codes.NotFound };
@@ -144,7 +181,12 @@ export async function createSub<TModel>(
   return { success: true, kind: 'list', code: Codes.Created, data: result, count: result.length };
 }
 
-export async function deleteSub<TModel>(service: Service<TModel>, id, sub, subId): Promise<SingleResult | ErrorResult> {
+export async function deleteSub<TModel>(
+  service: Service<TModel>,
+  id: SubdocumentId,
+  sub: SubdocumentName,
+  subId: SubdocumentId,
+): Promise<SingleResult | ErrorResult> {
   const parentDoc = await getParentDoc(service, id, sub, null, { access: 'update' });
   if (!parentDoc) return { success: false, code: Codes.NotFound };
   const result = get(parentDoc, sub) as Array<
@@ -170,10 +212,10 @@ export async function deleteSub<TModel>(service: Service<TModel>, id, sub, subId
 
 export async function getParentDoc<TModel>(
   service: Service<TModel>,
-  id,
-  sub,
-  args?: { populate?: SubPopulate | SubPopulate[] },
-  options?: { access?: BaseFilterAccess; lean?: boolean },
+  id: SubdocumentId,
+  sub: SubdocumentName,
+  args?: SubdocumentParentArgs,
+  options?: SubdocumentParentOptions,
 ) {
   const { populate } = args ?? {};
   const { access = 'read', lean = false } = options ?? {};

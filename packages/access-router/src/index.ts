@@ -3,12 +3,15 @@ import type {} from './filter-type-tests';
 import type { Router as ExpressRouter } from 'express';
 import { isPlainObject, isString, isUndefined } from '@web-ts-toolkit/utils';
 import middleware, { guard } from './middleware';
+import type { GuardModelCondition, GuardModelConditionID } from './middleware';
 import { createSetCore } from './core';
 import { RootRouter, ModelRouter, DataRouter, combineRoutes } from './routers';
 import { createOpenApiRouter } from './openapi/router';
+import { OpenApiCollisionError } from './openapi/errors';
 import type {
   OpenApiDocumentOptions,
   OpenApiMethod,
+  OpenApiRegistryOptions,
   OpenApiRouteDescriptor,
   OpenApiRouterOptions,
 } from './openapi/types';
@@ -23,6 +26,9 @@ import {
   getModelOption,
   getModelNames,
   getModelJsonSchema,
+  registerModelInstance,
+  hasModelInstance,
+  getModelInstance,
   setDefaultModelOptions,
   setDefaultModelOption,
   getDefaultModelOptions,
@@ -92,6 +98,7 @@ export {
   DataRouter,
   combineRoutes,
   AccessRuntime,
+  defaultRuntime,
   defineRequestSchema,
   fromAjv,
   fromArkType,
@@ -118,8 +125,13 @@ export {
   setDefaultModelOption,
   getDefaultModelOptions,
   getDefaultModelOption,
+  registerModelInstance,
+  hasModelInstance,
+  getModelInstance,
   createOpenApiRouter,
+  OpenApiCollisionError,
 };
+export type { OpenApiRegistryOptions };
 export type {
   AccessRouterPermissions,
   AccessRouterPermissionMap,
@@ -129,6 +141,8 @@ export type {
   RootRouterOptions,
   ModelRouterOptions,
   DataRouterOptions,
+  GuardModelCondition,
+  GuardModelConditionID,
   AjvErrorObjectLike,
   AjvValidatorLike,
   ArkTypeErrorsLike,
@@ -172,6 +186,8 @@ export type {
 export type { CombinedRouteInput } from './routers';
 export * from './permission';
 export * from './plugins';
+export { redactFilter, redactPayload, safeStringify, isLevelEnabled } from './logger-helpers';
+export type { OpLogContext } from './logger-helpers';
 
 type CreateRouter = {
   <TModel>(model: mongoose.Model<TModel>, options: ModelRouterOptions<TModel>): ModelRouter<TModel>;
@@ -211,12 +227,20 @@ interface Wtt {
   setDefaultModelOption: typeof setDefaultModelOption;
   getDefaultModelOptions: typeof getDefaultModelOptions;
   getDefaultModelOption: typeof getDefaultModelOption;
+  registerModelInstance: (modelName: string, model: mongoose.Model<unknown>) => void;
+  hasModelInstance: (modelName: string) => boolean;
+  getModelInstance: (modelName: string) => mongoose.Model<unknown> | null;
   RootRouter: typeof RootRouter;
   ModelRouter: typeof ModelRouter;
   DataRouter: typeof DataRouter;
 }
 
 export type AccessRuntimeApi = typeof middleware & Wtt;
+
+type MongooseModelLike = mongoose.Model<unknown>;
+
+const isMongooseModel = (value: unknown): value is MongooseModelLike =>
+  typeof value === 'function' && value !== null && 'modelName' in value && 'schema' in value;
 
 function createRuntimeApi(runtime: AccessRuntime): AccessRuntimeApi {
   const runtimeMiddleware = function () {
@@ -228,19 +252,24 @@ function createRuntimeApi(runtime: AccessRuntime): AccessRuntimeApi {
   wtt.runtime = runtime;
 
   wtt.createRouter = function (
-    modelName: string | mongoose.Model<unknown> | RootRouterOptions,
+    modelName: string | MongooseModelLike | RootRouterOptions,
     options: ModelRouterOptions | undefined,
   ) {
-    const resolvedModelName =
-      typeof modelName === 'string'
-        ? modelName
-        : modelName && 'modelName' in modelName
-          ? modelName.modelName
-          : modelName;
+    if (isUndefined(options)) {
+      return new RootRouter(modelName as RootRouterOptions, runtime);
+    }
 
-    return isUndefined(options)
-      ? new RootRouter(modelName as RootRouterOptions, runtime)
-      : new ModelRouter(resolvedModelName as string, options, runtime);
+    if (typeof modelName === 'string') {
+      return new ModelRouter(modelName, options, runtime);
+    }
+
+    if (isMongooseModel(modelName)) {
+      const name = String(modelName.modelName);
+      runtime.registerModelInstance(name, modelName);
+      return ModelRouter.fromModel(modelName, options, runtime);
+    }
+
+    throw new TypeError(`createRouter: unsupported first argument type: ${typeof modelName}`);
   } as CreateRouter;
 
   wtt.createDataRouter = function <TData>(dataName: string, options: DataRouterOptions<TData>) {
@@ -277,6 +306,9 @@ function createRuntimeApi(runtime: AccessRuntime): AccessRuntimeApi {
   wtt.setDefaultModelOption = runtime.setDefaultModelOption.bind(runtime);
   wtt.getDefaultModelOptions = runtime.getDefaultModelOptions.bind(runtime);
   wtt.getDefaultModelOption = runtime.getDefaultModelOption.bind(runtime);
+  wtt.registerModelInstance = runtime.registerModelInstance.bind(runtime);
+  wtt.hasModelInstance = runtime.hasModelInstance.bind(runtime);
+  wtt.getModelInstance = runtime.getModelInstance.bind(runtime);
   wtt.RootRouter = RootRouter;
   wtt.ModelRouter = ModelRouter;
   wtt.DataRouter = DataRouter;

@@ -43,9 +43,30 @@ function optimizeAndFilter<T = unknown>(clausesInput: unknown[]): Filter<T> | nu
     }
   }
 
-  const dedupedClauses = clauses.filter(
-    (clause, index) => clauses.findIndex((item) => isEqual(item, clause)) === index,
-  );
+  const dedupeKey = (value: unknown): string => {
+    if (isArray(value)) {
+      return `[${value.map(dedupeKey).join(',')}]`;
+    }
+
+    if (isPlainObject(value)) {
+      return `{${Object.keys(value)
+        .sort()
+        .map((key) => `${key}:${dedupeKey((value as Record<string, unknown>)[key])}`)
+        .join(',')}}`;
+    }
+
+    return JSON.stringify(value);
+  };
+
+  const dedupedClauses: Record<string, unknown>[] = [];
+  const seenClauses = new Set<string>();
+  for (let x = 0; x < clauses.length; x++) {
+    const clause = clauses[x];
+    const key = dedupeKey(clause);
+    if (seenClauses.has(key)) continue;
+    seenClauses.add(key);
+    dedupedClauses.push(clause);
+  }
 
   const mergedClause: Record<string, unknown> = {};
   const remainingClauses: Record<string, unknown>[] = [];

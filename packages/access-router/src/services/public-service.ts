@@ -101,8 +101,11 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     return result as ListResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>>;
   }
 
-  async _new(): Promise<SingleResult<PublicOutput<TModel>>> {
-    return this.new() as Promise<SingleResult<PublicOutput<TModel>>>;
+  async _new(
+    args?: { select?: string[] },
+    options?: { skim?: boolean; includePermissions?: boolean },
+  ): Promise<SingleResult<PublicOutput<TModel>>> {
+    return this.new(args, options) as Promise<SingleResult<PublicOutput<TModel>>>;
   }
 
   async _read<

@@ -43,6 +43,31 @@ export type OpenApiRouteDescriptor = {
   body?: OpenApiSchemaSource;
   pathParams?: Record<string, OpenApiSchemaSource>;
   responses?: OpenApiResponses;
+  /**
+   * When true, replaces an existing registration with the same method/path
+   * even when the descriptors differ. When false (default), conflicting
+   * registrations throw at registration time so consumers can detect
+   * accidental route shadowing.
+   */
+  allowReplace?: boolean;
+  /**
+   * When true, this exact descriptor is idempotent and registering the same
+   * method/path with an equivalent descriptor again is silently accepted.
+   * Differing re-registrations still throw unless {@link allowReplace} is set.
+   */
+  idempotent?: boolean;
+};
+
+export type OpenApiRegistryOptions = {
+  /**
+   * Throw when the same method/path is registered twice with differing
+   * descriptors, instead of silently replacing. Default: true.
+   */
+  rejectConflicts?: boolean;
+  /**
+   * Throw when the same operationId is registered more than once. Default: true.
+   */
+  rejectDuplicateOperationIds?: boolean;
 };
 
 export type OpenApiDocumentOptions = {

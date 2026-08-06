@@ -3,6 +3,7 @@ import type { Router } from 'express';
 import { isPlainObject, isString, isUndefined, normalizeUrlPath } from '@web-ts-toolkit/utils';
 import { createSetDataCore } from '../core-data';
 import { decorateDataListResult, decorateDataSingleResult } from '../http/response-pipelines/data-response';
+import { unwrapServiceData } from '../http/response-pipelines/model-response';
 import type { AccessRuntime } from '../runtime';
 import { defaultRuntime } from '../runtime';
 import { handleResultError } from '../helpers';
@@ -183,7 +184,7 @@ export class DataRouter<TData = unknown> {
 
       const decoratedResult = await decorateDataSingleResult(svc, result);
 
-      return decoratedResult.data;
+      return unwrapServiceData(decoratedResult);
     });
     this.registerOpenApiRoute({
       method: 'get',
@@ -211,7 +212,7 @@ export class DataRouter<TData = unknown> {
 
       const decoratedResult = await decorateDataSingleResult(svc, result);
 
-      return decoratedResult.data;
+      return unwrapServiceData(decoratedResult);
     });
     this.registerOpenApiRoute({
       method: 'post',
@@ -243,7 +244,7 @@ export class DataRouter<TData = unknown> {
 
       const decoratedResult = await decorateDataSingleResult(svc, result);
 
-      return decoratedResult.data;
+      return unwrapServiceData(decoratedResult);
     });
     this.registerOpenApiRoute({
       method: 'post',

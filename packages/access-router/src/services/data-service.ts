@@ -111,27 +111,27 @@ export class DataService<T> {
     let docs = await filterCollection(this.data, _filter);
     const totalCount = docs.length;
 
-    docs = await Promise.all(
-      docs.map(async (doc) => {
+    if (sort) {
+      const { sortKey, sortOrder } = parseSortString(sort);
+      docs = orderBy(docs, [sortKey], [sortOrder]) as T[];
+    }
+
+    const pagedDocs = docs.slice(query.skip, query.limit && query.skip + query.limit);
+
+    const trimmed = await Promise.all(
+      pagedDocs.map(async (doc) => {
         doc = await this.trimOutputFields(doc, 'list');
         if (_select.length > 0) doc = pick(doc as object, _select) as T;
         return doc;
       }),
     );
 
-    if (sort) {
-      const { sortKey, sortOrder } = parseSortString(sort);
-      docs = orderBy(docs, [sortKey], [sortOrder]) as T[];
-    }
-
-    docs = docs.slice(query.skip, query.limit && query.skip + query.limit);
-
     return {
       success: true,
       kind: 'list',
       code: Codes.Success,
-      data: docs as SelectedPublicOutput<T, TSelect>[],
-      count: docs.length,
+      data: trimmed as SelectedPublicOutput<T, TSelect>[],
+      count: trimmed.length,
       totalCount,
       query,
     };

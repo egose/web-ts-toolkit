@@ -52,6 +52,7 @@ describe('access-router internals', () => {
 
   it('batches include count lookups into a single query', async () => {
     const publicService = {
+      genFilter: vi.fn().mockImplementation(async (_access: string, filter: unknown) => filter),
       find: vi.fn().mockResolvedValue({
         success: true,
         data: [{ ownerId: 'u1' }, { ownerId: 'u1' }, { ownerId: 'u2' }],
@@ -59,6 +60,7 @@ describe('access-router internals', () => {
     };
     const req = {
       macl: {
+        isAllowed: vi.fn().mockResolvedValue(true),
         getPublicService: vi.fn().mockReturnValue(publicService),
       },
     } as ModelRequest;
@@ -76,12 +78,17 @@ describe('access-router internals', () => {
     expect(publicService.find).toHaveBeenCalledOnce();
     expect(publicService.find).toHaveBeenCalledWith(
       { ownerId: { $in: ['u1', 'u2'] } },
-      { select: ['ownerId'] },
-      expect.objectContaining({
+      {
+        select: ['ownerId'],
+        overrides: {
+          filter: { ownerId: { $in: ['u1', 'u2'] } },
+        },
+      },
+      {
         lean: true,
         includePermissions: false,
         includeCount: false,
-      }),
+      },
     );
     expect(result).toEqual([
       { ownerId: 'u1', postCount: 2 },

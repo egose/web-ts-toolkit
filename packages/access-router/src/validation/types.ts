@@ -284,9 +284,6 @@ export type AdvancedListBody = {
 
 export type CountBody = {
   filter?: Filter | unknown[];
-  options?: {
-    access?: unknown;
-  };
 };
 
 export type AdvancedReadFilterBody = {

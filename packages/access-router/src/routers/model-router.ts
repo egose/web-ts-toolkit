@@ -1,5 +1,6 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
 import type { Router } from 'express';
+import mongoose from 'mongoose';
 import { forEach, isPlainObject, isString, isUndefined, normalizeUrlPath, padEnd } from '@web-ts-toolkit/utils';
 import Model from '../model';
 import { createSetCore } from '../core';
@@ -7,7 +8,7 @@ import { ModelRouterOptions, ExtendedModelRouterOptions, ModelRequest } from '..
 import { logger } from '../logger';
 import type { AccessRuntime } from '../runtime';
 import { defaultRuntime } from '../runtime';
-import { attachRuntimeToModel, runWithRuntime } from '../runtime-context';
+import { runWithRuntime } from '../runtime-context';
 import { PublicService, Service } from '../services';
 import { assertMutableRouterOption, assertMutableRouterOptions } from './router-mutation';
 import { accessRouterResponseHandler } from './index';
@@ -45,17 +46,26 @@ export class ModelRouter<TModel = unknown> {
   constructor(modelName: string, initialOptions: ModelRouterOptions<TModel>, runtime: AccessRuntime = defaultRuntime) {
     this.runtime = runtime;
     this.runtime.setModelOptions(modelName, initialOptions);
-    attachRuntimeToModel(modelName, this.runtime);
     this.options = this.runtime.getModelOptions<TModel>(modelName);
     this.fullBasePath = normalizeUrlPath(this.options.parentPath + this.options.basePath);
     this.modelName = modelName;
     this.router = new JsonRouter(this.options.basePath, createSetCore(this.runtime), accessRouterResponseHandler);
-    this.model = new Model(modelName);
+    this.model = new Model(modelName, this.runtime);
 
     this.setCollectionRoutes();
     this.setDocumentRoutes();
     this.setSubDocumentRoutes();
     this.logEndpoints();
+  }
+
+  static fromModel<TModel = unknown>(
+    model: mongoose.Model<unknown>,
+    initialOptions: ModelRouterOptions<TModel>,
+    runtime: AccessRuntime = defaultRuntime,
+  ): ModelRouter<TModel> {
+    const modelName = String(model.modelName);
+    runtime.registerModelInstance(modelName, model);
+    return new ModelRouter<TModel>(modelName, initialOptions, runtime);
   }
 
   private getRequestSchema(key: string) {

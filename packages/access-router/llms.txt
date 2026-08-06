@@ -5,22 +5,30 @@ ACL-aware Express routers and in-memory data services for Mongoose-backed APIs.
 ## Main Patterns
 
 ```ts
-import acl from '@web-ts-toolkit/access-router';
+import express from 'express';
+import mongoose from 'mongoose';
+import acl, { permissionsPlugin } from '@web-ts-toolkit/access-router';
 
-// configure global permissions
-acl.setGlobalOptions({ globalPermissions(req) { return []; } });
+acl.setGlobalOptions({
+  requestPermissionField: '_permissions',
+  globalPermissions(req) { return req.headers.user === 'admin' ? ['isAdmin'] : []; },
+});
 
-// model CRUD router from a Mongoose model name
+const userSchema = new mongoose.Schema({ name: String, role: String, public: Boolean });
+userSchema.plugin(permissionsPlugin, { modelName: 'User' });
+mongoose.model('User', userSchema);
+
 const userRouter = acl.createRouter('User', { basePath: '/users' });
 
-// in-memory data router
+// Also: pass a mongoose.Model instance to preserve a non-default connection.
+// acl.createRouter(UserModel, { basePath: '/users' });
+
 const fruitRouter = acl.createDataRouter('fruit', {
   basePath: '/fruit',
   idField: 'id',
   data: [{ id: 'apple', name: 'Apple' }],
 });
 
-// OpenAPI + Swagger UI
 const docsRouter = acl.createOpenApiRouter({ title: 'Example API', version: '1.0.0' });
 ```
 
@@ -28,26 +36,38 @@ Validation adapters:
 
 ```ts
 import { fromZod, defineRequestSchema } from '@web-ts-toolkit/access-router';
-
 const validator = fromZod(z.object({ name: z.string() }));
 const schema = defineRequestSchema(validator);
+```
+
+Isolated runtime (no global state shared with default `acl`):
+
+```ts
+import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+const runtime = createAccessRuntime();
+runtime.setGlobalOptions({ globalPermissions: () => [] });
+runtime.createRouter('User', { basePath: '/users' });
+runtime.registerModelInstance('User', UserModel);
 ```
 
 Subpath imports:
 
 ```ts
 import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';
-import { AccessRuntime, defaultRuntime } from '@web-ts-toolkit/access-router/advanced';
+import { parseBody, Codes, MIDDLEWARE } from '@web-ts-toolkit/access-router/advanced';
 ```
 
 ## Gotchas
 
 - peer dependencies: `express >= 5` and `mongoose >= 8`
-- default export `acl` and named exports are both available; default is preferred for the runtime API
-- `createRouter('User', ...)` takes a Mongoose model name string, not the model instance
+- default export `acl` is preferred for the default-runtime API; named exports are also available
+- `acl.createOpenApiRouter(options)` uses the default runtime; the standalone `createOpenApiRouter(runtime, options)` export requires the runtime as the first argument
+- `createRouter('User', ...)` accepts a Mongoose model name OR a `mongoose.Model` instance — passing the instance registers the model with the runtime and preserves non-default `mongoose.createConnection()` instances
+- `/advanced` does NOT export `acl`, `defaultRuntime`, `createRouter`, or `createAccessRuntime` — those live on the root entry only
 - `createDataRouter(...)` holds data in-memory; use it for lightweight/non-persisted resources
+- `package.json` declares `sideEffects` array listing the bundled runtime entries that run the lazy `mongoose-schema-jsonschema` patch on first runtime construction — bundlers must retain those entries
 
 ## Pointers
 
-- README: installation, quickstart, main exports
+- README: installation, quickstart (Express + Mongoose end-to-end), main exports, runtime isolation, createRouter overloads
 - website/docs/packages/access-router/: full documentation (routing, configuration, hooks, validation, openapi)

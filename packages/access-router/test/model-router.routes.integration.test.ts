@@ -153,11 +153,6 @@ describe('model router route coverage', () => {
 
     const newResponse = await request(app).get('/route-users/new').expect(200).expect('Content-Type', /json/);
     const countResponse = await request(app).get('/route-users/count').expect(200).expect('Content-Type', /json/);
-    const readCountResponse = await request(app)
-      .post('/route-users/count')
-      .send({ options: { access: 'read' } })
-      .expect(200)
-      .expect('Content-Type', /json/);
     const distinctResponse = await request(app)
       .get('/route-users/distinct/role')
       .expect(200)
@@ -188,7 +183,6 @@ describe('model router route coverage', () => {
       _id: expect.any(String),
     });
     expect(Number(countResponse.text)).toBe(1);
-    expect(Number(readCountResponse.text)).toBe(3);
     expect(distinctResponse.body.sort()).toEqual(['admin', 'user']);
     expect(filteredDistinctResponse.body).toEqual(['user']);
     expect(listResponse.body).toMatchObject({
@@ -287,6 +281,45 @@ describe('model router route coverage', () => {
       detail: 'Bad Request',
       status: 400,
       errors: [{ pointer: '#/query' }],
+    });
+  });
+
+  it('rejects invalid pagination values on collection list routes', async () => {
+    const { app } = await createRoutesApp();
+
+    const invalidQueryLimit = await request(app)
+      .get('/route-users?limit=0')
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    const invalidBodyPageSize = await request(app)
+      .post('/route-users/__query')
+      .send({ pageSize: 0 })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    const overflowQueryLimit = await request(app)
+      .get('/route-users?limit=9007199254740992')
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(invalidQueryLimit.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ parameter: 'limit' }],
+    });
+    expect(invalidBodyPageSize.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ pointer: '#/pageSize' }],
+    });
+    expect(overflowQueryLimit.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Bad Request',
+      status: 400,
+      errors: [{ parameter: 'limit' }],
     });
   });
 });

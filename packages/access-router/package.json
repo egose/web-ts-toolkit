@@ -4,7 +4,14 @@
   "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/access-router",
   "version": "0.0.0-PLACEHOLDER",
   "license": "PLACEHOLDER",
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/runtime.js",
+    "./dist/runtime.mjs",
+    "./dist/index.js",
+    "./dist/index.mjs",
+    "./dist/advanced.js",
+    "./dist/advanced.mjs"
+  ],
   "repository": "PLACEHOLDER",
   "keywords": [
     "express",

@@ -26,15 +26,27 @@ import type {
 } from './interfaces';
 import { defaultLogger } from './logger-default';
 import { OptionsManager, getNestedOption } from './options/manager';
+import { defaultRequestComplexity } from './request-complexity';
 
 type ModelReferenceMap = {
   [key: string]: string | ModelReferenceMap;
 };
 
-mschema2Jsonschema(mongoose);
-const pluralize = mongoose.pluralize();
-
 type ExtendedModel = mongoose.Model<unknown> & { jsonSchema: () => Record<string, unknown> };
+
+/**
+ * Idempotently patches the global mongoose prototype with `jsonSchema()` so consumers
+ * that never construct an AccessRuntime are not forced to take this side effect, and
+ * consumers that construct more than one runtime only patch mongoose once.
+ */
+let mongooseJsonSchemaInitialized = false;
+const ensureMongooseJsonSchemaInitialized = () => {
+  if (mongooseJsonSchemaInitialized) return;
+  mschema2Jsonschema(mongoose);
+  mongooseJsonSchemaInitialized = true;
+};
+
+const pluralize = mongoose.pluralize();
 type PermissionKeyMap = Record<string, string[]>;
 const FIELD_ACCESS_KEYS = ['list', 'create', 'read', 'update'] as const;
 
@@ -45,6 +57,7 @@ const defaultModelOptions: ModelRouterOptions = {
 
 const defaultDataOptions: DataRouterOptions = {
   basePath: null,
+  parentPath: '/',
   queryRouteSegment: '__query',
 };
 
@@ -128,10 +141,15 @@ const classifyPermissionSchema = (
 };
 
 export class AccessRuntime {
+  constructor() {
+    ensureMongooseJsonSchemaInitialized();
+  }
+
   private readonly globalOptions = new OptionsManager<GlobalOptions, GlobalOptions>({
     requestPermissionField: '_permissions',
     globalPermissions: () => ({}),
     logger: defaultLogger,
+    requestComplexity: defaultRequestComplexity,
   }).build();
 
   private readonly defaultModelOptions = new OptionsManager<
@@ -155,14 +173,54 @@ export class AccessRuntime {
   private readonly modelRefs: Record<string, ModelReferenceMap> = {};
   private readonly modelSubs: Record<string, string[]> = {};
   private readonly modelAtts: Record<string, string[]> = {};
+  private readonly modelInstances: Record<string, mongoose.Model<unknown>> = {};
   private readonly openApiRegistry = new OpenApiRegistry();
+
+  registerModelInstance(modelName: string, model: mongoose.Model<unknown>): void {
+    if (!modelName || typeof modelName !== 'string') {
+      throw new TypeError(`registerModelInstance: modelName must be a non-empty string, received ${typeof modelName}`);
+    }
+    const existing = this.modelInstances[modelName];
+    if (existing && existing !== model) {
+      throw new Error(
+        `Runtime model registry conflict: model "${modelName}" is already registered to a different mongoose.Model instance on this runtime. Use a distinct model name or a separate runtime.`,
+      );
+    }
+    this.modelInstances[modelName] = model;
+  }
+
+  hasModelInstance(modelName: string): boolean {
+    return modelName in this.modelInstances;
+  }
+
+  getModelInstance(modelName: string): mongoose.Model<unknown> | null {
+    const registered = this.modelInstances[modelName];
+    if (registered) return registered;
+    const global = mongoose.models[modelName] as mongoose.Model<unknown> | undefined;
+    return global ?? null;
+  }
 
   registerOpenApiRoute(route: OpenApiRouteDescriptor) {
     this.openApiRegistry.register(route);
   }
 
+  /**
+   * Enable strict OpenAPI collision detection for the remainder of this
+   * runtime's lifetime. After this call, conflicting method/path
+   * registrations and duplicate operationIds throw {@link OpenApiCollisionError}
+   * instead of silently replacing. Existing already-registered routes are
+   * not retroactively re-validated.
+   */
+  enableOpenApiCollisionDetection() {
+    this.openApiRegistry.setStrictMode(true);
+  }
+
   getOpenApiRoutes() {
     return this.openApiRegistry.getRoutes();
+  }
+
+  clearOpenApiRoutes() {
+    this.openApiRegistry.clear();
   }
 
   getOpenApiSpec(info: OpenApiDocumentOptions) {
@@ -208,7 +266,7 @@ export class AccessRuntime {
   }
 
   private createModelOptions(modelName: string) {
-    const model = mongoose.model(modelName) as ExtendedModel;
+    const model = (this.getModelInstance(modelName) ?? mongoose.model(modelName)) as ExtendedModel;
 
     const manager = new OptionsManager<ModelRouterOptions, ExtendedModelRouterOptions>({
       ...defaultModelOptions,
@@ -384,7 +442,7 @@ export class AccessRuntime {
       return;
     }
 
-    const model = mongoose.models[modelName];
+    const model = this.getModelInstance(modelName);
     if (!model) {
       this.modelRefs[modelName] = this.modelRefs[modelName] ?? {};
       this.modelSubs[modelName] = this.modelSubs[modelName] ?? [];
