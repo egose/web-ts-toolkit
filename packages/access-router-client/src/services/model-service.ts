@@ -580,14 +580,13 @@ export class ModelService<T extends Document> extends Service {
     );
   }
 
-  countAdvanced(filter: FilterQuery<T>, args?: { access?: 'list' | 'read' }, axiosRequestConfig?: RequestConfig) {
-    const { access } = args ?? {};
+  countAdvanced(filter: FilterQuery<T>, _args?: { access?: 'list' | 'read' }, axiosRequestConfig?: RequestConfig) {
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
     return makeRequest<Response<number>>(
       () =>
         this._axios
-          .post(`${this._basePath}/count`, { filter, options: { access } }, reqConfig)
+          .post(`${this._basePath}/count`, { filter }, reqConfig)
           .then(this.handleSuccess)
           .then((result: Response<number>) => {
             result.data = result.raw;
@@ -603,7 +602,6 @@ export class ModelService<T extends Document> extends Service {
           model: this._modelName,
           op: 'count',
           filter,
-          options: { access },
         },
         __requestConfig: reqConfig,
         __service: this,

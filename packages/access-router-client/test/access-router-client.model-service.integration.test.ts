@@ -124,11 +124,9 @@ describe('access-router-client model-service integration', () => {
     const distinct = await services.userService.distinct('role', { headers: { user: 'admin' } });
     expect(distinct.data.sort()).toEqual(['director', 'user']);
 
-    const counted = await services.userService.countAdvanced(
-      { public: true },
-      { access: 'read' },
-      { headers: { user: 'admin' } },
-    );
+    const counted = await services.userService.countAdvanced({ public: true }, undefined, {
+      headers: { user: 'admin' },
+    });
     expect(counted.data).toBeGreaterThanOrEqual(2);
 
     const invalidCreateError = await services.userServiceWithError
