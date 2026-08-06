@@ -1,21 +1,286 @@
-## [Unreleased](https://github.com/egose/web-ts-toolkit/compare/v0.10.0...HEAD)
+## [0.32.0](https://github.com/egose/web-ts-toolkit/compare/v0.31.5...v0.32.0) (2026-08-01)
 
-### Bug Fixes
+### Features
 
-* **access-router:** harden authorization, request budgets, and public response contracts
-  - read-scoped subqueries no longer fall back to list access without separately authorizing the target model's list operation
-  - recursive `$$sq` payloads, subdocument filters, pagination arithmetic, bulk validation ordering, and data-service sort authorization are now bounded and validated consistently across direct and root routes
-  - distinct/count/select/output shaping and structured logging no longer leak denied fields or raw request values through sort paths, error details, or serializer crossings
-  - the published package now ships stricter `noImplicitAny`-clean source declarations, explicit public result DTO boundaries, and executable packed-consumer/documentation compatibility checks
+* add example app and improve sqlite fallback support ([3e9469f](https://github.com/egose/web-ts-toolkit/commit/3e9469fe4ad45f00810617cd50f37d70847de1f8))
+* add mongoose-rxdb package backed by RxDB storage ([0e56e30](https://github.com/egose/web-ts-toolkit/commit/0e56e30c07e9f072e912ba2a3bd45b8d1dc51c3c))
 
 ### Documentation
 
-* **access-router:** add release migration notes for security and contract remediation
-  - root `count` requests now reject legacy `access` and `options.access` input instead of silently accepting it
-  - OpenAPI route registration now throws on collisions by default, so duplicate operation ids or method/path pairs must be resolved explicitly
-  - public result DTOs are serializer-only types; direct assignment from internal service results is no longer supported
-  - strict consumer type checks now reject invalid filter paths, invalid guard id shapes, and invalid runtime option types at compile time
-  - review request-complexity limits, cross-resource authorization behavior, and any integration that relied on unpublished runtime shims or undocumented schema-mutation side effects
+* update package and website storage guidance ([8307a55](https://github.com/egose/web-ts-toolkit/commit/8307a55b84ce466c89b9fc00d2337090f4431232))
+
+## [0.31.5](https://github.com/egose/web-ts-toolkit/compare/v0.31.4...v0.31.5) (2026-07-30)
+
+### Bug Fixes
+
+* **access-router-runtime-example:** run runtime CLI directly from built output ([7f187bd](https://github.com/egose/web-ts-toolkit/commit/7f187bd1b6e933a3831806b098c8ad1b4da8608b))
+* allow npm scripts during setup ([e8d93dc](https://github.com/egose/web-ts-toolkit/commit/e8d93dc1c5c7be9b284391b6e9db891383a1bdf1))
+
+## [0.31.4](https://github.com/egose/web-ts-toolkit/compare/v0.31.3...v0.31.4) (2026-07-30)
+
+### Bug Fixes
+
+* **access-router-runtime-example:** invoke runtime CLI through pnpm exec in app scripts ([8083a81](https://github.com/egose/web-ts-toolkit/commit/8083a817e69b7778fe38011f07d20b86f8d25477))
+
+## [0.31.3](https://github.com/egose/web-ts-toolkit/compare/v0.31.2...v0.31.3) (2026-07-30)
+
+## [0.31.2](https://github.com/egose/web-ts-toolkit/compare/v0.31.1...v0.31.2) (2026-07-30)
+
+### Bug Fixes
+
+* **access-router:** allow nested populate parents in access checks ([a13e8b9](https://github.com/egose/web-ts-toolkit/commit/a13e8b95562066e31fdc1c33c895e57bda4af255))
+
+## [0.31.1](https://github.com/egose/web-ts-toolkit/compare/v0.31.0...v0.31.1) (2026-07-30)
+
+### Bug Fixes
+
+* bundle node entrypoints for esm packages ([7cc8093](https://github.com/egose/web-ts-toolkit/commit/7cc8093de293183568f614786cddbc137b5365e8))
+* **express-response-handler:** use branded runtime guards for response handling ([a5b43ad](https://github.com/egose/web-ts-toolkit/commit/a5b43ad5633325c3b26d2aea85152a64d8151be6))
+
+### Documentation
+
+* document tsup node esm compatibility guidance ([3f93a69](https://github.com/egose/web-ts-toolkit/commit/3f93a694606d086122fc1b40618ebebd16f14ff8))
+* **express-response-handler:** add multi-entry bundling caveat ([2991d6e](https://github.com/egose/web-ts-toolkit/commit/2991d6e26f1091a3e85db86015f13d687c93e85b))
+
+## [0.31.0](https://github.com/egose/web-ts-toolkit/compare/v0.30.0...v0.31.0) (2026-07-29)
+
+### Features
+
+* add model custom routes to access router runtime ([a21c9bc](https://github.com/egose/web-ts-toolkit/commit/a21c9bcf6422a30ffa2f480501cab86158fd8e79))
+
+### Documentation
+
+* expand package docs and utility exports ([cb89d2c](https://github.com/egose/web-ts-toolkit/commit/cb89d2c42b94402f2ccbbd5f354bc9110cf808a2))
+* refresh package and website documentation ([79f2fe5](https://github.com/egose/web-ts-toolkit/commit/79f2fe501c719763a95fc6269e5c1d0b27051459))
+
+## [0.30.0](https://github.com/egose/web-ts-toolkit/compare/v0.29.0...v0.30.0) (2026-07-29)
+
+### Features
+
+* add common utility helpers and export them from utils ([b247045](https://github.com/egose/web-ts-toolkit/commit/b247045dc798d9a7ba37cefda3f0ce83073c7871))
+
+### Code Refactoring
+
+* replace ad hoc ownership and dedupe checks with shared helpers ([a078466](https://github.com/egose/web-ts-toolkit/commit/a0784667d4fd5ba909b4ec6f3aa2345decc825cd))
+
+## [0.29.0](https://github.com/egose/web-ts-toolkit/compare/v0.28.0...v0.29.0) (2026-07-29)
+
+### Features
+
+* add message request reservations and idempotent batch handling ([94875a7](https://github.com/egose/web-ts-toolkit/commit/94875a7a45049b091d0a91a5b50c147cb2f46506))
+* **utils:** add collection and string helpers ([1469447](https://github.com/egose/web-ts-toolkit/commit/14694474abe41d766d07127844cce00d00a9e7e1))
+
+### Bug Fixes
+
+* harden router handlers and CLI/runtime compatibility ([5e0d8e5](https://github.com/egose/web-ts-toolkit/commit/5e0d8e5212f75e6ca7d91eb69dad28efc2c7253b))
+* prevent prototype path mutations in utility helpers ([02c4004](https://github.com/egose/web-ts-toolkit/commit/02c40043156d01d260f7ce71cea1ee0a981e872e))
+
+## [0.28.0](https://github.com/egose/web-ts-toolkit/compare/v0.27.0...v0.28.0) (2026-07-26)
+
+### Features
+
+* add backchannel logout session revocation support ([85a929e](https://github.com/egose/web-ts-toolkit/commit/85a929e31a8044bb792a26aaa3cfa34f039d5c3e))
+* add bearer access-token middleware and jwt validator helper ([0c3c00f](https://github.com/egose/web-ts-toolkit/commit/0c3c00f2458706cbb2236d8b41792931aaca316b))
+* add cookie transport support for OIDC sessions ([4b4343d](https://github.com/egose/web-ts-toolkit/commit/4b4343d6181a32afb496007352ddf439e30bb706))
+* add example runtime app with config and tsconfig ([fe1cd1b](https://github.com/egose/web-ts-toolkit/commit/fe1cd1b6e9c0f8d3e294dd5946ea3a2290102ddb))
+* add oidc vault store packages and docs ([5380bc0](https://github.com/egose/web-ts-toolkit/commit/5380bc09ae61bf28b73463c1ed5d60d7e4dabcd4))
+* add tsconfig-aware runtime loading and dev defaults ([439bf68](https://github.com/egose/web-ts-toolkit/commit/439bf680c780aa0e95607c301ba622b0606e4497))
+* enforce trusted origins and atomic session rotation ([c6829b5](https://github.com/egose/web-ts-toolkit/commit/c6829b5706bc6b9dad29caac704d078b9edfd85e))
+
+### Bug Fixes
+
+* adapt express request augmentation and simplify transaction aliases ([0e2021c](https://github.com/egose/web-ts-toolkit/commit/0e2021c1ddefe1c47da4ab364e637ecd2217d655))
+* suppress unused next parameter in runtime error handler ([8587980](https://github.com/egose/web-ts-toolkit/commit/858798064c54c63b2fd029b1d5da974579cb7f0f))
+* update express request typing for authenticated middleware ([1f010ec](https://github.com/egose/web-ts-toolkit/commit/1f010ec5c305da0a825d7ad9d5ae0fa2420c018c))
+
+### Documentation
+
+* document access-token validation middleware ([f17ae72](https://github.com/egose/web-ts-toolkit/commit/f17ae724bafc69b6d3e10c7965bcf9db74eb8cc5))
+* document cookie transport usage and defaults ([2411472](https://github.com/egose/web-ts-toolkit/commit/2411472e27c12f4e13ed3fd87fcea26a0b05490b))
+
+## [0.27.0](https://github.com/egose/web-ts-toolkit/compare/v0.26.0...v0.27.0) (2026-07-25)
+
+### Features
+
+* rename config helper to defineRuntimeConfig ([082cbc4](https://github.com/egose/web-ts-toolkit/commit/082cbc408fb0ade9cffb3a514e8758c01ac872d5))
+* reuse express runtime cli helpers for access router commands ([fc8ca04](https://github.com/egose/web-ts-toolkit/commit/fc8ca0466e495fd6a4f179b9e851f78ad200eac5))
+* switch starter and runtime to access-router config entrypoints ([1bebf36](https://github.com/egose/web-ts-toolkit/commit/1bebf36e4072be93b515f2e37649013b135b85d0))
+
+## [0.26.0](https://github.com/egose/web-ts-toolkit/compare/v0.25.0...v0.26.0) (2026-07-25)
+
+### Features
+
+* **access-router-runtime:** add access-router runtime package and CLI ([0ef9eed](https://github.com/egose/web-ts-toolkit/commit/0ef9eed624c2d4949165fd08755a917797cbd51f))
+* **express-runtime:** add local runtime bundle support and split serverless commands ([f590e80](https://github.com/egose/web-ts-toolkit/commit/f590e80bda6d9c3207f01c2192f2774594d6ec94))
+
+### Bug Fixes
+
+* **access-router-runtime:** tighten runtime model typings ([4dad948](https://github.com/egose/web-ts-toolkit/commit/4dad948bcd3323a44bf63ba76061c8ac9959f93c))
+
+### Documentation
+
+* **access-router-runtime:** update example error handler signature ([187d9ac](https://github.com/egose/web-ts-toolkit/commit/187d9acef9dff9cc4e89905ae73ed38aa9b560fd))
+* **express-runtime:** update CLI documentation for local and serverless workflows ([b7e81cc](https://github.com/egose/web-ts-toolkit/commit/b7e81cc6e859eee45c7eccbaa62fc9159a9e7866))
+* **website:** add website documentation for access-router runtime ([43958f2](https://github.com/egose/web-ts-toolkit/commit/43958f2717ebdd437fef7508ea11f6d7a4d5247d))
+
+### Code Refactoring
+
+* **access-router-runtime:** tighten runtime model typings ([86d3052](https://github.com/egose/web-ts-toolkit/commit/86d3052265adc7ac6b6e0302701407f6f2292581))
+
+## [0.25.0](https://github.com/egose/web-ts-toolkit/compare/v0.24.0...v0.25.0) (2026-07-23)
+
+### Features
+
+* **access-router-client:** merge adapter and service defaults for access services ([5aa6b5f](https://github.com/egose/web-ts-toolkit/commit/5aa6b5f8f40ab8d5d0b88e381e04ee04b8e0c538))
+
+## [0.24.0](https://github.com/egose/web-ts-toolkit/compare/v0.23.0...v0.24.0) (2026-07-23)
+
+### Features
+
+* **express-response-handler:** allow wrapped handlers to manage responses manually ([c2570b3](https://github.com/egose/web-ts-toolkit/commit/c2570b3cffae98bfb9e98ecc34a9dd3f97179ae2))
+
+## [0.23.0](https://github.com/egose/web-ts-toolkit/compare/v0.22.0...v0.23.0) (2026-07-16)
+
+### Features
+
+* add branch deploy shorthand for Netlify ([71872b7](https://github.com/egose/web-ts-toolkit/commit/71872b73d12026484044f61bb018933dd3a0d86e))
+
+## [0.22.0](https://github.com/egose/web-ts-toolkit/compare/v0.21.0...v0.22.0) (2026-07-15)
+
+### Features
+
+* **create-access-router-mongo-starter:** set API_BASE_URL as a runtime env var during deploys ([48bd3aa](https://github.com/egose/web-ts-toolkit/commit/48bd3aa0916dd11edd445019f4ab59a6e83d1248))
+
+## [0.21.0](https://github.com/egose/web-ts-toolkit/compare/v0.20.0...v0.21.0) (2026-07-15)
+
+### Features
+
+* **{{APP_NAME}}:** introduce configurable API base URL across the template ([10eccfe](https://github.com/egose/web-ts-toolkit/commit/10eccfe3073f3e3ed74f2454b9816d515b124d03))
+
+## [0.20.0](https://github.com/egose/web-ts-toolkit/compare/v0.19.0...v0.20.0) (2026-07-15)
+
+### Features
+
+* generate a minimal netlify config during deploy ([e0dccc0](https://github.com/egose/web-ts-toolkit/commit/e0dccc0392866946a8c2d0e46f45db258f0f2864))
+
+### Documentation
+
+* document netlify.toml output in the starter readme ([5064c93](https://github.com/egose/web-ts-toolkit/commit/5064c9322b4b29459cfa7aede42791e9de733513))
+
+## [0.19.0](https://github.com/egose/web-ts-toolkit/compare/v0.18.2...v0.19.0) (2026-07-15)
+
+### Features
+
+* force production deploy context and add helper coverage ([9cbd105](https://github.com/egose/web-ts-toolkit/commit/9cbd105e9e611a76c8f21bb754c97dad455c6df0))
+
+### Bug Fixes
+
+* remove generated netlify.toml redirect handling ([82a5e9d](https://github.com/egose/web-ts-toolkit/commit/82a5e9d262e876e306654cd77c520fedda6d25be))
+
+### Documentation
+
+* clarify deploy context behavior in the template readme ([0bbd3bd](https://github.com/egose/web-ts-toolkit/commit/0bbd3bd816fd7f5ff5e2815ee7c6a88aec6cdded))
+* update deploy README for sandbox output ([b328f3a](https://github.com/egose/web-ts-toolkit/commit/b328f3a2f8d7285b7c4b98e770a5c7b0d837ef1a))
+
+## [0.18.2](https://github.com/egose/web-ts-toolkit/compare/v0.18.1...v0.18.2) (2026-07-15)
+
+### Bug Fixes
+
+* **create-access-router-mongo-starter:** resolve package metadata for bundled and source execution ([0cf06ad](https://github.com/egose/web-ts-toolkit/commit/0cf06ad0d0fb35974d9daf9de7cdc7d738e36c9d))
+
+## [0.18.1](https://github.com/egose/web-ts-toolkit/compare/v0.18.0...v0.18.1) (2026-07-15)
+
+### Bug Fixes
+
+* **create-access-router-mongo-starter:** resolve package version from the local package manifest ([03735af](https://github.com/egose/web-ts-toolkit/commit/03735af116dacfda0db67ecaa70c00754530bc84))
+
+## [0.18.0](https://github.com/egose/web-ts-toolkit/compare/v0.17.0...v0.18.0) (2026-07-15)
+
+### Features
+
+* **create-access-router-mongo-starter:** resolve symlinked cli entry paths ([a6f9ece](https://github.com/egose/web-ts-toolkit/commit/a6f9ecec0627841ec05fac9dd9f7875c44149975))
+
+## [0.17.0](https://github.com/egose/web-ts-toolkit/compare/v0.16.3...v0.17.0) (2026-07-15)
+
+### Features
+
+* stamp template package versions from the scaffolder version ([0725ba3](https://github.com/egose/web-ts-toolkit/commit/0725ba345b0a53dbe3a69477be005b94f3ada296))
+
+### Bug Fixes
+
+* **create-access-router-mongo-starter:** skip unsupported netlify context flag ([15efe74](https://github.com/egose/web-ts-toolkit/commit/15efe74f180d66f92dee5d5ffe0000bc6c3164e2))
+
+### Documentation
+
+* document the version placeholder in the starter template ([7be6b97](https://github.com/egose/web-ts-toolkit/commit/7be6b97c26233656dded5ca2e857f25427dffba0))
+
+## [0.16.3](https://github.com/egose/web-ts-toolkit/compare/v0.16.2...v0.16.3) (2026-07-15)
+
+### Bug Fixes
+
+* **create-access-router-mongo-starter:** handle free-tier env var creation and 403 errors ([1a1be43](https://github.com/egose/web-ts-toolkit/commit/1a1be43a749f6b6498cf6f59d6091e0a41e565b6))
+
+## [0.16.2](https://github.com/egose/web-ts-toolkit/compare/v0.16.1...v0.16.2) (2026-07-15)
+
+### Bug Fixes
+
+* **create-access-router-mongo-starter:** use account-scoped env lookup for site variables ([614e698](https://github.com/egose/web-ts-toolkit/commit/614e698d7a1369b7bd599262aef64dc719afa633))
+
+## [0.16.1](https://github.com/egose/web-ts-toolkit/compare/v0.16.0...v0.16.1) (2026-07-15)
+
+## [0.16.0](https://github.com/egose/web-ts-toolkit/compare/v0.15.0...v0.16.0) (2026-07-15)
+
+### Features
+
+* migrate Netlify deploy flow to the SDK and Node 22 ([e81681a](https://github.com/egose/web-ts-toolkit/commit/e81681a33d1235b84706ca2ff1f42d21597ce810))
+* raise node runtime requirements across packages ([f7b64eb](https://github.com/egose/web-ts-toolkit/commit/f7b64eb0018b007f9e5a6f906e6aeacc4081e6cb))
+
+## [0.15.0](https://github.com/egose/web-ts-toolkit/compare/v0.14.0...v0.15.0) (2026-07-15)
+
+### Features
+
+* link the deploy directory before Netlify CLI subcommands ([a983610](https://github.com/egose/web-ts-toolkit/commit/a983610a8a874f04489e5e30f366324910dfe9f9))
+
+## [0.14.0](https://github.com/egose/web-ts-toolkit/compare/v0.13.1...v0.14.0) (2026-07-14)
+
+### Features
+
+* **create-access-router-mongo-starter:** bundle netlify cli for deploy script ([95e22a4](https://github.com/egose/web-ts-toolkit/commit/95e22a4d501597f19a55c4bb57212c34366dc6cb))
+
+## [0.13.1](https://github.com/egose/web-ts-toolkit/compare/v0.13.0...v0.13.1) (2026-07-14)
+
+## [0.13.0](https://github.com/egose/web-ts-toolkit/compare/v0.12.0...v0.13.0) (2026-07-14)
+
+### Features
+
+* extract Netlify API helpers and add site/env verification ([8f30d01](https://github.com/egose/web-ts-toolkit/commit/8f30d01d41722d42f8a5881486628f4d326a20e7))
+* redact logged secrets in command runners ([a6d4270](https://github.com/egose/web-ts-toolkit/commit/a6d4270049a749adc338dd157f07d6c519ef746d))
+
+## [0.12.0](https://github.com/egose/web-ts-toolkit/compare/v0.11.0...v0.12.0) (2026-07-14)
+
+### Features
+
+* add Netlify alias and context deploy support ([dea8eb3](https://github.com/egose/web-ts-toolkit/commit/dea8eb3b32d9146cee7e2491bf337f9b7600d085))
+
+### Documentation
+
+* document staging preview deploy options ([9803405](https://github.com/egose/web-ts-toolkit/commit/9803405a65800916c96cc465a6f23c1afcaf0035))
+
+## [0.11.0](https://github.com/egose/web-ts-toolkit/compare/v0.10.3...v0.11.0) (2026-07-14)
+
+### Features
+
+* move deployment tooling into package binaries and refresh starter docs ([12dc5d7](https://github.com/egose/web-ts-toolkit/commit/12dc5d77f004894dc52b511cf214216c485c72ba))
+
+## [0.10.3](https://github.com/egose/web-ts-toolkit/compare/v0.10.2...v0.10.3) (2026-07-13)
+
+### Documentation
+
+* **{{APP_NAME}}:** add template skill guides and agent index ([b9844c5](https://github.com/egose/web-ts-toolkit/commit/b9844c5b330c53bbab884ee12a927eccb1e6990d))
+
+## [0.10.2](https://github.com/egose/web-ts-toolkit/compare/v0.10.1...v0.10.2) (2026-07-13)
+
+## [0.10.1](https://github.com/egose/web-ts-toolkit/compare/v0.10.0...v0.10.1) (2026-07-13)
 
 ## [0.10.0](https://github.com/egose/web-ts-toolkit/compare/v0.9.0...v0.10.0) (2026-07-13)
 
