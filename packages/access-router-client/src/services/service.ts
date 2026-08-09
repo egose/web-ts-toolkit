@@ -1,15 +1,21 @@
 import { AxiosHeaders, AxiosResponse, AxiosRequestConfig, AxiosInstance } from 'axios';
-import { Response } from '../types';
+import { FailureResult, Response } from '../types';
 import { CACHE_HEADER } from '../constants';
 import { createWrapHelper } from './wrap';
 
+/**
+ * Normalized failure payload. Mirrors {@link FailureResult} but kept
+ * structurally loose (the {@link Response} discriminated union narrows
+ * these fields automatically when consumers branch on `result.success`).
+ */
 export interface ResultError {
-  success: boolean;
+  success: false;
   raw: unknown;
-  data: unknown;
+  data: null;
   message: string;
   status: number;
   headers: Record<string, unknown>;
+  totalCount?: number;
 }
 
 const readProblemDetail = (value: unknown): string | undefined => {
@@ -66,6 +72,19 @@ const stringifyErrorPayload = (value: unknown) => {
   }
 };
 
+/**
+ * Low-level base class shared by {@link ModelService} and {@link DataService}.
+ * Subclassing is supported as an advanced opt-in for callers that need a
+ * bespoke service shape: subclasses extend `Service`, build on the shared
+ * Axios instance, and reuse the `wrapGet`/`wrapPost`/... paths registered
+ * against the adapter's `basePath`. Most callers should use
+ * `adapter.createModelService<T>(...)` / `adapter.createDataService<T>(...)`
+ * rather than subclassing `Service` directly.
+ *
+ * The `handleSuccess`/`handleError` helpers normalize Axios responses into
+ * the package's {@link Response} discriminated union so direct subclasses
+ * produce the same success/failure contract as the built-in services.
+ */
 export class Service {
   protected _axios!: AxiosInstance;
   protected _basePath!: string;
@@ -78,22 +97,31 @@ export class Service {
   }
 
   protected handleSuccess(res: AxiosResponse<unknown, unknown>, extra = {}) {
-    return { success: true, raw: res.data, status: res.status, headers: res.headers, ...extra } as Response<unknown>;
+    return {
+      success: true,
+      raw: res.data,
+      data: res.data,
+      message: '',
+      status: res.status,
+      headers: res.headers,
+      ...extra,
+    } as Response<unknown>;
   }
 
   // See https://axios-http.com/docs/handling-errors
-  protected handleError<T extends ResultError>(error: {
+  protected handleError<T extends Response<unknown, unknown>>(error: {
     response?: { status: number; headers: Record<string, unknown>; data: unknown };
     request?: unknown;
     message?: string;
-  }) {
+  }): Extract<T, FailureResult<unknown>> {
     const result = {
-      success: false,
-      raw: null,
+      success: false as const,
+      raw: null as unknown,
       data: null,
       message: '',
       status: 0,
       headers: {},
+      totalCount: 0,
     };
 
     if (error.response) {
@@ -101,7 +129,6 @@ export class Service {
       result.headers = error.response.headers;
       const responseData = error.response.data;
       result.raw = responseData;
-      result.data = responseData;
       result.message = stringifyErrorPayload(responseData);
     } else if (error.request) {
       result.message = 'The server is not responding';
@@ -109,7 +136,7 @@ export class Service {
       result.message = error.message;
     }
 
-    return result as T;
+    return result as unknown as Extract<T, FailureResult<unknown>>;
   }
 
   wrapGet<T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) {
@@ -132,7 +159,36 @@ export class Service {
     return this._wrap.wrapDelete<T>(url, defaultAxiosRequestConfig);
   }
 
-  updateHeaders(headers: AxiosRequestConfig['headers'], { ignoreCache }: { ignoreCache?: boolean }) {
+  /**
+   * Public bridge to the per-service success/failure callback pipeline and
+   * `throwOnError` policy. Adapter-internal grouping machinery calls this so
+   * that grouped entries go through the same finalization the direct path
+   * uses (`createResponseHandler`). Returns `res` unchanged on success and
+   * throws `ServiceError` when both `res.success === false` and the
+   * `throwOnError` override (or the service-level default) are enabled.
+   */
+  applyResponseCallbacks<T extends { success: boolean }>(res: T, throwOnErrorOverride?: boolean): T {
+    const handler = (this as unknown as { _handleCallbacks: <E extends { success: boolean }>(e: E, t?: boolean) => E })
+      ._handleCallbacks;
+    return handler ? handler(res, throwOnErrorOverride) : res;
+  }
+
+  /**
+   * Returns a fresh headers object that includes the package-owned
+   * `CACHE_HEADER` set to `"true"` (cache eligible) or `"false"` (bypass)
+   * according to the `ignoreCache` option. The caller's `CACHE_HEADER`
+   * value, if any, wins over the `ignoreCache` default.
+   *
+   * The input `headers` object is **never mutated**: an `AxiosHeaders`
+   * instance is cloned via `.toJSON()` before any value is set, and a
+   * plain-object headers input is shallow-copied. Reusing the same
+   * caller-owned headers across multiple requests therefore has no
+   * hidden side effects, and the order of invocations is irrelevant.
+   */
+  updateHeaders(
+    headers: AxiosRequestConfig['headers'],
+    { ignoreCache }: { ignoreCache?: boolean },
+  ): AxiosRequestConfig['headers'] {
     const cacheValue = ignoreCache ? 'false' : 'true';
 
     if (!headers) {
@@ -141,8 +197,9 @@ export class Service {
 
     if (headers instanceof AxiosHeaders) {
       if (headers.has(CACHE_HEADER)) return headers;
-      headers.set(CACHE_HEADER, cacheValue);
-      return headers;
+      const cloned = new AxiosHeaders(headers.toJSON());
+      cloned.set(CACHE_HEADER, cacheValue);
+      return cloned;
     }
 
     if (CACHE_HEADER in headers) return headers;
@@ -155,18 +212,18 @@ export class Service {
 }
 
 export class ServiceError extends Error {
-  success: boolean;
-  raw: unknown;
-  data: unknown;
-  status: number;
-  headers: Record<string, unknown>;
+  success: false;
+  readonly raw: unknown;
+  readonly data: null;
+  readonly status: number;
+  readonly headers: Record<string, unknown>;
 
   constructor(result: ResultError) {
     super(result.message);
     this.name = 'ServiceError';
-    this.success = result.success;
+    this.success = false;
     this.raw = result.raw;
-    this.data = result.data;
+    this.data = null;
     this.status = result.status;
     this.headers = result.headers;
   }
