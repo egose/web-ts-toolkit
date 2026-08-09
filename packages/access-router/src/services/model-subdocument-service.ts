@@ -176,8 +176,14 @@ export async function createSub<TModel>(
     service.genQuerySelect('read', null, false, [sub, 'sub']),
   ]);
 
-  const allowedData = pick(data as SubdocumentRecord, subCreateSelect);
-  addFirst === true ? result.unshift(allowedData) : result.push(allowedData);
+  const allowedData = Array.isArray(data)
+    ? data.map((row) => pick(row as SubdocumentRecord, subCreateSelect))
+    : pick(data as SubdocumentRecord, subCreateSelect);
+  if (Array.isArray(allowedData)) {
+    addFirst === true ? result.unshift(...allowedData) : result.push(...allowedData);
+  } else {
+    addFirst === true ? result.unshift(allowedData) : result.push(allowedData);
+  }
 
   await parentDoc.save();
   if (subReadSelect) result = result.map((v) => pick(toObject(v), subReadSelect.concat(['_id'])));

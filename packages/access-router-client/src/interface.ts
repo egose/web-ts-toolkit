@@ -84,6 +84,7 @@ export interface CreateAdvancedOptions {
 
 export interface UpdateOptions {
   returningAll?: boolean;
+  includePermissions?: boolean;
 }
 
 export interface UpdateAdvancedArgs<TSelect extends Projection = Projection> {
@@ -129,7 +130,6 @@ export interface DataListArgs {
 }
 
 export interface DataListOptions {
-  includePermissions?: boolean;
   includeCount?: boolean;
   includeExtraHeaders?: boolean;
   ignoreCache?: boolean;
@@ -137,7 +137,7 @@ export interface DataListOptions {
 
 export interface DataListAdvancedArgs<TSelect extends Projection = Projection> {
   select?: TSelect;
-  sort?: Sort;
+  sort?: string;
   skip?: string | number;
   limit?: string | number;
   page?: string | number;
@@ -145,24 +145,41 @@ export interface DataListAdvancedArgs<TSelect extends Projection = Projection> {
 }
 
 export interface DataListAdvancedOptions {
-  includePermissions?: boolean;
   includeCount?: boolean;
   includeExtraHeaders?: boolean;
   ignoreCache?: boolean;
 }
 
 export interface DataReadOptions {
-  includePermissions?: boolean;
   ignoreCache?: boolean;
 }
 
 export interface DataReadAdvancedArgs<TSelect extends Projection = Projection> {
   select?: TSelect;
-  ignoreCache?: boolean;
 }
 
+/**
+ * Options for `DataService.readAdvanced` and `DataService.readAdvancedFilter`.
+ *
+ * `ignoreCache` is the documented cache-bypass knob for advanced reads. It
+ * lives here — not on `DataReadAdvancedArgs` — so callers use `{ ignoreCache:
+ * true }` in the options position to skip an existing cache entry, matching
+ * the placement used by the basic `list`, `listAdvanced`, and `read` service
+ * methods.
+ *
+ * `includePermissions` is intentionally absent. The access-router data
+ * router body schema for advanced reads (`dataReadByIdBodySchema` and
+ * `dataReadFilterBodySchema`) explicitly rejects the `options` key, and the
+ * root router drops `item.options` when dispatching data operations
+ * server-side (root-router.ts passes `{}` as the options argument to
+ * `findById`/`findOne`). Advertising `includePermissions` here was a
+ * type-level promise the server cannot honor and the grouped path silently
+ * passed through `__query.options.includePermissions` only for the root
+ * router to discard it — a direct/grouped asymmetry. The fix removes the
+ * dead-letter field from the type and from `__query.options` so direct and
+ * grouped advanced reads compose identical payloads.
+ */
 export interface DataReadAdvancedOptions {
-  includePermissions?: boolean;
   ignoreCache?: boolean;
 }
 

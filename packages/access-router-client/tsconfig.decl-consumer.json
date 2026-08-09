@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "skipLibCheck": false,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "types": ["node"],
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@web-ts-toolkit/access-router-client": ["./dist/index.d.ts"],
+      "@web-ts-toolkit/access-router-client/*": ["./dist/*"]
+    }
+  },
+  "include": ["test-decl-consumer/**/*.ts"]
+}

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { CustomHeaders } from '../src';
-import { setupIntegrationSuite } from './support/integration-suite';
+import { createAdapter, CustomHeaders } from '../src';
+import { CACHE_HEADER } from '../src/constants';
+import { setupIntegrationSuite, type Pet } from './support/integration-suite';
 
 const suite = setupIntegrationSuite();
 const { endpoints, services } = suite;
@@ -155,5 +156,124 @@ describe('access-router-client data-service and wrap integration', () => {
     if (totalPages != null) {
       expect(Number(totalPages)).toBeGreaterThanOrEqual(1);
     }
+  });
+});
+
+describe('access-router-client data-service advanced reads (ARC-08)', () => {
+  it('reads ignoreCache from the options position (not args) on readAdvanced and bypasses an existing cache entry', async () => {
+    const cachedAdapter = createAdapter(
+      { baseURL: suite.adapter.axios.defaults.baseURL },
+      {
+        cacheTTL: 60_000,
+        cachePartition: (config) => {
+          const headers = config.headers as Record<string, unknown> | undefined;
+          return typeof headers?.user === 'string' ? (headers.user as string) : 'anon';
+        },
+      },
+    );
+    const petService = cachedAdapter.createDataService<Pet>({ dataName: 'pet-data', basePath: 'pets' });
+
+    const headers = { user: 'admin' };
+
+    // First call: hits the server, populates the cache.
+    const first = await petService.readAdvanced<Pet, 'name'>('Max', { select: ['name'] as const }, undefined, {
+      headers,
+    });
+    expect(first.success).toBe(true);
+    expect(first.data).toEqual({ name: 'Max' });
+
+    // Capture the cache-bypass header from each subsequent call so we can
+    // assert that options.ignoreCache is honored and emits 'false' (the
+    // interceptor's cache-bypass value), while omitting ignoreCache emits
+    // 'true' (cache-eligible).
+    const seenHeaders: string[] = [];
+    cachedAdapter.axios.interceptors.request.use((config) => {
+      const h = config.headers;
+      const value = (h as Record<string, unknown> | undefined)?.[CACHE_HEADER];
+      seenHeaders.push(typeof value === 'string' ? value : String(value ?? ''));
+      return config;
+    });
+
+    // Without ignoreCache in options ⇒ cache-bypass header is 'true'.
+    await petService.readAdvanced<Pet, 'name'>('Max', { select: ['name'] as const }, undefined, { headers });
+    // With ignoreCache: true in the OPTIONS position ⇒ cache-bypass header
+    // is 'false' (the documented cache-bypass value).
+    await petService.readAdvanced<Pet, 'name'>(
+      'Max',
+      { select: ['name'] as const },
+      { ignoreCache: true },
+      { headers },
+    );
+
+    expect(seenHeaders[0]).toBe('true');
+    expect(seenHeaders[1]).toBe('false');
+  });
+
+  it('reads ignoreCache from the options position on readAdvancedFilter and bypasses an existing cache entry', async () => {
+    const cachedAdapter = createAdapter(
+      { baseURL: suite.adapter.axios.defaults.baseURL },
+      {
+        cacheTTL: 60_000,
+        cachePartition: (config) => {
+          const headers = config.headers as Record<string, unknown> | undefined;
+          return typeof headers?.user === 'string' ? (headers.user as string) : 'anon';
+        },
+      },
+    );
+    const petService = cachedAdapter.createDataService<Pet>({ dataName: 'pet-data', basePath: 'pets' });
+
+    const headers = { user: 'admin' };
+    const first = await petService.readAdvancedFilter<Pet, 'name'>(
+      { sex: 'female' },
+      { select: ['name'] as const },
+      undefined,
+      { headers },
+    );
+    expect(first.success).toBe(true);
+    expect(first.data).toEqual({ name: 'Bella' });
+
+    const seenHeaders: string[] = [];
+    cachedAdapter.axios.interceptors.request.use((config) => {
+      const h = config.headers;
+      const value = (h as Record<string, unknown> | undefined)?.[CACHE_HEADER];
+      seenHeaders.push(typeof value === 'string' ? value : String(value ?? ''));
+      return config;
+    });
+
+    // No-ignoreCache call ⇒ 'true'.
+    await petService.readAdvancedFilter<Pet, 'name'>({ sex: 'female' }, { select: ['name'] as const }, undefined, {
+      headers,
+    });
+    // ignoreCache in options ⇒ 'false'.
+    await petService.readAdvancedFilter<Pet, 'name'>(
+      { sex: 'female' },
+      { select: ['name'] as const },
+      { ignoreCache: true },
+      { headers },
+    );
+
+    expect(seenHeaders[0]).toBe('true');
+    expect(seenHeaders[1]).toBe('false');
+  });
+
+  it('keeps grouped data advanced reads equivalent to direct reads (no includePermissions asymmetry)', async () => {
+    const petService = suite.adapter.createDataService<Pet>({ dataName: 'pet-data', basePath: 'pets' });
+    const headers = { user: 'admin' };
+
+    const direct = await petService.readAdvanced<Pet, 'name'>('Max', { select: ['name'] as const }, undefined, {
+      headers,
+    });
+    const grouped = await suite.adapter.group(
+      petService.readAdvanced<Pet, 'name'>('Max', { select: ['name'] as const }, undefined, { headers }),
+    );
+
+    expect(direct.success).toBe(true);
+    expect(grouped[0].success).toBe(true);
+    // The grouped result also omits includePermissions-derived fields
+    // (e.g., no _permissions on data records) — both paths return only the
+    // selected fields.
+    expect(direct.raw).toEqual(grouped[0].raw);
+    expect(direct.data).toEqual({ name: 'Max' });
+    expect(grouped[0].data).toEqual({ name: 'Max' });
   });
 });

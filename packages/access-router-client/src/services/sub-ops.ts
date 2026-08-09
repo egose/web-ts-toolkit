@@ -1,7 +1,15 @@
 import { AxiosRequestConfig, mergeConfig } from 'axios';
-import { FilterQuery, Document, ResolvedSelectedShape, Response, ModelResponse, ListModelResponse } from '../types';
-import { Model } from '../model';
+import {
+  FilterQuery,
+  Document,
+  ResolvedSelectedShape,
+  Response,
+  SubDocumentResponse,
+  SubDocumentListResponse,
+} from '../types';
+import { cloneConfigWithCacheBypass } from './interceptors';
 import { makeRequest } from './request';
+import { encodePathSegment } from '../helpers';
 import type { ModelService } from './model-service';
 
 type RequestConfig = AxiosRequestConfig & { throwOnError?: boolean };
@@ -17,33 +25,45 @@ interface SubOpsContext<S> {
   parentService: ModelService<Document>;
 }
 
+const toArray = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : value == null ? [] : [value as T]);
+
+const ensureSubdocumentListCount = <T extends { count?: number }>(result: T): T & { count: number } => {
+  result.count ??= 0;
+  return result as T & { count: number };
+};
+
 export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: string) {
   const { axios, basePath, modelName, queryPath, handleSuccess, handleError, _handleCallbacks, parentService } = ctx;
-  // Single cast: parentService manages parent type T, but sub-document ops need ModelService<S>.
-  // This is safe because Model.create only uses the service reference for save/update calls.
-  const asS = parentService as ModelService<S>;
 
   return {
     list: (axiosRequestConfig?: RequestConfig) => {
       const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
-      return makeRequest<ListModelResponse<S>>(
+      return makeRequest<SubDocumentListResponse<S>>(
         () =>
           axios
-            .get(`${basePath}/${id}/${sub}`, mergeConfig(reqConfig, { params: {} }))
+            .get(
+              `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}`,
+              mergeConfig(reqConfig, { params: {} }),
+            )
             .then(handleSuccess)
-            .then((result: ListModelResponse<S>) => {
-              result.totalCount = Array.isArray(result.raw) ? result.raw.length : 0;
-              result.data = Array.isArray(result.raw) ? result.raw.map((item) => Model.create<S>(item, asS)) : [];
+            .then((result: SubDocumentListResponse<S>) => {
+              const rawArray = toArray<S>(result.raw);
+              result.raw = rawArray;
+              result.count = rawArray.length;
+              result.data = rawArray;
               return result;
             })
-            .catch(handleError<ListModelResponse<S>>)
-            .then((res) => _handleCallbacks<ListModelResponse<S>>(res, throwOnError)),
+            .catch(handleError<SubDocumentListResponse<S>>)
+            .then(ensureSubdocumentListCount)
+            .then((res) => _handleCallbacks<SubDocumentListResponse<S>>(res, throwOnError)),
         {
+          __throwOnError: throwOnError,
           __op: 'listSub',
           __query: {
             target: 'model',
             name: modelName,
+
             model: modelName,
             op: 'subList',
             id,
@@ -66,27 +86,34 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
       const select = args?.select;
       const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
-      return makeRequest<ListModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>(
+      return makeRequest<SubDocumentListResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>(
         () =>
           axios
-            .post(`${basePath}/${id}/${sub}/${queryPath}`, { filter, select }, reqConfig)
+            .post(
+              `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}/${queryPath}`,
+              { filter, select },
+              reqConfig,
+            )
             .then(handleSuccess)
-            .then((result: ListModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>) => {
-              result.totalCount = Array.isArray(result.raw) ? result.raw.length : 0;
-              result.data = Array.isArray(result.raw)
-                ? result.raw.map((item) => Model.create<S, ResolvedSelectedShape<S, TSelect, TData>>(item, asS))
-                : [];
+            .then((result: SubDocumentListResponse<S, ResolvedSelectedShape<S, TSelect, TData>>) => {
+              const rawArray = toArray<ResolvedSelectedShape<S, TSelect, TData>>(result.raw);
+              result.raw = rawArray;
+              result.count = rawArray.length;
+              result.data = rawArray;
               return result;
             })
-            .catch(handleError<ListModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>)
+            .catch(handleError<SubDocumentListResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>)
+            .then(ensureSubdocumentListCount)
             .then((res) =>
-              _handleCallbacks<ListModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>(res, throwOnError),
+              _handleCallbacks<SubDocumentListResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>(res, throwOnError),
             ),
         {
+          __throwOnError: throwOnError,
           __op: 'listAdvancedSub',
           __query: {
             target: 'model',
             name: modelName,
+
             model: modelName,
             op: 'subList',
             id,
@@ -104,22 +131,27 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
     read: (subId: string, axiosRequestConfig?: RequestConfig) => {
       const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
-      return makeRequest<ModelResponse<S>>(
+      return makeRequest<SubDocumentResponse<S>>(
         () =>
           axios
-            .get(`${basePath}/${id}/${sub}/${subId}`, mergeConfig(reqConfig, { params: {} }))
+            .get(
+              `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}/${encodePathSegment(subId)}`,
+              mergeConfig(reqConfig, { params: {} }),
+            )
             .then(handleSuccess)
-            .then((result: ModelResponse<S>) => {
-              result.data = result.success ? Model.create<S>(result.raw, asS) : null;
+            .then((result: SubDocumentResponse<S>) => {
+              result.data = result.success ? (result.raw as S) : null;
               return result;
             })
-            .catch(handleError<ModelResponse<S>>)
-            .then((res) => _handleCallbacks<ModelResponse<S>>(res, throwOnError)),
+            .catch(handleError<SubDocumentResponse<S>>)
+            .then((res) => _handleCallbacks<SubDocumentResponse<S>>(res, throwOnError)),
         {
+          __throwOnError: throwOnError,
           __op: 'readSub',
           __query: {
             target: 'model',
             name: modelName,
+
             model: modelName,
             op: 'subRead',
             id,
@@ -142,26 +174,30 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
       const { select, populate } = args ?? {};
       const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
-      return makeRequest<ModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>(
+      return makeRequest<SubDocumentResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>(
         () =>
           axios
-            .post(`${basePath}/${id}/${sub}/${subId}/${queryPath}`, { select, populate }, reqConfig)
+            .post(
+              `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}/${encodePathSegment(subId)}/${queryPath}`,
+              { select, populate },
+              reqConfig,
+            )
             .then(handleSuccess)
-            .then((result: ModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>) => {
-              result.data = result.success
-                ? Model.create<S, ResolvedSelectedShape<S, TSelect, TData>>(result.raw, asS)
-                : null;
+            .then((result: SubDocumentResponse<S, ResolvedSelectedShape<S, TSelect, TData>>) => {
+              result.data = result.success ? (result.raw as ResolvedSelectedShape<S, TSelect, TData>) : null;
               return result;
             })
-            .catch(handleError<ModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>)
+            .catch(handleError<SubDocumentResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>)
             .then((res) =>
-              _handleCallbacks<ModelResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>(res, throwOnError),
+              _handleCallbacks<SubDocumentResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>(res, throwOnError),
             ),
         {
+          __throwOnError: throwOnError,
           __op: 'readAdvancedSub',
           __query: {
             target: 'model',
             name: modelName,
+
             model: modelName,
             op: 'subRead',
             id,
@@ -177,24 +213,30 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
     },
 
     update: (subId: string, data: object, axiosRequestConfig?: RequestConfig) => {
-      const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
+      const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
-      return makeRequest<ModelResponse<S>>(
+      return makeRequest<SubDocumentResponse<S>>(
         () =>
           axios
-            .patch(`${basePath}/${id}/${sub}/${subId}`, data, mergeConfig(reqConfig, { params: {} }))
+            .patch(
+              `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}/${encodePathSegment(subId)}`,
+              data,
+              mergeConfig(reqConfig, { params: {} }),
+            )
             .then(handleSuccess)
-            .then((result: ModelResponse<S>) => {
-              result.data = result.success ? Model.create<S>(result.raw, asS) : null;
+            .then((result: SubDocumentResponse<S>) => {
+              result.data = result.success ? (result.raw as S) : null;
               return result;
             })
-            .catch(handleError<ModelResponse<S>>)
-            .then((res) => _handleCallbacks<ModelResponse<S>>(res, throwOnError)),
+            .catch(handleError<SubDocumentResponse<S>>)
+            .then((res) => _handleCallbacks<SubDocumentResponse<S>>(res, throwOnError)),
         {
+          __throwOnError: throwOnError,
           __op: 'updateSub',
           __query: {
             target: 'model',
             name: modelName,
+
             model: modelName,
             op: 'subUpdate',
             id,
@@ -210,24 +252,34 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
     },
 
     bulkUpdate: (data: object[], axiosRequestConfig?: RequestConfig) => {
-      const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
+      const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
-      return makeRequest<ListModelResponse<S>>(
+      return makeRequest<SubDocumentListResponse<S>>(
         () =>
           axios
-            .patch(`${basePath}/${id}/${sub}`, data, mergeConfig(reqConfig, { params: {} }))
+            .patch(
+              `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}`,
+              data,
+              mergeConfig(reqConfig, { params: {} }),
+            )
             .then(handleSuccess)
-            .then((result: ListModelResponse<S>) => {
-              result.data = Array.isArray(result.raw) ? result.raw.map((item) => Model.create<S>(item, asS)) : [];
+            .then((result: SubDocumentListResponse<S>) => {
+              const rawArray = toArray<S>(result.raw);
+              result.raw = rawArray;
+              result.count = rawArray.length;
+              result.data = rawArray;
               return result;
             })
-            .catch(handleError<ListModelResponse<S>>)
-            .then((res) => _handleCallbacks<ListModelResponse<S>>(res, throwOnError)),
+            .catch(handleError<SubDocumentListResponse<S>>)
+            .then(ensureSubdocumentListCount)
+            .then((res) => _handleCallbacks<SubDocumentListResponse<S>>(res, throwOnError)),
         {
+          __throwOnError: throwOnError,
           __op: 'bulkUpdateSub',
           __query: {
             target: 'model',
             name: modelName,
+
             model: modelName,
             op: 'subBulkUpdate',
             id,
@@ -241,23 +293,39 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
       );
     },
 
-    create: (data: object, axiosRequestConfig?: RequestConfig) => {
-      const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
+    create: (data: object | object[], axiosRequestConfig?: RequestConfig) => {
+      const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
-      return makeRequest<ModelResponse<S>>(
+      // The sibling server's `createSub` route returns the FULL subdocument
+      // list (`{ kind: 'list', data: [...], count: N }`) when `count !== 1`,
+      // and a single object when `count === 1`. To expose one stable shape,
+      // we always return the array form: `raw` and `data` are the post-create
+      // subdocument array; callers that created the first sub on a parent
+      // with no existing subs still receive `[theNewDoc]` rather than a
+      // bare object.
+      return makeRequest<SubDocumentListResponse<S>>(
         () =>
           axios
-            .post(`${basePath}/${id}/${sub}`, data, mergeConfig(reqConfig, { params: {} }))
+            .post(
+              `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}`,
+              data,
+              mergeConfig(reqConfig, { params: {} }),
+            )
             .then(handleSuccess)
-            .then((result: ModelResponse<S>) => {
-              result.data = result.success ? Model.create<S>(result.raw, asS) : null;
+            .then((result: SubDocumentListResponse<S>) => {
+              const rawArray = toArray<S>(result.raw);
+              result.raw = rawArray;
+              result.count = rawArray.length;
+              result.data = rawArray;
               return result;
             })
-            .catch(handleError<ModelResponse<S>>)
-            .then((res) => _handleCallbacks<ModelResponse<S>>(res, throwOnError)),
+            .catch(handleError<SubDocumentListResponse<S>>)
+            .then(ensureSubdocumentListCount)
+            .then((res) => _handleCallbacks<SubDocumentListResponse<S>>(res, throwOnError)),
         {
+          __throwOnError: throwOnError,
           __op: 'createSub',
-          __query: { target: 'model', name: modelName, model: modelName, op: 'subCreate', id, sub, data, options: {} },
+          __query: { target: 'model', name: modelName, op: 'subCreate', id, sub, data, options: {} },
           __requestConfig: reqConfig,
           __service: parentService,
         },
@@ -265,22 +333,26 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
     },
 
     delete: (subId: string, axiosRequestConfig?: RequestConfig) => {
-      const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
+      const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
       return makeRequest<Response<string>>(
         () =>
           axios
-            .delete(`${basePath}/${id}/${sub}/${subId}`, reqConfig)
+            .delete(
+              `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}/${encodePathSegment(subId)}`,
+              reqConfig,
+            )
             .then(handleSuccess)
             .then((result: Response<string>) => {
-              result.data = result.raw;
+              if (result.success) result.data = result.raw;
               return result;
             })
             .catch(handleError<Response<string>>)
             .then((res) => _handleCallbacks<Response<string>>(res, throwOnError)),
         {
+          __throwOnError: throwOnError,
           __op: 'deleteSub',
-          __query: { target: 'model', name: modelName, model: modelName, op: 'subDelete', id, sub, subId },
+          __query: { target: 'model', name: modelName, op: 'subDelete', id, sub, subId },
           __requestConfig: reqConfig,
           __service: parentService,
         },

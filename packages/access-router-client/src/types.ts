@@ -51,6 +51,18 @@ export type Sort = string | { [key: string]: SortOrder } | [string, SortOrder][]
 
 export type FilterQuery<T> = _FilterQuery<T>;
 
+// ARC-20: the typed-filter escape hatches live in `./mongoose/types`
+// alongside their `_FilterQuery<T>` building block, but the package's
+// public type surface (locked by `access-router-client.exports.unit.test.ts`
+// and documented in `typescript-and-errors.mdx` + `llms.txt`) treats them
+// as named root exports. Re-exporting them here is what makes the published
+// `.d.ts` actually deliver the names that the docs, the export-allowlist
+// test, and the `filter-query-types` unit test already assume are
+// reachable from the package root. Without this re-export, an installed
+// consumer importing `DottedPathFilter`/`ServerSideCast` from
+// `@web-ts-toolkit/access-router-client` fails to compile.
+export type { DottedPathFilter, ServerSideCast } from './mongoose/types';
+
 export interface Include {
   model: string;
   op: 'list' | 'read' | 'count';
@@ -75,8 +87,14 @@ export interface Document {
   _id?: string;
 }
 
-export interface Response<T1, T2 = T1> {
-  success: boolean;
+/**
+ * Successful response. `raw` and `data` are non-null and `success` is
+ * narrowed to `true` so `if (result.success)` exposes the documented
+ * payload shape. `message` is initialized for symmetry with failures but
+ * may be the empty string when the server omits a message on success.
+ */
+export interface SuccessResult<T1, T2 = T1> {
+  success: true;
   raw: T1;
   data: T2;
   message: string;
@@ -84,9 +102,72 @@ export interface Response<T1, T2 = T1> {
   headers: Record<string, string>;
 }
 
-export type ModelResponse<T, TData extends Partial<T> = T> = Response<TData, Model<T, TData> & TData>;
-export type ArrayModelResponse<T, TData extends Partial<T> = T> = Response<TData[], (Model<T, TData> & TData)[]>;
-export type ListModelResponse<T, TData extends Partial<T> = T> = ArrayModelResponse<T, TData> & { totalCount: number };
+/**
+ * Failure response. `raw` carries the server error payload (or `null`
+ * when no response body was received, e.g. a network error). `data` is
+ * always `null` on failure. `message` is populated from the structured
+ * problem payload when possible; `status` is the failing HTTP status
+ * (or `0` when no response was received).
+ */
+export interface FailureResult<TError = unknown> {
+  success: false;
+  raw: TError | null;
+  data: null;
+  message: string;
+  status: number;
+  headers: Record<string, string>;
+}
+
+/**
+ * Discriminated response union. Branch on `result.success` to narrow
+ * `raw`/`data` to their successful shapes or to the documented error
+ * payload.
+ *
+ * `T1` is the successful `raw` payload type; `T2` is the successful `data`
+ * payload type (after client wrapping, e.g. `Model<T>`). `TError` is the
+ * optional server error payload type and defaults to `unknown`. On failure,
+ * `data` is `null` and `raw` is `TError | null`, never the success payload
+ * type unless a caller explicitly chooses that error type.
+ */
+export type Response<T1, T2 = T1, TError = unknown> = SuccessResult<T1, T2> | FailureResult<TError>;
+
+export type ModelResponse<T extends Document, TData extends Partial<T> = T> = Response<TData, Model<T, TData> & TData>;
+export type ArrayModelResponse<T extends Document, TData extends Partial<T> = T> = Response<
+  TData[],
+  (Model<T, TData> & TData)[]
+>;
+/**
+ * `ListModelResponse` always carries `totalCount` on both branches. The field
+ * defaults to `0` at runtime on failure or when the server did not emit count
+ * metadata (`includeCount: false`), so callers that read it without narrowing
+ * see a deterministic number rather than `undefined`.
+ */
+export type ListModelResponse<T extends Document, TData extends Partial<T> = T> = ArrayModelResponse<T, TData> & {
+  totalCount: number;
+};
+
+/**
+ * Subdocument responses deliberately do NOT wrap `data` in `Model<S>`.
+ * Returning a save-capable `Model<S>` here was unsafe because `Model.save()`
+ * would target the parent route with the subdocument `_id` instead of
+ * `/:parentId/:sub/:subId`. Subdocument callers that need persistence must
+ * call `subService.update(subId, data)` (or `create`/`bulkUpdate`) explicitly
+ * with the parent-scoped helper returned by `id(parentId).subs(field)`.
+ *
+ * `SubDocumentResponse` is the single-document shape; `data` is the plain
+ * subdocument payload or `null` on failure.
+ */
+export type SubDocumentResponse<S, TData extends Partial<S> = S> = Response<TData, TData>;
+
+/**
+ * Subdocument list/array responses. `data` is the plain array of subdocument
+ * payloads (no `Model` wrapping) and `raw` is the server's original array
+ * payload. `count` mirrors the server's `count` field (the length of the
+ * returned array); the sibling server never emits a `totalCount` here.
+ */
+export type SubDocumentListResponse<S, TData extends Partial<S> = S> = Response<TData[], TData[]> & {
+  count: number;
+};
 
 export interface Task {
   type: string;
@@ -116,7 +197,15 @@ type RootDataOperation = 'list' | 'read';
 export interface RootModelQueryMeta {
   target: 'model';
   name: string;
-  model: string;
+  /**
+   * Carries the model name when this entry is consumed as a sub-query
+   * source: the sibling server reads `model` from a `$$sq` payload to
+   * resolve the target model service. Top-level root entries omit `model`
+   * (the sibling `RootQueryEntry` schema uses `name`); the server schema
+   * permits extra fields via `.passthrough()`, so a stray `model` is
+   * harmless there.
+   */
+  model?: string;
   op: RootModelOperation;
   id?: string;
   sub?: string;
@@ -146,6 +235,7 @@ export type RootQueryMeta = RootModelQueryMeta | RootDataQueryMeta;
 
 export interface ModelPromiseMeta {
   __op: string;
+  __throwOnError?: boolean;
   __query: RootModelQueryMeta;
   __requestConfig?: AxiosRequestConfig;
   __service?: ModelService<Document>;
@@ -163,6 +253,7 @@ export type ListDataResponse<T> = ArrayDataResponse<T> & { totalCount: number };
 
 export interface DataPromiseMeta {
   __op: string;
+  __throwOnError?: boolean;
   __query: RootDataQueryMeta;
   __requestConfig?: AxiosRequestConfig;
   __service?: DataService<unknown>;

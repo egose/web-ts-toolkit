@@ -608,8 +608,10 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     const doFetch = useCallback(
       async (signal?: AbortSignal): Promise<Response<number>> => {
         if (advanced) {
+          // ARC-21: countAdvanced no longer accepts the obsolete `access`
+          // second argument (the server's `countBodySchema` rejects it).
           return (await modelService
-            .countAdvanced((filter ?? {}) as FilterQuery<T>, undefined, { ...requestConfig, signal })
+            .countAdvanced((filter ?? {}) as FilterQuery<T>, { ...requestConfig, signal })
             .exec()) as unknown as Response<number>;
         }
         return (await modelService.count({ ...requestConfig, signal }).exec()) as unknown as Response<number>;

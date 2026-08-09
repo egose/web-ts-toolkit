@@ -1,5 +1,4 @@
 import { AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
-import { set } from '@web-ts-toolkit/utils';
 import {
   FilterQuery,
   Document,
@@ -8,6 +7,7 @@ import {
   ResolvedSelectedShape,
   Response,
   ModelResponse,
+  ArrayModelResponse,
   ListModelResponse,
   ResponseCallback,
 } from '../types';
@@ -35,9 +35,9 @@ import {
 
 import { Model } from '../model';
 import { Service } from './service';
-import { replaceSubQuery } from '../helpers';
-import { CACHE_HEADER } from '../constants';
-import { createResponseHandler, processListResult, setDefaultObjectProp } from './shared';
+import { replaceSubQuery, encodePathSegment } from '../helpers';
+import { cloneConfigWithCacheBypass } from './interceptors';
+import { createResponseHandler, ensureListResultCount, processListResult, setDefaultObjectProp } from './shared';
 import { makeRequest } from './request';
 import { buildSubDocumentOps } from './sub-ops';
 
@@ -67,18 +67,18 @@ export class ModelService<T extends Document> extends Service {
   private _queryPath!: string;
   private _mutationPath!: string;
   private _handleCallbacks!: <T extends { success: boolean }>(res: T, throwOnError?: boolean) => T;
-  private _defaults!: Defaults;
+  private _defaults!: Required<Defaults>;
 
   constructor(
     { axios, modelName, basePath, queryPath, mutationPath, onSuccess, onFailure, throwOnError }: Props,
     defaults?: Defaults,
   ) {
-    super(axios, basePath);
+    super(axios, basePath, throwOnError);
 
     this._modelName = modelName;
     this._queryPath = queryPath;
     this._mutationPath = mutationPath;
-    this._defaults = defaults ?? {};
+    this._defaults = (defaults ?? {}) as Required<Defaults>;
     this._handleCallbacks = createResponseHandler(onSuccess, onFailure, throwOnError);
 
     [
@@ -148,21 +148,28 @@ export class ModelService<T extends Document> extends Service {
             return processListResult<ListModelResponse<T, TData>, TData>(
               result,
               { includeCount, includeExtraHeaders },
-              (item) => Model.create<T, TData>(item, this),
+              // ARC-21: list items come from existing documents, so mark
+              // them as `_fromExisting=true` even if the server response
+              // (or a custom adapter) strips `_id` — a save on such an item
+              // must throw rather than silently re-create.
+              (item) => Model.create<T, TData>(item, this, undefined, true),
             );
           })
           .catch(this.handleError<ListModelResponse<T, TData>>)
+          .then(ensureListResultCount)
           .then((res) => this._handleCallbacks<ListModelResponse<T, TData>>(res, throwOnError)),
       {
+        __throwOnError: throwOnError,
         __op: 'list',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'list',
           filter: {},
           args: { skip, limit, page, pageSize },
-          options: { skim, includePermissions, includeCount, includeExtraHeaders },
+          options: { skim, includePermissions, includeCount },
           sqOptions: sq,
         },
         __requestConfig: reqConfig,
@@ -229,23 +236,29 @@ export class ModelService<T extends Document> extends Service {
               ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>,
               ResolvedSelectedShape<T, TSelect, TData>
             >(result, { includeCount, includeExtraHeaders }, (item) =>
-              Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(item, this),
+              // ARC-21: listAdvanced items come from existing documents;
+              // mark `_fromExisting=true` so a save cannot silently re-create
+              // when a server response shape drops `_id`.
+              Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(item, this, undefined, true),
             );
           })
           .catch(this.handleError<ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>)
+          .then(ensureListResultCount)
           .then((res) =>
             this._handleCallbacks<ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
           ),
       {
+        __throwOnError: throwOnError,
         __op: 'listAdvanced',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'list',
           filter: _filter,
           args: { select, sort, populate, include, skip, limit, page, pageSize, tasks },
-          options: { skim, includePermissions, includeCount, includeExtraHeaders, populateAccess },
+          options: { skim, includePermissions, includeCount, populateAccess },
           sqOptions: sq,
         },
         __requestConfig: reqConfig,
@@ -254,27 +267,56 @@ export class ModelService<T extends Document> extends Service {
     );
   }
 
-  create<TData extends Partial<T> = T>(data: object, options?: CreateOptions, axiosRequestConfig?: RequestConfig) {
+  create<TData extends Partial<T> = T>(
+    data: object[],
+    options?: CreateOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ArrayModelResponse<T, TData>>;
+  create<TData extends Partial<T> = T>(
+    data: object,
+    options?: CreateOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ModelResponse<T, TData>>;
+  create<TData extends Partial<T> = T>(
+    data: object | object[],
+    options?: CreateOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ModelResponse<T, TData> | ArrayModelResponse<T, TData>> {
     const { includePermissions = this._defaults.createOptions.includePermissions ?? true } = options ?? {};
-    const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
-    set(reqConfig, `headers.${CACHE_HEADER}`, 'false');
+    const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
-    return makeRequest<ModelResponse<T, TData>>(
+    const bulk = Array.isArray(data);
+    return makeRequest<ModelResponse<T, TData> | ArrayModelResponse<T, TData>>(
       () =>
         this._axios
           .post(this._basePath, data, mergeConfig(reqConfig, { params: { include_permissions: includePermissions } }))
           .then(this.handleSuccess)
-          .then((result: ModelResponse<T, TData>) => {
-            result.data = result.success ? Model.create<T, TData>(result.raw, this) : null;
+          .then((result: ModelResponse<T, TData> | ArrayModelResponse<T, TData>) => {
+            // ARC-21: the server echoes `_id` on create; mark the wrapper
+            // as a persisted document so a later save() cannot become a
+            // duplicate create if a downstream consumer strips `_id`.
+            if (result.success) {
+              if (bulk) {
+                const rows = (Array.isArray(result.raw) ? result.raw : [result.raw]) as TData[];
+                result.raw = rows;
+                result.data = rows.map((row) => Model.create<T, TData>(row, this, undefined, true));
+              } else {
+                result.data = Model.create<T, TData>(result.raw as TData, this, undefined, true);
+              }
+            }
             return result;
           })
-          .catch(this.handleError<ModelResponse<T, TData>>)
-          .then((res) => this._handleCallbacks<ModelResponse<T, TData>>(res, throwOnError)),
+          .catch(this.handleError<ModelResponse<T, TData> | ArrayModelResponse<T, TData>>)
+          .then((res) =>
+            this._handleCallbacks<ModelResponse<T, TData> | ArrayModelResponse<T, TData>>(res, throwOnError),
+          ),
       {
+        __throwOnError: throwOnError,
         __op: 'create',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'create',
           data,
@@ -287,11 +329,26 @@ export class ModelService<T extends Document> extends Service {
   }
 
   createAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
+    data: object[],
+    args?: CreateAdvancedArgs<TSelect>,
+    options?: CreateAdvancedOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ArrayModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>;
+  createAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
     data: object,
     args?: CreateAdvancedArgs<TSelect>,
     options?: CreateAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ): ModelRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
+  ): ModelRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>;
+  createAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
+    data: object | object[],
+    args?: CreateAdvancedArgs<TSelect>,
+    options?: CreateAdvancedOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<
+    | ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>
+    | ArrayModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>
+  > {
     const { populate = this._defaults.createAdvancedArgs.populate, tasks = this._defaults.createAdvancedArgs.tasks } =
       args ?? {};
     const select = (args?.select ?? this._defaults.createAdvancedArgs.select) as TSelect | undefined;
@@ -301,10 +358,12 @@ export class ModelService<T extends Document> extends Service {
       populateAccess = this._defaults.createAdvancedOptions.populateAccess,
     } = options ?? {};
 
-    const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
-    set(reqConfig, `headers.${CACHE_HEADER}`, 'false');
+    const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
-    return makeRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(
+    type Selected = ResolvedSelectedShape<T, TSelect, TData>;
+    type CreateResult = ModelResponse<T, Selected> | ArrayModelResponse<T, Selected>;
+    const bulk = Array.isArray(data);
+    return makeRequest<CreateResult>(
       () =>
         this._axios
           .post(
@@ -313,21 +372,30 @@ export class ModelService<T extends Document> extends Service {
             reqConfig,
           )
           .then(this.handleSuccess)
-          .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
-            result.data = result.success
-              ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this)
-              : null;
+          .then((result: CreateResult) => {
+            // ARC-21: createAdvanced returns the freshly-persisted doc with
+            // server-assigned `_id`; mark as existing so a subsequent save()
+            // cannot become a duplicate create if a consumer drops `_id`.
+            if (result.success) {
+              if (bulk) {
+                const rows = (Array.isArray(result.raw) ? result.raw : [result.raw]) as Selected[];
+                result.raw = rows;
+                result.data = rows.map((row) => Model.create<T, Selected>(row, this, undefined, true));
+              } else {
+                result.data = Model.create<T, Selected>(result.raw as Selected, this, undefined, true);
+              }
+            }
             return result;
           })
-          .catch(this.handleError<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>)
-          .then((res) =>
-            this._handleCallbacks<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
-          ),
+          .catch(this.handleError<CreateResult>)
+          .then((res) => this._handleCallbacks<CreateResult>(res, throwOnError)),
       {
+        __throwOnError: throwOnError,
         __op: 'createAdvanced',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'create',
           data,
@@ -341,30 +409,43 @@ export class ModelService<T extends Document> extends Service {
   }
 
   upsert<TData extends Partial<T> = T>(data: object, options?: UpsertOptions, axiosRequestConfig?: RequestConfig) {
-    const { returningAll = this._defaults.upsertOptions.returningAll ?? true } = options ?? {};
-    const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
-    set(reqConfig, `headers.${CACHE_HEADER}`, 'false');
+    const {
+      returningAll = this._defaults.upsertOptions.returningAll ?? true,
+      includePermissions = this._defaults.upsertOptions.includePermissions ?? true,
+    } = options ?? {};
+    const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
     return makeRequest<ModelResponse<T, TData>>(
       () =>
         this._axios
-          .put(this._basePath, data, mergeConfig(reqConfig, { params: { returning_all: returningAll } }))
+          .put(
+            this._basePath,
+            data,
+            mergeConfig(reqConfig, {
+              params: { returning_all: returningAll, include_permissions: includePermissions },
+            }),
+          )
           .then(this.handleSuccess)
           .then((result: ModelResponse<T, TData>) => {
-            result.data = result.success ? Model.create<T, TData>(result.raw, this) : null;
+            // ARC-21: upsert resolves to an existing-or-new doc whose `_id`
+            // is returned by the server; mark `_fromExisting=true` so a later
+            // save() cannot become a duplicate create if `_id` is dropped.
+            result.data = result.success ? Model.create<T, TData>(result.raw, this, undefined, true) : null;
             return result;
           })
           .catch(this.handleError<ModelResponse<T, TData>>)
           .then((res) => this._handleCallbacks<ModelResponse<T, TData>>(res, throwOnError)),
       {
+        __throwOnError: throwOnError,
         __op: 'upsert',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'upsert',
           data,
-          options: { returningAll },
+          options: { returningAll, includePermissions },
         },
         __requestConfig: reqConfig,
         __service: this,
@@ -388,8 +469,7 @@ export class ModelService<T extends Document> extends Service {
       populateAccess = this._defaults.upsertAdvancedOptions.populateAccess,
     } = options ?? {};
 
-    const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
-    set(reqConfig, `headers.${CACHE_HEADER}`, 'false');
+    const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
     return makeRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(
       () =>
@@ -407,8 +487,11 @@ export class ModelService<T extends Document> extends Service {
           )
           .then(this.handleSuccess)
           .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
+            // ARC-21: upsertAdvanced resolves to an existing-or-new doc whose
+            // `_id` is returned by the server; mark `_fromExisting=true` so a
+            // later save() cannot become a duplicate create.
             result.data = result.success
-              ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this)
+              ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this, undefined, true)
               : null;
             return result;
           })
@@ -417,10 +500,12 @@ export class ModelService<T extends Document> extends Service {
             this._handleCallbacks<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
           ),
       {
+        __throwOnError: throwOnError,
         __op: 'upsertAdvanced',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'upsert',
           data,
@@ -434,25 +519,26 @@ export class ModelService<T extends Document> extends Service {
   }
 
   delete(identifier: string, axiosRequestConfig?: RequestConfig) {
-    const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
-    set(reqConfig, `headers.${CACHE_HEADER}`, 'false');
+    const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
     return makeRequest<Response<string>>(
       () =>
         this._axios
-          .delete(`${this._basePath}/${identifier}`, reqConfig)
+          .delete(`${this._basePath}/${encodePathSegment(identifier)}`, reqConfig)
           .then(this.handleSuccess)
           .then((result: Response<string>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<Response<string>>)
           .then((res) => this._handleCallbacks<Response<string>>(res, throwOnError)),
       {
+        __throwOnError: throwOnError,
         __op: 'delete',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'delete',
           id: identifier,
@@ -464,8 +550,7 @@ export class ModelService<T extends Document> extends Service {
   }
 
   new<TData extends Partial<T> = T>(axiosRequestConfig?: RequestConfig) {
-    const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
-    set(reqConfig, `headers.${CACHE_HEADER}`, 'false');
+    const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
     return makeRequest<ModelResponse<T, TData>>(
       () =>
@@ -473,17 +558,21 @@ export class ModelService<T extends Document> extends Service {
           .get(`${this._basePath}/new`, reqConfig)
           .then(this.handleSuccess)
           .then((result: ModelResponse<T, TData>) => {
-            delete result.raw._id;
-            result.data = result.success ? Model.create<T, TData>(result.raw, this) : null;
+            if (result.success) {
+              delete result.raw._id;
+              result.data = Model.create<T, TData>(result.raw, this);
+            }
             return result;
           })
           .catch(this.handleError<ModelResponse<T, TData>>)
           .then((res) => this._handleCallbacks<ModelResponse<T, TData>>(res, throwOnError)),
       {
+        __throwOnError: throwOnError,
         __op: 'new',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'new',
         },
@@ -499,19 +588,21 @@ export class ModelService<T extends Document> extends Service {
     return makeRequest<Response<string[]>>(
       () =>
         this._axios
-          .get(`${this._basePath}/distinct/${field}`, reqConfig)
+          .get(`${this._basePath}/distinct/${encodePathSegment(field)}`, reqConfig)
           .then(this.handleSuccess)
           .then((result: Response<string[]>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<Response<string[]>>)
           .then((res) => this._handleCallbacks<Response<string[]>>(res, throwOnError)),
       {
+        __throwOnError: throwOnError,
         __op: 'distinct',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'distinct',
           field,
@@ -528,19 +619,21 @@ export class ModelService<T extends Document> extends Service {
     return makeRequest<Response<string[]>>(
       () =>
         this._axios
-          .post(`${this._basePath}/distinct/${field}`, conditions, reqConfig)
+          .post(`${this._basePath}/distinct/${encodePathSegment(field)}`, { filter: conditions }, reqConfig)
           .then(this.handleSuccess)
           .then((result: Response<string[]>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<Response<string[]>>)
           .then((res) => this._handleCallbacks<Response<string[]>>(res, throwOnError)),
       {
+        __throwOnError: throwOnError,
         __op: 'distinctAdvanced',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'distinct',
           field,
@@ -561,16 +654,18 @@ export class ModelService<T extends Document> extends Service {
           .get(`${this._basePath}/count`, reqConfig)
           .then(this.handleSuccess)
           .then((result: Response<number>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<Response<number>>)
           .then((res) => this._handleCallbacks<Response<number>>(res, throwOnError)),
       {
+        __throwOnError: throwOnError,
         __op: 'count',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'count',
         },
@@ -580,7 +675,7 @@ export class ModelService<T extends Document> extends Service {
     );
   }
 
-  countAdvanced(filter: FilterQuery<T>, _args?: { access?: 'list' | 'read' }, axiosRequestConfig?: RequestConfig) {
+  countAdvanced(filter: FilterQuery<T>, axiosRequestConfig?: RequestConfig) {
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
     return makeRequest<Response<number>>(
@@ -589,16 +684,18 @@ export class ModelService<T extends Document> extends Service {
           .post(`${this._basePath}/count`, { filter }, reqConfig)
           .then(this.handleSuccess)
           .then((result: Response<number>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<Response<number>>)
           .then((res) => this._handleCallbacks<Response<number>>(res, throwOnError)),
       {
+        __throwOnError: throwOnError,
         __op: 'countAdvanced',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'count',
           filter,
@@ -628,23 +725,31 @@ export class ModelService<T extends Document> extends Service {
       () =>
         this._axios
           .get(
-            `${this._basePath}/${identifier}`,
+            `${this._basePath}/${encodePathSegment(identifier)}`,
             mergeConfig(reqConfig, {
               params: { include_permissions: includePermissions, try_list: tryList },
             }),
           )
           .then(this.handleSuccess)
           .then((result: ModelResponse<T, TData>) => {
-            result.data = result.success ? Model.create<T, TData>(result.raw, this) : null;
+            // ARC-21: thread `identifier` as the persistence identity so a
+            // read projection that later strips `_id` cannot cause save() to
+            // silently create. `_data._id` (when echoed by the server) still
+            // takes precedence at save() time; `identifier` is the fallback.
+            // `fromExisting=true` marks the wrapper as a persisted doc so a
+            // save cannot become a create even if identity is somehow lost.
+            result.data = result.success ? Model.create<T, TData>(result.raw, this, identifier, true) : null;
             return result;
           })
           .catch(this.handleError<ModelResponse<T, TData>>)
           .then((res) => this._handleCallbacks<ModelResponse<T, TData>>(res, throwOnError)),
       {
+        __throwOnError: throwOnError,
         __op: 'read',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'read',
           id: identifier,
@@ -687,7 +792,7 @@ export class ModelService<T extends Document> extends Service {
       () =>
         this._axios
           .post(
-            `${this._basePath}/${this._queryPath}/${identifier}`,
+            `${this._basePath}/${this._queryPath}/${encodePathSegment(identifier)}`,
             {
               select,
               populate,
@@ -699,8 +804,14 @@ export class ModelService<T extends Document> extends Service {
           )
           .then(this.handleSuccess)
           .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
+            // ARC-21: thread `identifier` as the persistence identity so a
+            // readAdvanced() with a projection that omits `_id` (e.g.
+            // `select: { name: 1, _id: 0 }`) cannot cause save() to silently
+            // create a duplicate at that path's server-assigned id later.
+            // `fromExisting=true` ensures the wrapper is treated as an
+            // already-persisted document regardless of projection shape.
             result.data = result.success
-              ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this)
+              ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this, identifier, true)
               : null;
             return result;
           })
@@ -709,10 +820,12 @@ export class ModelService<T extends Document> extends Service {
             this._handleCallbacks<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
           ),
       {
+        __throwOnError: throwOnError,
         __op: 'readAdvanced',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'read',
           id: identifier,
@@ -771,8 +884,15 @@ export class ModelService<T extends Document> extends Service {
           )
           .then(this.handleSuccess)
           .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
+            // ARC-21: readAdvancedFilter returns an existing doc, but the
+            // caller did not pass a single id, so no persistence identity is
+            // captured here. When the projection includes `_id` (mongoose
+            // default) `_data._id` resolves at save() time; when a caller
+            // deliberately strips `_id` from the projection AND no id is
+            // captured, `save()` throws `MissingPersistenceIdentityError`
+            // rather than silently creating a duplicate.
             result.data = result.success
-              ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this)
+              ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this, undefined, true)
               : null;
             return result;
           })
@@ -781,10 +901,12 @@ export class ModelService<T extends Document> extends Service {
             this._handleCallbacks<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
           ),
       {
+        __throwOnError: throwOnError,
         __op: 'readAdvancedFilter',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'read',
           filter: _filter,
@@ -804,35 +926,44 @@ export class ModelService<T extends Document> extends Service {
     options?: UpdateOptions,
     axiosRequestConfig?: RequestConfig,
   ) {
-    const { returningAll = this._defaults.updateOptions.returningAll ?? true } = options ?? {};
-    const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
-    set(reqConfig, `headers.${CACHE_HEADER}`, 'false');
+    const {
+      returningAll = this._defaults.updateOptions.returningAll ?? true,
+      includePermissions = this._defaults.updateOptions.includePermissions ?? true,
+    } = options ?? {};
+    const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
     return makeRequest<ModelResponse<T, TData>>(
       () =>
         this._axios
           .patch(
-            `${this._basePath}/${identifier}`,
+            `${this._basePath}/${encodePathSegment(identifier)}`,
             data,
-            mergeConfig(reqConfig, { params: { returning_all: returningAll } }),
+            mergeConfig(reqConfig, {
+              params: { returning_all: returningAll, include_permissions: includePermissions },
+            }),
           )
           .then(this.handleSuccess)
           .then((result: ModelResponse<T, TData>) => {
-            result.data = result.success ? Model.create<T, TData>(result.raw, this) : null;
+            // ARC-21: update resolves to an existing doc; mark
+            // `_fromExisting=true` so a later save() on the returned wrapper
+            // cannot become a duplicate create.
+            result.data = result.success ? Model.create<T, TData>(result.raw, this, undefined, true) : null;
             return result;
           })
           .catch(this.handleError<ModelResponse<T, TData>>)
           .then((res) => this._handleCallbacks<ModelResponse<T, TData>>(res, throwOnError)),
       {
+        __throwOnError: throwOnError,
         __op: 'update',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'update',
           id: identifier,
           data,
-          options: { returningAll },
+          options: { returningAll, includePermissions },
         },
         __requestConfig: reqConfig,
         __service: this,
@@ -857,14 +988,13 @@ export class ModelService<T extends Document> extends Service {
       populateAccess = this._defaults.updateAdvancedOptions.populateAccess,
     } = options ?? {};
 
-    const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
-    set(reqConfig, `headers.${CACHE_HEADER}`, 'false');
+    const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
     return makeRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(
       () =>
         this._axios
           .patch(
-            `${this._basePath}/${this._mutationPath}/${identifier}`,
+            `${this._basePath}/${this._mutationPath}/${encodePathSegment(identifier)}`,
             {
               data,
               select,
@@ -876,8 +1006,11 @@ export class ModelService<T extends Document> extends Service {
           )
           .then(this.handleSuccess)
           .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
+            // ARC-21: updateAdvanced resolves to an existing doc; mark
+            // `_fromExisting=true` so a later save() on the returned wrapper
+            // cannot become a duplicate create if `_id` is dropped.
             result.data = result.success
-              ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this)
+              ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this, undefined, true)
               : null;
             return result;
           })
@@ -886,10 +1019,12 @@ export class ModelService<T extends Document> extends Service {
             this._handleCallbacks<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
           ),
       {
+        __throwOnError: throwOnError,
         __op: 'updateAdvanced',
         __query: {
           target: 'model',
           name: this._modelName,
+
           model: this._modelName,
           op: 'update',
           id: identifier,
@@ -909,9 +1044,11 @@ export class ModelService<T extends Document> extends Service {
 
   id(id: string) {
     return {
-      subs: <S = T>(field: keyof T) => {
+      subs: <S = never, K extends keyof T = keyof T>(field: K) => {
         const sub = String(field);
-        return buildSubDocumentOps<S>(
+        return buildSubDocumentOps<
+          [S] extends [never] ? (NonNullable<T[K]> extends readonly (infer TItem)[] ? TItem : never) : S
+        >(
           {
             axios: this._axios,
             basePath: this._basePath,

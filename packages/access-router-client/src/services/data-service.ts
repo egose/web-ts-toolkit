@@ -22,8 +22,8 @@ import {
 } from '../interface';
 
 import { Service } from './service';
-import { replaceSubQuery } from '../helpers';
-import { createResponseHandler, processListResult, setDefaultObjectProp } from './shared';
+import { replaceSubQuery, encodePathSegment } from '../helpers';
+import { createResponseHandler, ensureListResultCount, processListResult, setDefaultObjectProp } from './shared';
 import { makeRequest } from './request';
 
 type RequestConfig = AxiosRequestConfig & AdditionalReqConfig;
@@ -49,17 +49,17 @@ export class DataService<T> extends Service {
   private _dataName!: string;
   private _queryPath!: string;
   private _handleCallbacks!: <T extends { success: boolean }>(res: T, throwOnError?: boolean) => T;
-  private _defaults!: DataDefaults;
+  private _defaults!: Required<DataDefaults>;
 
   constructor(
     { axios, dataName, basePath, queryPath, onSuccess, onFailure, throwOnError }: Props,
     defaults?: DataDefaults,
   ) {
-    super(axios, basePath);
+    super(axios, basePath, throwOnError);
 
     this._dataName = dataName;
     this._queryPath = queryPath;
-    this._defaults = defaults ?? {};
+    this._defaults = (defaults ?? {}) as Required<DataDefaults>;
     this._handleCallbacks = createResponseHandler(onSuccess, onFailure, throwOnError);
 
     [
@@ -90,7 +90,6 @@ export class DataService<T> extends Service {
     } = args ?? {};
 
     const {
-      includePermissions = this._defaults.listOptions.includePermissions ?? false,
       includeCount = this._defaults.listOptions.includeCount ?? false,
       includeExtraHeaders = this._defaults.listOptions.includeExtraHeaders ?? false,
       ignoreCache = this._defaults.listOptions.ignoreCache ?? false,
@@ -110,7 +109,6 @@ export class DataService<T> extends Service {
                 limit,
                 page,
                 page_size: pageSize,
-                include_permissions: includePermissions,
                 include_count: includeCount,
                 include_extra_headers: includeExtraHeaders,
               },
@@ -121,8 +119,10 @@ export class DataService<T> extends Service {
             return processListResult<ListDataResponse<TData>, TData>(result, { includeCount, includeExtraHeaders });
           })
           .catch(this.handleError<ListDataResponse<TData>>)
+          .then(ensureListResultCount)
           .then((res) => this._handleCallbacks<ListDataResponse<TData>>(res, throwOnError)),
       {
+        __throwOnError: throwOnError,
         __op: 'list',
         __query: {
           target: 'data',
@@ -130,7 +130,7 @@ export class DataService<T> extends Service {
           op: 'list',
           filter: {},
           args: { skip, limit, page, pageSize },
-          options: { includePermissions, includeCount, includeExtraHeaders },
+          options: { includeCount },
         },
         __requestConfig: reqConfig,
         __service: this,
@@ -154,7 +154,6 @@ export class DataService<T> extends Service {
     const select = (args?.select ?? this._defaults.listAdvancedArgs.select) as TSelect | undefined;
 
     const {
-      includePermissions = this._defaults.listAdvancedOptions.includePermissions ?? false,
       includeCount = this._defaults.listAdvancedOptions.includeCount ?? false,
       includeExtraHeaders = this._defaults.listAdvancedOptions.includeExtraHeaders ?? false,
       ignoreCache = this._defaults.listAdvancedOptions.ignoreCache ?? false,
@@ -177,7 +176,7 @@ export class DataService<T> extends Service {
               limit,
               page,
               pageSize,
-              options: { includePermissions, includeCount, includeExtraHeaders },
+              options: { includeCount, includeExtraHeaders },
             },
             reqConfig,
           )
@@ -192,10 +191,12 @@ export class DataService<T> extends Service {
             });
           })
           .catch(this.handleError<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>>)
+          .then(ensureListResultCount)
           .then((res) =>
             this._handleCallbacks<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
           ),
       {
+        __throwOnError: throwOnError,
         __op: 'listAdvanced',
         __query: {
           target: 'data',
@@ -203,7 +204,7 @@ export class DataService<T> extends Service {
           op: 'list',
           filter: _filter,
           args: { select, sort, skip, limit, page, pageSize },
-          options: { includePermissions, includeCount, includeExtraHeaders },
+          options: { includeCount },
         },
         __requestConfig: reqConfig,
         __service: this,
@@ -220,10 +221,7 @@ export class DataService<T> extends Service {
     options?: DataReadOptions,
     axiosRequestConfig?: RequestConfig,
   ) {
-    const {
-      includePermissions = this._defaults.readOptions.includePermissions ?? true,
-      ignoreCache = this._defaults.readOptions.ignoreCache ?? false,
-    } = options ?? {};
+    const { ignoreCache = this._defaults.readOptions.ignoreCache ?? false } = options ?? {};
 
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
@@ -231,20 +229,16 @@ export class DataService<T> extends Service {
     return makeRequest<DataResponse<TData>>(
       () =>
         this._axios
-          .get(
-            `${this._basePath}/${identifier}`,
-            mergeConfig(reqConfig, {
-              params: { include_permissions: includePermissions },
-            }),
-          )
+          .get(`${this._basePath}/${encodePathSegment(identifier)}`, reqConfig)
           .then(this.handleSuccess)
           .then((result: DataResponse<TData>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<DataResponse<TData>>)
           .then((res) => this._handleCallbacks<DataResponse<TData>>(res, throwOnError)),
       {
+        __throwOnError: throwOnError,
         __op: 'read',
         __query: {
           target: 'data',
@@ -252,7 +246,7 @@ export class DataService<T> extends Service {
           op: 'read',
           id: identifier,
           args: {},
-          options: { includePermissions },
+          options: {},
         },
         __requestConfig: reqConfig,
         __service: this,
@@ -266,10 +260,8 @@ export class DataService<T> extends Service {
     options?: DataReadAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
   ): DataRequest<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> {
-    const { ignoreCache = this._defaults.readAdvancedArgs.ignoreCache ?? false } = args ?? {};
     const select = (args?.select ?? this._defaults.readAdvancedArgs.select) as TSelect | undefined;
-
-    const { includePermissions = this._defaults.readAdvancedOptions.includePermissions ?? true } = options ?? {};
+    const { ignoreCache = this._defaults.readAdvancedOptions.ignoreCache ?? false } = options ?? {};
 
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
@@ -277,10 +269,10 @@ export class DataService<T> extends Service {
     return makeRequest<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(
       () =>
         this._axios
-          .post(`${this._basePath}/${this._queryPath}/${identifier}`, { select }, reqConfig)
+          .post(`${this._basePath}/${this._queryPath}/${encodePathSegment(identifier)}`, { select }, reqConfig)
           .then(this.handleSuccess)
           .then((result: DataResponse<ResolvedSelectedShape<T, TSelect, TData>>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>>)
@@ -288,6 +280,7 @@ export class DataService<T> extends Service {
             this._handleCallbacks<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
           ),
       {
+        __throwOnError: throwOnError,
         __op: 'readAdvanced',
         __query: {
           target: 'data',
@@ -295,7 +288,7 @@ export class DataService<T> extends Service {
           op: 'read',
           id: identifier,
           args: { select },
-          options: { includePermissions },
+          options: {},
         },
         __requestConfig: reqConfig,
         __service: this,
@@ -310,9 +303,7 @@ export class DataService<T> extends Service {
     axiosRequestConfig?: RequestConfig,
   ): DataRequest<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>> {
     const select = (args?.select ?? this._defaults.readAdvancedArgs.select) as TSelect | undefined;
-    const { ignoreCache = this._defaults.readAdvancedArgs.ignoreCache ?? false } = args ?? {};
-
-    const { includePermissions = this._defaults.readAdvancedOptions.includePermissions ?? true } = options ?? {};
+    const { ignoreCache = this._defaults.readAdvancedOptions.ignoreCache ?? false } = options ?? {};
 
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
@@ -324,7 +315,7 @@ export class DataService<T> extends Service {
           .post(`${this._basePath}/${this._queryPath}/__filter`, { filter: _filter, select }, reqConfig)
           .then(this.handleSuccess)
           .then((result: DataResponse<ResolvedSelectedShape<T, TSelect, TData>>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>>)
@@ -332,6 +323,7 @@ export class DataService<T> extends Service {
             this._handleCallbacks<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
           ),
       {
+        __throwOnError: throwOnError,
         __op: 'readAdvancedFilter',
         __query: {
           target: 'data',
@@ -339,7 +331,7 @@ export class DataService<T> extends Service {
           op: 'read',
           filter: _filter,
           args: { select },
-          options: { includePermissions },
+          options: {},
         },
         __requestConfig: reqConfig,
         __service: this,
