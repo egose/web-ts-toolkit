@@ -45,12 +45,20 @@ const assets = {
 
 
 const toc = [{
+  "value": "Supported Runtimes",
+  "id": "supported-runtimes",
+  "level": 2
+}, {
   "value": "Relationship To The Server",
   "id": "relationship-to-the-server",
   "level": 2
 }, {
   "value": "Installation",
   "id": "installation",
+  "level": 2
+}, {
+  "value": "Unreleased Migration",
+  "id": "unreleased-migration",
   "level": 2
 }, {
   "value": "What It Exposes",
@@ -105,6 +113,7 @@ function _createMdxContent(props) {
   const _components = {
     a: "a",
     code: "code",
+    em: "em",
     h1: "h1",
     h2: "h2",
     h3: "h3",
@@ -113,6 +122,7 @@ function _createMdxContent(props) {
     ol: "ol",
     p: "p",
     pre: "pre",
+    strong: "strong",
     ul: "ul",
     ...(0,lib/* useMDXComponents */.R)(),
     ...props.components
@@ -157,6 +167,64 @@ function _createMdxContent(props) {
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "reset()"
         }), ", and dirty tracking"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "supported-runtimes",
+      children: "Supported Runtimes"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The package is officially supported in ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Node 22+"
+      }), " and ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "modern evergreen\nbrowsers"
+      }), " (Chrome 94+, Edge 94+, Firefox 93+, Safari 16+):"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "package.json"
+        }), " ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "engines.node: \">=22\""
+        }), " — npm/pnpm warn or refuse on older Node"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "package.json"
+        }), " ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "browserslist: [\"supports es2022-module\"]"
+        }), " — bundlers narrow to the same browser floor"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "tsup.config.ts"
+        }), " ships the bundle at the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "es2022"
+        }), " syntax intersection of\nboth runtimes; the source imports no Node built-ins, so the same\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "dist/index.mjs"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "dist/index.js"
+        }), " run in either environment"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "withCredentials: true"
+        }), " is the adapter default; in the browser this\ntransmits cookies + the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Authorization"
+        }), " header (see ", (0,jsx_runtime.jsx)(_components.a, {
+          href: "./adapter#cache-controls",
+          children: "Cache Controls"
+        }), " for how credentialed cache partitioning mirrors it\non Node). The cache's ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "setTimeout"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "clearTimeout"
+        }), " and feature-detected\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "unref()"
+        }), " guard work in both runtimes."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "pnpm --filter @web-ts-toolkit/access-router-client test:browser-smoke"
+        }), "\nruns a jsdom + Vite smoke test against the ", (0,jsx_runtime.jsx)(_components.em, {
+          children: "built"
+        }), " ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "dist/index.mjs"
+        }), " and\nfails if a Node built-in leaks into the bundle or the bundle emits\nsyntax the declared ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "browserslist"
+        }), " floor cannot run."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "relationship-to-the-server",
@@ -240,6 +308,61 @@ function _createMdxContent(props) {
         children: "pnpm add @web-ts-toolkit/access-router-client\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "unreleased-migration",
+      children: "Unreleased Migration"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "The remediation release changes several consumer-visible contracts:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["subdocuments are plain data; use parent-scoped helper mutations and read\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "SubDocumentListResponse.count"
+        }), ", not ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Model.save()"
+        }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "totalCount"
+        })]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "subdocument create always returns an array; model create preserves object\nversus array input cardinality"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "Response"
+        }), " is discriminated by ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "success"
+        }), "; failure ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "data"
+        }), " is ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "null"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["caching remains off at ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "cacheTTL: 0"
+        }), "; enabled caches are supported-GET-only,\ncredential-partitioned, and bounded to 100 LRU entries by default"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["each lazy request can execute directly or in one group, never both; grouped\nrequests require one effective ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "throwOnError"
+        }), " policy"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["data services no longer accept permission options or non-string sorts, and\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "countAdvanced"
+        }), " is ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "countAdvanced(filter, config?)"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["strict filters require deliberate ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DottedPathFilter"
+        }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ServerSideCast"
+        }), "\nescape hatches for dynamic paths or server-side casting"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["dynamic path values are encoded once, caller configs remain immutable, and\nmissing persistence identity on an existing projected model throws\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "MissingPersistenceIdentityError"
+        }), " instead of creating a duplicate"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["See the installed package README and repository ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "CHANGELOG.md"
+      }), " for the full\nbefore/after migration table."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "what-it-exposes",
       children: "What It Exposes"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
@@ -272,7 +395,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { createAdapter } from '@web-ts-toolkit/access-router-client';\n\ninterface User {\n  _id?: string;\n  name: string;\n  role: string;\n  public: boolean;\n}\n\nconst adapter = createAdapter({\n  baseURL: 'http://localhost:3000/api',\n});\n\nconst userService = adapter.createModelService<User>({\n  modelName: 'User',\n  basePath: 'users',\n});\n\nconst listResponse = await userService.listAdvanced(\n  { role: 'admin' },\n  { select: ['name', 'role'], limit: 10 },\n  { includeCount: true },\n);\n\nconst user = await userService.read('user-id-1');\n\nuser.data.role = 'owner';\nawait user.data.save();\n\nconst grouped = await adapter.group(\n  userService.readAdvanced('user-id-1', { select: ['name'] }),\n  userService.countAdvanced({ role: 'admin' }),\n);\n"
+        children: "import { createAdapter } from '@web-ts-toolkit/access-router-client';\n\ninterface User {\n  _id?: string;\n  name: string;\n  role: string;\n  public: boolean;\n}\n\nconst adapter = createAdapter({\n  baseURL: 'http://localhost:3000/api',\n});\n\nconst userService = adapter.createModelService<User>({\n  modelName: 'User',\n  basePath: 'users',\n});\n\nconst listResponse = await userService.listAdvanced(\n  { role: 'admin' },\n  { select: ['name', 'role'], limit: 10 },\n  { includeCount: true },\n);\n\nconst user = await userService.read('user-id-1');\n\nif (user.success) {\n  user.data.role = 'owner';\n  await user.data.save();\n}\n\nconst grouped = await adapter.group(\n  userService.readAdvanced('user-id-1', { select: ['name'] }),\n  userService.countAdvanced({ role: 'admin' }),\n);\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "typical-workflow",
@@ -333,11 +456,11 @@ function _createMdxContent(props) {
       id: "response-shape",
       children: "Response shape"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Most service methods resolve to a normalized shape:"
+      children: "Most service methods resolve to a discriminated response union:"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "interface Response<TRaw, TData = TRaw> {\n  success: boolean;\n  raw: TRaw;\n  data: TData;\n  message: string;\n  status: number;\n  headers: Record<string, string>;\n}\n"
+        children: "interface SuccessResult<TRaw, TData = TRaw> {\n  success: true;\n  raw: TRaw;\n  data: TData;\n  message: string;\n  status: number;\n  headers: Record<string, string>;\n}\n\ninterface FailureResult<TError = unknown> {\n  success: false;\n  raw: TError | null;\n  data: null;\n  message: string;\n  status: number;\n  headers: Record<string, string>;\n}\n\ntype Response<TRaw, TData = TRaw, TError = unknown> = SuccessResult<TRaw, TData> | FailureResult<TError>;\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Common conventions:"
@@ -346,6 +469,38 @@ function _createMdxContent(props) {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "success === true"
         }), " means the HTTP request completed and the router operation succeeded"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["on the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "success: true"
+        }), " branch, ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "raw"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "data"
+        }), " are non-null"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["on the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "success: false"
+        }), " branch, ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "data"
+        }), " is always ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "null"
+        }), "; ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "raw"
+        }), " is ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "unknown"
+        }), " by default or an opt-in ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "TError"
+        }), " payload, and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "message"
+        }), " is extracted from structured problem payloads when possible"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["branch on ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "result.success"
+        }), " to narrow ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "raw"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "data"
+        }), " to their successful shapes or to the documented error payload"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "raw"
@@ -356,10 +511,6 @@ function _createMdxContent(props) {
         }), " holds higher-level client objects such as ", (0,jsx_runtime.jsx)(_components.code, {
           children: "Model<T>"
         }), " wrappers for model reads"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "message"
-        }), " is populated for errors and is extracted from structured problem payloads when possible"]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "For list-style responses:"
@@ -367,13 +518,29 @@ function _createMdxContent(props) {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "totalCount"
-        }), " is present on list response types"]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "when the server returns count metadata, the client normalizes it into that field"
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["when count metadata is not requested, ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " is present on model list response types (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ListModelResponse<T>"
+        }), "); for subdocument list responses (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "SubDocumentListResponse<S>"
+        }), "), the sibling server emits ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "count"
+        }), " instead, and that type carries ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "count"
+        }), " (not ", (0,jsx_runtime.jsx)(_components.code, {
           children: "totalCount"
-        }), " may be ", (0,jsx_runtime.jsx)(_components.code, {
+        }), ")"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["model/data list failures initialize ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "totalCount: 0"
+        }), "; subdocument callers\nshould narrow on ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "success"
+        }), " before reading the successful list's ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "count"
+        })]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "when the server returns count metadata, the client normalizes it into the appropriate field"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["when count metadata is not requested, the count field may be ", (0,jsx_runtime.jsx)(_components.code, {
           children: "0"
         }), " or a fallback based on the route shape"]
       }), "\n"]

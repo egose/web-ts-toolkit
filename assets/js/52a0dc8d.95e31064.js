@@ -67,8 +67,8 @@ const toc = [{
   "id": "subdocument-helpers",
   "level": 2
 }, {
-  "value": "Important return-shape note for subdocument helpers",
-  "id": "important-return-shape-note-for-subdocument-helpers",
+  "value": "Return shape",
+  "id": "return-shape",
   "level": 3
 }, {
   "value": "Example",
@@ -78,6 +78,10 @@ const toc = [{
   "value": "<code>DataService&lt;T&gt;</code>",
   "id": "dataservicet",
   "level": 2
+}, {
+  "value": "Advanced read options",
+  "id": "advanced-read-options",
+  "level": 3
 }, {
   "value": "Example",
   "id": "example-2",
@@ -102,6 +106,7 @@ function _createMdxContent(props) {
     li: "li",
     p: "p",
     pre: "pre",
+    strong: "strong",
     ul: "ul",
     ...(0,lib/* useMDXComponents */.R)(),
     ...props.components
@@ -189,11 +194,21 @@ function _createMdxContent(props) {
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "countAdvanced(filter, args?, axiosRequestConfig?)"
+          children: "countAdvanced(filter, axiosRequestConfig?)"
         })
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "These methods map closely to the server-side model router operations."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "create(...)"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createAdvanced(...)"
+      }), " preserve input cardinality: one object\nreturns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelResponse<T>"
+      }), ", while an array returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ArrayModelResponse<T>"
+      }), ".\nOne-item arrays still return arrays."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "In broad terms:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
@@ -355,6 +370,44 @@ function _createMdxContent(props) {
         children: ["use ", (0,jsx_runtime.jsx)(_components.code, {
           children: "includeExtraHeaders"
         }), " when the server exposes count metadata through headers rather than body metadata"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "ignoreCache"
+        }), " always lives on the ", (0,jsx_runtime.jsx)(_components.strong, {
+          children: "options"
+        }), " argument (never on args); use ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ ignoreCache: true }"
+        }), " to bypass an existing cache entry"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "includePermissions"
+        }), " is honored by ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ModelService<T>"
+        }), " advanced and mutation methods (including ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "update(...)"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "upsert(...)"
+        }), ", which transmit it as the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "include_permissions"
+        }), " query parameter). ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DataService<T>"
+        }), " does ", (0,jsx_runtime.jsx)(_components.strong, {
+          children: "not"
+        }), " advertise ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "includePermissions"
+        }), " at all — the server data routers do not parse ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "include_permissions"
+        }), ", so the client removed it from ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DataListOptions"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DataListAdvancedOptions"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DataReadOptions"
+        }), "; data records are returned without ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "_permissions"
+        }), ". See the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DataService<T>"
+        }), " section below for details."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "example",
@@ -421,7 +474,7 @@ function _createMdxContent(props) {
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "create(data, axiosRequestConfig?)"
+          children: "create(data | data[], axiosRequestConfig?)"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
@@ -451,53 +504,108 @@ function _createMdxContent(props) {
         children: "subs.someField.create"
       }), ", the client helper exists but the request will still be rejected by the server."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "important-return-shape-note-for-subdocument-helpers",
-      children: "Important return-shape note for subdocument helpers"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Subdocument helpers intentionally expose more of the raw route payload."
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "In practice:"
+      id: "return-shape",
+      children: "Return shape"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Subdocument helpers return ", (0,jsx_runtime.jsxs)(_components.strong, {
+        children: ["plain data, not ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Model<S>"
+        }), " instances"]
+      }), "."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "subs(...).list(...)"
-        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "listAdvanced(...)"
-        }), " return data in ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "raw"
-        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "data"
-        }), " is not wrapped into ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "Model"
-        }), " instances"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "subs(...).read(...)"
+          children: "list(...)"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "readAdvanced(...)"
+          children: "listAdvanced(...)"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "create(...)"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "update(...)"
         }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "delete(...)"
-        }), " also keep the useful payload in ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "bulkUpdate(...)"
+        }), " return a ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "SubDocumentListResponse<S>"
+        }), ": after narrowing on ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "success"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "raw"
-        })]
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "data"
+        }), " are the ", (0,jsx_runtime.jsx)(_components.strong, {
+          children: "plain array"
+        }), " of subdocument objects and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "count"
+        }), " is the array length. The sibling server never emits ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "totalCount"
+        }), " on subdocument list results, so ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "SubDocumentListResponse<S>"
+        }), " does ", (0,jsx_runtime.jsx)(_components.strong, {
+          children: "not"
+        }), " carry ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "totalCount"
+        }), " (use ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "count"
+        }), " on successful results instead)."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "read(...)"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "readAdvanced(...)"
+        }), " return a ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "SubDocumentResponse<S>"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "raw"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "data"
+        }), " are the ", (0,jsx_runtime.jsx)(_components.strong, {
+          children: "plain single"
+        }), " subdocument object on success, or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "null"
+        }), " on failure."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["If you are handling subdocument routes, prefer reading from ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "raw"
-      }), " unless you have verified the higher-level ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "data"
-      }), " shape you want."]
+      children: ["Subdocuments are deliberately not wrapped as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Model<S>"
+      }), ": a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Model<S>"
+      }), " returned here would expose ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "save()"
+      }), ", which would target the ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "parent"
+      }), " model route (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/:parentId"
+      }), ") with the subdocument ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), " instead of the correct subdocument route (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/:parentId/:sub/:subId"
+      }), "). To persist a subdocument, always call the parent-scoped helper explicitly:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "await statusHistory.update(subId, { label: 'processed' });\nawait statusHistory.create({ label: 'queued', flag: 'orange' });\nawait statusHistory.bulkUpdate([{ _id: subId, label: 'processed' }]);\nawait statusHistory.delete(subId);\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "create(...)"
+      }), " accepts a single object ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "or"
+      }), " an array of objects (the server's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "subMutationBodySchema"
+      }), " is ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "z.union([record, array(record)])"
+      }), "). It always returns the post-create subdocument ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "array"
+      }), " — the server responds with the full subdocument list, and the client normalizes the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "count === 1"
+      }), " case to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "[newDoc]"
+      }), " for one consistent shape."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "example-1",
       children: "Example"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "const statusHistory = userService.id(userId).subs('statusHistory');\n\nconst created = await statusHistory.create({\n  label: 'queued',\n  flag: 'orange',\n});\n\nconst listed = await statusHistory.list();\n\nconst bulkUpdated = await statusHistory.bulkUpdate([\n  { _id: 'sub-1', label: 'approved', flag: 'green' },\n  { _id: 'sub-2', label: 'rejected', flag: 'red' },\n]);\n"
+        children: "const statusHistory = userService.id(userId).subs('statusHistory');\n\n// `created.data` is the plain post-create array (e.g. all entries on the\n// parent). `created.raw` is the same array; `created.count` is its length.\nconst created = await statusHistory.create({\n  label: 'queued',\n  flag: 'orange',\n});\nconst newDoc = created.data[created.data.length - 1];\n\n// `create(...)` also accepts an array when adding multiple rows at once:\nconst createdMany = await statusHistory.create([\n  { label: 'queued', flag: 'orange' },\n  { label: 'in-review', flag: 'blue' },\n]);\nconst added = createdMany.data.slice(-2);\n\n// `listed.data` is the plain array of subdocuments; `listed.count` mirrors\n// the server's `count` field (not `totalCount`).\nconst listed = await statusHistory.list();\n\n// `bulkUpdated.data` is the plain updated array.\nconst bulkUpdated = await statusHistory.bulkUpdate([\n  { _id: 'sub-1', label: 'approved', flag: 'green' },\n  { _id: 'sub-2', label: 'rejected', flag: 'red' },\n]);\n\n// `read.data` is the plain single subdocument (or null on 404).\nconst read = await statusHistory.read('sub-1');\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "dataservicet",
@@ -545,12 +653,47 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Use it when the server data source is not a Mongoose model router and does not need client-side persistence helpers."
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "advanced-read-options",
+      children: "Advanced read options"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["For ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "readAdvanced(...)"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "readAdvancedFilter(...)"
+      }), ":"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "ignoreCache"
+        }), " lives on the ", (0,jsx_runtime.jsx)(_components.strong, {
+          children: "options"
+        }), " argument (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DataReadAdvancedOptions"
+        }), "), not on the args. Use ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ ignoreCache: true }"
+        }), " in the options position to bypass an existing cache entry. This matches the placement used by ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "list"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "listAdvanced"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "read"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "includePermissions"
+        }), " is intentionally absent. The access-router data router body schema for advanced reads rejects the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "options"
+        }), " key, and the root router drops ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "item.options"
+        }), " for data operations, so advertising it here was a type-level promise the server cannot honor. Direct and grouped advanced reads compose identical payloads as a result."]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "example-2",
       children: "Example"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "const fruits = await fruitService.listAdvanced(\n  { public: true },\n  { select: ['id', 'name'], limit: 10 },\n  { includeCount: true },\n);\n\nconst apple = await fruitService.readAdvanced('apple', { select: ['name'] });\n"
+        children: "const fruits = await fruitService.listAdvanced(\n  { public: true },\n  { select: ['id', 'name'], limit: 10 },\n  { includeCount: true },\n);\n\nconst apple = await fruitService.readAdvanced('apple', { select: ['name'] });\n\n// Cache-bypass on an advanced read uses the options position:\nconst freshApple = await fruitService.readAdvanced(\n  'apple',\n  { select: ['name'] },\n  { ignoreCache: true },\n);\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "request-config-and-errors",

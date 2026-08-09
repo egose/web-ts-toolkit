@@ -47,6 +47,14 @@ const toc = [{
   "id": "adapter-options",
   "level": 2
 }, {
+  "value": "Cache Controls",
+  "id": "cache-controls",
+  "level": 2
+}, {
+  "value": "Browser And Node Runtime",
+  "id": "browser-and-node-runtime",
+  "level": 3
+}, {
   "value": "Matching Server Paths",
   "id": "matching-server-paths",
   "level": 2
@@ -71,9 +79,21 @@ const toc = [{
   "id": "root-batching-with-group",
   "level": 2
 }, {
+  "value": "<code>throwOnError</code> batch policy",
+  "id": "throwonerror-batch-policy",
+  "level": 3
+}, {
+  "value": "Lazy request semantics",
+  "id": "lazy-request-semantics",
+  "level": 3
+}, {
   "value": "Wrapped Endpoints",
   "id": "wrapped-endpoints",
   "level": 2
+}, {
+  "value": "Dynamic path segment encoding",
+  "id": "dynamic-path-segment-encoding",
+  "level": 3
 }, {
   "value": "Cache Behavior",
   "id": "cache-behavior",
@@ -82,6 +102,10 @@ const toc = [{
   "value": "Adapter-Level vs Service-Level Wrap Helpers",
   "id": "adapter-level-vs-service-level-wrap-helpers",
   "level": 2
+}, {
+  "value": "Configuration immutability",
+  "id": "configuration-immutability",
+  "level": 3
 }, {
   "value": "Related Pages",
   "id": "related-pages",
@@ -98,6 +122,7 @@ function _createMdxContent(props) {
     li: "li",
     p: "p",
     pre: "pre",
+    strong: "strong",
     ul: "ul",
     ...(0,lib/* useMDXComponents */.R)(),
     ...props.components
@@ -206,6 +231,31 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "cacheTTL?: number"
         })
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "cachePartition?: CachePartitioner"
+        }), " — required to cache credentialed requests safely (see ", (0,jsx_runtime.jsx)(_components.a, {
+          href: "#cache-controls",
+          children: "Cache Controls"
+        }), "); returning ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "undefined"
+        }), " bypasses the cache for that credentialed request so one identity cannot receive a response created under another"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "cacheCapacity?: number"
+        }), " — bounds the number of cached entries per adapter (defaults to 100 with LRU eviction)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "modelDefaults?: Defaults"
+        }), " — adapter-level defaults inherited by every ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "createModelService<T>(...)"
+        }), " unless overridden per-service"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "dataDefaults?: DataDefaults"
+        }), " — adapter-level defaults inherited by every ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "createDataService<T>(...)"
+        }), " unless overridden per-service"]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Behavior notes:"
@@ -227,7 +277,103 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "cacheTTL > 0"
-        }), " installs in-memory Axios interceptors for cacheable requests"]
+        }), " installs in-memory Axios interceptors for cacheable requests; credentialed caching is off unless ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "cachePartition"
+        }), " returns a stable, non-secret identity token"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "cache-controls",
+      children: "Cache Controls"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["When ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "cacheTTL > 0"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createAdapter(...)"
+      }), " returns an adapter exposing\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "clearCache()"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "disposeCache()"
+      }), ":"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "clearCache()"
+        }), " — drop every cached entry. Call on credential transitions: login, logout, token refresh, tenant change."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "disposeCache()"
+        }), " — drop entries AND release cache timers. Call when the adapter is torn down so they do not keep a Node process alive."]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Credentialed requests are NEVER cached unless ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "cachePartition"
+      }), " is configured,\nto prevent one identity from receiving a response created under another. The\npartition token must be a stable, non-secret value (for example a user id or\ntenant id); sensitive headers (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "authorization"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "cookie"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set-cookie"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "proxy-authorization"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "www-authenticate"
+      }), ") are excluded from cache keys\nregardless of the partition token."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Only GET requests using supported JSON or text response modes are eligible.\nStream/blob/array-buffer/document responses, custom request or response\ntransforms, custom parameter serializers, cancellation-sensitive requests, and\nvalues that cannot be serialized stably bypass both storage and in-flight\ndeduplication. Successful POST/PUT/PATCH/DELETE requests invalidate cached\nreads even when made directly through ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "adapter.axios"
+      }), " without package headers."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "browser-and-node-runtime",
+      children: "Browser And Node Runtime"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The package supports ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "browsers and Node"
+      }), " (maintainer decision, ARC-19).\nThe bundle targets ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "es2022"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "package.json"
+      }), " declares ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "engines.node: \">=22\""
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "browserslist: [\"supports es2022-module\"]"
+      }), "; the same\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dist/index.mjs"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dist/index.js"
+      }), " run in either environment because the\nsource imports no Node built-ins."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "withCredentials: true"
+        }), " (the adapter default) is honored by both Axios's\nbrowser ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "XMLHttpRequest"
+        }), " adapter (sends cookies + ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Authorization"
+        }), ") and the\nNode HTTP adapter (sends the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Cookie"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Authorization"
+        }), " headers you set on\nthe Axios config). The ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "cachePartition"
+        }), " policy above applies identically\nto both runtimes — one identity cannot receive another's cached response."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["The cache timers use ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "setTimeout"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "clearTimeout"
+        }), ", which are\nbrowser-native. The optional Node ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "unref()"
+        }), " optimization is\nfeature-detected and is a no-op in browsers, so ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "clearCache()"
+        }), " and\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "disposeCache()"
+        }), " are safe to call in either runtime."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "pnpm --filter @web-ts-toolkit/access-router-client test:browser-smoke"
+        }), "\nruns a jsdom + Vite smoke test against the built bundle that fails on\nNode-only built-in leaks or unsupported syntax. It also runs as part of\nthe package's default ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "pnpm test"
+        }), "."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "matching-server-paths",
@@ -381,8 +527,30 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "only pass lazy requests returned from this client package"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["only pass lazy requests created by ", (0,jsx_runtime.jsx)(_components.strong, {
+          children: "this"
+        }), " adapter's services — ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "group(...)"
+        }), " rejects requests owned by a different adapter before any network activity begins (each adapter stamps its services with a private identity token so cross-adapter grouping is caught locally)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["never pass a lazy request that has already been awaited (or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".then"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".catch"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".finally"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".exec"
+        }), "'d) — ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "group(...)"
+        }), " rejects already-started requests before any network activity begins, so an executed mutation cannot be replayed through the root router"]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "every grouped request must share the same Axios request config"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["every grouped request must resolve to the same effective ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "throwOnError"
+        }), " policy"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["the requests are serialized into root-router query metadata and sent to ", (0,jsx_runtime.jsx)(_components.code, {
           children: "rootRouterPath"
@@ -410,6 +578,98 @@ function _createMdxContent(props) {
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "The grouped result is an array of normalized response objects in the same order as the input requests."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.h3, {
+      id: "throwonerror-batch-policy",
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "throwOnError"
+      }), " batch policy"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Effective policy follows the same precedence as direct execution: a per-call value overrides the service default, which overrides the adapter default. When that effective policy is ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "true"
+      }), ", every executed entry is normalized and receives its success/failure callback exactly once. The ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "entire batch then rejects"
+      }), " with the first failed entry's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ServiceError"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["When ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "throwOnError"
+      }), " is omitted (or false) on every member, each entry returns its normalized ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ success: false, message, status, data: null, ... }"
+      }), " payload inside the array — the caller is responsible for inspecting ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "result[i].success"
+      }), " per entry. This is the default behavior and matches how partial failures have historically been surfaced."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["A batch is uniform: mixed effective ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "throwOnError"
+      }), " policies reject during preflight, before requests are claimed or network activity begins."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Each grouped operation failure retains the root router's structured problem result in ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "raw"
+      }), ", including ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "code"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "errors"
+      }), " when supplied. Group entry ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "headers"
+      }), " are ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{}"
+      }), ": the current root protocol provides only headers for the outer batch HTTP response, and those are not operation-specific. A transport-level rejection of the outer root request produces one normalized failure per requested entry and invokes every failure callback once before the uniform ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "throwOnError"
+      }), " policy is applied."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "lazy-request-semantics",
+      children: "Lazy request semantics"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Service methods return a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "LazyRequest<T>"
+      }), " — a promise-like object that delays execution until first interaction."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["the request does not execute until you ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "await"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".then()"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".catch()"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".finally()"
+        }), ", or call ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".exec()"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["a single underlying promise is shared across all of those entry points, so repeated chaining (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "req.then(...); req.then(...); req.exec();"
+        }), ") invokes the executor ", (0,jsx_runtime.jsx)(_components.strong, {
+          children: "once"
+        }), " rather than re-issuing the request"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["a synchronous throw from the executor is converted into a promise rejection, so it reaches ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "await"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".catch()"
+        }), " as a normal rejection rather than escaping synchronously from ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".then()"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".exec()"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["batching metadata (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "__op"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "__query"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "__requestConfig"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "__service"
+        }), ") is installed non-enumerably, non-writable, and non-configurably, so it cannot accidentally leak through ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "JSON.stringify"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Object.keys"
+        }), ", spread iteration, or consumer assignment/deletion/redefinition; direct property reads inside the client package (e.g. by ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "group(...)"
+        }), ") still work"]
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "wrapped-endpoints",
       children: "Wrapped Endpoints"
@@ -462,6 +722,77 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "per-call Axios config is merged with the wrapper default config"
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "dynamic-path-segment-encoding",
+      children: "Dynamic path segment encoding"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Each value interpolated into a URL — whether a wrapper ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pathParams"
+      }), " value, a model/data service ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "identifier"
+      }), ", a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "distinct"
+      }), " field, or subdocument ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "id"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sub"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "subId"
+      }), " segments — is encoded exactly once with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "encodeURIComponent"
+      }), " before being placed in the path."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Behavior to keep in mind:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Static route separators (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "/"
+        }), ") and server route names (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "distinct"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "count"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "new"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "__query"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "__mutation"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "__filter"
+        }), ", your configured ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "queryPath"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "mutationPath"
+        }), ") are inserted by the client verbatim and are never encoded."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Values containing ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "/"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "?"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "#"
+        }), ", space, or any other URL-significant character are percent-encoded, so an identifier such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "a/b"
+        }), " becomes the single path segment ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "a%2Fb"
+        }), ". The server receives and decodes it as one literal segment rather than splitting on the slash."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Already-encoded values are re-encoded (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "%"
+        }), " becomes ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "%25"
+        }), "). An input of ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "%2F"
+        }), " is sent as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "%252F"
+        }), " so that, after a single server-side decode, the route sees the literal ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "%2F"
+        }), " string — not a ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "/"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Raw identifiers are retained in any JSON-RPC metadata sent to the root router; encoding applies only to HTTP path construction."
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "This is useful when:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
@@ -480,12 +811,12 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["When ", (0,jsx_runtime.jsx)(_components.code, {
         children: "cacheTTL > 0"
-      }), ", the adapter installs a simple in-memory cache for requests whose internal cache header is not disabled."]
+      }), ", the adapter installs a bounded in-memory cache for eligible GET requests. The package cache header can force a request to bypass caching, but it cannot make a mutation or unsupported response configuration cacheable."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Practical behavior:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "read-style wrappers default to cacheable requests"
+        children: "GET wrappers default to cacheable requests"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "mutation-style wrappers default to cache-disabled requests"
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
@@ -493,18 +824,16 @@ function _createMdxContent(props) {
           children: "ignoreCache: true"
         })]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "cache keys include URL, method, params, body, and non-ignored headers"
+        children: "cache keys include URL, method, params, body, non-sensitive headers, and supported response semantics"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "the default capacity is 100 entries with deterministic LRU eviction"
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "The cache is scoped to the Axios instance created by that adapter. Two adapters do not share a cache."
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Headers matter intentionally here. If your app varies results by headers such as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "Authorization"
-      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "user"
-      }), ", those headers participate in the cache key unless they are part of the small ignored-header set."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "This keeps cached admin and non-admin reads from being treated as the same response."
+      children: ["Headers matter intentionally here. Response-affecting non-sensitive headers\nparticipate in the cache key. Sensitive authentication headers are never\nserialized; use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "cachePartition"
+      }), " to isolate credentialed identities."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "adapter-level-vs-service-level-wrap-helpers",
       children: "Adapter-Level vs Service-Level Wrap Helpers"
@@ -526,6 +855,75 @@ function _createMdxContent(props) {
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "For service-level wrappers, the service base path is prepended automatically."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "configuration-immutability",
+      children: "Configuration immutability"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "The adapter never mutates caller-owned configuration objects. Three internal sites historically mutated their inputs; each has been replaced with a non-mutating equivalent:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "Service.updateHeaders(headers, { ignoreCache })"
+        }), " returns a fresh headers object that includes the package-owned ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "CACHE_HEADER"
+        }), " (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "\"true\""
+        }), " for cache-eligible, ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "\"false\""
+        }), " for bypass). An ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "AxiosHeaders"
+        }), " instance is cloned via ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "new AxiosHeaders(headers.toJSON())"
+        }), " before any value is set; a plain-object headers input is shallow-copied. Caller-supplied ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "CACHE_HEADER"
+        }), " wins over the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ignoreCache"
+        }), " default."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "getWrapContext(url, options, config)"
+        }), " no longer writes ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "queryParams"
+        }), " into the passed ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "config.params"
+        }), ". It returns ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ ...config, params: queryParams }"
+        }), " (or a fresh ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ params }"
+        }), " when only query params are supplied), leaving the caller's ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "config"
+        }), " untouched."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "prepareConfig(defaultConfig, cacheValue, requestConfig)"
+        }), " no longer stamps ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "CACHE_HEADER"
+        }), " onto the captured ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "defaultConfig"
+        }), ". It clones ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "defaultConfig.headers"
+        }), " into a new object, sets the cache header on the clone, and feeds a spread copy of ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "defaultConfig"
+        }), " into ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "mergeConfig"
+        }), ", so repeated wrapper invocations against the same captured default are order-independent and leave the default equal to its original shape."]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Practical implications:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["the same caller ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "axiosRequestConfig"
+        }), " object can be reused across many requests (success and failure) without acquiring hidden cache controls or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "params"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["the same ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "AxiosHeaders"
+        }), " instance can be passed to multiple service methods without being mutated."]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "wrapper default configs captured at adapter/service construction remain stable across the adapter's lifetime."
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "related-pages",
       children: "Related Pages"

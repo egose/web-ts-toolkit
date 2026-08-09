@@ -269,9 +269,41 @@ function _createMdxContent(props) {
           children: "3.1.0"
         }), "."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["Duplicate routes are replaced by ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "method + path"
-        }), ", so later registrations win."]
+        children: ["By default the OpenAPI registry is strict: registering the same ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "method"
+        }), " + ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "path"
+        }), "\nwith a non-equivalent descriptor throws ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "OpenApiCollisionError"
+        }), ", and reusing an\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "operationId"
+        }), " already bound to another route throws as well. Equivalent\nre-registrations marked with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "idempotent: true"
+        }), " (for example the root batch\nroute ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "root.query"
+        }), ") are still accepted as no-ops, so mounting the same routers\nmore than once on the same runtime is safe."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["To override an existing descriptor intentionally, set ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "allowReplace: true"
+        }), " on\nthe new descriptor. ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "allowReplace"
+        }), " still validates operation-ID uniqueness, so\nit cannot be used to steal another route's ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "operationId"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Low-level callers that need legacy silent-replacement behavior for migration\ncan construct ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "OpenApiRegistry"
+        }), " directly with\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ rejectConflicts: false, rejectDuplicateOperationIds: false }"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["The inline Swagger UI script safely embeds the spec path; characters such as\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "</script>"
+        }), ", quotes, ampersands, and the U+2028 / U+2029 line separators in a\ncustom ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "jsonPath"
+        }), " are escaped so they remain data and cannot terminate the\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "<script>"
+        }), " element."]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "The OpenAPI router documents generated routes only; your custom Express endpoints need separate registration if you want them in the same spec."
       }), "\n"]
