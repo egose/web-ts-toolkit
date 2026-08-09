@@ -39,7 +39,7 @@ website/docs/packages/access-router-client/adapter.mdx	7	0163fd5b071be33002cca19
 website/docs/packages/access-router-client/adapter.mdx	8	6240133c23b4f9aa0846f3db543b10dbe27f1cebf953c090778ef2cb323db748	partial	group-wrapper.ts
 website/docs/packages/access-router-client/adapter.mdx	9	01f1153df6973011f6c5a108fbd2c69f8b8bf193e0a25e63de4ba4a569676447	partial	group-wrapper.ts
 website/docs/packages/access-router-client/index.md	1	a4cc07f36b293f2635c4a9483cbc596785491f8abbc6035fad4f14afc6d21fd0	derived	readme-quickstart.ts
-website/docs/packages/access-router-client/index.md	2	6c8945b58fcdd3da6d13bacb171a0de4daea4a28a1627564ce2f53955c0508c7	derived	types-responses.ts
+website/docs/packages/access-router-client/index.md	2	767a31378fc5a8402f4fe2f6bd92e8c6c37c9fee829b79ea02602782bfeb6005	derived	types-responses.ts
 website/docs/packages/access-router-client/index.md	3	26574f0623cb1cf32581187499c5f6ba8f723ec534034412f97071c79cbf55cb	derived	adapter-setup.ts
 website/docs/packages/access-router-client/model.mdx	1	8593879a98b8ffa877bf8c1741fa78986b6009738eebaefac1b9e0e57443be09	derived	model-basics.ts
 website/docs/packages/access-router-client/model.mdx	2	50fa35b4772ea219a757e830a787762ff8f7b259dd68ca06539794e25b8bf2ad	derived	model-basics.ts
