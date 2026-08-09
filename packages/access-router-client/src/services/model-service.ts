@@ -7,6 +7,7 @@ import {
   ResolvedSelectedShape,
   Response,
   ModelResponse,
+  ArrayModelResponse,
   ListModelResponse,
   ResponseCallback,
 } from '../types';
@@ -36,7 +37,7 @@ import { Model } from '../model';
 import { Service } from './service';
 import { replaceSubQuery, encodePathSegment } from '../helpers';
 import { cloneConfigWithCacheBypass } from './interceptors';
-import { createResponseHandler, processListResult, setDefaultObjectProp } from './shared';
+import { createResponseHandler, ensureListResultCount, processListResult, setDefaultObjectProp } from './shared';
 import { makeRequest } from './request';
 import { buildSubDocumentOps } from './sub-ops';
 
@@ -72,7 +73,7 @@ export class ModelService<T extends Document> extends Service {
     { axios, modelName, basePath, queryPath, mutationPath, onSuccess, onFailure, throwOnError }: Props,
     defaults?: Defaults,
   ) {
-    super(axios, basePath);
+    super(axios, basePath, throwOnError);
 
     this._modelName = modelName;
     this._queryPath = queryPath;
@@ -155,6 +156,7 @@ export class ModelService<T extends Document> extends Service {
             );
           })
           .catch(this.handleError<ListModelResponse<T, TData>>)
+          .then(ensureListResultCount)
           .then((res) => this._handleCallbacks<ListModelResponse<T, TData>>(res, throwOnError)),
       {
         __throwOnError: throwOnError,
@@ -241,6 +243,7 @@ export class ModelService<T extends Document> extends Service {
             );
           })
           .catch(this.handleError<ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>)
+          .then(ensureListResultCount)
           .then((res) =>
             this._handleCallbacks<ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
           ),
@@ -264,24 +267,49 @@ export class ModelService<T extends Document> extends Service {
     );
   }
 
-  create<TData extends Partial<T> = T>(data: object, options?: CreateOptions, axiosRequestConfig?: RequestConfig) {
+  create<TData extends Partial<T> = T>(
+    data: object[],
+    options?: CreateOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ArrayModelResponse<T, TData>>;
+  create<TData extends Partial<T> = T>(
+    data: object,
+    options?: CreateOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ModelResponse<T, TData>>;
+  create<TData extends Partial<T> = T>(
+    data: object | object[],
+    options?: CreateOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ModelResponse<T, TData> | ArrayModelResponse<T, TData>> {
     const { includePermissions = this._defaults.createOptions.includePermissions ?? true } = options ?? {};
     const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
-    return makeRequest<ModelResponse<T, TData>>(
+    const bulk = Array.isArray(data);
+    return makeRequest<ModelResponse<T, TData> | ArrayModelResponse<T, TData>>(
       () =>
         this._axios
           .post(this._basePath, data, mergeConfig(reqConfig, { params: { include_permissions: includePermissions } }))
           .then(this.handleSuccess)
-          .then((result: ModelResponse<T, TData>) => {
+          .then((result: ModelResponse<T, TData> | ArrayModelResponse<T, TData>) => {
             // ARC-21: the server echoes `_id` on create; mark the wrapper
             // as a persisted document so a later save() cannot become a
             // duplicate create if a downstream consumer strips `_id`.
-            result.data = result.success ? Model.create<T, TData>(result.raw, this, undefined, true) : null;
+            if (result.success) {
+              if (bulk) {
+                const rows = (Array.isArray(result.raw) ? result.raw : [result.raw]) as TData[];
+                result.raw = rows;
+                result.data = rows.map((row) => Model.create<T, TData>(row, this, undefined, true));
+              } else {
+                result.data = Model.create<T, TData>(result.raw as TData, this, undefined, true);
+              }
+            }
             return result;
           })
-          .catch(this.handleError<ModelResponse<T, TData>>)
-          .then((res) => this._handleCallbacks<ModelResponse<T, TData>>(res, throwOnError)),
+          .catch(this.handleError<ModelResponse<T, TData> | ArrayModelResponse<T, TData>>)
+          .then((res) =>
+            this._handleCallbacks<ModelResponse<T, TData> | ArrayModelResponse<T, TData>>(res, throwOnError),
+          ),
       {
         __throwOnError: throwOnError,
         __op: 'create',
@@ -301,11 +329,26 @@ export class ModelService<T extends Document> extends Service {
   }
 
   createAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
+    data: object[],
+    args?: CreateAdvancedArgs<TSelect>,
+    options?: CreateAdvancedOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ArrayModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>;
+  createAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
     data: object,
     args?: CreateAdvancedArgs<TSelect>,
     options?: CreateAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ): ModelRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
+  ): ModelRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>;
+  createAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
+    data: object | object[],
+    args?: CreateAdvancedArgs<TSelect>,
+    options?: CreateAdvancedOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<
+    | ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>
+    | ArrayModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>
+  > {
     const { populate = this._defaults.createAdvancedArgs.populate, tasks = this._defaults.createAdvancedArgs.tasks } =
       args ?? {};
     const select = (args?.select ?? this._defaults.createAdvancedArgs.select) as TSelect | undefined;
@@ -317,7 +360,10 @@ export class ModelService<T extends Document> extends Service {
 
     const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
-    return makeRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(
+    type Selected = ResolvedSelectedShape<T, TSelect, TData>;
+    type CreateResult = ModelResponse<T, Selected> | ArrayModelResponse<T, Selected>;
+    const bulk = Array.isArray(data);
+    return makeRequest<CreateResult>(
       () =>
         this._axios
           .post(
@@ -326,19 +372,23 @@ export class ModelService<T extends Document> extends Service {
             reqConfig,
           )
           .then(this.handleSuccess)
-          .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
+          .then((result: CreateResult) => {
             // ARC-21: createAdvanced returns the freshly-persisted doc with
             // server-assigned `_id`; mark as existing so a subsequent save()
             // cannot become a duplicate create if a consumer drops `_id`.
-            result.data = result.success
-              ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this, undefined, true)
-              : null;
+            if (result.success) {
+              if (bulk) {
+                const rows = (Array.isArray(result.raw) ? result.raw : [result.raw]) as Selected[];
+                result.raw = rows;
+                result.data = rows.map((row) => Model.create<T, Selected>(row, this, undefined, true));
+              } else {
+                result.data = Model.create<T, Selected>(result.raw as Selected, this, undefined, true);
+              }
+            }
             return result;
           })
-          .catch(this.handleError<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>)
-          .then((res) =>
-            this._handleCallbacks<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
-          ),
+          .catch(this.handleError<CreateResult>)
+          .then((res) => this._handleCallbacks<CreateResult>(res, throwOnError)),
       {
         __throwOnError: throwOnError,
         __op: 'createAdvanced',
@@ -477,7 +527,7 @@ export class ModelService<T extends Document> extends Service {
           .delete(`${this._basePath}/${encodePathSegment(identifier)}`, reqConfig)
           .then(this.handleSuccess)
           .then((result: Response<string>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<Response<string>>)
@@ -508,8 +558,10 @@ export class ModelService<T extends Document> extends Service {
           .get(`${this._basePath}/new`, reqConfig)
           .then(this.handleSuccess)
           .then((result: ModelResponse<T, TData>) => {
-            delete result.raw._id;
-            result.data = result.success ? Model.create<T, TData>(result.raw, this) : null;
+            if (result.success) {
+              delete result.raw._id;
+              result.data = Model.create<T, TData>(result.raw, this);
+            }
             return result;
           })
           .catch(this.handleError<ModelResponse<T, TData>>)
@@ -539,7 +591,7 @@ export class ModelService<T extends Document> extends Service {
           .get(`${this._basePath}/distinct/${encodePathSegment(field)}`, reqConfig)
           .then(this.handleSuccess)
           .then((result: Response<string[]>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<Response<string[]>>)
@@ -570,7 +622,7 @@ export class ModelService<T extends Document> extends Service {
           .post(`${this._basePath}/distinct/${encodePathSegment(field)}`, { filter: conditions }, reqConfig)
           .then(this.handleSuccess)
           .then((result: Response<string[]>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<Response<string[]>>)
@@ -602,7 +654,7 @@ export class ModelService<T extends Document> extends Service {
           .get(`${this._basePath}/count`, reqConfig)
           .then(this.handleSuccess)
           .then((result: Response<number>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<Response<number>>)
@@ -632,7 +684,7 @@ export class ModelService<T extends Document> extends Service {
           .post(`${this._basePath}/count`, { filter }, reqConfig)
           .then(this.handleSuccess)
           .then((result: Response<number>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<Response<number>>)
@@ -992,9 +1044,11 @@ export class ModelService<T extends Document> extends Service {
 
   id(id: string) {
     return {
-      subs: <S = T>(field: keyof T) => {
+      subs: <S = never, K extends keyof T = keyof T>(field: K) => {
         const sub = String(field);
-        return buildSubDocumentOps<S>(
+        return buildSubDocumentOps<
+          [S] extends [never] ? (NonNullable<T[K]> extends readonly (infer TItem)[] ? TItem : never) : S
+        >(
           {
             axios: this._axios,
             basePath: this._basePath,

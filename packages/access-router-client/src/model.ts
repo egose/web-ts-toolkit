@@ -113,8 +113,8 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
    *    user did concurrently re-modify, the local value is preserved and
    *    the dirty flag is retained so the concurrent edit is resubmitted on
    *    the next `save()`. (Deterministic conflict rule: the newer local
-   *    edit wins for the same path; the server value is discarded for that
-   *    path.)
+   *    edit wins for the same path; the server value becomes its reset
+   *    baseline without replacing the newer local value.)
    * 4. On failure, no dirty state is cleared and no local value is
    *    overwritten; the caller can retry `save()` with the same set.
    * 5. The return value echoes `{ ...result, data }` where `data` is a
@@ -182,6 +182,10 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     // we submitted? If so, the local edit is newer than the server's view
     // for that path and must not be overwritten.
     const isConcurrentEdit = (path: string): boolean => {
+      if (!submittedPaths.has(path)) {
+        return this.modifiedPaths.has(path);
+      }
+
       const current = getValue(this._data, path);
       const submitted = submittedValues[path];
       return !isEqual(current, submitted);
@@ -244,10 +248,15 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     for (const key of Object.keys(dataRecord)) {
       const normKey = this.normalizePath(key);
       if (this.modifiedPaths.has(normKey)) {
-        // Preserve the pre-save baseline for concurrently-edited paths so a
-        // later reset() — pending the user deciding whether to keep or
-        // discard the concurrent edit — rewinds them to the prior baseline.
-        nextSnapshot[key] = cloneDeep((this._snapshot as unknown as Record<string, unknown>)[key]);
+        if (submittedPaths.has(normKey)) {
+          // A concurrent edit stays local and dirty, but reset returns to what
+          // this save persisted. Some update responses omit submitted fields.
+          nextSnapshot[key] = cloneDeep(hasOwn(serverData, key) ? serverData[key] : submittedValues[normKey]);
+        } else {
+          // This save did not persist the concurrent edit, so retain its prior
+          // reset baseline even if the response also contains that field.
+          nextSnapshot[key] = cloneDeep((this._snapshot as unknown as Record<string, unknown>)[key]);
+        }
       } else {
         nextSnapshot[key] = cloneDeep(dataRecord[key]);
       }
@@ -360,7 +369,7 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
   }
 
   private initializeDirtyState() {
-    if (this._data._id) {
+    if (this._fromExisting || this._data._id) {
       return;
     }
 

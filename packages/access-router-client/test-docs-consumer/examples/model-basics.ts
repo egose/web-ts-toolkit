@@ -56,7 +56,8 @@ if (draft.success) {
     role: 'author',
     public: true,
   });
-  const saved: ModelResponse<User> = await draft.data.save();
+  const saved = await draft.data.save();
+  saved satisfies ModelResponse<User>;
   void saved;
 
   draft.data.role = 'owner';
@@ -80,6 +81,7 @@ const weirdService = adapter.createModelService<WeirdDoc>({
 });
 const doc = await weirdService.read('1');
 if (doc.success) {
+  void typeof doc.data.save;
   // `save` is a model method, so the document field named `save` must be
   // reached via collision-safe `get(...)`/`set(...)` rather than the direct
   // property syntax. The compiled snippet proves the field coexists with
@@ -101,3 +103,27 @@ const freshDraft = new Model(
   userService,
 );
 await freshDraft.save();
+
+const user = await userService.read('user-id-1');
+if (user.success) {
+  const baseline = user.data.role;
+  user.data.role = 'maintainer';
+  user.data.isDirty('role');
+  user.data.role = baseline;
+  user.data.isDirty('role');
+  user.data.role = 'owner';
+  user.data.reset();
+  user.data.assign({ role: 'admin', public: true });
+}
+
+{
+  const draft = new Model(
+    {
+      name: 'draft-user',
+      role: 'author',
+      public: true,
+    },
+    userService,
+  );
+  await draft.save();
+}

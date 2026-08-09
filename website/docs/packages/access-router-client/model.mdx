@@ -171,11 +171,20 @@ read.data.isDirty('statusHistory');
 Behavior:
 
 - if `_id` exists, `save()` calls `service.update(...)`
-- if `_id` is missing, `save()` calls `service.create(...)`
+- an ID-based read retains its persistence identity even when the projection
+  excludes `_id`, so `save()` still updates the original route
+- if `_id` and captured persistence identity are both missing on a draft,
+  `save()` calls `service.create(...)`
+- if the wrapper represents an existing document but has no recoverable
+  identity, `save()` throws `MissingPersistenceIdentityError` before network
+  activity instead of silently creating a duplicate
 - on success, the model snapshot is replaced with the latest persisted state and the dirty set is cleared, except for top-level fields you concurrently re-edited while the request was in flight (those fields retain their newer local value and stay dirty so the next `save()` re-sends them)
 - on failure, the model remains dirty so you can correct and retry
 
 `save()` returns the normalized service response shape, not just the raw document. That means you can inspect `success`, `status`, `message`, `raw`, and `data` just like other client calls.
+
+Import `MissingPersistenceIdentityError` from the package root when a projected
+filter/list read may intentionally omit `_id` and you need to handle that case.
 
 Example:
 

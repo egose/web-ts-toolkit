@@ -1,4 +1,4 @@
-import { AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
+import { AxiosHeaders, AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
 import { CACHE_HEADER } from '../constants';
 import { getWrapContext } from '../helpers';
 import { WrapOptions } from '../types';
@@ -23,12 +23,8 @@ function prepareConfig(
   cacheValue: string,
   requestConfig?: AxiosRequestConfig,
 ): AxiosRequestConfig {
-  const baseHeaders = defaultConfig.headers;
-  const headerClone: Record<string, unknown> =
-    baseHeaders && typeof baseHeaders === 'object' && !(baseHeaders instanceof Array)
-      ? { ...(baseHeaders as Record<string, unknown>) }
-      : {};
-  headerClone[CACHE_HEADER] = cacheValue;
+  const headerClone = new AxiosHeaders(defaultConfig.headers);
+  headerClone.set(CACHE_HEADER, cacheValue);
 
   const defaulted: AxiosRequestConfig = { ...defaultConfig, headers: headerClone };
   return mergeConfig(defaulted, requestConfig);

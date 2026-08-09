@@ -49,7 +49,7 @@ Confirmed on 2026-08-09 against the uncommitted worktree:
 
 ### Task ARC-F01: Capture Cache Identity For The Request Lifecycle
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -87,9 +87,17 @@ Acceptance criteria:
 - In-flight state is empty after fulfillment, rejection, clear/dispose handling, and identity transition.
 - Focused cache tests and `pnpm --filter @web-ts-toolkit/access-router-client test` pass.
 
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/services/interceptors.ts`, `packages/access-router-client/test/access-router-client.cache.unit.test.ts`.
+- Regression coverage: delayed partition transition, overlapping pre/post-`clear()` generations, and `dispose()` with multiple active tails.
+- Verified: `pnpm exec vitest run --config ../../vitest.config.ts test/access-router-client.cache.unit.test.ts` (20 tests passed).
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test` (208 Node tests and 10 browser tests passed).
+- Verified: `git diff --check` passed.
+
 ### Task ARC-F02: Enforce Method And Response Cache Eligibility
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -129,9 +137,19 @@ Acceptance criteria:
 - Default cache size is finite and deterministic under high-cardinality reads.
 - Node and browser cache tests pass.
 
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/services/interceptors.ts`, `packages/access-router-client/src/adapter.ts`, `packages/access-router-client/test/access-router-client.cache.unit.test.ts`, `packages/access-router-client/test/access-router-client.arc22-adversarial.unit.test.ts`.
+- Documentation: `packages/access-router-client/README.md`, `packages/access-router-client/llms.txt`, `website/docs/packages/access-router-client/adapter.mdx` now document GET-only eligibility, unsafe-config bypass, mutation invalidation, and the default 100-entry LRU capacity.
+- Regression coverage: raw POST/PUT/PATCH/DELETE independence, unsupported response-mode isolation, custom transform/serializer/adapter and cancellation bypass, response-semantic key separation, and default-capacity eviction.
+- Verified: `pnpm exec vitest run --config ../../vitest.config.ts test/access-router-client.cache.unit.test.ts test/access-router-client.arc22-adversarial.unit.test.ts` (40 tests passed).
+- Verified: focused ESLint passed with no findings.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test` (217 Node tests and 10 browser tests passed).
+- Verified: `git diff --check` passed.
+
 ### Task ARC-F03: Claim Lazy Requests For Exactly One Execution Mode
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -170,11 +188,21 @@ Acceptance criteria:
 - Consumer assignment, deletion, and `Object.defineProperty` cannot rewrite batching metadata or execution state.
 - Foreign-adapter and mixed-config preflight failures still occur before network activity.
 
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/lazy-promise.ts`, `packages/access-router-client/src/adapter.ts`, `packages/access-router-client/test/access-router-client.adapter.integration.test.ts`.
+- Regression coverage: sequential and concurrent grouped mutation replay, grouped-to-direct execution, duplicate-request claim rollback, mixed-config rollback, and metadata/state deletion or redefinition.
+- Verified failing baseline: focused adapter integration suite failed the three new ownership and immutability regressions before implementation.
+- Verified: `pnpm exec vitest run --config ../../vitest.config.ts test/access-router-client.adapter.integration.test.ts` (26 tests passed).
+- Verified: focused ESLint passed with no findings.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test` (220 Node tests and 10 browser tests passed).
+- Verified: `git diff --check` passed.
+
 ## Wave 2: Response And Persistence Correctness
 
 ### Task ARC-F04: Make Grouped Subdocument Results Plain Data
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -211,9 +239,18 @@ Acceptance criteria:
 - Grouped create and bulk-update items have no `save()` and cannot invoke a parent route.
 - Direct/grouped `raw`, `data`, `count`, status, and failure shapes agree.
 
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/services/shared.ts`, `packages/access-router-client/test/access-router-client.arc22-parity.integration.test.ts`.
+- Regression coverage: grouped list/listAdvanced, read/readAdvanced, create, update, and bulk-update return plain data; list-like operations preserve array, `raw`, and `count` shapes; no returned item exposes `save()`.
+- Verified: `pnpm exec vitest run --config ../../vitest.config.ts test/access-router-client.arc22-parity.integration.test.ts` (9 tests passed).
+- Verified: focused ESLint passed with no findings.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test` (220 Node tests and 10 browser tests passed).
+- Verified: `git diff --check` passed.
+
 ### Task ARC-F05: Unify Direct And Grouped Finalization And Error Policy
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -255,9 +292,21 @@ Acceptance criteria:
 - Every grouped entry receives exactly one callback, including entries after a failing entry.
 - Partial-failure and rejecting-batch behavior is documented and tested.
 
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/adapter.ts`, `packages/access-router-client/src/services/service.ts`, `packages/access-router-client/src/services/shared.ts`, `packages/access-router-client/src/services/request.ts`, `packages/access-router-client/src/services/model-service.ts`, `packages/access-router-client/src/services/data-service.ts`, and `packages/access-router-client/src/services/index.ts`.
+- Regression coverage: structured grouped failure `raw`, direct/grouped message parity, empty per-operation grouped headers, adapter/service/per-call `throwOnError` precedence, mixed-policy preflight before dispatch, and callback completion before group rejection.
+- Documentation: `packages/access-router-client/README.md`, `packages/access-router-client/llms.txt`, and `website/docs/packages/access-router-client/adapter.mdx` document partial failures, uniform effective policy, callback/rejection ordering, structured failure payloads, and grouped-header behavior.
+- Verified failing baseline: the focused suites failed five ARC-F05 regressions before implementation.
+- Verified: focused Vitest suites passed (38 tests).
+- Verified: focused ESLint passed with no findings.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client build` passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test` passed (223 Node tests and 10 browser tests).
+- Verified: `git diff --check` passed.
+
 ### Task ARC-F06: Correct Model Save Reconciliation And Projected Dirty State
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -295,11 +344,22 @@ Acceptance criteria:
 - Concurrent edits to submitted and unsubmitted paths retain deterministic local-wins behavior.
 - Failed saves preserve dirty paths and successful saves establish the correct reset baseline.
 
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/model.ts`, `packages/access-router-client/test/access-router-client.model-reconciliation.unit.test.ts`.
+- Regression coverage: projected existing wrappers start clean and submit only explicit edits; server-normalized and generated fields merge; concurrent submitted and unsubmitted edits remain dirty with local-wins behavior; reset retains the merged server baseline while reverting concurrent edits.
+- Existing coverage retained: failed saves preserve dirty paths and ARC-06 same-path/other-path concurrency behavior.
+- Verified: focused Vitest suites passed (22 tests).
+- Verified: focused ESLint passed with no findings.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test` passed (225 Node tests and 10 browser tests).
+- Verified: `git diff --check` passed.
+- Verification limitation: standalone `pnpm typecheck` remains blocked by existing workspace source aliases resolving dependencies outside the package `rootDir`; the package test's transitive build and declaration generation passed.
+
 ## Wave 3: Public Types And Protocol Coverage
 
 ### Task ARC-F07: Make Response And Subdocument Types Truthful
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -340,9 +400,20 @@ Acceptance criteria:
 - No-count and count list calls match declarations and runtime in direct and grouped modes.
 - Negative type tests fail when inference regresses or a success payload becomes `never`.
 
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/types.ts`, `packages/access-router-client/src/services/shared.ts`, `packages/access-router-client/src/services/model-service.ts`, and `packages/access-router-client/src/services/data-service.ts`.
+- Regression coverage: strict declaration consumers infer array elements from `.subs('statusHistory')`, prove success data in both assignment directions so `never` cannot pass silently, retain the explicit generic escape hatch, and verify no-count direct/grouped lists both expose `totalCount: 0`.
+- Verified failing baseline: NodeNext strict compilation rejected inferred subdocument fields and nullable success data; the focused parity suite observed `undefined` for direct no-count `totalCount`.
+- Verified: focused Vitest suites passed (17 tests).
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck:nodenext-strict` and `typecheck:bundler-strict` passed.
+- Verified: focused ESLint passed with no findings.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test` passed (228 Node tests and 10 browser tests).
+- Verified: `git diff --check` passed.
+
 ### Task ARC-F08: Complete The Operation-By-Operation Protocol Matrix
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -382,9 +453,19 @@ Acceptance criteria:
 - A route/body/option/root-schema change in either sibling package fails the client test gate.
 - No accepted public option is silently ignored.
 
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/services/model-service.ts`, `packages/access-router-client/src/services/data-service.ts`, `packages/access-router-client/src/services/shared.ts`, `packages/access-router-client/src/adapter.ts`, and focused integration/declaration fixtures.
+- Protocol matrix: all 33 public model, data, subdocument, and `id(...).fetch()` operation variants are enumerated with their sibling root target/operation; real-router regressions cover exact root serialization, direct advanced-data option bodies, grouped subdocument delete/failure, and direct/grouped result normalization.
+- Public contract: model `create(...)` and `createAdvanced(...)` now preserve scalar/array input cardinality; one-item arrays return `ArrayModelResponse`, while scalar input retains `ModelResponse`. README, `llms.txt`, website service docs, and strict declaration consumers describe and verify the shape.
+- Additional drift fixed: grouped `new()` removes the server-generated `_id`, top-level root entries omit the subquery-only `model` field, and direct data `listAdvanced()` transmits `includeExtraHeaders`.
+- Verified: focused protocol parity suite passed (19 tests); related model/data/subdocument/url suites passed (63 tests).
+- Verified: NodeNext and Bundler strict declaration-consumer checks passed; focused ESLint passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test` passed (236 Node tests and 10 browser tests).
+
 ### Task ARC-F09: Repair The Package Typecheck Gate
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -422,11 +503,21 @@ Acceptance criteria:
 - NodeNext and Bundler declaration-consumer checks remain green with `strict: true` and `skipLibCheck: false`.
 - The package test or release gate invokes all three checks so future drift is not documented away.
 
+Completion evidence:
+
+- Changed: `packages/access-router-client/package.json`, `packages/access-router-client/tsconfig.typecheck.json`, `packages/access-router-client/src/helpers.ts`, `packages/access-router-client/src/services/shared.ts`, and `packages/access-router-client/src/services/wrap.ts`.
+- Boundary: source typecheck clears inherited workspace source aliases, consumes built dependency declarations, excludes integration tests, targets ES2022, and checks libraries with `skipLibCheck: false`.
+- Diagnostics fixed: subquery marker narrowing, grouped failure normalization input typing, and immutable Axios header cloning.
+- Verification gate: package `typecheck` builds the workspace dependency closure and runs source, strict NodeNext, and strict Bundler checks; package `test` invokes that composite gate before Node and browser tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck` passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test` passed (236 Node tests and 10 browser tests).
+- Verified: focused ESLint and `git diff --check` passed.
+
 ## Wave 4: Release Contract And Integration
 
 ### Task ARC-F10: Publish Migration Notes And Align Documentation
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -465,9 +556,20 @@ Acceptance criteria:
 - Documentation examples compile against the packed artifact under NodeNext and Bundler.
 - Docs no longer claim unbounded cache defaults, incomplete group immutability, or count/result invariants that runtime does not enforce.
 
+Completion evidence:
+
+- Changed: `CHANGELOG.md`, `packages/access-router-client/README.md`, `packages/access-router-client/llms.txt`, all affected website package guides, `packages/access-router-client/test-docs-consumer/examples/services-model.ts`, `packages/access-router-client/test-docs-consumer/snippets-mapping.md`, and the corrected `ListModelResponse` declaration JSDoc in `packages/access-router-client/src/types.ts`.
+- Migration coverage: before/after guidance now covers plain subdocument data and parent-scoped persistence, subdocument `count` versus model/data `totalCount`, scalar/array create cardinality, discriminated response narrowing, disabled/partitioned/bounded cache defaults, one-mode lazy execution, uniform grouped `throwOnError`, narrowed protocol/filter types, path encoding/config immutability, and projected model persistence identity.
+- Documentation alignment: installed and website docs now describe the 100-entry default LRU, supported-GET cache eligibility, non-configurable group metadata, callback-before-rejection batch policy, empty per-entry grouped headers, `MissingPersistenceIdentityError`, and successful subdocument count semantics without claiming direct subdocument failures initialize `count`.
+- Packed compile coverage: the documentation consumer fixture now proves scalar model create returns `ModelResponse` and a one-item array returns `ArrayModelResponse`.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run --config ../../vitest.config.ts test/access-router-client.docs.compile.test.ts` passed (2 tests; strict NodeNext and Bundler compiles against the staged tarball).
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run --config ../../vitest.config.ts test/access-router-client.docs.links.unit.test.ts` passed (5 tests, including live URL probes).
+- Verified: `pnpm --dir website build` passed.
+- Verified: focused ESLint and `git diff --check` passed.
+
 ### Task ARC-F11: Independently Verify The Follow-Up
 
-Status: pending
+Status: completed
 
 Priority: P1 release gate
 
@@ -502,6 +604,58 @@ Acceptance criteria:
 - Packed CJS/ESM execution, NodeNext/Bundler consumers, browser smoke, documentation compile/link checks, and production manifest transformation pass.
 - `git diff --check` passes.
 - No task is marked completed without changed-file evidence, regression-test evidence, and its required command results.
+
+Review result (2026-08-09): completed after resolving the follow-up correctness and release-contract findings and rerunning the release gates.
+
+Resolved blocking findings:
+
+1. P0: a successful mutation clears completed entries without advancing the cache generation or detaching active read slots. A read started before the mutation can resolve afterward, repopulate stale data, and accept post-mutation tails. The existing mutation test starts only after a completed cached read and does not overlap a delayed read with the mutation.
+   - Source: `packages/access-router-client/src/services/interceptors.ts:524-551`
+   - Coverage gap: `packages/access-router-client/test/access-router-client.cache.unit.test.ts:238-264`
+2. P0: grouped request-config preflight skips empty configs. An empty-config request can therefore batch with a credentialed request and execute under the latter's shared headers, contrary to the one-config batch contract.
+   - Source: `packages/access-router-client/src/adapter.ts:278-308`
+   - Coverage gap: `packages/access-router-client/test/access-router-client.adapter.integration.test.ts:68-76`
+3. P1: an outer root transport rejection bypasses per-entry normalization, all entry callbacks, and the effective `throwOnError` policy because only the fulfilled `instance.post(...).then(...)` path is handled.
+   - Source: `packages/access-router-client/src/adapter.ts:339-368`
+   - Direct comparison: `packages/access-router-client/src/services/service.ts:154-178`
+4. P1: grouped finalization unconditionally adds `count` and `totalCount` to every result, while direct scalar/single operations do not. Direct subdocument-list failures also omit their declared `count` and instead inherit `totalCount: 0` from generic error normalization.
+   - Source: `packages/access-router-client/src/services/shared.ts:157-179`
+   - Source: `packages/access-router-client/src/services/service.ts:154-178`
+   - Source: `packages/access-router-client/src/services/sub-ops.ts:34-53`
+5. P1: `FailureResult<T1>.raw` is declared as the success payload type (`T1 | null`), but runtime failures preserve a structured problem payload. Packed declaration fixtures currently assert the incorrect success type in failure branches.
+   - Declaration: `packages/access-router-client/src/types.ts:105-132`
+   - Packed fixture: `packages/access-router-client/test-packed-consumer/consumer/consumer-types.ts:45-55`
+6. P1: the ARC-F08 protocol matrix enumerates 33 lazy metadata values but does not execute every operation directly and grouped or assert each exact method, path, query, body, defaults, success, and failure. Most sibling protocol changes can still pass the gate.
+   - Requirement: `docs/tasks/20260806-144945-access-router-client-review-remediation.md:707-729`
+   - Current matrix: `packages/access-router-client/test/access-router-client.protocol-parity.integration.test.ts:19-68`
+7. P1: the real production manifest transformation replaces the client's declared Node `>=22` engine with the root's Node `>=20` engine. Installed docs consistently claim Node 22+, but the packed-manifest test does not assert `engines`.
+   - Source manifest: `packages/access-router-client/package.json:45-49`
+   - Transformation input: `packages/access-router-client/test/packed-consumer-harness.ts:193-210`
+   - Missing assertion: `packages/access-router-client/test/access-router-client.packed-consumer.test.ts:75-110`
+8. P1: after a successful save with a concurrent same-path edit, `Model.reset()` preserves the pre-save snapshot instead of the latest persisted server value. The new reconciliation test currently codifies that stale baseline despite its server fixture returning a newer normalized value.
+   - Source: `packages/access-router-client/src/model.ts:243-258`
+   - Test: `packages/access-router-client/test/access-router-client.model-reconciliation.unit.test.ts:57-93`
+9. P2: the documentation compile gate compiles manually maintained fixtures but does not read or extract code blocks from README, `llms.txt`, or website docs. A changed or newly broken documentation example can therefore remain unmapped while the gate stays green.
+   - Test: `packages/access-router-client/test/access-router-client.docs.compile.test.ts:8-85`
+   - Manual mapping: `packages/access-router-client/test-docs-consumer/snippets-mapping.md`
+
+Verification evidence:
+
+- Changed for ARC-F11: `packages/access-router-client/src/services/interceptors.ts`, `packages/access-router-client/src/adapter.ts`, `packages/access-router-client/src/services/service.ts`, `packages/access-router-client/src/services/shared.ts`, `packages/access-router-client/src/services/sub-ops.ts`, `packages/access-router-client/src/types.ts`, `packages/access-router-client/src/model.ts`, `packages/access-router-client/test/access-router-client.protocol-parity.integration.test.ts`, `packages/access-router-client/test/access-router-client.cache.unit.test.ts`, `packages/access-router-client/test/access-router-client.adapter.integration.test.ts`, `packages/access-router-client/test/access-router-client.model-reconciliation.unit.test.ts`, `packages/access-router-client/test/access-router-client.packed-consumer.test.ts`, `packages/access-router-client/test/access-router-client.docs.compile.test.ts`, `packages/access-router-client/test/packed-consumer-harness.ts`, `packages/access-router-client/test-packed-consumer/consumer/consumer-types.ts`, `packages/access-router-client/test-docs-consumer/examples/*`, `packages/access-router-client/test-docs-consumer/snippets-mapping.md`, `packages/access-router-client/README.md`, `website/docs/packages/access-router-client/services.mdx`, `package.json`, `pnpm-workspace.yaml`, and `patches/@repo-toolkit__publish-package@0.7.2.patch`.
+- Regression coverage: overlapping mutation/read cache generations, grouped empty-vs-credentialed config rejection, grouped outer transport failure normalization and callback/`throwOnError` policy, direct/grouped count own-property parity, truthful structured failure `raw` types, all 33 protocol operations directly and grouped, packed manifest `engines.node`, model reset baseline reconciliation after concurrent edits, and mapped documentation source fragments in compiled fixtures.
+- Passed: `pnpm --filter @web-ts-toolkit/access-router-client typecheck`.
+- Passed: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run --config ../../vitest.config.ts test/access-router-client.protocol-parity.integration.test.ts` (89 tests).
+- Passed: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run --config ../../vitest.config.ts test/access-router-client.docs.compile.test.ts` (2 tests; strict NodeNext and Bundler docs compiles against the staged tarball).
+- Passed: `pnpm --filter @web-ts-toolkit/access-router-client test` (310 Node tests and 10 jsdom/Vite browser-smoke tests).
+- Passed serially: `pnpm lint`, `pnpm build`, and `pnpm test`.
+- Passed: `pnpm --dir website build`.
+- Passed: `pnpm build-artifact -- --version 0.32.0` and `pnpm verify-artifact -- --version 0.32.0`; artifact verification succeeded (build emitted non-fatal pnpm bin-link warnings).
+- Passed: `git diff --check`.
+- Independent review: fresh reviewer found no remaining high/medium release-blocking findings. Residual risk is limited to reliance on the reported full-gate results; no additional expensive commands were rerun by the reviewer.
+
+Blocker resolution:
+
+- Findings 1-9 are covered by failing regressions, source/type/docs/release fixes, full gate results, and fresh independent review evidence above.
 
 ## Dependency And Parallelization Guidance
 

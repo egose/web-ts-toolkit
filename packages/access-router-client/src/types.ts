@@ -109,9 +109,9 @@ export interface SuccessResult<T1, T2 = T1> {
  * problem payload when possible; `status` is the failing HTTP status
  * (or `0` when no response was received).
  */
-export interface FailureResult<T1> {
+export interface FailureResult<TError = unknown> {
   success: false;
-  raw: T1 | null;
+  raw: TError | null;
   data: null;
   message: string;
   status: number;
@@ -123,13 +123,13 @@ export interface FailureResult<T1> {
  * `raw`/`data` to their successful shapes or to the documented error
  * payload.
  *
- * `T1` is the `raw` payload type (the server response body before client
- * wrapping); `T2` is the `data` payload type (after client wrapping, e.g.
- * `Model<T>`). On failure, both are erased — `raw` becomes `T1 | null`
- * and `data` becomes `null` — so reading `result.data` without narrowing
- * is no longer a way to silently read the success payload.
+ * `T1` is the successful `raw` payload type; `T2` is the successful `data`
+ * payload type (after client wrapping, e.g. `Model<T>`). `TError` is the
+ * optional server error payload type and defaults to `unknown`. On failure,
+ * `data` is `null` and `raw` is `TError | null`, never the success payload
+ * type unless a caller explicitly chooses that error type.
  */
-export type Response<T1, T2 = T1> = SuccessResult<T1, T2> | FailureResult<T1>;
+export type Response<T1, T2 = T1, TError = unknown> = SuccessResult<T1, T2> | FailureResult<TError>;
 
 export type ModelResponse<T extends Document, TData extends Partial<T> = T> = Response<TData, Model<T, TData> & TData>;
 export type ArrayModelResponse<T extends Document, TData extends Partial<T> = T> = Response<
@@ -137,12 +137,10 @@ export type ArrayModelResponse<T extends Document, TData extends Partial<T> = T>
   (Model<T, TData> & TData)[]
 >;
 /**
- * `ListModelResponse` always carries `totalCount` on the success branch;
- * failures do not (the count metadata is meaningless when the request
- * failed). The field defaults to `0` at runtime when the server did not
- * emit count metadata (`includeCount: false`), so callers that read it
- * without narrowing still see a deterministic number rather than
- * `undefined`.
+ * `ListModelResponse` always carries `totalCount` on both branches. The field
+ * defaults to `0` at runtime on failure or when the server did not emit count
+ * metadata (`includeCount: false`), so callers that read it without narrowing
+ * see a deterministic number rather than `undefined`.
  */
 export type ListModelResponse<T extends Document, TData extends Partial<T> = T> = ArrayModelResponse<T, TData> & {
   totalCount: number;
@@ -159,7 +157,7 @@ export type ListModelResponse<T extends Document, TData extends Partial<T> = T> 
  * `SubDocumentResponse` is the single-document shape; `data` is the plain
  * subdocument payload or `null` on failure.
  */
-export type SubDocumentResponse<S, TData extends Partial<S> = S> = Response<TData, TData | null>;
+export type SubDocumentResponse<S, TData extends Partial<S> = S> = Response<TData, TData>;
 
 /**
  * Subdocument list/array responses. `data` is the plain array of subdocument

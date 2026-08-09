@@ -56,6 +56,7 @@ export type PackageJson = {
   types?: string;
   bin?: Record<string, string> | string;
   exports?: Record<string, unknown>;
+  engines?: Record<string, string>;
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;

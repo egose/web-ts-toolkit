@@ -24,6 +24,26 @@ pnpm add @web-ts-toolkit/access-router-client
 - `Model<T>` wrappers with dirty tracking and `save()`
 - normalized response and error handling around Axios
 
+## Unreleased Migration
+
+This remediation release tightens several public runtime and TypeScript
+contracts. When upgrading from the previous client contract:
+
+| Area                                 | Before                                                                                                                         | After / required migration                                                                                                                                                                                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Subdocuments                         | Results could expose parent-backed `Model<S>` values and `save()`.                                                             | Results are plain objects/arrays. Persist with the parent-scoped `subs(...)` helper's `update`, `create`, `bulkUpdate`, or `delete` methods.                                                                                                                        |
+| Create and list counts               | Subdocument create looked scalar and subdocument lists used `totalCount`; model create was scalar-only.                        | Subdocument create accepts one or many and always returns the post-create array with `count`. Model create preserves input cardinality: object -> `ModelResponse`, array -> `ArrayModelResponse`. Model/data lists retain `totalCount`.                             |
+| Responses                            | Failure `data` and success fields could not be narrowed reliably.                                                              | Branch on `result.success`. Success has non-null `raw`/`data`; failure has `data: null` and the problem payload in `raw`. Model/data `totalCount` defaults to `0` when metadata is unavailable; read subdocument `count` after success.                             |
+| Cache                                | An enabled cache could be unbounded and credentialed requests did not require an explicit identity partition.                  | Cache is still off by default (`cacheTTL: 0`). Enabled caches admit supported GETs only, default to a 100-entry LRU, and require `cachePartition` for credentialed requests. Clear on identity changes and dispose on teardown.                                     |
+| Grouping                             | A lazy request could be replayed or moved between direct and grouped execution; batch error policy could drift by entry.       | Each lazy request can be claimed once. Create a new request to execute again. All group members must share one effective `throwOnError` policy. Non-throwing batches return all entries; throwing batches run all callbacks and then reject with the first failure. |
+| Protocol types                       | Data permission options, object/tuple data sorts, and a count access argument were accepted. Filters were broadly permissive.  | Remove `includePermissions` from data calls, use string data sorts, call `countAdvanced(filter, config?)`, and fix invalid `FilterQuery<T>` values. Use `DottedPathFilter<T>` or `ServerSideCast<T>` only as explicit escape hatches.                               |
+| Paths, config, and model persistence | Dynamic path values were interpolated directly, inputs could be mutated, and projected models could lose persistence identity. | Pass raw path values for one-pass encoding; caller configs stay immutable. ID-based projected reads retain identity, while an existing model with no recoverable identity throws `MissingPersistenceIdentityError`. Use `set()`/`markModified()` for nested edits.  |
+
+Grouped entry `headers` are now `{}` because the root protocol has no
+per-operation headers. Structured grouped failure fields remain in `raw`.
+The complete release-level before/after record is in the repository
+`CHANGELOG.md`.
+
 ## Quick Start
 
 ```ts
@@ -80,8 +100,11 @@ consumer needs:
   cached unless `cachePartition` returns a stable, non-secret identity token.
   Sensitive headers (`authorization`, `cookie`, `set-cookie`,
   `proxy-authorization`, `www-authenticate`) are excluded from cache keys
-  regardless of the partition token. `cacheTTL: 0` (the default) disables the
-  cache entirely. `clearCache()` drops every cached entry; `disposeCache()`
+  regardless of the partition token. Only GET requests with supported JSON or
+  text response semantics are cached; mutations and custom transforms or
+  serializers always bypass caching. `cacheTTL: 0` (the default) disables the
+  cache entirely, while enabled caches retain at most 100 entries by default.
+  `clearCache()` drops every cached entry; `disposeCache()`
   drops entries and releases cache timers (call on adapter teardown so timers
   do not keep a Node process alive).
 - **Direct vs grouped:** service methods return a lazy `LazyRequest<T>` that
@@ -89,13 +112,21 @@ consumer needs:
   `.exec()`. `adapter.group(...)` batches multiple lazy requests into one
   root-router round trip; it only accepts lazy requests from **this**
   adapter's services, rejects already-started requests, and requires every
-  member to share the same `AxiosRequestConfig`. Once you `await` a lazy
-  request it is no longer batchable. Group results preserve input order.
-- **Response narrowing:** `Response<TRaw, TData = TRaw>` is a discriminated
-  union of `SuccessResult<TRaw, TData>` and `FailureResult<TRaw>`. Branch on
+  member to share the same `AxiosRequestConfig` and effective `throwOnError`
+  policy. Effective policy follows per-call, service, then adapter precedence;
+  mixed policies reject before dispatch. Non-throwing groups return every
+  normalized entry, including partial failures. Throwing groups run every
+  executed entry's callback exactly once, then reject with the first failed
+  entry's `ServiceError`. Once you `await` a lazy request it is no longer
+  batchable. Group results preserve input order. Group entry `headers` are
+  empty because the root protocol supplies only outer batch headers, not
+  per-operation headers.
+- **Response narrowing:** `Response<TRaw, TData = TRaw, TError = unknown>` is a discriminated
+  union of `SuccessResult<TRaw, TData>` and `FailureResult<TError>`. Branch on
   `result.success` — on the `true` branch both `raw` and `data` are non-null;
   on the `false` branch `data` is always `null` (the server error payload
-  lives in `raw`, when one was received). List responses carry `totalCount`
+  lives in `raw`, when one was received). Pass a third generic to opt into a
+  known error payload. List responses carry `totalCount`
   on `ListModelResponse<T>`; subdocument list responses carry `count` (the
   server's field) on `SubDocumentListResponse<S>`, never `totalCount`.
 - **Subdocument shape:** `ModelService<T>.id(id).subs(sub)` helpers return
@@ -105,6 +136,9 @@ consumer needs:
   `create(...)` accepts a single object **or** an array and always returns the
   post-create subdocument array. Persist a subdocument by calling the
   parent-scoped helper explicitly — there is no subdocument `save()`.
+- **Model create cardinality:** `create(...)` and `createAdvanced(...)` accept
+  either one object or an array. Scalar input returns `ModelResponse<T>`;
+  array input returns `ArrayModelResponse<T>`, including for a one-item array.
 - **Nested model edits:** `Model<T>` tracks modified top-level paths and
   reconciles writes against the last loaded/saved snapshot. Direct mutation
   of nested objects/arrays (`obj.arr.push(...)`, `obj.sub.field = x`) is
@@ -137,6 +171,9 @@ import {
   // Thrown when `throwOnError` is enabled and a request resolves to a
   // `{ success: false }` result.
   ServiceError,
+  // Thrown instead of creating a duplicate when an existing projected model
+  // has no recoverable persistence identity.
+  MissingPersistenceIdentityError,
   // Lazy-promise wrapper with non-enumerable metadata and a single
   // shared execution. Used internally by service methods; exported so
   // consumers can build compatible lazy promises for custom batches.
@@ -163,8 +200,10 @@ import type {
   FailureResult,
   // Model and data response aliases.
   ModelResponse,
+  ArrayModelResponse,
   ListModelResponse,
   DataResponse,
+  ArrayDataResponse,
   ListDataResponse,
   SubDocumentResponse,
   SubDocumentListResponse,
@@ -174,11 +213,56 @@ import type {
   DataDefaults,
   // Filter, projection, populate, sort, and request-meta primitives.
   FilterQuery,
+  DottedPathFilter,
+  ServerSideCast,
   Projection,
   Populate,
   Sort,
   Document,
 } from '@web-ts-toolkit/access-router-client';
+
+void [
+  createAdapter,
+  ModelService,
+  DataService,
+  Service,
+  Model,
+  ServiceError,
+  MissingPersistenceIdentityError,
+  wrapLazyPromise,
+  CustomHeaders,
+  replaceItemById,
+  removeItemById,
+];
+
+type StablePublicTypes = [
+  AdapterOptions,
+  ModelServiceOptions,
+  DataServiceOptions,
+  CacheController,
+  CachePartitioner,
+  Response<unknown>,
+  SuccessResult<unknown>,
+  FailureResult,
+  ModelResponse<Document>,
+  ArrayModelResponse<Document>,
+  ListModelResponse<Document>,
+  DataResponse<unknown>,
+  ArrayDataResponse<unknown>,
+  ListDataResponse<unknown>,
+  SubDocumentResponse<unknown>,
+  SubDocumentListResponse<unknown>,
+  Defaults,
+  DataDefaults,
+  FilterQuery<Document>,
+  DottedPathFilter<Document>,
+  ServerSideCast<Document>,
+  Projection,
+  Populate,
+  Sort,
+  Document,
+];
+void (null as unknown as StablePublicTypes);
 ```
 
 Only the names above are part of the stable public surface. The package

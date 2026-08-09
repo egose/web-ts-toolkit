@@ -30,8 +30,9 @@
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
-    "test": "pnpm --filter @web-ts-toolkit/access-router-client... build && vitest run --config ../../vitest.config.ts && vitest run --config vitest.browser.config.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "pnpm typecheck && vitest run --config ../../vitest.config.ts && vitest run --config vitest.browser.config.ts",
+    "typecheck": "pnpm --filter @web-ts-toolkit/access-router-client... build && pnpm typecheck:source && pnpm typecheck:nodenext-strict && pnpm typecheck:bundler-strict",
+    "typecheck:source": "tsc --noEmit -p tsconfig.typecheck.json",
     "typecheck:nodenext-strict": "tsc --noEmit -p test-decl-consumer/tsconfig-nodenext.json",
     "typecheck:bundler-strict": "tsc --noEmit -p test-decl-consumer/tsconfig-bundler.json",
     "test:browser-smoke": "pnpm --filter @web-ts-toolkit/access-router-client build && vitest run --config vitest.browser.config.ts test/access-router-client.browser-smoke.ts"

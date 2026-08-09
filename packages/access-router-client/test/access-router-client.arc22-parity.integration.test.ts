@@ -45,13 +45,30 @@ describe('ARC-22 direct vs grouped parity — errors', () => {
     expect(typeof grouped[0].message).toBe('string');
     expect(direct.message).toBe(grouped[0].message);
 
-    // `raw` is the service-level payload; both paths surface the same shape.
+    // Both transports retain their structured service-level error payload.
     expect(direct.raw).toEqual(expect.any(Object));
     expect(grouped[0].raw).toEqual(expect.any(Object));
+    expect(grouped[0].raw).toMatchObject({ success: false, code: expect.any(String) });
+    expect(direct).not.toHaveProperty('count');
+    expect(direct).not.toHaveProperty('totalCount');
+    expect(grouped[0]).not.toHaveProperty('count');
+    expect(grouped[0]).not.toHaveProperty('totalCount');
   });
 });
 
 describe('ARC-22 direct vs grouped parity — counts', () => {
+  it('list() initializes totalCount to zero in direct and grouped no-count results', async () => {
+    const headers = { headers: { user: 'admin' } };
+
+    const direct = await services.userService.list(undefined, { includeCount: false }, headers);
+    const grouped = await suite.adapter.group(services.userService.list(undefined, { includeCount: false }, headers));
+
+    expect(direct.success).toBe(true);
+    expect(grouped[0].success).toBe(true);
+    expect(direct.totalCount).toBe(0);
+    expect(grouped[0].totalCount).toBe(0);
+  });
+
   it('list(..., { includeCount: true }) returns the same totalCount for direct and grouped calls', async () => {
     const headers = { headers: { user: 'admin' } };
 
@@ -77,6 +94,10 @@ describe('ARC-22 direct vs grouped parity — counts', () => {
     expect(typeof direct.data).toBe('number');
     expect(typeof grouped[0].data).toBe('number');
     expect(direct.data).toBe(grouped[0].data);
+    expect(direct).not.toHaveProperty('count');
+    expect(direct).not.toHaveProperty('totalCount');
+    expect(grouped[0]).not.toHaveProperty('count');
+    expect(grouped[0]).not.toHaveProperty('totalCount');
   });
 
   it('list() returns the same item array length and matching first-item identities for direct and grouped calls', async () => {
@@ -231,6 +252,29 @@ describe('ARC-22 direct vs grouped parity — cache policy', () => {
 });
 
 describe('ARC-22 subdocument isolation — runtime probes', () => {
+  it('gives failed subdocument list-like operations count: 0 and no totalCount in both execution modes', async () => {
+    const parentId = '000000000000000000000f11';
+    const directSubService = services.userService.id(parentId).subs('statusHistory');
+    const headers = { headers: { user: 'admin', 'x-axios-cache': 'false' } };
+    const direct = await Promise.all([
+      directSubService.list(headers),
+      directSubService.create({ label: 'missing', flag: 'red' }, headers),
+      directSubService.bulkUpdate([{ _id: '000000000000000000000f12', flag: 'red' }], headers),
+    ]);
+    const groupedSubService = services.userService.id(parentId).subs('statusHistory');
+    const grouped = await suite.adapter.group(
+      groupedSubService.list(headers),
+      groupedSubService.create({ label: 'missing', flag: 'red' }, headers),
+      groupedSubService.bulkUpdate([{ _id: '000000000000000000000f12', flag: 'red' }], headers),
+    );
+
+    for (const result of [...direct, ...grouped]) {
+      expect(result.success).toBe(false);
+      expect(result).toHaveProperty('count', 0);
+      expect(result).not.toHaveProperty('totalCount');
+    }
+  });
+
   it('every public subdocument op response shape has `save === undefined` (no callable save path)', async () => {
     const parentId = String(seedState.admin._id);
     const subService = services.userService.id(parentId).subs('statusHistory');
@@ -284,17 +328,58 @@ describe('ARC-22 subdocument isolation — runtime probes', () => {
       expect((bulkUpdated.data[0] as { save?: unknown }).save).toBeUndefined();
     }
 
-    // grouped subdocument list path also strips Model wrapping.
-    const grouped = await suite.adapter.group(subService.list({ headers: { user: 'admin' } }));
-    expect(grouped[0].success).toBe(true);
-    const groupedData = grouped[0].data as unknown[];
-    if (groupedData.length > 0) {
-      expect((groupedData[0] as { save?: unknown }).save).toBeUndefined();
-    }
+    // Every grouped subdocument path returns the same plain-data shape as
+    // direct execution and never attaches the parent ModelService.
+    const [groupedList, groupedListAdvanced, groupedRead, groupedReadAdvanced] = await suite.adapter.group(
+      subService.list({ headers: { user: 'admin' } }),
+      subService.listAdvanced({ flag: 'silver' }, undefined, { headers: { user: 'admin' } }),
+      subService.read(subId, { headers: { user: 'admin' } }),
+      subService.readAdvanced(subId, { select: ['label'] }, { headers: { user: 'admin' } }),
+    );
+    expect(groupedList.success).toBe(true);
+    expect(groupedList.raw).toEqual(groupedList.data);
+    expect(groupedList.count).toBe(groupedList.data.length);
+    expect((groupedList.data[0] as { save?: unknown }).save).toBeUndefined();
+    expect(groupedListAdvanced.success).toBe(true);
+    expect(groupedListAdvanced.raw).toEqual(groupedListAdvanced.data);
+    expect((groupedListAdvanced.data[0] as { save?: unknown }).save).toBeUndefined();
+    expect(groupedRead.success).toBe(true);
+    expect(groupedRead.raw).toEqual(groupedRead.data);
+    expect((groupedRead.data as { save?: unknown }).save).toBeUndefined();
+    expect(groupedReadAdvanced.success).toBe(true);
+    expect(groupedReadAdvanced.raw).toEqual(groupedReadAdvanced.data);
+    expect((groupedReadAdvanced.data as { save?: unknown }).save).toBeUndefined();
+
+    const [groupedCreated] = await suite.adapter.group(
+      subService.create({ label: 'grouped', flag: 'violet' }, { headers: { user: 'admin' } }),
+    );
+    expect(groupedCreated.success).toBe(true);
+    expect(Array.isArray(groupedCreated.data)).toBe(true);
+    expect(groupedCreated.raw).toEqual(groupedCreated.data);
+    expect(groupedCreated.count).toBe(groupedCreated.data.length);
+    expect(groupedCreated.data.every((item) => (item as { save?: unknown }).save === undefined)).toBe(true);
+    const groupedSub = groupedCreated.data.find((item) => item.label === 'grouped');
+    expect(groupedSub).toBeDefined();
+    const groupedSubId = String(groupedSub?._id);
+
+    const [groupedUpdated, groupedBulkUpdated] = await suite.adapter.group(
+      subService.update(groupedSubId, { flag: 'indigo' }, { headers: { user: 'admin' } }),
+      subService.bulkUpdate([{ _id: subId, flag: 'bronze' }], { headers: { user: 'admin' } }),
+    );
+    expect(groupedUpdated.success).toBe(true);
+    expect(groupedUpdated.raw).toEqual(groupedUpdated.data);
+    expect((groupedUpdated.data as { save?: unknown }).save).toBeUndefined();
+    expect(groupedBulkUpdated.success).toBe(true);
+    expect(Array.isArray(groupedBulkUpdated.data)).toBe(true);
+    expect(groupedBulkUpdated.raw).toEqual(groupedBulkUpdated.data);
+    expect(groupedBulkUpdated.count).toBe(groupedBulkUpdated.data.length);
+    expect(groupedBulkUpdated.data.every((item) => (item as { save?: unknown }).save === undefined)).toBe(true);
 
     // Cleanup through the parent-scoped helper (the only sanctioned path).
     const deleted = await subService.delete(subId, { headers: { user: 'admin' } });
     expect(deleted.success).toBe(true);
+    const groupedDeleted = await subService.delete(groupedSubId, { headers: { user: 'admin' } });
+    expect(groupedDeleted.success).toBe(true);
   });
 
   it('a subdocument data object cannot be persisted through the parent Model.save route (the parent service rejects subdoc ids)', async () => {

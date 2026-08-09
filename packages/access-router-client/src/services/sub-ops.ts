@@ -27,6 +27,11 @@ interface SubOpsContext<S> {
 
 const toArray = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : value == null ? [] : [value as T]);
 
+const ensureSubdocumentListCount = <T extends { count?: number }>(result: T): T & { count: number } => {
+  result.count ??= 0;
+  return result as T & { count: number };
+};
+
 export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: string) {
   const { axios, basePath, modelName, queryPath, handleSuccess, handleError, _handleCallbacks, parentService } = ctx;
 
@@ -50,6 +55,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               return result;
             })
             .catch(handleError<SubDocumentListResponse<S>>)
+            .then(ensureSubdocumentListCount)
             .then((res) => _handleCallbacks<SubDocumentListResponse<S>>(res, throwOnError)),
         {
           __throwOnError: throwOnError,
@@ -97,6 +103,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               return result;
             })
             .catch(handleError<SubDocumentListResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>)
+            .then(ensureSubdocumentListCount)
             .then((res) =>
               _handleCallbacks<SubDocumentListResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>(res, throwOnError),
             ),
@@ -264,6 +271,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               return result;
             })
             .catch(handleError<SubDocumentListResponse<S>>)
+            .then(ensureSubdocumentListCount)
             .then((res) => _handleCallbacks<SubDocumentListResponse<S>>(res, throwOnError)),
         {
           __throwOnError: throwOnError,
@@ -312,6 +320,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               return result;
             })
             .catch(handleError<SubDocumentListResponse<S>>)
+            .then(ensureSubdocumentListCount)
             .then((res) => _handleCallbacks<SubDocumentListResponse<S>>(res, throwOnError)),
         {
           __throwOnError: throwOnError,
@@ -335,7 +344,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
             )
             .then(handleSuccess)
             .then((result: Response<string>) => {
-              result.data = result.raw;
+              if (result.success) result.data = result.raw;
               return result;
             })
             .catch(handleError<Response<string>>)

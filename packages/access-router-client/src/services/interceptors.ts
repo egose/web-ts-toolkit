@@ -2,6 +2,11 @@ import axios, { AxiosHeaders, AxiosInstance, AxiosResponse, InternalAxiosRequest
 import { CACHE_HEADER } from '../constants';
 import { normalizeConfigValue } from './cache-utils';
 
+const DEFAULT_CACHE_CAPACITY = 100;
+const CACHEABLE_METHODS = new Set(['get']);
+const MUTATION_METHODS = new Set(['post', 'put', 'patch', 'delete']);
+const CACHEABLE_RESPONSE_TYPES = new Set(['', 'json', 'text']);
+
 const SENSITIVE_CACHE_HEADERS = new Set([
   'authorization',
   'cookie',
@@ -41,8 +46,7 @@ export interface CachePolicy {
   onCacheKey?: (key: string) => void;
   /**
    * Maximum number of cache entries retained per adapter. When the limit is
-   * exceeded, the least-recently accessed entry is evicted. Defaults to
-   * unbounded, but callers should set a finite value to bound memory.
+   * exceeded, the least-recently accessed entry is evicted. Defaults to 100.
    */
   capacity?: number;
   /**
@@ -88,16 +92,19 @@ export const cloneConfigWithCacheBypass = <T extends { headers?: unknown }>(conf
 class SimpleCache<T> {
   private cache = new Map<string, T>();
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
-  private readonly capacity: number | undefined;
+  private readonly capacity: number;
   private readonly clone: <U>(value: U) => U;
 
   constructor(opts: { capacity?: number; clone?: <U>(value: U) => U } = {}) {
-    this.capacity = opts.capacity;
+    this.capacity =
+      opts.capacity !== undefined && Number.isFinite(opts.capacity) && opts.capacity > 0
+        ? Math.floor(opts.capacity)
+        : DEFAULT_CACHE_CAPACITY;
     this.clone = opts.clone ?? defaultClone;
   }
 
   set(key: string, value: T, ttl?: number): void {
-    if (this.capacity !== undefined && this.capacity > 0 && this.cache.size >= this.capacity && !this.cache.has(key)) {
+    if (this.cache.size >= this.capacity && !this.cache.has(key)) {
       const oldestKey = this.cache.keys().next().value as string | undefined;
       if (oldestKey !== undefined) {
         this.delete(oldestKey);
@@ -179,6 +186,38 @@ interface CachedResponseSnapshot {
   headers: Record<string, unknown>;
 }
 
+interface InflightSlot {
+  readonly key: string;
+  readonly generation: number;
+  readonly promise: Promise<AxiosResponse>;
+  readonly resolve: (response: AxiosResponse) => void;
+  readonly reject: (error: unknown) => void;
+  settled: boolean;
+}
+
+interface CacheRequestState {
+  readonly key: string;
+  readonly generation: number;
+  readonly role: 'source' | 'tail' | 'hit';
+  readonly slot?: InflightSlot;
+}
+
+const CACHE_REQUEST_STATE = Symbol('access-router-client.cache-request-state');
+const CACHE_DISPOSED_ERROR = 'Access router client cache was disposed while the request was in flight';
+
+type CacheRequestConfig = InternalAxiosRequestConfig & {
+  [CACHE_REQUEST_STATE]?: CacheRequestState;
+};
+
+const setCacheRequestState = (config: InternalAxiosRequestConfig, state: CacheRequestState): void => {
+  Object.defineProperty(config, CACHE_REQUEST_STATE, {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: Object.freeze(state),
+  });
+};
+
 const isUnsupportedResponseBody = (response: AxiosResponse): boolean => {
   const responseType = response.config?.responseType;
   if (
@@ -213,19 +252,6 @@ const snapshotResponse = (response: AxiosResponse): CachedResponseSnapshot => {
   };
 };
 
-const IGNORED_CACHE_HEADERS = new Set([
-  'accept',
-  'accept-encoding',
-  'cache-control',
-  'connection',
-  'content-length',
-  'content-type',
-  'expires',
-  'host',
-  'pragma',
-  'user-agent',
-]);
-
 const serializeHeaders = (headers: InternalAxiosRequestConfig['headers']) => {
   const resolvedHeaders = headers instanceof AxiosHeaders ? headers.toJSON() : headers;
 
@@ -234,7 +260,6 @@ const serializeHeaders = (headers: InternalAxiosRequestConfig['headers']) => {
       const normalizedKey = key.toLowerCase();
       return (
         normalizedKey !== CACHE_HEADER.toLowerCase() &&
-        !IGNORED_CACHE_HEADERS.has(normalizedKey) &&
         !SENSITIVE_CACHE_HEADERS.has(normalizedKey) &&
         value !== undefined
       );
@@ -247,10 +272,75 @@ const serializeHeaders = (headers: InternalAxiosRequestConfig['headers']) => {
   return JSON.stringify(normalizeConfigValue(normalizedHeaders));
 };
 
+const hasStableCacheValue = (value: unknown, seen = new Set<object>()): boolean => {
+  if (value == null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
+    return true;
+  if (typeof value !== 'object') return false;
+  if (seen.has(value)) return false;
+
+  if (value instanceof AxiosHeaders) {
+    return hasStableCacheValue(value.toJSON(), seen);
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) return false;
+
+  seen.add(value);
+  const stable = Object.values(value).every((item) => hasStableCacheValue(item, seen));
+  seen.delete(value);
+  return stable;
+};
+
+const sameTransform = (configured: unknown, defaultValue: unknown): boolean => {
+  const configuredList = Array.isArray(configured) ? configured : [configured];
+  const defaultList = Array.isArray(defaultValue) ? defaultValue : [defaultValue];
+  return (
+    configuredList.length === defaultList.length && configuredList.every((item, index) => item === defaultList[index])
+  );
+};
+
+const sameConfigIdentity = (configured: unknown, defaultValue: unknown): boolean => {
+  if (Array.isArray(configured) && Array.isArray(defaultValue)) {
+    return configured.length === defaultValue.length && configured.every((item, index) => item === defaultValue[index]);
+  }
+  return configured === defaultValue;
+};
+
+const isCacheEligible = (config: InternalAxiosRequestConfig, instance: AxiosInstance): boolean => {
+  const method = (config.method ?? 'get').toLowerCase();
+  const responseType = config.responseType ?? '';
+
+  return (
+    CACHEABLE_METHODS.has(method) &&
+    CACHEABLE_RESPONSE_TYPES.has(responseType) &&
+    config.paramsSerializer === undefined &&
+    config.auth === undefined &&
+    config.signal === undefined &&
+    config.cancelToken === undefined &&
+    config.onDownloadProgress === undefined &&
+    config.onUploadProgress === undefined &&
+    sameConfigIdentity(config.adapter, instance.defaults.adapter) &&
+    sameTransform(config.transformRequest, instance.defaults.transformRequest) &&
+    sameTransform(config.transformResponse, instance.defaults.transformResponse) &&
+    hasStableCacheValue(config.params) &&
+    hasStableCacheValue(config.data) &&
+    hasStableCacheValue(config.headers)
+  );
+};
+
 function generateCacheKey(config: InternalAxiosRequestConfig, partition?: string) {
+  const responseSemantics = JSON.stringify({
+    responseType: config.responseType ?? '',
+    responseEncoding: config.responseEncoding ?? '',
+    decompress: config.decompress ?? true,
+    timeout: config.timeout ?? 0,
+    maxContentLength: config.maxContentLength ?? -1,
+    maxBodyLength: config.maxBodyLength ?? -1,
+    withCredentials: Boolean(config.withCredentials),
+    transitional: normalizeConfigValue(config.transitional),
+  });
   const key = `${config.baseURL}/${config.url}_${config.method}_${generateParamKey(config.params)}_${generateDataKey(
     config.data,
-  )}_${partition ?? ''}_${serializeHeaders(config.headers)}`;
+  )}_${partition ?? ''}_${serializeHeaders(config.headers)}_${responseSemantics}`;
 
   return encodeURI(key);
 }
@@ -282,15 +372,41 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
   // a freshly-cloned snapshot, so concurrent callers see one network round-trip
   // but each gets an independent snapshot per ARC-03 isolation. Mutations and
   // requests that bypass cache do NOT enter this map.
-  const inflight = new Map<string, Promise<AxiosResponse>>();
+  const inflight = new Map<string, InflightSlot>();
+  let generation = 0;
+  let disposed = false;
 
-  const finalizeInflight = (key: string) => {
-    inflight.delete(key);
+  const finalizeInflight = (slot: InflightSlot) => {
+    if (inflight.get(slot.key) === slot) {
+      inflight.delete(slot.key);
+    }
+  };
+
+  const resolveInflight = (slot: InflightSlot, response: AxiosResponse) => {
+    if (slot.settled) return;
+    slot.settled = true;
+    slot.resolve(response);
+    finalizeInflight(slot);
+  };
+
+  const rejectInflight = (slot: InflightSlot, error: unknown) => {
+    if (slot.settled) return;
+    slot.settled = true;
+    slot.reject(error);
+    finalizeInflight(slot);
+  };
+
+  const invalidate = () => {
+    generation += 1;
+    store.clear();
+    // Existing sources and their attached tails retain their slots, but new
+    // requests cannot join reads started before the invalidation boundary.
+    inflight.clear();
   };
 
   instance.interceptors.request.use(
     async (config) => {
-      if (config.headers[CACHE_HEADER] === 'false') return config;
+      if (disposed || config.headers[CACHE_HEADER] === 'false' || !isCacheEligible(config, instance)) return config;
 
       const isCredentialed = resolveWithCredentials(config, withCredentialsDefault);
       const partitionKey = policy.partitionForRequest?.(config);
@@ -305,6 +421,7 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
       // 1) A finished cache hit: serve a fresh clone of the snapshot directly.
       const snapshot = store.get(key);
       if (snapshot) {
+        setCacheRequestState(config, Object.freeze({ key, generation, role: 'hit' }));
         config.adapter = async (_config) => {
           return {
             data: snapshot.data,
@@ -327,7 +444,7 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
         // rejection never surfaces as an unhandledRejection before the
         // caller attaches its own handler (e.g. via Promise.allSettled).
         config.adapter = async (_config) => {
-          const response = await existing;
+          const response = await existing.promise;
           const shared = response as unknown as CachedResponseSnapshot & { config?: unknown };
           return {
             data: defaultClone(shared.data),
@@ -337,6 +454,7 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
             config: _config,
           } as unknown as AxiosResponse;
         };
+        setCacheRequestState(config, Object.freeze({ key, generation, role: 'tail', slot: existing }));
         return config;
       }
 
@@ -347,11 +465,11 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
       //    AxiosError may not carry config through reliably when the adapter
       //    throws a plain Error, so response-interceptor error handling alone
       //    is unsafe.
-      let resolveInflight!: (response: AxiosResponse) => void;
-      let rejectInflight!: (error: unknown) => void;
+      let resolvePromise!: (response: AxiosResponse) => void;
+      let rejectPromise!: (error: unknown) => void;
       const inflightPromise = new Promise<AxiosResponse>((resolve, reject) => {
-        resolveInflight = resolve;
-        rejectInflight = reject;
+        resolvePromise = resolve;
+        rejectPromise = reject;
       });
       // Pre-attach a no-op rejection handler so that if this slot rejects
       // before any tail caller attaches its own handler (e.g. via
@@ -359,19 +477,18 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
       // `inflightPromise` itself. Tail callers re-await `inflightPromise`
       // and re-throw on failure, so the error still reaches them.
       inflightPromise.catch(() => {});
-      inflight.set(key, inflightPromise);
-
-      const nextConfig = {
-        ...config,
-      } as InternalAxiosRequestConfig & {
-        __arcInflightKey?: string;
-        __arcResolve?: typeof resolveInflight;
-        __arcReject?: typeof rejectInflight;
-        adapter?: unknown;
+      const slot: InflightSlot = {
+        key,
+        generation,
+        promise: inflightPromise,
+        resolve: resolvePromise,
+        reject: rejectPromise,
+        settled: false,
       };
-      nextConfig.__arcInflightKey = key;
-      nextConfig.__arcResolve = resolveInflight;
-      nextConfig.__arcReject = rejectInflight;
+      inflight.set(key, slot);
+
+      const nextConfig = { ...config } as InternalAxiosRequestConfig;
+      setCacheRequestState(nextConfig, Object.freeze({ key, generation, role: 'source', slot }));
 
       // Use the original adapter wrapped so we control the in-flight rejection
       // at the source rather than at Axios's response pipeline. Axios's
@@ -405,8 +522,7 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
           const response = await dispatch(adapterConfig);
           return response;
         } catch (error) {
-          rejectInflight(error);
-          finalizeInflight(key);
+          rejectInflight(slot, error);
           throw error;
         }
       };
@@ -422,62 +538,51 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
       // 2xx success so subsequent reads cannot observe the pre-mutation entry.
       // Failed mutations (4xx/5xx) reach the error interceptor below and never
       // invalidate, even when a caller opts into receiving the raw response.
-      if (response.config.headers[CACHE_HEADER] === 'false') {
+      const method = (response.config.method ?? 'get').toLowerCase();
+      if (response.config.headers[CACHE_HEADER] === 'false' || MUTATION_METHODS.has(method)) {
         if (response.status >= 200 && response.status < 300) {
-          store.clear();
+          invalidate();
         }
         return response;
       }
 
-      const isCredentialed = resolveWithCredentials(response.config, withCredentialsDefault);
-      const partitionKey = policy.partitionForRequest?.(response.config);
-
-      if (isCredentialed && !partitionKey) {
+      const state = (response.config as CacheRequestConfig)[CACHE_REQUEST_STATE];
+      if (!state || state.role !== 'source' || !state.slot) {
         return response;
       }
-
-      const key = generateCacheKey(response.config, partitionKey);
-      const inflightSlot = inflight.get(key);
 
       if (response.status >= 200 && response.status < 300) {
-        if (!isUnsupportedResponseBody(response)) {
-          store.set(key, snapshotResponse(response), policy.ttl);
+        if (!disposed && state.generation === generation && !isUnsupportedResponseBody(response)) {
+          store.set(state.key, snapshotResponse(response), policy.ttl);
         }
       }
 
-      if (inflightSlot) {
-        const resolveInflight = (
-          response.config as InternalAxiosRequestConfig & { __arcResolve?: (response: AxiosResponse) => void }
-        ).__arcResolve;
-        if (resolveInflight) {
-          // Other callers receive an independent clone (defaultClone via
-          // SimpleCache.get when they read the snapshot through the cache, but
-          // they have already captured the in-flight snapshot via the adapter
-          // tail; the clone-on-emit there is what protects them).
-          resolveInflight(response);
-        }
-        finalizeInflight(key);
-      }
+      // Tails captured this exact slot in the request phase. Resolving the slot
+      // does not depend on mutable credentials or on its current map ownership.
+      resolveInflight(state.slot, response);
 
       return response;
     },
     (error) => {
-      const config = (error?.config ?? {}) as InternalAxiosRequestConfig & {
-        __arcInflightKey?: string;
-        __arcReject?: (error: unknown) => void;
-      };
-      if (config.__arcInflightKey && config.__arcReject) {
-        config.__arcReject(error);
-        finalizeInflight(config.__arcInflightKey);
+      const state = ((error?.config ?? {}) as CacheRequestConfig)[CACHE_REQUEST_STATE];
+      if (state?.role === 'source' && state.slot) {
+        rejectInflight(state.slot, error);
       }
       return Promise.reject(error);
     },
   );
 
   return {
-    clear: () => store.clear(),
+    clear: invalidate,
     dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      generation += 1;
       store.dispose();
+      const error = new Error(CACHE_DISPOSED_ERROR);
+      for (const slot of inflight.values()) {
+        rejectInflight(slot, error);
+      }
       inflight.clear();
     },
   };

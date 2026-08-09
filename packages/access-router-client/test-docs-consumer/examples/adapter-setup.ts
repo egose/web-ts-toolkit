@@ -50,6 +50,16 @@ const opts: AdapterOptions = {
 };
 void opts;
 
+const runtime = {
+  createRouter(...args: [string, { basePath: string; queryRouteSegment: string }]) {
+    void args;
+  },
+};
+runtime.createRouter('User', {
+  basePath: '/api/users',
+  queryRouteSegment: '__query',
+});
+
 // Match server paths example from adapter.mdx.
 const pathedAdapter = createAdapter({ baseURL: 'http://localhost:3000/api' }, { rootRouterPath: 'root' });
 
@@ -61,3 +71,16 @@ const userService = pathedAdapter.createModelService({
 });
 
 void userService;
+
+// Verbatim executable statements from the documented server-path example.
+{
+  const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' }, { rootRouterPath: 'root' });
+
+  const userService = adapter.createModelService({
+    modelName: 'User',
+    basePath: 'users',
+    queryPath: '__query',
+    mutationPath: '__mutation',
+  });
+  void userService;
+}

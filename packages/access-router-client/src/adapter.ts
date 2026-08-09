@@ -1,14 +1,13 @@
 import axios, { mergeConfig, AxiosRequestConfig } from 'axios';
-import { isEmpty } from '@web-ts-toolkit/utils';
 import { ModelService, DataService } from './services';
 import { DataRequest, ModelRequest, ResponseCallback, Document } from './types';
 import { Defaults, DataDefaults } from './interface';
 import { useCacheInterceptors, type CacheController, type CachePartitioner } from './services/interceptors';
 import { createWrapHelper } from './services/wrap';
 import { normalizeConfigValue } from './services/cache-utils';
-import { applyGroupCallbacks, finalizeRootEntry } from './services/shared';
+import { applyGroupCallbacks, finalizeRootEntry, finalizeRootTransportFailure } from './services/shared';
 import { ADAPTER_ID_KEY } from './services/symbols';
-import { STARTED_KEY } from './lazy-promise';
+import { claimLazyRequest, releaseLazyRequestClaim } from './lazy-promise';
 
 const defaultAxiosConfig = Object.freeze({
   baseURL: '/api',
@@ -75,8 +74,8 @@ const mergeServiceDefaults = <TDefaults extends object>(
  *   {@link CachePartitioner}); credentialed requests without a stable,
  *   non-secret partition token bypass the cache so one identity cannot
  *   receive a response created under another.
- * - `cacheCapacity` — bounds the number of cached entries; the LRU entry is
- *   evicted when the limit is exceeded.
+ * - `cacheCapacity` — bounds the number of cached entries; defaults to 100 and
+ *   evicts the LRU entry when the limit is exceeded.
  *
  * Use the returned adapter's `clearCache()` on credential transitions
  * (login/logout/token refresh/tenant change) and `disposeCache()` when the
@@ -101,8 +100,7 @@ export interface AdapterOptions {
    */
   cachePartition?: CachePartitioner;
   /**
-   * Maximum number of cached entries retained per adapter. Defaults to
-   * unbounded; set a finite value to bound memory in long-lived processes.
+   * Maximum number of cached entries retained per adapter. Defaults to 100.
    */
   cacheCapacity?: number;
   modelDefaults?: Defaults;
@@ -278,14 +276,8 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
     ): Promise<{ [K in keyof T]: Awaited<T[K]> }> => {
       let sharedConfig: AxiosRequestConfig | undefined;
       let sharedConfigKey: string | undefined;
+      let groupThrowOnError: boolean | undefined;
       const defs = proms.map((prom, index) => {
-        // ARC-09: reject already-started requests before any network activity,
-        // so an executed mutation cannot be resubmitted through group().
-        if (prom[STARTED_KEY] === true) {
-          throw new Error(
-            'Cannot group a request that has already started execution; group() must be called before await/then/catch/finally/exec on each input',
-          );
-        }
         // ARC-09: reject foreign-adapter requests. The adapter's per-instance
         // identity token is stamped non-enumerably on the service; a request
         // whose owning service was constructed by a different adapter cannot
@@ -298,18 +290,22 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
           );
         }
 
-        if (!isEmpty(prom.__requestConfig)) {
-          const configKey = serializeRequestConfig(prom.__requestConfig);
-
-          if (sharedConfigKey && sharedConfigKey !== configKey) {
-            throw new Error('Grouped requests must share the same axios request config');
-          }
-
-          sharedConfig = prom.__requestConfig;
-          sharedConfigKey = configKey;
+        if (groupThrowOnError != null && groupThrowOnError !== prom.__throwOnError) {
+          throw new Error('Grouped requests must share the same effective throwOnError policy');
         }
+        groupThrowOnError = prom.__throwOnError;
+
+        const configKey = serializeRequestConfig(prom.__requestConfig);
+        if (sharedConfigKey != null && sharedConfigKey !== configKey) {
+          throw new Error('Grouped requests must share the same axios request config');
+        }
+        sharedConfig = prom.__requestConfig ?? {};
+        sharedConfigKey = configKey;
 
         const query = { ...prom.__query };
+        if (query.target === 'model') {
+          delete query.model;
+        }
         if (prom.__query.order == null) {
           query.order = index;
         }
@@ -317,45 +313,52 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
         return query;
       });
 
-      const result = await instance.post(rootRouterPath, defs, sharedConfig ?? {}).then((res) => {
-        const responseHeaders = res.headers ?? {};
-        const rawEntries = res.data.map(({ result, message, statusCode, op }) => ({
-          result,
-          message,
-          statusCode,
-          op,
-        }));
+      // Validate the complete batch before claiming any request. The claim
+      // loop is synchronous, so competing group() calls cannot both reserve
+      // the same lazy request. Roll back only this group's claims if a
+      // duplicate or already-owned request fails the claim phase.
+      const groupOwner = Symbol('group');
+      const claimed: (ModelRequest<unknown> | DataRequest<unknown>)[] = [];
+      try {
+        for (const prom of proms) {
+          claimLazyRequest(prom, 'grouped', groupOwner);
+          claimed.push(prom);
+        }
+      } catch (error) {
+        for (const prom of claimed) {
+          releaseLazyRequestClaim(prom, groupOwner);
+        }
+        throw error;
+      }
 
-        // Finalize each entry through the shared normalization boundary
-        // (`finalizeRootEntry`) used identically by `adapter.ts` so direct
-        // and grouped execution of the same operation produce equivalent
-        // normalized results.
-        const finalized = rawEntries.map((rawEntry, index) => {
-          const service = proms[index].__service;
-          const query = proms[index].__query;
-          return finalizeRootEntry(query, rawEntry, responseHeaders, service);
-        });
+      const result = await instance.post(rootRouterPath, defs, sharedConfig ?? {}).then(
+        (res) => {
+          const rawEntries = res.data.map(({ result, message, statusCode, op }) => ({
+            result,
+            message,
+            statusCode,
+            op,
+          }));
 
-        // Derive the batch-level `throwOnError` policy once from the shared
-        // per-call request metadata. `group(...)` requires every member of a
-        // batch to share one AxiosRequestConfig, so the policy is uniform
-        // across the batch: either every per-failure `throwOnError` is
-        // honored (short-circuit on the first failing entry) or every
-        // entry returns its normalized `{ success: false }` payload. The
-        // per-call `throwOnError` flag travels in `__throwOnError` on the
-        // request metadata (each service method captures it from the
-        // `axiosRequestConfig` parameter before stripping it from
-        // `__requestConfig`).
-        const groupThrowOnError = sharedConfig != null && proms.some((p) => p.__throwOnError === true);
+          const finalized = rawEntries.map((rawEntry, index) =>
+            finalizeRootEntry(proms[index].__query, rawEntry, {}, proms[index].__service),
+          );
 
-        return applyGroupCallbacks(
-          finalized,
-          proms.map((p) => p.__service),
-          groupThrowOnError,
-        ) as {
-          [K in keyof T]: Awaited<T[K]>;
-        };
-      });
+          return applyGroupCallbacks(
+            finalized,
+            proms.map((p) => p.__service),
+            groupThrowOnError ?? false,
+          ) as { [K in keyof T]: Awaited<T[K]> };
+        },
+        (error: unknown) => {
+          const failures = proms.map((prom) => finalizeRootTransportFailure(prom.__query, error));
+          return applyGroupCallbacks(
+            failures,
+            proms.map((p) => p.__service),
+            groupThrowOnError ?? false,
+          ) as { [K in keyof T]: Awaited<T[K]> };
+        },
+      );
 
       return result;
     },

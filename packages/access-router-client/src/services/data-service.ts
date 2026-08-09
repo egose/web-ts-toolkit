@@ -23,7 +23,7 @@ import {
 
 import { Service } from './service';
 import { replaceSubQuery, encodePathSegment } from '../helpers';
-import { createResponseHandler, processListResult, setDefaultObjectProp } from './shared';
+import { createResponseHandler, ensureListResultCount, processListResult, setDefaultObjectProp } from './shared';
 import { makeRequest } from './request';
 
 type RequestConfig = AxiosRequestConfig & AdditionalReqConfig;
@@ -55,7 +55,7 @@ export class DataService<T> extends Service {
     { axios, dataName, basePath, queryPath, onSuccess, onFailure, throwOnError }: Props,
     defaults?: DataDefaults,
   ) {
-    super(axios, basePath);
+    super(axios, basePath, throwOnError);
 
     this._dataName = dataName;
     this._queryPath = queryPath;
@@ -119,6 +119,7 @@ export class DataService<T> extends Service {
             return processListResult<ListDataResponse<TData>, TData>(result, { includeCount, includeExtraHeaders });
           })
           .catch(this.handleError<ListDataResponse<TData>>)
+          .then(ensureListResultCount)
           .then((res) => this._handleCallbacks<ListDataResponse<TData>>(res, throwOnError)),
       {
         __throwOnError: throwOnError,
@@ -175,7 +176,7 @@ export class DataService<T> extends Service {
               limit,
               page,
               pageSize,
-              options: { includeCount },
+              options: { includeCount, includeExtraHeaders },
             },
             reqConfig,
           )
@@ -190,6 +191,7 @@ export class DataService<T> extends Service {
             });
           })
           .catch(this.handleError<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>>)
+          .then(ensureListResultCount)
           .then((res) =>
             this._handleCallbacks<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(res, throwOnError),
           ),
@@ -230,7 +232,7 @@ export class DataService<T> extends Service {
           .get(`${this._basePath}/${encodePathSegment(identifier)}`, reqConfig)
           .then(this.handleSuccess)
           .then((result: DataResponse<TData>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<DataResponse<TData>>)
@@ -270,7 +272,7 @@ export class DataService<T> extends Service {
           .post(`${this._basePath}/${this._queryPath}/${encodePathSegment(identifier)}`, { select }, reqConfig)
           .then(this.handleSuccess)
           .then((result: DataResponse<ResolvedSelectedShape<T, TSelect, TData>>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>>)
@@ -313,7 +315,7 @@ export class DataService<T> extends Service {
           .post(`${this._basePath}/${this._queryPath}/__filter`, { filter: _filter, select }, reqConfig)
           .then(this.handleSuccess)
           .then((result: DataResponse<ResolvedSelectedShape<T, TSelect, TData>>) => {
-            result.data = result.raw;
+            if (result.success) result.data = result.raw;
             return result;
           })
           .catch(this.handleError<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>>)

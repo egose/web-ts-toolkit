@@ -8,7 +8,13 @@
  * services.mdx "Service Defaults" so a renamed default key (`listAdvancedArgs`,
  * `listAdvancedOptions`, `readOptions`) fails this compile.
  */
-import { createAdapter, type Defaults } from '@web-ts-toolkit/access-router-client';
+import {
+  type ArrayModelResponse,
+  createAdapter,
+  type Defaults,
+  type ModelRequest,
+  type ModelResponse,
+} from '@web-ts-toolkit/access-router-client';
 
 interface User {
   _id?: string;
@@ -64,3 +70,12 @@ const users = await userService.listAdvanced(
 );
 
 void users;
+
+// The migration contract preserves model-create input cardinality. In
+// particular, a one-item array remains array-shaped rather than collapsing to
+// the scalar response type.
+const scalarCreate = userService.create({ name: 'Ada', role: 'admin', public: true });
+scalarCreate satisfies ModelRequest<ModelResponse<User>>;
+
+const arrayCreate = userService.create([{ name: 'Ada', role: 'admin', public: true }]);
+arrayCreate satisfies ModelRequest<ArrayModelResponse<User>>;

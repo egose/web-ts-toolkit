@@ -138,9 +138,9 @@ That is most useful when:
 
 Common exported types include:
 
-- `Response<TRaw, TData = TRaw>` — discriminated union of `SuccessResult<TRaw, TData>` and `FailureResult<TRaw>`
+- `Response<TRaw, TData = TRaw, TError = unknown>` — discriminated union of `SuccessResult<TRaw, TData>` and `FailureResult<TError>`
 - `SuccessResult<TRaw, TData = TRaw>`
-- `FailureResult<TRaw>`
+- `FailureResult<TError = unknown>`
 - `ModelResponse<T, TData = T>`
 - `ArrayModelResponse<T, TData = T>`
 - `ListModelResponse<T, TData = T>`
@@ -177,6 +177,10 @@ inline literals:
   request so one identity cannot receive a response created under another
 - `CacheController` — adapter-scoped `clear()` / `dispose()` surface used by
   the returned adapter's `clearCache()` / `disposeCache()` methods
+- `MissingPersistenceIdentityError` — runtime error thrown by `Model.save()`
+  when a wrapper represents an existing projected document but neither the
+  projection nor the read context provides an identity. Catching this error
+  prevents treating the wrapper as a draft and accidentally creating a copy.
 
 The full root API is locked by the package's runtime/type export contract test
 (`access-router-client.exports.unit.test.ts`); any accidental addition or

@@ -57,6 +57,13 @@ export interface Pet {
   public: boolean;
 }
 
+export interface ProtocolRequest {
+  method: string;
+  path: string;
+  query: Record<string, unknown>;
+  body: unknown;
+}
+
 const petData: Pet[] = [
   { name: 'Max', age: 1, sex: 'male', public: true },
   { name: 'Bella', age: 3, sex: 'female', public: true },
@@ -93,6 +100,7 @@ export function setupIntegrationSuite() {
   let server: Server;
   let adapter: ReturnType<typeof createAdapter>;
   let cacheRouteRequestCount = 0;
+  const protocolRequests: ProtocolRequest[] = [];
 
   const services = {} as {
     userService: ModelService<User>;
@@ -152,9 +160,12 @@ export function setupIntegrationSuite() {
 
   const requestSchemas = {
     advancedCreate: {
-      data: z
-        .object({ name: z.string().min(3), role: z.string().min(2), public: z.boolean().optional() })
-        .passthrough(),
+      data: z.union([
+        z.object({ name: z.string().min(3), role: z.string().min(2), public: z.boolean().optional() }).passthrough(),
+        z.array(
+          z.object({ name: z.string().min(3), role: z.string().min(2), public: z.boolean().optional() }).passthrough(),
+        ),
+      ]),
     },
     advancedUpdate: {
       data: z.object({ role: z.string().min(2) }).passthrough(),
@@ -176,6 +187,10 @@ export function setupIntegrationSuite() {
 
     const app = express();
     app.use(express.json());
+    app.use((req, _res, next) => {
+      protocolRequests.push({ method: req.method, path: req.path, query: { ...req.query }, body: req.body });
+      next();
+    });
 
     const userRouter = runtime.createRouter(USER_MODEL_NAME, {
       basePath: '/api/users',
@@ -345,6 +360,7 @@ export function setupIntegrationSuite() {
 
   beforeEach(async () => {
     cacheRouteRequestCount = 0;
+    protocolRequests.length = 0;
     await seedDatabase();
   });
 
@@ -373,6 +389,7 @@ export function setupIntegrationSuite() {
     services,
     endpoints,
     seedState,
+    protocolRequests,
     createCachedAdapter: (partition?: CachePartitioner) =>
       createAdapter({ baseURL: adapter.axios.defaults.baseURL }, { cacheTTL: 60_000, cachePartition: partition }),
   };

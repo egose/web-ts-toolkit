@@ -39,13 +39,25 @@ const grouped = await adapter.group(
 );
 ```
 
+## Unreleased Migration
+
+- subdocument results are now plain data; replace subdocument `Model.save()` and `totalCount` usage with parent-scoped helper mutations and `SubDocumentListResponse.count`
+- subdocument create always returns the post-create array; model `create`/`createAdvanced` preserve scalar-versus-array input cardinality
+- narrow `Response` on `success`; failure `data` is `null` and structured errors live in `raw`
+- enabled caches are GET-only, identity-partitioned for credentials, and bounded to 100 LRU entries by default; caching remains disabled when `cacheTTL: 0`
+- each lazy request can execute directly or in one group, never both or repeatedly; grouped requests require one effective `throwOnError` policy, run all callbacks, and expose `{}` per-entry headers
+- remove data-service `includePermissions`, use string data sort, and call `countAdvanced(filter, config?)`; use the named filter escape hatches only for intentional dynamic/cast filters
+- pass raw dynamic path values, reuse caller configs safely, and handle `MissingPersistenceIdentityError` when an existing projected model has no recoverable id
+
 ## Gotchas
 
 - supports **browsers and Node** (maintainer decision, ARC-19). Bundle target is `es2022`; `engines.node: ">=22"`, `browserslist: ["supports es2022-module"]`. The source imports no Node built-ins; the cache `unref()` guard is feature-detected and a no-op in browsers.
 - `withCredentials: true` is the adapter default; in the browser this transmits cookies + `Authorization`. In Node it forces Axios to send the `Cookie` header you set manually. Credentialed caching still requires an explicit `cachePartition` token so one identity cannot receive another's cached response.
+- caching is disabled by default (`cacheTTL: 0`). When enabled, only GET requests with supported JSON/text semantics cache or deduplicate, custom transforms/serializers and cancellation-sensitive requests bypass caching, and the default LRU capacity is 100 entries.
 - `axios` is a regular runtime dependency (declared in `package.json` `dependencies`); an installed consumer does not need to add axios separately. Use it as a peer only if you intentionally dedupe against an existing axios install.
 - service methods return lazy requests; they do not execute until `await`, `.then()`, `.exec()`, etc.
 - `adapter.group(...)` only batches lazy requests from this client, not raw Axios calls
+- grouped requests must have one effective `throwOnError` policy after per-call/service/adapter precedence; mixed policies reject before dispatch. Non-throwing groups return all partial-failure entries. Throwing groups invoke every executed entry callback once, then reject with the first failed entry's `ServiceError`. Group entry `headers` are `{}` because root responses do not carry per-operation headers
 - the client `basePath` is relative to the adapter `baseURL`, not the full server path
 - match `queryPath`/`mutationPath` to the server-side `queryRouteSegment` and mutation route configuration
 - each dynamic URL path segment (identifiers, `distinct` field, subdocument `id`/`sub`/`subId`, wrapper `pathParams` values) is `encodeURIComponent`-encoded exactly once; already-encoded inputs are re-encoded so a single server-side decode returns the literal input
@@ -58,12 +70,14 @@ const grouped = await adapter.group(
   - `countAdvanced(filter, axiosRequestConfig?)` no longer accepts an `access` argument the server rejects
   - `SubDocumentListResponse<S>` carries `count` (the server's field), not `totalCount`; `ListModelResponse<T>` still carries `totalCount`
   - subdocument `create(data | data[], ...)` accepts a single object or an array; the response is always the post-create subdocument array
-  - `Response<TRaw, TData>` is a discriminated union (`SuccessResult | FailureResult`); branch on `result.success` to narrow `raw`/`data`. On `success: false`, `data` is always `null` (the server error payload lives in `raw`); on `success: true`, both `raw` and `data` are non-null. `handleError` initializes `totalCount: 0` on failures so reading the count without narrowing returns `0`, not `undefined`
+  - `Response<TRaw, TData = TRaw, TError = unknown>` is a discriminated union (`SuccessResult<TRaw, TData> | FailureResult<TError>`); branch on `result.success` to narrow `raw`/`data`. On `success: false`, `data` is always `null` and `raw` is the unknown (or opt-in typed) server error payload. Only model/data list responses carry `totalCount`; subdocument list-like responses carry `count`; scalar and single responses carry neither
 - this package targets `@web-ts-toolkit/access-router` servers; plain Axios is simpler for non-access-router APIs
 - imports are named-only (`import { createAdapter }`); there is no default export
 - the public export surface is locked by `access-router-client.exports.unit.test.ts`. Only these names are part of the supported root API:
-  - runtime values: `createAdapter`, `ModelService`, `DataService`, `Service`, `ServiceError`, `Model`, `CustomHeaders`, `wrapLazyPromise`, `replaceItemById`, `removeItemById`
-  - type/interface exports (named via `import type`): `AdapterOptions`, `ModelServiceOptions`, `DataServiceOptions`, `CacheController`, `CachePartitioner`, `Response`, `SuccessResult`, `FailureResult`, `ModelResponse`, `ArrayModelResponse`, `ListModelResponse`, `DataResponse`, `ArrayDataResponse`, `ListDataResponse`, `SubDocumentResponse`, `SubDocumentListResponse`, `Document`, `Projection`, `KeyValueProjection`, `SelectedKeys`, `SelectedShape`, `ResolvedSelectedShape`, `Sort`, `SortOrder`, `FilterQuery`, `Populate`, `PopulateAccess`, `Include`, `Task`, `SubQueryOptions`, `WrapOptions`, `ResultError`, `ResponseCallback`, `AdditionalReqConfig`, `Defaults`, `DataDefaults`, `LazyRequest`, `ModelRequest`, `DataRequest`, `ModelPromiseMeta`, `DataPromiseMeta`, `RootModelQueryMeta`, `RootDataQueryMeta`, `RootQueryMeta`, `ListArgs`, `ListOptions`, `ListAdvancedArgs`, `ListAdvancedOptions`, `ReadOptions`, `ReadAdvancedArgs`, `ReadAdvancedOptions`, `CreateOptions`, `CreateAdvancedArgs`, `CreateAdvancedOptions`, `UpdateOptions`, `UpdateAdvancedArgs`, `UpdateAdvancedOptions`, `UpsertOptions`, `UpsertAdvancedArgs`, `UpsertAdvancedOptions`, `DataListArgs`, `DataListOptions`, `DataListAdvancedArgs`, `DataListAdvancedOptions`, `DataReadOptions`, `DataReadAdvancedArgs`, `DataReadAdvancedOptions`
+  - runtime values: `createAdapter`, `ModelService`, `DataService`, `Service`, `ServiceError`, `MissingPersistenceIdentityError`, `Model`, `CustomHeaders`, `wrapLazyPromise`, `replaceItemById`, `removeItemById`
+  - type/interface exports (named via `import type`): `AdapterOptions`, `ModelServiceOptions`, `DataServiceOptions`, `CacheController`, `CachePartitioner`, `Response`, `SuccessResult`, `FailureResult`, `ModelResponse`, `ArrayModelResponse`, `ListModelResponse`, `DataResponse`, `ArrayDataResponse`, `ListDataResponse`, `SubDocumentResponse`, `SubDocumentListResponse`, `Document`, `Projection`, `KeyValueProjection`, `SelectedKeys`, `SelectedShape`, `ResolvedSelectedShape`, `Sort`, `SortOrder`, `FilterQuery`, `DottedPathFilter`, `ServerSideCast`, `Populate`, `PopulateAccess`, `Include`, `Task`, `SubQueryOptions`, `WrapOptions`, `ResultError`, `ResponseCallback`, `AdditionalReqConfig`, `Defaults`, `DataDefaults`, `LazyRequest`, `ModelRequest`, `DataRequest`, `ModelPromiseMeta`, `DataPromiseMeta`, `RootModelQueryMeta`, `RootDataQueryMeta`, `RootQueryMeta`, `ListArgs`, `ListOptions`, `ListAdvancedArgs`, `ListAdvancedOptions`, `ReadOptions`, `ReadAdvancedArgs`, `ReadAdvancedOptions`, `CreateOptions`, `CreateAdvancedArgs`, `CreateAdvancedOptions`, `UpdateOptions`, `UpdateAdvancedArgs`, `UpdateAdvancedOptions`, `UpsertOptions`, `UpsertAdvancedArgs`, `UpsertAdvancedOptions`, `DataListArgs`, `DataListOptions`, `DataListAdvancedArgs`, `DataListAdvancedOptions`, `DataReadOptions`, `DataReadAdvancedArgs`, `DataReadAdvancedOptions`
+
+Model `create(...)` and `createAdvanced(...)` preserve cardinality: object input returns `ModelResponse<T>`; array input returns `ArrayModelResponse<T>`, even for one item.
   - any name not listed above is implementation-internal and must not be relied on. Configure caching through `AdapterOptions` (`cacheTTL`, `cachePartition`, `cacheCapacity`); control an existing cache through the adapter's `clearCache()` and `disposeCache()` methods; configure `throwOnError` per-service or per-call rather than reaching for `applyResponseCallbacks` directly.
 
 ## Pointers

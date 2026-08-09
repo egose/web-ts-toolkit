@@ -11,7 +11,7 @@ import { CACHE_HEADER } from '../src/constants';
  * Each `it()` targets a gap surfaced by the ARC-22 audit and asserts an
  * invariant the existing suite establishes only indirectly or not at all:
  *   - TTL expiry actually produces a miss after the timer fires,
- *   - `ttl: 0` and `capacity: 0` disable caching at the boundary,
+ *   - `cacheTTL: 0` disables caching at the boundary,
  *   - PUT / PATCH / DELETE mutations bypass the cache and invalidate reads,
  *   - a 204 No Content mutation invalidates (not just 200 / 201),
  *   - cached response headers are isolated across hits (not just data / status),
@@ -108,7 +108,7 @@ describe('ARC-22 cache bounds — boundary knobs (public adapter API)', () => {
     expect(invocations).toBe(2);
   });
 
-  it('cacheTTL > 0 with no cacheCapacity still caches anonymous traffic (unbounded; documents the public knob)', async () => {
+  it('cacheTTL > 0 with no cacheCapacity still caches anonymous traffic with the finite default bound', async () => {
     let invocations = 0;
     const adapter = createAdapter(
       {

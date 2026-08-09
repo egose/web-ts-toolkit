@@ -14,7 +14,7 @@ interface Apple {
 
 const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });
 
-const getApple = adapter.wrapGet<Apple>('/apple/{{name}}');
+const getApple = adapter.wrapGet<{ name: string }>('/apple/{{name}}');
 
 const result = await getApple({
   pathParams: { name: 'green' },
@@ -47,6 +47,12 @@ const userService = adapter.createModelService<{ _id?: string; name: string }>({
   basePath: 'users',
 });
 userService.wrapPost('chairman');
+
+const readUser = userService.read('user-1');
+const countUsers = userService.count();
+const [user, count] = await adapter.group(readUser, countUsers);
+void user;
+void count;
 
 // Default axios config captured at wrapper construction coexists with a
 // per-call config passed at invocation time — verifying the documented

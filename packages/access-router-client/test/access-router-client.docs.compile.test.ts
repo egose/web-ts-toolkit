@@ -1,15 +1,16 @@
-import { cpSync, existsSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { cpSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { cleanupTempRoots, installPackedConsumer, packageRoot, run } from './packed-consumer-harness';
+import { cleanupTempRoots, installPackedConsumer, packageRoot, run, workspaceRoot } from './packed-consumer-harness';
 
 /**
  * ARC-20: documentation compile test.
  *
  * Extracts every "complete" TypeScript code block from the installed docs
  * (`README.md`, `llms.txt`) and the website docs
- * (`website/docs/packages/access-router-client/*.mdx`) into fixture files in
+ * (all `.md`/`.mdx` files below the website access-router-client docs) into fixture files in
  * `test-docs-consumer/examples/` and compiles them against the *packed* npm
  * tarball — the same artifact exercised by ARC-18 — under strict NodeNext
  * and Bundler resolution with `strict: true` and `skipLibCheck: false`.
@@ -30,20 +31,183 @@ import { cleanupTempRoots, installPackedConsumer, packageRoot, run } from './pac
 
 const docsExamplesDir = path.resolve(packageRoot, 'test-docs-consumer', 'examples');
 const docsTsconfigDir = path.resolve(packageRoot, 'test-docs-consumer');
+const snippetsMappingPath = path.resolve(docsTsconfigDir, 'snippets-mapping.md');
+const websiteDocsDir = path.resolve(workspaceRoot, 'website', 'docs', 'packages', 'access-router-client');
+
+type BlockClassification = 'exact' | 'derived' | 'partial' | 'negative';
+
+type DocumentedBlock = {
+  id: string;
+  source: string;
+  ordinal: number;
+  content: string;
+  hash: string;
+};
+
+type MappedBlock = {
+  id: string;
+  hash: string;
+  classification: BlockClassification;
+  fixture?: string;
+};
+
+function listMarkdownSources(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true })
+    .flatMap((entry) => {
+      const entryPath = path.resolve(dir, entry.name);
+      if (entry.isDirectory()) {
+        return listMarkdownSources(entryPath);
+      }
+      return /\.mdx?$/.test(entry.name) ? [entryPath] : [];
+    })
+    .sort();
+}
+
+function extractTypeScriptBlocks(sourcePath: string): DocumentedBlock[] {
+  const absolutePath = path.resolve(workspaceRoot, sourcePath);
+  const lines = readFileSync(absolutePath, 'utf8').replace(/\r\n/g, '\n').split('\n');
+  const blocks: DocumentedBlock[] = [];
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const opening = lines[lineIndex].match(/^ {0,3}(`{3,}|~{3,})\s*([^\s{]+)?/);
+    const language = opening?.[2]?.toLowerCase();
+    if (!opening || !['ts', 'typescript', 'tsx'].includes(language ?? '')) {
+      continue;
+    }
+
+    const marker = opening[1][0];
+    const minimumLength = opening[1].length;
+    const contentLines: string[] = [];
+    let closingLine = lineIndex + 1;
+    for (; closingLine < lines.length; closingLine += 1) {
+      const candidate = lines[closingLine].trim();
+      if (candidate.length >= minimumLength && [...candidate].every((character) => character === marker)) {
+        break;
+      }
+      contentLines.push(lines[closingLine]);
+    }
+    if (closingLine === lines.length) {
+      throw new Error(`Unclosed TypeScript code fence in ${sourcePath}:${lineIndex + 1}`);
+    }
+
+    const content = contentLines.join('\n');
+    const ordinal = blocks.length + 1;
+    blocks.push({
+      id: `${sourcePath}#${ordinal}`,
+      source: sourcePath,
+      ordinal,
+      content,
+      hash: createHash('sha256').update(content).digest('hex'),
+    });
+    lineIndex = closingLine;
+  }
+
+  return blocks;
+}
+
+function readMappedBlocks(): MappedBlock[] {
+  const mapping = readFileSync(snippetsMappingPath, 'utf8');
+  const inventory = mapping.match(/```text docs-block-map\n([\s\S]*?)\n```/);
+  if (!inventory) {
+    throw new Error(`Missing machine-readable docs-block-map inventory in ${snippetsMappingPath}`);
+  }
+
+  return inventory[1]
+    .split('\n')
+    .filter((line) => line.trim() && !line.startsWith('#'))
+    .map((line) => {
+      const [source, ordinalText, hash, classificationText, fixtureText, ...extra] = line.split('\t');
+      const classification = classificationText as BlockClassification;
+      const ordinal = Number(ordinalText);
+      if (
+        extra.length > 0 ||
+        !source ||
+        !Number.isInteger(ordinal) ||
+        !/^[a-f0-9]{64}$/.test(hash ?? '') ||
+        !['exact', 'derived', 'partial', 'negative'].includes(classification) ||
+        !fixtureText
+      ) {
+        throw new Error(`Invalid docs-block-map row: ${line}`);
+      }
+      return {
+        id: `${source}#${ordinal}`,
+        hash,
+        classification,
+        fixture: fixtureText === '-' ? undefined : fixtureText,
+      };
+    });
+}
+
+function executableSourceFragments(content: string): string[] {
+  const withoutComments = content.replace(/\/\/.*$/gm, '');
+  const importFragments = [
+    ...withoutComments.matchAll(/import\s+(?:type\s+)?{([\s\S]*?)}\s+from\s+(['"][^'"]+['"]);?/g),
+  ].flatMap(([, names, moduleName]) => [
+    ...names
+      .split(',')
+      .map((name) => name.trim().split(/\s+as\s+/)[0])
+      .filter(Boolean),
+    moduleName,
+  ]);
+  const body = withoutComments.replace(/import\s+(?:type\s+)?{[\s\S]*?}\s+from\s+(['"][^'"]+['"]);?/g, '');
+
+  return [
+    ...importFragments.map((fragment) => fragment.replace(/\s+/g, '')),
+    ...body
+      .split('\n')
+      .map((line) => line.replace(/\s+/g, ''))
+      .filter((line) => line.length > 1 && line !== '{' && line !== '}' && line !== ');' && line !== '};'),
+  ];
+}
 
 afterAll(() => {
   cleanupTempRoots();
 });
 
 describe('ARC-20 documentation examples compile against the packed artifact', () => {
-  it('stages example fixtures for the documentation compile test', () => {
+  it('maps every actual TypeScript documentation block to a fixture or an explicit partial/negative classification', () => {
     expect(existsSync(docsExamplesDir)).toBe(true);
     const fixtures = readdirSync(docsExamplesDir).filter((f) => f.endsWith('.ts'));
     expect(fixtures.length).toBeGreaterThan(0);
-    // The fixture catalog is the explicit mapping ARC-20 requirement #4 asks
-    // for; if it is removed, the compile test still runs but loses its
-    // "intentionally partial" catalog, so guard it.
-    expect(existsSync(path.resolve(docsTsconfigDir, 'snippets-mapping.md'))).toBe(true);
+    expect(existsSync(snippetsMappingPath)).toBe(true);
+
+    const sourcePaths = [
+      path.relative(workspaceRoot, path.resolve(packageRoot, 'README.md')).replace(/\\/g, '/'),
+      path.relative(workspaceRoot, path.resolve(packageRoot, 'llms.txt')).replace(/\\/g, '/'),
+      ...listMarkdownSources(websiteDocsDir).map((file) => path.relative(workspaceRoot, file).replace(/\\/g, '/')),
+    ];
+    const actualBlocks = sourcePaths.flatMap(extractTypeScriptBlocks);
+    const mappedBlocks = readMappedBlocks();
+
+    expect(new Set(actualBlocks.map((block) => block.id)).size).toBe(actualBlocks.length);
+    expect(new Set(mappedBlocks.map((block) => block.id)).size).toBe(mappedBlocks.length);
+    expect(mappedBlocks.map(({ id, hash }) => ({ id, hash })).sort((a, b) => a.id.localeCompare(b.id))).toEqual(
+      actualBlocks.map(({ id, hash }) => ({ id, hash })).sort((a, b) => a.id.localeCompare(b.id)),
+    );
+
+    const actualById = new Map(actualBlocks.map((block) => [block.id, block]));
+    for (const mapped of mappedBlocks) {
+      if (mapped.classification === 'exact' || mapped.classification === 'derived') {
+        expect(mapped.fixture, `${mapped.id} must name its compiled fixture`).toBeDefined();
+      }
+      if (mapped.fixture) {
+        const fixturePath = path.resolve(docsExamplesDir, mapped.fixture);
+        expect(existsSync(fixturePath), `${mapped.id} maps to missing fixture ${mapped.fixture}`).toBe(true);
+        const fixtureContent = readFileSync(fixturePath, 'utf8');
+        if (mapped.classification === 'exact') {
+          expect(fixtureContent.trim(), `${mapped.id} exact fixture drifted`).toBe(
+            actualById.get(mapped.id)?.content.trim(),
+          );
+        } else if (mapped.classification === 'derived') {
+          const sourceBlock = actualById.get(mapped.id);
+          const fixtureWithoutWhitespace = fixtureContent.replace(/\/\/.*$/gm, '').replace(/\s+/g, '');
+          const missingLines = executableSourceFragments(sourceBlock?.content ?? '').filter(
+            (line) => !fixtureWithoutWhitespace.includes(line),
+          );
+          expect(missingLines, `${mapped.id} has executable lines absent from ${mapped.fixture}`).toEqual([]);
+        }
+      }
+    }
   });
 
   it('installs the staged tarball + internal dependency closure and compiles every doc example under strict NodeNext and Bundler resolution against the published declarations', () => {

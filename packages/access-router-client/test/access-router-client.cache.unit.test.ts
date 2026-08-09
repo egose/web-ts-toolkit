@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
+import axios, { type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 
 import { useCacheInterceptors, type CacheController, type CachePolicy } from '../src/services/interceptors';
 import { CACHE_HEADER } from '../src/constants';
@@ -198,6 +198,26 @@ describe('cache interceptors credential safety', () => {
 });
 
 describe('cache mutation bypass and invalidation', () => {
+  it.each(['post', 'put', 'patch', 'delete'] as const)(
+    'raw %s requests without package headers execute independently and are never stored',
+    async (method) => {
+      let invocations = 0;
+      const { instance } = createFakeAdapter(() => {
+        invocations += 1;
+        return { data: { value: invocations }, status: 200, headers: {} };
+      });
+      useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+
+      const request = () => instance.request({ method, url: '/mutate', data: { a: 1 } });
+      const [first, second] = await Promise.all([request(), request()]);
+      const third = await request();
+
+      expect(invocations).toBe(3);
+      expect([first.data.value, second.data.value].sort()).toEqual([1, 2]);
+      expect(third.data).toEqual({ value: 3 });
+    },
+  );
+
   it('repeating identical requests with the cache-bypass header reaches the server each time', async () => {
     let invocations = 0;
     const { instance } = createFakeAdapter(() => {
@@ -241,6 +261,46 @@ describe('cache mutation bypass and invalidation', () => {
     const read3 = await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     expect(readInvocations).toBe(2);
     expect(read3.data).toEqual({ count: 2 });
+  });
+
+  it('detaches active read slots after a successful mutation without stranding existing callers', async () => {
+    type DeferredResult = { data: unknown; status: number; headers: Record<string, unknown> };
+    let readInvocations = 0;
+    const readResolvers: Array<(value: DeferredResult) => void> = [];
+    const { instance } = createFakeAdapter((config) => {
+      if ((config as { url?: string }).url === '/read') {
+        readInvocations += 1;
+        return new Promise<DeferredResult>((resolve) => readResolvers.push(resolve));
+      }
+      return { data: { ok: true }, status: 200, headers: {} };
+    });
+    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+
+    const oldSource = instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
+    const oldTail = instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(readInvocations).toBe(1);
+
+    await instance.post('/mutate', {}, { headers: { [CACHE_HEADER]: 'false' } });
+    const newSource = instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
+    const newTail = instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(readInvocations).toBe(2);
+
+    readResolvers[0]?.({ data: { generation: 'old' }, status: 200, headers: {} });
+    await expect(Promise.all([oldSource, oldTail])).resolves.toMatchObject([
+      { data: { generation: 'old' } },
+      { data: { generation: 'old' } },
+    ]);
+
+    readResolvers[1]?.({ data: { generation: 'new' }, status: 200, headers: {} });
+    await expect(Promise.all([newSource, newTail])).resolves.toMatchObject([
+      { data: { generation: 'new' } },
+      { data: { generation: 'new' } },
+    ]);
+    const cached = await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
+    expect(cached.data).toEqual({ generation: 'new' });
+    expect(readInvocations).toBe(2);
   });
 
   it('does not invalidate cached reads when a mutation fails (non-2xx)', async () => {
@@ -343,6 +403,22 @@ describe('cache value isolation and bounds', () => {
     expect(invocations).toBe(6);
   });
 
+  it('uses a finite default capacity with deterministic LRU eviction', async () => {
+    let invocations = 0;
+    const { instance } = createFakeAdapter((config) => {
+      invocations += 1;
+      return { data: { url: (config as { url?: string }).url, count: invocations }, status: 200, headers: {} };
+    });
+    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+
+    for (let index = 0; index <= 100; index += 1) {
+      await instance.get(`/item/${index}`);
+    }
+    await instance.get('/item/0');
+
+    expect(invocations).toBe(102);
+  });
+
   it('bypasses cache when response config is unsupported for safe cloning', async () => {
     let invocations = 0;
     const { instance } = createFakeAdapter(() => {
@@ -367,6 +443,87 @@ describe('cache value isolation and bounds', () => {
     });
 
     expect(invocations).toBe(2);
+  });
+
+  it('does not coalesce unsupported response modes or share their references', async () => {
+    let invocations = 0;
+    const { instance } = createFakeAdapter(async () => {
+      invocations += 1;
+      const value = { invocation: invocations };
+      await new Promise((resolve) => setImmediate(resolve));
+      return { data: value, status: 200, headers: {} };
+    });
+    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+
+    const [first, second] = await Promise.all([
+      instance.get('/stream', { responseType: 'stream' }),
+      instance.get('/stream', { responseType: 'stream' }),
+    ]);
+
+    expect(invocations).toBe(2);
+    expect(first.data).not.toBe(second.data);
+  });
+
+  it('bypasses custom transforms and parameter serializers before in-flight lookup', async () => {
+    let invocations = 0;
+    const { instance } = createFakeAdapter(() => {
+      invocations += 1;
+      return { data: JSON.stringify({ invocation: invocations }), status: 200, headers: {} };
+    });
+    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+
+    const transformResponse = [(value: string) => JSON.parse(value) as unknown];
+    await Promise.all([
+      instance.get('/custom', { transformResponse }),
+      instance.get('/custom', { transformResponse }),
+      instance.get('/custom', { params: { a: 1 }, paramsSerializer: { serialize: () => 'a=one' } }),
+      instance.get('/custom', { params: { a: 1 }, paramsSerializer: { serialize: () => 'a=two' } }),
+    ]);
+
+    expect(invocations).toBe(4);
+  });
+
+  it('bypasses per-request adapters and cancellation-sensitive requests', async () => {
+    let baseInvocations = 0;
+    const { instance } = createFakeAdapter(() => {
+      baseInvocations += 1;
+      return { data: { source: 'base', invocation: baseInvocations }, status: 200, headers: {} };
+    });
+    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+
+    const customAdapter = async (config: InternalAxiosRequestConfig) => ({
+      data: { source: 'custom' },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    });
+    const custom = await instance.get('/config-sensitive', { adapter: customAdapter });
+    const base = await instance.get('/config-sensitive');
+    const controller = new AbortController();
+    await instance.get('/cancel-sensitive', { signal: controller.signal });
+    await instance.get('/cancel-sensitive', { signal: controller.signal });
+
+    expect(custom.data).toEqual({ source: 'custom' });
+    expect(base.data).toEqual({ source: 'base', invocation: 1 });
+    expect(baseInvocations).toBe(3);
+  });
+
+  it('keys supported response types independently', async () => {
+    let invocations = 0;
+    const { instance } = createFakeAdapter(() => {
+      invocations += 1;
+      return { data: `response-${invocations}`, status: 200, headers: {} };
+    });
+    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+
+    const json = await instance.get('/typed', { responseType: 'json' });
+    const text = await instance.get('/typed', { responseType: 'text' });
+    const jsonAgain = await instance.get('/typed', { responseType: 'json' });
+
+    expect(invocations).toBe(2);
+    expect(jsonAgain.data).toEqual(json.data);
+    expect(text.data).not.toEqual(json.data);
   });
 
   it('does not leave dangling timers when dispose is called', async () => {
@@ -424,6 +581,12 @@ describe('cache concurrency dedup', () => {
     return { instance, tracker };
   };
 
+  const settle = <T>(promise: Promise<T>) =>
+    promise.then(
+      (value) => ({ status: 'fulfilled' as const, value }),
+      (reason: unknown) => ({ status: 'rejected' as const, reason }),
+    );
+
   it('shares one in-flight request for identical concurrent cache misses and returns independent snapshots to each caller', async () => {
     let invocations = 0;
     let pendingResolve: ((value: DeferredResult) => void) | undefined;
@@ -477,11 +640,6 @@ describe('cache concurrency dedup', () => {
     // before the microtask checkpoint (Promise.allSettled would otherwise
     // attach handlers only after `await setImmediate`, by which point Node
     // has already raised unhandledRejection for the unhandled promises).
-    const settle = <T>(p: Promise<T>) =>
-      p.then(
-        (v) => ({ status: 'fulfilled' as const, value: v }),
-        (e: unknown) => ({ status: 'rejected' as const, reason: e }),
-      );
     const p1 = settle(instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } }));
     const p2 = settle(instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } }));
 
@@ -548,5 +706,116 @@ describe('cache concurrency dedup', () => {
     expect(tracker.invocations).toBe(4);
 
     await Promise.all(promises);
+  });
+
+  it('captures the partition for a delayed source response and never stores it under a later identity', async () => {
+    let identity = 'admin';
+    let invocations = 0;
+    let resolveAdmin: ((value: DeferredResult) => void) | undefined;
+    const { instance } = createFakeAdapter(() => {
+      invocations += 1;
+      if (invocations === 1) {
+        return new Promise<DeferredResult>((resolve) => {
+          resolveAdmin = resolve;
+        });
+      }
+      return { data: { identity, invocation: invocations }, status: 200, headers: {} };
+    });
+    useCacheInterceptors(instance, {
+      ttl: 60_000,
+      withCredentialsDefault: true,
+      partitionForRequest: () => identity,
+    });
+
+    const source = instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
+    const tail = instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(invocations).toBe(1);
+
+    identity = 'guest';
+    resolveAdmin?.({ data: { identity: 'admin', invocation: 1 }, status: 200, headers: {} });
+    const [sourceResult, tailResult] = await Promise.all([source, tail]);
+    expect(sourceResult.data).toEqual({ identity: 'admin', invocation: 1 });
+    expect(tailResult.data).toEqual({ identity: 'admin', invocation: 1 });
+
+    const guest = await instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
+    expect(guest.data).toEqual({ identity: 'guest', invocation: 2 });
+    expect(invocations).toBe(2);
+  });
+
+  it('detaches active slots on clear without hanging their tails or overwriting the new generation', async () => {
+    let invocations = 0;
+    const resolvers: Array<(value: DeferredResult) => void> = [];
+    const { instance } = createFakeAdapter(
+      () =>
+        new Promise<DeferredResult>((resolve) => {
+          invocations += 1;
+          resolvers.push(resolve);
+        }),
+    );
+    const controller = useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+
+    const oldSource = instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
+    const oldTail = instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
+    await new Promise((resolve) => setImmediate(resolve));
+    controller.clear();
+
+    const newSource = instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
+    const newTail = instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(invocations).toBe(2);
+
+    resolvers[0]?.({ data: { generation: 'old' }, status: 200, headers: {} });
+    await expect(Promise.all([oldSource, oldTail])).resolves.toMatchObject([
+      { data: { generation: 'old' } },
+      { data: { generation: 'old' } },
+    ]);
+
+    resolvers[1]?.({ data: { generation: 'new' }, status: 200, headers: {} });
+    await expect(Promise.all([newSource, newTail])).resolves.toMatchObject([
+      { data: { generation: 'new' } },
+      { data: { generation: 'new' } },
+    ]);
+    const cached = await instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
+    expect(cached.data).toEqual({ generation: 'new' });
+    expect(invocations).toBe(2);
+  });
+
+  it('rejects every active tail on dispose while allowing source requests to finish', async () => {
+    let invocations = 0;
+    let resolveSource: ((value: DeferredResult) => void) | undefined;
+    const { instance } = createFakeAdapter(() => {
+      invocations += 1;
+      if (invocations === 1) {
+        return new Promise<DeferredResult>((resolve) => {
+          resolveSource = resolve;
+        });
+      }
+      return { data: { invocation: invocations }, status: 200, headers: {} };
+    });
+    const controller = useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+
+    const source = settle(instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } }));
+    const tail1 = settle(instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } }));
+    const tail2 = settle(instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } }));
+    await new Promise((resolve) => setImmediate(resolve));
+    controller.dispose();
+
+    const [tail1Result, tail2Result] = await Promise.all([tail1, tail2]);
+    expect(tail1Result).toMatchObject({
+      status: 'rejected',
+      reason: { message: 'Access router client cache was disposed while the request was in flight' },
+    });
+    expect(tail2Result).toMatchObject({
+      status: 'rejected',
+      reason: { message: 'Access router client cache was disposed while the request was in flight' },
+    });
+
+    resolveSource?.({ data: { invocation: 1 }, status: 200, headers: {} });
+    await expect(source).resolves.toMatchObject({ status: 'fulfilled', value: { data: { invocation: 1 } } });
+
+    const afterDispose = await instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
+    expect(afterDispose.data).toEqual({ invocation: 2 });
+    expect(invocations).toBe(2);
   });
 });

@@ -58,7 +58,7 @@ Supported adapter options:
 - `throwOnError?: boolean`
 - `cacheTTL?: number`
 - `cachePartition?: CachePartitioner` — required to cache credentialed requests safely (see [Cache Controls](#cache-controls)); returning `undefined` bypasses the cache for that credentialed request so one identity cannot receive a response created under another
-- `cacheCapacity?: number` — bounds the number of cached entries per adapter (LRU eviction)
+- `cacheCapacity?: number` — bounds the number of cached entries per adapter (defaults to 100 with LRU eviction)
 - `modelDefaults?: Defaults` — adapter-level defaults inherited by every `createModelService<T>(...)` unless overridden per-service
 - `dataDefaults?: DataDefaults` — adapter-level defaults inherited by every `createDataService<T>(...)` unless overridden per-service
 
@@ -83,6 +83,13 @@ partition token must be a stable, non-secret value (for example a user id or
 tenant id); sensitive headers (`authorization`, `cookie`, `set-cookie`,
 `proxy-authorization`, `www-authenticate`) are excluded from cache keys
 regardless of the partition token.
+
+Only GET requests using supported JSON or text response modes are eligible.
+Stream/blob/array-buffer/document responses, custom request or response
+transforms, custom parameter serializers, cancellation-sensitive requests, and
+values that cannot be serialized stably bypass both storage and in-flight
+deduplication. Successful POST/PUT/PATCH/DELETE requests invalidate cached
+reads even when made directly through `adapter.axios` without package headers.
 
 ### Browser And Node Runtime
 
@@ -243,6 +250,7 @@ Important rules:
 - only pass lazy requests created by **this** adapter's services — `group(...)` rejects requests owned by a different adapter before any network activity begins (each adapter stamps its services with a private identity token so cross-adapter grouping is caught locally)
 - never pass a lazy request that has already been awaited (or `.then`/`.catch`/`.finally`/`.exec`'d) — `group(...)` rejects already-started requests before any network activity begins, so an executed mutation cannot be replayed through the root router
 - every grouped request must share the same Axios request config
+- every grouped request must resolve to the same effective `throwOnError` policy
 - the requests are serialized into root-router query metadata and sent to `rootRouterPath`
 
 Practical consequences:
@@ -255,11 +263,13 @@ The grouped result is an array of normalized response objects in the same order 
 
 ### `throwOnError` batch policy
 
-When every member of a group explicitly passes `throwOnError: true` in its `axiosRequestConfig` (or the owning service was constructed with `throwOnError: true`), the **entire batch** rejects with the first `ServiceError` produced by any failing entry — the remaining entries are not finalized. This mirrors how a single `throwOnError: true` direct call rejects instead of returning a `{ success: false }` payload.
+Effective policy follows the same precedence as direct execution: a per-call value overrides the service default, which overrides the adapter default. When that effective policy is `true`, every executed entry is normalized and receives its success/failure callback exactly once. The **entire batch then rejects** with the first failed entry's `ServiceError`.
 
 When `throwOnError` is omitted (or false) on every member, each entry returns its normalized `{ success: false, message, status, data: null, ... }` payload inside the array — the caller is responsible for inspecting `result[i].success` per entry. This is the default behavior and matches how partial failures have historically been surfaced.
 
-A batch is uniform: a group with mixed `throwOnError` settings does not form a coherent batch (the per-call `throwOnError` flag travels in the request metadata, and `group(...)` enforces one shared `AxiosRequestConfig` per batch, so members either all opt in or all opt out).
+A batch is uniform: mixed effective `throwOnError` policies reject during preflight, before requests are claimed or network activity begins.
+
+Each grouped operation failure retains the root router's structured problem result in `raw`, including `code` and `errors` when supplied. Group entry `headers` are `{}`: the current root protocol provides only headers for the outer batch HTTP response, and those are not operation-specific. A transport-level rejection of the outer root request produces one normalized failure per requested entry and invokes every failure callback once before the uniform `throwOnError` policy is applied.
 
 ### Lazy request semantics
 
@@ -268,7 +278,7 @@ Service methods return a `LazyRequest<T>` — a promise-like object that delays 
 - the request does not execute until you `await`, `.then()`, `.catch()`, `.finally()`, or call `.exec()`
 - a single underlying promise is shared across all of those entry points, so repeated chaining (`req.then(...); req.then(...); req.exec();`) invokes the executor **once** rather than re-issuing the request
 - a synchronous throw from the executor is converted into a promise rejection, so it reaches `await` and `.catch()` as a normal rejection rather than escaping synchronously from `.then()`/`.exec()`
-- batching metadata (`__op`, `__query`, `__requestConfig`, `__service`) is installed non-enumerably and non-writable, so it cannot accidentally leak through `JSON.stringify`, `Object.keys`, spread iteration, or consumer reassignment; direct property reads inside the client package (e.g. by `group(...)`) still work
+- batching metadata (`__op`, `__query`, `__requestConfig`, `__service`) is installed non-enumerably, non-writable, and non-configurably, so it cannot accidentally leak through `JSON.stringify`, `Object.keys`, spread iteration, or consumer assignment/deletion/redefinition; direct property reads inside the client package (e.g. by `group(...)`) still work
 
 ## Wrapped Endpoints
 
@@ -316,20 +326,21 @@ This is useful when:
 
 ## Cache Behavior
 
-When `cacheTTL > 0`, the adapter installs a simple in-memory cache for requests whose internal cache header is not disabled.
+When `cacheTTL > 0`, the adapter installs a bounded in-memory cache for eligible GET requests. The package cache header can force a request to bypass caching, but it cannot make a mutation or unsupported response configuration cacheable.
 
 Practical behavior:
 
-- read-style wrappers default to cacheable requests
+- GET wrappers default to cacheable requests
 - mutation-style wrappers default to cache-disabled requests
 - service methods can opt out of cache by passing `ignoreCache: true`
-- cache keys include URL, method, params, body, and non-ignored headers
+- cache keys include URL, method, params, body, non-sensitive headers, and supported response semantics
+- the default capacity is 100 entries with deterministic LRU eviction
 
 The cache is scoped to the Axios instance created by that adapter. Two adapters do not share a cache.
 
-Headers matter intentionally here. If your app varies results by headers such as `Authorization` or `user`, those headers participate in the cache key unless they are part of the small ignored-header set.
-
-This keeps cached admin and non-admin reads from being treated as the same response.
+Headers matter intentionally here. Response-affecting non-sensitive headers
+participate in the cache key. Sensitive authentication headers are never
+serialized; use `cachePartition` to isolate credentialed identities.
 
 ## Adapter-Level vs Service-Level Wrap Helpers
 

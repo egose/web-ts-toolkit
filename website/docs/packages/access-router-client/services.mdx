@@ -30,9 +30,13 @@ Model reads usually return `data` as `Model<T>` wrappers. That means read result
 - `distinct(field, axiosRequestConfig?)`
 - `distinctAdvanced(field, filter, axiosRequestConfig?)`
 - `count(axiosRequestConfig?)`
-- `countAdvanced(filter, args?, axiosRequestConfig?)`
+- `countAdvanced(filter, axiosRequestConfig?)`
 
 These methods map closely to the server-side model router operations.
+
+`create(...)` and `createAdvanced(...)` preserve input cardinality: one object
+returns `ModelResponse<T>`, while an array returns `ArrayModelResponse<T>`.
+One-item arrays still return arrays.
 
 In broad terms:
 
@@ -156,7 +160,7 @@ These helpers are only as capable as the matching subdocument operations exposed
 
 Subdocument helpers return **plain data, not `Model<S>` instances**.
 
-- `list(...)`, `listAdvanced(...)`, `create(...)`, and `bulkUpdate(...)` return a `SubDocumentListResponse<S>`: `raw` and `data` are the **plain array** of subdocument objects; `count` mirrors the server's `count` field (the array length). The sibling server never emits `totalCount` on subdocument list results, so `SubDocumentListResponse<S>` does **not** carry `totalCount` (use `count` instead).
+- `list(...)`, `listAdvanced(...)`, `create(...)`, and `bulkUpdate(...)` return a `SubDocumentListResponse<S>`: after narrowing on `success`, `raw` and `data` are the **plain array** of subdocument objects and `count` is the array length. The sibling server never emits `totalCount` on subdocument list results, so `SubDocumentListResponse<S>` does **not** carry `totalCount` (use `count` on successful results instead).
 - `read(...)` and `readAdvanced(...)` return a `SubDocumentResponse<S>`: `raw` and `data` are the **plain single** subdocument object on success, or `null` on failure.
 
 Subdocuments are deliberately not wrapped as `Model<S>`: a `Model<S>` returned here would expose `save()`, which would target the **parent** model route (`/:parentId`) with the subdocument `_id` instead of the correct subdocument route (`/:parentId/:sub/:subId`). To persist a subdocument, always call the parent-scoped helper explicitly:
@@ -164,7 +168,7 @@ Subdocuments are deliberately not wrapped as `Model<S>`: a `Model<S>` returned h
 ```ts
 await statusHistory.update(subId, { label: 'processed' });
 await statusHistory.create({ label: 'queued', flag: 'orange' });
-await statusHistory.bulkUpdate([{ _id: subId, ... }]);
+await statusHistory.bulkUpdate([{ _id: subId, label: 'processed' }]);
 await statusHistory.delete(subId);
 ```
 

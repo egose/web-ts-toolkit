@@ -12,7 +12,7 @@ describe('access-router-client adapter integration', () => {
       services.userService.create({ name: 'group-user', role: 'editor', public: true }, undefined, {
         headers: { user: 'admin' },
       }),
-      services.orgService.count(),
+      services.orgService.count({ headers: { user: 'admin', 'x-axios-cache': 'false' } }),
     );
 
     expect(result).toHaveLength(2);
@@ -23,22 +23,21 @@ describe('access-router-client adapter integration', () => {
     expect(result[1]).toMatchObject({ success: true, status: 200, data: 2, raw: 2 });
   });
 
-  it('preserves response headers from grouped batch requests', async () => {
+  it('does not expose outer batch headers as per-operation headers', async () => {
     const result = await suite.adapter.group(
       services.userService.list(undefined, { includeCount: true }, { headers: { user: 'admin' } }),
     );
 
     expect(result).toHaveLength(1);
     expect(result[0].success).toBe(true);
-    expect(result[0].headers).toBeDefined();
-    expect(typeof result[0].headers).toBe('object');
+    expect(result[0].headers).toEqual({});
   });
 
   it('sets default order on grouped requests', async () => {
     const first = services.userService.create({ name: 'order-0-user', role: 'viewer', public: true }, undefined, {
       headers: { user: 'admin' },
     });
-    const second = services.orgService.count();
+    const second = services.orgService.count({ headers: { user: 'admin', 'x-axios-cache': 'false' } });
 
     const result = await suite.adapter.group(first, second);
 
@@ -73,6 +72,26 @@ describe('access-router-client adapter integration', () => {
     await expect(suite.adapter.group(first, second)).rejects.toThrow(
       'Grouped requests must share the same axios request config',
     );
+    await expect(first).resolves.toMatchObject({ success: true });
+  });
+
+  it('rejects empty and credentialed grouped configs before network activity', async () => {
+    const empty = services.userService.read(String(seedState.admin._id));
+    const credentialed = services.userService.read(String(seedState.lucy2._id), undefined, {
+      headers: { user: 'admin' },
+    });
+    let rootRequests = 0;
+    const interceptor = suite.adapter.axios.interceptors.request.use((config) => {
+      if (config.url?.includes('root')) rootRequests += 1;
+      return config;
+    });
+
+    await expect(suite.adapter.group(empty, credentialed)).rejects.toThrow(
+      'Grouped requests must share the same axios request config',
+    );
+    expect(rootRequests).toBe(0);
+    await expect(credentialed).resolves.toMatchObject({ success: true });
+    suite.adapter.axios.interceptors.request.eject(interceptor);
   });
 
   it('supports lazy request catch and finally semantics', async () => {
@@ -306,6 +325,54 @@ describe('access-router-client lazy request ownership and execution state (ARC-0
     }
   });
 
+  it('claims a mutation for one grouped execution across sequential and concurrent group() calls', async () => {
+    const headers = { headers: { user: 'admin' } };
+    const sequential = services.userService.create(
+      { name: 'arc-f03-sequential', role: 'editor', public: true },
+      undefined,
+      headers,
+    );
+
+    const first = await suite.adapter.group(sequential);
+    await expect(suite.adapter.group(sequential)).rejects.toThrow(/already claimed for grouped execution/);
+
+    const concurrent = services.userService.create(
+      { name: 'arc-f03-concurrent', role: 'editor', public: true },
+      undefined,
+      headers,
+    );
+    const attempts = await Promise.allSettled([suite.adapter.group(concurrent), suite.adapter.group(concurrent)]);
+
+    expect(attempts.filter(({ status }) => status === 'fulfilled')).toHaveLength(1);
+    expect(attempts.filter(({ status }) => status === 'rejected')).toHaveLength(1);
+
+    const createdIds = [
+      first[0].success ? first[0].data?._id : undefined,
+      ...attempts.flatMap((attempt) =>
+        attempt.status === 'fulfilled' && attempt.value[0].success ? [attempt.value[0].data?._id] : [],
+      ),
+    ].filter(Boolean);
+    await Promise.all(createdIds.map((id) => services.userService.delete(String(id), headers)));
+  });
+
+  it('prevents grouped requests from executing directly', async () => {
+    const request = services.userService.read(String(seedState.admin._id), undefined, {
+      headers: { user: 'admin' },
+    });
+
+    await suite.adapter.group(request);
+    await expect(request.exec()).rejects.toThrow(/already claimed for grouped execution/);
+  });
+
+  it('rolls back provisional claims when grouped preflight finds a duplicate request', async () => {
+    const request = services.userService.read(String(seedState.admin._id), undefined, {
+      headers: { user: 'admin' },
+    });
+
+    await expect(suite.adapter.group(request, request)).rejects.toThrow(/already claimed for grouped execution/);
+    await expect(request.exec()).resolves.toMatchObject({ success: true });
+  });
+
   it('rejects group() of a request owned by a different adapter', async () => {
     const foreignAdapter = createAdapter({ baseURL: suite.adapter.axios.defaults.baseURL });
     const foreignUserService = foreignAdapter.createModelService<User>({
@@ -345,6 +412,22 @@ describe('access-router-client lazy request ownership and execution state (ARC-0
     }).toThrow(TypeError);
     expect(req.__op).toBe('read');
 
+    expect(() => {
+      delete req.__query;
+    }).toThrow(TypeError);
+    expect(() => {
+      Object.defineProperty(req, '__service', { value: undefined });
+    }).toThrow(TypeError);
+
+    const stateKey = Reflect.ownKeys(req).find((key) => typeof key === 'symbol' && key.description === 'started');
+    expect(stateKey).toBeDefined();
+    expect(() => {
+      delete req[stateKey as symbol];
+    }).toThrow(TypeError);
+    expect(() => {
+      Object.defineProperty(req, stateKey as symbol, { value: false });
+    }).toThrow(TypeError);
+
     // JSON serialization must not leak metadata.
     const serialized = JSON.stringify(req);
     expect(serialized).not.toContain('__query');
@@ -381,9 +464,7 @@ describe('access-router-client grouped result finalization (ARC-10)', () => {
     expect(direct.success).toBe(true);
     expect(grouped[0].success).toBe(true);
     expect(direct.status).toBe(grouped[0].status);
-    // The root router does not echo `message` for successful entries while
-    // `Service.handleSuccess` always emits a default 'OK' message; assert
-    // equivalent raw/data shape instead (the success-path contract).
+    expect(direct.message).toBe(grouped[0].message);
     expect(direct.raw).toEqual(grouped[0].raw);
     expect(direct.data).toBeInstanceOf(Model);
     expect(grouped[0].data).toBeInstanceOf(Model);
@@ -470,6 +551,146 @@ describe('access-router-client grouped result finalization (ARC-10)', () => {
     }
     expect(caught).toBeInstanceOf(ServiceError);
     expect((caught as ServiceError).status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('applies inherited and per-call throwOnError policies to grouped requests', async () => {
+    const headers = { headers: { user: 'admin' } };
+    const missingId = '000000000000000000000000';
+
+    const adapterDefault = createAdapter({ baseURL: suite.adapter.axios.defaults.baseURL }, { throwOnError: true });
+    const adapterDefaultService = adapterDefault.createModelService<User>({
+      modelName: 'AdapterJsIntegrationUser',
+      basePath: 'users',
+    });
+    await expect(
+      adapterDefault.group(adapterDefaultService.read(missingId, undefined, headers)),
+    ).rejects.toBeInstanceOf(ServiceError);
+
+    const serviceDefault = createAdapter({ baseURL: suite.adapter.axios.defaults.baseURL });
+    const throwingService = serviceDefault.createModelService<User>({
+      modelName: 'AdapterJsIntegrationUser',
+      basePath: 'users',
+      throwOnError: true,
+    });
+    await expect(serviceDefault.group(throwingService.read(missingId, undefined, headers))).rejects.toBeInstanceOf(
+      ServiceError,
+    );
+
+    const [overridden] = await serviceDefault.group(
+      throwingService.read(missingId, undefined, { ...headers, throwOnError: false }),
+    );
+    expect(overridden.success).toBe(false);
+
+    const nonThrowingService = serviceDefault.createModelService<User>({
+      modelName: 'AdapterJsIntegrationUser',
+      basePath: 'users',
+      throwOnError: false,
+    });
+    await expect(
+      serviceDefault.group(nonThrowingService.read(missingId, undefined, { ...headers, throwOnError: true })),
+    ).rejects.toBeInstanceOf(ServiceError);
+  });
+
+  it('rejects mixed effective throwOnError policies before dispatch and leaves requests executable', async () => {
+    const adapter = createAdapter({ baseURL: suite.adapter.axios.defaults.baseURL }, { throwOnError: true });
+    const userService = adapter.createModelService<User>({
+      modelName: 'AdapterJsIntegrationUser',
+      basePath: 'users',
+    });
+    const inherited = userService.read(String(seedState.admin._id), undefined, { headers: { user: 'admin' } });
+    const overridden = userService.read(String(seedState.lucy2._id), undefined, {
+      headers: { user: 'admin' },
+      throwOnError: false,
+    });
+    let rootRequests = 0;
+    const interceptor = adapter.axios.interceptors.request.use((config) => {
+      if (config.url?.includes('root')) rootRequests += 1;
+      return config;
+    });
+
+    await expect(adapter.group(inherited, overridden)).rejects.toThrow(
+      'Grouped requests must share the same effective throwOnError policy',
+    );
+    expect(rootRequests).toBe(0);
+    await expect(overridden).resolves.toMatchObject({ success: true });
+    adapter.axios.interceptors.request.eject(interceptor);
+  });
+
+  it('runs every grouped callback exactly once before rejecting for a failed entry', async () => {
+    const callbacks: string[] = [];
+    const adapter = createAdapter(
+      { baseURL: suite.adapter.axios.defaults.baseURL },
+      {
+        throwOnError: true,
+        onSuccess: (result) => callbacks.push(`success:${(result as { success: boolean }).success}`),
+        onFailure: (result) => callbacks.push(`failure:${(result as { success: boolean }).success}`),
+      },
+    );
+    const userService = adapter.createModelService<User>({
+      modelName: 'AdapterJsIntegrationUser',
+      basePath: 'users',
+    });
+    const headers = { headers: { user: 'admin' } };
+
+    const rejection = adapter.group(
+      userService.read(String(seedState.admin._id), undefined, headers),
+      userService.read('000000000000000000000000', undefined, headers),
+      userService.read(String(seedState.lucy2._id), undefined, headers),
+    );
+    await expect(rejection).rejects.toMatchObject({
+      raw: { success: false, code: expect.any(String) },
+    });
+
+    expect(callbacks).toEqual(['success:true', 'failure:false', 'success:true']);
+  });
+
+  it('normalizes an outer root transport failure once per entry before applying throwOnError', async () => {
+    const run = async (throwOnError: boolean) => {
+      const callbacks: unknown[] = [];
+      const adapter = createAdapter(
+        { baseURL: suite.adapter.axios.defaults.baseURL },
+        { throwOnError, onFailure: (result) => callbacks.push(result) },
+      );
+      const userService = adapter.createModelService<User>({
+        modelName: 'AdapterJsIntegrationUser',
+        basePath: 'users',
+      });
+      adapter.axios.interceptors.request.use((config) => {
+        if (config.url?.includes('root')) throw new Error('root transport unavailable');
+        return config;
+      });
+      const headers = { headers: { user: 'admin', 'x-axios-cache': 'false' } };
+      const grouped = adapter.group(
+        userService.read(String(seedState.admin._id), undefined, headers),
+        userService.list(undefined, undefined, headers),
+        userService.id(String(seedState.admin._id)).subs('statusHistory').list(headers),
+      );
+
+      if (throwOnError) {
+        await expect(grouped).rejects.toMatchObject({
+          success: false,
+          raw: null,
+          status: 0,
+          message: 'root transport unavailable',
+        });
+      } else {
+        const results = await grouped;
+        expect(results).toHaveLength(3);
+        expect(results.every((result) => result.success === false)).toBe(true);
+        expect(results[0]).not.toHaveProperty('count');
+        expect(results[0]).not.toHaveProperty('totalCount');
+        expect(results[1]).toHaveProperty('totalCount', 0);
+        expect(results[1]).not.toHaveProperty('count');
+        expect(results[2]).toHaveProperty('count', 0);
+        expect(results[2]).not.toHaveProperty('totalCount');
+      }
+
+      expect(callbacks).toHaveLength(3);
+      expect(callbacks.every((result) => (result as { success: boolean }).success === false)).toBe(true);
+    };
+
+    await run(false);
+    await run(true);
   });
 
   it('returns per-entry results for partial failure when throwOnError is not set', async () => {

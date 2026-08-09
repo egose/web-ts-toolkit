@@ -8,13 +8,17 @@ import {
   DataService,
   SuccessResult,
   FailureResult,
+  Response,
   ListModelResponse,
+  SubDocumentResponse,
+  ArrayModelResponse,
 } from '@web-ts-toolkit/access-router-client';
 
 interface Pet {
   _id?: string;
   name: string;
   age: number;
+  statusHistory: Array<{ label: string; flag: string }>;
 }
 
 // TypeScript narrowing helper used in place of `expectTypeOf` so the
@@ -54,24 +58,52 @@ describe('access-router-client built-declaration consumer (ARC-15)', () => {
 
   it('Model<T> preserves the Document constraint and save() returns a useful generic', () => {
     const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const petService = adapter.createModelService<Pet>({ modelName: 'Pet', basePath: 'pets' });
-    type Created = Awaited<ReturnType<typeof petService.create>>;
+    const created = petService.create({ name: 'Max', age: 1, statusHistory: [] });
+    type Created = Awaited<typeof created>;
     // `petService.create(...)` resolves to `ModelResponse<Pet>`, the discriminated
     // Response<...>. Narrowing with `success` exposes `created.data: Model<Pet> & Pet`
     // (so `.save()` is callable) on success and `null` on failure.
     type SuccessBranch = Extract<Created, SuccessResult<Pet, Model<Pet> & Pet>>;
-    type FailureBranch = Extract<Created, FailureResult<Pet>>;
-    expectTypeAssignableTo<Model<Pet> & Pet>({} as SuccessBranch['data']);
-    expectTypeAssignableTo<null>({} as FailureBranch['data']);
+    type FailureBranch = Extract<Created, FailureResult>;
+    const acceptSuccessData = (value: SuccessBranch['data']): Model<Pet> & Pet => value;
+    const failureData: FailureBranch['data'] = null;
+    void created;
+    expectTypeAssignableTo<Model<Pet> & Pet>(acceptSuccessData({} as Model<Pet> & Pet));
+    expectTypeAssignableTo<null>(failureData);
   });
 
-  it('Response<SuccessResult|FailureResult> narrows on success', () => {
-    type Res = SuccessResult<Pet, Pet> | FailureResult<Pet>;
-    const successOnly = (res: Res): Pet => (res.success ? res.data : (res.raw ?? ({} as Pet)));
-    expectTypeAssignableTo<Pet>(successOnly({} as Res));
+  it('model create overloads preserve scalar and bulk cardinality', () => {
+    const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });
+    const petService = adapter.createModelService<Pet>({ modelName: 'Pet', basePath: 'pets' });
+    const scalar = petService.create({ name: 'Max', age: 1, statusHistory: [] });
+    const bulk = petService.create([{ name: 'Max', age: 1, statusHistory: [] }]);
+    const advancedBulk = petService.createAdvanced([{ name: 'Max', age: 1, statusHistory: [] }], {
+      select: ['name'] as const,
+    });
+
+    expectTypeAssignableTo<PromiseLike<import('@web-ts-toolkit/access-router-client').ModelResponse<Pet>>>(scalar);
+    expectTypeAssignableTo<PromiseLike<ArrayModelResponse<Pet>>>(bulk);
+    type AdvancedData = Extract<Awaited<typeof advancedBulk>, { success: true }>['data'];
+    void advancedBulk;
+    expectTypeAssignableTo<Array<{ name: string } & Partial<Pet>>>([] as AdvancedData);
+  });
+
+  it('Response separates success and error payload generics while narrowing', () => {
+    type Res = Response<Pet, Pet>;
+    const successOnly = (res: Res): Pet | null => (res.success ? res.data : null);
+    expectTypeAssignableTo<Pet | null>(successOnly({} as Res));
     const failureOnly = (res: Res): null => (res.success ? null : res.data);
     expectTypeAssignableTo<null>(failureOnly({} as Res));
+
+    const defaultFailure = {} as Extract<Res, { success: false }>;
+    expectTypeAssignableTo<unknown>(defaultFailure.raw);
+    // @ts-expect-error The default failure payload is unknown, not the successful Pet payload.
+    expectTypeAssignableTo<Pet | null>(defaultFailure.raw);
+
+    type Problem = { code: string; errors?: string[] };
+    const customFailure = {} as Extract<Response<Pet, Pet, Problem>, { success: false }>;
+    expectTypeAssignableTo<Problem | null>(customFailure.raw);
   });
 
   it('ListModelResponse keeps totalCount present on both branches', () => {
@@ -81,8 +113,39 @@ describe('access-router-client built-declaration consumer (ARC-15)', () => {
     if (res.success) {
       expectTypeAssignableTo<Pet[]>(res.raw);
     } else {
-      expectTypeAssignableTo<Pet[] | null>(res.raw);
+      expectTypeAssignableTo<unknown>(res.raw);
     }
+  });
+
+  it('infers array-element subdocument types and narrows successful single responses', () => {
+    const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });
+    const petService = adapter.createModelService<Pet>({ modelName: 'Pet', basePath: 'pets' });
+    const request = petService.id('pet-1').subs('statusHistory').read('status-1');
+    type Result = Awaited<typeof request>;
+    type SuccessBranch = Extract<Result, { success: true }>;
+    type Status = Pet['statusHistory'][number];
+
+    const inferredValue: SuccessBranch['data'] = { label: 'created', flag: 'green' };
+    void request;
+    expectTypeAssignableTo<Status>(inferredValue);
+
+    const narrowed = (result: SubDocumentResponse<Status>): Status => {
+      if (result.success) return result.data;
+      return { label: result.message, flag: 'failed' };
+    };
+    expectTypeAssignableTo<Status>(narrowed({} as SubDocumentResponse<Status>));
+  });
+
+  it('retains an explicit subdocument generic when a field is not inferable as an array', () => {
+    const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });
+    const petService = adapter.createModelService<Pet>({ modelName: 'Pet', basePath: 'pets' });
+    type ExternalStatus = { externalCode: string };
+    const request = petService.id('pet-1').subs<ExternalStatus>('name').read('status-1');
+    type SuccessData = Extract<Awaited<typeof request>, { success: true }>['data'];
+
+    const explicitValue: SuccessData = { externalCode: 'external-1' };
+    void request;
+    expectTypeAssignableTo<ExternalStatus>(explicitValue);
   });
 
   it('CustomHeaders members are available as the documented header names', () => {

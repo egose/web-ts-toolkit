@@ -1,12 +1,46 @@
 import type { LazyRequest } from './types';
 
 /**
- * Symbol-keyed flag set non-enumerably on a wrapped lazy request once
- * execution has started (i.e., once `exec()`, `.then()`, `.catch()`, or
- * `.finally()` has been called). Used by `adapter.group(...)` to reject
- * already-executed requests before any network activity begins.
+ * Symbol-keyed flag set non-enumerably on a wrapped lazy request once it is
+ * claimed for direct or grouped execution. Used for internal diagnostics;
+ * ownership transitions are enforced through the module-private WeakMap.
  */
 export const STARTED_KEY = Symbol('started');
+
+type ExecutionMode = 'direct' | 'grouped';
+
+interface ExecutionClaim {
+  mode: ExecutionMode;
+  owner?: symbol;
+}
+
+const executionClaims = new WeakMap<object, ExecutionClaim>();
+
+export const claimLazyRequest = (request: object, mode: ExecutionMode, owner?: symbol): void => {
+  const claim = executionClaims.get(request);
+  if (!claim) {
+    executionClaims.set(request, { mode, owner });
+    return;
+  }
+
+  if (mode === 'grouped') {
+    if (claim.mode === 'direct') {
+      throw new Error(
+        'Cannot group a request that has already started execution; group() must be called before await/then/catch/finally/exec on each input',
+      );
+    }
+    throw new Error('Cannot group a request already claimed for grouped execution');
+  }
+
+  throw new Error('Cannot execute a request already claimed for grouped execution');
+};
+
+export const releaseLazyRequestClaim = (request: object, owner: symbol): void => {
+  const claim = executionClaims.get(request);
+  if (claim?.mode === 'grouped' && claim.owner === owner) {
+    executionClaims.delete(request);
+  }
+};
 
 /**
  * Wraps a lazy promise function with optional metadata.
@@ -24,7 +58,7 @@ export const STARTED_KEY = Symbol('started');
  *   and `await` as a rejection rather than escaping synchronously.
  * - **Metadata is private.** Each meta entry is installed with
  *   `Object.defineProperty(..., { enumerable: false, writable: false,
- *   configurable: true })` so consumers cannot accidentally iterate,
+ *   configurable: false })` so consumers cannot accidentally iterate,
  *   serialize, or reassign it. Direct property reads (`prom.__query`) still
  *   work for adapter-internal machinery (e.g. `adapter.group(...)`).
  * - **One execution.** The first call to `exec()`, `.then()`,
@@ -34,15 +68,18 @@ export const STARTED_KEY = Symbol('started');
  */
 export const wrapLazyPromise = <T, M = undefined>(promiseFn: () => Promise<T>, meta?: M): M & LazyRequest<T> => {
   let promise: Promise<T> | undefined;
-  let started = false;
 
   const exec = () => {
     if (!promise) {
-      // Use `Promise.resolve().then(...)` so a synchronous throw from
-      // `promiseFn` becomes a rejection that reaches `.then`/`.catch`/
-      // `await` consumers rather than escaping the call site.
-      promise = Promise.resolve().then(promiseFn);
-      started = true;
+      try {
+        claimLazyRequest(prom, 'direct');
+        // Use `Promise.resolve().then(...)` so a synchronous throw from
+        // `promiseFn` becomes a rejection that reaches `.then`/`.catch`/
+        // `await` consumers rather than escaping the call site.
+        promise = Promise.resolve().then(promiseFn);
+      } catch (error) {
+        promise = Promise.reject(error);
+      }
     }
 
     return promise;
@@ -71,15 +108,15 @@ export const wrapLazyPromise = <T, M = undefined>(promiseFn: () => Promise<T>, m
     value: 'Promise',
     writable: false,
     enumerable: false,
-    configurable: true,
+    configurable: false,
   });
 
-  // Expose the started-flag for adapter grouping diagnostics. Non-enumerable
-  // so consumers can't accidentally reassign or serialize it.
+  // Expose claim state for adapter diagnostics without making the ownership
+  // record itself reachable or mutable.
   Object.defineProperty(prom, STARTED_KEY, {
-    get: () => started,
+    get: () => executionClaims.has(prom),
     enumerable: false,
-    configurable: true,
+    configurable: false,
   });
 
   // Install metadata keys as non-enumerable + non-writable so consumers
@@ -94,7 +131,7 @@ export const wrapLazyPromise = <T, M = undefined>(promiseFn: () => Promise<T>, m
         value: (meta as Record<string, unknown>)[key],
         enumerable: false,
         writable: false,
-        configurable: true,
+        configurable: false,
       });
     }
   }

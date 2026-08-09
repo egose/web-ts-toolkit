@@ -37,7 +37,13 @@ const orgs = await orgService.listAdvanced(
 void orgs;
 
 const userId = 'user-id-1';
+const subId = 'sub-1';
 const statusHistory = userService.id(userId).subs('statusHistory');
+
+await statusHistory.update(subId, { label: 'processed' });
+await statusHistory.create({ label: 'queued', flag: 'orange' });
+await statusHistory.bulkUpdate([{ _id: subId, label: 'processed' }]);
+await statusHistory.delete(subId);
 
 const created = await statusHistory.create({
   label: 'queued',

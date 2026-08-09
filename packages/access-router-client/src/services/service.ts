@@ -72,6 +72,86 @@ const stringifyErrorPayload = (value: unknown) => {
   }
 };
 
+export interface OperationResultInput {
+  success: boolean;
+  raw: unknown;
+  status: number;
+  headers?: Record<string, unknown>;
+  message?: string;
+  totalCount?: number;
+}
+
+interface TransportError {
+  response?: { status: number; headers: Record<string, unknown>; data: unknown };
+  request?: unknown;
+  message?: string;
+}
+
+interface OperationSuccess {
+  success: true;
+  raw: unknown;
+  data: unknown;
+  message: string;
+  status: number;
+  headers: Record<string, unknown>;
+  totalCount?: number;
+}
+
+/** Shared transport-to-public-result boundary for direct and grouped requests. */
+export function finalizeOperationResult(input: OperationResultInput & { success: true }): OperationSuccess;
+export function finalizeOperationResult(input: OperationResultInput & { success: false }): ResultError;
+export function finalizeOperationResult(input: OperationResultInput): OperationSuccess | ResultError;
+export function finalizeOperationResult({
+  success,
+  raw,
+  status,
+  headers = {},
+  message,
+  totalCount,
+}: OperationResultInput): OperationSuccess | ResultError {
+  if (success) {
+    return {
+      success: true,
+      raw,
+      data: raw,
+      message: '',
+      status,
+      headers,
+      ...(totalCount == null ? {} : { totalCount }),
+    } as const;
+  }
+
+  return {
+    success: false,
+    raw,
+    data: null,
+    message: message ?? stringifyErrorPayload(raw),
+    status,
+    headers,
+    ...(totalCount == null ? {} : { totalCount }),
+  } as const;
+}
+
+export const normalizeTransportFailure = (error: unknown): ResultError => {
+  const transportError = (error && typeof error === 'object' ? error : {}) as TransportError;
+  let raw: unknown = null;
+  let status = 0;
+  let headers: Record<string, unknown> = {};
+  let message: string | undefined;
+
+  if (transportError.response) {
+    status = transportError.response.status;
+    headers = transportError.response.headers;
+    raw = transportError.response.data;
+  } else if (transportError.request) {
+    message = 'The server is not responding';
+  } else {
+    message = transportError.message;
+  }
+
+  return finalizeOperationResult({ success: false, raw, status, headers, message });
+};
+
 /**
  * Low-level base class shared by {@link ModelService} and {@link DataService}.
  * Subclassing is supported as an advanced opt-in for callers that need a
@@ -89,54 +169,35 @@ export class Service {
   protected _axios!: AxiosInstance;
   protected _basePath!: string;
   private _wrap: ReturnType<typeof createWrapHelper>;
+  private _throwOnError: boolean;
 
-  constructor(axios: AxiosInstance, basePath: string) {
+  constructor(axios: AxiosInstance, basePath: string, throwOnError = false) {
     this._axios = axios;
     this._basePath = basePath;
     this._wrap = createWrapHelper(axios, basePath);
+    this._throwOnError = throwOnError;
   }
 
   protected handleSuccess(res: AxiosResponse<unknown, unknown>, extra = {}) {
     return {
-      success: true,
-      raw: res.data,
-      data: res.data,
-      message: '',
-      status: res.status,
-      headers: res.headers,
+      ...finalizeOperationResult({
+        success: true,
+        raw: res.data,
+        status: res.status,
+        headers: res.headers,
+      }),
       ...extra,
     } as Response<unknown>;
   }
 
   // See https://axios-http.com/docs/handling-errors
-  protected handleError<T extends Response<unknown, unknown>>(error: {
-    response?: { status: number; headers: Record<string, unknown>; data: unknown };
-    request?: unknown;
-    message?: string;
-  }): Extract<T, FailureResult<unknown>> {
-    const result = {
-      success: false as const,
-      raw: null as unknown,
-      data: null,
-      message: '',
-      status: 0,
-      headers: {},
-      totalCount: 0,
-    };
+  protected handleError<T extends Response<unknown, unknown>>(error: unknown): Extract<T, FailureResult> {
+    return normalizeTransportFailure(error) as Extract<T, FailureResult>;
+  }
 
-    if (error.response) {
-      result.status = error.response.status;
-      result.headers = error.response.headers;
-      const responseData = error.response.data;
-      result.raw = responseData;
-      result.message = stringifyErrorPayload(responseData);
-    } else if (error.request) {
-      result.message = 'The server is not responding';
-    } else {
-      result.message = error.message;
-    }
-
-    return result as unknown as Extract<T, FailureResult<unknown>>;
+  /** Resolves per-call policy against the already-resolved service/adapter default. */
+  resolveThrowOnError(override?: boolean): boolean {
+    return override ?? this._throwOnError;
   }
 
   wrapGet<T = unknown>(url: string, defaultAxiosRequestConfig: AxiosRequestConfig = {}) {

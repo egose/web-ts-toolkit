@@ -23,6 +23,7 @@ type User = {
   _id?: string;
   name: string;
   role: string;
+  public?: boolean;
 };
 
 const adapter = createAdapter({
@@ -55,3 +56,25 @@ const grouped = await adapter.group(
 );
 
 void grouped;
+
+const fruitService = adapter.createDataService<{ name: string }>({
+  dataName: 'Fruit',
+  basePath: 'fruit',
+});
+const documentedGrouped = await adapter.group(
+  userService.readAdvanced('user-1', { select: ['name'] }),
+  userService.countAdvanced({ public: true }),
+  fruitService.list({ limit: 5 }),
+);
+void documentedGrouped;
+
+{
+  interface User {
+    _id?: string;
+    name: string;
+    role: string;
+    public: boolean;
+  }
+  const documentedUser: User = { name: 'Ada', role: 'admin', public: true };
+  void documentedUser;
+}

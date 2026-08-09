@@ -25,7 +25,7 @@ browsers** (Chrome 94+, Edge 94+, Firefox 93+, Safari 16+):
   both runtimes; the source imports no Node built-ins, so the same
   `dist/index.mjs` and `dist/index.js` run in either environment
 - `withCredentials: true` is the adapter default; in the browser this
-  transmits cookies + the `Authorization` header (see the [Cache Controls][../access-router-client/adapter#cache-controls] section for how credentialed cache partitioning mirrors it
+  transmits cookies + the `Authorization` header (see [Cache Controls](./adapter#cache-controls) for how credentialed cache partitioning mirrors it
   on Node). The cache's `setTimeout`/`clearTimeout` and feature-detected
   `unref()` guard work in both runtimes.
 - `pnpm --filter @web-ts-toolkit/access-router-client test:browser-smoke`
@@ -56,6 +56,30 @@ npm install @web-ts-toolkit/access-router-client
 ```bash
 pnpm add @web-ts-toolkit/access-router-client
 ```
+
+## Unreleased Migration
+
+The remediation release changes several consumer-visible contracts:
+
+- subdocuments are plain data; use parent-scoped helper mutations and read
+  `SubDocumentListResponse.count`, not `Model.save()` or `totalCount`
+- subdocument create always returns an array; model create preserves object
+  versus array input cardinality
+- `Response` is discriminated by `success`; failure `data` is `null`
+- caching remains off at `cacheTTL: 0`; enabled caches are supported-GET-only,
+  credential-partitioned, and bounded to 100 LRU entries by default
+- each lazy request can execute directly or in one group, never both; grouped
+  requests require one effective `throwOnError` policy
+- data services no longer accept permission options or non-string sorts, and
+  `countAdvanced` is `countAdvanced(filter, config?)`
+- strict filters require deliberate `DottedPathFilter` / `ServerSideCast`
+  escape hatches for dynamic paths or server-side casting
+- dynamic path values are encoded once, caller configs remain immutable, and
+  missing persistence identity on an existing projected model throws
+  `MissingPersistenceIdentityError` instead of creating a duplicate
+
+See the installed package README and repository `CHANGELOG.md` for the full
+before/after migration table.
 
 ## What It Exposes
 
@@ -142,23 +166,23 @@ interface SuccessResult<TRaw, TData = TRaw> {
   headers: Record<string, string>;
 }
 
-interface FailureResult<TRaw> {
+interface FailureResult<TError = unknown> {
   success: false;
-  raw: TRaw | null;
+  raw: TError | null;
   data: null;
   message: string;
   status: number;
   headers: Record<string, string>;
 }
 
-type Response<TRaw, TData = TRaw> = SuccessResult<TRaw, TData> | FailureResult<TRaw>;
+type Response<TRaw, TData = TRaw, TError = unknown> = SuccessResult<TRaw, TData> | FailureResult<TError>;
 ```
 
 Common conventions:
 
 - `success === true` means the HTTP request completed and the router operation succeeded
 - on the `success: true` branch, `raw` and `data` are non-null
-- on the `success: false` branch, `data` is always `null` (the server error payload lives in `raw`, when one was received); `message` is extracted from structured problem payloads when possible
+- on the `success: false` branch, `data` is always `null`; `raw` is `unknown` by default or an opt-in `TError` payload, and `message` is extracted from structured problem payloads when possible
 - branch on `result.success` to narrow `raw`/`data` to their successful shapes or to the documented error payload
 - `raw` holds the original payload after client-side normalization
 - `data` holds higher-level client objects such as `Model<T>` wrappers for model reads
@@ -166,7 +190,8 @@ Common conventions:
 For list-style responses:
 
 - `totalCount` is present on model list response types (`ListModelResponse<T>`); for subdocument list responses (`SubDocumentListResponse<S>`), the sibling server emits `count` instead, and that type carries `count` (not `totalCount`)
-- the failure branch initializes `totalCount: 0` (and `count: 0` for subdocument list responses) so reading the count without narrowing always returns a deterministic number rather than `undefined`
+- model/data list failures initialize `totalCount: 0`; subdocument callers
+  should narrow on `success` before reading the successful list's `count`
 - when the server returns count metadata, the client normalizes it into the appropriate field
 - when count metadata is not requested, the count field may be `0` or a fallback based on the route shape
 

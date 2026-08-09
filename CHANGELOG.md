@@ -1,3 +1,31 @@
+## Unreleased
+
+### Breaking Changes: `@web-ts-toolkit/access-router-client`
+
+This release aligns the client with the current `@web-ts-toolkit/access-router`
+protocol and closes cache, batching, persistence, response-shape, and declaration
+gaps. Consumers upgrading from the previous client contract should make these
+changes:
+
+| Area | Previous contract | New contract and migration |
+| --- | --- | --- |
+| Subdocuments | Subdocument results could be `Model<S>` instances, so code could call `sub.data.save()`. | Every direct and grouped subdocument result is plain data. Persist through `service.id(parentId).subs(field).update(subId, data)`, `create(...)`, `bulkUpdate(...)`, or `delete(...)`. |
+| Subdocument create/list counts | Create was typed as a single model and subdocument list results used `totalCount`. | Subdocument `create(object | object[])` always returns the post-create plain array. Read `SubDocumentListResponse.count`; replace every subdocument `totalCount` read. |
+| Model create cardinality | Model create accepted and returned one document. | `create(...)` and `createAdvanced(...)` preserve input cardinality: object input returns `ModelResponse<T>`; array input, including a one-item array, returns `ArrayModelResponse<T>`. |
+| Response narrowing | `Response` fields did not accurately describe failures, and callers commonly used `data` without checking success. | `Response<TRaw, TData>` is `SuccessResult | FailureResult`. Branch on `result.success`; success has non-null `raw`/`data`, while failure has `data: null` and its server problem payload in `raw`. Model/data `totalCount` defaults to `0` when count metadata is unavailable; read subdocument `count` after a successful list result. |
+| Cache defaults and identity | An enabled cache could be unbounded, and credentialed responses could be cached without a stable identity partition. | Caching remains disabled by default (`cacheTTL: 0`). When enabled it is GET-only, defaults to a 100-entry LRU, and credentialed requests bypass caching unless `cachePartition` returns a stable non-secret identity token. Call `clearCache()` on identity changes and `disposeCache()` on teardown. |
+| Lazy/group execution | One lazy request could be replayed by more than one group or executed directly after grouping. | A lazy request is atomically claimed for exactly one direct or grouped execution. Create a new lazy request for another execution; do not reuse an awaited, started, or grouped request. |
+| Group error policy | Grouped requests could ignore adapter/service `throwOnError`, mix policies, stop callbacks at the first failure, and expose outer headers as entry headers. | Every member must have the same effective per-call/service/adapter `throwOnError` policy. Mixed policies reject before dispatch. Non-throwing groups return all entries; throwing groups run every executed callback once and then reject with the first failed entry's `ServiceError`. Entry `headers` are `{}` and structured server failures remain in `raw`. |
+| Protocol signatures | Data permission options, non-string data sort values, and a `countAdvanced` access argument were accepted despite not being supported by the server. | Remove `includePermissions` from `DataService` calls, use a string data sort such as `'age'` or `'-age'`, and call `countAdvanced(filter, axiosRequestConfig?)`. Model `update`/`upsert` now support `includePermissions`. |
+| Filter typing | `FilterQuery<T>` accepted unknown fields and invalid known-field values/operators. | Fix invalid filters or explicitly opt into `DottedPathFilter<T>` / `ServerSideCast<T>` for dynamic dotted paths and intentional server-side casting. |
+| URL and config handling | Dynamic path values were interpolated directly, and caller-owned Axios configuration could be mutated. | Pass raw path values; the client now applies `encodeURIComponent` exactly once. Do not pre-encode unless the literal percent-encoded text is the intended identifier. Reused request/default configs and `AxiosHeaders` now remain unchanged. |
+| Model persistence | In-flight saves could overwrite newer edits, and projected existing models without `_id` could be mistaken for drafts. | Newer local edits remain dirty after save. ID-based reads retain persistence identity outside the projection; an existing model with no recoverable identity throws `MissingPersistenceIdentityError` instead of creating a duplicate. Direct nested mutations are still not tracked: use `set(...)` or `markModified(...)`. |
+
+Additional public API changes are additive: named option/cache types and
+`MissingPersistenceIdentityError` are exported from the package root. The
+package is named-export-only and supports Node 22+ and modern evergreen
+browsers.
+
 ## [0.32.0](https://github.com/egose/web-ts-toolkit/compare/v0.31.5...v0.32.0) (2026-08-01)
 
 ### Features

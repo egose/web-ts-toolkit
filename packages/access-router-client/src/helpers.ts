@@ -6,7 +6,7 @@ export function replaceSubQuery<T>(filter: FilterQuery<T>) {
   if (!isPlainObject(filter)) return filter;
 
   const ret = mapValues(filter, (val) => {
-    if (val && val.__op && val.__query) {
+    if (isPlainObject(val) && '__op' in val && val.__op && '__query' in val && val.__query) {
       return {
         $$sq: val.__query,
       };

@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@repo-toolkit/publish-package@0.7.2': 2d12d6229e42a4dfe527dc6cd374845210b6a2d74b7dc96da503daeea7c803fd
+
 importers:
 
   .:
@@ -14027,21 +14030,21 @@ snapshots:
 
   '@repo-toolkit/changelog@0.7.2(conventional-commits-filter@5.0.0)':
     dependencies:
-      '@repo-toolkit/publish-package': 0.7.2
+      '@repo-toolkit/publish-package': 0.7.2(patch_hash=2d12d6229e42a4dfe527dc6cd374845210b6a2d74b7dc96da503daeea7c803fd)
       conventional-changelog: 7.2.1(conventional-commits-filter@5.0.0)
       conventional-changelog-conventionalcommits: 9.3.1
     transitivePeerDependencies:
       - conventional-commits-filter
 
-  '@repo-toolkit/publish-package@0.7.2': {}
+  '@repo-toolkit/publish-package@0.7.2(patch_hash=2d12d6229e42a4dfe527dc6cd374845210b6a2d74b7dc96da503daeea7c803fd)': {}
 
   '@repo-toolkit/publish-packages@0.7.2':
     dependencies:
-      '@repo-toolkit/publish-package': 0.7.2
+      '@repo-toolkit/publish-package': 0.7.2(patch_hash=2d12d6229e42a4dfe527dc6cd374845210b6a2d74b7dc96da503daeea7c803fd)
 
   '@repo-toolkit/release-artifact@0.7.2':
     dependencies:
-      '@repo-toolkit/publish-package': 0.7.2
+      '@repo-toolkit/publish-package': 0.7.2(patch_hash=2d12d6229e42a4dfe527dc6cd374845210b6a2d74b7dc96da503daeea7c803fd)
 
   '@rolldown/binding-android-arm64@1.0.2':
     optional: true

@@ -72,3 +72,10 @@ const explicit = await userService.readAdvanced<{ name: string }>('user-1', {
   select: { name: 1, role: 1 } as const,
 });
 void explicit;
+
+{
+  const user = await userService.readAdvanced<{ name: string }>('user-1', {
+    select: { name: 1, role: 1 } as const,
+  });
+  void user;
+}

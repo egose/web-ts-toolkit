@@ -27,26 +27,30 @@ const userService = adapter.createModelService<User>({
 const read = await userService.read('user-id-1');
 
 if (read.success) {
-  // Direct nested mutation is NOT tracked.
   read.data.statusHistory[0].label = 'approved';
-  read.data.isDirty('statusHistory');
-
-  read.data.statusHistory.push({ label: 'extra', flag: 'red' });
-  read.data.isDirty('statusHistory');
-
-  // Tracked nested write via `set(...)`.
   read.data.set('statusHistory.0.label', 'approved');
   read.data.isDirty('statusHistory');
 
-  // Or mutate directly and opt in to tracking via `markModified(...)`.
-  read.data.statusHistory[0].label = 'approved';
-  read.data.markModified('statusHistory');
-  read.data.isDirty('statusHistory');
+  const user = read;
+  const original = user.data.statusHistory[0].label;
+  user.data.set('statusHistory.0.label', 'pending');
+  user.data.isDirty('statusHistory');
+  user.data.set('statusHistory.0.label', original);
+  user.data.isDirty('statusHistory');
 
-  // Reverting a nested value back to its baseline cleans the top-level field.
-  const original = read.data.statusHistory[0].label;
-  read.data.set('statusHistory.0.label', 'pending');
-  read.data.isDirty('statusHistory');
-  read.data.set('statusHistory.0.label', original);
-  read.data.isDirty('statusHistory');
+  // Direct nested mutation is NOT tracked.
+  user.data.statusHistory[0].label = 'approved';
+  user.data.isDirty('statusHistory');
+
+  user.data.statusHistory.push({ label: 'extra', flag: 'red' });
+  user.data.isDirty('statusHistory');
+
+  // Tracked nested write via `set(...)`.
+  user.data.set('statusHistory.0.label', 'approved');
+  user.data.isDirty('statusHistory');
+
+  // Or mutate directly and opt in to tracking via `markModified(...)`.
+  user.data.statusHistory[0].label = 'approved';
+  user.data.markModified('statusHistory');
+  user.data.isDirty('statusHistory');
 }

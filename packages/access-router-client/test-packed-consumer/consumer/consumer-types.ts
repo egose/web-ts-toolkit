@@ -49,9 +49,18 @@ if (res.success) {
   res.raw satisfies Pet;
   res.data satisfies Pet;
 } else {
-  res satisfies FailureResult<Pet>;
+  res satisfies FailureResult;
   res.data satisfies null;
+  res.raw satisfies unknown;
+  // @ts-expect-error Default failure raw is not the successful payload type.
   res.raw satisfies Pet | null;
+}
+
+type Problem = { code: string; errors?: string[] };
+const customErrorResponse = {} as Response<Pet, Pet, Problem>;
+if (!customErrorResponse.success) {
+  customErrorResponse satisfies FailureResult<Problem>;
+  customErrorResponse.raw satisfies Problem | null;
 }
 
 // Positive: list response guarantees totalCount on both branches
@@ -60,7 +69,7 @@ list.totalCount satisfies number;
 if (list.success) {
   list satisfies SuccessResult<Pet[], Pet[]>;
 } else {
-  list satisfies FailureResult<Pet[]>;
+  list satisfies FailureResult;
 }
 
 // Positive: CustomHeaders enum reachable and typed
@@ -84,7 +93,7 @@ if (awaited.success) {
   awaited satisfies SuccessResult<Pet, Model<Pet> & Pet>;
   successBranchData = awaited.data;
 } else {
-  awaited satisfies FailureResult<Pet>;
+  awaited satisfies FailureResult;
   successBranchData = null;
 }
 void successBranchData;
