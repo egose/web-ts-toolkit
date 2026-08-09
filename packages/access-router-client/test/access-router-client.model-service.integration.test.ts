@@ -3,7 +3,8 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import { ServiceError } from '../src';
 import { setupIntegrationSuite, type User } from './support/integration-suite';
 
-const { services, seedState } = setupIntegrationSuite();
+const suite = setupIntegrationSuite();
+const { services, seedState } = suite;
 
 describe('access-router-client model-service integration', () => {
   it('supports basic model CRUD helpers, distinctAdvanced(), and id().fetch()', async () => {
@@ -163,13 +164,29 @@ describe('access-router-client model-service integration', () => {
     expect(createdSub.success).toBe(true);
     expect(createdSub.raw).toHaveLength(3);
 
+    // ARC-05: `create()` always returns the array shape (server returns the
+    // full post-create subdocument list when count > 1). The `data` field is
+    // a plain array of plain objects — NOT `Model` instances — so callers
+    // cannot accidentally `save()` a subdocument through the parent route.
+    expect(Array.isArray(createdSub.data)).toBe(true);
+    expect(createdSub.data).toHaveLength(3);
+    expect(createdSub.count).toBe(3);
+
     const createdSubDoc = createdSub.raw[2];
     expect(createdSubDoc).toMatchObject({ label: 'queued', flag: 'orange' });
+    // ARC-05 regression: subdocument items are plain data, not save-capable
+    // Models. No public property or method should be able to target the
+    // parent route with a subdocument `_id`.
+    expect((createdSubDoc as { save?: unknown }).save).toBeUndefined();
+    expect((createdSub.data[2] as { save?: unknown }).save).toBeUndefined();
 
     const createdSubId = String(createdSubDoc._id);
     const updatedSub = await subService.update(createdSubId, { label: 'processed' }, { headers: { user: 'admin' } });
     expect(updatedSub.success).toBe(true);
     expect(updatedSub.raw).toMatchObject({ _id: createdSubId, label: 'processed', flag: 'orange' });
+    // ARC-05: `update()` returns a plain subdocument object as `data`.
+    expect((updatedSub.data as { save?: unknown }).save).toBeUndefined();
+    expect((updatedSub.data as { _id?: string })._id).toBe(createdSubId);
 
     const deletedSub = await subService.delete(createdSubId, { headers: { user: 'admin' } });
     expect(deletedSub.success).toBe(true);
@@ -208,6 +225,12 @@ describe('access-router-client model-service integration', () => {
 
     expect(bulkUpdated.success).toBe(true);
     expect(bulkUpdated.raw).toHaveLength(2);
+    // ARC-05: bulkUpdate() data is the plain updated subdocument array,
+    // no Model wrapping, and count mirrors the server's `count` field.
+    expect(Array.isArray(bulkUpdated.data)).toBe(true);
+    expect(bulkUpdated.data).toHaveLength(2);
+    expect(bulkUpdated.count).toBe(2);
+    expect((bulkUpdated.data[0] as { save?: unknown }).save).toBeUndefined();
 
     const reloaded = await subService.list({ headers: { user: 'admin' } });
     expect(reloaded.raw).toEqual(
@@ -239,11 +262,19 @@ describe('access-router-client model-service integration', () => {
     const subService = services.userService.id(String(seedState.admin._id)).subs('statusHistory');
     const listed = await subService.list({ headers: { user: 'admin' } });
     expect(listed.raw).toHaveLength(2);
+    // ARC-05: list() data is a plain array, no Model wrapping.
+    expect(Array.isArray(listed.data)).toBe(true);
+    expect(listed.data).toHaveLength(2);
+    expect(listed.count).toBe(2);
+    expect((listed.data[0] as { save?: unknown }).save).toBeUndefined();
 
     const existingSubId = String(seedState.admin.statusHistory[0]._id);
     const read = await subService.read(existingSubId, { headers: { user: 'admin' } });
     expect(read.success).toBe(true);
     expect(read.raw).toMatchObject({ _id: existingSubId });
+    // ARC-05: read() data is the plain subdocument object, no Model wrapping.
+    expect((read.data as { save?: unknown }).save).toBeUndefined();
+    expect((read.data as { _id?: string })._id).toBe(existingSubId);
 
     const advancedListed = await subService.listAdvanced(
       { flag: 'green' },
@@ -253,6 +284,10 @@ describe('access-router-client model-service integration', () => {
     expect(advancedListed.success).toBe(true);
     expect(advancedListed.raw).toHaveLength(1);
     expect(String(advancedListed.raw[0]._id)).toBe(existingSubId);
+    // ARC-05: listAdvanced() data is a plain array, no Model wrapping.
+    expect(Array.isArray(advancedListed.data)).toBe(true);
+    expect(advancedListed.count).toBe(1);
+    expect((advancedListed.data[0] as { save?: unknown }).save).toBeUndefined();
 
     const advancedRead = await subService.readAdvanced(
       existingSubId,
@@ -261,6 +296,8 @@ describe('access-router-client model-service integration', () => {
     );
     expect(advancedRead.success).toBe(true);
     expect(String(advancedRead.raw._id)).toBe(existingSubId);
+    // ARC-05: readAdvanced() data is the plain subdocument object, no Model wrapping.
+    expect((advancedRead.data as { save?: unknown }).save).toBeUndefined();
   });
 
   it('infers selected field types for advanced selects', async () => {
@@ -292,5 +329,56 @@ describe('access-router-client model-service integration', () => {
     expect(typedUser.success).toBe(true);
     expect(typedProjectedUser.success).toBe(true);
     expect(explicitTypedUser.success).toBe(true);
+  });
+
+  it('repeated identical subdocument mutations reach the server each time when cacheTTL > 0', async () => {
+    const cachedAdapter = suite.createCachedAdapter((config) => {
+      const headers = config.headers as Record<string, unknown> | undefined;
+      return typeof headers?.user === 'string' ? (headers.user as string) : 'anon';
+    });
+    const userSvc = cachedAdapter.createModelService<User>({
+      modelName: 'AdapterJsIntegrationUser',
+      basePath: 'users',
+    });
+
+    const subService = userSvc
+      .id(String(seedState.admin._id))
+      .subs<{ label: string; flag: string }>('statusHistory' as keyof User);
+
+    const createdFirst = await subService.create({ label: 'first', flag: 'green' }, { headers: { user: 'admin' } });
+    expect(createdFirst.success).toBe(true);
+    expect(createdFirst.raw).toHaveLength(3);
+
+    const createdSecond = await subService.create({ label: 'first', flag: 'green' }, { headers: { user: 'admin' } });
+    expect(createdSecond.success).toBe(true);
+    expect(createdSecond.raw).toHaveLength(4);
+  });
+
+  it('a cached subdocument list is invalidated after a subdocument create', async () => {
+    const cachedAdapter = suite.createCachedAdapter((config) => {
+      const headers = config.headers as Record<string, unknown> | undefined;
+      return typeof headers?.user === 'string' ? (headers.user as string) : 'anon';
+    });
+    const userSvc = cachedAdapter.createModelService<User>({
+      modelName: 'AdapterJsIntegrationUser',
+      basePath: 'users',
+    });
+    const subService = userSvc
+      .id(String(seedState.admin._id))
+      .subs<{ label: string; flag: string }>('statusHistory' as keyof User);
+
+    const listBefore = await subService.list({ headers: { user: 'admin' } });
+    expect(listBefore.success).toBe(true);
+    expect(listBefore.raw).toHaveLength(2);
+
+    const listCached = await subService.list({ headers: { user: 'admin' } });
+    expect(listCached.raw).toHaveLength(2);
+
+    const created = await subService.create({ label: 'post-cache', flag: 'magenta' }, { headers: { user: 'admin' } });
+    expect(created.success).toBe(true);
+    expect(created.raw).toHaveLength(3);
+
+    const listAfter = await subService.list({ headers: { user: 'admin' } });
+    expect(listAfter.raw).toHaveLength(3);
   });
 });

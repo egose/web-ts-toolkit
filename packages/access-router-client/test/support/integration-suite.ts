@@ -9,6 +9,7 @@ import { createAccessRuntime } from '@web-ts-toolkit/access-router';
 import type { ModelRouterOptions } from '@web-ts-toolkit/access-router';
 
 import { createAdapter, DataService, ModelService } from '../../src';
+import type { CachePartitioner } from '../../src/services/interceptors';
 
 const MONGO_TIMEOUT = 120_000;
 const MONGO_START_RETRY_COUNT = 3;
@@ -273,6 +274,17 @@ export function setupIntegrationSuite() {
       res.json({ method: 'delete', pathParams: req.params, queryParams: req.query });
     });
 
+    // ARC-11: echo back the decoded single path segment so callers can assert
+    // that dynamic path segments survive a single encode/decode round-trip
+    // as one decoded route segment rather than being split into multiple
+    // routes by `/`, `?`, or `#`.
+    app.get('/api/echo-segment/:segment', (req, res) => {
+      res.json({ segment: req.params.segment });
+    });
+    app.get('/api/echo-segments/:a/:b/:c', (req, res) => {
+      res.json({ a: req.params.a, b: req.params.b, c: req.params.c });
+    });
+
     app.get('/api/root/group-success', (req, res) => {
       res.json({ success: true, message: 'success' });
     });
@@ -296,6 +308,14 @@ export function setupIntegrationSuite() {
     app.get('/api/test/cache-user', (req, res) => {
       cacheRouteRequestCount += 1;
       res.json({ user: req.headers.user ?? 'anonymous', requestCount: cacheRouteRequestCount });
+    });
+
+    app.post('/api/test/cache-mutate', (req, res) => {
+      res.status(201).json({ mutated: true, body: req.body });
+    });
+
+    app.post('/api/test/cache-mutate-fail', (_req, res) => {
+      res.status(422).json({ success: false, message: 'invalid mutation', errors: ['nope'] });
     });
 
     app.use(userRouter.routes);
@@ -353,5 +373,7 @@ export function setupIntegrationSuite() {
     services,
     endpoints,
     seedState,
+    createCachedAdapter: (partition?: CachePartitioner) =>
+      createAdapter({ baseURL: adapter.axios.defaults.baseURL }, { cacheTTL: 60_000, cachePartition: partition }),
   };
 }
