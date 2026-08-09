@@ -1,25 +1,35 @@
-import http from 'node:http';
-
 import express from 'express';
 import request from 'supertest';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { BadRequestError, UnauthorizedError } from '@web-ts-toolkit/http-errors';
-import apiHandler, { ErrorFormats } from '../dist/index.mjs';
+import apiHandler, { ErrorFormats, createHandler } from '../dist/index.mjs';
+import {
+  createInstrumentedApp,
+  resetHandlerState,
+  type ProcessErrorCapture,
+  type InstrumentedApp,
+} from './helpers/lifecycle';
 
 const { handleResponse } = apiHandler;
 
-const app = express();
-const server = http.createServer(app);
-server.listen(0);
+const defaultErrorMessageProvider = apiHandler.errorMessageProvider;
 
-afterAll(() => {
-  server.close();
+afterEach(() => {
+  resetHandlerState(apiHandler, { errorMessageProvider: defaultErrorMessageProvider });
 });
+
+const app = express();
 
 const hit = async (url: string, status: number, value: unknown) => {
   const response = await request(app).get(url).expect('Content-Type', /json/).expect(status);
 
   expect(status >= 400 ? response.body.message : response.body).toBe(value);
+};
+
+const expectJson = async (url: string, body: unknown, status = 200) => {
+  const response = await request(app).get(url).expect('Content-Type', /json/).expect(status);
+
+  expect(response.body).toEqual(body);
 };
 
 describe('Single Middleware', () => {
@@ -191,13 +201,14 @@ describe('Pre Json hook', () => {
   const value = 'apple';
 
   it(`should return ${value}`, async () => {
+    const handler = createHandler();
     let preData: unknown;
 
-    apiHandler.preJson = function (data: unknown) {
+    handler.preJson = function (data: unknown) {
       preData = data;
     };
 
-    app.get(`/${key}`, handleResponse(fnApple));
+    app.get(`/${key}`, handler.handleResponse(fnApple));
     await hit(`/${key}`, status, value);
     expect(preData).toBe(value);
   });
@@ -209,11 +220,13 @@ describe('Pre Json hook failure', () => {
   const value = 'pre-json failed';
 
   it(`should return ${value}`, async () => {
-    apiHandler.preJson = function () {
+    const handler = createHandler();
+
+    handler.preJson = function () {
       throw new Error('pre-json failed');
     };
 
-    app.get(`/${key}`, handleResponse(fnApple));
+    app.get(`/${key}`, handler.handleResponse(fnApple));
     await hit(`/${key}`, status, value);
   });
 });
@@ -224,18 +237,19 @@ describe('Pre Json hook with Post Json hook', () => {
   const value = 'apple';
 
   it(`should return ${value}`, async () => {
+    const handler = createHandler();
     let preData: unknown;
     let postData: unknown;
 
-    apiHandler.postJson = function (data: unknown) {
+    handler.postJson = function (data: unknown) {
       postData = data;
     };
 
-    apiHandler.preJson = function (data: unknown) {
+    handler.preJson = function (data: unknown) {
       preData = data;
     };
 
-    app.get(`/${key}`, handleResponse(fnApple));
+    app.get(`/${key}`, handler.handleResponse(fnApple));
     await hit(`/${key}`, status, value);
     expect(preData).toBe(value);
     expect(postData).toBe(value);
@@ -248,13 +262,14 @@ describe('Pre Error hook', () => {
   const value = 'error1';
 
   it(`should return ${value}`, async () => {
+    const handler = createHandler();
     let preError: unknown;
 
-    apiHandler.preError = function (err: Error) {
+    handler.preError = function (err: Error) {
       preError = err.message;
     };
 
-    app.get(`/${key}`, handleResponse(fnError1));
+    app.get(`/${key}`, handler.handleResponse(fnError1));
     await hit(`/${key}`, status, value);
     expect(preError).toBe(value);
   });
@@ -266,18 +281,19 @@ describe('Pre Error hook with Post Error hook', () => {
   const value = 'error1';
 
   it(`should return ${value}`, async () => {
+    const handler = createHandler();
     let preError: unknown;
     let postError: unknown;
 
-    apiHandler.postError = function (err: Error) {
+    handler.postError = function (err: Error) {
       postError = err.message;
     };
 
-    apiHandler.preError = function (err: Error) {
+    handler.preError = function (err: Error) {
       preError = err.message;
     };
 
-    app.get(`/${key}`, handleResponse(fnError1));
+    app.get(`/${key}`, handler.handleResponse(fnError1));
     await hit(`/${key}`, status, value);
     expect(preError).toBe(value);
     expect(postError).toBe(value);
@@ -290,11 +306,13 @@ describe('Pre Error hook failure', () => {
   const value = 'pre-error failed';
 
   it(`should return ${value}`, async () => {
-    apiHandler.preError = function () {
+    const handler = createHandler();
+
+    handler.preError = function () {
       throw new Error('pre-error failed');
     };
 
-    app.get(`/${key}`, handleResponse(fnError1));
+    app.get(`/${key}`, handler.handleResponse(fnError1));
     await hit(`/${key}`, status, value);
   });
 });
@@ -305,15 +323,17 @@ describe('Custom Error Message Provider', () => {
   const value = 'customError';
 
   it(`should return ${value}`, async () => {
-    apiHandler.preError = function (err: Error) {
+    const handler = createHandler();
+
+    handler.preError = function (err: Error) {
       return err;
     };
 
-    apiHandler.errorMessageProvider = function () {
+    handler.errorMessageProvider = function () {
       return 'customError';
     };
 
-    app.get(`/${key}`, handleResponse(fnError1));
+    app.get(`/${key}`, handler.handleResponse(fnError1));
     await hit(`/${key}`, status, value);
   });
 });
@@ -330,7 +350,7 @@ describe('Invalid handler input', () => {
 
 describe('Configuration accessors', () => {
   it('should expose the configured provider and hooks', () => {
-    const handler = apiHandler.createHandler();
+    const handler = createHandler();
     const provider = function () {
       return 'customError';
     };
@@ -350,8 +370,8 @@ describe('Configuration accessors', () => {
 });
 
 describe('Handler instance isolation', () => {
-  const firstHandler = apiHandler.createHandler();
-  const secondHandler = apiHandler.createHandler();
+  const firstHandler = createHandler();
+  const secondHandler = createHandler();
   const firstKey = 'isolated-handler-first';
   const secondKey = 'isolated-handler-second';
 
@@ -381,7 +401,7 @@ describe('Handler instance isolation', () => {
 });
 
 describe('AIP-193 error format', () => {
-  const structuredHandler = apiHandler.createHandler({
+  const structuredHandler = createHandler({
     errorFormat: ErrorFormats.aip193,
     errorDomain: 'api.example.com',
   });
@@ -437,31 +457,33 @@ describe('AIP-193 error format', () => {
 
     app.get(`/${genericKey}`, structuredHandler.handleResponse(fnError1));
 
-    const response = await request(app).get(`/${genericKey}`).expect(422);
-
-    expect(response.body).toEqual({
-      error: {
-        code: 422,
-        status: 'UNKNOWN',
-        message: 'request failed',
-        details: [
-          {
-            type: 'error_info',
-            reason: 'UNKNOWN',
-            domain: 'api.example.com',
-          },
-        ],
+    await expectJson(
+      `/${genericKey}`,
+      {
+        error: {
+          code: 422,
+          status: 'UNKNOWN',
+          message: 'request failed',
+          details: [
+            {
+              type: 'error_info',
+              reason: 'UNKNOWN',
+              domain: 'api.example.com',
+            },
+          ],
+        },
       },
-    });
+      422,
+    );
   });
 });
 
 describe('RFC 9457 error format', () => {
-  const problemHandler = apiHandler.createHandler({
+  const problemHandler = createHandler({
     errorFormat: ErrorFormats.rfc9457,
     errorDomain: 'api.example.com',
   });
-  const jsonProblemHandler = apiHandler.createHandler({
+  const jsonProblemHandler = createHandler({
     errorFormat: ErrorFormats.rfc9457,
     errorDomain: 'api.example.com',
     rfc9457ContentType: 'application/json',
@@ -593,6 +615,83 @@ describe('RFC 9457 error format', () => {
         },
       ],
     });
+  });
+});
+
+describe('Express error middleware observation', () => {
+  let instrumented: InstrumentedApp;
+  let processCapture: ProcessErrorCapture | undefined;
+
+  afterEach(() => {
+    instrumented?.dispose();
+    processCapture?.dispose();
+    processCapture = undefined;
+    instrumented = undefined as never;
+  });
+
+  it('a thrown handler error does not leak an unhandled rejection and still produces one terminal response', async () => {
+    instrumented = createInstrumentedApp({ captureProcess: true });
+    processCapture = instrumented.processCapture ?? undefined;
+    const { app, probe, tracker } = instrumented;
+
+    app.use(tracker.attachedMiddleware);
+    app.get('/throw', handleResponse(fnError1));
+    probe.install();
+
+    const response = await request(app).get('/throw').expect(422);
+
+    expect(response.body.message).toBe('error1');
+    expect(probe.errorMiddlewareNeverReached).toBe(true);
+    expect(tracker.finishedOnce).toBe(true);
+    expect(processCapture.observedUnhandledRejection).toBe(false);
+  });
+
+  it('a rejected handler promise does not emit an unhandled rejection and still produces one terminal response', async () => {
+    instrumented = createInstrumentedApp({ captureProcess: true });
+    processCapture = instrumented.processCapture ?? undefined;
+    const { app, probe, tracker } = instrumented;
+
+    app.use(tracker.attachedMiddleware);
+    app.get('/reject', handleResponse(fnError1Promise));
+    probe.install();
+
+    const response = await request(app).get('/reject').expect(422);
+
+    expect(response.body.message).toBe('error1');
+    expect(probe.errorMiddlewareNeverReached).toBe(true);
+    expect(tracker.finishedOnce).toBe(true);
+    expect(processCapture.observedUnhandledRejection).toBe(false);
+  });
+
+  it('a raw Express middleware that calls next(error) reaches error middleware exactly once', async () => {
+    instrumented = createInstrumentedApp();
+    const { app, probe, tracker } = instrumented;
+
+    app.use(tracker.attachedMiddleware);
+    app.get('/raw-next-error', (_req, _res, next) => {
+      next(new Error('raw-error'));
+    });
+    probe.install();
+
+    await request(app).get('/raw-next-error').expect(500);
+
+    expect(probe.errorMiddlewareReachedOnce).toBe(true);
+    expect(tracker.finishedOnce).toBe(true);
+  });
+
+  it('a successful request never reaches Express error middleware and finishes exactly once', async () => {
+    instrumented = createInstrumentedApp();
+    const { app, probe, tracker } = instrumented;
+
+    app.use(tracker.attachedMiddleware);
+    app.get('/ok', handleResponse(fnApple));
+    probe.install();
+
+    const response = await request(app).get('/ok').expect(200);
+
+    expect(response.body).toBe('apple');
+    expect(probe.errorMiddlewareNeverReached).toBe(true);
+    expect(tracker.finishedOnce).toBe(true);
   });
 });
 

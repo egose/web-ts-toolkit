@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "lint-fix": "eslint --fix .",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "dependencies": {
     "@egose/shadcn-theme": "^0.1.10",

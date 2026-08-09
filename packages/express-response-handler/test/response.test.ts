@@ -1,8 +1,6 @@
-import http from 'node:http';
-
 import express from 'express';
 import request from 'supertest';
-import { afterAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import apiHandler from '../dist/index.mjs';
 import {
   OK,
@@ -16,19 +14,11 @@ import {
   AlreadyReported,
   IMUsed,
 } from '../dist/responses/success.mjs';
+import { createInstrumentedApp } from './helpers/lifecycle';
 
 const { handleResponse } = apiHandler;
 
-const app = express();
-app.set('port', 8083);
-const server = http.createServer(app);
-server.listen(8083);
-
-afterAll(() => {
-  server.close();
-});
-
-const hit = async (url: string, status: number, value: number) => {
+const hit = async (app: express.Express, url: string, status: number, value: number): Promise<void> => {
   const response = await request(app).get(url).expect(status);
 
   if (status === 204) {
@@ -50,101 +40,145 @@ const hit = async (url: string, status: number, value: number) => {
 describe('Successful responses', () => {
   it('should return 200', async () => {
     const status = 200;
+    const app = express();
+
     app.get(
       `/${status}`,
       handleResponse(() => new OK(status)),
     );
 
-    await hit(`/${status}`, status, status);
+    await hit(app, `/${status}`, status, status);
   });
 
   it('should return 201', async () => {
     const status = 201;
+    const app = express();
+
     app.get(
       `/${status}`,
       handleResponse(() => new Created(status)),
     );
 
-    await hit(`/${status}`, status, status);
+    await hit(app, `/${status}`, status, status);
   });
 
   it('should return 202', async () => {
     const status = 202;
+    const app = express();
+
     app.get(
       `/${status}`,
       handleResponse(() => new Accepted(status)),
     );
 
-    await hit(`/${status}`, status, status);
+    await hit(app, `/${status}`, status, status);
   });
 
   it('should return 203', async () => {
     const status = 203;
+    const app = express();
+
     app.get(
       `/${status}`,
       handleResponse(() => new NonAuthoritativeInfo(status)),
     );
 
-    await hit(`/${status}`, status, status);
+    await hit(app, `/${status}`, status, status);
   });
 
   it('should return 204', async () => {
     const status = 204;
+    const app = express();
+
     app.get(
       `/${status}`,
       handleResponse(() => new NoContent()),
     );
 
-    await hit(`/${status}`, status, status);
+    await hit(app, `/${status}`, status, status);
   });
 
   it('should return 205', async () => {
     const status = 205;
+    const app = express();
+
     app.get(
       `/${status}`,
       handleResponse(() => new ResetContent(status)),
     );
 
-    await hit(`/${status}`, status, status);
+    await hit(app, `/${status}`, status, status);
   });
 
   it('should return 206', async () => {
     const status = 206;
+    const app = express();
+
     app.get(
       `/${status}`,
       handleResponse(() => new PartialContent(status)),
     );
 
-    await hit(`/${status}`, status, status);
+    await hit(app, `/${status}`, status, status);
   });
 
   it('should return 207', async () => {
     const status = 207;
+    const app = express();
+
     app.get(
       `/${status}`,
       handleResponse(() => new MultiStatus(status)),
     );
 
-    await hit(`/${status}`, status, status);
+    await hit(app, `/${status}`, status, status);
   });
 
   it('should return 208', async () => {
     const status = 208;
+    const app = express();
+
     app.get(
       `/${status}`,
       handleResponse(() => new AlreadyReported(status)),
     );
 
-    await hit(`/${status}`, status, status);
+    await hit(app, `/${status}`, status, status);
   });
 
   it('should return 226', async () => {
     const status = 226;
+    const app = express();
+
     app.get(
       `/${status}`,
       handleResponse(() => new IMUsed(status)),
     );
 
-    await hit(`/${status}`, status, status);
+    await hit(app, `/${status}`, status, status);
+  });
+});
+
+describe('Response lifecycle regression', () => {
+  it('a successful request finishes exactly once without reaching error middleware', async () => {
+    const { app, probe, tracker, dispose } = createInstrumentedApp();
+
+    try {
+      tracker.reset();
+      app.use(tracker.attachedMiddleware);
+      app.get(
+        '/ok',
+        handleResponse(() => new OK(200)),
+      );
+      probe.install();
+
+      const response = await request(app).get('/ok').expect(200);
+
+      expect(response.body).toBe(200);
+      expect(probe.errorMiddlewareNeverReached).toBe(true);
+      expect(tracker.finishedOnce).toBe(true);
+    } finally {
+      dispose();
+    }
   });
 });
