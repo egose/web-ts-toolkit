@@ -59,6 +59,65 @@ If the projection is too wide, the client falls back to a looser `Partial<T>`-st
 
 That fallback is intentional. The client only narrows types when the projection is specific enough to be trustworthy at compile time.
 
+## Filter Query Types
+
+`FilterQuery<T>` is strongly typed around your document shape so invalid known-field values and unsupported operators fail at compile time rather than reaching the server.
+
+```ts
+interface User {
+  _id?: string;
+  name: string;
+  role: string;
+  public: boolean;
+  age: number;
+  tags: string[];
+}
+
+const filter: FilterQuery<User> = {
+  name: /^Max/,                       // RegExp on string-typed field
+  role: { $in: ['admin', 'maintainer'] },
+  age: { $gte: 18, $lt: 65 },         // comparison operators on number field
+  public: true,                        // bare scalar equality
+  tags: 'vip',                         // element-typed condition on array field
+  $or: [{ name: 'Max' }, { age: { $gt: 99 } }],
+};
+```
+
+A known field accepts its scalar, an array of those scalars (the sibling server expands it to an `$in` query), `RegExp` when the field is string-typed, and the comparison / element / evaluation operators valid for that scalar. Root operators (`$and` / `$nor` / `$or` / `$text` / `$where` / `$comment`) are typed only at the root of a filter. Unknown field keys and unknown operators do not compile:
+
+```ts
+const bad: FilterQuery<User> = {
+  nonExistentField: 'x',   // error: not a key of User
+  age: { $regex: '^42' },  // error: $regex is only valid where T extends string
+  name: { $mod: [10, 0] }, // error: $mod is only valid where T extends number
+};
+```
+
+### Escape hatches for dynamic dotted paths and server-side casting
+
+The typed `FilterQuery<T>` deliberately rejects dynamic dotted paths (e.g. `'user.friends.name'`) because they are not keys of `T`. When you genuinely need one — or when you want to forward a value explicitly cast on the server side — switch the parameter type to a deliberate, named escape hatch:
+
+- `DottedPathFilter<T>` — the typed `FilterQuery<T>` surface plus an unrestricted string index signature, so dynamic dotted paths and server-side-cast values still typecheck.
+- `ServerSideCast<T>` — intent-revealing alias of `DottedPathFilter<T>` for explicit server-side casting of field values the client type cannot express.
+
+```ts
+import { DottedPathFilter, ServerSideCast } from '@web-ts-toolkit/access-router-client';
+
+// Dynamic dotted path the typed surface rejects:
+const escaped: DottedPathFilter<User> = {
+  'user.friends.name': 'Max',
+  'profile.serverside.cast': 42,
+};
+
+// Explicit server-side casting:
+const cast: ServerSideCast<User> = {
+  name: 'Max',
+  'computed.score': { $gt: 0.5 },
+};
+```
+
+The sibling server accepts arbitrary objects/arrays for filters (`objectOrArraySchema`), so the escape hatch is purely a compile-time opt-out — it never causes a runtime failure. It is also deliberately opt-in: the looseness does **not** leak back onto the typed `FilterQuery<T>` surface used everywhere else, so a stray invalid value on a known field in normal call sites still fails to compile.
+
 ## Overriding The Inferred Shape
 
 You can provide an explicit result type if you want something narrower than the inferred selection.
@@ -79,16 +138,53 @@ That is most useful when:
 
 Common exported types include:
 
-- `Response<TRaw, TData = TRaw>`
+- `Response<TRaw, TData = TRaw>` — discriminated union of `SuccessResult<TRaw, TData>` and `FailureResult<TRaw>`
+- `SuccessResult<TRaw, TData = TRaw>`
+- `FailureResult<TRaw>`
 - `ModelResponse<T, TData = T>`
+- `ArrayModelResponse<T, TData = T>`
 - `ListModelResponse<T, TData = T>`
 - `DataResponse<T>`
+- `ArrayDataResponse<T>`
 - `ListDataResponse<T>`
+- `SubDocumentResponse<S, TData = S>`
+- `SubDocumentListResponse<S, TData = S>`
 - `Projection`
 - `FilterQuery<T>`
+- `DottedPathFilter<T>` — deliberate escape hatch that restores schema-less
+  field matching for dynamic dotted paths such as `'user.friends.name'` and
+  for explicit server-side casting. Use only at call sites where the typed
+  `FilterQuery<T>` cannot express the filter.
+- `ServerSideCast<T>` — intent-revealing alias of `DottedPathFilter<T>` for
+  explicit server-side casting of field values the client type cannot express.
 - `Populate`
 - `Include`
 - `WrapOptions`
+
+## Public Export Surface
+
+The package is named-export-only (no default export). Configure cache policy
+and per-factory options through these named types instead of structural
+inline literals:
+
+- `AdapterOptions` — options for `createAdapter(...)`, including cache policy
+  (`cacheTTL`, `cachePartition`, `cacheCapacity`) and per-adapter
+  `onSuccess` / `onFailure` / `throwOnError` defaults
+- `ModelServiceOptions` — options for `adapter.createModelService<T>(...)`
+- `DataServiceOptions` — options for `adapter.createDataService<T>(...)`
+- `CachePartitioner` — `(config) => string | undefined` partition function for
+  credentialed cache safety; returning `undefined` bypasses the cache for that
+  request so one identity cannot receive a response created under another
+- `CacheController` — adapter-scoped `clear()` / `dispose()` surface used by
+  the returned adapter's `clearCache()` / `disposeCache()` methods
+
+The full root API is locked by the package's runtime/type export contract test
+(`access-router-client.exports.unit.test.ts`); any accidental addition or
+removal requires updating that allowlist together with the README and
+`llms.txt`. Implementation internals such as `useCacheInterceptors`,
+`cloneConfigWithCacheBypass`, `finalizeRootEntry`, `applyGroupCallbacks`,
+`makeRequest`, `createWrapHelper`, `ADAPTER_ID_KEY`, `STARTED_KEY`,
+`CACHE_HEADER`, `CachePolicy`, and `RootEntry` are intentionally not exported.
 
 `WrapOptions` is used by wrapped endpoints:
 
@@ -223,5 +319,16 @@ Once awaited, the lazy request metadata is gone and you no longer have a batchab
 
 - [Overview](./)
 - [Adapter And Setup](./adapter)
+## Strict consumer compile
+
+The published declarations are checked under `strict: true` and `skipLibCheck: false` against fresh NodeNext and Bundler consumers in CI. The package-local commands are:
+
+- `pnpm --filter @web-ts-toolkit/access-router-client typecheck:nodenext-strict`
+- `pnpm --filter @web-ts-toolkit/access-router-client typecheck:bundler-strict`
+
+Both compile the `test-decl-consumer/` directory against `dist/index.d.ts` with no inference leaks from Axios internals.
+
+## See also
+
 - [Services](./services)
 - [Model](./model)

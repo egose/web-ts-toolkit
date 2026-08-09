@@ -57,13 +57,54 @@ Supported adapter options:
 - `onFailure?: (res) => void`
 - `throwOnError?: boolean`
 - `cacheTTL?: number`
+- `cachePartition?: CachePartitioner` — required to cache credentialed requests safely (see [Cache Controls](#cache-controls)); returning `undefined` bypasses the cache for that credentialed request so one identity cannot receive a response created under another
+- `cacheCapacity?: number` — bounds the number of cached entries per adapter (LRU eviction)
+- `modelDefaults?: Defaults` — adapter-level defaults inherited by every `createModelService<T>(...)` unless overridden per-service
+- `dataDefaults?: DataDefaults` — adapter-level defaults inherited by every `createDataService<T>(...)` unless overridden per-service
 
 Behavior notes:
 
 - `rootRouterPath` must match the path used by your server-side root router
 - `throwOnError` becomes the default for services created by this adapter
 - `onSuccess` and `onFailure` run after the client normalizes the response
-- `cacheTTL > 0` installs in-memory Axios interceptors for cacheable requests
+- `cacheTTL > 0` installs in-memory Axios interceptors for cacheable requests; credentialed caching is off unless `cachePartition` returns a stable, non-secret identity token
+
+## Cache Controls
+
+When `cacheTTL > 0`, `createAdapter(...)` returns an adapter exposing
+`clearCache()` and `disposeCache()`:
+
+- `clearCache()` — drop every cached entry. Call on credential transitions: login, logout, token refresh, tenant change.
+- `disposeCache()` — drop entries AND release cache timers. Call when the adapter is torn down so they do not keep a Node process alive.
+
+Credentialed requests are NEVER cached unless `cachePartition` is configured,
+to prevent one identity from receiving a response created under another. The
+partition token must be a stable, non-secret value (for example a user id or
+tenant id); sensitive headers (`authorization`, `cookie`, `set-cookie`,
+`proxy-authorization`, `www-authenticate`) are excluded from cache keys
+regardless of the partition token.
+
+### Browser And Node Runtime
+
+The package supports **browsers and Node** (maintainer decision, ARC-19).
+The bundle targets `es2022` and `package.json` declares `engines.node:
+">=22"` and `browserslist: ["supports es2022-module"]`; the same
+`dist/index.mjs` and `dist/index.js` run in either environment because the
+source imports no Node built-ins.
+
+- `withCredentials: true` (the adapter default) is honored by both Axios's
+  browser `XMLHttpRequest` adapter (sends cookies + `Authorization`) and the
+  Node HTTP adapter (sends the `Cookie`/`Authorization` headers you set on
+  the Axios config). The `cachePartition` policy above applies identically
+  to both runtimes — one identity cannot receive another's cached response.
+- The cache timers use `setTimeout`/`clearTimeout`, which are
+  browser-native. The optional Node `unref()` optimization is
+  feature-detected and is a no-op in browsers, so `clearCache()` and
+  `disposeCache()` are safe to call in either runtime.
+- `pnpm --filter @web-ts-toolkit/access-router-client test:browser-smoke`
+  runs a jsdom + Vite smoke test against the built bundle that fails on
+  Node-only built-in leaks or unsupported syntax. It also runs as part of
+  the package's default `pnpm test`.
 
 ## Matching Server Paths
 
@@ -199,6 +240,8 @@ const grouped = await adapter.group(
 Important rules:
 
 - only pass lazy requests returned from this client package
+- only pass lazy requests created by **this** adapter's services — `group(...)` rejects requests owned by a different adapter before any network activity begins (each adapter stamps its services with a private identity token so cross-adapter grouping is caught locally)
+- never pass a lazy request that has already been awaited (or `.then`/`.catch`/`.finally`/`.exec`'d) — `group(...)` rejects already-started requests before any network activity begins, so an executed mutation cannot be replayed through the root router
 - every grouped request must share the same Axios request config
 - the requests are serialized into root-router query metadata and sent to `rootRouterPath`
 
@@ -209,6 +252,23 @@ Practical consequences:
 - grouped requests preserve order, so `group(a, b, c)` returns results for `a`, `b`, then `c`
 
 The grouped result is an array of normalized response objects in the same order as the input requests.
+
+### `throwOnError` batch policy
+
+When every member of a group explicitly passes `throwOnError: true` in its `axiosRequestConfig` (or the owning service was constructed with `throwOnError: true`), the **entire batch** rejects with the first `ServiceError` produced by any failing entry — the remaining entries are not finalized. This mirrors how a single `throwOnError: true` direct call rejects instead of returning a `{ success: false }` payload.
+
+When `throwOnError` is omitted (or false) on every member, each entry returns its normalized `{ success: false, message, status, data: null, ... }` payload inside the array — the caller is responsible for inspecting `result[i].success` per entry. This is the default behavior and matches how partial failures have historically been surfaced.
+
+A batch is uniform: a group with mixed `throwOnError` settings does not form a coherent batch (the per-call `throwOnError` flag travels in the request metadata, and `group(...)` enforces one shared `AxiosRequestConfig` per batch, so members either all opt in or all opt out).
+
+### Lazy request semantics
+
+Service methods return a `LazyRequest<T>` — a promise-like object that delays execution until first interaction.
+
+- the request does not execute until you `await`, `.then()`, `.catch()`, `.finally()`, or call `.exec()`
+- a single underlying promise is shared across all of those entry points, so repeated chaining (`req.then(...); req.then(...); req.exec();`) invokes the executor **once** rather than re-issuing the request
+- a synchronous throw from the executor is converted into a promise rejection, so it reaches `await` and `.catch()` as a normal rejection rather than escaping synchronously from `.then()`/`.exec()`
+- batching metadata (`__op`, `__query`, `__requestConfig`, `__service`) is installed non-enumerably and non-writable, so it cannot accidentally leak through `JSON.stringify`, `Object.keys`, spread iteration, or consumer reassignment; direct property reads inside the client package (e.g. by `group(...)`) still work
 
 ## Wrapped Endpoints
 
@@ -236,6 +296,17 @@ Path and query behavior:
 - `{{token}}` placeholders in the URL are replaced from `pathParams`
 - `queryParams` become Axios `params`
 - per-call Axios config is merged with the wrapper default config
+
+### Dynamic path segment encoding
+
+Each value interpolated into a URL — whether a wrapper `pathParams` value, a model/data service `identifier`, a `distinct` field, or subdocument `id`/`sub`/`subId` segments — is encoded exactly once with `encodeURIComponent` before being placed in the path.
+
+Behavior to keep in mind:
+
+- Static route separators (`/`) and server route names (`distinct`, `count`, `new`, `__query`, `__mutation`, `__filter`, your configured `queryPath`/`mutationPath`) are inserted by the client verbatim and are never encoded.
+- Values containing `/`, `?`, `#`, space, or any other URL-significant character are percent-encoded, so an identifier such as `a/b` becomes the single path segment `a%2Fb`. The server receives and decodes it as one literal segment rather than splitting on the slash.
+- Already-encoded values are re-encoded (`%` becomes `%25`). An input of `%2F` is sent as `%252F` so that, after a single server-side decode, the route sees the literal `%2F` string — not a `/`.
+- Raw identifiers are retained in any JSON-RPC metadata sent to the root router; encoding applies only to HTTP path construction.
 
 This is useful when:
 
@@ -277,6 +348,20 @@ userService.wrapPost('chairman');
 ```
 
 For service-level wrappers, the service base path is prepended automatically.
+
+### Configuration immutability
+
+The adapter never mutates caller-owned configuration objects. Three internal sites historically mutated their inputs; each has been replaced with a non-mutating equivalent:
+
+- `Service.updateHeaders(headers, { ignoreCache })` returns a fresh headers object that includes the package-owned `CACHE_HEADER` (`"true"` for cache-eligible, `"false"` for bypass). An `AxiosHeaders` instance is cloned via `new AxiosHeaders(headers.toJSON())` before any value is set; a plain-object headers input is shallow-copied. Caller-supplied `CACHE_HEADER` wins over the `ignoreCache` default.
+- `getWrapContext(url, options, config)` no longer writes `queryParams` into the passed `config.params`. It returns `{ ...config, params: queryParams }` (or a fresh `{ params }` when only query params are supplied), leaving the caller's `config` untouched.
+- `prepareConfig(defaultConfig, cacheValue, requestConfig)` no longer stamps `CACHE_HEADER` onto the captured `defaultConfig`. It clones `defaultConfig.headers` into a new object, sets the cache header on the clone, and feeds a spread copy of `defaultConfig` into `mergeConfig`, so repeated wrapper invocations against the same captured default are order-independent and leave the default equal to its original shape.
+
+Practical implications:
+
+- the same caller `axiosRequestConfig` object can be reused across many requests (success and failure) without acquiring hidden cache controls or `params`.
+- the same `AxiosHeaders` instance can be passed to multiple service methods without being mutated.
+- wrapper default configs captured at adapter/service construction remain stable across the adapter's lifetime.
 
 ## Related Pages
 

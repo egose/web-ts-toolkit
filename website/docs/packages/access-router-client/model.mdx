@@ -14,7 +14,7 @@ Model reads and writes return `Model<T>` instances.
 It solves three common client problems:
 
 - mutate a loaded document locally without immediately sending a request
-- track which top-level fields changed
+- track which top-level fields changed (modified state is auto-reconciled against the snapshot, so reversing a change cleans the field)
 - persist the changes back to the same service through `save()`
 
 ## Basic Usage
@@ -22,11 +22,13 @@ It solves three common client problems:
 ```ts
 const read = await userService.read('user-id-1');
 
-read.data.name = 'new-name';
-read.data.role = 'owner';
+if (read.success) {
+  read.data.name = 'new-name';
+  read.data.role = 'owner';
 
-if (read.data.isDirty()) {
-  await read.data.save();
+  if (read.data.isDirty()) {
+    await read.data.save();
+  }
 }
 ```
 
@@ -65,7 +67,9 @@ read.data.set('statusHistory.0.label', 'approved');
 
 ## Dirty Tracking
 
-`Model<T>` tracks modified top-level paths.
+`Model<T>` tracks modified top-level paths and reconciles every write against the loaded or last successfully saved snapshot.
+
+The snippets in this section all assume a successful read — i.e. they live inside the `if (read.success) { ... }` narrowing shown in [Basic Usage](#basic-usage) so `read.data` is the non-null `Model<T> & T`. The narrower guard is omitted from each one-liner for brevity.
 
 Available helpers:
 
@@ -79,9 +83,72 @@ Behavior notes:
 
 - unchanged writes do not mark a field dirty
 - nested path tracking is normalized to the top-level field
-- direct mutation of deeply nested objects is not automatically tracked unless it passes through `set(...)` or `markModified(...)`
+- direct mutation of deeply nested objects is not automatically tracked unless it passes through `set(...)` or `markModified(...)` (see the **Nested-edit contract** below)
+- reverting a top-level field to its snapshot baseline clears the dirty flag, so `A -> B -> A` (or `set('x', snap) -> set('x', diff) -> set('x', snap)`) leaves the field clean
+
+### Revert-clean semantics
+
+When you call `set(...)`, `assign(...)`, or assign a top-level field via the property setter, the model compares the new value to the snapshot using deep equality. If they match, the path is removed from the dirty set. This applies whether the write produced a different value or simply re-wrote the same value:
+
+```ts
+const user = await userService.read('user-id-1');
+const baseline = user.data.role;
+
+user.data.role = 'maintainer';
+user.data.isDirty('role'); // true
+
+user.data.role = baseline;
+user.data.isDirty('role'); // false — reverted to the snapshot
+```
+
+The same rule applies to nested writes through `set('path.to.field', value)` because nested writes normalize to their top-level field. Reverting a nested value back to its baseline cleans the entire top-level field.
+
+```ts
+const original = user.data.statusHistory[0].label;
+user.data.set('statusHistory.0.label', 'pending');
+user.data.isDirty('statusHistory'); // true
+
+user.data.set('statusHistory.0.label', original);
+user.data.isDirty('statusHistory'); // false — deep-equals the snapshot
+```
+
+`markModified(...)` is the explicit escape hatch: it forces a path into the dirty set even when the effective value still equals the snapshot, so you can re-send a field to the server (for example, to retrigger server-side defaults or to re-apply a value that another client may have reverted). `markModified(...)` is never auto-reconciled.
 
 This top-level normalization is intentional. The client ultimately sends modified top-level fields back to the server, not path-by-path Mongo update operators.
+
+### Nested-edit contract
+
+Direct mutation of nested objects and arrays is **not** tracked by the model:
+
+```ts
+user.data.statusHistory[0].label = 'approved';
+
+user.data.isDirty('statusHistory');
+// false — direct nested writes bypass the dirty tracker
+
+user.data.statusHistory.push({ label: 'extra', flag: 'red' });
+user.data.isDirty('statusHistory');
+// false — array methods (push, splice, etc.) bypass the dirty tracker too
+```
+
+This behavior is intentional, not a silent unsupported feature. The model deliberately avoids a recursive Proxy over nested values because recursive proxies introduce unstable identity, break common equality checks, and obscure which top-level fields will be persisted.
+
+To track a nested edit, use one of:
+
+- `set('path.to.field', value)` — applies the write and reconciles the top-level field against the snapshot
+- `markModified('topLevelField')` after a direct mutation — flags the top-level field dirty without reconciling, so the next `save()` includes it
+
+```ts
+user.data.set('statusHistory.0.label', 'approved');
+user.data.isDirty('statusHistory'); // true
+
+// or, equivalently, mutate directly and opt in to tracking:
+user.data.statusHistory[0].label = 'approved';
+user.data.markModified('statusHistory');
+user.data.isDirty('statusHistory'); // true
+```
+
+If you forget to opt in, `save()` will not include the field and the server will not see the change — the change is "lost" on save, not silently applied. Tests assert this so the contract cannot silently regress.
 
 Example:
 
@@ -105,7 +172,7 @@ Behavior:
 
 - if `_id` exists, `save()` calls `service.update(...)`
 - if `_id` is missing, `save()` calls `service.create(...)`
-- on success, the model snapshot is replaced with the latest persisted state and the dirty set is cleared
+- on success, the model snapshot is replaced with the latest persisted state and the dirty set is cleared, except for top-level fields you concurrently re-edited while the request was in flight (those fields retain their newer local value and stay dirty so the next `save()` re-sends them)
 - on failure, the model remains dirty so you can correct and retry
 
 `save()` returns the normalized service response shape, not just the raw document. That means you can inspect `success`, `status`, `message`, `raw`, and `data` just like other client calls.
@@ -115,13 +182,16 @@ Example:
 ```ts
 const draft = await userService.new();
 
-draft.data.assign({
-  name: 'draft-user',
-  role: 'author',
-  public: true,
-});
+if (draft.success) {
+  draft.data.assign({
+    name: 'draft-user',
+    role: 'author',
+    public: true,
+  });
 
-const saved = await draft.data.save();
+  const saved = await draft.data.save();
+  void saved;
+}
 ```
 
 ## `reset()`
@@ -131,8 +201,10 @@ const saved = await draft.data.save();
 ```ts
 const user = await userService.read('user-id-1');
 
-user.data.role = 'owner';
-user.data.reset();
+if (user.success) {
+  user.data.role = 'owner';
+  user.data.reset();
+}
 ```
 
 After `reset()`:
@@ -188,9 +260,9 @@ Use `set(...)` when:
 
 - the path is nested
 - the field name collides with a method
-- you want dirty tracking to reflect the change immediately
+- you want dirty tracking to reflect the change immediately and reconcile against the snapshot
 
-Use `markModified(...)` when you mutate nested data outside `set(...)` and still want `save()` to include the top-level field.
+Use `markModified(...)` when you mutate nested data outside `set(...)` and still want `save()` to include the top-level field. `markModified(...)` also serves as the explicit opt-in to send a top-level field even when its effective value matches the snapshot.
 
 Recommended editing pattern:
 

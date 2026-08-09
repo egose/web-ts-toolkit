@@ -14,6 +14,25 @@ This package is designed to mirror the request contract exposed by [`@web-ts-too
 - root-router batching becomes `adapter.group(...)`
 - model responses become mutable `Model<T>` wrappers with `save()`, `reset()`, and dirty tracking
 
+## Supported Runtimes
+
+The package is officially supported in **Node 22+** and **modern evergreen
+browsers** (Chrome 94+, Edge 94+, Firefox 93+, Safari 16+):
+
+- `package.json` `engines.node: ">=22"` — npm/pnpm warn or refuse on older Node
+- `package.json` `browserslist: ["supports es2022-module"]` — bundlers narrow to the same browser floor
+- `tsup.config.ts` ships the bundle at the `es2022` syntax intersection of
+  both runtimes; the source imports no Node built-ins, so the same
+  `dist/index.mjs` and `dist/index.js` run in either environment
+- `withCredentials: true` is the adapter default; in the browser this
+  transmits cookies + the `Authorization` header (see the [Cache Controls][../access-router-client/adapter#cache-controls] section for how credentialed cache partitioning mirrors it
+  on Node). The cache's `setTimeout`/`clearTimeout` and feature-detected
+  `unref()` guard work in both runtimes.
+- `pnpm --filter @web-ts-toolkit/access-router-client test:browser-smoke`
+  runs a jsdom + Vite smoke test against the _built_ `dist/index.mjs` and
+  fails if a Node built-in leaks into the bundle or the bundle emits
+  syntax the declared `browserslist` floor cannot run.
+
 ## Relationship To The Server
 
 `access-router-client` is not a generic REST SDK generator.
@@ -77,8 +96,10 @@ const listResponse = await userService.listAdvanced(
 
 const user = await userService.read('user-id-1');
 
-user.data.role = 'owner';
-await user.data.save();
+if (user.success) {
+  user.data.role = 'owner';
+  await user.data.save();
+}
 
 const grouped = await adapter.group(
   userService.readAdvanced('user-id-1', { select: ['name'] }),
@@ -109,31 +130,45 @@ Service methods return promise-like lazy requests.
 
 ### Response shape
 
-Most service methods resolve to a normalized shape:
+Most service methods resolve to a discriminated response union:
 
 ```ts
-interface Response<TRaw, TData = TRaw> {
-  success: boolean;
+interface SuccessResult<TRaw, TData = TRaw> {
+  success: true;
   raw: TRaw;
   data: TData;
   message: string;
   status: number;
   headers: Record<string, string>;
 }
+
+interface FailureResult<TRaw> {
+  success: false;
+  raw: TRaw | null;
+  data: null;
+  message: string;
+  status: number;
+  headers: Record<string, string>;
+}
+
+type Response<TRaw, TData = TRaw> = SuccessResult<TRaw, TData> | FailureResult<TRaw>;
 ```
 
 Common conventions:
 
 - `success === true` means the HTTP request completed and the router operation succeeded
+- on the `success: true` branch, `raw` and `data` are non-null
+- on the `success: false` branch, `data` is always `null` (the server error payload lives in `raw`, when one was received); `message` is extracted from structured problem payloads when possible
+- branch on `result.success` to narrow `raw`/`data` to their successful shapes or to the documented error payload
 - `raw` holds the original payload after client-side normalization
 - `data` holds higher-level client objects such as `Model<T>` wrappers for model reads
-- `message` is populated for errors and is extracted from structured problem payloads when possible
 
 For list-style responses:
 
-- `totalCount` is present on list response types
-- when the server returns count metadata, the client normalizes it into that field
-- when count metadata is not requested, `totalCount` may be `0` or a fallback based on the route shape
+- `totalCount` is present on model list response types (`ListModelResponse<T>`); for subdocument list responses (`SubDocumentListResponse<S>`), the sibling server emits `count` instead, and that type carries `count` (not `totalCount`)
+- the failure branch initializes `totalCount: 0` (and `count: 0` for subdocument list responses) so reading the count without narrowing always returns a deterministic number rather than `undefined`
+- when the server returns count metadata, the client normalizes it into the appropriate field
+- when count metadata is not requested, the count field may be `0` or a fallback based on the route shape
 
 ### `Model<T>` wrappers
 

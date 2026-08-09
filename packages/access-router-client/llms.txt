@@ -15,8 +15,10 @@ const userService = adapter.createModelService<User>({
 });
 
 const user = await userService.read('user-id-1');
-user.data.role = 'owner';
-await user.data.save();
+if (user.success) {
+  user.data.role = 'owner';
+  await user.data.save();
+}
 ```
 
 Data service for in-memory `access-router` data routes:
@@ -39,15 +41,33 @@ const grouped = await adapter.group(
 
 ## Gotchas
 
-- depends on `axios`; bring your own `axios`-compatible runtime
+- supports **browsers and Node** (maintainer decision, ARC-19). Bundle target is `es2022`; `engines.node: ">=22"`, `browserslist: ["supports es2022-module"]`. The source imports no Node built-ins; the cache `unref()` guard is feature-detected and a no-op in browsers.
+- `withCredentials: true` is the adapter default; in the browser this transmits cookies + `Authorization`. In Node it forces Axios to send the `Cookie` header you set manually. Credentialed caching still requires an explicit `cachePartition` token so one identity cannot receive another's cached response.
+- `axios` is a regular runtime dependency (declared in `package.json` `dependencies`); an installed consumer does not need to add axios separately. Use it as a peer only if you intentionally dedupe against an existing axios install.
 - service methods return lazy requests; they do not execute until `await`, `.then()`, `.exec()`, etc.
 - `adapter.group(...)` only batches lazy requests from this client, not raw Axios calls
 - the client `basePath` is relative to the adapter `baseURL`, not the full server path
 - match `queryPath`/`mutationPath` to the server-side `queryRouteSegment` and mutation route configuration
+- each dynamic URL path segment (identifiers, `distinct` field, subdocument `id`/`sub`/`subId`, wrapper `pathParams` values) is `encodeURIComponent`-encoded exactly once; already-encoded inputs are re-encoded so a single server-side decode returns the literal input
+- caller-owned `axiosRequestConfig`, headers (including `AxiosHeaders` instances), and wrapper default configs are never mutated by service methods or wrap helpers; the same config object can be reused across many requests without acquiring hidden cache controls or `params`
+- the client request contract mirrors the sibling `@web-ts-toolkit/access-router` server:
+  - `distinctAdvanced(field, filter, ...)` sends `{ filter }` as the request body, not the bare conditions, so the server honors the filter
+  - `DataService<T>` does not advertise `includePermissions` — the data routers do not parse `include_permissions`; data records are returned without `_permissions`
+  - `DataService<T>` `listAdvanced.args.sort` is `string` (`'age'` / `'-age'`), not the general `Sort` union rejected by the server
+  - `ModelService<T>.update(...)` and `ModelService<T>.upsert(...)` accept `includePermissions` and transmit it as the `include_permissions` query parameter
+  - `countAdvanced(filter, axiosRequestConfig?)` no longer accepts an `access` argument the server rejects
+  - `SubDocumentListResponse<S>` carries `count` (the server's field), not `totalCount`; `ListModelResponse<T>` still carries `totalCount`
+  - subdocument `create(data | data[], ...)` accepts a single object or an array; the response is always the post-create subdocument array
+  - `Response<TRaw, TData>` is a discriminated union (`SuccessResult | FailureResult`); branch on `result.success` to narrow `raw`/`data`. On `success: false`, `data` is always `null` (the server error payload lives in `raw`); on `success: true`, both `raw` and `data` are non-null. `handleError` initializes `totalCount: 0` on failures so reading the count without narrowing returns `0`, not `undefined`
 - this package targets `@web-ts-toolkit/access-router` servers; plain Axios is simpler for non-access-router APIs
 - imports are named-only (`import { createAdapter }`); there is no default export
+- the public export surface is locked by `access-router-client.exports.unit.test.ts`. Only these names are part of the supported root API:
+  - runtime values: `createAdapter`, `ModelService`, `DataService`, `Service`, `ServiceError`, `Model`, `CustomHeaders`, `wrapLazyPromise`, `replaceItemById`, `removeItemById`
+  - type/interface exports (named via `import type`): `AdapterOptions`, `ModelServiceOptions`, `DataServiceOptions`, `CacheController`, `CachePartitioner`, `Response`, `SuccessResult`, `FailureResult`, `ModelResponse`, `ArrayModelResponse`, `ListModelResponse`, `DataResponse`, `ArrayDataResponse`, `ListDataResponse`, `SubDocumentResponse`, `SubDocumentListResponse`, `Document`, `Projection`, `KeyValueProjection`, `SelectedKeys`, `SelectedShape`, `ResolvedSelectedShape`, `Sort`, `SortOrder`, `FilterQuery`, `Populate`, `PopulateAccess`, `Include`, `Task`, `SubQueryOptions`, `WrapOptions`, `ResultError`, `ResponseCallback`, `AdditionalReqConfig`, `Defaults`, `DataDefaults`, `LazyRequest`, `ModelRequest`, `DataRequest`, `ModelPromiseMeta`, `DataPromiseMeta`, `RootModelQueryMeta`, `RootDataQueryMeta`, `RootQueryMeta`, `ListArgs`, `ListOptions`, `ListAdvancedArgs`, `ListAdvancedOptions`, `ReadOptions`, `ReadAdvancedArgs`, `ReadAdvancedOptions`, `CreateOptions`, `CreateAdvancedArgs`, `CreateAdvancedOptions`, `UpdateOptions`, `UpdateAdvancedArgs`, `UpdateAdvancedOptions`, `UpsertOptions`, `UpsertAdvancedArgs`, `UpsertAdvancedOptions`, `DataListArgs`, `DataListOptions`, `DataListAdvancedArgs`, `DataListAdvancedOptions`, `DataReadOptions`, `DataReadAdvancedArgs`, `DataReadAdvancedOptions`
+  - any name not listed above is implementation-internal and must not be relied on. Configure caching through `AdapterOptions` (`cacheTTL`, `cachePartition`, `cacheCapacity`); control an existing cache through the adapter's `clearCache()` and `disposeCache()` methods; configure `throwOnError` per-service or per-call rather than reaching for `applyResponseCallbacks` directly.
 
 ## Pointers
 
-- README: installation, quickstart, main exports
-- website/docs/packages/access-router-client/: full documentation (adapter, services, model, typing and errors)
+- README: installation, quickstart, main exports, browser+Node runtime matrix
+- website (not packed into the npm tarball; use the live URLs after install): full documentation online at https://web-ts-toolkit.pages.dev/docs/packages/access-router-client (adapter, services, model, typing and errors)
+- `pnpm --filter @web-ts-toolkit/access-router-client test:browser-smoke`: jsdom+Vite browser smoke test that imports the built bundle
