@@ -327,7 +327,7 @@ function _createMdxContent(props) {
       id: "hooks",
       children: "Hooks"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The package forwards the shared hooks from ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["The package forwards shared hook defaults from ", (0,jsx_runtime.jsx)(_components.code, {
         children: "@web-ts-toolkit/express-response-handler"
       }), " through static properties on ", (0,jsx_runtime.jsx)(_components.code, {
         children: "JsonRouter"
@@ -337,8 +337,30 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "JsonRouter.preJson = (value) => {\n  console.log('about to serialize', value);\n};\n\nJsonRouter.postJson = (value) => {\n  console.log('serialized', value);\n};\n\nJsonRouter.preError = (error) => {\n  console.error('request failed', error);\n};\n"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "These hooks are shared process-wide because they proxy the default response-handler instance."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["These static hooks are shared process-wide by ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.defaultHandler"
+      }), " because they mutate the defaults used for newly created default handler instances. Pass a custom response-handler instance to the constructor when you need isolated hook or error-provider state."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Hooks are observational side effects. They may return ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "void"
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Promise<void>"
+      }), ", but returned values never transform response payloads. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "preJson"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "preError"
+      }), " run before serialization. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "postJson"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "postError"
+      }), " run only after a successful HTTP ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "finish"
+      }), "; they do not run after client ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "close"
+      }), " or failed serialization. Pre-hook failures use the normal error response path, while post-hook failures are passed to Express with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "next(err)"
+      }), " after the response has finished."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "api",
       children: "API"

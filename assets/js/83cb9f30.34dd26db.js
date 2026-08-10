@@ -255,7 +255,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { Created, NoContent } from '@web-ts-toolkit/express-response-handler/responses/success';\n\nasync function createUser() {\n  return { id: 'user_1' };\n}\n\napp.post(\n  '/users',\n  handleResponse(async () => Created(await createUser())),\n);\napp.delete(\n  '/users/:id',\n  handleResponse(async () => NoContent()),\n);\n"
+        children: "import { Created, NoContent } from '@web-ts-toolkit/express-response-handler/responses/success';\n\nasync function createUser() {\n  return { id: 'user_1' };\n}\n\napp.post(\n  '/users',\n  handleResponse(async () => new Created(await createUser())),\n);\napp.delete(\n  '/users/:id',\n  handleResponse(async () => new NoContent()),\n);\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "import-styles",
@@ -368,6 +368,35 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "app.get(\n  '/reports/users.csv',\n  handleResponse(async () => {\n    const rows = await getUserReportRows();\n\n    return HttpResponse.csv(rows, {\n      filename: 'users.csv',\n    });\n  }),\n);\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["CSV download filenames are emitted as standards-compliant attachment headers with an ASCII fallback and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "filename*"
+      }), " for Unicode names. Filenames containing control characters such as CR, LF, or NUL are rejected before CSV headers are written."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["CSV sources can be arrays, synchronous iterables, or async iterables. Arrays keep automatic header inference from the first row. Lazy iterable sources are consumed once during response streaming and must pass an explicit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "headers"
+      }), " option because the handler will not peek and buffer a row just to infer headers. If the client disconnects or CSV formatting fails, the active iterator's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "return()"
+      }), " method is called so generators can release database cursors, files, or other resources."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "CSVResponse"
+      }), " writes cell values exactly as supplied. It does not automatically neutralize spreadsheet formulas such as values beginning with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "="
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "+"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "-"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@"
+      }), " because some exports intentionally include formulas. If user-controlled cells may be opened in spreadsheet software, neutralize them with the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "processor"
+      }), " option:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "const safeCell = (value: unknown) => {\n  if (typeof value === 'string' && /^[=+\\-@]/.test(value)) {\n    return `'${value}`;\n  }\n\n  return value;\n};\n\nconst safeRow = (row: Record<string, unknown>) => {\n  return Object.fromEntries(Object.entries(row).map(([key, value]) => [key, safeCell(value)]));\n};\n\nreturn HttpResponse.csv(rows, {\n  filename: 'users.csv',\n  processor: safeRow,\n});\n"
+      })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "use-more-than-one-express-handler",
       children: "Use more than one Express handler"
@@ -387,8 +416,12 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "hooks",
       children: "Hooks"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Hooks let you observe or modify response flow without repeating code in every route."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Hooks let you observe response flow without repeating code in every route. They are observational side effects only: a hook may return ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "void"
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Promise<void>"
+      }), ", but returned values never replace or transform the response payload."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Available setters:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
@@ -416,19 +449,91 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "apiHandler.preJson = async function (data) {\n  console.log('about to send json response', data);\n};\n\napiHandler.preError = async function (err) {\n  console.error('request failed', err);\n};\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "preJson"
+      }), " runs before a non-", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), " success value is serialized. This includes plain JSON values, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "HttpResponse"
+      }), " wrappers, and CSV responses. If the wrapped handler returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), ", the library assumes the handler owns the response and does not run ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "postJson"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "postJson"
+      }), " runs after the HTTP response emits ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "finish"
+      }), " for a successful response. It does not run on client ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "close"
+      }), ", CSV/JSON serialization failure, or any path that never successfully finishes a response."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "preError"
+      }), " runs before an error response is serialized. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "postError"
+      }), " runs after the HTTP response emits ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "finish"
+      }), " for an error response, and it receives the original error value observed by ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "preError"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["If a pre-hook throws or rejects before headers are sent, the failure is routed through the normal error response path. If a post-hook throws or rejects, the response has already completed, so the failure is passed to Express with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "next(err)"
+      }), " for logging/observability and no second response is sent."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The default export is a mutable process-wide singleton. Assigning ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "apiHandler.preJson"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "apiHandler.postJson"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "apiHandler.preError"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "apiHandler.postError"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "apiHandler.errorMessageProvider"
+      }), " affects every route using that singleton after assignment. Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createHandler()"
+      }), " for isolated hook and error-provider state."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "custom-error-messages",
       children: "Custom Error Messages"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Non-HTTP errors default to status ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Unexpected non-HTTP errors default to status ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "500"
+      }), " with the generic message ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Internal Server Error"
+      }), ". Raw thrown messages are not sent to clients, which prevents database, filesystem, assertion, or upstream details from leaking in production responses."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The original thrown value is still passed to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "preError"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "postError"
+      }), ", and to Express error middleware if response serialization fails. Use those server-side paths for logging."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Only finite integer ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "4xx"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "5xx"
+      }), " status codes are serialized as HTTP errors. Invalid status values from thrown objects, typed wrappers, or custom providers are rejected before response headers are written."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Breaking change: older versions returned generic thrown ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Error"
+      }), " messages as ", (0,jsx_runtime.jsx)(_components.code, {
         children: "422"
-      }), " with a message resolved from the thrown value."]
+      }), " responses. Use typed errors from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/http-errors"
+      }), " for intentional client-facing ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "4xx"
+      }), " payloads."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "You can customize that behavior:"
+      children: "You can customize generic error payloads, but provider-derived status values must still be valid HTTP error statuses:"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "apiHandler.errorMessageProvider = function (err) {\n  return {\n    message: 'request failed',\n    detail: err instanceof Error ? err.message : String(err),\n  };\n};\n"
+        children: "apiHandler.errorMessageProvider = function (err) {\n  console.error('request failed', err);\n\n  return {\n    message: 'request failed',\n  };\n};\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "structured-error-format",
