@@ -2,7 +2,7 @@ import assert from 'assert';
 import { isArray, isFunction, isPromise } from '@web-ts-toolkit/utils';
 
 import { isCSVResponse } from './responses/csv';
-import { isResponse } from './responses';
+import { isResponse, validateHttpStatusCode } from './responses';
 import { HttpResponse } from './http-response';
 import {
   defaultErrorMessageProvider,
@@ -33,17 +33,12 @@ import type {
   RouterFunction,
 } from './types';
 
-type InternalExpressResponseHandler = ExpressResponseHandler & {
-  handleResult: (res: ResponseLike, result: unknown, event: EventState) => void;
-  handlePromise: (res: ResponseLike, promise: PromiseLike<unknown>, event: EventState) => PromiseLike<unknown>;
-};
-
 const promisify =
   (fn: Hook): AsyncHook =>
   (value) =>
     Promise.resolve()
       .then(() => fn(value))
-      .then(() => undefined);
+      .then((): undefined => undefined);
 
 const RFC_9457_CONTENT_TYPE = 'application/problem+json';
 const SUPPORTED_RFC_9457_CONTENT_TYPES = new Set(['application/problem+json', 'application/json']);
@@ -201,7 +196,7 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
     }
 
     if (isResponse(data)) {
-      res.status(data.statusCode).json(data.data);
+      res.status(validateHttpStatusCode(data.statusCode)).json(data.data);
       return true;
     }
 
@@ -257,7 +252,7 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
 
   const invokePostHook = (hook: AsyncHook, value: unknown, onFailure: ErrorReporter): void => {
     hook(value).then(
-      () => undefined,
+      (): undefined => undefined,
       (err) => onFailure(err),
     );
   };
@@ -295,7 +290,7 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
     };
 
     const sendFormatted = (failure: unknown) => {
-      let didSend = false;
+      let didSend: boolean;
 
       try {
         didSend = sendBaseError(res, failure, event);
@@ -346,7 +341,7 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
     };
 
     const runSender = () => {
-      let didSend = false;
+      let didSend: boolean;
 
       try {
         didSend = sendBaseJson(res, data, event, sendFormattedError);
@@ -379,46 +374,6 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
     runSender();
   };
 
-  const handlePromise = function (
-    res: ResponseLike,
-    promise: PromiseLike<unknown>,
-    event: EventState,
-  ): PromiseLike<unknown> {
-    return Promise.resolve(promise).then(
-      (data) => {
-        if (event.nextError) {
-          sendBaseError(res, event.nextError, event);
-          return undefined;
-        }
-
-        sendBaseJson(res, data, event);
-        return undefined;
-      },
-      (err) => {
-        sendBaseError(res, err, event);
-        return undefined;
-      },
-    );
-  };
-
-  const handleResult = function (res: ResponseLike, result: unknown, event: EventState) {
-    if (shouldSkipResponse(res, event)) {
-      return;
-    }
-
-    if (event.nextError) {
-      sendBaseError(res, event.nextError, event);
-      return;
-    }
-
-    if (isPromise(result)) {
-      void handlePromise(res, result, event);
-      return;
-    }
-
-    sendBaseJson(res, result, event);
-  };
-
   const nextFn = function (event: EventState, next: NextFunction): NextFunction {
     return function (error?: unknown) {
       if (event.canceled) {
@@ -431,13 +386,8 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
         return;
       }
 
-      if (error === 'route' || error === 'router' || error instanceof Error) {
-        event.canceled = true;
-        next(error);
-        return;
-      }
-
-      event.nextError = new TypeError('next(value) is not supported; return a value instead');
+      event.canceled = true;
+      next(error);
     };
   };
 
@@ -497,10 +447,8 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
     return middlewares.length === 1 ? routerFn(middlewares[0]) : middlewares.map(routerFn);
   } as HandleResponse;
 
-  const handler: InternalExpressResponseHandler = {
+  const handler: ExpressResponseHandler = {
     handleResponse,
-    handleResult,
-    handlePromise,
     HttpResponse,
     createHandler,
     get errorMessageProvider() {

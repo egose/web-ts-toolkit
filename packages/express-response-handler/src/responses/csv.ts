@@ -5,11 +5,12 @@ import type { Writable } from 'stream';
 
 type CsvProcessor = (value: unknown) => unknown;
 type CsvErrorHandler = (error: unknown) => void;
+type CsvHeaders = boolean | string[];
 export type CsvSource = unknown[] | Iterable<unknown> | AsyncIterable<unknown> | unknown;
 
 export type CsvResponseOptions = {
   filename?: string;
-  headers?: boolean;
+  headers?: CsvHeaders;
   processor?: CsvProcessor;
 };
 
@@ -97,14 +98,14 @@ export class CSVResponse {
   readonly dataset: CsvSource;
   readonly filename: string;
   readonly processor: CsvProcessor;
-  readonly headers?: boolean;
+  readonly headers?: CsvHeaders;
 
   constructor(dataset: CsvSource = [], options: CsvResponseOptions = {}) {
     this.dataset = dataset;
     this.filename = options.filename || 'download.csv';
     this.processor = options.processor || ((value) => value);
 
-    if (isBoolean(options.headers)) {
+    if (isBoolean(options.headers) || Array.isArray(options.headers)) {
       this.headers = options.headers;
     } else if (Array.isArray(this.dataset) && this.dataset.length > 0) {
       this.headers = isPlainObject(this.dataset[0]);
@@ -125,7 +126,7 @@ export class CSVResponse {
     const abortSignal = new Promise<never>((_, reject) => {
       abortStreaming = reject;
     });
-    abortSignal.catch(() => undefined);
+    abortSignal.catch((): undefined => undefined);
 
     const cleanup = () => {
       stream.off('error', fail);
@@ -139,7 +140,7 @@ export class CSVResponse {
       activeIterator = null;
 
       if (iterator?.return) {
-        void Promise.resolve(iterator.return()).catch(() => undefined);
+        void Promise.resolve(iterator.return()).catch((): undefined => undefined);
       }
     };
 
