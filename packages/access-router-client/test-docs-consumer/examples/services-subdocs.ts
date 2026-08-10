@@ -28,9 +28,21 @@ const userService = adapter.createModelService<User>({
   basePath: 'users',
 });
 
+// prettier-ignore on the next declaration preserves the multi-line
+// `listAdvanced(...)` shape so the doc's
+// `{ sq: { path: 'orgs', compact: true } },` fragment (trailing comma after
+// `}`) survives whitespace-stripping in the docs-compile assertion. The
+// trailing-comma fragment lives inside the inner `readAdvancedFilter(...)`
+// options argument; prettier-ignore on the statement keeps the whole call
+// shape stable.
+// prettier-ignore
 const orgs = await orgService.listAdvanced(
   {
-    _id: userService.readAdvancedFilter({ name: 'lucy2' }, undefined, { sq: { path: 'orgs', compact: true } }),
+    _id: userService.readAdvancedFilter(
+      { name: 'lucy2' },
+      undefined,
+      { sq: { path: 'orgs', compact: true } },
+    ),
   },
   { select: ['name'] },
 );

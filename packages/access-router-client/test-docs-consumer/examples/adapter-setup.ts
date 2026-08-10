@@ -73,8 +73,16 @@ const userService = pathedAdapter.createModelService({
 void userService;
 
 // Verbatim executable statements from the documented server-path example.
+// prettier-ignore on the next declaration preserves the multi-line
+// `createAdapter(...)` shape so the doc's `{ rootRouterPath: 'root' },`
+// fragment (trailing comma after `}`) survives whitespace-stripping in
+// the docs-compile assertion.
 {
-  const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' }, { rootRouterPath: 'root' });
+  // prettier-ignore
+  const adapter = createAdapter(
+    { baseURL: 'http://localhost:3000/api' },
+    { rootRouterPath: 'root' },
+  );
 
   const userService = adapter.createModelService({
     modelName: 'User',
