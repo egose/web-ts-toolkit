@@ -179,7 +179,7 @@ describe('express-json-router', () => {
     await expectJson(app, 'get', '/value', 200, 'apple');
     expect(preJsonValue).toBe('apple');
 
-    const errorResponse = await request(app).get('/error').expect(422);
+    const errorResponse = await request(app).get('/error').expect(500);
 
     expect(errorResponse.body).toEqual({ message: 'custom-error-message' });
   });
@@ -202,8 +202,8 @@ describe('express-json-router', () => {
     app.use(firstRouter.original);
     app.use(secondRouter.original);
 
-    await request(app).get('/first-error').expect(422, { message: 'first-router-message' });
-    await request(app).get('/second-error').expect(422, { message: 'custom-error-message' });
+    await request(app).get('/first-error').expect(500, { message: 'first-router-message' });
+    await request(app).get('/second-error').expect(500, { message: 'custom-error-message' });
   });
 
   it('applies post-json and error hooks to newly created routers', async () => {
@@ -234,7 +234,7 @@ describe('express-json-router', () => {
     app.use(router.original);
 
     await expectJson(app, 'get', '/value', 200, { ok: true });
-    await request(app).get('/error').expect(422, { message: 'hook-error' });
+    await request(app).get('/error').expect(500, { message: 'hook-error' });
 
     expect(observed).toEqual(['post-json:{"ok":true}', 'pre-error:hook-error', 'post-error:hook-error']);
   });

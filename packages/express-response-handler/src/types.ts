@@ -1,13 +1,22 @@
+import type {
+  NextFunction as ExpressNextFunction,
+  ParamsDictionary,
+  Query,
+  Request,
+  RequestHandler,
+  Response as ExpressResponse,
+} from 'express-serve-static-core';
 import type { HttpResponseHelpers } from './http-response';
 import type { ErrorFormats } from './error-formats';
 
 export type ErrorMessageResult = string | Record<string, unknown>;
 export type ErrorMessageProvider = (error: unknown) => ErrorMessageResult;
 export type ErrorFormat = (typeof ErrorFormats)[keyof typeof ErrorFormats];
-export type MaybePromise<T> = T | Promise<T>;
-export type Hook = (value: unknown) => unknown;
-export type AsyncHook = (value: unknown) => Promise<unknown>;
-export type NextFunction = (error?: unknown) => void;
+export type MaybePromise<T> = T | PromiseLike<T>;
+export type Hook = (value: unknown) => void | PromiseLike<void>;
+export type AsyncHook = (value: unknown) => Promise<void>;
+export type NextRouteControl = 'route' | 'router';
+export type NextFunction = ExpressNextFunction;
 
 export type ExpressResponseHandlerOptions = {
   errorFormat?: ErrorFormat;
@@ -21,6 +30,7 @@ export type ResponseLike = {
   json(data: unknown): unknown;
   send(data: unknown): unknown;
   set(name: string, value: string): unknown;
+  once?(event: 'finish', listener: () => void): unknown;
   end(): void;
 };
 
@@ -29,28 +39,58 @@ export type EventState = {
   nextError: unknown;
 };
 
-export type MiddlewareFunction<Request = unknown, Response extends ResponseLike = ResponseLike, Return = unknown> = (
-  req: Request,
-  res: Response,
+export type MiddlewareFunction<
+  Params = ParamsDictionary,
+  ResBody = unknown,
+  ReqBody = unknown,
+  ReqQuery = Query,
+  Locals extends Record<string, unknown> = Record<string, unknown>,
+  Return = unknown,
+> = (
+  req: Request<Params, ResBody, ReqBody, ReqQuery, Locals>,
+  res: ExpressResponse<ResBody, Locals>,
   next: NextFunction,
 ) => MaybePromise<Return>;
 
-export type RouterFunction<Request = unknown, Response extends ResponseLike = ResponseLike> = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => void;
+export type RouterFunction<
+  Params = ParamsDictionary,
+  ResBody = unknown,
+  ReqBody = unknown,
+  ReqQuery = Query,
+  Locals extends Record<string, unknown> = Record<string, unknown>,
+> = RequestHandler<Params, ResBody, ReqBody, ReqQuery, Locals>;
 
 export type HandleResponse = {
-  <Request = unknown, Response extends ResponseLike = ResponseLike, Return = unknown>(
-    fn: MiddlewareFunction<Request, Response, Return>,
-  ): RouterFunction<Request, Response>;
-  <Request = unknown, Response extends ResponseLike = ResponseLike, Return = unknown>(
-    ...fns: Array<MiddlewareFunction<Request, Response, Return>>
-  ): Array<RouterFunction<Request, Response>>;
-  <Request = unknown, Response extends ResponseLike = ResponseLike, Return = unknown>(
-    fns: Array<MiddlewareFunction<Request, Response, Return>>,
-  ): Array<RouterFunction<Request, Response>>;
+  <
+    Params = ParamsDictionary,
+    ResBody = unknown,
+    ReqBody = unknown,
+    ReqQuery = Query,
+    Locals extends Record<string, unknown> = Record<string, unknown>,
+    Return = unknown,
+  >(
+    fn: MiddlewareFunction<Params, ResBody, ReqBody, ReqQuery, Locals, Return>,
+  ): RouterFunction<Params, ResBody, ReqBody, ReqQuery, Locals>;
+  <
+    Params = ParamsDictionary,
+    ResBody = unknown,
+    ReqBody = unknown,
+    ReqQuery = Query,
+    Locals extends Record<string, unknown> = Record<string, unknown>,
+    Return = unknown,
+  >(
+    ...fns: Array<MiddlewareFunction<Params, ResBody, ReqBody, ReqQuery, Locals, Return>>
+  ): Array<RouterFunction<Params, ResBody, ReqBody, ReqQuery, Locals>>;
+  <
+    Params = ParamsDictionary,
+    ResBody = unknown,
+    ReqBody = unknown,
+    ReqQuery = Query,
+    Locals extends Record<string, unknown> = Record<string, unknown>,
+    Return = unknown,
+  >(
+    fns: Array<MiddlewareFunction<Params, ResBody, ReqBody, ReqQuery, Locals, Return>>,
+  ): Array<RouterFunction<Params, ResBody, ReqBody, ReqQuery, Locals>>;
 };
 
 export type ErrorWithPayload = {
@@ -72,8 +112,6 @@ export type CreateHandler = (options?: ExpressResponseHandlerOptions) => Express
 
 export type ExpressResponseHandler = {
   handleResponse: HandleResponse;
-  handleResult: (res: ResponseLike, result: unknown, event: EventState) => void;
-  handlePromise: (res: ResponseLike, promise: Promise<unknown>, event: EventState) => void;
   HttpResponse: HttpResponseHelpers;
   createHandler: CreateHandler;
   errorMessageProvider: ErrorMessageProvider;

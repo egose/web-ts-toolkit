@@ -5,7 +5,6 @@ export type {
   ErrorMessageProvider,
   ErrorMessageResult,
   ErrorWithPayload,
-  EventState,
   ExpressResponseHandler,
   ExpressResponseHandlerOptions,
   HandleResponse,

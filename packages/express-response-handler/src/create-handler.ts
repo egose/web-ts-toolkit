@@ -6,11 +6,14 @@ import { isResponse } from './responses';
 import { HttpResponse } from './http-response';
 import {
   defaultErrorMessageProvider,
+  FALLBACK_ERROR_STATUS,
+  normalizeThrownError,
   toRfc9457GenericErrorPayload,
   toRfc9457HttpErrorPayload,
   toSimpleErrorPayload,
   toStructuredGenericErrorPayload,
   toStructuredHttpErrorPayload,
+  validateErrorStatusCode,
 } from './error-format';
 import { ErrorFormats } from './error-formats';
 import type {
@@ -30,19 +33,29 @@ import type {
   RouterFunction,
 } from './types';
 
+type InternalExpressResponseHandler = ExpressResponseHandler & {
+  handleResult: (res: ResponseLike, result: unknown, event: EventState) => void;
+  handlePromise: (res: ResponseLike, promise: PromiseLike<unknown>, event: EventState) => PromiseLike<unknown>;
+};
+
 const promisify =
   (fn: Hook): AsyncHook =>
   (value) =>
-    Promise.resolve().then(() => fn(value));
-
-const invokePostHook = (hook: AsyncHook, value: unknown): void => {
-  void hook(value).catch(() => {});
-};
+    Promise.resolve()
+      .then(() => fn(value))
+      .then(() => undefined);
 
 const RFC_9457_CONTENT_TYPE = 'application/problem+json';
+const SUPPORTED_RFC_9457_CONTENT_TYPES = new Set(['application/problem+json', 'application/json']);
 
 type HttpErrorSender = (res: ResponseLike, error: ErrorWithPayload, errorDomain: string) => void;
 type GenericErrorSender = (res: ResponseLike, result: ErrorMessageResult, errorDomain: string) => void;
+
+type HandlerConfig = Readonly<{
+  errorFormat: ErrorFormat;
+  errorDomain: string;
+  rfc9457ContentType: 'application/problem+json' | 'application/json';
+}>;
 
 const shouldSkipResponse = (res: ResponseLike, event: EventState): boolean => res.headersSent || event.canceled;
 
@@ -54,35 +67,39 @@ const sendProblemJson = (res: ResponseLike, statusCode: number, payload: unknown
 
 const sendHttpErrorByFormat: Record<ErrorFormat, HttpErrorSender> = {
   [ErrorFormats.simple]: (res, error) => {
+    const statusCode = validateErrorStatusCode(error.statusCode ?? FALLBACK_ERROR_STATUS, 'error.statusCode');
     const payload: Record<string, unknown> = { message: error.message ?? '' };
 
     if (error.errors !== undefined) {
       payload.errors = error.errors;
     }
 
-    res.status(error.statusCode ?? 500).send(payload);
+    res.status(statusCode).send(payload);
   },
   [ErrorFormats.aip193]: (res, error, domain) => {
-    res.status(error.statusCode ?? 500).send(toStructuredHttpErrorPayload(error, domain));
+    const statusCode = validateErrorStatusCode(error.statusCode ?? FALLBACK_ERROR_STATUS, 'error.statusCode');
+    res.status(statusCode).send(toStructuredHttpErrorPayload(error, domain));
   },
   [ErrorFormats.rfc9457]: (res, error, domain) => {
-    sendProblemJson(res, error.statusCode ?? 500, toRfc9457HttpErrorPayload(error, domain), RFC_9457_CONTENT_TYPE);
+    const statusCode = validateErrorStatusCode(error.statusCode ?? FALLBACK_ERROR_STATUS, 'error.statusCode');
+    sendProblemJson(res, statusCode, toRfc9457HttpErrorPayload(error, domain), RFC_9457_CONTENT_TYPE);
   },
 };
 
 const sendGenericErrorByFormat: Record<ErrorFormat, GenericErrorSender> = {
   [ErrorFormats.simple]: (res, result) => {
-    res.status(422).send(toSimpleErrorPayload(result));
+    res.status(FALLBACK_ERROR_STATUS).send(toSimpleErrorPayload(result));
   },
   [ErrorFormats.aip193]: (res, result, domain) => {
     const payload = toStructuredGenericErrorPayload(result, domain);
 
-    res.status(payload.error.code).send(payload);
+    res.status(validateErrorStatusCode(payload.error.code, 'error.code')).send(payload);
   },
   [ErrorFormats.rfc9457]: (res, result) => {
     const payload = toRfc9457GenericErrorPayload(result);
 
-    sendProblemJson(res, payload.status ?? 422, payload, RFC_9457_CONTENT_TYPE);
+    const statusCode = payload.status ?? FALLBACK_ERROR_STATUS;
+    sendProblemJson(res, validateErrorStatusCode(statusCode, 'problem.status'), payload, RFC_9457_CONTENT_TYPE);
   },
 };
 
@@ -108,6 +125,24 @@ const normalizeMiddlewareList = (fns: Array<MiddlewareFunction | MiddlewareFunct
   return [fns[0]];
 };
 
+const validateHandlerConfig = (options: ExpressResponseHandlerOptions): HandlerConfig => {
+  const errorFormat = options.errorFormat ?? ErrorFormats.simple;
+  const errorDomain = options.errorDomain ?? 'express-response-handler';
+  const rfc9457ContentType = options.rfc9457ContentType ?? RFC_9457_CONTENT_TYPE;
+
+  assert.ok(
+    Object.values(ErrorFormats).includes(errorFormat),
+    `errorFormat must be one of: ${Object.values(ErrorFormats).join(', ')}`,
+  );
+  assert.ok(typeof errorDomain === 'string' && errorDomain.length > 0, 'errorDomain must be a non-empty string');
+  assert.ok(
+    SUPPORTED_RFC_9457_CONTENT_TYPES.has(rfc9457ContentType),
+    'rfc9457ContentType must be one of: application/problem+json, application/json',
+  );
+
+  return Object.freeze({ errorFormat, errorDomain, rfc9457ContentType });
+};
+
 /**
  * Creates an Express response handler that wraps route handlers and serializes
  * return values, thrown `HttpError`s, and explicit `HttpResponse` wrappers.
@@ -117,9 +152,7 @@ const normalizeMiddlewareList = (fns: Array<MiddlewareFunction | MiddlewareFunct
  * app.get('/health', handleResponse(() => ({ ok: true })));
  */
 export function createHandler(options: ExpressResponseHandlerOptions = {}): ExpressResponseHandler {
-  const errorFormat = options.errorFormat ?? ErrorFormats.simple;
-  const errorDomain = options.errorDomain ?? 'express-response-handler';
-  const rfc9457ContentType = options.rfc9457ContentType ?? RFC_9457_CONTENT_TYPE;
+  const config = validateHandlerConfig(options);
 
   let errorMessageProvider = defaultErrorMessageProvider;
   let preJson: Hook | null = null;
@@ -148,130 +181,224 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
     rebuild();
   };
 
-  const sendBaseJson = function (res: ResponseLike, data: unknown, event: EventState) {
+  const noopRebuild = (): void => {
+    // Hooks are consulted directly by dispatchValue/dispatchError at request
+    // time, so updating the stored async-hook variable is sufficient.
+  };
+
+  const sendBaseJson = function (
+    res: ResponseLike,
+    data: unknown,
+    event: EventState,
+    onBeforeOutputError?: (error: unknown) => void,
+  ): boolean {
     if (shouldSkipResponse(res, event)) {
-      return;
+      return false;
     }
 
     if (data === undefined) {
-      return;
+      return false;
     }
 
     if (isResponse(data)) {
       res.status(data.statusCode).json(data.data);
-      return;
+      return true;
     }
 
     if (isCSVResponse(data)) {
-      data.streamCsv(res);
-      return;
+      data.streamCsv(res, onBeforeOutputError);
+      return true;
     }
 
     res.json(data);
+    return true;
   };
 
-  const sendBaseError = function (res: ResponseLike, err: unknown, event: EventState) {
+  const sendBaseError = function (res: ResponseLike, err: unknown, event: EventState): boolean {
     if (shouldSkipResponse(res, event)) {
-      return;
+      return false;
     }
 
-    const error = err as ErrorWithPayload;
+    const error = normalizeThrownError(err);
 
-    if (error.statusCode) {
-      if (errorFormat === ErrorFormats.rfc9457) {
+    if (error.statusCode !== undefined) {
+      const statusCode = validateErrorStatusCode(error.statusCode, 'error.statusCode');
+
+      if (config.errorFormat === ErrorFormats.rfc9457) {
         sendProblemJson(
           res,
-          error.statusCode ?? 500,
-          toRfc9457HttpErrorPayload(error, errorDomain),
-          rfc9457ContentType,
+          statusCode,
+          toRfc9457HttpErrorPayload(error, config.errorDomain),
+          config.rfc9457ContentType,
         );
-        return;
+        return true;
       }
 
-      sendHttpErrorByFormat[errorFormat](res, error, errorDomain);
-      return;
+      sendHttpErrorByFormat[config.errorFormat](res, error, config.errorDomain);
+      return true;
     }
 
     const result = errorMessageProvider(err);
 
-    if (errorFormat === ErrorFormats.rfc9457) {
+    if (config.errorFormat === ErrorFormats.rfc9457) {
       const payload = toRfc9457GenericErrorPayload(result);
+      const statusCode = payload.status ?? FALLBACK_ERROR_STATUS;
 
-      sendProblemJson(res, payload.status ?? 422, payload, rfc9457ContentType);
-      return;
+      sendProblemJson(res, validateErrorStatusCode(statusCode, 'problem.status'), payload, config.rfc9457ContentType);
+      return true;
     }
 
-    sendGenericErrorByFormat[errorFormat](res, result, errorDomain);
+    sendGenericErrorByFormat[config.errorFormat](res, result, config.errorDomain);
+    return true;
   };
 
-  let sendJson = sendBaseJson;
-  let sendError = sendBaseError;
+  type ErrorReporter = (err: unknown) => void;
+  type SuccessReporter = () => void;
 
-  const rebuildSendJson = (): void => {
-    if (!preJsonHook && !postJsonHook) {
-      sendJson = sendBaseJson;
+  const invokePostHook = (hook: AsyncHook, value: unknown, onFailure: ErrorReporter): void => {
+    hook(value).then(
+      () => undefined,
+      (err) => onFailure(err),
+    );
+  };
+
+  const invokePostHookOnFinish = (
+    res: ResponseLike,
+    hook: AsyncHook,
+    value: unknown,
+    onFailure: ErrorReporter,
+  ): void => {
+    if (isFunction(res.once)) {
+      res.once('finish', () => invokePostHook(hook, value, onFailure));
       return;
     }
 
-    sendJson = function (res: ResponseLike, data: unknown, event: EventState) {
-      const finalize = () => {
-        try {
-          sendBaseJson(res, data, event);
-        } catch (err) {
-          sendError(res, err, event);
+    invokePostHook(hook, value, onFailure);
+  };
+
+  const terminalErrorBoundary = (
+    res: ResponseLike,
+    next: NextFunction,
+    terminalError: unknown,
+    event: EventState,
+  ): void => {
+    if (event.canceled) {
+      return;
+    }
+
+    next(terminalError);
+  };
+
+  const dispatchError = (res: ResponseLike, next: NextFunction, err: unknown, event: EventState): void => {
+    const reportFailure: ErrorReporter = (failure) => {
+      terminalErrorBoundary(res, next, failure, event);
+    };
+
+    const sendFormatted = (failure: unknown) => {
+      let didSend = false;
+
+      try {
+        didSend = sendBaseError(res, failure, event);
+      } catch (senderFailure) {
+        reportFailure(senderFailure === undefined ? failure : senderFailure);
+        return;
+      }
+
+      if (didSend && postErrorHook) {
+        invokePostHookOnFinish(res, postErrorHook, failure, reportFailure);
+      }
+    };
+
+    if (event.canceled) {
+      return;
+    }
+
+    const runSender = () => sendFormatted(err);
+
+    if (preErrorHook) {
+      preErrorHook(err).then(
+        () => sendFormatted(err),
+        (hookErr) => sendFormatted(hookErr === undefined ? err : hookErr),
+      );
+      return;
+    }
+
+    runSender();
+  };
+
+  const dispatchValue = (
+    res: ResponseLike,
+    next: NextFunction,
+    data: unknown,
+    event: EventState,
+    onSerialized: SuccessReporter,
+  ): void => {
+    const reportFailure: ErrorReporter = (failure) => {
+      terminalErrorBoundary(res, next, failure, event);
+    };
+
+    const sendFormattedError = (failure: unknown) => {
+      try {
+        sendBaseError(res, failure, event);
+      } catch (senderFailure) {
+        reportFailure(senderFailure === undefined ? failure : senderFailure);
+      }
+    };
+
+    const runSender = () => {
+      let didSend = false;
+
+      try {
+        didSend = sendBaseJson(res, data, event, sendFormattedError);
+      } catch (senderFailure) {
+        const failure = senderFailure === undefined ? new Error('response serialization failed') : senderFailure;
+
+        if (res.headersSent) {
+          reportFailure(failure);
           return;
         }
 
-        if (postJsonHook) {
-          invokePostHook(postJsonHook, data);
-        }
-      };
-
-      if (preJsonHook) {
-        preJsonHook(data).then(finalize, (err) => sendError(res, err, event));
+        sendFormattedError(failure);
         return;
       }
 
-      finalize();
-    };
-  };
+      if (didSend && postJsonHook) {
+        invokePostHookOnFinish(res, postJsonHook, data, reportFailure);
+      }
 
-  const rebuildSendError = (): void => {
-    if (!preErrorHook && !postErrorHook) {
-      sendError = sendBaseError;
+      onSerialized();
+    };
+
+    if (preJsonHook) {
+      preJsonHook(data).then(runSender, (hookErr) =>
+        sendFormattedError(hookErr === undefined ? new Error('pre-json hook failed') : hookErr),
+      );
       return;
     }
 
-    sendError = function (res: ResponseLike, err: unknown, event: EventState) {
-      const finalize = () => {
-        sendBaseError(res, err, event);
-
-        if (postErrorHook) {
-          invokePostHook(postErrorHook, err);
-        }
-      };
-
-      if (preErrorHook) {
-        preErrorHook(err).then(finalize, (hookErr) => sendBaseError(res, hookErr, event));
-        return;
-      }
-
-      finalize();
-    };
+    runSender();
   };
 
-  const handlePromise = function (res: ResponseLike, promise: PromiseLike<unknown>, event: EventState) {
-    Promise.resolve(promise)
-      .then((data) => {
+  const handlePromise = function (
+    res: ResponseLike,
+    promise: PromiseLike<unknown>,
+    event: EventState,
+  ): PromiseLike<unknown> {
+    return Promise.resolve(promise).then(
+      (data) => {
         if (event.nextError) {
-          sendError(res, event.nextError, event);
-
-          return;
+          sendBaseError(res, event.nextError, event);
+          return undefined;
         }
 
-        sendJson(res, data, event);
-      })
-      .catch((err) => sendError(res, err, event));
+        sendBaseJson(res, data, event);
+        return undefined;
+      },
+      (err) => {
+        sendBaseError(res, err, event);
+        return undefined;
+      },
+    );
   };
 
   const handleResult = function (res: ResponseLike, result: unknown, event: EventState) {
@@ -280,29 +407,33 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
     }
 
     if (event.nextError) {
-      sendError(res, event.nextError, event);
-
+      sendBaseError(res, event.nextError, event);
       return;
     }
 
     if (isPromise(result)) {
-      handlePromise(res, result, event);
+      void handlePromise(res, result, event);
       return;
     }
 
-    sendJson(res, result, event);
+    sendBaseJson(res, result, event);
   };
 
   const nextFn = function (event: EventState, next: NextFunction): NextFunction {
-    return function (...args: unknown[]) {
-      if (args.length === 0) {
+    return function (error?: unknown) {
+      if (event.canceled) {
+        return;
+      }
+
+      if (error === undefined) {
         event.canceled = true;
         next();
         return;
       }
 
-      if (args[0] instanceof Error) {
-        event.nextError = args[0];
+      if (error === 'route' || error === 'router' || error instanceof Error) {
+        event.canceled = true;
+        next(error);
         return;
       }
 
@@ -310,21 +441,54 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
     };
   };
 
+  const runLifecycle = (res: ResponseLike, next: NextFunction, result: unknown, event: EventState): void => {
+    const finalize = (resolved: unknown) => {
+      if (event.canceled) {
+        return;
+      }
+
+      if (event.nextError) {
+        dispatchError(res, next, event.nextError, event);
+        return;
+      }
+
+      dispatchValue(res, next, resolved, event, () => undefined);
+    };
+
+    if (isPromise(result)) {
+      Promise.resolve(result).then(
+        (resolved) => finalize(resolved),
+        (err) => {
+          if (res.headersSent) {
+            next(err);
+            return;
+          }
+
+          dispatchError(res, next, err, event);
+        },
+      );
+      return;
+    }
+
+    finalize(result);
+  };
+
   const routerFn = function (fn: MiddlewareFunction): RouterFunction {
     return function (req: unknown, res: ResponseLike, next: NextFunction) {
       const event: EventState = { canceled: false, nextError: null };
 
       try {
-        const result = fn(req, res, nextFn(event, next));
-        handleResult(res, result, event);
+        const result = fn(req as Parameters<typeof fn>[0], res as Parameters<typeof fn>[1], nextFn(event, next));
+        runLifecycle(res, next, result, event);
       } catch (err) {
         if (res.headersSent) {
+          next(err);
           return;
         }
 
-        sendError(res, err, event);
+        dispatchError(res, next, err, event);
       }
-    };
+    } as RouterFunction;
   };
 
   const handleResponse: HandleResponse = function (...fns: Array<MiddlewareFunction | MiddlewareFunction[]>) {
@@ -333,7 +497,7 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
     return middlewares.length === 1 ? routerFn(middlewares[0]) : middlewares.map(routerFn);
   } as HandleResponse;
 
-  return {
+  const handler: InternalExpressResponseHandler = {
     handleResponse,
     handleResult,
     handlePromise,
@@ -357,7 +521,7 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
           preJson = syncHook;
           preJsonHook = asyncHook;
         },
-        rebuildSendJson,
+        noopRebuild,
       );
     },
     get postJson() {
@@ -371,7 +535,7 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
           postJson = syncHook;
           postJsonHook = asyncHook;
         },
-        rebuildSendJson,
+        noopRebuild,
       );
     },
     get preError() {
@@ -385,7 +549,7 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
           preError = syncHook;
           preErrorHook = asyncHook;
         },
-        rebuildSendError,
+        noopRebuild,
       );
     },
     get postError() {
@@ -399,8 +563,10 @@ export function createHandler(options: ExpressResponseHandlerOptions = {}): Expr
           postError = syncHook;
           postErrorHook = asyncHook;
         },
-        rebuildSendError,
+        noopRebuild,
       );
     },
   };
+
+  return handler;
 }

@@ -1,9 +1,11 @@
 import { createHandler } from './create-handler';
 
 const apiHandler = createHandler();
+const { handleResponse } = apiHandler;
 
 export default apiHandler;
 
+export { handleResponse };
 export { createHandler } from './create-handler';
 export { ErrorFormats } from './error-formats';
 export { HttpResponse } from './http-response';
