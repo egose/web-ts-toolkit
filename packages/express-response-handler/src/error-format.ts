@@ -1,3 +1,4 @@
+import assert from 'assert';
 import {
   createAip193ErrorInfoDetail,
   getCanonicalStatus,
@@ -11,12 +12,36 @@ import { isArray, isPlainObject, isString, toStringRecord } from '@web-ts-toolki
 
 import type { ErrorMessageProvider, ErrorMessageResult, ErrorWithPayload } from './types';
 
-const toStatusCode = (status: unknown, code: unknown, fallbackStatusCode: number): number => {
-  if (typeof status === 'number') {
-    return status;
+export const FALLBACK_ERROR_STATUS = 500;
+export const FALLBACK_ERROR_MESSAGE = 'Internal Server Error';
+
+export const isValidErrorStatusCode = (statusCode: unknown): statusCode is number =>
+  typeof statusCode === 'number' &&
+  Number.isFinite(statusCode) &&
+  Number.isInteger(statusCode) &&
+  statusCode >= 400 &&
+  statusCode <= 599;
+
+export const validateErrorStatusCode = (statusCode: unknown, source: string): number => {
+  assert.ok(
+    isValidErrorStatusCode(statusCode),
+    `${source} must be an integer HTTP error status code between 400 and 599`,
+  );
+  return statusCode;
+};
+
+export const toErrorStatusCode = (
+  status: unknown,
+  code: unknown,
+  fallbackStatusCode = FALLBACK_ERROR_STATUS,
+): number => {
+  const statusCode = typeof status === 'number' ? status : code;
+
+  if (statusCode === undefined) {
+    return fallbackStatusCode;
   }
 
-  return typeof code === 'number' ? code : fallbackStatusCode;
+  return validateErrorStatusCode(statusCode, 'error status');
 };
 
 const toOptionalString = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
@@ -31,6 +56,53 @@ const toArray = (value: unknown): unknown[] | undefined => {
   }
 
   return isArray(value) ? value : [value];
+};
+
+const describeThrown = (value: unknown): string => {
+  try {
+    if (value === null) {
+      return 'null';
+    }
+
+    if (value === undefined) {
+      return 'undefined';
+    }
+
+    if (typeof value === 'symbol') {
+      return value.toString();
+    }
+
+    const stringified =
+      typeof value === 'object' && value !== null ? (value as { message?: unknown }).message : undefined;
+
+    if (typeof stringified === 'string' && stringified.length > 0) {
+      return stringified;
+    }
+
+    return String(value);
+  } catch {
+    return FALLBACK_ERROR_MESSAGE;
+  }
+};
+
+export const normalizeThrownError = (value: unknown): ErrorWithPayload => {
+  if (value instanceof Error) {
+    return value as ErrorWithPayload;
+  }
+
+  const message = describeThrown(value);
+
+  if (isPlainObject(value)) {
+    const record = value as Record<string, unknown>;
+    const normalized: ErrorWithPayload = {
+      ...record,
+      message,
+    } as ErrorWithPayload;
+
+    return normalized;
+  }
+
+  return { message } as ErrorWithPayload;
 };
 
 const toHttpErrorShape = (error: ErrorWithPayload, fallbackDomain: string): HttpErrorShape => ({
@@ -56,9 +128,8 @@ const toProblemDetailsSource = (result: ErrorMessageResult): Record<string, unkn
 };
 
 export const defaultErrorMessageProvider: ErrorMessageProvider = function (error) {
-  const errorLike = error as ErrorWithPayload;
-
-  return errorLike.message ?? errorLike._message ?? String(error);
+  void error;
+  return FALLBACK_ERROR_MESSAGE;
 };
 
 export const toSimpleErrorPayload = (result: ErrorMessageResult): Record<string, unknown> =>
@@ -76,7 +147,7 @@ export const toStructuredGenericErrorPayload = (
 ): Aip193ErrorPayload => {
   if (isPlainObject(result) && isPlainObject(result.error)) {
     const error = result.error;
-    const statusCode = typeof error.code === 'number' ? error.code : 422;
+    const statusCode = toErrorStatusCode(error.code, undefined);
     const status = typeof error.status === 'string' ? error.status : getCanonicalStatus(statusCode);
     const message = typeof error.message === 'string' ? error.message : '';
     const details = toArray(error.details);
@@ -92,7 +163,7 @@ export const toStructuredGenericErrorPayload = (
   }
 
   if (isPlainObject(result)) {
-    const statusCode = typeof result.code === 'number' ? result.code : 422;
+    const statusCode = toErrorStatusCode(result.code, undefined);
     const status = typeof result.status === 'string' ? result.status : getCanonicalStatus(statusCode);
     const message = typeof result.message === 'string' ? result.message : '';
     const details = toArray(result.details) || [createAip193ErrorInfoDetail(status, errorDomain)];
@@ -109,10 +180,10 @@ export const toStructuredGenericErrorPayload = (
 
   return {
     error: {
-      code: 422,
-      status: getCanonicalStatus(422),
+      code: FALLBACK_ERROR_STATUS,
+      status: getCanonicalStatus(FALLBACK_ERROR_STATUS),
       message: String(result),
-      details: [createAip193ErrorInfoDetail(getCanonicalStatus(422), errorDomain)],
+      details: [createAip193ErrorInfoDetail(getCanonicalStatus(FALLBACK_ERROR_STATUS), errorDomain)],
     },
   };
 };
@@ -121,7 +192,7 @@ export const toRfc9457GenericErrorPayload = (result: ErrorMessageResult): Rfc945
   const problem = toProblemDetailsSource(result);
 
   if (problem) {
-    const statusCode = toStatusCode(problem.status, problem.code, 422);
+    const statusCode = toErrorStatusCode(problem.status, problem.code);
 
     return toRfc9457ErrorPayload({
       statusCode,
@@ -134,7 +205,7 @@ export const toRfc9457GenericErrorPayload = (result: ErrorMessageResult): Rfc945
   }
 
   return toRfc9457ErrorPayload({
-    statusCode: 422,
+    statusCode: FALLBACK_ERROR_STATUS,
     message: String(result),
   });
 };

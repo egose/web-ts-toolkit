@@ -44,6 +44,12 @@ import { Created, NoContent } from '@web-ts-toolkit/express-response-handler/res
 - default export is the handler instance; named exports (`handleResponse`, `HttpResponse`, `createHandler`, `ErrorFormats`) are also available
 - return plain values for `200 OK`; use `HttpResponse.*` wrappers for other status codes
 - `ErrorFormats` selects between `simple`, `aip193`, and `rfc9457` error payload shapes
+- unexpected non-HTTP errors return `500` with `Internal Server Error`; raw thrown messages are kept for hooks/logging and are not sent to clients by default
+- only finite integer `4xx` and `5xx` status codes are serialized as HTTP errors; invalid status values are rejected before headers are written
+- hooks (`preJson`, `postJson`, `preError`, `postError`) are observational `void | Promise<void>` side effects; returned values never transform payloads
+- `postJson` and `postError` run after successful HTTP `finish`; they do not run on client `close`, failed serialization, or `undefined` handler returns
+- pre-hook failures go through the normal error response path; post-hook failures are passed to Express with `next(err)` after the response has finished
+- the default export is a mutable process-wide singleton; use `createHandler()` for isolated hook and error-provider state
 - response wrappers (`Created`, `NoContent`, `CSVResponse`, etc.) are also exported from the root entrypoint, but the subpaths give tree-shakeable access
 
 ## Pointers

@@ -92,11 +92,11 @@ async function createUser() {
 
 app.post(
   '/users',
-  handleResponse(async () => Created(await createUser())),
+  handleResponse(async () => new Created(await createUser())),
 );
 app.delete(
   '/users/:id',
-  handleResponse(async () => NoContent()),
+  handleResponse(async () => new NoContent()),
 );
 ```
 
@@ -203,6 +203,31 @@ app.get(
 );
 ```
 
+CSV download filenames are emitted as standards-compliant attachment headers with an ASCII fallback and `filename*` for Unicode names. Filenames containing control characters such as CR, LF, or NUL are rejected before CSV headers are written.
+
+CSV sources can be arrays, synchronous iterables, or async iterables. Arrays keep automatic header inference from the first row. Lazy iterable sources are consumed once during response streaming and must pass an explicit `headers` option because the handler will not peek and buffer a row just to infer headers. If the client disconnects or CSV formatting fails, the active iterator's `return()` method is called so generators can release database cursors, files, or other resources.
+
+`CSVResponse` writes cell values exactly as supplied. It does not automatically neutralize spreadsheet formulas such as values beginning with `=`, `+`, `-`, or `@` because some exports intentionally include formulas. If user-controlled cells may be opened in spreadsheet software, neutralize them with the `processor` option:
+
+```ts
+const safeCell = (value: unknown) => {
+  if (typeof value === 'string' && /^[=+\-@]/.test(value)) {
+    return `'${value}`;
+  }
+
+  return value;
+};
+
+const safeRow = (row: Record<string, unknown>) => {
+  return Object.fromEntries(Object.entries(row).map(([key, value]) => [key, safeCell(value)]));
+};
+
+return HttpResponse.csv(rows, {
+  filename: 'users.csv',
+  processor: safeRow,
+});
+```
+
 ### Use more than one Express handler
 
 ```ts
@@ -220,7 +245,7 @@ Do not use `next(value)` for successful responses. Return the value instead.
 
 ## Hooks
 
-Hooks let you observe or modify response flow without repeating code in every route.
+Hooks let you observe response flow without repeating code in every route. They are observational side effects only: a hook may return `void` or `Promise<void>`, but returned values never replace or transform the response payload.
 
 Available setters:
 
@@ -241,17 +266,34 @@ apiHandler.preError = async function (err) {
 };
 ```
 
+`preJson` runs before a non-`undefined` success value is serialized. This includes plain JSON values, `HttpResponse` wrappers, and CSV responses. If the wrapped handler returns `undefined`, the library assumes the handler owns the response and does not run `postJson`.
+
+`postJson` runs after the HTTP response emits `finish` for a successful response. It does not run on client `close`, CSV/JSON serialization failure, or any path that never successfully finishes a response.
+
+`preError` runs before an error response is serialized. `postError` runs after the HTTP response emits `finish` for an error response, and it receives the original error value observed by `preError`.
+
+If a pre-hook throws or rejects before headers are sent, the failure is routed through the normal error response path. If a post-hook throws or rejects, the response has already completed, so the failure is passed to Express with `next(err)` for logging/observability and no second response is sent.
+
+The default export is a mutable process-wide singleton. Assigning `apiHandler.preJson`, `apiHandler.postJson`, `apiHandler.preError`, `apiHandler.postError`, or `apiHandler.errorMessageProvider` affects every route using that singleton after assignment. Use `createHandler()` for isolated hook and error-provider state.
+
 ## Custom Error Messages
 
-Non-HTTP errors default to status `422` with a message resolved from the thrown value.
+Unexpected non-HTTP errors default to status `500` with the generic message `Internal Server Error`. Raw thrown messages are not sent to clients, which prevents database, filesystem, assertion, or upstream details from leaking in production responses.
 
-You can customize that behavior:
+The original thrown value is still passed to `preError` and `postError`, and to Express error middleware if response serialization fails. Use those server-side paths for logging.
+
+Only finite integer `4xx` and `5xx` status codes are serialized as HTTP errors. Invalid status values from thrown objects, typed wrappers, or custom providers are rejected before response headers are written.
+
+Breaking change: older versions returned generic thrown `Error` messages as `422` responses. Use typed errors from `@web-ts-toolkit/http-errors` for intentional client-facing `4xx` payloads.
+
+You can customize generic error payloads, but provider-derived status values must still be valid HTTP error statuses:
 
 ```ts
 apiHandler.errorMessageProvider = function (err) {
+  console.error('request failed', err);
+
   return {
     message: 'request failed',
-    detail: err instanceof Error ? err.message : String(err),
   };
 };
 ```

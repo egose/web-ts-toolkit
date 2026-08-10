@@ -182,7 +182,7 @@ const adminRouter = new JsonRouter('/admin', undefined, handler);
 
 ## Hooks
 
-The package forwards the shared hooks from `@web-ts-toolkit/express-response-handler` through static properties on `JsonRouter`.
+The package forwards shared hook defaults from `@web-ts-toolkit/express-response-handler` through static properties on `JsonRouter`.
 
 ```ts
 JsonRouter.preJson = (value) => {
@@ -198,7 +198,9 @@ JsonRouter.preError = (error) => {
 };
 ```
 
-These hooks are shared process-wide because they proxy the default response-handler instance.
+These static hooks are shared process-wide by `JsonRouter.defaultHandler` because they mutate the defaults used for newly created default handler instances. Pass a custom response-handler instance to the constructor when you need isolated hook or error-provider state.
+
+Hooks are observational side effects. They may return `void` or `Promise<void>`, but returned values never transform response payloads. `preJson` and `preError` run before serialization. `postJson` and `postError` run only after a successful HTTP `finish`; they do not run after client `close` or failed serialization. Pre-hook failures use the normal error response path, while post-hook failures are passed to Express with `next(err)` after the response has finished.
 
 ## API
 

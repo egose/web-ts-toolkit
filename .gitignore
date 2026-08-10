@@ -1,6 +1,7 @@
 .sisyphus
 node_modules
 dist
+coverage
 id_ed25519*
 _tmp*
 .wip

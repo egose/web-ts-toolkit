@@ -85,11 +85,11 @@ async function createUser() {
 
 app.post(
   '/users',
-  handleResponse(async () => Created(await createUser())),
+  handleResponse(async () => new Created(await createUser())),
 );
 app.delete(
   '/users/:id',
-  handleResponse(async () => NoContent()),
+  handleResponse(async () => new NoContent()),
 );
 ```
 
@@ -111,3 +111,51 @@ import { handleResponse, HttpResponse } from '@web-ts-toolkit/express-response-h
 Full package documentation lives in `website/docs/packages/express-response-handler.md`.
 
 - live docs: https://web-ts-toolkit.pages.dev/docs/packages/express-response-handler
+
+## Hooks
+
+Hooks are observational side effects. They receive the value or error being handled, may return `void` or `Promise<void>`, and returned values never transform the response payload.
+
+- `preJson` runs before a non-`undefined` success value is serialized.
+- `postJson` runs after the HTTP response emits `finish` for a successful JSON, `HttpResponse`, or CSV response.
+- `preError` runs before an error response is serialized.
+- `postError` runs after the HTTP response emits `finish` for an error response.
+
+If a handler returns `undefined`, the library assumes the handler owns the response and does not run `postJson`. `postJson` and `postError` do not run on client `close` or failed serialization paths that never emit `finish`.
+
+Pre-hook failures are routed through the normal error response path. Post-hook failures happen after the response has completed, so they are passed to Express with `next(err)` for server-side logging/observability without creating a second client response.
+
+The default export is a mutable process-wide singleton. Use `createHandler()` when you need isolated hook or error-provider state.
+
+## Error Security
+
+Unexpected non-HTTP failures are treated as server errors and return status `500` with the generic client message `Internal Server Error`. The original thrown value is still passed to `preError`, `postError`, and Express error middleware if serialization itself fails, so log there instead of exposing raw exception text to clients.
+
+Only finite integer `4xx` and `5xx` status codes are serialized as HTTP errors. Invalid status values are rejected before response headers are written.
+
+Breaking change: older versions returned generic thrown `Error` messages as `422` responses. Use typed errors from `@web-ts-toolkit/http-errors` for intentional client-facing `4xx` payloads, or set `errorMessageProvider` when you deliberately want a sanitized custom generic payload.
+
+## CSV Security
+
+`CSVResponse` writes cell values exactly as supplied. It does not automatically neutralize spreadsheet formulas such as values beginning with `=`, `+`, `-`, or `@` because some exports intentionally include formulas.
+
+If user-controlled cells may be opened in spreadsheet software, neutralize them with the `processor` option before streaming:
+
+```ts
+const safeCell = (value: unknown) => (typeof value === 'string' && /^[=+\-@]/.test(value) ? `'${value}` : value);
+
+const safeRow = (row: unknown) => {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) {
+    return safeCell(row);
+  }
+
+  return Object.fromEntries(Object.entries(row).map(([key, value]) => [key, safeCell(value)]));
+};
+
+return new CSVResponse(rows, {
+  filename: 'users.csv',
+  processor: safeRow,
+});
+```
+
+See `ERH-12.md` for the root import measurement and CSV formula-injection policy rationale.

@@ -1,5 +1,20 @@
 ## Unreleased
 
+### Breaking Changes: `@web-ts-toolkit/express-response-handler`
+
+This release tightens Express lifecycle, error, CSV, and public type contracts:
+
+| Area | Previous contract | New contract and migration |
+| --- | --- | --- |
+| Generic failures | Unexpected thrown `Error` values were returned as `422` responses with their raw message. | Unexpected non-HTTP failures return `500` with `Internal Server Error`. Log original errors through hooks or Express error middleware. Use typed `@web-ts-toolkit/http-errors` errors for intentional client-facing `4xx` payloads. |
+| Express `next(...)` | Some `next(value)` calls were converted into package-managed JSON errors. | `next()`, `next('route')`, `next('router')`, and arbitrary `next(error)` values are forwarded to Express and cancel package serialization. Return successful values instead of passing them to `next(...)`. |
+| Hook semantics | Hook return values were not documented as a stable contract. | Hooks are observational only. Returned values do not transform payloads; rejected pre-hooks use the normal error path, and rejected post-hooks are delegated to Express after response completion. |
+| Public lifecycle internals | Internal lifecycle helpers could appear on the runtime handler object or declarations. | `handleResponse`, `HttpResponse`, `createHandler`, provider, and hooks are the supported handler surface. Internal lifecycle helpers are not public API. |
+| CSV streaming | CSV sources were eager array-like inputs with looser failure/backpressure behavior. | CSV supports arrays, sync iterables, and async iterables. Lazy sources require explicit `headers`; streaming respects backpressure and closes active iterators on abort/failure. |
+| CSV formula safety | Formula-like cells were emitted unchanged without an explicit policy. | Formula neutralization remains application responsibility. Use `CSVResponse`/`HttpResponse.csv` `processor` when user-controlled cells may be opened in spreadsheet software. |
+
+Additional public API changes are additive: root named `handleResponse`, root `CSVResponse`, response wrapper subpaths, stricter Express request/response generics, and packed ESM/CJS/subpath export-map compatibility are verified by package tests.
+
 ### Breaking Changes: `@web-ts-toolkit/access-router-client`
 
 This release aligns the client with the current `@web-ts-toolkit/access-router`
