@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -8,8 +8,18 @@ const workspaceRoot = path.resolve(__dirname, '..', '..', '..');
 const packageRoot = path.resolve(__dirname, '..');
 const esbuildBin = path.resolve(workspaceRoot, 'node_modules', '.bin', 'esbuild');
 
+/**
+ * Files that esbuild must be able to resolve when bundling a consumer of
+ * `@web-ts-toolkit/access-router` through the package's `exports` map. Their
+ * presence and non-zero size is the precondition for the smoke tests; missing
+ * or empty files here are the failure mode AGENTS.md's dist write-race produces
+ * (esbuild resolving a half-written `dist/index.js` and silently dropping the
+ * `AccessRuntime` side-effect chain).
+ */
+const requiredDistEntries = ['dist/index.js', 'dist/index.mjs', 'dist/advanced.js', 'dist/advanced.mjs'];
+
 const tempDirs: string[] = [];
-const sideEffectCandidates = ['dist/index.js', 'dist/index.mjs', 'dist/advanced.js', 'dist/advanced.mjs'];
+const sideEffectCandidates = requiredDistEntries;
 
 afterAll(() => {
   for (const dir of tempDirs) {
@@ -46,7 +56,29 @@ const runSmoke = (mode: 'minify' | 'tree-shake' = 'minify'): SmokeResult => {
 
   const scopedDir = path.join(work, 'node_modules', '@web-ts-toolkit');
   mkdirSync(scopedDir, { recursive: true });
-  symlinkSync(packageRoot, path.join(scopedDir, 'access-router'), 'dir');
+  // ARF-15: stage a real, isolated copy of the package rather than a symlink
+  // to the live workspace tree. esbuild reads `dist/index.{js,mjs}` from this
+  // copy, so a concurrent `tsup` rebuild of `packages/access-router/dist`
+  // (the race AGENTS.md warns about) cannot produce a half-written bundle
+  // where the `AccessRuntime` side-effect chain is dropped. Copying the
+  // package manifest preserves `exports` / `sideEffects` so esbuild's
+  // tree-shaking semantics still match the published layout.
+  const stagedPackageDir = path.join(scopedDir, 'access-router');
+  mkdirSync(stagedPackageDir, { recursive: true });
+  const distSource = path.join(packageRoot, 'dist');
+  // Fail loudly with the precondition that actually failed if the pre-build
+  // did not run (or raced) before this test, instead of letting esbuild emit
+  // an opaque "Could not resolve" error downstream.
+  for (const required of requiredDistEntries) {
+    const resolved = path.join(packageRoot, required);
+    expect(existsSync(resolved), `required build artifact ${required} is missing`).toBe(true);
+    expect(statSync(resolved).size, `required build artifact ${required} is empty`).toBeGreaterThan(0);
+  }
+  cpSync(distSource, path.join(stagedPackageDir, 'dist'), { recursive: true });
+  writeFileSync(
+    path.join(stagedPackageDir, 'package.json'),
+    readFileSync(path.join(packageRoot, 'package.json'), 'utf8'),
+  );
 
   const consumerPath = path.join(work, 'consumer.cjs');
   writeFileSync(
