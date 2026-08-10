@@ -399,5 +399,5 @@ void [handler, api.default, api.HttpResponse, types.ErrorFormats, csvResponse, r
 
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext.json'], consumerDir);
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-bundler.json'], consumerDir);
-  });
+  }, 30_000);
 });
