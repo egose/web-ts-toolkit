@@ -117,7 +117,7 @@ Completion evidence:
 
 ### Task ERH-02: Make The Response Pipeline Awaitable And Failure-Safe
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -160,9 +160,25 @@ Acceptance criteria:
 - No test emits `unhandledRejection` or `uncaughtException`, and no request hangs.
 - Existing simple, AIP-193, and RFC 9457 tests continue to pass.
 
+Completion evidence:
+
+- Added: `packages/express-response-handler/test/lifecycle-safety.test.ts` with 15 focused lifecycle regression tests for arbitrary throw values, promise rejection with `null`, hook/provider/formatter failure, `res.json`/`res.send`/`res.set` serialization failures, recursive provider fallback, and post-`res.write(...)` partial-response error delegation.
+- Changed: `packages/express-response-handler/src/error-format.ts`
+  - Added `normalizeThrownError()` and null-safe throw-value description so error formatting can inspect `null`, `undefined`, strings, symbols, plain objects, and ordinary `Error` instances without dereferencing unsafe values.
+  - Updated `defaultErrorMessageProvider` to use the safe normalization path.
+- Changed: `packages/express-response-handler/src/create-handler.ts`
+  - Replaced detached promise branches in the route wrapper with a single observed lifecycle for handler results, promises, hooks, JSON/CSV serialization, and error delivery.
+  - Threaded the original Express `next` through terminal failure paths and calls `next(originalError)` after headers have already been sent.
+  - Delegates formatter/provider and response serialization failures to Express exactly once without recursively re-entering a failing formatter/provider.
+  - Preserves existing pre-hook failure response semantics covered by the existing middleware tests while making their async failures observed.
+- Verified:
+  - `pnpm --filter @web-ts-toolkit/express-response-handler test` passes (4 files, 64 tests).
+  - `pnpm exec eslint "packages/express-response-handler/**/*.{ts,js}"` passes with no findings.
+  - `pnpm --filter @web-ts-toolkit/express-json-router test` passes (13 tests).
+
 ### Task ERH-03: Preserve Express `next` And Route-Control Semantics
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -203,11 +219,25 @@ Acceptance criteria:
 - A late resolution/rejection after `next()` or `next(error)` does not write or delegate again.
 - Direct Express 5 integration tests cover all listed cases.
 
+Completion evidence:
+
+- Changed: `packages/express-response-handler/src/create-handler.ts`
+  - Wrapped `next` now forwards `next()`, `next(error)`, `next('route')`, and `next('router')` directly to Express and marks the middleware lifecycle canceled so package serialization cannot run afterward.
+  - Late repeated `next(...)` calls and late returned-promise settlement after Express delegation are ignored by the package lifecycle.
+- Changed: `packages/express-response-handler/src/types.ts`
+  - Allows middleware to return any `PromiseLike` result and exports the Express route-control sentinel type.
+- Added/updated: `packages/express-response-handler/test/middleware.test.ts`
+  - Direct Express 5 coverage for delayed `next(error)`, `next(error)` racing a never-settling promise, `next('route')`, `next('router')`, late resolution after `next()`, and late rejection after `next(error)`.
+  - Existing `next(error)` tests now assert Express error-middleware delegation instead of package error serialization.
+- Verified:
+  - `pnpm --filter @web-ts-toolkit/express-response-handler test` passes (4 files, 70 tests).
+  - `pnpm exec eslint "packages/express-response-handler/**/*.{ts,js}"` passes with no findings.
+
 ## Wave 2: Secure And Valid Error Contracts
 
 ### Task ERH-04: Redact Unexpected Failures And Validate Statuses
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -251,9 +281,27 @@ Acceptance criteria:
 - Valid typed 4xx/5xx HTTP errors preserve their documented payloads, subject to an explicit policy for 5xx message redaction.
 - README, website docs, and `llms.txt` agree with runtime behavior.
 
+Completion evidence:
+
+- Changed: `packages/express-response-handler/src/error-format.ts`
+  - Added a shared finite integer `400..599` error status boundary.
+  - Changed the default generic error provider to return `Internal Server Error`.
+  - Default generic AIP-193 and RFC 9457 payloads now use status `500`.
+- Changed: `packages/express-response-handler/src/create-handler.ts`
+  - Validates typed and provider-derived error statuses before writing response headers.
+  - Keeps original errors flowing through hooks and Express delegation while redacting default client responses.
+- Added/updated: `packages/express-response-handler/test/middleware.test.ts` and `packages/express-response-handler/test/lifecycle-safety.test.ts`
+  - Covered generic redaction across simple, AIP-193, and RFC 9457 formats.
+  - Covered original secret-bearing errors reaching `preError` and `postError`.
+  - Covered invalid typed and provider-derived statuses delegating before headers are written.
+- Updated: `packages/express-response-handler/README.md`, `website/docs/packages/express-response-handler.md`, and `packages/express-response-handler/llms.txt`
+  - Documented the breaking change from generic `422` raw-message responses to redacted `500` responses.
+- Verified:
+  - `pnpm --filter @web-ts-toolkit/express-response-handler test` passes (4 files, 82 tests).
+
 ### Task ERH-05: Validate Handler Configuration At Construction
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -290,11 +338,23 @@ Acceptance criteria:
 - Every accepted option combination has a focused request test.
 - Valid instances cannot observe later mutation of the caller's options object.
 
+Completion evidence:
+
+- Changed: `packages/express-response-handler/src/create-handler.ts`
+  - Added synchronous handler option validation for `errorFormat`, `errorDomain`, and `rfc9457ContentType`.
+  - Stores one frozen validated config snapshot per handler instance and uses it during error serialization.
+- Updated: `packages/express-response-handler/test/middleware.test.ts`
+  - Covered invalid JavaScript-style construction values for format, content type, and domain.
+  - Covered accepted simple, AIP-193, RFC 9457 `application/problem+json`, and RFC 9457 `application/json` request behavior.
+  - Covered caller option mutation after construction not affecting the handler instance.
+- Verified:
+  - `pnpm --filter @web-ts-toolkit/express-response-handler test` passes (4 files, 90 tests).
+
 ## Wave 3: CSV Security And Bounded Streaming
 
 ### Task ERH-06: Make CSV Headers And Failure Termination Safe
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -332,9 +392,26 @@ Acceptance criteria:
 - Formatter and destination errors leave no open handles and are observed exactly once.
 - Existing CSV output remains parseable for object and array rows.
 
+Completion evidence:
+
+- Changed: `packages/express-response-handler/src/responses/csv.ts`
+  - Added quoted ASCII fallback plus `filename*` CSV attachment header generation.
+  - Rejects control characters before any response headers are set.
+  - Coordinates formatter and destination errors through one guarded failure path.
+  - Processes the first row before output starts so first-row processor failures use the JSON error path, while later failures destroy/close the response with the original error.
+  - Removed the redundant manual `res.end()` listener; `pipe()` owns normal destination ending.
+- Changed: `packages/express-response-handler/src/create-handler.ts`
+  - Routes pre-output CSV serialization failures through the normal formatted error response path.
+- Updated: `packages/express-response-handler/test/csv-response.test.ts`
+  - Covered safe filename output, control-character rejection, first-row processor failure, later processor failure, formatter errors, and destination write errors.
+- Updated: `website/docs/packages/express-response-handler.md`
+  - Documented CSV filename encoding and control-character rejection.
+- Verified:
+  - `pnpm --filter @web-ts-toolkit/express-response-handler test` passes (4 files, 96 tests).
+
 ### Task ERH-07: Respect Backpressure And Support Lazy CSV Sources
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -373,11 +450,26 @@ Acceptance criteria:
 - Async iterator cleanup runs on client disconnect and formatter failure.
 - Existing array callers remain source-compatible unless a documented breaking change is approved.
 
+Completion evidence:
+
+- Changed: `packages/express-response-handler/src/responses/csv.ts`
+  - Stores array inputs directly instead of eagerly copying every source with `castArray(...)`.
+  - Accepts synchronous and async iterable CSV sources.
+  - Requires explicit `headers` for non-array lazy sources while preserving automatic header inference for arrays.
+  - Streams rows through an async producer that waits for formatter `drain` before consuming more source rows.
+  - Calls the active iterator's `return()` on abort, destination/formatter failure, and other guarded failure paths.
+- Updated: `packages/express-response-handler/test/csv-response.test.ts`
+  - Covered single-object header inference, synchronous lazy iterable output, lazy-source header validation, 100,000-row backpressure-bounded production under a 20,000-row threshold, client-disconnect cleanup, and formatter-failure cleanup.
+- Updated: `website/docs/packages/express-response-handler.md`
+  - Documented array, sync iterable, and async iterable sources; one-time lazy consumption; explicit lazy-source headers; and iterator cleanup on disconnect/failure.
+- Verified:
+  - `pnpm --filter @web-ts-toolkit/express-response-handler test` passes (4 files, 102 tests).
+
 ## Wave 4: Hooks, API Boundaries, And Documentation
 
 ### Task ERH-08: Define Hook Semantics And Failure Policy
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -423,9 +515,27 @@ Acceptance criteria:
 - Hook failures are observable and do not create duplicate responses or unhandled rejections.
 - Fresh handler instances remain isolated; shared singleton behavior is tested explicitly.
 
+Completion evidence:
+
+- Changed: `packages/express-response-handler/src/create-handler.ts`
+  - Hook return values are ignored while returned promises are awaited for rejection handling.
+  - `postJson` and `postError` are scheduled from the HTTP `finish` event when available and do not run for skipped/no-return responses.
+  - Post-hook failures are routed to Express `next(err)` after the response has finished instead of being swallowed.
+- Changed: `packages/express-response-handler/src/types.ts`
+  - Public hook types now express observational `void | PromiseLike<void>` semantics.
+- Updated: `packages/express-response-handler/test/middleware.test.ts`
+  - Covered ignored hook return values, async pre hooks, post hooks after `finish`, no-return handler behavior, post-hook rejection observability, CSV completion and client close, error post hooks, instance isolation, and default singleton mutation.
+- Updated: `packages/express-json-router/test/express-json-router.test.ts`
+  - Kept sibling proxy tests aligned with the current generic-error `500` behavior while verifying static hook/default propagation.
+- Updated: `packages/express-response-handler/README.md`, `packages/express-response-handler/llms.txt`, `website/docs/packages/express-response-handler.md`, and `website/docs/packages/express-json-router.md`
+  - Documented observational hook semantics, `finish` timing, close/failure exclusions, failure routing, isolated instances, and singleton/shared defaults.
+- Verified:
+  - `pnpm --filter @web-ts-toolkit/express-response-handler test` passes (4 files, 111 tests).
+  - `pnpm --filter @web-ts-toolkit/express-json-router test` passes (1 file, 13 tests).
+
 ### Task ERH-09: Repair Root Exports And Executable Examples
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -468,9 +578,21 @@ Acceptance criteria:
 - `Created` and `NoContent` examples execute without class invocation errors.
 - Documentation no longer claims any absent export.
 
+Completion evidence:
+
+- Changed: `packages/express-response-handler/src/index.ts`
+  - Exports the default singleton's `handleResponse` as a named root export while preserving the default singleton and `createHandler()` APIs.
+- Updated: `packages/express-response-handler/README.md` and `website/docs/packages/express-response-handler.md`
+  - Fixed `Created` and `NoContent` subpath examples to instantiate classes with `new`.
+- Added: `packages/express-response-handler/test/packed-examples.test.ts`
+  - Packs the built package with `npm pack`, installs the tarball contents into a temporary consumer, and executes root default, root named, and subpath imports in ESM and CJS.
+  - Compiles the documented root/default/subpath import styles against the packed export map under strict NodeNext and Bundler resolution.
+- Verified:
+  - `pnpm --filter @web-ts-toolkit/express-response-handler test` passes (5 files, 113 tests).
+
 ### Task ERH-10: Tighten Express Types And Public Encapsulation
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -513,11 +635,27 @@ Acceptance criteria:
 - Public declarations expose only intentionally supported lifecycle methods/types, with release notes for removals.
 - `express-json-router` builds and its response-handler integration tests pass.
 
+Completion evidence:
+
+- Changed: `packages/express-response-handler/src/types.ts` and `src/public-types.ts`
+  - `HandleResponse`, `MiddlewareFunction`, and `RouterFunction` now use Express request/response/next generics from `express-serve-static-core`.
+  - Public type exports no longer include internal `EventState`; `ExpressResponseHandler` no longer exposes `handleResult` or `handlePromise`.
+- Changed: `packages/express-response-handler/src/create-handler.ts`
+  - Keeps lifecycle helpers internal while preserving runtime behavior and the mutable handler properties consumed by `express-json-router`.
+- Changed: `packages/express-response-handler/package.json`
+  - Declares supported Express peer range `^5.0.0` and ships the Express core type dependency needed by declarations.
+- Updated: `packages/express-response-handler/test/packed-examples.test.ts`
+  - Packed strict TypeScript fixture now verifies params, response body, request body, query, locals, and declaration-merged `req.user` typing.
+- Verified:
+  - `pnpm --filter @web-ts-toolkit/express-response-handler test` passes (5 files, 113 tests).
+  - `pnpm --filter @web-ts-toolkit/express-json-router test` passes (1 file, 13 tests).
+  - `pnpm peers check` reports only unrelated existing peer issues for `eslint-plugin-import`/ESLint and Netlify OpenTelemetry.
+
 ## Wave 5: Package Verification And Measured Optimization
 
 ### Task ERH-11: Add Direct Packed-Consumer And Coverage Gates
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -561,9 +699,22 @@ Acceptance criteria:
 - Coverage includes every terminal request state, hook state, error format, CSV error source, and backpressure path introduced by this plan.
 - Package tests fail when a documented export or subpath is removed or misrouted.
 
+Implementation notes:
+
+- Changed: `packages/express-response-handler/test/packed-examples.test.ts`
+  - Packs `@web-ts-toolkit/utils`, `@web-ts-toolkit/http-errors`, and `@web-ts-toolkit/express-response-handler` through the real production manifest rewrite before installing them into isolated consumers.
+  - Executes root, `./types`, `./responses`, `./responses/csv`, and `./responses/success` through ESM `import` and CJS `require`.
+  - Compiles strict NodeNext, Bundler, `.mts`, and `.cts` consumers with `skipLibCheck: false`.
+  - Verifies default/named exports and brand-based cross-entry response-wrapper recognition.
+- Changed: `packages/express-response-handler/vitest.config.ts` and `package.json`
+  - Enables V8 coverage during package tests with thresholds for the root bundle that exercises `create-handler.ts` and the CSV subpath bundle that exercises `responses/csv.ts`.
+  - Adds `@vitest/coverage-v8` as the package coverage provider.
+- Verified:
+  - `pnpm --filter @web-ts-toolkit/express-response-handler test` passes (5 files, 114 tests) with coverage thresholds enforced.
+
 ### Task ERH-12: Measure Root Import And CSV Security Policy
 
-Status: pending
+Status: completed
 
 Priority: P3
 
@@ -601,6 +752,19 @@ Acceptance criteria:
 - Any bundle change preserves CJS/ESM/subpath and wrapper-brand compatibility.
 - CSV documentation explicitly states formula-injection responsibility and provides a safe pattern when user-controlled cells reach spreadsheet users.
 - Deferred optimization records rationale and residual cost rather than remaining an undocumented hypothesis.
+
+Implementation notes:
+
+- Added: `packages/express-response-handler/ERH-12.md`
+  - Records reproducible build, pack, Node import, loaded-code, RSS, and esbuild bundle measurements for the current root and subpath imports.
+  - Captures the deferred optimization decision: root JSON-only use still pulls CSV recognition, but the measured cost does not justify complicating synchronous response dispatch without a concrete consumer budget failure.
+  - Defines a reopen budget: root JSON-only bundles should avoid `@fast-csv/format`, and CJS root loaded package code should stay below 35 KB while preserving ESM/CJS/subpath wrapper-brand compatibility.
+- Changed: `packages/express-response-handler/README.md` and `website/docs/packages/express-response-handler.md`
+  - Documents that CSV formula neutralization is application responsibility when user-controlled cells may reach spreadsheet software.
+  - Provides an opt-in `processor` pattern for prefixing formula-like string cells.
+- Decision: no runtime CSV mutation, lazy loading, or packaging change was made for ERH-12.
+- Verified:
+  - `pnpm --filter @web-ts-toolkit/express-response-handler test` passes (5 files, 114 tests) with coverage thresholds enforced.
 
 ## Dependency And Parallelization Guidance
 
