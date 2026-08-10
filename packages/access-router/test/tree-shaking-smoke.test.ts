@@ -1,12 +1,25 @@
 import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
 const workspaceRoot = path.resolve(__dirname, '..', '..', '..');
 const packageRoot = path.resolve(__dirname, '..');
-const esbuildBin = path.resolve(workspaceRoot, 'node_modules', '.bin', 'esbuild');
+const resolveEsbuildBin = () => {
+  for (const base of [packageRoot, workspaceRoot]) {
+    try {
+      return createRequire(path.join(base, 'package.json')).resolve('esbuild/bin/esbuild');
+    } catch {
+      // Try the next workspace location.
+    }
+  }
+
+  throw new Error('tree-shaking smoke test requires the esbuild package to be installed as a direct dependency');
+};
+
+const esbuildBin = resolveEsbuildBin();
 
 /**
  * Files that esbuild must be able to resolve when bundling a consumer of
@@ -122,7 +135,7 @@ const runSmoke = (mode: 'minify' | 'tree-shake' = 'minify'): SmokeResult => {
   ];
   if (mode === 'minify') args.push('--minify');
 
-  runWithEnv(esbuildBin, args, work, {
+  runWithEnv(process.execPath, [esbuildBin, ...args], work, {
     NODE_PATH: [path.join(work, 'node_modules'), path.join(packageRoot, 'node_modules')].join(':'),
   });
 

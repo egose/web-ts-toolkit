@@ -71,6 +71,7 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "esbuild": "^0.28.0",
     "express": "^5.2.1",
     "mongodb-memory-server": "^11.2.0",
     "mongoose": "^9.8.0",
