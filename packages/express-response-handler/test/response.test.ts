@@ -2,6 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import apiHandler from '../dist/index.mjs';
+import { Response, responseBrand } from '../dist/responses/index.mjs';
 import {
   OK,
   Created,
@@ -160,6 +161,26 @@ describe('Successful responses', () => {
 });
 
 describe('Response lifecycle regression', () => {
+  it.each([NaN, Infinity, -Infinity, 99, 600, 200.5])('rejects invalid response status %s', (statusCode) => {
+    expect(() => new Response(statusCode, { ok: true })).toThrow(
+      'statusCode must be an integer HTTP status code between 100 and 599',
+    );
+  });
+
+  it('validates forged branded response status codes before writing headers', async () => {
+    const app = express();
+
+    app.get(
+      '/invalid-response-status',
+      handleResponse(() => ({ [responseBrand]: true, statusCode: 99, data: { ok: true } })),
+    );
+
+    const response = await request(app).get('/invalid-response-status').expect(500);
+
+    expect(response.headers['content-type']).toContain('/json');
+    expect(response.body).toEqual({ message: 'Internal Server Error' });
+  });
+
   it('a successful request finishes exactly once without reaching error middleware', async () => {
     const { app, probe, tracker, dispose } = createInstrumentedApp();
 

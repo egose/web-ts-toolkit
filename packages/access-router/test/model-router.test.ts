@@ -258,7 +258,7 @@ describe('model router', () => {
       .post('/users?include_permissions=false')
       .set('user', 'admin')
       .send({ name: 'user-after-persist-invalid', role: 'user', public: false })
-      .expect(422)
+      .expect(500)
       .expect('Content-Type', /application\/problem\+json/);
 
     expect(response.body.detail).toContain('afterPersist hook');

@@ -250,6 +250,7 @@ if (new NoContent().statusCode !== 204) throw new Error('NoContent example faile
 if (HttpResponse.created({ ok: true }).statusCode !== 201) throw new Error('HttpResponse factory failed');
 if (new CSVResponse([{ id: 1 }]).filename !== 'download.csv') throw new Error('CSVResponse subpath failed');
 if (!isCSVResponse(HttpResponse.csv([{ id: 1 }]))) throw new Error('cross-entry CSV wrapper recognition failed');
+if ('handleResult' in apiHandler || 'handlePromise' in apiHandler) throw new Error('internal lifecycle helpers leaked');
 `,
     );
     writeFileSync(
@@ -269,6 +270,7 @@ if (new success.Created({ id: 'user_1' }).statusCode !== 201) throw new Error('C
 if (new success.NoContent().statusCode !== 204) throw new Error('CJS NoContent example failed');
 if (new csv.CSVResponse([{ id: 1 }]).filename !== 'download.csv') throw new Error('CJS CSVResponse subpath failed');
 if (!csv.isCSVResponse(api.HttpResponse.csv([{ id: 1 }]))) throw new Error('CJS cross-entry CSV wrapper recognition failed');
+if ('handleResult' in apiHandler || 'handlePromise' in apiHandler) throw new Error('CJS internal lifecycle helpers leaked');
 `,
     );
 
@@ -332,10 +334,11 @@ const typedMiddleware: RequestHandler<
 });
 const created = HttpResponse.created({ ok: true });
 const csv = new CSVResponse([{ id: 1 }]);
+const csvWithExplicitHeaders = new CSVResponse([{ id: 1 }], { headers: ['id'] });
 const recognized: boolean = isResponse(new Response(200, { ok: true }));
 const options: ExpressResponseHandlerOptions = { errorFormat: ErrorFormats.rfc9457, rfc9457ContentType: 'application/json' };
 
-void [defaultHandleResponse, isolatedHandleResponse, middleware, noContentMiddleware, typedMiddleware, created, csv, recognized, options];
+void [defaultHandleResponse, isolatedHandleResponse, middleware, noContentMiddleware, typedMiddleware, created, csv, csvWithExplicitHeaders, recognized, options];
 `;
     const ctsSource = `import api = require('@web-ts-toolkit/express-response-handler');
 import types = require('@web-ts-toolkit/express-response-handler/types');
@@ -345,7 +348,7 @@ import success = require('@web-ts-toolkit/express-response-handler/responses/suc
 
 const handler: types.HandleResponse = api.handleResponse;
 const created = new success.Created({ ok: true });
-const csvResponse = new csv.CSVResponse([{ ok: true }]);
+const csvResponse = new csv.CSVResponse([{ ok: true }], { headers: ['ok'] });
 const recognized: boolean = responses.isResponse(created);
 
 void [handler, api.default, api.HttpResponse, types.ErrorFormats, csvResponse, recognized];

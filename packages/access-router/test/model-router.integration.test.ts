@@ -1003,7 +1003,7 @@ describe('model router integration', () => {
     const response = await request(app)
       .patch('/transform-users/user1?include_permissions=false')
       .send({ role: 'manager' })
-      .expect(422)
+      .expect(500)
       .expect('Content-Type', /application\/problem\+json/);
 
     expect(response.body.detail).toContain('transform hook');

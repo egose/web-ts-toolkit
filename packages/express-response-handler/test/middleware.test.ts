@@ -122,12 +122,22 @@ describe('Manual response handling', () => {
 
 describe('Invalid value in Next Handling', () => {
   const key = 'invalid-value-in-next-handling';
-  const status = 500;
-  const value = 'Internal Server Error';
 
-  it(`should return ${value}`, async () => {
-    app.get(`/${key}`, handleResponse(fnInvalidNextValue));
-    await hit(`/${key}`, status, value);
+  it('should forward arbitrary next(error) values to Express error middleware', async () => {
+    const localApp = express();
+    const errors: unknown[] = [];
+
+    localApp.get(`/${key}`, handleResponse(fnInvalidNextValue));
+    localApp.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+      void next;
+      errors.push(err);
+      res.status(500).json({ message: String(err) });
+    });
+
+    const response = await request(localApp).get(`/${key}`).expect(500);
+
+    expect(errors).toEqual(['pear']);
+    expect(response.body).toEqual({ message: 'pear' });
   });
 });
 
