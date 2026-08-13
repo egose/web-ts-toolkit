@@ -139,7 +139,7 @@ export class ModelRouter<TModel = unknown> {
 
   private logEndpoints() {
     runWithRuntime(this.runtime, () => {
-      forEach(this.router.endpoints, ({ method, path }) => {
+      forEach(this.router.getEndpoints(), ({ method, path }) => {
         logInfoMessage(`${padEnd(method, 6)} ${normalizeUrlPath(this.options.parentPath + path)}`);
       });
     });

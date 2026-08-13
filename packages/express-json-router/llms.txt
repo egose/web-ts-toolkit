@@ -1,0 +1,68 @@
+# @web-ts-toolkit/express-json-router
+
+Express router wrapper that sends route handler return values through `@web-ts-toolkit/express-response-handler` and records registered JSON-aware endpoints.
+
+## Main Patterns
+
+```ts
+import express from 'express';
+import JsonRouter from '@web-ts-toolkit/express-json-router';
+
+const app = express();
+const router = new JsonRouter('/api');
+
+router.get('/health', () => ({ ok: true }));
+
+router.get('/users/:id', (req) => {
+  throw new JsonRouter.clientErrors.NotFoundError(`User ${req.params.id} not found`);
+});
+
+app.use(router.original);
+```
+
+Shared middleware and route builders:
+
+```ts
+import type { RequestHandler } from 'express';
+import JsonRouter from '@web-ts-toolkit/express-json-router';
+
+const requireAuth: RequestHandler = (_req, _res, next) => next();
+const router = new JsonRouter('/api', [requireAuth]);
+
+router
+  .route('/documents/:id')
+  .propfind((req) => ({ id: req.params.id }))
+  .proppatch((req) => ({ id: req.params.id, updated: true }));
+```
+
+Typed callback and isolated response handler:
+
+```ts
+import JsonRouter, { type JsonRouterCallback } from '@web-ts-toolkit/express-json-router';
+
+type Params = { id: string };
+
+const readUser: JsonRouterCallback<Params> = (req) => ({ id: req.params.id });
+const handler = JsonRouter.createHandler({ errorFormat: JsonRouter.ErrorFormats.rfc9457 });
+const router = new JsonRouter('/admin', undefined, handler);
+
+router.get('/users/:id', readUser);
+```
+
+## Gotchas
+
+- canonical import is the default class: `import JsonRouter from '@web-ts-toolkit/express-json-router'`
+- public type imports are available from the root: `JsonRouterCallback`, `JsonRouterEndpoint`, `JsonRouterHandlerInput`, `JsonRouterMethod`, `JsonRouterMiddlewares`, `JsonRouterRouteRegistrar`, `JsonRouteBuilder`
+- route handlers may return plain values, promises, `JsonRouter.HttpResponse.*` wrappers, or throw `JsonRouter.clientErrors.*` / `@web-ts-toolkit/http-errors` errors
+- `JsonRouter.supportedMethods` is the reviewed route-method contract; each method is available on the router and on `router.route(path)` builders
+- `basePath`, route method paths, and `router.route(path)` intentionally accept string paths only; `RegExp` and path arrays are rejected before registration so `getEndpoints()` can keep `{ method, path: string }` metadata
+- constructor middleware and `getEndpoints()` results are snapshots; mutating caller arrays or returned arrays does not change future route registration or endpoint metadata
+- route-local Express error middleware with four arguments is rejected; mount error middleware with `router.use(...)`
+- static defaults (`errorMessageProvider`, `preJson`, `postJson`, `preError`, `postError`) affect routers created after the change; existing routers keep their constructed response handler
+- `JsonRouter.defaultHandler` returns a newly configured handler each time it is read; pass an explicit handler as the third constructor argument for isolated behavior
+- Express is a direct runtime dependency because this package constructs `express.Router()` instances; `@types/express` is installed as a dependency for strict TypeScript consumers
+
+## Pointers
+
+- README: installation, quickstart, main exports, supported methods, handler defaults
+- website docs (not packed into the npm tarball): https://web-ts-toolkit.pages.dev/docs/packages/express-json-router

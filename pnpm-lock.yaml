@@ -481,6 +481,9 @@ importers:
 
   packages/express-json-router:
     dependencies:
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
       '@web-ts-toolkit/express-response-handler':
         specifier: workspace:*
         version: link:../express-response-handler
@@ -494,9 +497,6 @@ importers:
         specifier: ^5.2.1
         version: 5.2.1(supports-color@10.2.2)
     devDependencies:
-      '@types/express':
-        specifier: ^5.0.3
-        version: 5.0.6
       '@types/node':
         specifier: ^25.9.5
         version: 25.9.5
