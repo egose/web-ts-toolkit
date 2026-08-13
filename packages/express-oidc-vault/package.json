@@ -1,6 +1,6 @@
 {
   "name": "@web-ts-toolkit/express-oidc-vault",
-  "description": "Cookie-free OIDC session middleware for Express with pluggable vault stores",
+  "description": "OIDC session middleware for Express with body or cookie transport and pluggable vault stores",
   "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/express-oidc-vault",
   "version": "0.0.0-PLACEHOLDER",
   "license": "PLACEHOLDER",
@@ -18,7 +18,11 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.ts",
+        "default": "./dist/index.d.ts"
+      },
       "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
@@ -43,6 +47,7 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "@types/express-serve-static-core": "^5.1.3",
     "@types/node": "^25.9.5",
     "express": "^5.2.1",
     "supertest": "^7.2.2"

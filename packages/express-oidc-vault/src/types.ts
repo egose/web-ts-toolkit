@@ -1,6 +1,7 @@
 import type { KeyObject } from 'node:crypto';
 
 import type { Request, Response } from 'express';
+import type {} from 'express-serve-static-core';
 import type { JWK } from 'jose';
 
 export type OidcVaultRouteName = 'login' | 'callback' | 'exchange' | 'refresh' | 'logout' | 'backchannel-logout';
@@ -20,6 +21,12 @@ export interface OidcVaultProviderMetadata {
 
 export interface OidcVaultSession {
   sessionId: string;
+  /**
+   * Stable identifier for the logical refresh-token-backed session across
+   * session ID rotations. Stores use this to revoke a session even while a
+   * refresh rotates the public session ID.
+   */
+  logicalSessionId?: string;
   subject: string;
   providerSessionId?: string;
   provider?: OidcVaultProviderMetadata;
@@ -27,6 +34,14 @@ export interface OidcVaultSession {
   idToken: string;
   accessToken?: string;
   scope?: string;
+  /**
+   * Optional vault-session expiry timestamp in epoch milliseconds.
+   *
+   * This controls the lifetime of the refresh-token-backed server-side session.
+   * It is not derived from upstream OAuth `expires_in`, which only describes the
+   * upstream access token lifetime. Leave unset when your application or store
+   * owns session lifetime through another policy.
+   */
   expiresAt?: number;
   createdAt: number;
   updatedAt: number;
@@ -79,6 +94,15 @@ export interface DeleteSessionsByProviderSessionIdInput {
   clientId?: string;
 }
 
+export interface DeleteSessionsByLogicalSessionIdInput {
+  logicalSessionId: string;
+}
+
+export interface ConsumeBackchannelLogoutTokenJtiInput {
+  jti: string;
+  expiresAt: number;
+}
+
 export class OidcVaultStoreConflictError extends Error {
   constructor(message = 'OIDC vault store operation conflicted with concurrent state changes.') {
     super(message);
@@ -95,6 +119,8 @@ export interface OidcVaultStoreProvider {
   getSession(sessionId: string): Promise<OidcVaultSession | null>;
   rotateSession(input: RotateSessionInput): Promise<OidcVaultSession>;
   deleteSession(sessionId: string): Promise<void>;
+  deleteSessionsByLogicalSessionId(input: string | DeleteSessionsByLogicalSessionIdInput): Promise<number>;
+  consumeBackchannelLogoutTokenJti(input: ConsumeBackchannelLogoutTokenJtiInput): Promise<boolean>;
   deleteSessionsBySubject(input: string | DeleteSessionsBySubjectInput): Promise<number>;
   deleteSessionsByProviderSessionId(input: string | DeleteSessionsByProviderSessionIdInput): Promise<number>;
 }
@@ -172,7 +198,7 @@ export interface OidcVaultJwtAccessTokenValidatorOptions {
   mapClaims?(claims: Record<string, unknown>): OidcVaultAccessTokenValidationResult;
 }
 
-declare module 'express' {
+declare module 'express-serve-static-core' {
   interface Request {
     auth?: OidcVaultAuthContext;
   }
@@ -192,7 +218,6 @@ export interface OidcVaultConfig {
 
 export interface OidcVaultLogoutResult {
   loggedOut: true;
-  upstreamLogoutUrl?: string;
 }
 
 export interface OidcVaultBackchannelLogoutResult {
@@ -223,6 +248,7 @@ export interface OidcVaultCookieOptions {
 
 export interface OidcVaultOptions {
   basePath?: string;
+  backendOrigin: string;
   storeProvider: OidcVaultStoreProvider;
   config?: OidcVaultConfig;
   hooks?: OidcVaultHooks;
@@ -235,5 +261,7 @@ export interface OidcVaultOptions {
   sessionTransport?: OidcVaultSessionTransport;
   cookie?: OidcVaultCookieOptions;
   trustedOrigins?: string[];
+  requestBodyLimit?: string | number;
+  providerRequestTimeoutMs?: number;
   now?: () => number;
 }

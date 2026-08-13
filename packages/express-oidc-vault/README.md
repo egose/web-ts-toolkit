@@ -1,10 +1,10 @@
 # `@web-ts-toolkit/express-oidc-vault`
 
-Cookie-free OIDC session middleware for Express with server-side storage of upstream refresh tokens and logout-capable `id_token`s.
+OIDC session middleware for Express with body or cookie session transport and server-side storage of upstream refresh tokens and logout-capable `id_token`s.
 
 ## Status
 
-This package now implements the core cookie-free OIDC flow.
+This package now implements the core OIDC flow with body or cookie session transport.
 
 Current implementation includes:
 
@@ -12,7 +12,7 @@ Current implementation includes:
 - OIDC login redirect with PKCE, `state`, and `nonce`
 - callback token exchange, server-side session creation, and one-time local exchange codes
 - session refresh with session ID rotation
-- upstream logout URL generation using stored `id_token`
+- server-driven upstream logout redirect using stored `id_token`
 - OIDC backchannel logout handling via `logout_token`
 - public TypeScript interfaces for hooks, sessions, config helpers, and store providers
 
@@ -55,6 +55,7 @@ This is the default mode.
 - `exchange` and `refresh` responses include `sessionId`
 - the frontend stores `sessionId`, typically in `sessionStorage`
 - the frontend sends `sessionId` back in the JSON body for `refresh` and `logout`
+- `refresh` and `logout` do not read session cookies in this mode
 
 ### `sessionTransport: 'cookie'`
 
@@ -63,6 +64,7 @@ This mode stores `sessionId` in a backend-managed cookie.
 - `exchange` sets the session cookie and does not need to return `sessionId` in the JSON body
 - `refresh` reads the cookie, rotates the session, and updates the cookie
 - `logout` reads the cookie and clears it
+- `refresh` and `logout` require the cookie and reject body-only `sessionId` values
 - the frontend does not need to keep `sessionId` in `sessionStorage`
 
 Backchannel logout is separate from both transport modes because it is a server-to-server request from the IdP and does not rely on browser storage at all.
@@ -75,8 +77,9 @@ Available cookie options:
 - `cookie.secure`
 - `cookie.domain`
 - `cookie.path`
-- `cookie.httpOnly`
-- `trustedOrigins`: required when cross-site cookie transport is enabled
+- `trustedOrigins`: browser origins allowed to call cookie-authenticated `refresh` and `logout`; required when cross-site cookie transport is enabled
+
+`cookie.httpOnly` is always enforced as `true`. Middleware creation rejects `httpOnly: false` and unsafe cookie names, domains, or paths so untrusted values cannot be serialized into `Set-Cookie` headers.
 
 Default cookie behavior:
 
@@ -86,6 +89,8 @@ Default cookie behavior:
 - `deploymentMode`: `same-origin`
 - `sameSite`: `lax` unless `deploymentMode` is `cross-site`
 - `secure`: `true` when `sameSite` resolves to `none` or `deploymentMode` is `cross-site`
+
+Cookie-authenticated `refresh` and `logout` requests use a fail-closed CSRF policy for every `SameSite` mode. The request must include an `Origin` header, or a valid `Referer` header, whose origin matches `backendOrigin` or one of the configured `trustedOrigins`. Requests with no source-origin header are rejected. Backchannel logout is not affected because it is authenticated with the signed OIDC logout token rather than the browser session cookie.
 
 Recommended frontend boot flow:
 
@@ -112,6 +117,16 @@ The core middleware exposes these endpoints under a configurable base path:
 - `POST /auth/oidc/logout`
 - `POST /auth/oidc/backchannel-logout`
 
+The mounted OIDC router parses JSON and `application/x-www-form-urlencoded` request bodies with an explicit default limit of `16kb`. This covers the small route payloads used by `exchange`, `refresh`, `logout`, and form-encoded backchannel logout. If an IdP requires a larger `logout_token`, set `requestBodyLimit` to a string or byte count accepted by Express body parsers.
+
+Parser failures return a JSON client error before route handlers or store/provider hooks run. The stable error codes are:
+
+- `OIDC_VAULT_REQUEST_BODY_TOO_LARGE`
+- `OIDC_VAULT_REQUEST_BODY_PARAMETER_LIMIT_EXCEEDED`
+- `OIDC_VAULT_UNSUPPORTED_REQUEST_BODY_ENCODING`
+- `OIDC_VAULT_MALFORMED_REQUEST_BODY`
+- `OIDC_VAULT_INVALID_REQUEST_BODY`
+
 ## Quick Start
 
 ```ts
@@ -125,6 +140,7 @@ const storeProvider = createMemoryOidcVaultStore();
 app.use(
   createOidcVaultMiddleware({
     basePath: '/auth/oidc',
+    backendOrigin: 'https://api.example.com',
     config: {
       issuer: process.env.OIDC_ISSUER,
       clientId: process.env.OIDC_CLIENT_ID,
@@ -137,6 +153,29 @@ app.use(
 ```
 
 Use the memory store for local development and tests. For production deployments, prefer a Redis or MongoDB store provider.
+
+`backendOrigin` must be the public backend origin registered with your OIDC provider, such as `https://api.example.com`. Callback `redirect_uri` values are built from this pinned origin and the configured `basePath`, so reverse proxies and untrusted `Host` headers cannot change the provider callback URL. Configure Express `trust proxy` only for other request metadata needs; it is not used to derive the OIDC callback origin.
+
+## Public Options And Defaults
+
+| Option                          | Default                              | Contract                                                                                                                                            |
+| ------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `basePath`                      | `/auth/oidc`                         | Mount path for the OIDC router. Route paths listed in this README are relative to this value.                                                       |
+| `backendOrigin`                 | required                             | Public backend origin registered with the OIDC provider. Callback redirect URIs are derived from this pinned origin, not request host headers.      |
+| `storeProvider`                 | required                             | Durable vault store provider. Use Redis or MongoDB for production and multi-instance deployments.                                                   |
+| `config`                        | env-compatible helper input          | Provider config. `issuer` is required for discovery and manual modes so ID and logout tokens are issuer-bound.                                      |
+| `frontendRedirectUri`           | unset                                | Default browser return target after backend callback completion. Required if login accepts a custom `returnTo`.                                     |
+| `postLogoutRedirectUri`         | unset                                | Optional provider-registered HTTP(S) URL used in the upstream end-session redirect.                                                                 |
+| `fetchUserInfo`                 | implementation default               | When enabled, UserInfo claims are fetched and merged only after the `sub` matches the verified ID token subject.                                    |
+| `authorizationTransactionTtlMs` | `600000`                             | TTL for one-time authorization transactions created during login.                                                                                   |
+| `exchangeCodeTtlMs`             | `30000`                              | TTL for one-time local exchange codes returned to the frontend callback route.                                                                      |
+| `sessionTransport`              | `body`                               | `body` returns and accepts JSON `sessionId`; `cookie` stores the session pointer in an `HttpOnly` cookie and rejects body-only refresh/logout IDs.  |
+| `cookie`                        | see cookie defaults above            | Cookie transport options. `httpOnly` is always enforced as `true`; unsafe names, paths, and domains are rejected.                                   |
+| `trustedOrigins`                | `[]` plus `backendOrigin` internally | Browser origins allowed to call cookie-authenticated `refresh` and `logout`. Required for cross-site cookie transport.                              |
+| `requestBodyLimit`              | `16kb`                               | Express JSON and URL-encoded parser limit for OIDC route bodies. Increase only for known provider backchannel logout token size needs.              |
+| `providerRequestTimeoutMs`      | `5000`                               | Timeout for discovery, token, UserInfo, and remote JWKS requests. Must be a positive finite integer.                                                |
+| `hooks`                         | unset                                | Pre-commit hooks can veto operations by throwing; post-commit notification hook failures are reported to `onError` without undoing committed state. |
+| `tokenIssuer`                   | unset                                | Issues app-local access tokens for `exchange` and `refresh`. This lifetime is separate from upstream token and vault-session lifetimes.             |
 
 ## Frontend Integration Example
 
@@ -266,21 +305,11 @@ async function logout(): Promise<void> {
     return;
   }
 
-  const response = await fetch('/auth/oidc/logout', {
+  await fetch('/auth/oidc/logout', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ sessionId }),
   });
-
-  if (!response.ok) {
-    return;
-  }
-
-  const payload = (await response.json()) as { upstreamLogoutUrl?: string };
-
-  if (payload.upstreamLogoutUrl) {
-    window.location.assign(payload.upstreamLogoutUrl);
-  }
 }
 ```
 
@@ -379,6 +408,8 @@ The middleware validates the `logout_token` against the provider JWKS and then r
 - upstream `sid` when present
 - otherwise `sub`
 
+The logout token must include `iat`, `exp`, `jti`, the standard backchannel logout event claim, and either `sid` or `sub`. If the protected header includes `typ`, it must be `logout+jwt`; tokens without `typ` remain accepted for provider compatibility. Each `jti` is consumed once and remembered until the token `exp`, so replaying the same valid token returns a successful no-op response without repeating revocation hooks.
+
 Example request:
 
 ```ts
@@ -422,6 +453,7 @@ const app = express();
 app.use(
   createOidcVaultMiddleware({
     basePath: '/auth/oidc',
+    backendOrigin: 'https://api.example.com',
     config: {
       issuer: process.env.OIDC_ISSUER,
       clientId: process.env.OIDC_CLIENT_ID,
@@ -450,6 +482,7 @@ await redis.connect();
 app.use(
   createOidcVaultMiddleware({
     basePath: '/auth/oidc',
+    backendOrigin: 'https://api.example.com',
     config: {
       issuer: process.env.OIDC_ISSUER,
       clientId: process.env.OIDC_CLIENT_ID,
@@ -481,6 +514,7 @@ await mongo.connect();
 app.use(
   createOidcVaultMiddleware({
     basePath: '/auth/oidc',
+    backendOrigin: 'https://api.example.com',
     config: {
       issuer: process.env.OIDC_ISSUER,
       clientId: process.env.OIDC_CLIENT_ID,
@@ -511,6 +545,7 @@ await redis.connect();
 app.use(
   createOidcVaultMiddleware({
     basePath: '/auth/oidc',
+    backendOrigin: 'https://api.example.com',
     config: {
       issuer: process.env.OIDC_ISSUER,
       clientId: process.env.OIDC_CLIENT_ID,
@@ -561,9 +596,21 @@ app.use(
 - The backend should store the latest upstream `id_token` so logout can call the upstream end-session endpoint with `id_token_hint`.
 - `sessionId` should rotate on refresh.
 - The frontend should deduplicate concurrent refresh calls so only one refresh is in-flight at a time.
-- If `OIDC_ISSUER` is configured, issuer discovery should override explicit endpoint URLs.
+- Upstream OAuth `expires_in` describes the upstream access token only. It does not set `OidcVaultSession.expiresAt` or shorten the refresh-token-backed vault session.
+- `OidcVaultSession.expiresAt`, when set by application code or store policy, is an explicit vault-session expiry in epoch milliseconds and remains enforced by store providers.
+- If only `OIDC_ISSUER` is configured, issuer discovery is used and the discovered issuer must match the configured issuer.
+- Provider discovery metadata and remote JWKS resolvers are cached in bounded process-wide maps keyed by configured issuer URL and `jwks_uri`; these keys are intended to come from static middleware configuration, not request input.
+- Successful discovery entries are reused for up to 10 minutes and both discovery and JWKS resolver maps retain at most 32 entries with oldest-entry eviction. Failed discovery requests are removed from the cache so a later request can retry.
+- Discovery, token, UserInfo, and remote JWKS HTTP requests use a 5 second default timeout and manual redirect handling. Set `providerRequestTimeoutMs` on `createOidcVaultMiddleware(...)` to a positive integer number of milliseconds if your provider needs a different bound.
+- Provider response parse errors return sanitized client messages; oversized or malformed provider bodies are not returned to callers.
+- If manual endpoints are configured, `issuer` is still required so ID and logout tokens are issuer-bound.
+- Token responses must include `token_type: Bearer`; `expires_in`, when present, must be a finite non-negative integer.
+- ID tokens must include `sub`, `exp`, and `iat`; `azp` must match `clientId` when present and is required for multi-audience ID tokens.
+- UserInfo responses must include a `sub` matching the verified ID-token subject before claims are merged into the session user.
+- Refresh responses may omit `id_token`; in that case, the middleware keeps the existing verified ID token and identity claims without requiring that original ID token to still be current. If refresh returns a new `id_token`, its `sub` must match the current session subject.
+- `backendOrigin` is the public origin registered with your OIDC provider for the backend callback URI. The middleware normalizes it to an origin and uses it for `/callback` redirect URIs instead of trusting request `Host` headers.
 - `frontendRedirectUri` is the default browser return target after the backend completes the upstream callback.
-- `postLogoutRedirectUri` is added to the upstream logout URL when configured.
+- `postLogoutRedirectUri` is optional. When configured, it must be an absolute HTTP(S) URL registered with the OIDC provider for post-logout redirects. It may be hosted on a different origin from `frontendRedirectUri` when that exact URL is provider-registered.
 - backchannel logout revokes local sessions by upstream `sid` when available, otherwise by `sub`
 
 ## Config Helpers
@@ -576,8 +623,8 @@ const config = resolveOidcVaultConfigFromEnv(process.env);
 
 Resolution behavior:
 
-- if `OIDC_ISSUER` is set, discovery mode wins and endpoint-specific env vars are ignored
-- if `OIDC_ISSUER` is not set, manual mode requires `OIDC_AUTHORIZATION_ENDPOINT`, `OIDC_TOKEN_ENDPOINT`, and `OIDC_JWKS_URI`
+- if only `OIDC_ISSUER` is set, discovery mode resolves the provider endpoints and validates that the discovered issuer matches
+- if endpoint-specific env vars are set, manual mode requires `OIDC_ISSUER`, `OIDC_AUTHORIZATION_ENDPOINT`, `OIDC_TOKEN_ENDPOINT`, and `OIDC_JWKS_URI`
 - `OIDC_SCOPES` defaults to `openid email profile`
 
 ### Manual endpoint mode
@@ -598,7 +645,9 @@ await redis.connect();
 app.use(
   createOidcVaultMiddleware({
     basePath: '/auth/oidc',
+    backendOrigin: 'https://api.example.com',
     config: {
+      issuer: process.env.OIDC_ISSUER,
       authorizationEndpoint: process.env.OIDC_AUTHORIZATION_ENDPOINT,
       tokenEndpoint: process.env.OIDC_TOKEN_ENDPOINT,
       userInfoEndpoint: process.env.OIDC_USERINFO_ENDPOINT,
@@ -624,6 +673,7 @@ In manual mode, the minimum required config is:
 - `tokenEndpoint`
 - `jwksUri`
 - `clientId`
+- `issuer`
 
 `userInfoEndpoint` and `endSessionEndpoint` are optional but recommended when your provider supports them.
 
@@ -643,6 +693,7 @@ const jwtSecret = new TextEncoder().encode(process.env.APP_JWT_SECRET ?? 'dev-se
 app.use(
   createOidcVaultMiddleware({
     basePath: '/auth/oidc',
+    backendOrigin: 'https://api.example.com',
     config: {
       issuer: process.env.OIDC_ISSUER,
       clientId: process.env.OIDC_CLIENT_ID,
@@ -807,6 +858,7 @@ const app = express();
 app.use(
   createOidcVaultMiddleware({
     basePath: '/auth/oidc',
+    backendOrigin: 'https://api.example.com',
     config: {
       issuer: process.env.OIDC_ISSUER,
       clientId: process.env.OIDC_CLIENT_ID,
@@ -841,7 +893,7 @@ app.use(
       async onLogout({ session, metadata }) {
         console.log('OIDC logout completed', {
           subject: session?.subject,
-          upstreamLogoutUrl: metadata?.upstreamLogoutUrl,
+          revokedSessions: metadata?.revokedSessions,
         });
       },
       async onError({ error, route, req }) {
@@ -863,10 +915,14 @@ async function upsertLocalUser(input: { oidcSubject: string; email?: string; dis
 
 Recommended hook usage:
 
+- `onLoginStart`, `onAuthorizationUrl`, `onCallbackTokens`, `onUserInfo`, `onBeforeSessionCreate`, and `onBeforeLogout` are pre-commit hooks. Throwing from one of these hooks vetoes the operation before the related durable session state is created, rotated, or deleted.
+- `onSessionCreated`, `onSessionRefreshed`, and `onLogout` are post-commit notification hooks. Their failures are reported to `onError` but do not change a successful callback redirect, refresh response, logout response, or already-committed store mutation.
 - use `onSessionCreated` for local user provisioning or last-login updates
 - use `onSessionRefreshed` for audit logs and session rotation tracing
 - use `onLogout` to revoke local app state that depends on the session
 - use `onError` for structured logging and alerting
+
+Client error responses keep a stable `{ code, message }` shape and intentionally avoid returning raw provider, store, hook, token issuer, or access-token validator details. Use `onError` to observe the original error object for private server-side logs.
 
 ## Security Checklist
 
@@ -875,15 +931,20 @@ Use these defaults when deploying the package:
 - keep `sessionId` in `sessionStorage` and keep `accessToken` in memory only
 - never store the upstream refresh token in the browser
 - use HTTPS end-to-end for frontend, backend, and IdP communication
+- set `backendOrigin` to the public backend origin registered with the provider; do not rely on request host or proxy headers for callback URL construction
+- keep the default `requestBodyLimit` of `16kb` unless a provider requires a larger form-encoded backchannel `logout_token`
 - treat XSS prevention as critical because `sessionStorage` is still readable by JavaScript
 - enable a strict Content Security Policy and avoid unsafe inline scripts
 - rotate `sessionId` on refresh and overwrite the mirrored `sessionStorage` value immediately
 - clear in-memory auth state and `sessionStorage` on logout, even if upstream logout fails
 - set `postLogoutRedirectUri` explicitly so logout destinations stay predictable
-- when using cross-site cookie transport, allow only your known frontend origins via `trustedOrigins`
+- when using cookie transport, rely on cookie credentials only for `refresh` and `logout`; do not send fallback body `sessionId` values
+- when using cross-site cookie transport, send frontend requests with `credentials: 'include'`, enable credentialed CORS, use `SameSite=None; Secure`, and allow only known frontend origins via `trustedOrigins`
+- keep cookie-authenticated CSRF protection fail-closed for every `SameSite` mode by requiring an `Origin` or valid `Referer` matching `backendOrigin` or `trustedOrigins`
 - protect any app-issued local access token with a short lifetime, such as 5 to 15 minutes
+- treat upstream OAuth `expires_in`, local access-token lifetime, and vault-session expiry as separate policies
 - use Redis or MongoDB, not the memory store, for production or multi-instance deployments
-- monitor `onError` and other hooks so failed callback, refresh, and logout flows are visible in logs
+- monitor `onError` and other hooks so failed callback, refresh, and logout flows are visible in private server logs without returning raw provider, token, store, or hook errors to clients
 
 ## Store Packages
 

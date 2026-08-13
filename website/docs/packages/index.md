@@ -16,7 +16,7 @@ This site is the primary documentation home for the current `web-ts-toolkit` wor
 - [`@web-ts-toolkit/access-router-react`](./access-router-react): React hooks for `access-router-client` model services.
 - [`@web-ts-toolkit/express-runtime`](./express-runtime): Express app factory, local dev server helpers, serverless wrapper, and reusable runtime CLI.
 - [`@web-ts-toolkit/express-json-router`](./express-json-router): JSON-aware Express router wrapper built on the shared response handler.
-- [`@web-ts-toolkit/express-oidc-vault`](./express-oidc-vault): cookie-free OIDC middleware for Express with server-side refresh-token storage.
+- [`@web-ts-toolkit/express-oidc-vault`](./express-oidc-vault): OIDC middleware for Express with body or cookie session transport and server-side refresh-token storage.
 - [`@web-ts-toolkit/express-oidc-vault-memory-store`](./express-oidc-vault-memory-store): in-memory store provider for `express-oidc-vault`.
 - [`@web-ts-toolkit/express-oidc-vault-redis-store`](./express-oidc-vault-redis-store): Redis-backed store provider for `express-oidc-vault`.
 - [`@web-ts-toolkit/express-oidc-vault-mongodb-store`](./express-oidc-vault-mongodb-store): MongoDB-backed store provider for `express-oidc-vault`.

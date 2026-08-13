@@ -22,12 +22,32 @@ export interface OidcVaultEnv {
 }
 
 const MANUAL_CONFIG_REQUIREMENTS: Array<
-  keyof Pick<OidcVaultConfig, 'authorizationEndpoint' | 'tokenEndpoint' | 'jwksUri'>
-> = ['authorizationEndpoint', 'tokenEndpoint', 'jwksUri'];
+  keyof Pick<OidcVaultConfig, 'issuer' | 'authorizationEndpoint' | 'tokenEndpoint' | 'jwksUri'>
+> = ['issuer', 'authorizationEndpoint', 'tokenEndpoint', 'jwksUri'];
 
 const normalizeOptionalString = (value?: string): string | undefined => {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+};
+
+const normalizeHttpUrl = (value: string | undefined, optionName: string): string | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  let url: URL;
+
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${optionName} must be an absolute HTTP(S) URL.`);
+  }
+
+  if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.origin === 'null') {
+    throw new Error(`${optionName} must use http or https.`);
+  }
+
+  return url.toString();
 };
 
 const withOptionalValue = <Key extends keyof OidcVaultResolvedConfig>(
@@ -45,16 +65,19 @@ const withOptionalValue = <Key extends keyof OidcVaultResolvedConfig>(
  * present, explicit endpoint fields are ignored and discovery mode wins.
  */
 export function resolveOidcVaultConfig(config: OidcVaultConfig = {}): OidcVaultResolvedConfig {
-  const issuer = normalizeOptionalString(config.issuer);
+  const issuer = normalizeHttpUrl(normalizeOptionalString(config.issuer), 'config.issuer');
   const clientId = normalizeOptionalString(config.clientId);
   const clientSecret = normalizeOptionalString(config.clientSecret);
   const scopes = normalizeOptionalString(config.scopes) ?? DEFAULT_OIDC_SCOPES;
+  const hasManualEndpoints = MANUAL_CONFIG_REQUIREMENTS.some(
+    (key) => key !== 'issuer' && normalizeOptionalString(config[key]),
+  );
 
   if (!clientId) {
     throw new Error('OIDC clientId is required.');
   }
 
-  if (issuer) {
+  if (issuer && !hasManualEndpoints) {
     const resolved: Partial<OidcVaultResolvedConfig> = {
       mode: 'issuer',
       issuer,
@@ -72,11 +95,28 @@ export function resolveOidcVaultConfig(config: OidcVaultConfig = {}): OidcVaultR
     scopes,
   };
 
-  withOptionalValue(resolved, 'authorizationEndpoint', normalizeOptionalString(config.authorizationEndpoint));
-  withOptionalValue(resolved, 'tokenEndpoint', normalizeOptionalString(config.tokenEndpoint));
-  withOptionalValue(resolved, 'userInfoEndpoint', normalizeOptionalString(config.userInfoEndpoint));
-  withOptionalValue(resolved, 'jwksUri', normalizeOptionalString(config.jwksUri));
-  withOptionalValue(resolved, 'endSessionEndpoint', normalizeOptionalString(config.endSessionEndpoint));
+  withOptionalValue(resolved, 'issuer', issuer);
+  withOptionalValue(
+    resolved,
+    'authorizationEndpoint',
+    normalizeHttpUrl(normalizeOptionalString(config.authorizationEndpoint), 'config.authorizationEndpoint'),
+  );
+  withOptionalValue(
+    resolved,
+    'tokenEndpoint',
+    normalizeHttpUrl(normalizeOptionalString(config.tokenEndpoint), 'config.tokenEndpoint'),
+  );
+  withOptionalValue(
+    resolved,
+    'userInfoEndpoint',
+    normalizeHttpUrl(normalizeOptionalString(config.userInfoEndpoint), 'config.userInfoEndpoint'),
+  );
+  withOptionalValue(resolved, 'jwksUri', normalizeHttpUrl(normalizeOptionalString(config.jwksUri), 'config.jwksUri'));
+  withOptionalValue(
+    resolved,
+    'endSessionEndpoint',
+    normalizeHttpUrl(normalizeOptionalString(config.endSessionEndpoint), 'config.endSessionEndpoint'),
+  );
   withOptionalValue(resolved, 'clientId', clientId);
   withOptionalValue(resolved, 'clientSecret', clientSecret);
 
