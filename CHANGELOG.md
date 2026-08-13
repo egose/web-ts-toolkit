@@ -1,5 +1,11 @@
 ## Unreleased
 
+### Breaking Changes: `@web-ts-toolkit/http-errors`
+
+| Area | Previous contract | New contract and migration |
+| --- | --- | --- |
+| Constructor status validation | `HttpError`, `ClientError`, and `ServerError` accepted any number, including success/redirect statuses and non-finite values. | `HttpError` accepts only finite integer `400`-`599` statuses. `ClientError` accepts `400`-`499`; `ServerError` accepts `500`-`599`. Use success response helpers for non-error responses and choose the matching error base class for dynamic statuses. |
+
 ### Breaking Changes: `@web-ts-toolkit/express-response-handler`
 
 This release tightens Express lifecycle, error, CSV, and public type contracts:

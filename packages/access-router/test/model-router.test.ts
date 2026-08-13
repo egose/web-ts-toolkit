@@ -121,8 +121,8 @@ describe('model router', () => {
       title: 'Bad Request',
       detail: 'Bad Request',
       status: 400,
-      errors: [],
     });
+    expect(response.body).not.toHaveProperty('errors');
   });
 
   it('returns explicit validation errors from array-based validators', async () => {

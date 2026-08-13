@@ -65,6 +65,8 @@ throw new ClientError(403, 'forbidden project access');
 throw new ServerError(503, 'search index is rebuilding');
 ```
 
+`HttpError` accepts only finite integer `4xx` and `5xx` status codes. `ClientError` accepts only `4xx` codes, and `ServerError` accepts only `5xx` codes. Invalid values such as `200`, `399`, `600`, `NaN`, infinities, and fractions throw synchronously at construction time.
+
 ### Attach a cause
 
 ```ts
@@ -123,6 +125,12 @@ The base `HttpError` carries optional structured fields that are useful when bui
 - `metadata`: stringified key-value metadata
 - `details`: structured detail entries
 - `errors`: validation or field-level error payloads
+
+`HttpError` owns only the top-level structured collection boundaries. At construction, `metadata` is normalized into a frozen string record, and array-valued `details` and `errors` are copied into frozen arrays. Mutating caller-owned source records or arrays after construction cannot add, remove, reorder, or rename entries on the error.
+
+Serialization creates fresh top-level arrays and metadata records, so mutating one returned payload does not mutate the source error or a later serialization. The snapshot is shallow: nested detail and error entry objects remain shared by reference, and `ErrorOptions.cause` identity is preserved rather than cloned.
+
+Serializers emit selected fields verbatim into external response payloads. Treat `message`, `details`, `errors`, `metadata`, `type`, `title`, and `instance` as public API data. Do not include secrets, stack traces, raw upstream errors, credentials, tokens, or internal diagnostics in those fields unless clients are meant to receive them.
 
 ## Common Patterns
 
@@ -183,6 +191,8 @@ const error = new BadRequestError('invalid email', {
 const payload = toAip193ErrorPayload(error);
 ```
 
+The AIP-193 serializer returns a Google-style `{ error }` envelope with `code`, `status`, `message`, and `details`. The first detail is always an `error_info` entry. Its `reason` comes from `error.reason` or the canonical status, its `domain` comes from `error.domain` or the serializer fallback domain, and its `metadata` is copied when present. When `error.errors` is present, the serializer appends a `bad_request` detail; array-valued entries are shallow-copied.
+
 ### Convert an error to an RFC 9457 payload
 
 ```ts
@@ -208,6 +218,10 @@ const error = new BadRequestError('Email must be a valid address.', {
 const payload = toRfc9457ErrorPayload(error);
 ```
 
+`toRfc9457ErrorPayload(...)` is the general problem-details serializer. It always emits `type`, `title`, `status`, and `detail`, and it preserves custom `errors` entry types when the input is typed as `HttpErrorShape<YourEntry[]>`.
+
+When `type` is missing, the serializer uses `about:blank`. When `title` is missing, it uses the canonical HTTP status title, or `Unknown` for unmapped status codes. `instance` is emitted only when present.
+
 ### Use the typed RFC 9457 validation helper
 
 ```ts
@@ -227,11 +241,13 @@ const error = new BadRequestError('Email must be a valid address.', {
 const payload = toRfc9457ValidationErrorPayload(error);
 ```
 
+The validation helper performs runtime narrowing before typing the result as `Rfc9457ValidationError[]`. It keeps only entries with an own string `detail` and optional own string `pointer`, `parameter`, or `header`; extra fields are not copied. Non-array `errors`, empty arrays, invalid entries, and entries whose validation fields are inherited are omitted. If no valid entries remain, the payload omits `errors`.
+
 ### Choose the right serialization helper
 
 - use `toAip193ErrorPayload(...)` when your API follows the AIP-193-style envelope used by some Google-style APIs
-- use `toRfc9457ErrorPayload(...)` for general problem-details responses
-- use `toRfc9457ValidationErrorPayload(...)` when you want the returned payload typed specifically as a validation-style RFC 9457 response
+- use `toRfc9457ErrorPayload(...)` for general problem-details responses, including custom extension `errors` entry shapes
+- use `toRfc9457ValidationErrorPayload(...)` when you want invalid validation entries filtered and the returned payload typed specifically as a validation-style RFC 9457 response
 
 ### Express route example
 
@@ -315,11 +331,11 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 
 ## Error Hierarchy
 
-`HttpError` is the neutral base class for HTTP responses.
+`HttpError` is the neutral base class for HTTP error responses and accepts status codes from `400` through `599`.
 
-`ClientError` is the base class for 4xx responses.
+`ClientError` is the base class for `4xx` responses.
 
-`ServerError` is the base class for 5xx responses.
+`ServerError` is the base class for `5xx` responses.
 
 That gives you two common styles:
 
