@@ -39,6 +39,7 @@
     "@types/node": "^25.9.5",
     "eslint": "10.3.0",
     "eslint-plugin-mocha-no-only": "^1.2.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^17.8.0",
     "mongodb-memory-server": "^11.2.0",
     "prettier": "4.0.0-alpha.13",

@@ -44,6 +44,9 @@ importers:
       eslint-plugin-mocha-no-only:
         specifier: ^1.2.0
         version: 1.2.0
+      eslint-plugin-react-hooks:
+        specifier: ^5.2.0
+        version: 5.2.0(eslint@10.3.0(jiti@2.7.0)(supports-color@10.2.2))
       globals:
         specifier: ^17.8.0
         version: 17.8.0
@@ -6209,6 +6212,12 @@ packages:
   eslint-plugin-mocha-no-only@1.2.0:
     resolution: {integrity: sha512-sgOilWiikVmYysUvt9q7oUMBYuv/Tka8lQH3766DNxOVqJAKwmP7QqmGYVBiVmqGnn5CDYAo3WWT0F8qw5BDMQ==}
     engines: {node: '>=0.10.0'}
+
+  eslint-plugin-react-hooks@5.2.0:
+    resolution: {integrity: sha512-+f15FfK64YQwZdJNELETdn5ibXEUQmW1DZL6KXhNnc2heoy/sg9VJJeT7n8TlMWouzWqSWavFkIhHyIbIAEapg==}
+    engines: {node: '>=10'}
+    peerDependencies:
+      eslint: ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0-0 || ^9.0.0
 
   eslint-plugin-react-hooks@7.1.1:
     resolution: {integrity: sha512-f2I7Gw6JbvCexzIInuSbZpfdQ44D7iqdWX01FKLvrPgqxoE7oMj8clOfto8U6vYiz4yd5oKu39rRSVOe1zRu0g==}
@@ -15052,7 +15061,7 @@ snapshots:
       obug: 2.1.1
       std-env: 4.1.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@25.9.5)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.14(@types/node@25.9.5)(esbuild@0.28.0)(jiti@2.7.0)(sass-embedded@1.100.0)(sass@1.100.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
+      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@25.9.5)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.14(@types/node@25.9.5)(esbuild@0.27.7)(jiti@2.7.0)(sass-embedded@1.100.0)(sass@1.100.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
 
   '@vitest/expect@4.1.10':
     dependencies:
@@ -16759,6 +16768,10 @@ snapshots:
   eslint-plugin-mocha-no-only@1.2.0:
     dependencies:
       requireindex: 1.1.0
+
+  eslint-plugin-react-hooks@5.2.0(eslint@10.3.0(jiti@2.7.0)(supports-color@10.2.2)):
+    dependencies:
+      eslint: 10.3.0(jiti@2.7.0)(supports-color@10.2.2)
 
   eslint-plugin-react-hooks@7.1.1(eslint@10.4.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2):
     dependencies:

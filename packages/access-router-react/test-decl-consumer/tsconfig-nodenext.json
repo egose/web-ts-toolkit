@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "skipLibCheck": false,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@web-ts-toolkit/access-router-react": ["./dist/index.d.ts"],
+      "@web-ts-toolkit/access-router-react/*": ["./dist/*"],
+      "@web-ts-toolkit/access-router-client": ["../access-router-client/dist/index.d.ts"],
+      "@web-ts-toolkit/access-router-client/*": ["../access-router-client/dist/*"]
+    }
+  },
+  "include": ["*.ts", "*.tsx"]
+}
