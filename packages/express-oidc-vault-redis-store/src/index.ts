@@ -1,5 +1,6 @@
 import {
   OidcVaultStoreConflictError,
+  type DeleteSessionsByLogicalSessionIdInput,
   type DeleteSessionsByProviderSessionIdInput,
   type DeleteSessionsBySubjectInput,
 } from '@web-ts-toolkit/express-oidc-vault';
@@ -11,11 +12,12 @@ import type {
   OidcVaultSession,
   OidcVaultSessionInput,
   OidcVaultStoreProvider,
+  ConsumeBackchannelLogoutTokenJtiInput,
   RotateSessionInput,
 } from '@web-ts-toolkit/express-oidc-vault';
 
 export interface OidcVaultRedisClient {
-  set(key: string, value: string, options?: { PXAT?: number }): Promise<unknown>;
+  set(key: string, value: string, options?: { PXAT?: number; NX?: true }): Promise<unknown>;
   get(key: string): Promise<string | null>;
   del(keys: string | string[]): Promise<number>;
   sendCommand?(args: string[]): Promise<unknown>;
@@ -44,6 +46,7 @@ else
 end
 
 redis.call('ZADD', KEYS[2], score, sessionId)
+redis.call('ZADD', KEYS[3], score, sessionId)
 
 if providerIndexKey ~= '' then
   redis.call('ZADD', providerIndexKey, score, sessionId)
@@ -58,6 +61,7 @@ local providerIndexKey = ARGV[2]
 
 redis.call('DEL', KEYS[1])
 redis.call('ZREM', KEYS[2], sessionId)
+redis.call('ZREM', KEYS[3], sessionId)
 
 if providerIndexKey ~= '' then
   redis.call('ZREM', providerIndexKey, sessionId)
@@ -74,6 +78,10 @@ local newSessionId = ARGV[4]
 local newScore = tonumber(ARGV[5])
 local oldProviderIndexKey = ARGV[6]
 local newProviderIndexKey = ARGV[7]
+local oldLogicalIndexKey = ARGV[8]
+local newLogicalIndexKey = ARGV[9]
+local oldAliasValue = ARGV[10]
+local oldAliasExpiresAt = ARGV[11]
 
 if redis.call('EXISTS', KEYS[1]) == 0 then
   return 0
@@ -97,6 +105,20 @@ if newProviderIndexKey ~= '' then
   redis.call('ZADD', newProviderIndexKey, newScore, newSessionId)
 end
 
+if oldLogicalIndexKey ~= '' then
+  redis.call('ZREM', oldLogicalIndexKey, oldSessionId)
+end
+
+if newLogicalIndexKey ~= '' then
+  redis.call('ZADD', newLogicalIndexKey, newScore, newSessionId)
+end
+
+if oldAliasExpiresAt ~= '' then
+  redis.call('SET', KEYS[5], oldAliasValue, 'PXAT', oldAliasExpiresAt)
+else
+  redis.call('SET', KEYS[5], oldAliasValue)
+end
+
 return 1
 `;
 
@@ -112,6 +134,10 @@ const toSubjectDeleteInput = (input: string | DeleteSessionsBySubjectInput): Del
 const toProviderSessionDeleteInput = (
   input: string | DeleteSessionsByProviderSessionIdInput,
 ): DeleteSessionsByProviderSessionIdInput => (typeof input === 'string' ? { providerSessionId: input } : input);
+
+const toLogicalSessionDeleteInput = (
+  input: string | DeleteSessionsByLogicalSessionIdInput,
+): DeleteSessionsByLogicalSessionIdInput => (typeof input === 'string' ? { logicalSessionId: input } : input);
 
 const toIndexScore = (expiresAt?: number): number => expiresAt ?? NON_EXPIRING_INDEX_SCORE;
 
@@ -165,6 +191,7 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     const timestamp = this.now();
     const session: OidcVaultSession = {
       ...input,
+      logicalSessionId: input.logicalSessionId ?? input.sessionId,
       createdAt: input.createdAt ?? timestamp,
       updatedAt: input.updatedAt ?? timestamp,
     };
@@ -184,24 +211,50 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
       throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
     }
 
-    const rotated = await this.rotateSessionRecord(previousSession, input.nextSession);
+    const nextSession: OidcVaultSession = {
+      ...input.nextSession,
+      logicalSessionId:
+        input.nextSession.logicalSessionId ?? previousSession.logicalSessionId ?? previousSession.sessionId,
+    };
+    const rotated = await this.rotateSessionRecord(previousSession, nextSession);
 
     if (!rotated) {
       throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
     }
 
-    return input.nextSession;
+    return nextSession;
   }
 
   async deleteSession(sessionId: string): Promise<void> {
     const session = await this.getSession(sessionId);
 
     if (!session) {
+      const logicalSessionId = await this.getJson<string>(this.rotatedSessionAliasKey(sessionId));
+
+      if (logicalSessionId) {
+        await this.deleteSessionsByLogicalSessionId(logicalSessionId);
+        await this.client.del(this.rotatedSessionAliasKey(sessionId));
+      }
+
       await this.client.del(this.sessionKey(sessionId));
       return;
     }
 
     await this.deleteSessionRecord(session);
+  }
+
+  async deleteSessionsByLogicalSessionId(input: string | DeleteSessionsByLogicalSessionIdInput): Promise<number> {
+    const resolved = toLogicalSessionDeleteInput(input);
+    return this.deleteSessionsFromIndex(this.logicalSessionIndexKey(resolved.logicalSessionId), resolved);
+  }
+
+  async consumeBackchannelLogoutTokenJti(input: ConsumeBackchannelLogoutTokenJtiInput): Promise<boolean> {
+    const result = await this.client.set(this.backchannelLogoutTokenJtiKey(input.jti), '1', {
+      PXAT: input.expiresAt,
+      NX: true,
+    });
+
+    return result === 'OK' || result === true;
   }
 
   async deleteSessionsBySubject(input: string | DeleteSessionsBySubjectInput): Promise<number> {
@@ -248,13 +301,26 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     return prefixKey(this.keyPrefix, 'provider-session', providerSessionId);
   }
 
+  private logicalSessionIndexKey(logicalSessionId: string): string {
+    return prefixKey(this.keyPrefix, 'logical-session', logicalSessionId);
+  }
+
+  private backchannelLogoutTokenJtiKey(jti: string): string {
+    return prefixKey(this.keyPrefix, 'backchannel-logout-jti', jti);
+  }
+
+  private rotatedSessionAliasKey(sessionId: string): string {
+    return prefixKey(this.keyPrefix, 'rotated-session-alias', sessionId);
+  }
+
   private async writeSessionRecord(session: OidcVaultSession): Promise<void> {
     await this.sendCommand([
       'EVAL',
       WRITE_SESSION_SCRIPT,
-      '2',
+      '3',
       this.sessionKey(session.sessionId),
       this.subjectIndexKey(session.subject),
+      this.logicalSessionIndexKey(session.logicalSessionId ?? session.sessionId),
       serialize(session),
       this.serializeExpiresAt(session.expiresAt),
       session.sessionId,
@@ -267,9 +333,10 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     await this.sendCommand([
       'EVAL',
       DELETE_SESSION_SCRIPT,
-      '2',
+      '3',
       this.sessionKey(session.sessionId),
       this.subjectIndexKey(session.subject),
+      this.logicalSessionIndexKey(session.logicalSessionId ?? session.sessionId),
       session.sessionId,
       session.providerSessionId ? this.providerSessionIndexKey(session.providerSessionId) : '',
     ]);
@@ -282,11 +349,12 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     const result = await this.sendCommand([
       'EVAL',
       ROTATE_SESSION_SCRIPT,
-      '4',
+      '5',
       this.sessionKey(previousSession.sessionId),
       this.sessionKey(nextSession.sessionId),
       this.subjectIndexKey(previousSession.subject),
       this.subjectIndexKey(nextSession.subject),
+      this.rotatedSessionAliasKey(previousSession.sessionId),
       serialize(nextSession),
       this.serializeExpiresAt(nextSession.expiresAt),
       previousSession.sessionId,
@@ -294,6 +362,10 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
       String(toIndexScore(nextSession.expiresAt)),
       previousSession.providerSessionId ? this.providerSessionIndexKey(previousSession.providerSessionId) : '',
       nextSession.providerSessionId ? this.providerSessionIndexKey(nextSession.providerSessionId) : '',
+      this.logicalSessionIndexKey(previousSession.logicalSessionId ?? previousSession.sessionId),
+      this.logicalSessionIndexKey(nextSession.logicalSessionId ?? nextSession.sessionId),
+      serialize(nextSession.logicalSessionId ?? nextSession.sessionId),
+      this.serializeExpiresAt(nextSession.expiresAt),
     ]);
 
     return result === 1 || result === '1';
@@ -314,7 +386,10 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
 
   private async deleteSessionsFromIndex(
     indexKey: string,
-    scope: DeleteSessionsBySubjectInput | DeleteSessionsByProviderSessionIdInput,
+    scope:
+      | DeleteSessionsBySubjectInput
+      | DeleteSessionsByProviderSessionIdInput
+      | DeleteSessionsByLogicalSessionIdInput,
   ): Promise<number> {
     await this.cleanupExpiredIndexMembers(indexKey);
     const sessionIds = await this.getSessionIdsFromIndex(indexKey);
@@ -333,7 +408,11 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
         continue;
       }
 
-      if (!matchesProviderScope(session, scope)) {
+      if ('logicalSessionId' in scope && (session.logicalSessionId ?? session.sessionId) !== scope.logicalSessionId) {
+        continue;
+      }
+
+      if (!('logicalSessionId' in scope) && !matchesProviderScope(session, scope)) {
         continue;
       }
 

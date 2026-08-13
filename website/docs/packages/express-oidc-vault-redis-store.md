@@ -29,6 +29,7 @@ await redis.connect();
 app.use(
   createOidcVaultMiddleware({
     basePath: '/auth/oidc',
+    backendOrigin: 'https://api.example.com',
     config: {
       issuer: process.env.OIDC_ISSUER,
       clientId: process.env.OIDC_CLIENT_ID,

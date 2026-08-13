@@ -7,11 +7,19 @@ class FakeRedisClient implements OidcVaultRedisClient {
   private readonly sortedIndexes = new Map<string, Map<string, number>>();
   now = 0;
 
-  async set(key: string, value: string, options?: { PXAT?: number }): Promise<void> {
+  async set(key: string, value: string, options?: { PXAT?: number; NX?: true }): Promise<'OK' | null> {
+    this.pruneExpired(key);
+
+    if (options?.NX && this.records.has(key)) {
+      return null;
+    }
+
     this.records.set(key, {
       value,
       expiresAt: options?.PXAT,
     });
+
+    return 'OK';
   }
 
   async get(key: string): Promise<string | null> {
@@ -146,10 +154,10 @@ class FakeRedisClient implements OidcVaultRedisClient {
   }
 
   private evalWriteSession(keys: string[], args: string[]): number {
-    const [sessionKey, subjectIndexKey] = keys;
+    const [sessionKey, subjectIndexKey, logicalIndexKey] = keys;
     const [value, expiresAtRaw, sessionId, scoreRaw, providerIndexKey] = args;
 
-    if (!sessionKey || !subjectIndexKey || !value || !sessionId || !scoreRaw) {
+    if (!sessionKey || !subjectIndexKey || !logicalIndexKey || !value || !sessionId || !scoreRaw) {
       throw new Error('Invalid session write script arguments.');
     }
 
@@ -159,6 +167,7 @@ class FakeRedisClient implements OidcVaultRedisClient {
     });
 
     this.addSortedIndexMember(subjectIndexKey, sessionId, Number(scoreRaw));
+    this.addSortedIndexMember(logicalIndexKey, sessionId, Number(scoreRaw));
 
     if (providerIndexKey) {
       this.addSortedIndexMember(providerIndexKey, sessionId, Number(scoreRaw));
@@ -168,15 +177,16 @@ class FakeRedisClient implements OidcVaultRedisClient {
   }
 
   private evalDeleteSession(keys: string[], args: string[]): number {
-    const [sessionKey, subjectIndexKey] = keys;
+    const [sessionKey, subjectIndexKey, logicalIndexKey] = keys;
     const [sessionId, providerIndexKey] = args;
 
-    if (!sessionKey || !subjectIndexKey || !sessionId) {
+    if (!sessionKey || !subjectIndexKey || !logicalIndexKey || !sessionId) {
       throw new Error('Invalid session delete script arguments.');
     }
 
     this.records.delete(sessionKey);
     this.removeSortedIndexMember(subjectIndexKey, sessionId);
+    this.removeSortedIndexMember(logicalIndexKey, sessionId);
 
     if (providerIndexKey) {
       this.removeSortedIndexMember(providerIndexKey, sessionId);
@@ -195,6 +205,10 @@ class FakeRedisClient implements OidcVaultRedisClient {
       newScoreRaw,
       oldProviderIndexKey,
       newProviderIndexKey,
+      oldLogicalIndexKey,
+      newLogicalIndexKey,
+      oldAliasValue,
+      oldAliasExpiresAtRaw,
     ] = args;
 
     if (
@@ -230,6 +244,21 @@ class FakeRedisClient implements OidcVaultRedisClient {
 
     if (newProviderIndexKey) {
       this.addSortedIndexMember(newProviderIndexKey, newSessionId, Number(newScoreRaw));
+    }
+
+    if (oldLogicalIndexKey) {
+      this.removeSortedIndexMember(oldLogicalIndexKey, oldSessionId);
+    }
+
+    if (newLogicalIndexKey) {
+      this.addSortedIndexMember(newLogicalIndexKey, newSessionId, Number(newScoreRaw));
+    }
+
+    if (oldAliasValue) {
+      this.records.set(keys[4]!, {
+        value: oldAliasValue,
+        expiresAt: oldAliasExpiresAtRaw ? Number(oldAliasExpiresAtRaw) : undefined,
+      });
     }
 
     return 1;
@@ -373,6 +402,37 @@ describe('createRedisOidcVaultStore', () => {
     expect(await store.consumeExchangeCode('code_1')).toBeNull();
   });
 
+  it('enforces explicit session expiry', async () => {
+    const client = new FakeRedisClient();
+    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
+
+    await store.createSession({
+      sessionId: 'sess_1',
+      subject: 'user_1',
+      refreshToken: 'refresh_1',
+      idToken: 'id_1',
+      expiresAt: 200,
+    });
+
+    expect(await store.getSession('sess_1')).toMatchObject({ sessionId: 'sess_1' });
+
+    client.now = 250;
+
+    expect(await store.getSession('sess_1')).toBeNull();
+  });
+
+  it('consumes backchannel logout token jti values once until expiration', async () => {
+    const client = new FakeRedisClient();
+    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
+
+    expect(await store.consumeBackchannelLogoutTokenJti({ jti: 'logout_1', expiresAt: 200 })).toBe(true);
+    expect(await store.consumeBackchannelLogoutTokenJti({ jti: 'logout_1', expiresAt: 200 })).toBe(false);
+
+    client.now = 250;
+
+    expect(await store.consumeBackchannelLogoutTokenJti({ jti: 'logout_1', expiresAt: 350 })).toBe(true);
+  });
+
   it('rejects rotating a session that was already rotated', async () => {
     const client = new FakeRedisClient();
     const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
@@ -409,5 +469,30 @@ describe('createRedisOidcVaultStore', () => {
         },
       }),
     ).rejects.toThrow('rotation');
+  });
+
+  it('deletes the current rotated session by logical session ID', async () => {
+    const client = new FakeRedisClient();
+    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
+
+    const created = await store.createSession({
+      sessionId: 'sess_1',
+      subject: 'user_1',
+      refreshToken: 'refresh_1',
+      idToken: 'id_1',
+    });
+
+    await store.rotateSession({
+      sessionId: 'sess_1',
+      nextSession: {
+        ...created,
+        sessionId: 'sess_2',
+        refreshToken: 'refresh_2',
+        updatedAt: created.updatedAt + 1,
+      },
+    });
+
+    expect(await store.deleteSessionsByLogicalSessionId(created.logicalSessionId ?? created.sessionId)).toBe(1);
+    expect(await store.getSession('sess_2')).toBeNull();
   });
 });

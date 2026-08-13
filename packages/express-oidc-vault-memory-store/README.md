@@ -33,6 +33,7 @@ const storeProvider = createMemoryOidcVaultStore();
 app.use(
   createOidcVaultMiddleware({
     basePath: '/auth/oidc',
+    backendOrigin: 'https://api.example.com',
     storeProvider,
   }),
 );

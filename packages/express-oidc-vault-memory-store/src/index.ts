@@ -1,5 +1,6 @@
 import {
   OidcVaultStoreConflictError,
+  type DeleteSessionsByLogicalSessionIdInput,
   type DeleteSessionsByProviderSessionIdInput,
   type DeleteSessionsBySubjectInput,
 } from '@web-ts-toolkit/express-oidc-vault';
@@ -11,6 +12,7 @@ import type {
   OidcVaultSession,
   OidcVaultSessionInput,
   OidcVaultStoreProvider,
+  ConsumeBackchannelLogoutTokenJtiInput,
   RotateSessionInput,
 } from '@web-ts-toolkit/express-oidc-vault';
 
@@ -49,10 +51,16 @@ const toProviderSessionDeleteInput = (
   input: string | DeleteSessionsByProviderSessionIdInput,
 ): DeleteSessionsByProviderSessionIdInput => (typeof input === 'string' ? { providerSessionId: input } : input);
 
+const toLogicalSessionDeleteInput = (
+  input: string | DeleteSessionsByLogicalSessionIdInput,
+): DeleteSessionsByLogicalSessionIdInput => (typeof input === 'string' ? { logicalSessionId: input } : input);
+
 class MemoryOidcVaultStore implements OidcVaultStoreProvider {
   private readonly authorizationTransactions = new Map<string, AuthorizationTransaction>();
   private readonly exchangeCodes = new Map<string, ExchangeCodeRecord>();
   private readonly sessions = new Map<string, OidcVaultSession>();
+  private readonly rotatedSessionAliases = new Map<string, string>();
+  private readonly backchannelLogoutTokenJtis = new Map<string, ExpirableRecord>();
   private readonly now: () => number;
 
   constructor(options: MemoryOidcVaultStoreOptions = {}) {
@@ -101,11 +109,13 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
     const timestamp = this.now();
     const session: OidcVaultSession = {
       ...cloneRecord(input),
+      logicalSessionId: input.logicalSessionId ?? input.sessionId,
       createdAt: input.createdAt ?? timestamp,
       updatedAt: input.updatedAt ?? timestamp,
     };
 
     this.sessions.set(session.sessionId, session);
+    this.rotatedSessionAliases.delete(session.sessionId);
     return cloneRecord(session);
   }
 
@@ -130,16 +140,58 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
     const timestamp = this.now();
     const session: OidcVaultSession = {
       ...nextSession,
+      logicalSessionId: nextSession.logicalSessionId ?? input.sessionId,
       createdAt: nextSession.createdAt ?? timestamp,
       updatedAt: nextSession.updatedAt ?? timestamp,
     };
 
     this.sessions.set(session.sessionId, session);
+    this.rotatedSessionAliases.set(input.sessionId, session.logicalSessionId ?? session.sessionId);
     return cloneRecord(session);
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    this.sessions.delete(sessionId);
+    const session = this.sessions.get(sessionId);
+
+    if (session) {
+      this.sessions.delete(sessionId);
+      this.rotatedSessionAliases.delete(sessionId);
+      return;
+    }
+
+    const logicalSessionId = this.rotatedSessionAliases.get(sessionId);
+
+    if (logicalSessionId) {
+      await this.deleteSessionsByLogicalSessionId(logicalSessionId);
+      this.rotatedSessionAliases.delete(sessionId);
+    }
+  }
+
+  async deleteSessionsByLogicalSessionId(input: string | DeleteSessionsByLogicalSessionIdInput): Promise<number> {
+    this.pruneExpiredRecords();
+    const resolved = toLogicalSessionDeleteInput(input);
+    let deleted = 0;
+
+    for (const [sessionId, session] of this.sessions.entries()) {
+      if ((session.logicalSessionId ?? session.sessionId) === resolved.logicalSessionId) {
+        this.sessions.delete(sessionId);
+        this.rotatedSessionAliases.delete(sessionId);
+        deleted += 1;
+      }
+    }
+
+    return deleted;
+  }
+
+  async consumeBackchannelLogoutTokenJti(input: ConsumeBackchannelLogoutTokenJtiInput): Promise<boolean> {
+    this.pruneExpiredRecords();
+
+    if (this.backchannelLogoutTokenJtis.has(input.jti)) {
+      return false;
+    }
+
+    this.backchannelLogoutTokenJtis.set(input.jti, { expiresAt: input.expiresAt });
+    return true;
   }
 
   async deleteSessionsBySubject(input: string | DeleteSessionsBySubjectInput): Promise<number> {
@@ -178,6 +230,7 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
     this.pruneMap(this.authorizationTransactions, now);
     this.pruneMap(this.exchangeCodes, now);
     this.pruneMap(this.sessions, now);
+    this.pruneMap(this.backchannelLogoutTokenJtis, now);
   }
 
   private pruneMap<T extends ExpirableRecord>(map: Map<string, T>, now: number): void {

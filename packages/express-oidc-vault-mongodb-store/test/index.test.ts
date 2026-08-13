@@ -126,6 +126,50 @@ describe('createMongoOidcVaultStore', () => {
     ).rejects.toThrow('rotation');
   });
 
+  it('allows only one concurrent rotation and deletes the current rotated session by logical session ID', async () => {
+    const db = client.db('mongo-store-logical-session-delete-test');
+    const store = createMongoOidcVaultStore({ db, now: () => 1000 });
+
+    const created = await store.createSession({
+      sessionId: 'sess_1',
+      subject: 'user_1',
+      refreshToken: 'refresh_1',
+      idToken: 'id_1',
+    });
+
+    const attempts = await Promise.allSettled([
+      store.rotateSession({
+        sessionId: 'sess_1',
+        nextSession: {
+          ...created,
+          sessionId: 'sess_2',
+          refreshToken: 'refresh_2',
+          updatedAt: 1001,
+        },
+      }),
+      store.rotateSession({
+        sessionId: 'sess_1',
+        nextSession: {
+          ...created,
+          sessionId: 'sess_3',
+          refreshToken: 'refresh_3',
+          updatedAt: 1002,
+        },
+      }),
+    ]);
+
+    expect(attempts.filter((attempt) => attempt.status === 'fulfilled')).toHaveLength(1);
+    expect(attempts.filter((attempt) => attempt.status === 'rejected')).toHaveLength(1);
+
+    const rotated = attempts.find(
+      (attempt): attempt is PromiseFulfilledResult<typeof created> => attempt.status === 'fulfilled',
+    )?.value;
+
+    expect(rotated).toBeDefined();
+    expect(await store.deleteSessionsByLogicalSessionId(created.logicalSessionId ?? created.sessionId)).toBe(1);
+    expect(await store.getSession(rotated!.sessionId)).toBeNull();
+  });
+
   it('consumes transaction records once and filters expired records without waiting for TTL cleanup', async () => {
     let now = 100;
     const db = client.db('mongo-store-transaction-test');
@@ -152,5 +196,33 @@ describe('createMongoOidcVaultStore', () => {
     now = 250;
 
     expect(await store.consumeExchangeCode('code_1')).toBeNull();
+  });
+
+  it('enforces explicit session expiry before TTL cleanup runs', async () => {
+    let now = 100;
+    const db = client.db('mongo-store-session-expiry-test');
+    const store = createMongoOidcVaultStore({ db, now: () => now });
+
+    await store.createSession({
+      sessionId: 'sess_1',
+      subject: 'user_1',
+      refreshToken: 'refresh_1',
+      idToken: 'id_1',
+      expiresAt: 200,
+    });
+
+    expect(await store.getSession('sess_1')).toMatchObject({ sessionId: 'sess_1' });
+
+    now = 250;
+
+    expect(await store.getSession('sess_1')).toBeNull();
+  });
+
+  it('consumes backchannel logout token jti values once', async () => {
+    const db = client.db('mongo-store-backchannel-jti-test');
+    const store = createMongoOidcVaultStore({ db, now: () => 100 });
+
+    expect(await store.consumeBackchannelLogoutTokenJti({ jti: 'logout_1', expiresAt: 200 })).toBe(true);
+    expect(await store.consumeBackchannelLogoutTokenJti({ jti: 'logout_1', expiresAt: 200 })).toBe(false);
   });
 });
