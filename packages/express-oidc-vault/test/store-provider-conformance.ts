@@ -11,6 +11,7 @@ export interface OidcVaultStoreConformanceContext {
 
 export interface OidcVaultStoreConformanceOptions {
   createContext(testName: string): Promise<OidcVaultStoreConformanceContext> | OidcVaultStoreConformanceContext;
+  sessionCreateMode?: 'create-only' | 'upsert';
 }
 
 const withContext = async (
@@ -138,7 +139,7 @@ export const defineOidcVaultStoreProviderConformanceSuite = (
       });
     });
 
-    it('upserts sessions while preserving JSON-compatible ownership boundaries', async () => {
+    it('creates sessions while preserving JSON-compatible ownership boundaries', async () => {
       await withContext(options, 'session-upsert-ownership', async ({ store }) => {
         const first = createSessionInput('session_1');
         const second = {
@@ -165,12 +166,21 @@ export const defineOidcVaultStoreProviderConformanceSuite = (
           metadata: { nested: { value: 'session_1' } },
         });
 
-        await store.createSession(second);
-        expect(await store.getSession('session_1')).toMatchObject({
-          sessionId: 'session_1',
-          refreshToken: 'refresh_second',
-          metadata: { nested: { value: 'second' }, list: [3, true, null] },
-        });
+        if (options.sessionCreateMode === 'create-only') {
+          await expect(store.createSession(second)).rejects.toBeInstanceOf(OidcVaultStoreConflictError);
+          expect(await store.getSession('session_1')).toMatchObject({
+            sessionId: 'session_1',
+            refreshToken: 'refresh_session_1',
+            metadata: { nested: { value: 'session_1' } },
+          });
+        } else {
+          await store.createSession(second);
+          expect(await store.getSession('session_1')).toMatchObject({
+            sessionId: 'session_1',
+            refreshToken: 'refresh_second',
+            metadata: { nested: { value: 'second' }, list: [3, true, null] },
+          });
+        }
       });
     });
 
