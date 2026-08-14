@@ -18,7 +18,11 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.ts",
+        "default": "./dist/index.d.ts"
+      },
       "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
@@ -26,10 +30,12 @@
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
-    "test": "pnpm --filter @web-ts-toolkit/express-json-router... build && vitest run --config ../../vitest.config.ts"
+    "test": "pnpm --filter @web-ts-toolkit/express-json-router... build && pnpm typecheck && vitest run --config ../../vitest.config.ts",
+    "typecheck": "tsc --noEmit -p test-decl-consumer/tsconfig-nodenext.json && tsc --noEmit -p test-decl-consumer/tsconfig-bundler.json"
   },
   "files": [
     "README.md",
+    "llms.txt",
     "dist"
   ],
   "engines": {
@@ -39,10 +45,10 @@
     "@web-ts-toolkit/express-response-handler": "workspace:*",
     "@web-ts-toolkit/http-errors": "workspace:*",
     "@web-ts-toolkit/utils": "workspace:*",
+    "@types/express": "^5.0.6",
     "express": "^5.2.1"
   },
   "devDependencies": {
-    "@types/express": "^5.0.3",
     "@types/node": "^25.9.5",
     "supertest": "^7.2.2"
   }

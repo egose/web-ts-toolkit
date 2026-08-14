@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "baseUrl": "../..",
+    "paths": {
+      "@web-ts-toolkit/access-router": ["packages/access-router/dist/index.d.ts"],
+      "@web-ts-toolkit/access-router/advanced": ["packages/access-router/dist/advanced.d.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

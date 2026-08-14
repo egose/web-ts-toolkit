@@ -967,8 +967,8 @@ describe('access-router-client protocol parity (ARC-13)', () => {
           title: 'Not Found',
           status: 404,
           detail: 'Not Found',
-          errors: [],
         });
+        expect(result.raw).not.toHaveProperty('errors');
         expect(suite.protocolRequests).toEqual([
           typeof protocolCase.directWire === 'function' ? protocolCase.directWire(execution) : protocolCase.directWire,
         ]);
@@ -1004,8 +1004,8 @@ describe('access-router-client protocol parity (ARC-13)', () => {
       title: 'Not Found',
       status: 404,
       detail: 'Not Found',
-      errors: [],
     });
+    expect(direct.raw).not.toHaveProperty('errors');
     expect(direct).not.toHaveProperty('count');
     expect(direct).not.toHaveProperty('totalCount');
     expect(suite.protocolRequests).toEqual([

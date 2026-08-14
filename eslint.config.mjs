@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
   {
@@ -15,6 +16,29 @@ export default tseslint.config(
       ecmaVersion: 'latest',
       globals: globals.node,
       sourceType: 'module',
+    },
+  },
+  {
+    files: ['packages/access-router-react/**/*.{ts,tsx,js,jsx}'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      globals: { ...globals.browser, ...globals.node },
+      sourceType: 'module',
+    },
+    plugins: {
+      'react-hooks': reactHooks,
+    },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      // Match the unused-vars convention used by every other package in
+      // the repo (apps/nodejs, message-service, express-runtime,
+      // mongoose-rxab). The access-router-react block above does not
+      // inherit those overrides because eslint flat config does not
+      // merge sibling `files` blocks; declaring the rule explicitly
+      // here keeps test props deliberately prefixed with `_` (e.g.
+      // `_tick` in render-loop regression tests) from raising a
+      // lint error.
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
   {

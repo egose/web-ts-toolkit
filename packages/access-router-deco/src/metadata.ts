@@ -3,32 +3,29 @@ import {
   ROUTER_WATERMARK,
   DEFAULT_MODEL_ROUTER_OPTIONS_WATERMARK,
   MODEL_ROUTER_OPTIONS_WATERMARK,
-  GLOBAL_PERMISSIONS_WATERMARK,
-  DOC_PERMISSIONS_WATERMARK,
-  ROUTE_GUARD_WATERMARK,
-  BASE_FILTER_WATERMARK,
-  VALIDATE_WATERMARK,
-  PREPARE_WATERMARK,
-  TRANSFORM_WATERMARK,
-  DECORATE_WATERMARK,
-  DECORATE_ALL_WATERMARK,
-  IDENTIFIER_WATERMARK,
-  OVERRIDE_FILTER_WATERMARK,
-  AFTER_PERSIST_WATERMARK,
-  BEFORE_DELETE_WATERMARK,
-  AFTER_DELETE_WATERMARK,
+  HOOK_DEFINITIONS,
+  type HookDefinition,
+  type HookDefinitionKey,
 } from './constants';
 
 const isConstructor = (prop: string) => prop === 'constructor';
 
 const isFunction = (value: unknown): value is (...args: any[]) => any => typeof value === 'function';
 
-export const getMetadata = (obj: object, key: string) => {
+export type MetadataKey = string | symbol;
+
+export const getMetadata = (obj: object, key: MetadataKey) => {
   return Reflect.getMetadata(key, obj) ?? null;
 };
 
+export const getOwnMetadata = (obj: object, key: MetadataKey) => {
+  return Reflect.getOwnMetadata(key, obj) ?? null;
+};
+
 export const getMetadataKeysStartWith = (obj: object, startKey: string) => {
-  return Reflect.getMetadataKeys(obj).filter((key: string) => key.startsWith(startKey));
+  return Reflect.getMetadataKeys(obj).filter(
+    (key): key is string => typeof key === 'string' && (key === startKey || key.startsWith(`${startKey}.`)),
+  );
 };
 
 export const getMethodDescriptor = (obj: object, method: string) => {
@@ -41,7 +38,37 @@ export const getMethodDescriptor = (obj: object, method: string) => {
   return undefined;
 };
 
-export const getMethodMetadata = (obj: object, method: string, key: string) => {
+export const getMethodOwner = (obj: object, method: string) => {
+  let current: object | null = obj;
+  do {
+    if (Reflect.getOwnPropertyDescriptor(current, method)) return current;
+  } while ((current = Reflect.getPrototypeOf(current)) && current !== Object.prototype);
+
+  return undefined;
+};
+
+export const getOwnMetadataListFromPrototypeChain = <T extends Record<string, unknown>>(
+  obj: object,
+  key: MetadataKey,
+  dedupeKey: keyof T,
+) => {
+  const chain: object[] = [];
+  let current: object | null = obj;
+  do {
+    chain.unshift(current);
+  } while ((current = Reflect.getPrototypeOf(current)) && current !== Object.prototype);
+
+  const merged = new Map<unknown, T>();
+  for (const item of chain) {
+    const metadata = Reflect.getOwnMetadata(key, item) as T[] | undefined;
+    if (!metadata) continue;
+    for (const entry of metadata) merged.set(entry[dedupeKey], entry);
+  }
+
+  return [...merged.values()];
+};
+
+export const getMethodMetadata = (obj: object, method: string, key: MetadataKey) => {
   const descriptor = getMethodDescriptor(obj, method);
   return descriptor ? getMetadata(descriptor.value, key) : null;
 };
@@ -68,48 +95,45 @@ export function* getAllMethodNames(obj: object): IterableIterator<string> {
   } while ((current = Reflect.getPrototypeOf(current)) && current !== Object.prototype);
 }
 
-export const isRootRouter = (obj: object) => !!getMetadata(obj, ROOT_ROUTER_WATERMARK);
+export const isRootRouter = (obj: object) => !!getOwnMetadata(obj, ROOT_ROUTER_WATERMARK);
 
-export const isModelRouter = (obj: object) => !!getMetadata(obj, ROUTER_WATERMARK);
+export const isModelRouter = (obj: object) => !!getOwnMetadata(obj, ROUTER_WATERMARK);
 
-export const isDefaultModelRouterOptions = (obj: object) => !!getMetadata(obj, DEFAULT_MODEL_ROUTER_OPTIONS_WATERMARK);
+export const isDefaultModelRouterOptions = (obj: object) =>
+  !!getOwnMetadata(obj, DEFAULT_MODEL_ROUTER_OPTIONS_WATERMARK);
 
-export const isModelRouterOptions = (obj: object) => !!getMetadata(obj, MODEL_ROUTER_OPTIONS_WATERMARK);
+export const isModelRouterOptions = (obj: object) => !!getOwnMetadata(obj, MODEL_ROUTER_OPTIONS_WATERMARK);
 
-export const isGlobalPermissionsMethod = (obj: object, method: string) =>
-  !!getMethodMetadata(obj, method, GLOBAL_PERMISSIONS_WATERMARK);
+export const isHookMethod = (obj: object, method: string, hook: HookDefinition) =>
+  !!getMethodMetadata(obj, method, hook.watermark);
 
-export const isDocPermissionsMethod = (obj: object, method: string) =>
-  !!getMethodMetadata(obj, method, DOC_PERMISSIONS_WATERMARK);
+const isHookDefinitionMethod = (hookKey: HookDefinitionKey) => (obj: object, method: string) =>
+  isHookMethod(obj, method, HOOK_DEFINITIONS[hookKey]);
 
-export const isBaseFilterMethod = (obj: object, method: string) =>
-  !!getMethodMetadata(obj, method, BASE_FILTER_WATERMARK);
+export const isGlobalPermissionsMethod = isHookDefinitionMethod('globalPermissions');
 
-export const isOverrideFilterMethod = (obj: object, method: string) =>
-  !!getMethodMetadata(obj, method, OVERRIDE_FILTER_WATERMARK);
+export const isDocPermissionsMethod = isHookDefinitionMethod('docPermissions');
 
-export const isValidateMethod = (obj: object, method: string) => !!getMethodMetadata(obj, method, VALIDATE_WATERMARK);
+export const isBaseFilterMethod = isHookDefinitionMethod('baseFilter');
 
-export const isPrepareMethod = (obj: object, method: string) => !!getMethodMetadata(obj, method, PREPARE_WATERMARK);
+export const isOverrideFilterMethod = isHookDefinitionMethod('overrideFilter');
 
-export const isTransformMethod = (obj: object, method: string) => !!getMethodMetadata(obj, method, TRANSFORM_WATERMARK);
+export const isValidateMethod = isHookDefinitionMethod('validate');
 
-export const isAfterPersistMethod = (obj: object, method: string) =>
-  !!getMethodMetadata(obj, method, AFTER_PERSIST_WATERMARK);
+export const isPrepareMethod = isHookDefinitionMethod('prepare');
 
-export const isDecorateMethod = (obj: object, method: string) => !!getMethodMetadata(obj, method, DECORATE_WATERMARK);
+export const isTransformMethod = isHookDefinitionMethod('transform');
 
-export const isDecorateAllMethod = (obj: object, method: string) =>
-  !!getMethodMetadata(obj, method, DECORATE_ALL_WATERMARK);
+export const isAfterPersistMethod = isHookDefinitionMethod('afterPersist');
 
-export const isRouteGuardMethod = (obj: object, method: string) =>
-  !!getMethodMetadata(obj, method, ROUTE_GUARD_WATERMARK);
+export const isDecorateMethod = isHookDefinitionMethod('decorate');
 
-export const isIdentifierMethod = (obj: object, method: string) =>
-  !!getMethodMetadata(obj, method, IDENTIFIER_WATERMARK);
+export const isDecorateAllMethod = isHookDefinitionMethod('decorateAll');
 
-export const isBeforeDeleteMethod = (obj: object, method: string) =>
-  !!getMethodMetadata(obj, method, BEFORE_DELETE_WATERMARK);
+export const isRouteGuardMethod = isHookDefinitionMethod('routeGuard');
 
-export const isAfterDeleteMethod = (obj: object, method: string) =>
-  !!getMethodMetadata(obj, method, AFTER_DELETE_WATERMARK);
+export const isIdentifierMethod = isHookDefinitionMethod('identifier');
+
+export const isBeforeDeleteMethod = isHookDefinitionMethod('beforeDelete');
+
+export const isAfterDeleteMethod = isHookDefinitionMethod('afterDelete');

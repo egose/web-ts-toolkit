@@ -1,8 +1,8 @@
-import type { GlobalOptions } from '@web-ts-toolkit/access-router';
+import type { AccessRuntimeApi, GlobalOptions } from '@web-ts-toolkit/access-router';
+import type { Router } from 'express';
+import type mongoose from 'mongoose';
 
-export interface Type<T = any> extends Function {
-  new (...args: any[]): T;
-}
+export type Type<T extends object = object> = new () => T;
 
 /**
  * Interface defining the property object that describes the module.
@@ -10,7 +10,19 @@ export interface Type<T = any> extends Function {
  * @publicApi
  */
 export interface ModuleMetadata {
-  routers: Type<any>[];
-  routerOptions?: Type<any>[];
+  routers: Type[];
+  routerOptions?: Type[];
   options?: GlobalOptions & { basePath?: string; handleErrors?: boolean };
 }
+
+/**
+ * Result returned by `EgoseFactory.bootstrap(...)`.
+ *
+ * @publicApi
+ */
+export interface BootstrapResult {
+  runtime: AccessRuntimeApi;
+  router: Router;
+}
+
+export type RouterModel = string | mongoose.Model<unknown>;

@@ -17,7 +17,11 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.ts",
+        "default": "./dist/index.d.ts"
+      },
       "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
@@ -35,10 +39,10 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@web-ts-toolkit/express-oidc-vault": "workspace:*",
-    "redis": "^5.9.0"
+    "@web-ts-toolkit/express-oidc-vault": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^25.9.5"
+    "@types/node": "^25.9.5",
+    "redis": "^5.9.0"
   }
 }

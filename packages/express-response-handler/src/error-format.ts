@@ -1,9 +1,10 @@
-import assert from 'assert';
 import {
   createAip193ErrorInfoDetail,
   getCanonicalStatus,
+  isHttpErrorStatusCode,
   toAip193ErrorPayload,
   toRfc9457ErrorPayload,
+  validateHttpErrorStatusCode,
   type Aip193ErrorPayload,
   type HttpErrorShape,
   type Rfc9457ErrorPayload,
@@ -15,19 +16,10 @@ import type { ErrorMessageProvider, ErrorMessageResult, ErrorWithPayload } from 
 export const FALLBACK_ERROR_STATUS = 500;
 export const FALLBACK_ERROR_MESSAGE = 'Internal Server Error';
 
-export const isValidErrorStatusCode = (statusCode: unknown): statusCode is number =>
-  typeof statusCode === 'number' &&
-  Number.isFinite(statusCode) &&
-  Number.isInteger(statusCode) &&
-  statusCode >= 400 &&
-  statusCode <= 599;
+export const isValidErrorStatusCode = isHttpErrorStatusCode;
 
 export const validateErrorStatusCode = (statusCode: unknown, source: string): number => {
-  assert.ok(
-    isValidErrorStatusCode(statusCode),
-    `${source} must be an integer HTTP error status code between 400 and 599`,
-  );
-  return statusCode;
+  return validateHttpErrorStatusCode(statusCode, source);
 };
 
 export const toErrorStatusCode = (

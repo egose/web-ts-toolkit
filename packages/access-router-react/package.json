@@ -13,12 +13,17 @@
     "access-router",
     "model"
   ],
+  "sideEffects": false,
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.ts",
+        "default": "./dist/index.d.ts"
+      },
       "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
@@ -26,7 +31,12 @@
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
-    "test": "pnpm --filter @web-ts-toolkit/access-router-react... build && vitest run --config vitest.config.ts"
+    "test": "pnpm --filter @web-ts-toolkit/access-router-react... build && pnpm typecheck:nodenext-strict && pnpm typecheck:bundler-strict && vitest run --config vitest.config.ts",
+    "test:react18:setup": "node -e \"const fs=require('fs');const dir='/tmp/opencode/react18-deps';if(!fs.existsSync(dir+'/node_modules/react')){fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(dir+'/package.json','{\\\"private\\\":true}');require('child_process').execFileSync('npm',['install','--prefix',dir,'react@18.3.1','react-dom@18.3.1','@testing-library/react@16.3.2'],{stdio:'inherit'});}\"",
+    "test:react18": "pnpm test:react18:setup && vitest run --config vitest.react18.config.ts",
+    "typecheck:nodenext-strict": "tsc --noEmit -p test-decl-consumer/tsconfig-nodenext.json",
+    "typecheck:bundler-strict": "tsc --noEmit -p test-decl-consumer/tsconfig-bundler.json",
+    "test:packed-consumer": "vitest run --config vitest.config.ts test/access-router-react.packed-consumer.test.ts test/access-router-react.docs.compile.test.ts"
   },
   "files": [
     "README.md",

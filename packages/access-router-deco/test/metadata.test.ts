@@ -2,8 +2,10 @@ import 'reflect-metadata';
 import { describe, it, expect } from 'vitest';
 import {
   getMetadata,
+  getOwnMetadata,
   getMetadataKeysStartWith,
   getMethodDescriptor,
+  getMethodOwner,
   getMethodMetadata,
   getMethodMetadataKeysStartWith,
   getAllMethodNames,
@@ -42,6 +44,13 @@ import {
   BeforeDelete,
   AfterDelete,
 } from '../src/decorators';
+import {
+  DEFAULT_MODEL_ROUTER_OPTIONS_WATERMARK,
+  GLOBAL_PERMISSIONS_WATERMARK,
+  MODEL_ROUTER_OPTIONS_WATERMARK,
+  ROOT_ROUTER_WATERMARK,
+  ROUTER_WATERMARK,
+} from '../src/constants';
 import { applyMethodDecorator } from './helpers';
 
 describe('metadata', () => {
@@ -57,17 +66,39 @@ describe('metadata', () => {
     });
   });
 
+  describe('getOwnMetadata', () => {
+    it('should not return inherited metadata', () => {
+      class Base {}
+      class Child extends Base {}
+      Reflect.defineMetadata(ROUTER_WATERMARK, true, Base);
+
+      expect(getMetadata(Child, ROUTER_WATERMARK)).toBe(true);
+      expect(getOwnMetadata(Child, ROUTER_WATERMARK)).toBeNull();
+    });
+  });
+
   describe('getMetadataKeysStartWith', () => {
     it('should return matching keys', () => {
       const obj = {};
       Reflect.defineMetadata('docPermissions.create', true, obj);
       Reflect.defineMetadata('docPermissions.update', true, obj);
       Reflect.defineMetadata('baseFilter.list', true, obj);
+      Reflect.defineMetadata('docPermissionsExtra', true, obj);
+      Reflect.defineMetadata(Symbol('docPermissions.symbol'), true, obj);
 
       const keys = getMetadataKeysStartWith(obj, 'docPermissions');
       expect(keys).toHaveLength(2);
       expect(keys).toContain('docPermissions.create');
       expect(keys).toContain('docPermissions.update');
+    });
+
+    it('should include exact keys and ignore prefix neighbors', () => {
+      const obj = {};
+      Reflect.defineMetadata('validate', true, obj);
+      Reflect.defineMetadata('validate.create', true, obj);
+      Reflect.defineMetadata('validateExtra', true, obj);
+
+      expect(getMetadataKeysStartWith(obj, 'validate')).toEqual(['validate', 'validate.create']);
     });
 
     it('should return empty array when no matches', () => {
@@ -101,20 +132,35 @@ describe('metadata', () => {
     });
   });
 
+  describe('getMethodOwner', () => {
+    it('should return the prototype that declares the effective method', () => {
+      class Base {
+        inherited() {}
+        overridden() {}
+      }
+      class Child extends Base {
+        overridden() {}
+      }
+
+      expect(getMethodOwner(Child.prototype, 'inherited')).toBe(Base.prototype);
+      expect(getMethodOwner(Child.prototype, 'overridden')).toBe(Child.prototype);
+    });
+  });
+
   describe('getMethodMetadata', () => {
     it('should return metadata for a decorated method', () => {
       class Test {
         handler() {}
       }
       applyMethodDecorator(GlobalPermissions(), Test.prototype, 'handler');
-      expect(getMethodMetadata(Test.prototype, 'handler', '__global_permissions__')).toBe(true);
+      expect(getMethodMetadata(Test.prototype, 'handler', GLOBAL_PERMISSIONS_WATERMARK)).toBe(true);
     });
 
     it('should return null for undecorated method', () => {
       class Test {
         handler() {}
       }
-      expect(getMethodMetadata(Test.prototype, 'handler', '__global_permissions__')).toBeNull();
+      expect(getMethodMetadata(Test.prototype, 'handler', GLOBAL_PERMISSIONS_WATERMARK)).toBeNull();
     });
   });
 
@@ -195,28 +241,28 @@ describe('metadata', () => {
   describe('class-level watermark helpers', () => {
     it('isRootRouter', () => {
       const A = class {};
-      Reflect.defineMetadata('__root_router__', true, A);
+      Reflect.defineMetadata(ROOT_ROUTER_WATERMARK, true, A);
       expect(isRootRouter(A)).toBe(true);
       expect(isRootRouter(class {})).toBe(false);
     });
 
     it('isModelRouter', () => {
       const A = class {};
-      Reflect.defineMetadata('__router__', true, A);
+      Reflect.defineMetadata(ROUTER_WATERMARK, true, A);
       expect(isModelRouter(A)).toBe(true);
       expect(isModelRouter(class {})).toBe(false);
     });
 
     it('isDefaultModelRouterOptions', () => {
       const A = class {};
-      Reflect.defineMetadata('__default_model_router_options__', true, A);
+      Reflect.defineMetadata(DEFAULT_MODEL_ROUTER_OPTIONS_WATERMARK, true, A);
       expect(isDefaultModelRouterOptions(A)).toBe(true);
       expect(isDefaultModelRouterOptions(class {})).toBe(false);
     });
 
     it('isModelRouterOptions', () => {
       const A = class {};
-      Reflect.defineMetadata('__model_router_options__', true, A);
+      Reflect.defineMetadata(MODEL_ROUTER_OPTIONS_WATERMARK, true, A);
       expect(isModelRouterOptions(A)).toBe(true);
       expect(isModelRouterOptions(class {})).toBe(false);
     });

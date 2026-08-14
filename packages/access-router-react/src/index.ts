@@ -1,5 +1,8 @@
 export { createModelHooks } from './create-model-hook';
+export { requestKeyFor, RequestKeyError } from './fetch';
 export type {
+  RequestConfig,
+  QueryCallOptions,
   UseBaseOptions,
   UseReadQueryOptions,
   UseReadQueryResult,
@@ -17,4 +20,8 @@ export type {
   UseCountQueryResult,
   UseDistinctQueryOptions,
   UseDistinctQueryResult,
+  ProjectedShape,
+  ProjectedShapeArray,
+  ProjectedModelResponse,
+  ProjectedListModelResponse,
 } from './types';

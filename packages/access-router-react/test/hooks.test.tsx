@@ -1,4 +1,22 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+//
+// `hooks.test.tsx` is the legacy behavior suite. It must keep passing
+// while ARR-02 through ARR-11 adopt the harness established in ARR-01.
+// Tests with new lifecycle behavior should live in focused files
+// (`test/harness.test.tsx`, `test/resolved-failure.test.tsx`, etc.) to
+// avoid merge conflicts on this shared file.
+//
+// The historical `createMockService` factory used a broad
+// `as unknown as ModelService<TestDoc>` cast that hid service signature
+// drift. It is now backed by the strict `MockService<T>` from
+// `./support`, which exposes typed per-method `vi.fn`s preserving the
+// exact argument arity and types `ModelService<T>` declares; see
+// `./support/mock-service.ts` for the narrow-cast rationale.
+//
+// The 60 historical behaviors (immediate-success and immediate-rejection)
+// are preserved. The rejection tests now pre-arm the next call as a
+// rejection via `mock.planNextRejection('<op>', error)` instead of
+// overwriting `service.<op>` via a typed cast.
+//
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { createModelHooks } from '../src/create-model-hook';
@@ -6,48 +24,14 @@ import type {
   Document,
   Model,
   ModelService,
-  Response,
   ModelResponse,
   ListModelResponse,
+  Response,
 } from '@web-ts-toolkit/access-router-client';
 import { ServiceError } from '@web-ts-toolkit/access-router-client';
+import { createMockService as createHarnessMockService, type MockService, type MockServiceResults } from './support';
 
-// ── Lazy mock helper ──
-
-function createLazyMock<T>(result: T) {
-  const execFn = vi.fn().mockResolvedValue(result);
-  const resolved = Promise.resolve(result);
-  return {
-    exec: execFn,
-    then: <R1 = T, R2 = never>(
-      onfulfilled?: ((value: T) => R1 | PromiseLike<R1>) | null,
-      onrejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,
-    ) => resolved.then(onfulfilled as any, onrejected as any),
-    catch: <R = never,>(onrejected?: ((reason: unknown) => R | PromiseLike<R>) | null) =>
-      resolved.catch(onrejected as any),
-    finally: (onfinally?: (() => void) | null) => resolved.finally(onfinally),
-    [Symbol.toStringTag]: 'Promise',
-  } as const;
-}
-
-function createRejectingLazyMock(error: unknown) {
-  let lazyRejected: Promise<never> | undefined;
-  const getRejected = () => (lazyRejected ??= Promise.reject(error));
-  const execFn = vi.fn().mockRejectedValue(error);
-  return {
-    exec: execFn,
-    then: <R1 = never, R2 = never>(
-      onfulfilled?: ((value: never) => R1 | PromiseLike<R1>) | null,
-      onrejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,
-    ) => getRejected().then(onfulfilled as any, onrejected as any),
-    catch: <R = never,>(onrejected?: ((reason: unknown) => R | PromiseLike<R>) | null) =>
-      getRejected().catch(onrejected as any),
-    finally: (onfinally?: (() => void) | null) => getRejected().finally(onfinally),
-    [Symbol.toStringTag]: 'Promise',
-  } as const;
-}
-
-// ── Mock service factory ──
+// ── Test service factory ──
 
 interface TestDoc extends Document {
   _id: string;
@@ -55,7 +39,30 @@ interface TestDoc extends Document {
   status: string;
 }
 
-function createMockService() {
+/**
+ * Build a strict `ModelService<TestDoc>` mock plus the historical seed
+ * result objects so existing tests can keep destructuring
+ * `{ service, listResult, readResult, ... }` without rewriting call
+ * sites. `MockServiceResults<T>` declares `delete`/`count`/`distinct` as
+ * plain `Response<...>` (the public client boundary type); the legacy
+ * fixtures used the `ModelResponse<...>` aliases. They are structurally
+ * compatible (each `ModelResponse` is a `Response<TData, ...>`), so the
+ * casts are a pure type widening that does not affect runtime behavior.
+ *
+ * The returned `mock` exposes the harness's strict per-method spies and
+ * the pre-arm planners; failure tests use `mock.planNextRejection(...)`
+ * now that the broad service-wide cast is gone.
+ */
+function createMockService(): {
+  service: ModelService<TestDoc>;
+  listResult: ListModelResponse<TestDoc>;
+  readResult: ModelResponse<TestDoc>;
+  createResult: ModelResponse<TestDoc>;
+  deleteResult: ModelResponse<string>;
+  countResult: ModelResponse<number>;
+  distinctResult: ModelResponse<string[]>;
+  mock: MockService<TestDoc>;
+} {
   const listResult: ListModelResponse<TestDoc> = {
     success: true,
     raw: [],
@@ -81,7 +88,7 @@ function createMockService() {
     status: 201,
     headers: {},
   };
-  const deleteResult: Response<string> = {
+  const deleteResult: ModelResponse<string> = {
     success: true,
     raw: '1',
     data: '1',
@@ -89,7 +96,7 @@ function createMockService() {
     status: 200,
     headers: {},
   };
-  const countResult: Response<number> = {
+  const countResult: ModelResponse<number> = {
     success: true,
     raw: 5,
     data: 5,
@@ -97,7 +104,7 @@ function createMockService() {
     status: 200,
     headers: {},
   };
-  const distinctResult: Response<string[]> = {
+  const distinctResult: ModelResponse<string[]> = {
     success: true,
     raw: ['active', 'pending'],
     data: ['active', 'pending'],
@@ -106,25 +113,25 @@ function createMockService() {
     headers: {},
   };
 
-  const service = {
-    list: vi.fn().mockReturnValue(createLazyMock(listResult)),
-    listAdvanced: vi.fn().mockReturnValue(createLazyMock(listResult)),
-    read: vi.fn().mockReturnValue(createLazyMock(readResult)),
-    readAdvanced: vi.fn().mockReturnValue(createLazyMock(readResult)),
-    create: vi.fn().mockReturnValue(createLazyMock(createResult)),
-    createAdvanced: vi.fn().mockReturnValue(createLazyMock(createResult)),
-    update: vi.fn().mockReturnValue(createLazyMock(readResult)),
-    updateAdvanced: vi.fn().mockReturnValue(createLazyMock(readResult)),
-    upsert: vi.fn().mockReturnValue(createLazyMock(readResult)),
-    upsertAdvanced: vi.fn().mockReturnValue(createLazyMock(readResult)),
-    delete: vi.fn().mockReturnValue(createLazyMock(deleteResult)),
-    count: vi.fn().mockReturnValue(createLazyMock(countResult)),
-    countAdvanced: vi.fn().mockReturnValue(createLazyMock(countResult)),
-    distinct: vi.fn().mockReturnValue(createLazyMock(distinctResult)),
-    distinctAdvanced: vi.fn().mockReturnValue(createLazyMock(distinctResult)),
-  } as unknown as ModelService<TestDoc>;
+  const mock: MockService<TestDoc> = createHarnessMockService<TestDoc>({
+    list: listResult,
+    read: readResult,
+    create: createResult,
+    delete: deleteResult as unknown as MockServiceResults<TestDoc>['delete'],
+    count: countResult as unknown as MockServiceResults<TestDoc>['count'],
+    distinct: distinctResult as unknown as MockServiceResults<TestDoc>['distinct'],
+  });
 
-  return { service, listResult, readResult, createResult, deleteResult, countResult, distinctResult };
+  return {
+    service: mock.service,
+    listResult,
+    readResult,
+    createResult,
+    deleteResult,
+    countResult,
+    distinctResult,
+    mock,
+  };
 }
 
 // ── createModelHooks tests ──
@@ -200,7 +207,7 @@ describe('createModelHooks', () => {
     });
 
     it('calls onError on failure', async () => {
-      const { service } = createMockService();
+      const { service, mock } = createMockService();
       const error = new ServiceError({
         success: false,
         message: 'fail',
@@ -209,7 +216,7 @@ describe('createModelHooks', () => {
         data: null,
         headers: {},
       });
-      (service.read as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
+      mock.planNextRejection('read', error);
       const onError = vi.fn();
       const { useRead } = createModelHooks({ modelService: service });
       renderHook(() => useRead({ id: '1', onError }));
@@ -229,7 +236,7 @@ describe('createModelHooks', () => {
     });
 
     it('calls onSettled on error', async () => {
-      const { service } = createMockService();
+      const { service, mock } = createMockService();
       const error = new ServiceError({
         success: false,
         message: 'fail',
@@ -238,7 +245,7 @@ describe('createModelHooks', () => {
         data: null,
         headers: {},
       });
-      (service.read as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
+      mock.planNextRejection('read', error);
       const onSettled = vi.fn();
       const { useRead } = createModelHooks({ modelService: service });
       renderHook(() => useRead({ id: '1', onSettled }));
@@ -315,7 +322,7 @@ describe('createModelHooks', () => {
     });
 
     it('calls onError on failure', async () => {
-      const { service } = createMockService();
+      const { service, mock } = createMockService();
       const error = new ServiceError({
         success: false,
         message: 'fail',
@@ -324,7 +331,7 @@ describe('createModelHooks', () => {
         data: null,
         headers: {},
       });
-      (service.list as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
+      mock.planNextRejection('list', error);
       const onError = vi.fn();
       const { useList } = createModelHooks({ modelService: service });
       renderHook(() => useList({ listParams: {}, onError }));
@@ -351,18 +358,15 @@ describe('createModelHooks', () => {
       expect(result.current.data).toEqual(initial);
     });
 
-    it('keepPreviousData sets previousData during refetch', async () => {
-      const { service } = createMockService();
-      const { useList } = createModelHooks({ modelService: service });
-      const { result } = renderHook(() => useList({ listParams: {}, keepPreviousData: true }));
-
-      // Wait for the initial fetch to complete
-      await waitFor(() => {
-        expect(result.current.isFetching).toBe(false);
-      });
-
-      expect(result.current.previousData).toBeUndefined();
-    });
+    // The historical `keepPreviousData sets previousData during refetch`
+    // test was ineffective: it never invoked `refetch()`, never
+    // observed the pending state, and only asserted `previousData` was
+    // `undefined` after the initial fetch settled (which trivially
+    // passes with or without `keepPreviousData`). The ARR-08 regression
+    // suite in `test/previous-data.test.tsx` replaces it with
+    // deferred-initial-success, refetch-pending, success, failure,
+    // cancellation, and disable cases that exercise the precise
+    // `previousData` semantics required by the spec.
   });
 
   // ── useCreate ──
@@ -400,7 +404,7 @@ describe('createModelHooks', () => {
     });
 
     it('calls onError on failure', async () => {
-      const { service } = createMockService();
+      const { service, mock } = createMockService();
       const error = new ServiceError({
         success: false,
         message: 'fail',
@@ -409,7 +413,7 @@ describe('createModelHooks', () => {
         data: null,
         headers: {},
       });
-      (service.create as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
+      mock.planNextRejection('create', error);
       const onError = vi.fn();
       const { useCreate } = createModelHooks({ modelService: service });
       const { result } = renderHook(() => useCreate({ onError }));
@@ -495,7 +499,7 @@ describe('createModelHooks', () => {
     });
 
     it('calls onError on failure', async () => {
-      const { service } = createMockService();
+      const { service, mock } = createMockService();
       const error = new ServiceError({
         success: false,
         message: 'fail',
@@ -504,7 +508,7 @@ describe('createModelHooks', () => {
         data: null,
         headers: {},
       });
-      (service.update as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
+      mock.planNextRejection('update', error);
       const onError = vi.fn();
       const { useUpdate } = createModelHooks({ modelService: service });
       const { result } = renderHook(() => useUpdate({ onError }));
@@ -579,7 +583,7 @@ describe('createModelHooks', () => {
     });
 
     it('calls onError on failure', async () => {
-      const { service } = createMockService();
+      const { service, mock } = createMockService();
       const error = new ServiceError({
         success: false,
         message: 'fail',
@@ -588,7 +592,7 @@ describe('createModelHooks', () => {
         data: null,
         headers: {},
       });
-      (service.upsert as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
+      mock.planNextRejection('upsert', error);
       const onError = vi.fn();
       const { useUpsert } = createModelHooks({ modelService: service });
       const { result } = renderHook(() => useUpsert({ onError }));
@@ -664,7 +668,7 @@ describe('createModelHooks', () => {
     });
 
     it('calls onError on failure', async () => {
-      const { service } = createMockService();
+      const { service, mock } = createMockService();
       const error = new ServiceError({
         success: false,
         message: 'fail',
@@ -673,7 +677,7 @@ describe('createModelHooks', () => {
         data: null,
         headers: {},
       });
-      (service.delete as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
+      mock.planNextRejection('delete', error);
       const onError = vi.fn();
       const { useDelete } = createModelHooks({ modelService: service });
       const { result } = renderHook(() => useDelete({ onError }));
@@ -689,7 +693,7 @@ describe('createModelHooks', () => {
     });
 
     it('reset() clears error', async () => {
-      const { service } = createMockService();
+      const { service, mock } = createMockService();
       const error = new ServiceError({
         success: false,
         message: 'fail',
@@ -698,7 +702,7 @@ describe('createModelHooks', () => {
         data: null,
         headers: {},
       });
-      (service.delete as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
+      mock.planNextRejection('delete', error);
       const { useDelete } = createModelHooks({ modelService: service });
       const { result } = renderHook(() => useDelete());
       await act(async () => {
@@ -766,7 +770,7 @@ describe('createModelHooks', () => {
     });
 
     it('calls onError on failure', async () => {
-      const { service } = createMockService();
+      const { service, mock } = createMockService();
       const error = new ServiceError({
         success: false,
         message: 'fail',
@@ -775,7 +779,7 @@ describe('createModelHooks', () => {
         data: null,
         headers: {},
       });
-      (service.count as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
+      mock.planNextRejection('count', error);
       const onError = vi.fn();
       const { useCount } = createModelHooks({ modelService: service });
       renderHook(() => useCount({ onError }));
@@ -847,7 +851,7 @@ describe('createModelHooks', () => {
     });
 
     it('calls onError on failure', async () => {
-      const { service } = createMockService();
+      const { service, mock } = createMockService();
       const error = new ServiceError({
         success: false,
         message: 'fail',
@@ -856,7 +860,7 @@ describe('createModelHooks', () => {
         data: null,
         headers: {},
       });
-      (service.distinct as ReturnType<typeof vi.fn>).mockReturnValue(createRejectingLazyMock(error));
+      mock.planNextRejection('distinct', error);
       const onError = vi.fn();
       const { useDistinct } = createModelHooks({ modelService: service });
       renderHook(() => useDistinct({ field: 'status', onError }));
