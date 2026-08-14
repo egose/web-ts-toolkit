@@ -10,6 +10,12 @@ This release tightens the OIDC session contract around callback origin pinning, 
 | Origins and redirects | Callback and logout origin expectations were easier to infer from examples than from the public contract. | `backendOrigin` is the pinned public backend origin used for callback redirect URIs. `postLogoutRedirectUri`, when set, must be an absolute provider-registered HTTP(S) URL. |
 | Provider and error handling | Provider parse failures and hook/store/token errors were not consistently documented as sanitized. | Client responses use stable `{ code, message }` payloads and do not expose raw provider, store, hook, token issuer, or validator errors. Log originals through `onError` and private server logging. |
 
+### Breaking Changes: `@web-ts-toolkit/express-oidc-vault-mongodb-store`
+
+| Area | Previous contract | New contract and migration |
+| --- | --- | --- |
+| Session rotation topology | Standalone MongoDB servers attempted non-transaction multi-write session rotation with best-effort rollback. | Session rotation requires a transaction-capable MongoDB deployment: replica set or sharded cluster. Standalone deployments fail closed before rotation; migrate MongoDB topology before enabling refresh flows with this provider. |
+
 ### Breaking Changes: `@web-ts-toolkit/http-errors`
 
 | Area | Previous contract | New contract and migration |

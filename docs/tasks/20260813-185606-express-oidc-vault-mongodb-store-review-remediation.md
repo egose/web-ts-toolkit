@@ -63,7 +63,7 @@ Confirmed by source, test, metadata, generated declaration, package-doc, and sib
 
 ### Task MDB-01: Add Standalone And Replica-Set Integration Harnesses
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -103,11 +103,21 @@ Acceptance criteria:
 - Repeated package test runs do not leak MongoDB processes or open handles.
 - `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test` passes.
 
+Completion evidence:
+
+- Changed: `packages/express-oidc-vault-mongodb-store/test/mongo-memory.ts`, `packages/express-oidc-vault-mongodb-store/test/index.test.ts`
+- Added: reusable standalone and replica-set MongoDB memory harnesses with shared client/server cleanup.
+- Added: replica-set rotation test that observes `commitTransaction`, verifies the replacement session is committed, verifies the previous session is absent, and verifies stale rotation is normalized as a rotation conflict.
+- Added: deterministic test-only collection write-boundary instrumentation that injects an `updateOne` failure on rotated-session alias creation without changing the public package API.
+- Verified: `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test`
+- Verified: `pnpm lint`
+- Result: 15 tests passed; lint passed.
+
 ## Wave 2: Correctness And Security Boundaries
 
 ### Task MDB-02: Require Atomic Session Rotation
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -152,9 +162,18 @@ Acceptance criteria:
 - Failure injection before commit leaves no partial replacement session or alias.
 - `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test` passes.
 
+Completion evidence:
+
+- Changed: `packages/express-oidc-vault-mongodb-store/src/index.ts`, `packages/express-oidc-vault-mongodb-store/test/index.test.ts`, `packages/express-oidc-vault-mongodb-store/test/mongo-memory.ts`, `packages/express-oidc-vault-mongodb-store/README.md`, `website/docs/packages/express-oidc-vault-mongodb-store.md`, `CHANGELOG.md`
+- Removed the non-transaction session rotation fallback; rotation now requires a positive transaction-capable `hello` response before running the existing transaction path.
+- Added coverage for standalone fail-closed rotation, non-cached `hello` failures, conflict-typed stale/concurrent rotation, replica-set transaction commits, and pre-commit rollback with no partial target session.
+- Documented the transaction-capable topology requirement and standalone migration note in package docs, website docs, and release notes.
+- Verified: `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test`
+- Result: 17 tests passed.
+
 ### Task MDB-03: Make Expired-Record Cleanup Version-Safe
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -196,9 +215,18 @@ Acceptance criteria:
 - Tests assert no unnecessary second delete occurs after `findOneAndDelete` paths.
 - `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test` passes.
 
+Completion evidence:
+
+- Changed: `packages/express-oidc-vault-mongodb-store/src/index.ts`, `packages/express-oidc-vault-mongodb-store/test/index.test.ts`
+- Split expiry handling so `findOneAndDelete` consume paths only inspect the returned expired document and never issue a follow-up cleanup delete.
+- Made non-consuming expiry cleanup compare-and-delete on both `_id` and the observed `expiresAt`, preventing stale cleanup from deleting a fresh same-ID replacement.
+- Added focused coverage for stale session replacement during expired-read cleanup, expired authorization transaction and exchange code consumes without second deletes, and expired rotated-session alias consumes without second deletes.
+- Verified: `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test`
+- Result: 20 tests passed.
+
 ### Task MDB-04: Enforce Logical JTI Expiry Before TTL Cleanup
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -238,9 +266,18 @@ Acceptance criteria:
 - The behavior is covered without sleeps tied to MongoDB's TTL monitor interval.
 - `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test` passes.
 
+Completion evidence:
+
+- Changed: `packages/express-oidc-vault-mongodb-store/src/index.ts`, `packages/express-oidc-vault-mongodb-store/test/index.test.ts`
+- Replaced the expired-JTI pre-insert cleanup delete with an atomic `findOneAndUpdate` guarded by `_id` and `expiresAt <= now`, so exactly one consumer can claim an expired replay-cache entry before TTL cleanup.
+- Preserved duplicate-key replay rejection for existing non-expired JTIs and for insert races when no expired record is matched.
+- Added focused coverage for pre-expiry rejection, concurrent post-expiry replacement, no dependency on TTL monitor sleeps, and no physical `deleteOne` cleanup in the JTI consume path.
+- Verified: `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test`
+- Result: 21 tests passed.
+
 ### Task MDB-05: Bound And Clean Rotated-Session Aliases
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -284,11 +321,22 @@ Acceptance criteria:
 - Package and website docs state the retention guarantee.
 - `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test` passes.
 
+Completion evidence:
+
+- Changed: `packages/express-oidc-vault-mongodb-store/src/index.ts`, `packages/express-oidc-vault-mongodb-store/test/index.test.ts`, `packages/express-oidc-vault-mongodb-store/README.md`, `website/docs/packages/express-oidc-vault-mongodb-store.md`
+- Added `rotatedSessionAliasRetentionMs` with exported default `DEFAULT_ROTATED_SESSION_ALIAS_RETENTION_MS` of 5 minutes for sessions without explicit expiry, keeping stale rotated IDs available for the intended in-flight refresh/logout race window while preventing indefinite alias retention.
+- Rotated-session aliases now always store `expiresAt`, expired aliases for the same logical session are cleaned during transactional rotation, and the aliases collection has both `expiresAt_ttl` and `logical_session_idx` indexes.
+- Subject/provider deletion now loops over scoped matches and removes aliases for matched logical sessions without deleting unrelated sessions that merely share a logical session ID.
+- Added collection-level tests for repeated no-expiry rotations, alias expiry/cleanup, supporting indexes, and alias removal through current-ID, stale-ID, logical-ID, subject, and provider-session deletion APIs.
+- Documented the retention guarantee, configuration option, default duration, cleanup behavior, and residual race after alias expiry in package and website docs.
+- Verified: `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test`
+- Result: 23 tests passed.
+
 ## Wave 3: Initialization, Performance, And Architecture
 
 ### Task MDB-06: Expose Explicit Store Readiness
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -332,9 +380,21 @@ Acceptance criteria:
 - Generated declarations expose useful JSDoc for the readiness and ownership contract.
 - `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test` passes.
 
+Completion evidence:
+
+- Changed: `packages/express-oidc-vault-mongodb-store/src/index.ts`, `packages/express-oidc-vault-mongodb-store/test/index.test.ts`, `packages/express-oidc-vault-mongodb-store/README.md`, `website/docs/packages/express-oidc-vault-mongodb-store.md`
+- Added exported `OidcVaultMongoStoreProvider` subtype with `ready()` and changed `createMongoOidcVaultStore(...)` to return it while still satisfying `OidcVaultStoreProvider`.
+- Startup initialization now validates all configured collection names, rejects accidental shared collection roles, creates required indexes, and verifies transaction-capable MongoDB topology before any store operation can run.
+- Initialization rejection is handled immediately by storing the startup error and rethrowing the same error from `ready()` and all gated store operations, avoiding unhandled rejections before the consumer awaits readiness.
+- Updated tests for readiness success, invalid/shared collection configuration, incompatible index startup failure, handled startup rejection, operation gating after failed readiness, and standalone topology rejection during readiness.
+- Documented startup ordering: connect MongoDB client, create store, await `storeProvider.ready()`, then accept traffic; also documented application ownership of client shutdown.
+- Verified declaration output exposes JSDoc for `OidcVaultMongoStoreProvider.ready()` and the factory ownership contract.
+- Verified: `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test`
+- Result: 27 tests passed.
+
 ### Task MDB-07: Measure Scoped-Deletion Index Plans
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -372,9 +432,21 @@ Acceptance criteria:
 - Existing deletion semantics and counts remain unchanged.
 - `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test` passes if code or tests change.
 
+Completion evidence:
+
+- Changed: `packages/express-oidc-vault-mongodb-store/src/index.ts`, `packages/express-oidc-vault-mongodb-store/test/index.test.ts`, `packages/express-oidc-vault-mongodb-store/README.md`, `website/docs/packages/express-oidc-vault-mongodb-store.md`
+- Replaced the two single-field session deletion indexes with stable compound scoped indexes: `subject_scope_idx` on `{ subject: 1, 'provider.issuer': 1, 'provider.clientId': 1 }` and `provider_session_scope_idx` on `{ providerSessionId: 1, 'provider.issuer': 1, 'provider.clientId': 1 }`.
+- Added a representative query-plan regression test using 2 repeated identities, 10 issuers, 10 clients, and 10 duplicate sessions per issuer/client scope. The test captures `explain('executionStats')` for all public scoped deletion optional-filter combinations for both `subject` and `providerSessionId`.
+- Measured evidence: with the previous single-field identity indexes, scoped delete lookups examined all 1,000 matching identity documents. With the compound indexes, issuer-only and client-only scoped filters examine 100 documents, and issuer+client scoped filters examine 10 documents, matching the scoped result set size in the representative dataset.
+- Index-cost rationale: one compound index per public scoped identity deletion path replaces the previous single-field index, rather than adding one index per optional-filter permutation. The leading identity key still supports identity-only deletes while scoped tenant/client deletes avoid broad scans.
+- Documented dataset assumptions, measured document-examination bounds, residual workload assumption, and operational index names in package README and website docs.
+- Existing deletion semantics and counts are covered by the existing session deletion tests and conformance suite.
+- Verified: `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test`
+- Result: 28 tests passed.
+
 ### Task MDB-08: Separate Persistence Mapping From Store Orchestration
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -415,11 +487,22 @@ Acceptance criteria:
 - `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store build` passes.
 - `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test` passes.
 
+Completion evidence:
+
+- Changed: `packages/express-oidc-vault-mongodb-store/src/index.ts`, `packages/express-oidc-vault-mongodb-store/src/options.ts`, `packages/express-oidc-vault-mongodb-store/src/documents.ts`, `packages/express-oidc-vault-mongodb-store/src/topology.ts`, `packages/express-oidc-vault-mongodb-store/src/store.ts`, `packages/express-oidc-vault-mongodb-store/test/internals.test.ts`.
+- Kept `src/index.ts` as the public composition boundary, exporting only `createMongoOidcVaultStore`, `DEFAULT_ROTATED_SESSION_ALIAS_RETENTION_MS`, `MongoOidcVaultStoreOptions`, and `OidcVaultMongoStoreProvider` from the package root.
+- Extracted stable internal ownership boundaries: public/private option and collection-name resolution in `options.ts`, BSON document types and bidirectional mappers in `documents.ts`, transaction-topology classification and index initialization in `topology.ts`, and MongoDB-specific store orchestration in `store.ts` without adding generic repository indirection.
+- Added focused no-MongoDB internal tests for numeric date conversion, optional session expiry preservation, logical-session normalization for new and legacy session documents, expiry classification, and replica-set/sharded/standalone topology classification.
+- Added runtime and declaration export allowlist tests proving internal helpers and document types are not exposed through the root package entrypoint.
+- Verified: `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store build`.
+- Verified: `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test`.
+- Result: 2 test files passed, 34 tests passed.
+
 ## Wave 4: Installed-Consumer And Operational Contract
 
 ### Task MDB-09: Document And Verify The Published Store Contract
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -468,6 +551,19 @@ Acceptance criteria:
 - `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test` passes.
 - `pnpm pack --dry-run` lists the expected files.
 
+Completion evidence:
+
+- Changed: `packages/express-oidc-vault-mongodb-store/src/options.ts`, `packages/express-oidc-vault-mongodb-store/src/index.ts`, `packages/express-oidc-vault-mongodb-store/README.md`, `website/docs/packages/express-oidc-vault-mongodb-store.md`, `packages/express-oidc-vault-mongodb-store/test/packed-consumer.test.ts`.
+- Added emitted-declaration JSDoc for public options, custom collection roles, caller-owned `Db` lifecycle, readiness, transaction-capable topology, factory usage, and test-only clock behavior.
+- Updated the package README as the primary installed-consumer contract with canonical imports, safe startup and shutdown sequence, all five collections and collection-name options, topology/standalone guarantees, alias retention, TTL/read-expiry nuance, and sensitive-token storage controls without claiming field encryption.
+- Kept website docs consistent with the README for startup, custom collection names, collection behavior, topology, and security notes.
+- Added a packed-consumer test covering release-like manifest transformation, packed file allowlist, ESM root loading, CJS root loading, runtime export allowlist, and strict NodeNext TypeScript compilation from package-name imports.
+- Verified generated declarations retain JSDoc in `packages/express-oidc-vault-mongodb-store/dist/index.d.ts`.
+- Verified: `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store build`.
+- Verified: `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test`.
+- Result: 3 test files passed, 37 tests passed.
+- Verified: `pnpm pack --dry-run` from `packages/express-oidc-vault-mongodb-store` lists `dist/index.d.mts`, `dist/index.d.ts`, `dist/index.js`, `dist/index.mjs`, `LICENSE`, `package.json`, and `README.md`.
+
 ## Dependency And Parallelization Guidance
 
 | Wave | Task   | Primary owner                | Parallel guidance                                                               |
@@ -497,7 +593,7 @@ The first two decisions affect implementation details but do not block MDB-01 or
 
 ### Task MDB-99: Independently Verify MongoDB Store Remediation
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -543,6 +639,22 @@ Acceptance criteria:
 - If core contract files changed, affected core, memory-store, Redis-store, and MongoDB-store tests pass serially.
 - `pnpm lint`, `pnpm build`, and `pnpm test` pass, or unrelated baseline failures are recorded with command output and ownership.
 - `pnpm pack --dry-run` lists only the intended package contents.
+
+Completion evidence:
+
+- Changed: `packages/express-oidc-vault-mongodb-store/src/store.ts`, `packages/express-oidc-vault-mongodb-store/test/index.test.ts`, `packages/express-oidc-vault-mongodb-store/test/packed-consumer.test.ts`, `docs/tasks/20260813-185606-express-oidc-vault-mongodb-store-review-remediation.md`.
+- Independent review found a `deleteSession` versus committed `rotateSession` race where deleting a stale public ID could remove the alias while leaving the replacement session active.
+- Fixed `deleteSession` to inspect rotated-session aliases without consuming them first; if a direct delete loses the race to a committed rotation, the store now revokes the logical session through the alias and removes aliases through the existing logical-session cleanup path.
+- Added deterministic regression coverage that rotates between the stale session read and direct `deleteOne`, then verifies both old and replacement session IDs are revoked and aliases are removed.
+- Preserved expired alias behavior: expired alias deletion still does not issue a second cleanup `deleteOne` and leaves the active replacement session untouched.
+- Fixed packed-consumer test error wrapping to satisfy `preserve-caught-error` lint without changing package runtime behavior.
+- Verified: `pnpm --filter @web-ts-toolkit/express-oidc-vault-mongodb-store test`.
+- Result: 3 test files passed, 38 tests passed.
+- Verified: `pnpm lint`.
+- Verified: `pnpm build`.
+- Verified: `pnpm test`.
+- Verified: `pnpm pack --dry-run` from `packages/express-oidc-vault-mongodb-store` lists `dist/index.d.mts`, `dist/index.d.ts`, `dist/index.js`, `dist/index.mjs`, `LICENSE`, `package.json`, and `README.md`.
+- Residual risk: scoped deletion query-plan evidence remains representative rather than production-exhaustive, as recorded in MDB-07; no blocker remains for the documented contract.
 
 ## Definition Of Done
 
