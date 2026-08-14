@@ -9,7 +9,7 @@ describe('isObjectId', () => {
   });
 
   it('returns false for random strings', () => {
-    expect(isObjectId('qwertyuiopasdfghjklzxcvb')).toBe(false);
+    expect(isObjectId('qwertyuiopasdfghjklzxcvb')).toBe(false); // pragma: allowlist secret
   });
 
   it('returns true for ObjectId values', () => {

@@ -90,8 +90,8 @@ describe('ARF-12 #2 distinct field authorization through root and dynamic permis
     );
 
     await mongoose.model(modelName).create([
-      { name: 'admin-user', role: 'admin', public: false, secret: 'topsecret-1' },
-      { name: 'public-user', role: 'user', public: true, secret: 'topsecret-2' },
+      { name: 'admin-user', role: 'admin', public: false, secret: 'topsecret-1' }, // pragma: allowlist secret
+      { name: 'public-user', role: 'user', public: true, secret: 'topsecret-2' }, // pragma: allowlist secret
     ]);
 
     const response = await request(app)
@@ -138,8 +138,8 @@ describe('ARF-12 #2 distinct field authorization through root and dynamic permis
     // Two independent runtimes so the OpenAPI registries do not collide.
     const { app: deniedApp, modelName: deniedModel } = buildDistinctRuntimeApp(() => []);
     await mongoose.model(deniedModel).create([
-      { name: 'admin-user', role: 'admin', public: false, secret: 'topsecret-1' },
-      { name: 'public-user', role: 'user', public: true, secret: 'topsecret-2' },
+      { name: 'admin-user', role: 'admin', public: false, secret: 'topsecret-1' }, // pragma: allowlist secret
+      { name: 'public-user', role: 'user', public: true, secret: 'topsecret-2' }, // pragma: allowlist secret
     ]);
     const deniedRoot = await request(deniedApp)
       .post('/arf12-distinct-root')
@@ -156,8 +156,8 @@ describe('ARF-12 #2 distinct field authorization through root and dynamic permis
       req.headers.user === 'admin' ? ['canViewSecret'] : [],
     );
     await mongoose.model(allowedModel).create([
-      { name: 'admin-user', role: 'admin', public: false, secret: 'topsecret-1' },
-      { name: 'public-user', role: 'user', public: true, secret: 'topsecret-2' },
+      { name: 'admin-user', role: 'admin', public: false, secret: 'topsecret-1' }, // pragma: allowlist secret
+      { name: 'public-user', role: 'user', public: true, secret: 'topsecret-2' }, // pragma: allowlist secret
     ]);
     const allowedRoot = await request(allowedApp)
       .post('/arf12-distinct-root')
@@ -175,8 +175,8 @@ describe('ARF-12 #2 distinct field authorization through root and dynamic permis
   it('repeated distinct(secret) denials under the same caller produce identical deterministic responses', async () => {
     const { app, modelName } = buildDistinctRuntimeApp(() => []);
     await mongoose.model(modelName).create([
-      { name: 'admin-user', role: 'admin', public: false, secret: 'topsecret-1' },
-      { name: 'public-user', role: 'user', public: true, secret: 'topsecret-2' },
+      { name: 'admin-user', role: 'admin', public: false, secret: 'topsecret-1' }, // pragma: allowlist secret
+      { name: 'public-user', role: 'user', public: true, secret: 'topsecret-2' }, // pragma: allowlist secret
     ]);
 
     const bodies: unknown[] = [];

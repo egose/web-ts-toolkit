@@ -11,10 +11,10 @@ import { GlobalPermissions, Module, Option, Router, RouterOptions } from '../src
 const createErrorRuntime = () => {
   const routes = express.Router();
   routes.get('/client-error', (req, res, next) => {
-    next(Object.assign(new Error('Bad client input'), { status: 400, secret: 'hidden-client' }));
+    next(Object.assign(new Error('Bad client input'), { status: 400, secret: 'hidden-client' })); // pragma: allowlist secret
   });
   routes.get('/sensitive-error', (req, res, next) => {
-    next(Object.assign(new Error('database password leaked'), { status: 500, secret: 'hidden-server' }));
+    next(Object.assign(new Error('database password leaked'), { status: 500, secret: 'hidden-server' })); // pragma: allowlist secret
   });
   routes.get('/invalid-status', (req, res, next) => {
     next(Object.assign(new Error('invalid status'), { status: 200 }));

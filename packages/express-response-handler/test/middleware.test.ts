@@ -583,7 +583,7 @@ describe('Custom Error Message Provider', () => {
 });
 
 describe('Secure generic error handling', () => {
-  const secret = 'sentinel-secret-erh-04';
+  const secret = 'sentinel-secret-erh-04'; // pragma: allowlist secret
 
   it('redacts unexpected errors in every error format while hooks observe the original error', async () => {
     const cases = [

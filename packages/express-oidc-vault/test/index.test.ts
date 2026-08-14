@@ -302,7 +302,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         postLogoutRedirectUri: 'https://frontend.example.com/logout-complete',
@@ -446,7 +446,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: createMemoryOidcVaultStore(),
@@ -480,7 +480,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: createMemoryOidcVaultStore(),
@@ -495,7 +495,7 @@ describe('createOidcVaultMiddleware', () => {
       config: {
         issuer: `${issuerBaseUrl}/issuer`,
         clientId: 'client_1',
-        clientSecret: 'secret_1',
+        clientSecret: 'secret_1', // pragma: allowlist secret
       },
       frontendRedirectUri: 'https://frontend.example.com/callback',
       storeProvider: createMemoryOidcVaultStore(),
@@ -524,7 +524,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'javascript:alert(1)',
         storeProvider: createMemoryOidcVaultStore(),
@@ -539,7 +539,7 @@ describe('createOidcVaultMiddleware', () => {
       config: {
         issuer: `${issuerBaseUrl}/issuer`,
         clientId: 'client_1',
-        clientSecret: 'secret_1',
+        clientSecret: 'secret_1', // pragma: allowlist secret
       },
       frontendRedirectUri: 'https://frontend.example.com/callback',
       storeProvider: createMemoryOidcVaultStore(),
@@ -561,7 +561,7 @@ describe('createOidcVaultMiddleware', () => {
       config: {
         issuer: `${issuerBaseUrl}/issuer`,
         clientId: 'client_1',
-        clientSecret: 'secret_1',
+        clientSecret: 'secret_1', // pragma: allowlist secret
       },
       frontendRedirectUri: 'https://frontend.example.com/callback',
       sessionTransport: 'cookie' as const,
@@ -607,7 +607,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: createMemoryOidcVaultStore(),
@@ -634,7 +634,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: createMemoryOidcVaultStore(),
@@ -660,7 +660,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         postLogoutRedirectUri: 'https://frontend.example.com/logout-complete',
@@ -775,7 +775,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         sessionTransport: 'cookie',
@@ -820,7 +820,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         sessionTransport: 'cookie',
@@ -869,7 +869,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider,
@@ -922,7 +922,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         sessionTransport: 'cookie',
@@ -982,7 +982,7 @@ describe('createOidcVaultMiddleware', () => {
           config: {
             issuer: `${issuerBaseUrl}/issuer`,
             clientId: 'client_1',
-            clientSecret: 'secret_1',
+            clientSecret: 'secret_1', // pragma: allowlist secret
           },
           frontendRedirectUri: 'https://frontend.example.com/callback',
           sessionTransport: 'cookie',
@@ -1045,7 +1045,7 @@ describe('createOidcVaultMiddleware', () => {
           config: {
             issuer: `${issuerBaseUrl}/issuer`,
             clientId: 'client_1',
-            clientSecret: 'secret_1',
+            clientSecret: 'secret_1', // pragma: allowlist secret
           },
           frontendRedirectUri: 'https://frontend.example.com/callback',
           sessionTransport: 'cookie',
@@ -1075,7 +1075,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         sessionTransport: 'cookie',
@@ -1288,7 +1288,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: createMemoryOidcVaultStore(),
@@ -1327,7 +1327,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: createMemoryOidcVaultStore(),
@@ -1400,7 +1400,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider,
@@ -1452,7 +1452,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider,
@@ -1502,7 +1502,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider,
@@ -1556,7 +1556,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: {
@@ -1637,7 +1637,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: {
@@ -1692,7 +1692,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: createMemoryOidcVaultStore(),
@@ -1756,7 +1756,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: {
@@ -1798,7 +1798,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider,
@@ -1839,7 +1839,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: createMemoryOidcVaultStore(),
@@ -1896,7 +1896,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider,
@@ -1947,7 +1947,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider,
@@ -1986,7 +1986,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: createMemoryOidcVaultStore(),
@@ -2052,7 +2052,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: createMemoryOidcVaultStore(),
@@ -2103,7 +2103,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: createMemoryOidcVaultStore(),
@@ -2139,7 +2139,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: createMemoryOidcVaultStore(),
@@ -2173,7 +2173,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: createMemoryOidcVaultStore(),
@@ -2214,7 +2214,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: createMemoryOidcVaultStore(),
@@ -2242,7 +2242,7 @@ describe('createOidcVaultMiddleware', () => {
         config: {
           issuer: `${issuerBaseUrl}/issuer`,
           clientId: 'client_1',
-          clientSecret: 'secret_1',
+          clientSecret: 'secret_1', // pragma: allowlist secret
         },
         frontendRedirectUri: 'https://frontend.example.com/callback',
         storeProvider: createMemoryOidcVaultStore(),

@@ -153,7 +153,7 @@ describe('AR-18 optimize data list hot paths', () => {
     const dataset = Array.from({ length: 12 }, (_, i) => ({
       id: `s-${i + 1}`,
       name: `N-${i}`,
-      secret: `hidden-${i}`,
+      secret: `hidden-${i}`, // pragma: allowlist secret
       secretRank: 12 - i,
       public: true,
     }));

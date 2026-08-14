@@ -21,7 +21,7 @@ import {
 const config: OidcVaultConfig = {
   issuer: 'https://issuer.example.com',
   clientId: 'client-id',
-  clientSecret: 'client-secret',
+  clientSecret: 'client-secret', // pragma: allowlist secret
 };
 
 const resolved = resolveOidcVaultConfig(config);

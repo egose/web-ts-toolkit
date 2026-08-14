@@ -54,9 +54,9 @@ const createDistinctAuthApp = async () => {
   });
 
   await User.create([
-    { name: 'admin-user', role: 'admin', public: false, secret: 'topsecret-1' },
-    { name: 'public-user', role: 'user', public: true, secret: 'topsecret-2' },
-    { name: 'private-user', role: 'user', public: false, secret: 'topsecret-3' },
+    { name: 'admin-user', role: 'admin', public: false, secret: 'topsecret-1' }, // pragma: allowlist secret
+    { name: 'public-user', role: 'user', public: true, secret: 'topsecret-2' }, // pragma: allowlist secret
+    { name: 'private-user', role: 'user', public: false, secret: 'topsecret-3' }, // pragma: allowlist secret
   ]);
 
   const app = express();
