@@ -61,6 +61,9 @@ app.use(
 - the provider stores JSON payloads under prefixed keys for sessions, auth transactions, and one-time exchange codes
 - one-time records are consumed atomically through Redis commands instead of `get` plus `del`
 - session rotation and session indexes are updated atomically so concurrent refreshes do not fork multiple active sessions
+- rotation requires a distinct unused target session ID; missing-source, same-ID, and existing-target rotation conflicts throw `OidcVaultStoreConflictError` without changing source or target records
+- `createAuthorizationTransaction`, `createExchangeCode`, and `createSession` are upserts; metadata should be JSON-compatible for portability across store providers
+- backchannel logout token JTI records are consumed only when `expiresAt` is finite and greater than the store clock at consume time
 - the client must support `sendCommand(...)`; the official `redis` package already does
 
 ## Main Exports

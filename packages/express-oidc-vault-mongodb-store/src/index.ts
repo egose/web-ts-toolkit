@@ -15,7 +15,7 @@ import type {
   ConsumeBackchannelLogoutTokenJtiInput,
   RotateSessionInput,
 } from '@web-ts-toolkit/express-oidc-vault';
-import type { Collection, Db, Filter } from 'mongodb';
+import type { ClientSession, Collection, Db, Filter } from 'mongodb';
 
 export interface MongoOidcVaultStoreOptions {
   db: Db;
@@ -228,26 +228,48 @@ class MongoOidcVaultStore implements OidcVaultStoreProvider {
   async rotateSession(input: RotateSessionInput): Promise<OidcVaultSession> {
     await this.ready;
 
-    if (await this.supportsTransactions) {
-      return this.rotateSessionWithTransaction(input);
+    if (input.nextSession.sessionId === input.sessionId) {
+      throw new OidcVaultStoreConflictError('OIDC vault session rotation target must use a different session ID.');
     }
 
-    return this.rotateSessionWithoutTransaction(input);
+    try {
+      if (await this.supportsTransactions) {
+        return await this.rotateSessionWithTransaction(input);
+      }
+
+      return await this.rotateSessionWithoutTransaction(input);
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        throw new OidcVaultStoreConflictError('OIDC vault session rotation target already exists.');
+      }
+
+      throw error;
+    }
   }
 
   private async rotateSessionWithoutTransaction(input: RotateSessionInput): Promise<OidcVaultSession> {
     const nextSession = await this.normalizeRotatedSession(input);
+    let insertedTarget = false;
 
-    await this.sessions.insertOne(sessionToDocument(nextSession));
+    try {
+      await this.sessions.insertOne(sessionToDocument(nextSession));
+      insertedTarget = true;
+      await this.createRotatedSessionAlias(input.sessionId, nextSession);
 
-    const deleteResult = await this.sessions.deleteOne({ _id: input.sessionId });
+      const deleteResult = await this.sessions.deleteOne({ _id: input.sessionId });
 
-    if (deleteResult.deletedCount !== 1) {
-      await this.sessions.deleteOne({ _id: nextSession.sessionId });
-      throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
+      if (deleteResult.deletedCount !== 1) {
+        await this.sessions.deleteOne({ _id: nextSession.sessionId });
+        await this.rotatedSessionAliases.deleteOne({ _id: input.sessionId });
+        throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
+      }
+    } catch (error) {
+      if (insertedTarget) {
+        await this.sessions.deleteOne({ _id: nextSession.sessionId });
+      }
+
+      throw error;
     }
-
-    await this.createRotatedSessionAlias(input.sessionId, nextSession);
 
     return nextSession;
   }
@@ -277,10 +299,12 @@ class MongoOidcVaultStore implements OidcVaultStoreProvider {
 
   async deleteSession(sessionId: string): Promise<void> {
     await this.ready;
-    const result = await this.sessions.deleteOne({ _id: sessionId });
+    const session = await this.sessions.findOne({ _id: sessionId });
 
-    if (result.deletedCount === 1) {
-      await this.rotatedSessionAliases.deleteOne({ _id: sessionId });
+    if (session) {
+      const logicalSessionId = session.logicalSessionId ?? session._id;
+      await this.sessions.deleteOne({ _id: sessionId });
+      await this.deleteRotatedSessionAliasesByLogicalSessionId(logicalSessionId);
       return;
     }
 
@@ -295,11 +319,22 @@ class MongoOidcVaultStore implements OidcVaultStoreProvider {
     await this.ready;
     const resolved = toLogicalSessionDeleteInput(input);
     const result = await this.sessions.deleteMany({ logicalSessionId: resolved.logicalSessionId });
+    await this.deleteRotatedSessionAliasesByLogicalSessionId(resolved.logicalSessionId);
     return result.deletedCount;
   }
 
   async consumeBackchannelLogoutTokenJti(input: ConsumeBackchannelLogoutTokenJtiInput): Promise<boolean> {
     await this.ready;
+    const now = this.now();
+
+    if (!Number.isFinite(input.expiresAt) || input.expiresAt <= now) {
+      return false;
+    }
+
+    await this.backchannelLogoutTokenJtis.deleteOne({
+      _id: input.jti,
+      expiresAt: { $lte: new Date(now) },
+    });
 
     try {
       await this.backchannelLogoutTokenJtis.insertOne({
@@ -329,7 +364,7 @@ class MongoOidcVaultStore implements OidcVaultStoreProvider {
       filter['provider.clientId'] = resolved.clientId;
     }
 
-    const result = await this.sessions.deleteMany(filter);
+    const result = await this.deleteSessionsAndAliasesByFilter(filter);
     return result.deletedCount;
   }
 
@@ -346,7 +381,7 @@ class MongoOidcVaultStore implements OidcVaultStoreProvider {
       filter['provider.clientId'] = resolved.clientId;
     }
 
-    const result = await this.sessions.deleteMany(filter);
+    const result = await this.deleteSessionsAndAliasesByFilter(filter);
     return result.deletedCount;
   }
 
@@ -375,7 +410,7 @@ class MongoOidcVaultStore implements OidcVaultStoreProvider {
   private async createRotatedSessionAlias(
     previousSessionId: string,
     nextSession: OidcVaultSession,
-    session?: import('mongodb').ClientSession,
+    session?: ClientSession,
   ): Promise<void> {
     await this.rotatedSessionAliases.updateOne(
       { _id: previousSessionId },
@@ -390,16 +425,38 @@ class MongoOidcVaultStore implements OidcVaultStoreProvider {
   }
 
   private async normalizeRotatedSession(input: RotateSessionInput): Promise<OidcVaultSession> {
-    if (input.nextSession.logicalSessionId) {
-      return input.nextSession;
-    }
+    const previous = await this.getSession(input.sessionId);
 
-    const previous = await this.sessions.findOne({ _id: input.sessionId });
+    if (!previous) {
+      throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
+    }
 
     return {
       ...input.nextSession,
-      logicalSessionId: previous?.logicalSessionId ?? input.sessionId,
+      logicalSessionId: input.nextSession.logicalSessionId ?? previous.logicalSessionId ?? input.sessionId,
     };
+  }
+
+  private async deleteSessionsAndAliasesByFilter(filter: Filter<SessionDocument>): Promise<{ deletedCount: number }> {
+    const sessions = await this.sessions
+      .find(filter)
+      .project<Pick<SessionDocument, 'logicalSessionId' | '_id'>>({
+        _id: 1,
+        logicalSessionId: 1,
+      })
+      .toArray();
+    const result = await this.sessions.deleteMany(filter);
+    const logicalSessionIds = [...new Set(sessions.map((session) => session.logicalSessionId ?? session._id))];
+
+    if (logicalSessionIds.length > 0) {
+      await this.rotatedSessionAliases.deleteMany({ logicalSessionId: { $in: logicalSessionIds } });
+    }
+
+    return { deletedCount: result.deletedCount };
+  }
+
+  private async deleteRotatedSessionAliasesByLogicalSessionId(logicalSessionId: string): Promise<void> {
+    await this.rotatedSessionAliases.deleteMany({ logicalSessionId });
   }
 
   private async createTtlIndex<T extends { _id: string }>(collection: Collection<T>): Promise<string> {

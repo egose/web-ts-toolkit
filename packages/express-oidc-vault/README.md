@@ -590,6 +590,17 @@ app.use(
 - `type OidcVaultJwtAccessTokenValidatorOptions`
 - `type OidcVaultTokenIssuer`
 
+## Store Provider Contract
+
+The built-in memory, Redis, and MongoDB store packages share the same behavioral contract.
+
+- `createAuthorizationTransaction`, `createExchangeCode`, and `createSession` are deliberate upserts keyed by `state`, `code`, and `sessionId`.
+- Store metadata is portable when it is JSON-compatible: strings, finite numbers, booleans, null, arrays, and plain objects. Do not rely on functions, symbols, Dates, Maps, Sets, custom prototypes, undefined object properties, or object identity surviving a store round-trip.
+- Store methods return owned values or serialization round-trips. Mutating an input after a create call or mutating a returned value does not mutate persisted state.
+- Expiry timestamps are epoch milliseconds. Records are expired at `expiresAt <= now`; backchannel logout JTI expiry must be finite and in the future or the consume call returns `false` without storing the JTI.
+- `rotateSession` requires an existing source session and a distinct unused target `sessionId`. Equivalent missing-source, same-ID, and existing-target rotation conflicts throw `OidcVaultStoreConflictError` without deleting or overwriting source or target data.
+- Session rotation preserves the logical session ID when the next session omits one. Old public session IDs remain revocation aliases while the logical lineage remains live, so deleting by an old public ID can revoke the current rotated session.
+
 ## Key Integration Notes
 
 - The browser should never receive the upstream refresh token.

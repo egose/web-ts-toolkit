@@ -21,7 +21,7 @@ npm install @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vaul
 
 ## Production Note
 
-This package stores authorization transactions, exchange codes, and sessions in process memory.
+This package stores authorization transactions, exchange codes, sessions, rotated-session aliases, and backchannel logout replay JTIs in process memory.
 
 Do not use it for production or multi-instance deployments. Use the Redis or MongoDB store provider instead.
 
@@ -33,6 +33,7 @@ import { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';
 import { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';
 
 const app = express();
+const storeProvider = createMemoryOidcVaultStore();
 
 app.use(
   createOidcVaultMiddleware({
@@ -44,16 +45,16 @@ app.use(
       clientSecret: process.env.OIDC_CLIENT_SECRET,
     },
     frontendRedirectUri: 'https://frontend.example.com/callback',
-    storeProvider: createMemoryOidcVaultStore(),
+    storeProvider,
   }),
 );
 ```
 
-For local development, this is the simplest store because it has no external infrastructure requirements.
+For local development, this is the shortest setup because it has no Redis, MongoDB, or file-system dependency. Sessions are lost on process restart and are not visible to other Node.js instances.
 
 ### Test-friendly clock override
 
-The store accepts a custom `now()` function, which is useful in deterministic tests.
+The store accepts a custom `now()` function. It returns epoch milliseconds and defaults to `Date.now`. Override it only as a deterministic test seam; the returned value must be monotonic enough for the expiry scenarios your test exercises.
 
 ```ts
 const storeProvider = createMemoryOidcVaultStore({
@@ -65,11 +66,16 @@ That lets tests control expiry behavior without waiting for real time to pass.
 
 ## Behavior
 
-- sessions are stored in `Map` instances in the current Node.js process
-- authorization transactions and one-time exchange codes are consumed once
-- expiry cleanup is opportunistic and happens during reads and writes
-- session rotation fails with a conflict if the original session no longer exists
-- `deleteSessionsBySubject(...)` and `deleteSessionsByProviderSessionId(...)` are supported for logout and backchannel logout flows
+- authorization transactions, exchange codes, sessions, rotated-session aliases, and backchannel logout replay JTIs are stored in `Map` instances in the current Node.js process
+- authorization transactions and exchange codes are consumed once
+- `createAuthorizationTransaction`, `createExchangeCode`, and `createSession` are upserts; creating the same key again replaces the old value
+- metadata should be structured-clone compatible and JSON-compatible for portability across the memory, Redis, and MongoDB stores
+- inputs and returned records are cloned with `structuredClone`, so callers retain ownership of their objects
+- expiry uses `expiresAt <= now()` as expired, and cleanup is opportunistic during reads and writes rather than a background timer
+- rotation requires a distinct unused target session ID; missing-source, same-ID, and existing-target conflicts throw `OidcVaultStoreConflictError` without changing source or target records
+- rotated public session IDs remain revocation aliases for the current logical session while that logical session is still live
+- `deleteSession(...)`, `deleteSessionsByLogicalSessionId(...)`, `deleteSessionsBySubject(...)`, and `deleteSessionsByProviderSessionId(...)` logically revoke live sessions and remove stale rotation aliases when no live session remains in a logical lineage
+- backchannel logout token JTI records are consumed only when `expiresAt` is a finite timestamp greater than the store clock at consume time
 
 ## When To Use It
 

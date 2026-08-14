@@ -59,6 +59,9 @@ app.use(
 - the provider uses separate collections for authorization transactions, exchange codes, and sessions
 - TTL indexes are created on `expiresAt`, and the provider also checks expiration on reads so behavior does not depend on Mongo's background TTL monitor timing
 - session rotation uses MongoDB transactions when connected to a replica set or sharded deployment, and falls back to conflict-safe rollback behavior on standalone servers
+- rotation requires a distinct unused target session ID; missing-source, same-ID, and existing-target rotation conflicts throw `OidcVaultStoreConflictError` without changing source or target records
+- `createAuthorizationTransaction`, `createExchangeCode`, and `createSession` are upserts; metadata should be JSON-compatible for portability across store providers
+- backchannel logout token JTI records are consumed only when `expiresAt` is finite and greater than the store clock at consume time
 
 ## Main Exports
 

@@ -82,9 +82,18 @@ local oldLogicalIndexKey = ARGV[8]
 local newLogicalIndexKey = ARGV[9]
 local oldAliasValue = ARGV[10]
 local oldAliasExpiresAt = ARGV[11]
+local aliasIndexKey = ARGV[12]
 
 if redis.call('EXISTS', KEYS[1]) == 0 then
   return 0
+end
+
+if oldSessionId == newSessionId then
+  return 2
+end
+
+if redis.call('EXISTS', KEYS[2]) == 1 then
+  return 2
 end
 
 if newExpiresAt ~= '' then
@@ -118,6 +127,8 @@ if oldAliasExpiresAt ~= '' then
 else
   redis.call('SET', KEYS[5], oldAliasValue)
 end
+
+redis.call('ZADD', aliasIndexKey, newScore, oldSessionId)
 
 return 1
 `;
@@ -211,6 +222,10 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
       throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
     }
 
+    if (input.nextSession.sessionId === input.sessionId) {
+      throw new OidcVaultStoreConflictError('OIDC vault session rotation target must use a different session ID.');
+    }
+
     const nextSession: OidcVaultSession = {
       ...input.nextSession,
       logicalSessionId:
@@ -233,7 +248,7 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
 
       if (logicalSessionId) {
         await this.deleteSessionsByLogicalSessionId(logicalSessionId);
-        await this.client.del(this.rotatedSessionAliasKey(sessionId));
+        await this.deleteRotatedSessionAliasesByLogicalSessionId(logicalSessionId);
       }
 
       await this.client.del(this.sessionKey(sessionId));
@@ -241,6 +256,7 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     }
 
     await this.deleteSessionRecord(session);
+    await this.deleteRotatedSessionAliasesByLogicalSessionId(session.logicalSessionId ?? session.sessionId);
   }
 
   async deleteSessionsByLogicalSessionId(input: string | DeleteSessionsByLogicalSessionIdInput): Promise<number> {
@@ -249,6 +265,12 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
   }
 
   async consumeBackchannelLogoutTokenJti(input: ConsumeBackchannelLogoutTokenJtiInput): Promise<boolean> {
+    const now = this.now();
+
+    if (!Number.isFinite(input.expiresAt) || input.expiresAt <= now) {
+      return false;
+    }
+
     const result = await this.client.set(this.backchannelLogoutTokenJtiKey(input.jti), '1', {
       PXAT: input.expiresAt,
       NX: true,
@@ -309,6 +331,10 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     return prefixKey(this.keyPrefix, 'backchannel-logout-jti', jti);
   }
 
+  private rotatedSessionAliasIndexKey(logicalSessionId: string): string {
+    return prefixKey(this.keyPrefix, 'rotated-session-alias-index', logicalSessionId);
+  }
+
   private rotatedSessionAliasKey(sessionId: string): string {
     return prefixKey(this.keyPrefix, 'rotated-session-alias', sessionId);
   }
@@ -366,7 +392,12 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
       this.logicalSessionIndexKey(nextSession.logicalSessionId ?? nextSession.sessionId),
       serialize(nextSession.logicalSessionId ?? nextSession.sessionId),
       this.serializeExpiresAt(nextSession.expiresAt),
+      this.rotatedSessionAliasIndexKey(nextSession.logicalSessionId ?? nextSession.sessionId),
     ]);
+
+    if (result === 2 || result === '2') {
+      throw new OidcVaultStoreConflictError('OIDC vault session rotation target already exists.');
+    }
 
     return result === 1 || result === '1';
   }
@@ -417,10 +448,24 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
       }
 
       await this.deleteSessionRecord(session);
+      await this.deleteRotatedSessionAliasesByLogicalSessionId(session.logicalSessionId ?? session.sessionId);
       deleted += 1;
     }
 
     return deleted;
+  }
+
+  private async deleteRotatedSessionAliasesByLogicalSessionId(logicalSessionId: string): Promise<void> {
+    const aliasIndexKey = this.rotatedSessionAliasIndexKey(logicalSessionId);
+    await this.cleanupExpiredIndexMembers(aliasIndexKey);
+    const aliasSessionIds = await this.getSessionIdsFromIndex(aliasIndexKey);
+
+    if (aliasSessionIds.length === 0) {
+      return;
+    }
+
+    await this.client.del(aliasSessionIds.map((sessionId) => this.rotatedSessionAliasKey(sessionId)));
+    await this.client.del(aliasIndexKey);
   }
 
   private serializeExpiresAt(expiresAt?: number): string {

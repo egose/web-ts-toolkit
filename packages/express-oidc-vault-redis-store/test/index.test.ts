@@ -1,5 +1,8 @@
+import { randomUUID } from 'node:crypto';
+
 import { describe, expect, it } from 'vitest';
 
+import { defineOidcVaultStoreProviderConformanceSuite } from '../../express-oidc-vault/test/store-provider-conformance';
 import { createRedisOidcVaultStore, type OidcVaultRedisClient } from '../src/index';
 
 class FakeRedisClient implements OidcVaultRedisClient {
@@ -33,6 +36,10 @@ class FakeRedisClient implements OidcVaultRedisClient {
 
     for (const key of keyList) {
       if (this.records.delete(key)) {
+        deleted += 1;
+      }
+
+      if (this.sortedIndexes.delete(key)) {
         deleted += 1;
       }
     }
@@ -209,6 +216,7 @@ class FakeRedisClient implements OidcVaultRedisClient {
       newLogicalIndexKey,
       oldAliasValue,
       oldAliasExpiresAtRaw,
+      aliasIndexKey,
     ] = args;
 
     if (
@@ -228,6 +236,10 @@ class FakeRedisClient implements OidcVaultRedisClient {
 
     if (!this.records.has(oldSessionKey)) {
       return 0;
+    }
+
+    if (oldSessionId === newSessionId || this.records.has(newSessionKey)) {
+      return 2;
     }
 
     this.records.set(newSessionKey, {
@@ -259,6 +271,10 @@ class FakeRedisClient implements OidcVaultRedisClient {
         value: oldAliasValue,
         expiresAt: oldAliasExpiresAtRaw ? Number(oldAliasExpiresAtRaw) : undefined,
       });
+
+      if (aliasIndexKey) {
+        this.addSortedIndexMember(aliasIndexKey, oldSessionId, Number(newScoreRaw));
+      }
     }
 
     return 1;
@@ -304,6 +320,19 @@ class FakeRedisClient implements OidcVaultRedisClient {
     }
   }
 }
+
+defineOidcVaultStoreProviderConformanceSuite('redis', {
+  createContext: () => {
+    const client = new FakeRedisClient();
+
+    return {
+      store: createRedisOidcVaultStore({ client, keyPrefix: `test:${randomUUID()}`, now: () => client.now }),
+      setNow: (nextNow) => {
+        client.now = nextNow;
+      },
+    };
+  },
+});
 
 describe('createRedisOidcVaultStore', () => {
   it('creates, reads, rotates, and deletes sessions', async () => {

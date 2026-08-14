@@ -1,7 +1,10 @@
+import { randomUUID } from 'node:crypto';
+
 import { MongoClient } from 'mongodb';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { defineOidcVaultStoreProviderConformanceSuite } from '../../express-oidc-vault/test/store-provider-conformance';
 import { createMongoOidcVaultStore } from '../src/index';
 
 const MONGO_TIMEOUT = 120_000;
@@ -20,6 +23,23 @@ describe('createMongoOidcVaultStore', () => {
     await client.close();
     await mongoServer.stop();
   }, MONGO_TIMEOUT);
+
+  defineOidcVaultStoreProviderConformanceSuite('mongodb', {
+    createContext: () => {
+      let now = 100;
+      const db = client.db(`conf-${randomUUID()}`);
+
+      return {
+        store: createMongoOidcVaultStore({ db, now: () => now }),
+        setNow: (nextNow) => {
+          now = nextNow;
+        },
+        cleanup: async () => {
+          await db.dropDatabase();
+        },
+      };
+    },
+  });
 
   it('creates, reads, rotates, and deletes sessions', async () => {
     const db = client.db('mongo-store-session-test');
