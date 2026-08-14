@@ -1,7 +1,7 @@
 "use strict";
-(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[569],{
+(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[853],{
 
-/***/ 1847
+/***/ 8648
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 // ESM COMPAT FLAG
@@ -13,12 +13,12 @@ __webpack_require__.d(__webpack_exports__, {
   contentTitle: () => (/* binding */ contentTitle),
   "default": () => (/* binding */ MDXContent),
   frontMatter: () => (/* binding */ frontMatter),
-  metadata: () => (/* reexport */ site_docs_packages_express_oidc_vault_memory_store_md_e3d_namespaceObject),
+  metadata: () => (/* reexport */ site_docs_packages_express_json_router_md_073_namespaceObject),
   toc: () => (/* binding */ toc)
 });
 
-;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-oidc-vault-memory-store-md-e3d.json
-const site_docs_packages_express_oidc_vault_memory_store_md_e3d_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-oidc-vault-memory-store","title":"@web-ts-toolkit/express-oidc-vault-memory-store","description":"In-memory store provider for @web-ts-toolkit/express-oidc-vault.","source":"@site/docs/packages/express-oidc-vault-memory-store.md","sourceDirName":"packages","slug":"/packages/express-oidc-vault-memory-store","permalink":"/docs/packages/express-oidc-vault-memory-store","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":4,"frontMatter":{"sidebar_label":"OIDC Vault Memory Store","sidebar_position":4},"sidebar":"packagesSidebar","previous":{"title":"Express Response Handler","permalink":"/docs/packages/express-response-handler"},"next":{"title":"HTTP Errors","permalink":"/docs/packages/http-errors"}}');
+;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-json-router-md-073.json
+const site_docs_packages_express_json_router_md_073_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-json-router","title":"@web-ts-toolkit/express-json-router","description":"Express router wrapper that wires route handlers through @web-ts-toolkit/express-response-handler and keeps track of registered endpoints.","source":"@site/docs/packages/express-json-router.md","sourceDirName":"packages","slug":"/packages/express-json-router","permalink":"/docs/packages/express-json-router","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":2,"frontMatter":{"sidebar_label":"Express JSON Router","sidebar_position":2},"sidebar":"packagesSidebar","previous":{"title":"Access Router Runtime","permalink":"/docs/packages/access-router-runtime"},"next":{"title":"Express Runtime","permalink":"/docs/packages/express-runtime"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -27,14 +27,14 @@ var lib = __webpack_require__(1982);
 var Tabs = __webpack_require__(5250);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@docusaurus+theme-classic@3.10.1_@types+react@19.2.14_react-dom@19.2.6_react@19.2.6__react@19.2.6_typescript@6.0.3/node_modules/@docusaurus/theme-classic/lib/theme/TabItem/index.js + 1 modules
 var TabItem = __webpack_require__(6574);
-;// ./docs/packages/express-oidc-vault-memory-store.md
+;// ./docs/packages/express-json-router.md
 
 
 const frontMatter = {
-	sidebar_label: 'OIDC Vault Memory Store',
-	sidebar_position: 4
+	sidebar_label: 'Express JSON Router',
+	sidebar_position: 2
 };
-const contentTitle = '@web-ts-toolkit/express-oidc-vault-memory-store';
+const contentTitle = '@web-ts-toolkit/express-json-router';
 
 const assets = {
 
@@ -49,28 +49,44 @@ const toc = [{
   "id": "installation",
   "level": 2
 }, {
-  "value": "Use Cases",
-  "id": "use-cases",
-  "level": 2
-}, {
-  "value": "Production Note",
-  "id": "production-note",
-  "level": 2
-}, {
   "value": "Quick Start",
   "id": "quick-start",
   "level": 2
 }, {
-  "value": "Test-friendly clock override",
-  "id": "test-friendly-clock-override",
+  "value": "What It Exposes",
+  "id": "what-it-exposes",
+  "level": 2
+}, {
+  "value": "Common Patterns",
+  "id": "common-patterns",
+  "level": 2
+}, {
+  "value": "Route-level middleware",
+  "id": "route-level-middleware",
+  "level": 3
+}, {
+  "value": "Chained route registration",
+  "id": "chained-route-registration",
+  "level": 3
+}, {
+  "value": "Endpoint introspection",
+  "id": "endpoint-introspection",
+  "level": 3
+}, {
+  "value": "Structured Error Formats",
+  "id": "structured-error-formats",
+  "level": 2
+}, {
+  "value": "Handler defaults vs isolated handlers",
+  "id": "handler-defaults-vs-isolated-handlers",
   "level": 3
 }, {
   "value": "Behavior",
   "id": "behavior",
   "level": 2
 }, {
-  "value": "When To Use It",
-  "id": "when-to-use-it",
+  "value": "Hooks",
+  "id": "hooks",
   "level": 2
 }, {
   "value": "API",
@@ -99,15 +115,15 @@ function _createMdxContent(props) {
   return (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, {
     children: [(0,jsx_runtime.jsx)(_components.header, {
       children: (0,jsx_runtime.jsx)(_components.h1, {
-        id: "web-ts-toolkitexpress-oidc-vault-memory-store",
+        id: "web-ts-toolkitexpress-json-router",
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/express-oidc-vault-memory-store"
+          children: "@web-ts-toolkit/express-json-router"
         })
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["In-memory store provider for ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/express-oidc-vault"
-      }), "."]
+      children: ["Express router wrapper that wires route handlers through ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/express-response-handler"
+      }), " and keeps track of registered endpoints."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
       children: "Installation"
@@ -118,7 +134,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-memory-store express\n"
+            children: "npm install @web-ts-toolkit/express-json-router express\nnpm install --save-dev @types/express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -127,7 +143,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-memory-store express\n"
+            children: "yarn add @web-ts-toolkit/express-json-router express\nyarn add --dev @types/express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -136,7 +152,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-memory-store express\n"
+            children: "pnpm add @web-ts-toolkit/express-json-router express\npnpm add --save-dev @types/express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -145,130 +161,385 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-memory-store express\n"
+            children: "bun add @web-ts-toolkit/express-json-router express\nbun add --dev @types/express\n"
           })
         })
       })]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "use-cases",
-      children: "Use Cases"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "local development"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "tests"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "examples and smoke checks"
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "production-note",
-      children: "Production Note"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "This package stores authorization transactions, exchange codes, and sessions in process memory."
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Do not use it for production or multi-instance deployments. Use the Redis or MongoDB store provider instead."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "quick-start",
       children: "Quick Start"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import express from 'express';\nimport { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';\n\nconst app = express();\n\napp.use(\n  createOidcVaultMiddleware({\n    basePath: '/auth/oidc',\n    config: {\n      issuer: process.env.OIDC_ISSUER,\n      clientId: process.env.OIDC_CLIENT_ID,\n      clientSecret: process.env.OIDC_CLIENT_SECRET,\n    },\n    frontendRedirectUri: 'https://frontend.example.com/callback',\n    storeProvider: createMemoryOidcVaultStore(),\n  }),\n);\n"
+        children: "import express from 'express';\nimport JsonRouter from '@web-ts-toolkit/express-json-router';\n\nconst app = express();\nJsonRouter.errorMessageProvider = (error) => {\n  if (error instanceof Error) {\n    return { message: error.message };\n  }\n\n  return { message: String(error) };\n};\n\nconst router = new JsonRouter('/api');\n\nrouter.get('/health', () => ({ ok: true }));\n\nrouter.get('/users/:id', () => {\n  throw new JsonRouter.clientErrors.NotFoundError('User not found');\n});\n\napp.use(router.original);\n"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "For local development, this is the simplest store because it has no external infrastructure requirements."
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "test-friendly-clock-override",
-      children: "Test-friendly clock override"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The store accepts a custom ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "now()"
-      }), " function, which is useful in deterministic tests."]
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter"
+      }), " is a good fit when you want Express routes to behave more like small return-value handlers than manual ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "res.json(...)"
+      }), " controllers."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "what-it-exposes",
+      children: "What It Exposes"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Main exports:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["default-only ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouter"
+        }), " class export"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouter.HttpResponse"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouter.clientErrors"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouter.success"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouter.createHandler(...)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouter.ErrorFormats"
+        })
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["type imports: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouterCallback"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouterEndpoint"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouterHandlerInput"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouterMethod"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouterMiddlewares"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouterRouteRegistrar"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouteBuilder"
+        })]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "There are no documented subpaths for this package. The public surface is the root package export."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "common-patterns",
+      children: "Common Patterns"
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "route-level-middleware",
+      children: "Route-level middleware"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Pass middleware in the constructor when every route on the router should share the same request preconditions."
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "const storeProvider = createMemoryOidcVaultStore({\n  now: () => 1_700_000_000_000,\n});\n"
+        children: "import type { RequestHandler } from 'express';\n\nconst requireAuth: RequestHandler = (_req, _res, next) => next();\nconst requireProjectScope: RequestHandler = (_req, _res, next) => next();\n\nconst router = new JsonRouter('/api', [requireAuth, requireProjectScope]);\n\nrouter.get('/me', (req) => ({ userId: req.get('x-user-id') ?? 'anonymous' }));\nrouter.get('/projects', async () => []);\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "That lets tests control expiry behavior without waiting for real time to pass."
+      children: "Those middleware functions run before the final JSON-aware handler on each registered route."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "chained-route-registration",
+      children: "Chained route registration"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "router.route(path)"
+      }), " when you want grouped handlers for the same path."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "async function getUser(id: string) {\n  return { id };\n}\n\nasync function updateUser(id: string, body: unknown) {\n  return { id, body };\n}\n\nrouter\n  .route('/users/:id')\n  .get(async (req) => getUser(req.params.id))\n  .patch(async (req) => updateUser(req.params.id, req.body))\n  .delete(async (req) => JsonRouter.HttpResponse.noContent());\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "endpoint-introspection",
+      children: "Endpoint introspection"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "getEndpoints()"
+      }), " is useful for debugging, tests, or building lightweight route documentation."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "async function createJob() {\n  return { id: 'job_1' };\n}\n\nrouter.get('/health', () => ({ ok: true }));\nrouter.post('/jobs', async () => JsonRouter.HttpResponse.created(await createJob()));\n\nrouter.getEndpoints();\n// [\n//   { method: 'GET', path: '/api/health' },\n//   { method: 'POST', path: '/api/jobs' },\n// ]\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "structured-error-formats",
+      children: "Structured Error Formats"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter"
+      }), " creates a response handler from the current static defaults when each router is constructed. If you want a different error format such as RFC 9457, create a custom handler and pass it to the router constructor:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import JsonRouter from '@web-ts-toolkit/express-json-router';\nimport { BadRequestError } from '@web-ts-toolkit/http-errors';\n\nconst responseHandler = JsonRouter.createHandler({\n  errorFormat: JsonRouter.ErrorFormats.rfc9457,\n  errorDomain: 'api.example.com',\n});\n\nconst router = new JsonRouter('/api', undefined, responseHandler);\n\nrouter.get('/users', () => {\n  throw new BadRequestError('invalid email', {\n    type: 'https://api.example.com/problems/invalid-email',\n    title: 'Invalid email address',\n    errors: [\n      {\n        detail: 'must be a valid email address',\n        pointer: '#/email',\n      },\n    ],\n  });\n});\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The static hook properties such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.preJson"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.errorMessageProvider"
+      }), " still proxy the shared default handler. When you pass a custom handler instance, configure that handler directly before giving it to the router."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "handler-defaults-vs-isolated-handlers",
+      children: "Handler defaults vs isolated handlers"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Static properties configure defaults for routers created after the change:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "JsonRouter.preError = async (error) => {\n  console.error('shared router error', error);\n};\n\nconst firstRouter = new JsonRouter('/api');\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Routers created before a static default changes keep the handler they captured during construction. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.defaultHandler"
+      }), " also returns a newly configured handler each time it is read; it is not a shared mutable instance."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "If you want isolated behavior per router, create and pass an explicit handler:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "const handler = JsonRouter.createHandler({\n  errorFormat: JsonRouter.ErrorFormats.aip193,\n  errorDomain: 'api.example.com',\n});\n\nhandler.preError = async (error) => {\n  console.error('admin router error', error);\n};\n\nconst adminRouter = new JsonRouter('/admin', undefined, handler);\n"
+      })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "behavior",
       children: "Behavior"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["sessions are stored in ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "Map"
-        }), " instances in the current Node.js process"]
+        children: ["Route handlers can return plain values, promises, ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouter.HttpResponse.*"
+        }), " helpers, or throw ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouter.clientErrors.*"
+        }), " errors."]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "authorization transactions and one-time exchange codes are consumed once"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "expiry cleanup is opportunistic and happens during reads and writes"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "session rotation fails with a conflict if the original session no longer exists"
+        children: "Router-level middleware can be passed as a single function or an array in the constructor."
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["A custom response-handler instance can be passed as the third constructor argument when you need ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "aip193"
+        }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "rfc9457"
+        }), " error formatting."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "deleteSessionsBySubject(...)"
+          children: "router.route(path)"
+        }), " supports the same JSON-aware handler behavior as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "router.get(path, ...)"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "router.post(path, ...)"
+        }), ", and the other Express router methods exposed by the instance."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "basePath"
+        }), ", route method paths, and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "router.route(path)"
+        }), " intentionally accept string paths only. Express ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "RegExp"
+        }), " paths and path pattern arrays are rejected with a package-level ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "TypeError"
+        }), " before registration because ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "getEndpoints()"
+        }), " returns string metadata."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "router.getEndpoints()"
+        }), " returns a snapshot of the registered endpoints in registration order."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "router.use(...)"
         }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "deleteSessionsByProviderSessionId(...)"
-        }), " are supported for logout and backchannel logout flows"]
+          children: "router.param(...)"
+        }), " are still available on the instance when you need normal Express router behavior."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "when-to-use-it",
-      children: "When To Use It"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Choose the memory store when you want:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "the shortest local-development setup"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "integration tests without Redis or MongoDB"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "predictable in-process behavior for smoke tests and examples"
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Do not choose it when sessions must survive process restarts or be shared across multiple Node.js instances."
+      id: "hooks",
+      children: "Hooks"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The package forwards hook defaults from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/express-response-handler"
+      }), " through static properties on ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "JsonRouter.preJson = (value) => {\n  console.log('about to serialize', value);\n};\n\nJsonRouter.postJson = (value) => {\n  console.log('serialized', value);\n};\n\nJsonRouter.preError = (error) => {\n  console.error('request failed', error);\n};\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["These static hooks are process-wide defaults for newly created routers and newly read ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.defaultHandler"
+      }), " instances. Pass a custom response-handler instance to the constructor when you need isolated hook or error-provider state."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Hooks are observational side effects. They may return ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "void"
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Promise<void>"
+      }), ", but returned values never transform response payloads. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "preJson"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "preError"
+      }), " run before serialization. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "postJson"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "postError"
+      }), " run only after a successful HTTP ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "finish"
+      }), "; they do not run after client ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "close"
+      }), " or failed serialization. Pre-hook failures use the normal error response path, while post-hook failures are passed to Express with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "next(err)"
+      }), " after the response has finished."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "api",
       children: "API"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "createMemoryOidcVaultStore(options?)"
+        children: "new JsonRouter(basePath?, middlewares?, responseHandler?)"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Creates an in-memory implementation of the core ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "OidcVaultStoreProvider"
-      }), " contract."]
+      children: ["Creates a JSON-aware Express router. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "basePath"
+      }), " accepts string values like ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "'/api'"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "'api'"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "'api/'"
+      }), " and is normalized for route registration. Non-string values are rejected with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "TypeError: JsonRouter basePath must be a string path"
+      }), ". ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "responseHandler"
+      }), " defaults to a fresh handler created from the current static defaults."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "MemoryOidcVaultStoreOptions"
+        children: "router.original"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Supports a custom ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "now()"
-      }), " function for deterministic tests."]
+      children: ["Returns the underlying Express router so it can be mounted with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "app.use(...)"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "router.route(path)"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Builds chained route registrations such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "router.route('/users').get(...).post(...)"
+      }), ". Paths must be strings; Express ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "RegExp"
+      }), " paths and path pattern arrays are intentionally not supported because endpoint introspection returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ method, path: string }"
+      }), " metadata. Non-string route paths fail synchronously with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "TypeError: JsonRouter route path must be a string path"
+      }), " before Express registration or endpoint recording."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "router.use(...)"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "router.param(...)"
+      })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Forward directly to the underlying Express router for compatibility with normal Express middleware and param handling."
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "router.getEndpoints()"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ method, path }[]"
+      }), " for the routes registered through ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.clientErrors"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Re-exports the HTTP error classes from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/http-errors"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.success"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Re-exports success response classes such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.success.Created"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.HttpResponse"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Exposes helper constructors such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.HttpResponse.ok(...)"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.HttpResponse.created(...)"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.defaultHandler"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Returns a newly configured response-handler instance using the current static defaults. Existing routers keep the handler instance captured during construction."
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.ErrorFormats"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Exposes named error format constants such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.ErrorFormats.rfc9457"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.createHandler"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Re-exports ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createHandler(...)"
+      }), " from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/express-response-handler"
+      }), " so you can provide a custom handler instance to the router."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.errorMessageProvider"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Overrides the error-to-payload mapping used for non-HTTP errors."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.preJson"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.postJson"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.preError"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.postError"
+      })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Expose the shared serialization and error hooks from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/express-response-handler"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "related-packages",
       children: "Related Packages"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "./express-oidc-vault",
+          href: "./express-response-handler",
           children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/express-oidc-vault"
+            children: "@web-ts-toolkit/express-response-handler"
           })
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "./express-oidc-vault-redis-store",
+          href: "./http-errors",
           children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/express-oidc-vault-redis-store"
-          })
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "./express-oidc-vault-mongodb-store",
-          children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/express-oidc-vault-mongodb-store"
+            children: "@web-ts-toolkit/http-errors"
           })
         })
       }), "\n"]

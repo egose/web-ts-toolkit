@@ -135,7 +135,7 @@ function _createMdxContent(props) {
           children: (0,jsx_runtime.jsx)(_components.code, {
             children: "@web-ts-toolkit/express-oidc-vault"
           })
-        }), ": cookie-free OIDC middleware for Express with server-side refresh-token storage."]
+        }), ": OIDC middleware for Express with body or cookie session transport and server-side refresh-token storage."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.a, {
           href: "./express-oidc-vault-memory-store",

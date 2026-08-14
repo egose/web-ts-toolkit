@@ -73,6 +73,14 @@ const toc = [{
   "id": "operational-notes",
   "level": 2
 }, {
+  "value": "Security Notes",
+  "id": "security-notes",
+  "level": 2
+}, {
+  "value": "Scoped Deletion Indexes",
+  "id": "scoped-deletion-indexes",
+  "level": 2
+}, {
   "value": "Related Packages",
   "id": "related-packages",
   "level": 2
@@ -151,7 +159,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import express from 'express';\nimport { MongoClient } from 'mongodb';\nimport { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { createMongoOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-mongodb-store';\n\nconst app = express();\nconst mongo = new MongoClient(process.env.MONGODB_URI!);\n\nawait mongo.connect();\n\napp.use(\n  createOidcVaultMiddleware({\n    basePath: '/auth/oidc',\n    config: {\n      issuer: process.env.OIDC_ISSUER,\n      clientId: process.env.OIDC_CLIENT_ID,\n      clientSecret: process.env.OIDC_CLIENT_SECRET,\n    },\n    frontendRedirectUri: 'https://frontend.example.com/callback',\n    postLogoutRedirectUri: 'https://frontend.example.com/logged-out',\n    storeProvider: createMongoOidcVaultStore({\n      db: mongo.db('app-auth'),\n    }),\n  }),\n);\n"
+        children: "import express from 'express';\nimport { MongoClient } from 'mongodb';\nimport { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { createMongoOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-mongodb-store';\n\nconst app = express();\nconst mongo = new MongoClient(process.env.MONGODB_URI!);\n\nawait mongo.connect();\n\nconst storeProvider = createMongoOidcVaultStore({\n  db: mongo.db('app-auth'),\n});\n\nawait storeProvider.ready();\n\napp.use(\n  createOidcVaultMiddleware({\n    basePath: '/auth/oidc',\n    backendOrigin: 'https://api.example.com',\n    config: {\n      issuer: process.env.OIDC_ISSUER,\n      clientId: process.env.OIDC_CLIENT_ID,\n      clientSecret: process.env.OIDC_CLIENT_SECRET,\n    },\n    frontendRedirectUri: 'https://frontend.example.com/callback',\n    postLogoutRedirectUri: 'https://frontend.example.com/logged-out',\n    storeProvider,\n  }),\n);\n\nconst server = app.listen(3000);\n\nprocess.once('SIGTERM', async () => {\n  server.close();\n  await mongo.close();\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "custom-collection-names",
@@ -161,32 +169,42 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "const storeProvider = createMongoOidcVaultStore({\n  db: mongo.db('app-auth'),\n  authorizationTransactionsCollectionName: 'auth_oidc_transactions',\n  exchangeCodesCollectionName: 'auth_oidc_exchange_codes',\n  sessionsCollectionName: 'auth_oidc_sessions',\n});\n"
+        children: "const storeProvider = createMongoOidcVaultStore({\n  db: mongo.db('app-auth'),\n  authorizationTransactionsCollectionName: 'auth_oidc_transactions',\n  exchangeCodesCollectionName: 'auth_oidc_exchange_codes',\n  sessionsCollectionName: 'auth_oidc_sessions',\n  backchannelLogoutTokenJtisCollectionName: 'auth_oidc_backchannel_logout_jtis',\n  rotatedSessionAliasesCollectionName: 'auth_oidc_rotated_session_aliases',\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "behavior",
       children: "Behavior"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "uses separate collections for authorization transactions, exchange codes, and sessions"
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["creates TTL indexes on ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "expiresAt"
-        })]
+        children: "uses separate collections for authorization transactions, exchange codes, sessions, backchannel logout token JTIs, and rotated-session aliases"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "also checks expiry on reads so behavior does not depend on MongoDB's background TTL monitor timing"
+        children: "creates TTL indexes on expiring records"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "checks expiration during relevant reads or consumes for authorization transactions, exchange codes, backchannel logout token JTIs, and rotated-session aliases so behavior does not depend only on MongoDB's background TTL monitor timing"
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["stores session records by ", (0,jsx_runtime.jsx)(_components.code, {
           children: "sessionId"
         }), " and replaces them during rotation"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["creates indexes for ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ["creates scoped compound indexes for ", (0,jsx_runtime.jsx)(_components.code, {
           children: "subject"
-        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "providerSessionId"
-        }), " so logout and backchannel logout queries can efficiently remove matching sessions"]
+        }), ", session ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "logicalSessionId"
+        }), ", and rotated-alias ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "logicalSessionId"
+        }), " so logout and backchannel logout queries can efficiently remove matching sessions and aliases"]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "uses MongoDB transactions for session rotation when the deployment supports them, and falls back to conflict-safe non-transaction behavior on standalone servers"
+        children: "requires MongoDB transactions for session rotation; use a replica set or sharded deployment because standalone servers fail closed instead of using non-atomic multi-write rotation"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "readiness creates required indexes, validates collection names, and verifies transaction-capable topology before traffic is accepted"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["stores rotated-session aliases with finite expiry; sessions without explicit expiry use a 5 minute alias-retention window by default, configurable with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "rotatedSessionAliasRetentionMs"
+        })]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "removes aliases when deleting by current session ID, stale rotated ID, logical session ID, subject, or provider session ID"
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "when-to-use-it",
@@ -213,7 +231,23 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Creates a MongoDB-backed implementation of the core ", (0,jsx_runtime.jsx)(_components.code, {
         children: "OidcVaultStoreProvider"
-      }), " contract."]
+      }), " contract with an additional ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ready()"
+      }), " startup check."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultMongoStoreProvider"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["extends ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "OidcVaultStoreProvider"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "ready()"
+        }), ": waits for collection-name validation, required index creation, and transaction-topology verification"]
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         children: "MongoOidcVaultStoreOptions"
@@ -235,6 +269,18 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "sessionsCollectionName?"
         })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "backchannelLogoutTokenJtisCollectionName?"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "rotatedSessionAliasesCollectionName?"
+        })
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "rotatedSessionAliasRetentionMs?"
+        }), ": finite positive alias retention for sessions without explicit expiry, defaulting to 5 minutes"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "now?"
@@ -244,13 +290,67 @@ function _createMdxContent(props) {
       id: "operational-notes",
       children: "Operational Notes"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["startup order should be: connect the MongoDB client, create the store, await ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "storeProvider.ready()"
+        }), ", then call ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "app.listen()"
+        }), " or otherwise accept traffic"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "the application owns MongoDB client shutdown; this package never closes the client"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "TTL index cleanup in MongoDB is asynchronous, so the package also validates expiration during reads"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "session rotation tries to use transactions when the MongoDB deployment reports transaction support"
+        children: "rotated-session aliases are retained to bridge in-flight refresh/logout races after a session ID rotates; if a request uses a stale rotated ID after the alias expires, that stale ID no longer revokes the active logical session"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "on standalone MongoDB servers without transactions, rotation still avoids leaving the replacement session active when the original session has already disappeared"
+        children: "readiness verifies the deployment reports transaction support before any store operation can run"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "standalone MongoDB servers without transactions cannot rotate sessions with this provider; migrate to a replica set or sharded deployment before enabling refresh flows"
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "security-notes",
+      children: "Security Notes"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Session records contain refresh tokens, ID tokens, access tokens, and related bearer-equivalent secrets. Require TLS, least-privilege MongoDB roles, encryption at rest and in backups, restricted logging/metrics/tracing/export paths, and explicit retention policies for all five store collections."
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "This package does not implement application-level field encryption or client-side field-level encryption. Configure those at the MongoDB/client layer if your deployment requires them."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "scoped-deletion-indexes",
+      children: "Scoped Deletion Indexes"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "The sessions collection creates these deletion indexes:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "subject_scope_idx"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ subject: 1, 'provider.issuer': 1, 'provider.clientId': 1 }"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "provider_session_scope_idx"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ providerSessionId: 1, 'provider.issuer': 1, 'provider.clientId': 1 }"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "logical_session_idx"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ logicalSessionId: 1 }"
+        })]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Representative ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "explain('executionStats')"
+      }), " evidence used a dataset with 2 repeated identities, 10 issuers, 10 clients, and 10 duplicate sessions per issuer/client scope. With only single-field identity indexes, scoped delete lookups examined all 1,000 matching identity documents. With the compound indexes above, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "subject/providerSessionId + issuer"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "subject/providerSessionId + clientId"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "subject/providerSessionId + issuer + clientId"
+      }), " examined 100, 100, and 10 documents respectively, matching the scoped result set size in that dataset."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "The package creates one compound index per public scoped identity delete path rather than one index per optional-filter permutation. The leading identity key still supports identity-only deletes, while issuer/client scoped deletes avoid broad scans in multi-tenant collections. Very large deployments should still expect deletion cost to scale with the number of sessions being revoked inside the selected issuer/client scope."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "related-packages",
       children: "Related Packages"

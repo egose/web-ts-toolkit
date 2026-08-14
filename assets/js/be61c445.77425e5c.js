@@ -267,6 +267,30 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "import { ClientError, ServerError } from '@web-ts-toolkit/http-errors';\n\nthrow new ClientError(403, 'forbidden project access');\nthrow new ServerError(503, 'search index is rebuilding');\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "HttpError"
+      }), " accepts only finite integer ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "4xx"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "5xx"
+      }), " status codes. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ClientError"
+      }), " accepts only ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "4xx"
+      }), " codes, and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ServerError"
+      }), " accepts only ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "5xx"
+      }), " codes. Invalid values such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "200"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "399"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "600"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "NaN"
+      }), ", infinities, and fractions throw synchronously at construction time."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "attach-a-cause",
       children: "Attach a cause"
@@ -333,6 +357,36 @@ function _createMdxContent(props) {
           children: "errors"
         }), ": validation or field-level error payloads"]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "HttpError"
+      }), " owns only the top-level structured collection boundaries. At construction, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "metadata"
+      }), " is normalized into a frozen string record, and array-valued ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "details"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "errors"
+      }), " are copied into frozen arrays. Mutating caller-owned source records or arrays after construction cannot add, remove, reorder, or rename entries on the error."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Serialization creates fresh top-level arrays and metadata records, so mutating one returned payload does not mutate the source error or a later serialization. The snapshot is shallow: nested detail and error entry objects remain shared by reference, and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ErrorOptions.cause"
+      }), " identity is preserved rather than cloned."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Serializers emit selected fields verbatim into external response payloads. Treat ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "message"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "details"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "errors"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "metadata"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "type"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "title"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "instance"
+      }), " as public API data. Do not include secrets, stack traces, raw upstream errors, credentials, tokens, or internal diagnostics in those fields unless clients are meant to receive them."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "common-patterns",
       children: "Common Patterns"
@@ -368,6 +422,34 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "import { BadRequestError, toAip193ErrorPayload } from '@web-ts-toolkit/http-errors';\n\nconst error = new BadRequestError('invalid email', {\n  reason: 'INVALID_EMAIL',\n  domain: 'api.example.com',\n  metadata: {\n    field: 'email',\n  },\n});\n\nconst payload = toAip193ErrorPayload(error);\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The AIP-193 serializer returns a Google-style ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ error }"
+      }), " envelope with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "code"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "status"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "message"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "details"
+      }), ". The first detail is always an ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "error_info"
+      }), " entry. Its ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "reason"
+      }), " comes from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "error.reason"
+      }), " or the canonical status, its ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "domain"
+      }), " comes from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "error.domain"
+      }), " or the serializer fallback domain, and its ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "metadata"
+      }), " is copied when present. When ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "error.errors"
+      }), " is present, the serializer appends a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "bad_request"
+      }), " detail; array-valued entries are shallow-copied."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "convert-an-error-to-an-rfc-9457-payload",
       children: "Convert an error to an RFC 9457 payload"
@@ -376,6 +458,34 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "import { BadRequestError, toRfc9457ErrorPayload } from '@web-ts-toolkit/http-errors';\n\nconst error = new BadRequestError('Email must be a valid address.', {\n  type: 'https://api.example.com/problems/invalid-email',\n  title: 'Invalid email address',\n  instance: '/problems/invalid-email/123',\n  errors: [\n    {\n      detail: 'must be a valid email address',\n      pointer: '#/email',\n      parameter: 'email',\n    },\n    {\n      detail: 'x-request-id header is required',\n      header: 'x-request-id',\n    },\n  ],\n});\n\nconst payload = toRfc9457ErrorPayload(error);\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "toRfc9457ErrorPayload(...)"
+      }), " is the general problem-details serializer. It always emits ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "type"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "title"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "status"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "detail"
+      }), ", and it preserves custom ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "errors"
+      }), " entry types when the input is typed as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "HttpErrorShape<YourEntry[]>"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["When ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "type"
+      }), " is missing, the serializer uses ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "about:blank"
+      }), ". When ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "title"
+      }), " is missing, it uses the canonical HTTP status title, or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Unknown"
+      }), " for unmapped status codes. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "instance"
+      }), " is emitted only when present."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "use-the-typed-rfc-9457-validation-helper",
       children: "Use the typed RFC 9457 validation helper"
@@ -384,6 +494,22 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "import { BadRequestError, toRfc9457ValidationErrorPayload } from '@web-ts-toolkit/http-errors';\n\nconst error = new BadRequestError('Email must be a valid address.', {\n  type: 'https://api.example.com/problems/invalid-email',\n  title: 'Invalid email address',\n  errors: [\n    {\n      detail: 'must be a valid email address',\n      pointer: '#/email',\n    },\n  ],\n});\n\nconst payload = toRfc9457ValidationErrorPayload(error);\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The validation helper performs runtime narrowing before typing the result as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Rfc9457ValidationError[]"
+      }), ". It keeps only entries with an own string ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "detail"
+      }), " and optional own string ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pointer"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "parameter"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "header"
+      }), "; extra fields are not copied. Non-array ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "errors"
+      }), ", empty arrays, invalid entries, and entries whose validation fields are inherited are omitted. If no valid entries remain, the payload omits ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "errors"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "choose-the-right-serialization-helper",
       children: "Choose the right serialization helper"
@@ -395,11 +521,13 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["use ", (0,jsx_runtime.jsx)(_components.code, {
           children: "toRfc9457ErrorPayload(...)"
-        }), " for general problem-details responses"]
+        }), " for general problem-details responses, including custom extension ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "errors"
+        }), " entry shapes"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["use ", (0,jsx_runtime.jsx)(_components.code, {
           children: "toRfc9457ValidationErrorPayload(...)"
-        }), " when you want the returned payload typed specifically as a validation-style RFC 9457 response"]
+        }), " when you want invalid validation entries filtered and the returned payload typed specifically as a validation-style RFC 9457 response"]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "express-route-example",
@@ -423,15 +551,23 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "HttpError"
-      }), " is the neutral base class for HTTP responses."]
+      }), " is the neutral base class for HTTP error responses and accepts status codes from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "400"
+      }), " through ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "599"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "ClientError"
-      }), " is the base class for 4xx responses."]
+      }), " is the base class for ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "4xx"
+      }), " responses."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "ServerError"
-      }), " is the base class for 5xx responses."]
+      }), " is the base class for ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "5xx"
+      }), " responses."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "That gives you two common styles:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {

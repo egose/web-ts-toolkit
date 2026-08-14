@@ -1,7 +1,7 @@
 "use strict";
-(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[853],{
+(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[887],{
 
-/***/ 8648
+/***/ 8543
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 // ESM COMPAT FLAG
@@ -13,12 +13,12 @@ __webpack_require__.d(__webpack_exports__, {
   contentTitle: () => (/* binding */ contentTitle),
   "default": () => (/* binding */ MDXContent),
   frontMatter: () => (/* binding */ frontMatter),
-  metadata: () => (/* reexport */ site_docs_packages_express_json_router_md_073_namespaceObject),
+  metadata: () => (/* reexport */ site_docs_packages_express_oidc_vault_redis_store_md_f9d_namespaceObject),
   toc: () => (/* binding */ toc)
 });
 
-;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-json-router-md-073.json
-const site_docs_packages_express_json_router_md_073_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-json-router","title":"@web-ts-toolkit/express-json-router","description":"Express router wrapper that wires route handlers through @web-ts-toolkit/express-response-handler and keeps track of registered endpoints.","source":"@site/docs/packages/express-json-router.md","sourceDirName":"packages","slug":"/packages/express-json-router","permalink":"/docs/packages/express-json-router","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":2,"frontMatter":{"sidebar_label":"Express JSON Router","sidebar_position":2},"sidebar":"packagesSidebar","previous":{"title":"Access Router Runtime","permalink":"/docs/packages/access-router-runtime"},"next":{"title":"Express Runtime","permalink":"/docs/packages/express-runtime"}}');
+;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-oidc-vault-redis-store-md-f9d.json
+const site_docs_packages_express_oidc_vault_redis_store_md_f9d_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-oidc-vault-redis-store","title":"@web-ts-toolkit/express-oidc-vault-redis-store","description":"Redis-backed store provider for @web-ts-toolkit/express-oidc-vault.","source":"@site/docs/packages/express-oidc-vault-redis-store.md","sourceDirName":"packages","slug":"/packages/express-oidc-vault-redis-store","permalink":"/docs/packages/express-oidc-vault-redis-store","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":5,"frontMatter":{"sidebar_label":"OIDC Vault Redis Store","sidebar_position":5},"sidebar":"packagesSidebar","previous":{"title":"HTTP Errors","permalink":"/docs/packages/http-errors"},"next":{"title":"Moo","permalink":"/docs/packages/moo"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -27,14 +27,14 @@ var lib = __webpack_require__(1982);
 var Tabs = __webpack_require__(5250);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@docusaurus+theme-classic@3.10.1_@types+react@19.2.14_react-dom@19.2.6_react@19.2.6__react@19.2.6_typescript@6.0.3/node_modules/@docusaurus/theme-classic/lib/theme/TabItem/index.js + 1 modules
 var TabItem = __webpack_require__(6574);
-;// ./docs/packages/express-json-router.md
+;// ./docs/packages/express-oidc-vault-redis-store.md
 
 
 const frontMatter = {
-	sidebar_label: 'Express JSON Router',
-	sidebar_position: 2
+	sidebar_label: 'OIDC Vault Redis Store',
+	sidebar_position: 5
 };
-const contentTitle = '@web-ts-toolkit/express-json-router';
+const contentTitle = '@web-ts-toolkit/express-oidc-vault-redis-store';
 
 const assets = {
 
@@ -53,44 +53,40 @@ const toc = [{
   "id": "quick-start",
   "level": 2
 }, {
-  "value": "What It Exposes",
-  "id": "what-it-exposes",
-  "level": 2
-}, {
-  "value": "Common Patterns",
-  "id": "common-patterns",
-  "level": 2
-}, {
-  "value": "Route-level middleware",
-  "id": "route-level-middleware",
-  "level": 3
-}, {
-  "value": "Chained route registration",
-  "id": "chained-route-registration",
-  "level": 3
-}, {
-  "value": "Endpoint introspection",
-  "id": "endpoint-introspection",
-  "level": 3
-}, {
-  "value": "Structured Error Formats",
-  "id": "structured-error-formats",
-  "level": 2
-}, {
-  "value": "Handler defaults vs isolated handlers",
-  "id": "handler-defaults-vs-isolated-handlers",
+  "value": "Namespaced Redis keys",
+  "id": "namespaced-redis-keys",
   "level": 3
 }, {
   "value": "Behavior",
   "id": "behavior",
   "level": 2
 }, {
-  "value": "Hooks",
-  "id": "hooks",
+  "value": "Supported Redis Topologies",
+  "id": "supported-redis-topologies",
+  "level": 2
+}, {
+  "value": "Client Lifecycle And Ownership",
+  "id": "client-lifecycle-and-ownership",
+  "level": 2
+}, {
+  "value": "Key Namespace And Migration",
+  "id": "key-namespace-and-migration",
+  "level": 2
+}, {
+  "value": "Stored Data Characteristics",
+  "id": "stored-data-characteristics",
+  "level": 2
+}, {
+  "value": "When To Use It",
+  "id": "when-to-use-it",
   "level": 2
 }, {
   "value": "API",
   "id": "api",
+  "level": 2
+}, {
+  "value": "Operational Notes",
+  "id": "operational-notes",
   "level": 2
 }, {
   "value": "Related Packages",
@@ -108,6 +104,7 @@ function _createMdxContent(props) {
     li: "li",
     p: "p",
     pre: "pre",
+    strong: "strong",
     ul: "ul",
     ...(0,lib/* useMDXComponents */.R)(),
     ...props.components
@@ -115,18 +112,28 @@ function _createMdxContent(props) {
   return (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, {
     children: [(0,jsx_runtime.jsx)(_components.header, {
       children: (0,jsx_runtime.jsx)(_components.h1, {
-        id: "web-ts-toolkitexpress-json-router",
+        id: "web-ts-toolkitexpress-oidc-vault-redis-store",
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/express-json-router"
+          children: "@web-ts-toolkit/express-oidc-vault-redis-store"
         })
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Express router wrapper that wires route handlers through ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/express-response-handler"
-      }), " and keeps track of registered endpoints."]
+      children: ["Redis-backed store provider for ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/express-oidc-vault"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
       children: "Installation"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "redis"
+      }), " package is referenced by the quick start below, but this package\ntreats it as a development-only dependency: the package does not import ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "redis"
+      }), "\nat runtime and accepts any client that implements the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultRedisClient"
+      }), "\ncontract. Install ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "redis"
+      }), " (or your adapter of choice) in your app."]
     }), "\n", (0,jsx_runtime.jsxs)(Tabs/* default */.A, {
       groupId: "npm2yarn",
       children: [(0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -134,7 +141,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @web-ts-toolkit/express-json-router express\n"
+            children: "npm install @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-redis-store express redis\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -143,7 +150,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @web-ts-toolkit/express-json-router express\n"
+            children: "yarn add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-redis-store express redis\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -152,7 +159,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @web-ts-toolkit/express-json-router express\n"
+            children: "pnpm add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-redis-store express redis\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -161,7 +168,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @web-ts-toolkit/express-json-router express\n"
+            children: "bun add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-redis-store express redis\n"
           })
         })
       })]
@@ -171,339 +178,291 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import express from 'express';\nimport JsonRouter from '@web-ts-toolkit/express-json-router';\n\nconst app = express();\nconst router = new JsonRouter('/api');\n\nrouter.get('/health', () => ({ ok: true }));\n\nrouter.get('/users/:id', () => {\n  throw new JsonRouter.clientErrors.NotFoundError('User not found');\n});\n\nJsonRouter.errorMessageProvider = (error) => {\n  if (error instanceof Error) {\n    return { message: error.message };\n  }\n\n  return { message: String(error) };\n};\n\napp.use(router.original);\n"
+        children: "import express from 'express';\nimport { createClient } from 'redis';\nimport { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { createRedisOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-redis-store';\n\nconst app = express();\nconst redis = createClient({ url: process.env.REDIS_URL });\n\nawait redis.connect();\n\napp.use(\n  createOidcVaultMiddleware({\n    basePath: '/auth/oidc',\n    backendOrigin: 'https://api.example.com',\n    config: {\n      issuer: process.env.OIDC_ISSUER,\n      clientId: process.env.OIDC_CLIENT_ID,\n      clientSecret: process.env.OIDC_CLIENT_SECRET,\n    },\n    frontendRedirectUri: 'https://frontend.example.com/callback',\n    postLogoutRedirectUri: 'https://frontend.example.com/logged-out',\n    storeProvider: createRedisOidcVaultStore({\n      client: redis,\n      keyPrefix: 'oidc-vault',\n    }),\n  }),\n);\n"
       })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter"
-      }), " is a good fit when you want Express routes to behave more like small return-value handlers than manual ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "res.json(...)"
-      }), " controllers."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "what-it-exposes",
-      children: "What It Exposes"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Main exports:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["default ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "JsonRouter"
-        }), " class export"]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "JsonRouter.HttpResponse"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "JsonRouter.clientErrors"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "JsonRouter.success"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "JsonRouter.createHandler(...)"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "JsonRouter.ErrorFormats"
-        })
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "There are no documented subpaths for this package. The public surface is the root package export."
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "common-patterns",
-      children: "Common Patterns"
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "route-level-middleware",
-      children: "Route-level middleware"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Pass middleware in the constructor when every route on the router should share the same request preconditions."
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import type { RequestHandler } from 'express';\n\nconst requireAuth: RequestHandler = (_req, _res, next) => next();\nconst requireProjectScope: RequestHandler = (_req, _res, next) => next();\n\nconst router = new JsonRouter('/api', [requireAuth, requireProjectScope]);\n\nrouter.get('/me', (req) => ({ userId: req.get('x-user-id') ?? 'anonymous' }));\nrouter.get('/projects', async () => []);\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Those middleware functions run before the final JSON-aware handler on each registered route."
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "chained-route-registration",
-      children: "Chained route registration"
+      id: "namespaced-redis-keys",
+      children: "Namespaced Redis keys"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "router.route(path)"
-      }), " when you want grouped handlers for the same path."]
+        children: "keyPrefix"
+      }), " when the same Redis instance stores data for multiple apps or environments."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "async function getUser(id: string) {\n  return { id };\n}\n\nasync function updateUser(id: string, body: unknown) {\n  return { id, body };\n}\n\nrouter\n  .route('/users/:id')\n  .get(async (req) => getUser(req.params.id))\n  .patch(async (req) => updateUser(req.params.id, req.body))\n  .delete(async (req) => JsonRouter.HttpResponse.noContent());\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "endpoint-introspection",
-      children: "Endpoint introspection"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "getEndpoints()"
-      }), " is useful for debugging, tests, or building lightweight route documentation."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "async function createJob() {\n  return { id: 'job_1' };\n}\n\nrouter.get('/health', () => ({ ok: true }));\nrouter.post('/jobs', async () => JsonRouter.HttpResponse.created(await createJob()));\n\nrouter.getEndpoints();\n// [\n//   { method: 'GET', path: '/api/health' },\n//   { method: 'POST', path: '/api/jobs' },\n// ]\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "structured-error-formats",
-      children: "Structured Error Formats"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter"
-      }), " uses the shared default response handler out of the box. If you want a different error format such as RFC 9457, create a custom handler and pass it to the router constructor:"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import JsonRouter from '@web-ts-toolkit/express-json-router';\nimport { BadRequestError } from '@web-ts-toolkit/http-errors';\n\nconst responseHandler = JsonRouter.createHandler({\n  errorFormat: JsonRouter.ErrorFormats.rfc9457,\n  errorDomain: 'api.example.com',\n});\n\nconst router = new JsonRouter('/api', undefined, responseHandler);\n\nrouter.get('/users', () => {\n  throw new BadRequestError('invalid email', {\n    type: 'https://api.example.com/problems/invalid-email',\n    title: 'Invalid email address',\n    errors: [\n      {\n        detail: 'must be a valid email address',\n        pointer: '#/email',\n      },\n    ],\n  });\n});\n"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The static hook properties such as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.preJson"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.errorMessageProvider"
-      }), " still proxy the shared default handler. When you pass a custom handler instance, configure that handler directly before giving it to the router."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "handler-defaults-vs-isolated-handlers",
-      children: "Handler defaults vs isolated handlers"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Static properties configure defaults for routers created after the change:"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "JsonRouter.preError = async (error) => {\n  console.error('shared router error', error);\n};\n\nconst firstRouter = new JsonRouter('/api');\n"
+        children: "const storeProvider = createRedisOidcVaultStore({\n  client: redis,\n  keyPrefix: 'my-app:oidc-vault',\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "If you want isolated behavior per router, create and pass an explicit handler:"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "const handler = JsonRouter.createHandler({\n  errorFormat: JsonRouter.ErrorFormats.aip193,\n  errorDomain: 'api.example.com',\n});\n\nhandler.preError = async (error) => {\n  console.error('admin router error', error);\n};\n\nconst adminRouter = new JsonRouter('/admin', undefined, handler);\n"
-      })
+      children: "This prevents the OIDC vault records from colliding with other apps using the same Redis deployment."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "behavior",
       children: "Behavior"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["Route handlers can return plain values, promises, ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "JsonRouter.HttpResponse.*"
-        }), " helpers, or throw ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "JsonRouter.clientErrors.*"
-        }), " errors."]
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "uses prefixed Redis keys for sessions, authorization transactions, and exchange codes"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "Router-level middleware can be passed as a single function or an array in the constructor."
+        children: "stores JSON payloads directly in Redis values"
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["A custom response-handler instance can be passed as the third constructor argument when you need ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "aip193"
-        }), " or ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "rfc9457"
-        }), " error formatting."]
+        children: ["uses ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "PXAT"
+        }), " for expiry timestamps"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "router.route(path)"
-        }), " supports the same JSON-aware handler behavior as ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "router.get(path, ...)"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "router.post(path, ...)"
-        }), ", and the other Express router methods exposed by the instance."]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "router.getEndpoints()"
-        }), " returns a snapshot of the registered endpoints in registration order."]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "router.use(...)"
-        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "router.param(...)"
-        }), " are still available on the instance when you need normal Express router behavior."]
+        children: ["uses ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "GETDEL"
+        }), " for atomic one-time record consumption through ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sendCommand(...)"
+        })]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "updates subject and provider-session indexes so logout and backchannel logout can delete matching sessions efficiently"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "uses Redis-side scripts for session writes, deletes, and rotation so concurrent refreshes do not fork multiple active sessions"
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "hooks",
-      children: "Hooks"
+      id: "supported-redis-topologies",
+      children: "Supported Redis Topologies"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["supported: standalone Redis with the official ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "redis"
+        }), " ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "createClient(...)"
+        }), " client (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "RedisClientType"
+        }), ")"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["supported: Redis Sentinel, by passing the underlying master client retrieved from a ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "redis.createSentinel(...)"
+        }), " sentinel (e.g. via ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "await sentinel.acquire()"
+        }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "await sentinel.use(c => c)"
+        }), ")"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["unsupported: Redis Cluster with the official ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "redis"
+        }), " ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "createCluster(...)"
+        }), " client"]
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The package forwards shared hook defaults from ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/express-response-handler"
-      }), " through static properties on ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter"
+      children: ["The bare ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createSentinel(...)"
+      }), " root client does NOT satisfy this package's structural contract directly: its ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sendCommand(isReadonly, args, options?)"
+      }), " requires an ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "isReadonly"
+      }), " first argument, while this store calls ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sendCommand(args)"
+      }), ". Pass the underlying master client returned by ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sentinel.acquire()"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sentinel.use(c => c)"
+      }), ", or wrap the Sentinel root with an adapter conforming to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultRedisClient"
       }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "JsonRouter.preJson = (value) => {\n  console.log('about to serialize', value);\n};\n\nJsonRouter.postJson = (value) => {\n  console.log('serialized', value);\n};\n\nJsonRouter.preError = (error) => {\n  console.error('request failed', error);\n};\n"
-      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Redis Cluster clients are rejected when the store is created. The store uses atomic scripts that touch multiple vault keys, and this package does not currently provide a Cluster routing/hash-slot adapter that colocates every key used by one script."
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["These static hooks are shared process-wide by ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.defaultHandler"
-      }), " because they mutate the defaults used for newly created default handler instances. Pass a custom response-handler instance to the constructor when you need isolated hook or error-provider state."]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Hooks are observational side effects. They may return ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "void"
-      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "Promise<void>"
-      }), ", but returned values never transform response payloads. ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "preJson"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "preError"
-      }), " run before serialization. ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "postJson"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "postError"
-      }), " run only after a successful HTTP ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "finish"
-      }), "; they do not run after client ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "close"
-      }), " or failed serialization. Pre-hook failures use the normal error response path, while post-hook failures are passed to Express with ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "next(err)"
-      }), " after the response has finished."]
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Minimum Redis version: 6.2."
+      }), " One-time authorization transactions and exchange codes are consumed with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "GETDEL"
+      }), ", which is unavailable before Redis 6.2. Versions 6.2 and 7.2 are exercised in integration tests."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "client-lifecycle-and-ownership",
+      children: "Client Lifecycle And Ownership"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.strong, {
+          children: "Connect the client yourself."
+        }), " The store never calls ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "client.connect()"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "client.quit()"
+        }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "client.disconnect()"
+        }), ". Pass an already-connected client and reuse it across requests."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsxs)(_components.strong, {
+          children: ["Own ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "error"
+          }), " listeners, reconnects, and shutdown."]
+        }), " The store reads and writes commands but does not attach ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "error"
+        }), " listeners, suppress client errors, or close the client. Always register a client ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "error"
+        }), " listener on production connections; an unhandled client error can crash the process."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.strong, {
+          children: "Graceful shutdown."
+        }), " Drain ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "createSession"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "rotateSession"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "deleteSessionsBy*"
+        }), " in-flight calls, then ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "client.quit()"
+        }), ". The store holds no background timers, so no store-side teardown is required beyond verifying in-flight operations have settled."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.strong, {
+          children: "Concurrency."
+        }), " Store methods are safe to call concurrently from one or more processes. Atomic operations are protected by Redis server-side scripts; concurrent duplicate ID creation, concurrent indexed revocation of overlapping indexes, concurrent rotation into the same target ID, and concurrent same-ID rotation conflicting with indexed revocation are all bounded."]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "key-namespace-and-migration",
+      children: "Key Namespace And Migration"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["All vault keys are written as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "<keyPrefix>:<kind>:<id>"
+        }), " and default to the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "oidc-vault"
+        }), " prefix. Use ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "keyPrefix"
+        }), " when the same Redis instance stores data for multiple apps, environments, or tenants."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.strong, {
+          children: "Changing the prefix is not a migration."
+        }), " Switching ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "keyPrefix"
+        }), " starts an independent empty namespace: existing sessions, indexes, aliases, exchange codes, and authorization transactions remain under the previous prefix and are neither revoked nor cleaned up by the new store. Rotate the prefix only when you are prepared to lose access to, or coordinate decommissioning of, the previous namespace."]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "stored-data-characteristics",
+      children: "Stored Data Characteristics"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["This package stores refresh tokens, ID tokens, access tokens (when present), and session metadata as ", (0,jsx_runtime.jsx)(_components.strong, {
+          children: "plaintext JSON"
+        }), " in Redis values. It does not encrypt the values, redact them on read, or strip token fields before returning them."]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Audit-trail and long-term persistence safety depends entirely on your Redis deployment: AOF/RDB snapshots, replicas, backups, and slow-query logs may all retain these plaintext values. Treat the Redis instance, its backups, and any persistence or replication as trusted infrastructure with the same access control you apply to your application database."
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["ACLs, TLS, network isolation, and Redis instance boundaries are the responsibility of the operator. Run the Redis instance on a private network, enable TLS for any cross-network hop, and apply ACL rules that limit clients to the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "keyPrefix"
+        }), " keyspace."]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "The package holds no cross-version schema migration guarantee. Treat the package version as the schema owner unless a future release documents a migration path."
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "when-to-use-it",
+      children: "When To Use It"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Use Redis when you need:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "shared session state across multiple app instances"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "fast short-lived exchange code handling"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "production-grade server-side session storage without coupling auth data to your primary database"
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "This is usually the best production default when you already operate Redis and want auth/session state decoupled from your primary app database."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "api",
       children: "API"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "new JsonRouter(basePath?, middlewares?, responseHandler?)"
+        children: "createRedisOidcVaultStore(options)"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Creates a JSON-aware Express router. ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "basePath"
-      }), " accepts values like ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "'/api'"
+      children: ["Creates a Redis-backed implementation of the core ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultStoreProvider"
+      }), " contract."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "RedisOidcVaultStoreOptions"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "client"
+        }), ": connected Redis client or compatible adapter"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "keyPrefix?"
+        }), ": optional key namespace, defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "oidc-vault"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "now?"
+        }), ": override clock source for tests or deterministic simulations"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultRedisClient"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Minimal client shape used by the package: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "'api'"
-      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "'api/'"
-      }), " and is normalized for route registration. ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "responseHandler"
-      }), " defaults to the shared handler instance from ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/express-response-handler"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "router.original"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Returns the underlying Express router so it can be mounted with ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "app.use(...)"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "router.route(path)"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Builds chained route registrations such as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "router.route('/users').get(...).post(...)"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "router.use(...)"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "router.param(...)"
-      })]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Forward directly to the underlying Express router for compatibility with normal Express middleware and param handling."
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "router.getEndpoints()"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Returns ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "{ method, path }[]"
-      }), " for the routes registered through ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.clientErrors"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Re-exports the HTTP error classes from ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/http-errors"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.success"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Re-exports success response classes such as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.success.Created"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.HttpResponse"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Exposes helper constructors such as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.HttpResponse.ok(...)"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.HttpResponse.created(...)"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.defaultHandler"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Exposes the shared default response-handler instance used by ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter"
-      }), " when no custom handler is provided."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.ErrorFormats"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Exposes named error format constants such as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.ErrorFormats.rfc9457"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.createHandler"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Re-exports ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "createHandler(...)"
-      }), " from ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/express-response-handler"
-      }), " so you can provide a custom handler instance to the router."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.errorMessageProvider"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Overrides the error-to-payload mapping used for non-HTTP errors."
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.preJson"
+        children: "get"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.postJson"
+        children: "del"
+      }), ", and the required ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sendCommand(args)"
+      }), ". ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sendCommand"
+      }), " carries ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "EVAL"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.preError"
+        children: "GETDEL"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonRouter.postError"
-      })]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Expose the shared serialization and error hooks from ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/express-response-handler"
-      }), "."]
+        children: "TYPE"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "TIME"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ZRANGE"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ZSCAN"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MGET"
+      }), " for atomic vault operations; official standalone ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "redis"
+      }), " clients (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "RedisClientType"
+      }), ") satisfy it directly, and Sentinel-wrapped master clients or adapter-compliant clients do too. Cluster-shaped clients are intentionally excluded."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "operational-notes",
+      children: "Operational Notes"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "the package expects a connected client before use"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["official standalone and Sentinel clients from ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "redis"
+        }), " satisfy the required API shape"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "one-time authorization transactions and exchange codes are consumed atomically"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "subject and provider-session indexes make bulk session deletion practical for logout flows"
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "related-packages",
       children: "Related Packages"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "./express-response-handler",
+          href: "./express-oidc-vault",
           children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/express-response-handler"
+            children: "@web-ts-toolkit/express-oidc-vault"
           })
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "./http-errors",
+          href: "./express-oidc-vault-memory-store",
           children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/http-errors"
+            children: "@web-ts-toolkit/express-oidc-vault-memory-store"
+          })
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.a, {
+          href: "./express-oidc-vault-mongodb-store",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/express-oidc-vault-mongodb-store"
           })
         })
       }), "\n"]

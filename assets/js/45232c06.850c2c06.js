@@ -57,6 +57,22 @@ const toc = [{
   "id": "quick-start",
   "level": 2
 }, {
+  "value": "Runtime Ownership",
+  "id": "runtime-ownership",
+  "level": 2
+}, {
+  "value": "TypeScript Decorator Configuration",
+  "id": "typescript-decorator-configuration",
+  "level": 2
+}, {
+  "value": "Error handling",
+  "id": "error-handling",
+  "level": 3
+}, {
+  "value": "Runtime-owned Mongoose models",
+  "id": "runtime-owned-mongoose-models",
+  "level": 3
+}, {
   "value": "Mental Model",
   "id": "mental-model",
   "level": 2
@@ -168,7 +184,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @web-ts-toolkit/access-router-deco @web-ts-toolkit/access-router reflect-metadata express\n"
+            children: "npm install @web-ts-toolkit/access-router-deco @web-ts-toolkit/access-router reflect-metadata express mongoose\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -177,7 +193,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @web-ts-toolkit/access-router-deco @web-ts-toolkit/access-router reflect-metadata express\n"
+            children: "yarn add @web-ts-toolkit/access-router-deco @web-ts-toolkit/access-router reflect-metadata express mongoose\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -186,7 +202,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @web-ts-toolkit/access-router-deco @web-ts-toolkit/access-router reflect-metadata express\n"
+            children: "pnpm add @web-ts-toolkit/access-router-deco @web-ts-toolkit/access-router reflect-metadata express mongoose\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -195,7 +211,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @web-ts-toolkit/access-router-deco @web-ts-toolkit/access-router reflect-metadata express\n"
+            children: "bun add @web-ts-toolkit/access-router-deco @web-ts-toolkit/access-router reflect-metadata express mongoose\n"
           })
         })
       })]
@@ -210,15 +226,23 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "express >=5"
         })
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "mongoose >=8"
+        }), " through ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/access-router"
+        })]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "reflect-metadata"
         })
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Import ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Importing ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/access-router-deco"
+      }), " initializes ", (0,jsx_runtime.jsx)(_components.code, {
         children: "reflect-metadata"
-      }), " once before using the decorators."]
+      }), " once before the package decorators run."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "what-it-exposes",
       children: "What It Exposes"
@@ -258,20 +282,40 @@ function _createMdxContent(props) {
           children: "Permissions"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "Context"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Filter"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Id"
         })]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["property decorator ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ["scoped property decorators ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "GlobalOption(...)"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ModelOption(...)"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DefaultModelOption(...)"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["legacy unscoped property decorator ", (0,jsx_runtime.jsx)(_components.code, {
           children: "Option(...)"
         })]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "EgoseFactory.bootstrap(...)"
         })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "EgoseFactoryStatic.create(...)"
+        })
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["exported types such as ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "Type"
-        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "BootstrapResult"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "ModuleMetadata"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "RouterModel"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Type"
         })]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
@@ -280,12 +324,123 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import 'reflect-metadata';\nimport express from 'express';\nimport {\n  Module,\n  Router,\n  RouterOptions,\n  GlobalPermissions,\n  DocPermissions,\n  Validate,\n  Document,\n  Permissions,\n  EgoseFactory,\n} from '@web-ts-toolkit/access-router-deco';\n\n@Router('User', {\n  basePath: '/users',\n})\nclass UserRouter {\n  @DocPermissions('read')\n  canRead(@Document() doc: any, @Permissions() permissions: string[]) {\n    return doc.public ? ['_id', 'name'] : permissions.includes('isAdmin') ? true : ['_id'];\n  }\n\n  @Validate('create')\n  validateCreate(@Document() doc: any) {\n    if (!doc.email) {\n      throw new Error('email is required');\n    }\n\n    return doc;\n  }\n}\n\n@RouterOptions({\n  operationAccess: {\n    list: true,\n    read: true,\n  },\n})\nclass DefaultOptions {}\n\n@Module({\n  routers: [UserRouter],\n  routerOptions: [DefaultOptions],\n  options: {\n    basePath: '/api',\n  },\n})\nclass AppModule {\n  @GlobalPermissions()\n  permissions(req: express.Request) {\n    return req.headers['x-role'] === 'admin' ? ['isAdmin'] : [];\n  }\n}\n\nconst app = express();\nEgoseFactory.bootstrap(AppModule, app);\n"
+        children: "import express from 'express';\nimport mongoose from 'mongoose';\nimport {\n  Module,\n  Router,\n  RouterOptions,\n  GlobalPermissions,\n  DocPermissions,\n  Validate,\n  Request,\n  Document,\n  Permissions,\n  EgoseFactory,\n} from '@web-ts-toolkit/access-router-deco';\n\nmongoose.model('User', new mongoose.Schema({ email: String, name: String, public: Boolean }));\n\n@Router('User', {\n  basePath: '/users',\n})\nclass UserRouter {\n  @DocPermissions('read')\n  canRead(@Document() doc: any, @Permissions() permissions: { has(permission: string): boolean }) {\n    return { read: doc.public || permissions.has('isAdmin') };\n  }\n\n  @Validate('create')\n  validateCreate(@Document() doc: any) {\n    if (!doc.email) {\n      throw new Error('email is required');\n    }\n\n    return doc;\n  }\n}\n\n@RouterOptions({\n  operationAccess: {\n    list: true,\n    read: true,\n  },\n})\nclass DefaultOptions {}\n\n@Module({\n  routers: [UserRouter],\n  routerOptions: [DefaultOptions],\n  options: {\n    basePath: '/api',\n  },\n})\nclass AppModule {\n  @GlobalPermissions()\n  permissions(@Request() req: express.Request) {\n    return req.headers['x-role'] === 'admin' ? ['isAdmin'] : [];\n  }\n}\n\nconst app = express();\nEgoseFactory.bootstrap(AppModule, app);\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["This package is a good fit when you like ", (0,jsx_runtime.jsx)(_components.code, {
         children: "access-router"
       }), "'s hooks and configuration model but want to express them through decorators and classes instead of building option objects manually."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "runtime-ownership",
+      children: "Runtime Ownership"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "EgoseFactory"
+      }), " is a compatibility singleton bound to the default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access-router"
+      }), " runtime. Use it only when your application intentionally shares that default runtime."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["For isolated applications, tests, or multiple bootstraps with the same model names, use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "EgoseFactoryStatic.create()"
+      }), ". It creates a factory bound to a fresh ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access-router"
+      }), " runtime by default:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "const factory = EgoseFactoryStatic.create();\nconst { runtime, router } = factory.bootstrap(AppModule, app);\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "If your host already owns a runtime, pass it explicitly:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { createAccessRuntime } from '@web-ts-toolkit/access-router';\n\nconst runtime = createAccessRuntime();\nconst factory = EgoseFactoryStatic.create(runtime);\nfactory.bootstrap(AppModule, app);\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The bootstrap result exposes the bound ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "runtime"
+      }), " and mounted Express ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "router"
+      }), " for lifecycle inspection. Calling ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "bootstrap(...)"
+      }), " twice with the same factory, module class, and Express app throws to avoid duplicate middleware and routes."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "typescript-decorator-configuration",
+      children: "TypeScript Decorator Configuration"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["This package uses TypeScript legacy decorators, including parameter decorators. Compile consumers with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "experimentalDecorators: true"
+      }), " and use a compiler/transpiler that preserves legacy class, method, property, and parameter decorators. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "emitDecoratorMetadata"
+      }), " is supported but not required for injection. Consumers must install the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "reflect-metadata"
+      }), " peer dependency; importing this package initializes it once before package decorators run."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Parameter injection is explicit: undecorated hook parameters receive no values. Use decorators such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Request()"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Document()"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Permissions()"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Context()"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Filter()"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Id()"
+      }), " for every runtime value a hook needs."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Decorated methods run with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "this"
+      }), " bound to the decorated class instance, not the Express request. Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Request()"
+      }), " when a hook needs request data."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "error-handling",
+      children: "Error handling"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["By default, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "EgoseFactory.bootstrap(...)"
+      }), " does not install Express error handlers. Your host app remains responsible for its own 404 and error policy."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Set ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Module({ options: { handleErrors: true } })"
+      }), " only when you want the package router to add a local compatibility error boundary. With that flag enabled, unmatched package routes return ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "404"
+      }), " with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ message: 'Not Found' }"
+      }), ", and package route errors return sanitized ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ message }"
+      }), " JSON. The boundary does not intercept unrelated application routes mounted before or after the package router, never serializes raw error objects, validates error status codes before using them, and delegates with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "next(err)"
+      }), " if response headers were already sent."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Migration note: older versions installed application-wide catch-all middleware after bootstrap. If your app relied on ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "handleErrors"
+      }), " for routes outside the decorated package router, add explicit Express 404 and error middleware after all host routes instead."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "runtime-owned-mongoose-models",
+      children: "Runtime-owned Mongoose models"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Router('ModelName')"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@RouterOptions('ModelName', ...)"
+      }), " when the model is registered on Mongoose's default connection."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "When your app owns the Mongoose model instance, pass that exact model to the decorators:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "const User = tenantConnection.model('User', userSchema);\n\n@Router(User, { basePath: '/users' })\nclass UserRouter {}\n\n@RouterOptions(User, { idParam: 'userId' })\nclass UserOptions {}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "EgoseFactory.bootstrap(...)"
+      }), " registers the supplied model instance with the factory's bound runtime before route creation. This keeps same-name models from separate Mongoose connections isolated when each module uses its own ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "EgoseFactoryStatic.create()"
+      }), " runtime."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "mental-model",
       children: "Mental Model"
@@ -298,6 +453,10 @@ function _createMdxContent(props) {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "Router('User', ...)"
         }), " declares one model router"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "Router(UserModel, ...)"
+        }), " declares one model router using that exact Mongoose model instance"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "Router({...})"
@@ -340,6 +499,28 @@ function _createMdxContent(props) {
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Use the one-argument form for shared defaults and the two-argument form when one model needs a specific override."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["During bootstrap, model route-construction options are applied before routes are created. Precedence is deterministic: default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@RouterOptions(...)"
+      }), ", then model-specific ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@RouterOptions('Model', ...)"
+      }), ", then ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Router('Model', ...)"
+      }), " options, then ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Option(...)"
+      }), " properties and decorated hooks on the same class. Later layers override earlier layers for the same option key."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Avoid setting build-time route options after bootstrap. Options such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "basePath"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "parentPath"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "idParam"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "queryRouteSegment"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "mutationRouteSegment"
+      }), " must be present before Express routes are created."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.h3, {
       id: "property-based-options-with-option",
       children: ["Property-based options with ", (0,jsx_runtime.jsx)(_components.code, {
@@ -352,6 +533,20 @@ function _createMdxContent(props) {
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "That pattern is useful when option values come from instance properties instead of hard-coded decorator arguments."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Property values on ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@RouterOptions(...)"
+      }), " classes participate in the same pre-construction option phase, so build-time options such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "basePath"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "parentPath"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "idParam"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "queryRouteSegment"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "mutationRouteSegment"
+      }), " affect the mounted Express routes."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "class-decorators",
       children: "Class Decorators"
@@ -384,7 +579,7 @@ function _createMdxContent(props) {
           children: "access-router"
         }), " options plus ", (0,jsx_runtime.jsx)(_components.code, {
           children: "basePath"
-        }), " and optional ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " and optional package-router ", (0,jsx_runtime.jsx)(_components.code, {
           children: "handleErrors"
         })]
       }), "\n"]
@@ -633,16 +828,42 @@ function _createMdxContent(props) {
         }), " injects the hook context from ", (0,jsx_runtime.jsx)(_components.code, {
           children: "access-router"
         })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@Filter()"
+        }), " injects the current filter for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "@OverrideFilter(...)"
+        }), " hooks"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@Id()"
+        }), " injects the route identifier for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "@Identifier()"
+        }), " hooks"]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Example:"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "@Prepare('create')\nprepareCreate(@Document() doc: any, @Permissions() permissions: string[]) {\n  if (permissions.includes('isAdmin')) {\n    doc.internal = true;\n  }\n\n  return doc;\n}\n"
+        children: "@Prepare('create')\nprepareCreate(@Document() doc: any, @Permissions() permissions: { has(permission: string): boolean }) {\n  if (permissions.has('isAdmin')) {\n    doc.internal = true;\n  }\n\n  return doc;\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Parameter decorators let hook methods stay focused on the values they actually use instead of accepting long positional argument lists."
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Override filters receive the runtime filter and permissions explicitly:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "@OverrideFilter('read')\nconstrainRead(@Filter() filter: any, @Permissions() permissions: { has(permission: string): boolean }) {\n  return permissions.has('isAdmin') ? filter : { ...filter, public: true };\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Identifier hooks can derive a filter from the route ID:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "@Identifier()\nbySlug(@Id() id: string) {\n  return { slug: id };\n}\n"
+      })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "property-decorator",
       children: "Property Decorator"
