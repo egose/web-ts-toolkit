@@ -184,6 +184,7 @@ export interface ExtendedDefaultModelRouterOptions<TModel = unknown> extends Def
   'operationAccess.list'?: Validation;
   'operationAccess.read'?: Validation;
   'operationAccess.update'?: Validation;
+  'operationAccess.upsert'?: Validation;
   'operationAccess.delete'?: Validation;
   'operationAccess.create'?: Validation;
   'operationAccess.distinct'?: Validation;

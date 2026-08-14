@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   Module,
   Router,
@@ -23,9 +23,14 @@ import {
   Document,
   Permissions,
   Context,
+  Filter,
+  Id,
 } from '../src';
 import { applyMethodDecorator, applyParameterDecorator } from './helpers';
 import {
+  MODULE_OPTIONS,
+  MODULE_ROUTER_OPTIONS,
+  MODULE_ROUTERS,
   ROOT_ROUTER_WATERMARK,
   ROUTER_WATERMARK,
   DEFAULT_MODEL_ROUTER_OPTIONS_WATERMARK,
@@ -49,6 +54,9 @@ import {
   IDENTIFIER_WATERMARK,
   BEFORE_DELETE_WATERMARK,
   AFTER_DELETE_WATERMARK,
+  HOOK_DEFINITIONS,
+  MODEL_HOOK_DEFINITIONS,
+  DEFAULT_MODEL_ROUTER_OPTIONS_HOOK_DEFINITIONS,
 } from '../src/constants';
 
 describe('Class Decorators', () => {
@@ -57,22 +65,35 @@ describe('Class Decorators', () => {
       class FakeRouter {}
       const TestModule = class {};
       Module({ routers: [FakeRouter] })(TestModule);
-      expect(Reflect.getMetadata('routers', TestModule)).toEqual([FakeRouter]);
+      expect(Reflect.getMetadata(MODULE_ROUTERS, TestModule)).toEqual([FakeRouter]);
     });
 
     it('should set routerOptions metadata', () => {
       class FakeOptions {}
       const TestModule = class {};
       Module({ routers: [], routerOptions: [FakeOptions] })(TestModule);
-      expect(Reflect.getMetadata('routerOptions', TestModule)).toEqual([FakeOptions]);
+      expect(Reflect.getMetadata(MODULE_ROUTER_OPTIONS, TestModule)).toEqual([FakeOptions]);
     });
 
     it('should set options metadata', () => {
       const TestModule = class {};
       Module({ routers: [], options: { basePath: '/api', handleErrors: true } })(TestModule);
-      const opts = Reflect.getMetadata('options', TestModule);
+      const opts = Reflect.getMetadata(MODULE_OPTIONS, TestModule);
       expect(opts.basePath).toBe('/api');
       expect(opts.handleErrors).toBe(true);
+    });
+
+    it('should ignore unrelated generic metadata keys', () => {
+      class FakeRouter {}
+      const TestModule = class {};
+      Reflect.defineMetadata('routers', ['wrong'], TestModule);
+      Reflect.defineMetadata('routerOptions', ['wrong'], TestModule);
+      Reflect.defineMetadata('options', { basePath: '/wrong' }, TestModule);
+      Module({ routers: [FakeRouter], options: { basePath: '/right' } })(TestModule);
+
+      expect(Reflect.getMetadata(MODULE_ROUTERS, TestModule)).toEqual([FakeRouter]);
+      expect(Reflect.getMetadata(MODULE_ROUTER_OPTIONS, TestModule)).toBeUndefined();
+      expect(Reflect.getMetadata(MODULE_OPTIONS, TestModule)).toEqual({ basePath: '/right' });
     });
   });
 
@@ -88,6 +109,14 @@ describe('Class Decorators', () => {
       const UserRouter = class {};
       Router('User', { basePath: '/users' })(UserRouter);
       expect(Reflect.getMetadata(ROUTER_OPTIONS, UserRouter)).toEqual({ basePath: '/users' });
+    });
+
+    it('should store exact Mongoose model instances', () => {
+      const model = Object.assign(vi.fn(), { modelName: 'User', schema: {} }) as any;
+      const UserRouter = class {};
+      Router(model)(UserRouter);
+      expect(Reflect.getMetadata(ROUTER_WATERMARK, UserRouter)).toBe(true);
+      expect(Reflect.getMetadata(ROUTER_MODEL, UserRouter)).toBe(model);
     });
 
     it('should set root router watermark when given options object', () => {
@@ -106,6 +135,8 @@ describe('Class Decorators', () => {
     it('should throw for invalid arguments', () => {
       expect(() => (Router as any)(null)).toThrow(TypeError);
       expect(() => (Router as any)(42)).toThrow(TypeError);
+      expect(() => (Router as any)('')).toThrow(TypeError);
+      expect(() => (Router as any)({ modelName: 'User' })).toThrow(TypeError);
     });
   });
 
@@ -125,14 +156,41 @@ describe('Class Decorators', () => {
       expect(Reflect.getMetadata(ROUTER_OPTIONS, UserOpts)).toEqual({ basePath: '/users' });
     });
 
+    it('should store exact Mongoose model instances for model-specific options', () => {
+      const model = Object.assign(vi.fn(), { modelName: 'User', schema: {} }) as any;
+      const UserOpts = class {};
+      RouterOptions(model, { basePath: '/users' })(UserOpts);
+      expect(Reflect.getMetadata(MODEL_ROUTER_OPTIONS_WATERMARK, UserOpts)).toBe(true);
+      expect(Reflect.getMetadata(ROUTER_MODEL, UserOpts)).toBe(model);
+      expect(Reflect.getMetadata(ROUTER_OPTIONS, UserOpts)).toEqual({ basePath: '/users' });
+    });
+
     it('should throw for invalid arguments', () => {
       expect(() => (RouterOptions as any)(null)).toThrow(TypeError);
       expect(() => (RouterOptions as any)(42)).toThrow(TypeError);
+      expect(() => (RouterOptions as any)('')).toThrow(TypeError);
+      expect(() => (RouterOptions as any)({ modelName: 'User' })).toThrow(TypeError);
     });
   });
 });
 
 describe('Method Decorators', () => {
+  it('keeps hook registration metadata in one authoritative definition table', () => {
+    expect(HOOK_DEFINITIONS.routeGuard).toMatchObject({
+      watermark: ROUTE_GUARD_WATERMARK,
+      optionKey: 'routeGuard',
+      aclKey: 'operationAccess',
+      array: false,
+      defaultModelOptions: true,
+    });
+    expect(HOOK_DEFINITIONS.prepare).toMatchObject({ optionKey: 'prepare', aclKey: 'prepare', array: true });
+    expect(MODEL_HOOK_DEFINITIONS.map((hook) => hook.optionKey)).not.toContain('globalPermissions');
+    expect(DEFAULT_MODEL_ROUTER_OPTIONS_HOOK_DEFINITIONS.map((hook) => hook.optionKey)).toEqual([
+      'routeGuard',
+      'identifier',
+    ]);
+  });
+
   const methodDecorators: Array<{
     name: string;
     decorator: () => MethodDecorator;
@@ -200,6 +258,18 @@ describe('Method Decorators', () => {
       watermark: ROUTE_GUARD_WATERMARK,
       compositeKey: 'routeGuard.delete',
     },
+    {
+      name: '@RouteGuard("upsert")',
+      decorator: () => RouteGuard('upsert'),
+      watermark: ROUTE_GUARD_WATERMARK,
+      compositeKey: 'routeGuard.upsert',
+    },
+    {
+      name: '@RouteGuard("count")',
+      decorator: () => RouteGuard('count'),
+      watermark: ROUTE_GUARD_WATERMARK,
+      compositeKey: 'routeGuard.count',
+    },
     { name: '@Identifier()', decorator: Identifier, watermark: IDENTIFIER_WATERMARK, compositeKey: 'identifier' },
     {
       name: '@BeforeDelete()',
@@ -265,10 +335,33 @@ describe('Property Decorators', () => {
       expect(metadata[0].optionKey).toBe('a');
       expect(metadata[1].optionKey).toBe('b');
     });
+
+    it('should deterministically replace duplicate option metadata', () => {
+      class TestOptions {
+        propA = 1;
+        propB = 2;
+      }
+      Option('limit')(TestOptions.prototype, 'propA');
+      Option('limit')(TestOptions.prototype, 'propB');
+      Option('renamed')(TestOptions.prototype, 'propB');
+
+      expect(Reflect.getMetadata(OPTIONS_METADATA, TestOptions.prototype)).toEqual([
+        { optionKey: 'renamed', propertyKey: 'propB' },
+      ]);
+    });
   });
 });
 
 describe('Parameter Decorators', () => {
+  it('should export public parameter decorators from the package entrypoint', () => {
+    expect(Request).toEqual(expect.any(Function));
+    expect(Document).toEqual(expect.any(Function));
+    expect(Permissions).toEqual(expect.any(Function));
+    expect(Context).toEqual(expect.any(Function));
+    expect(Filter).toEqual(expect.any(Function));
+    expect(Id).toEqual(expect.any(Function));
+  });
+
   it('should set HookParamtypes.REQUEST metadata', () => {
     class TestRouter {
       handler(req: any) {}
@@ -305,6 +398,24 @@ describe('Parameter Decorators', () => {
     expect(meta).toEqual([{ index: 0, type: HookParamtypes.CONTEXT }]);
   });
 
+  it('should set HookParamtypes.FILTER metadata', () => {
+    class TestRouter {
+      handler(filter: any) {}
+    }
+    applyParameterDecorator(Filter(), TestRouter.prototype, 'handler', 0);
+    const meta = Reflect.getMetadata(ARGS_METADATA, TestRouter, 'handler');
+    expect(meta).toEqual([{ index: 0, type: HookParamtypes.FILTER }]);
+  });
+
+  it('should set HookParamtypes.ID metadata', () => {
+    class TestRouter {
+      handler(id: any) {}
+    }
+    applyParameterDecorator(Id(), TestRouter.prototype, 'handler', 0);
+    const meta = Reflect.getMetadata(ARGS_METADATA, TestRouter, 'handler');
+    expect(meta).toEqual([{ index: 0, type: HookParamtypes.ID }]);
+  });
+
   it('should preserve parameter order with mixed decorators', () => {
     class TestRouter {
       handler(perms: any, doc: any, req: any) {}
@@ -318,5 +429,17 @@ describe('Parameter Decorators', () => {
     expect(meta[0]).toEqual({ index: 0, type: HookParamtypes.PERMISSIONS });
     expect(meta[1]).toEqual({ index: 1, type: HookParamtypes.DOCUMENT });
     expect(meta[2]).toEqual({ index: 2, type: HookParamtypes.REQUEST });
+  });
+
+  it('should deterministically replace duplicate parameter metadata at the same index', () => {
+    class TestRouter {
+      handler(value: any) {}
+    }
+    applyParameterDecorator(Document(), TestRouter.prototype, 'handler', 0);
+    applyParameterDecorator(Permissions(), TestRouter.prototype, 'handler', 0);
+
+    expect(Reflect.getMetadata(ARGS_METADATA, TestRouter, 'handler')).toEqual([
+      { index: 0, type: HookParamtypes.PERMISSIONS },
+    ]);
   });
 });

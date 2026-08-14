@@ -18,9 +18,15 @@ export {
   BeforeDelete,
   AfterDelete,
   Option,
+  GlobalOption,
+  ModelOption,
+  DefaultModelOption,
   Request,
   Document,
   Permissions,
   Context,
+  Filter,
+  Id,
 } from './decorators';
-export type { Type, ModuleMetadata } from './interfaces';
+export type { RouteGuardOperationKey } from './decorators';
+export type { Type, ModuleMetadata, BootstrapResult, RouterModel } from './interfaces';

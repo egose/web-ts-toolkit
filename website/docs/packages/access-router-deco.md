@@ -12,16 +12,17 @@ This package lets you describe `access-router` modules, model routers, router op
 ## Installation
 
 ```bash npm2yarn
-npm install @web-ts-toolkit/access-router-deco @web-ts-toolkit/access-router reflect-metadata express
+npm install @web-ts-toolkit/access-router-deco @web-ts-toolkit/access-router reflect-metadata express mongoose
 ```
 
 Peer dependencies:
 
 - `@web-ts-toolkit/access-router`
 - `express >=5`
+- `mongoose >=8` through `@web-ts-toolkit/access-router`
 - `reflect-metadata`
 
-Import `reflect-metadata` once before using the decorators.
+Importing `@web-ts-toolkit/access-router-deco` initializes `reflect-metadata` once before the package decorators run.
 
 ## What It Exposes
 
@@ -29,16 +30,18 @@ Import `reflect-metadata` once before using the decorators.
 - `Router(...)`
 - `RouterOptions(...)`
 - hook decorators such as `GlobalPermissions`, `DocPermissions`, `Validate`, `Prepare`, `Transform`, `RouteGuard`
-- parameter decorators `Request`, `Document`, `Permissions`, `Context`
-- property decorator `Option(...)`
+- parameter decorators `Request`, `Document`, `Permissions`, `Context`, `Filter`, and `Id`
+- scoped property decorators `GlobalOption(...)`, `ModelOption(...)`, and `DefaultModelOption(...)`
+- legacy unscoped property decorator `Option(...)`
 - `EgoseFactory.bootstrap(...)`
-- exported types such as `Type` and `ModuleMetadata`
+- `EgoseFactoryStatic.create(...)`
+- exported types such as `BootstrapResult`, `ModuleMetadata`, `RouterModel`, and `Type`
 
 ## Quick Start
 
 ```ts
-import 'reflect-metadata';
 import express from 'express';
+import mongoose from 'mongoose';
 import {
   Module,
   Router,
@@ -46,18 +49,21 @@ import {
   GlobalPermissions,
   DocPermissions,
   Validate,
+  Request,
   Document,
   Permissions,
   EgoseFactory,
 } from '@web-ts-toolkit/access-router-deco';
+
+mongoose.model('User', new mongoose.Schema({ email: String, name: String, public: Boolean }));
 
 @Router('User', {
   basePath: '/users',
 })
 class UserRouter {
   @DocPermissions('read')
-  canRead(@Document() doc: any, @Permissions() permissions: string[]) {
-    return doc.public ? ['_id', 'name'] : permissions.includes('isAdmin') ? true : ['_id'];
+  canRead(@Document() doc: any, @Permissions() permissions: { has(permission: string): boolean }) {
+    return { read: doc.public || permissions.has('isAdmin') };
   }
 
   @Validate('create')
@@ -87,7 +93,7 @@ class DefaultOptions {}
 })
 class AppModule {
   @GlobalPermissions()
-  permissions(req: express.Request) {
+  permissions(@Request() req: express.Request) {
     return req.headers['x-role'] === 'admin' ? ['isAdmin'] : [];
   }
 }
@@ -98,10 +104,68 @@ EgoseFactory.bootstrap(AppModule, app);
 
 This package is a good fit when you like `access-router`'s hooks and configuration model but want to express them through decorators and classes instead of building option objects manually.
 
+## Runtime Ownership
+
+`EgoseFactory` is a compatibility singleton bound to the default `access-router` runtime. Use it only when your application intentionally shares that default runtime.
+
+For isolated applications, tests, or multiple bootstraps with the same model names, use `EgoseFactoryStatic.create()`. It creates a factory bound to a fresh `access-router` runtime by default:
+
+```ts
+const factory = EgoseFactoryStatic.create();
+const { runtime, router } = factory.bootstrap(AppModule, app);
+```
+
+If your host already owns a runtime, pass it explicitly:
+
+```ts
+import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+
+const runtime = createAccessRuntime();
+const factory = EgoseFactoryStatic.create(runtime);
+factory.bootstrap(AppModule, app);
+```
+
+The bootstrap result exposes the bound `runtime` and mounted Express `router` for lifecycle inspection. Calling `bootstrap(...)` twice with the same factory, module class, and Express app throws to avoid duplicate middleware and routes.
+
+## TypeScript Decorator Configuration
+
+This package uses TypeScript legacy decorators, including parameter decorators. Compile consumers with `experimentalDecorators: true` and use a compiler/transpiler that preserves legacy class, method, property, and parameter decorators. `emitDecoratorMetadata` is supported but not required for injection. Consumers must install the `reflect-metadata` peer dependency; importing this package initializes it once before package decorators run.
+
+Parameter injection is explicit: undecorated hook parameters receive no values. Use decorators such as `@Request()`, `@Document()`, `@Permissions()`, `@Context()`, `@Filter()`, and `@Id()` for every runtime value a hook needs.
+
+Decorated methods run with `this` bound to the decorated class instance, not the Express request. Use `@Request()` when a hook needs request data.
+
+### Error handling
+
+By default, `EgoseFactory.bootstrap(...)` does not install Express error handlers. Your host app remains responsible for its own 404 and error policy.
+
+Set `@Module({ options: { handleErrors: true } })` only when you want the package router to add a local compatibility error boundary. With that flag enabled, unmatched package routes return `404` with `{ message: 'Not Found' }`, and package route errors return sanitized `{ message }` JSON. The boundary does not intercept unrelated application routes mounted before or after the package router, never serializes raw error objects, validates error status codes before using them, and delegates with `next(err)` if response headers were already sent.
+
+Migration note: older versions installed application-wide catch-all middleware after bootstrap. If your app relied on `handleErrors` for routes outside the decorated package router, add explicit Express 404 and error middleware after all host routes instead.
+
+### Runtime-owned Mongoose models
+
+Use `@Router('ModelName')` and `@RouterOptions('ModelName', ...)` when the model is registered on Mongoose's default connection.
+
+When your app owns the Mongoose model instance, pass that exact model to the decorators:
+
+```ts
+const User = tenantConnection.model('User', userSchema);
+
+@Router(User, { basePath: '/users' })
+class UserRouter {}
+
+@RouterOptions(User, { idParam: 'userId' })
+class UserOptions {}
+```
+
+`EgoseFactory.bootstrap(...)` registers the supplied model instance with the factory's bound runtime before route creation. This keeps same-name models from separate Mongoose connections isolated when each module uses its own `EgoseFactoryStatic.create()` runtime.
+
 ## Mental Model
 
 - `Module(...)` declares the top-level composition unit
 - `Router('User', ...)` declares one model router
+- `Router(UserModel, ...)` declares one model router using that exact Mongoose model instance
 - `Router({...})` declares a root batch router
 - `RouterOptions({...})` sets default model options or per-model option overrides
 - method decorators map class methods to `access-router` hooks
@@ -140,6 +204,10 @@ class UserRouterOptions {}
 
 Use the one-argument form for shared defaults and the two-argument form when one model needs a specific override.
 
+During bootstrap, model route-construction options are applied before routes are created. Precedence is deterministic: default `@RouterOptions(...)`, then model-specific `@RouterOptions('Model', ...)`, then `@Router('Model', ...)` options, then `@Option(...)` properties and decorated hooks on the same class. Later layers override earlier layers for the same option key.
+
+Avoid setting build-time route options after bootstrap. Options such as `basePath`, `parentPath`, `idParam`, `queryRouteSegment`, and `mutationRouteSegment` must be present before Express routes are created.
+
 ### Property-based options with `@Option(...)`
 
 ```ts
@@ -152,6 +220,8 @@ class UserRouterOptions {
 
 That pattern is useful when option values come from instance properties instead of hard-coded decorator arguments.
 
+Property values on `@RouterOptions(...)` classes participate in the same pre-construction option phase, so build-time options such as `basePath`, `parentPath`, `idParam`, `queryRouteSegment`, and `mutationRouteSegment` affect the mounted Express routes.
+
 ## Class Decorators
 
 ### `Module({ routers, routerOptions, options })`
@@ -160,7 +230,7 @@ Defines the application module that `EgoseFactory` will bootstrap.
 
 - `routers`: router classes decorated with `@Router(...)`
 - `routerOptions`: classes decorated with `@RouterOptions(...)`
-- `options`: global `access-router` options plus `basePath` and optional `handleErrors`
+- `options`: global `access-router` options plus `basePath` and optional package-router `handleErrors`
 
 Example:
 
@@ -230,13 +300,15 @@ Hook methods can declare only the inputs they need.
 - `@Document()` injects the document payload or current document
 - `@Permissions()` injects resolved permissions
 - `@Context()` injects the hook context from `access-router`
+- `@Filter()` injects the current filter for `@OverrideFilter(...)` hooks
+- `@Id()` injects the route identifier for `@Identifier()` hooks
 
 Example:
 
 ```ts
 @Prepare('create')
-prepareCreate(@Document() doc: any, @Permissions() permissions: string[]) {
-  if (permissions.includes('isAdmin')) {
+prepareCreate(@Document() doc: any, @Permissions() permissions: { has(permission: string): boolean }) {
+  if (permissions.has('isAdmin')) {
     doc.internal = true;
   }
 
@@ -245,6 +317,24 @@ prepareCreate(@Document() doc: any, @Permissions() permissions: string[]) {
 ```
 
 Parameter decorators let hook methods stay focused on the values they actually use instead of accepting long positional argument lists.
+
+Override filters receive the runtime filter and permissions explicitly:
+
+```ts
+@OverrideFilter('read')
+constrainRead(@Filter() filter: any, @Permissions() permissions: { has(permission: string): boolean }) {
+  return permissions.has('isAdmin') ? filter : { ...filter, public: true };
+}
+```
+
+Identifier hooks can derive a filter from the route ID:
+
+```ts
+@Identifier()
+bySlug(@Id() id: string) {
+  return { slug: id };
+}
+```
 
 ## Property Decorator
 

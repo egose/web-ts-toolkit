@@ -1,82 +1,127 @@
 import 'reflect-metadata';
-import {
-  GLOBAL_PERMISSIONS_WATERMARK,
-  DOC_PERMISSIONS_WATERMARK,
-  ROUTE_GUARD_WATERMARK,
-  BASE_FILTER_WATERMARK,
-  VALIDATE_WATERMARK,
-  PREPARE_WATERMARK,
-  TRANSFORM_WATERMARK,
-  DECORATE_WATERMARK,
-  DECORATE_ALL_WATERMARK,
-  IDENTIFIER_WATERMARK,
-  OVERRIDE_FILTER_WATERMARK,
-  AFTER_PERSIST_WATERMARK,
-  BEFORE_DELETE_WATERMARK,
-  AFTER_DELETE_WATERMARK,
-} from '../constants';
+import type {
+  AccessRouterRequest,
+  ExtendedDefaultModelRouterOptions,
+  GlobalPermissionValue,
+  MaybePromise,
+  ModelBaseFilterHook,
+  ModelDeleteHook,
+  ModelDocPermissionsHook,
+  ModelDocumentHook,
+  ModelHook,
+  ModelIdentifierHook,
+  ModelListHook,
+  ModelOverrideFilterHook,
+  ModelValidateHook,
+} from '@web-ts-toolkit/access-router';
+import { HOOK_DEFINITIONS, type HookDefinition, type HookDefinitionKey, type HookOperation } from '../constants';
 
-const setMethodMetadata = (watermark: string, parentOptionKey: string, optionKey?: string) => {
-  return (target: object, key: string | symbol, descriptor: TypedPropertyDescriptor<any>) => {
-    Reflect.defineMetadata(watermark, true, descriptor.value);
-    const compositeKey = optionKey ? `${parentOptionKey}.${optionKey}` : parentOptionKey;
+type HookDecorator<TReturn> = <TKey extends string | symbol, TMethod extends (...args: any[]) => TReturn>(
+  target: object,
+  key: TKey,
+  descriptor: TypedPropertyDescriptor<TMethod>,
+) => void;
+
+type IdentifierDecoratorHook<TModel = unknown> = (
+  this: AccessRouterRequest,
+  id: string,
+) => ReturnType<ModelIdentifierHook<TModel>>;
+type BeforeDeleteDecoratorHook<TModel = unknown> = ModelDeleteHook<TModel>;
+type AfterDeleteDecoratorHook<TModel = unknown> = ModelDeleteHook<TModel>;
+type DocPermissionsDecoratorHook = ModelDocPermissionsHook;
+type BaseFilterDecoratorHook = ModelBaseFilterHook;
+type OverrideFilterDecoratorHook = ModelOverrideFilterHook;
+type ValidateDecoratorHook = ModelValidateHook;
+type PrepareDecoratorHook<TModel = unknown> = Extract<ModelHook<TModel>, Function>;
+type TransformDecoratorHook<TModel = unknown> = Extract<ModelDocumentHook<TModel>, Function>;
+type AfterPersistDecoratorHook<TModel = unknown> = Extract<ModelDocumentHook<TModel>, Function>;
+type DecorateDecoratorHook<TModel = unknown> = Extract<ModelHook<TModel>, Function>;
+type DecorateAllDecoratorHook<TModel = unknown> = Extract<ModelListHook<TModel>, Function>;
+
+const setMethodMetadata = <THook extends Function>(definition: HookDefinition, operation?: string) => {
+  return (target: object, key: string | symbol, descriptor: TypedPropertyDescriptor<THook>) => {
+    if (descriptor.value === undefined) return;
+    Reflect.defineMetadata(definition.watermark, true, descriptor.value);
+    const compositeKey = operation ? `${definition.optionKey}.${operation}` : definition.optionKey;
     Reflect.defineMetadata(compositeKey, true, descriptor.value);
-    return descriptor;
   };
 };
 
-export function GlobalPermissions(): MethodDecorator {
-  return setMethodMetadata(GLOBAL_PERMISSIONS_WATERMARK, 'globalPermissions');
+const hook = <TKey extends HookDefinitionKey>(hookKey: TKey) => HOOK_DEFINITIONS[hookKey];
+
+type OperationAccessOptionKey = Extract<keyof ExtendedDefaultModelRouterOptions, `operationAccess.${string}`>;
+
+export type RouteGuardOperationKey = Exclude<
+  OperationAccessOptionKey extends `operationAccess.${infer TOperation}` ? TOperation : never,
+  'subs'
+>;
+
+export function GlobalPermissions(): HookDecorator<MaybePromise<GlobalPermissionValue>> {
+  return setMethodMetadata(hook('globalPermissions'));
 }
 
-export function DocPermissions(optionKey: 'default' | 'create' | 'update' | 'list' | 'read'): MethodDecorator {
-  return setMethodMetadata(DOC_PERMISSIONS_WATERMARK, 'docPermissions', optionKey);
+export function DocPermissions(
+  optionKey: HookOperation<'docPermissions'>,
+): HookDecorator<ReturnType<DocPermissionsDecoratorHook>> {
+  return setMethodMetadata(hook('docPermissions'), optionKey);
 }
 
-export function BaseFilter(optionKey: 'default' | 'update' | 'list' | 'read' | 'delete'): MethodDecorator {
-  return setMethodMetadata(BASE_FILTER_WATERMARK, 'baseFilter', optionKey);
+export function BaseFilter(optionKey: HookOperation<'baseFilter'>): HookDecorator<ReturnType<BaseFilterDecoratorHook>> {
+  return setMethodMetadata(hook('baseFilter'), optionKey);
 }
 
-export function OverrideFilter(optionKey: 'default' | 'update' | 'list' | 'read' | 'delete'): MethodDecorator {
-  return setMethodMetadata(OVERRIDE_FILTER_WATERMARK, 'overrideFilter', optionKey);
+export function OverrideFilter(
+  optionKey: HookOperation<'overrideFilter'>,
+): HookDecorator<ReturnType<OverrideFilterDecoratorHook>> {
+  return setMethodMetadata(hook('overrideFilter'), optionKey);
 }
 
-export function Validate(optionKey: 'default' | 'create' | 'update'): MethodDecorator {
-  return setMethodMetadata(VALIDATE_WATERMARK, 'validate', optionKey);
+export function Validate(optionKey: HookOperation<'validate'>): HookDecorator<ReturnType<ValidateDecoratorHook>> {
+  return setMethodMetadata(hook('validate'), optionKey);
 }
 
-export function Prepare(optionKey: 'default' | 'create' | 'update'): MethodDecorator {
-  return setMethodMetadata(PREPARE_WATERMARK, 'prepare', optionKey);
+export function Prepare<TModel = unknown>(
+  optionKey: HookOperation<'prepare'>,
+): HookDecorator<ReturnType<PrepareDecoratorHook<TModel>>> {
+  return setMethodMetadata(hook('prepare'), optionKey);
 }
 
-export function Transform(optionKey: 'default' | 'update'): MethodDecorator {
-  return setMethodMetadata(TRANSFORM_WATERMARK, 'transform', optionKey);
+export function Transform<TModel = unknown>(
+  optionKey: HookOperation<'transform'>,
+): HookDecorator<ReturnType<TransformDecoratorHook<TModel>>> {
+  return setMethodMetadata(hook('transform'), optionKey);
 }
 
-export function AfterPersist(optionKey: 'default' | 'create' | 'update'): MethodDecorator {
-  return setMethodMetadata(AFTER_PERSIST_WATERMARK, 'afterPersist', optionKey);
+export function AfterPersist<TModel = unknown>(
+  optionKey: HookOperation<'afterPersist'>,
+): HookDecorator<ReturnType<AfterPersistDecoratorHook<TModel>>> {
+  return setMethodMetadata(hook('afterPersist'), optionKey);
 }
 
-export function Decorate(optionKey: 'default' | 'create' | 'update' | 'list' | 'read'): MethodDecorator {
-  return setMethodMetadata(DECORATE_WATERMARK, 'decorate', optionKey);
+export function Decorate<TModel = unknown>(
+  optionKey: HookOperation<'decorate'>,
+): HookDecorator<ReturnType<DecorateDecoratorHook<TModel>>> {
+  return setMethodMetadata(hook('decorate'), optionKey);
 }
 
-export function DecorateAll(optionKey: 'default' | 'list'): MethodDecorator {
-  return setMethodMetadata(DECORATE_ALL_WATERMARK, 'decorateAll', optionKey);
+export function DecorateAll<TModel = unknown>(
+  optionKey: HookOperation<'decorateAll'>,
+): HookDecorator<ReturnType<DecorateAllDecoratorHook<TModel>>> {
+  return setMethodMetadata(hook('decorateAll'), optionKey);
 }
 
-export function RouteGuard(optionKey: 'default' | 'create' | 'update' | 'list' | 'read' | 'delete'): MethodDecorator {
-  return setMethodMetadata(ROUTE_GUARD_WATERMARK, 'routeGuard', optionKey);
+export function RouteGuard(optionKey: RouteGuardOperationKey): HookDecorator<unknown> {
+  return setMethodMetadata(hook('routeGuard'), optionKey);
 }
 
-export function Identifier(): MethodDecorator {
-  return setMethodMetadata(IDENTIFIER_WATERMARK, 'identifier');
+export function Identifier<TModel = unknown>(): HookDecorator<ReturnType<IdentifierDecoratorHook<TModel>>> {
+  return setMethodMetadata(hook('identifier'));
 }
 
-export function BeforeDelete(): MethodDecorator {
-  return setMethodMetadata(BEFORE_DELETE_WATERMARK, 'beforeDelete');
+export function BeforeDelete<TModel = unknown>(): HookDecorator<ReturnType<BeforeDeleteDecoratorHook<TModel>>> {
+  return setMethodMetadata(hook('beforeDelete'));
 }
 
-export function AfterDelete(): MethodDecorator {
-  return setMethodMetadata(AFTER_DELETE_WATERMARK, 'afterDelete');
+export function AfterDelete<TModel = unknown>(): HookDecorator<ReturnType<AfterDeleteDecoratorHook<TModel>>> {
+  return setMethodMetadata(hook('afterDelete'));
 }

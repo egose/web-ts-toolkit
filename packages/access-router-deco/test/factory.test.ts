@@ -12,11 +12,12 @@ vi.mock('@web-ts-toolkit/access-router', () => {
   mockAcl.setDefaultModelOptions = vi.fn();
   mockAcl.setDefaultModelOption = vi.fn();
   mockAcl.getDefaultModelOption = vi.fn(() => undefined);
+  mockAcl.registerModelInstance = vi.fn();
   mockAcl.createRouter = vi.fn(() => ({ routes: vi.fn() }));
-  return { default: mockAcl };
+  return { default: mockAcl, createAccessRuntime: vi.fn(() => mockAcl) };
 });
 
-import acl from '@web-ts-toolkit/access-router';
+import acl, { createAccessRuntime } from '@web-ts-toolkit/access-router';
 import { EgoseFactory, EgoseFactoryStatic } from '../src/factory';
 import {
   Module,
@@ -41,10 +42,13 @@ import {
   Document,
   Permissions,
   Context,
+  Filter,
 } from '../src/decorators';
+import { ARGS_METADATA, HookParamtypes } from '../src/constants';
 import { applyMethodDecorator, applyParameterDecorator } from './helpers';
 
 const mockAcl = vi.mocked(acl);
+const mockCreateAccessRuntime = vi.mocked(createAccessRuntime);
 
 function createMockExpressApp() {
   return { use: vi.fn() } as any;
@@ -56,12 +60,14 @@ beforeEach(() => {
 
 describe('EgoseFactory', () => {
   describe('bootstrap', () => {
-    it('should call acl.setGlobalOptions with module options', () => {
+    it('should call acl.setGlobalOptions without decorator-only module options', () => {
       const TestModule = class {};
-      Module({ routers: [], options: { basePath: '/api', handleErrors: false } })(TestModule);
+      Module({ routers: [], options: { basePath: '/api', handleErrors: false, requestPermissionField: 'perms' } })(
+        TestModule,
+      );
 
       EgoseFactory.bootstrap(TestModule, createMockExpressApp());
-      expect(mockAcl.setGlobalOptions).toHaveBeenCalledWith({ basePath: '/api', handleErrors: false });
+      expect(mockAcl.setGlobalOptions).toHaveBeenCalledWith({ requestPermissionField: 'perms' });
     });
 
     it('should mount acl() middleware on the express app', () => {
@@ -74,6 +80,87 @@ describe('EgoseFactory', () => {
       expect(app.use).toHaveBeenCalled();
     });
 
+    it('should return the bound runtime and mounted router', () => {
+      const TestModule = class {};
+      Module({ routers: [] })(TestModule);
+
+      const result = EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+
+      expect(result.runtime).toBe(mockAcl);
+      expect(result.router).toBeDefined();
+    });
+
+    it('should reject duplicate bootstrap for the same module and app', () => {
+      const TestModule = class {};
+      Module({ routers: [] })(TestModule);
+      const app = createMockExpressApp();
+      const factory = EgoseFactoryStatic.create();
+
+      factory.bootstrap(TestModule, app);
+
+      expect(() => factory.bootstrap(TestModule, app)).toThrow(/already called/);
+    });
+
+    it('should allow retrying the same module and app after validation fails before mounting', () => {
+      class UserRouter {
+        handler(value: any) {
+          return value;
+        }
+      }
+      applyMethodDecorator(DocPermissions('read'), UserRouter.prototype, 'handler');
+      applyParameterDecorator(Filter(), UserRouter.prototype, 'handler', 0);
+      Router('User')(UserRouter);
+
+      const TestModule = class {};
+      Module({ routers: [UserRouter] })(TestModule);
+      const app = createMockExpressApp();
+      const factory = EgoseFactoryStatic.create();
+
+      expect(() => factory.bootstrap(TestModule, app)).toThrow(/unsupported parameter type FILTER/);
+      expect(app.use).not.toHaveBeenCalled();
+
+      Reflect.defineMetadata(ARGS_METADATA, [{ index: 0, type: HookParamtypes.DOCUMENT }], UserRouter, 'handler');
+
+      expect(() => factory.bootstrap(TestModule, app)).not.toThrow();
+      expect(app.use).toHaveBeenCalled();
+    });
+
+    it('should instantiate decorated module, router options, and model routers once per bootstrap', () => {
+      const constructorCalls: string[] = [];
+
+      class UserRouter {
+        constructor() {
+          constructorCalls.push('router');
+        }
+      }
+      Router('User')(UserRouter);
+
+      class DefaultOptions {
+        constructor() {
+          constructorCalls.push('default-options');
+        }
+      }
+      RouterOptions({})(DefaultOptions);
+
+      class UserOptions {
+        constructor() {
+          constructorCalls.push('model-options');
+        }
+      }
+      RouterOptions('User', {})(UserOptions);
+
+      class TestModule {
+        constructor() {
+          constructorCalls.push('module');
+        }
+      }
+      Module({ routers: [UserRouter], routerOptions: [DefaultOptions, UserOptions] })(TestModule);
+
+      EgoseFactoryStatic.create().bootstrap(TestModule, createMockExpressApp());
+
+      expect(constructorCalls).toEqual(['module', 'default-options', 'model-options', 'router']);
+    });
+
     it('should create model router for @Router decorated classes', () => {
       const UserRouter = class {};
       Router('User')(UserRouter);
@@ -82,7 +169,37 @@ describe('EgoseFactory', () => {
       Module({ routers: [UserRouter] })(TestModule);
 
       EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+      expect(mockAcl.setModelOptions).toHaveBeenCalledWith('User', {});
       expect(mockAcl.createRouter).toHaveBeenCalledWith('User', {});
+    });
+
+    it('should not treat inherited or generic string metadata as router identity', () => {
+      class BaseRouter {}
+      Router('Base')(BaseRouter);
+      class ChildRouter extends BaseRouter {}
+      Reflect.defineMetadata('__router__', true, ChildRouter);
+      Reflect.defineMetadata('__router_model__', 'Wrong', ChildRouter);
+      Reflect.defineMetadata('__router_options__', { basePath: '/wrong' }, ChildRouter);
+
+      const TestModule = class {};
+      Module({ routers: [ChildRouter] })(TestModule);
+
+      EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+      expect(mockAcl.setModelOptions).not.toHaveBeenCalled();
+      expect(mockAcl.createRouter).not.toHaveBeenCalled();
+    });
+
+    it('should create model router with exact Mongoose model instances', () => {
+      const model = Object.assign(vi.fn(), { modelName: 'User', schema: {} }) as any;
+      const UserRouter = class {};
+      Router(model)(UserRouter);
+
+      const TestModule = class {};
+      Module({ routers: [UserRouter] })(TestModule);
+
+      EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+      expect(mockAcl.setModelOptions).toHaveBeenCalledWith('User', {});
+      expect(mockAcl.createRouter).toHaveBeenCalledWith(model, {});
     });
 
     it('should create root router for @Router with options', () => {
@@ -118,6 +235,55 @@ describe('EgoseFactory', () => {
       expect(mockAcl.setModelOptions).toHaveBeenCalledWith('User', { basePath: '/users' });
     });
 
+    it('should resolve @RouterOptions model instances by deterministic model name', () => {
+      const model = Object.assign(vi.fn(), { modelName: 'User', schema: {} }) as any;
+      const UserOpts = class {};
+      RouterOptions(model, { basePath: '/users' })(UserOpts);
+
+      const TestModule = class {};
+      Module({ routers: [], routerOptions: [UserOpts] })(TestModule);
+
+      EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+      expect(mockAcl.setModelOptions).toHaveBeenCalledWith('User', { basePath: '/users' });
+    });
+
+    it('should apply default and model router options before creating model routers', () => {
+      class DefaultOpts {}
+      RouterOptions({ parentPath: '/tenant', queryRouteSegment: 'search' })(DefaultOpts);
+
+      class UserOpts {
+        id = 'userId';
+      }
+      Option('idParam')(UserOpts.prototype, 'id');
+      RouterOptions('User', { basePath: '/members' })(UserOpts);
+
+      const UserRouter = class {};
+      Router('User', { mutationRouteSegment: 'mutate' })(UserRouter);
+
+      const TestModule = class {};
+      Module({ routers: [UserRouter], routerOptions: [DefaultOpts, UserOpts] })(TestModule);
+
+      EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+
+      const setDefaultOrder = mockAcl.setDefaultModelOptions.mock.invocationCallOrder[0];
+      const setModelOptionsOrders = mockAcl.setModelOptions.mock.invocationCallOrder;
+      const setModelOptionOrder = mockAcl.setModelOption.mock.invocationCallOrder[0];
+      const createOrder = mockAcl.createRouter.mock.invocationCallOrder[0];
+
+      expect(setDefaultOrder).toBeLessThan(createOrder);
+      expect(setModelOptionsOrders[0]).toBeLessThan(createOrder);
+      expect(setModelOptionOrder).toBeLessThan(createOrder);
+      expect(setModelOptionsOrders[1]).toBeLessThan(createOrder);
+      expect(mockAcl.setDefaultModelOptions).toHaveBeenCalledWith({
+        parentPath: '/tenant',
+        queryRouteSegment: 'search',
+      });
+      expect(mockAcl.setModelOptions).toHaveBeenNthCalledWith(1, 'User', { basePath: '/members' });
+      expect(mockAcl.setModelOption).toHaveBeenCalledWith('User', 'idParam', 'userId');
+      expect(mockAcl.setModelOptions).toHaveBeenNthCalledWith(2, 'User', { mutationRouteSegment: 'mutate' });
+      expect(mockAcl.createRouter).toHaveBeenCalledWith('User', {});
+    });
+
     it('should register @Option property values via setModelOption', () => {
       class UserOpts {
         limit = 100;
@@ -130,6 +296,29 @@ describe('EgoseFactory', () => {
 
       EgoseFactory.bootstrap(TestModule, createMockExpressApp());
       expect(mockAcl.setModelOption).toHaveBeenCalledWith('User', 'listHardLimit', 100);
+    });
+
+    it('should inherit @Option properties and allow child replacement', () => {
+      class BaseOpts {
+        baseLimit = 100;
+        overriddenLimit = 200;
+      }
+      Option('baseLimit')(BaseOpts.prototype, 'baseLimit');
+      Option('limit')(BaseOpts.prototype, 'overriddenLimit');
+
+      class UserOpts extends BaseOpts {
+        childLimit = 300;
+      }
+      Option('limit')(UserOpts.prototype, 'childLimit');
+      RouterOptions('User')(UserOpts);
+
+      const TestModule = class {};
+      Module({ routers: [], routerOptions: [UserOpts] })(TestModule);
+
+      EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+      expect(mockAcl.setModelOption).toHaveBeenCalledWith('User', 'baseLimit', 100);
+      expect(mockAcl.setModelOption).toHaveBeenCalledWith('User', 'limit', 300);
+      expect(mockAcl.setModelOption).not.toHaveBeenCalledWith('User', 'limit', 200);
     });
 
     it('should register @Option property values via setGlobalOption', () => {
@@ -183,6 +372,25 @@ describe('EgoseFactory', () => {
       expect(mockAcl.setModelOption).toHaveBeenCalledWith('User', 'docPermissions.create', expect.any(Function));
     });
 
+    it('should ignore prefix-neighbor and symbol metadata on decorated methods', () => {
+      class UserRouter {
+        validate() {
+          return true;
+        }
+      }
+      applyMethodDecorator(Validate('create'), UserRouter.prototype, 'validate');
+      Reflect.defineMetadata('validateExtra', true, UserRouter.prototype.validate);
+      Reflect.defineMetadata(Symbol('validate.symbol'), true, UserRouter.prototype.validate);
+      Router('User')(UserRouter);
+
+      const TestModule = class {};
+      Module({ routers: [UserRouter] })(TestModule);
+
+      EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+      expect(mockAcl.setModelOption).toHaveBeenCalledWith('User', 'validate.create', expect.any(Function));
+      expect(mockAcl.setModelOption).not.toHaveBeenCalledWith('User', 'validateExtra', expect.any(Function));
+    });
+
     it('should register baseFilter via @BaseFilter', () => {
       class UserRouter {
         filter() {
@@ -215,7 +423,7 @@ describe('EgoseFactory', () => {
       expect(mockAcl.setModelOption).toHaveBeenCalledWith('User', 'overrideFilter.read', expect.any(Function));
     });
 
-    it('should register validate via @Validate as array', () => {
+    it('should register validate via @Validate as a callable validator', () => {
       class UserRouter {
         validate() {
           return true;
@@ -228,7 +436,7 @@ describe('EgoseFactory', () => {
       Module({ routers: [UserRouter] })(TestModule);
 
       EgoseFactory.bootstrap(TestModule, createMockExpressApp());
-      expect(mockAcl.setModelOption).toHaveBeenCalledWith('User', 'validate.create', expect.any(Array));
+      expect(mockAcl.setModelOption).toHaveBeenCalledWith('User', 'validate.create', expect.any(Function));
     });
 
     it('should register prepare via @Prepare as array', () => {
@@ -325,6 +533,22 @@ describe('EgoseFactory', () => {
 
       EgoseFactory.bootstrap(TestModule, createMockExpressApp());
       expect(mockAcl.setModelOption).toHaveBeenCalledWith('User', 'operationAccess.delete', expect.any(Function));
+    });
+
+    it('should register newer scalar routeGuard operations via @RouteGuard as operationAccess', () => {
+      class UserRouter {
+        guard() {
+          return true;
+        }
+      }
+      applyMethodDecorator(RouteGuard('upsert'), UserRouter.prototype, 'guard');
+      Router('User')(UserRouter);
+
+      const TestModule = class {};
+      Module({ routers: [UserRouter] })(TestModule);
+
+      EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+      expect(mockAcl.setModelOption).toHaveBeenCalledWith('User', 'operationAccess.upsert', expect.any(Function));
     });
 
     it('should register identifier via @Identifier as resolveIdFilter', () => {
@@ -454,6 +678,57 @@ describe('EgoseFactory', () => {
       expect(result.req).toBe(mockThis);
     });
 
+    it('should inherit decorated methods with their declaring parameter metadata', () => {
+      class BaseRouter {
+        handler(doc: any, perms: any) {
+          return { doc, perms };
+        }
+      }
+      applyMethodDecorator(DocPermissions('read'), BaseRouter.prototype, 'handler');
+      applyParameterDecorator(Document(), BaseRouter.prototype, 'handler', 0);
+      applyParameterDecorator(Permissions(), BaseRouter.prototype, 'handler', 1);
+
+      class ChildRouter extends BaseRouter {}
+      Router('User')(ChildRouter);
+
+      const TestModule = class {};
+      Module({ routers: [ChildRouter] })(TestModule);
+
+      EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+
+      const registeredFn = mockAcl.setModelOption.mock.calls.find(
+        (call) => call[0] === 'User' && call[1] === 'docPermissions.read',
+      )?.[2] as Function;
+
+      const mockDoc = { id: 'doc' };
+      const mockPerms = { read: true };
+      expect(registeredFn.call({}, mockDoc, mockPerms)).toEqual({ doc: mockDoc, perms: mockPerms });
+    });
+
+    it('should not reuse base method metadata when a child overrides the method', () => {
+      class BaseRouter {
+        handler(doc: any) {
+          return { doc };
+        }
+      }
+      applyMethodDecorator(DocPermissions('read'), BaseRouter.prototype, 'handler');
+      applyParameterDecorator(Document(), BaseRouter.prototype, 'handler', 0);
+
+      class ChildRouter extends BaseRouter {
+        handler(doc: any) {
+          return { child: doc };
+        }
+      }
+      Router('User')(ChildRouter);
+
+      const TestModule = class {};
+      Module({ routers: [ChildRouter] })(TestModule);
+
+      EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+
+      expect(mockAcl.setModelOption).not.toHaveBeenCalledWith('User', 'docPermissions.read', expect.any(Function));
+    });
+
     it('should reorder arguments for @BeforeDelete with @Document/@Permissions/@Context', () => {
       class UserRouter {
         handler(doc: any, perms: any, ctx: any) {
@@ -556,6 +831,22 @@ describe('EgoseFactory', () => {
       expect(mockAcl.setDefaultModelOption).toHaveBeenCalledWith('operationAccess.list', expect.any(Function));
     });
 
+    it('should register identifier on default model options via @Identifier', () => {
+      class DefaultOpts {
+        resolveId() {
+          return {};
+        }
+      }
+      applyMethodDecorator(Identifier(), DefaultOpts.prototype, 'resolveId');
+      RouterOptions({ idField: '_id' })(DefaultOpts);
+
+      const TestModule = class {};
+      Module({ routers: [], routerOptions: [DefaultOpts] })(TestModule);
+
+      EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+      expect(mockAcl.setDefaultModelOption).toHaveBeenCalledWith('resolveIdFilter', expect.any(Function));
+    });
+
     it('should register @Option on default RouterOptions via setDefaultModelOption', () => {
       class DefaultOpts {
         limit = 500;
@@ -588,7 +879,7 @@ describe('EgoseFactory', () => {
       expect(mockAcl.setModelOption).toHaveBeenCalledWith('User', 'listHardLimit', 200);
     });
 
-    it('should only register first matching hook per method', () => {
+    it('should reject multiple hook decorators on one method before mounting', () => {
       class UserRouter {
         handler() {
           return {};
@@ -600,18 +891,62 @@ describe('EgoseFactory', () => {
 
       const TestModule = class {};
       Module({ routers: [UserRouter] })(TestModule);
+      const app = createMockExpressApp();
 
-      EgoseFactory.bootstrap(TestModule, createMockExpressApp());
-
-      const docCall = mockAcl.setModelOption.mock.calls.find(
-        (call) => call[0] === 'User' && typeof call[1] === 'string' && call[1].startsWith('docPermissions'),
+      expect(() => EgoseFactory.bootstrap(TestModule, app)).toThrow(
+        /Invalid decorator configuration on UserRouter\.handler: multiple hook decorators \(@docPermissions, @validate\) are not supported; split each hook onto its own method/,
       );
-      const validateCall = mockAcl.setModelOption.mock.calls.find(
-        (call) => call[0] === 'User' && typeof call[1] === 'string' && call[1].startsWith('validate'),
-      );
+      expect(mockAcl.setGlobalOptions).not.toHaveBeenCalled();
+      expect(mockAcl.setModelOption).not.toHaveBeenCalled();
+      expect(app.use).not.toHaveBeenCalled();
+    });
 
-      expect(docCall).toBeDefined();
-      expect(validateCall).toBeUndefined();
+    it('should reject unsupported parameter decorators for a hook before mounting', () => {
+      class UserRouter {
+        handler(filter: any) {
+          return filter;
+        }
+      }
+      applyMethodDecorator(DocPermissions('read'), UserRouter.prototype, 'handler');
+      applyParameterDecorator(Filter(), UserRouter.prototype, 'handler', 0);
+      Router('User')(UserRouter);
+
+      const TestModule = class {};
+      Module({ routers: [UserRouter] })(TestModule);
+      const app = createMockExpressApp();
+
+      expect(() => EgoseFactory.bootstrap(TestModule, app)).toThrow(
+        /Invalid decorator configuration on UserRouter\.handler: parameter index 0 uses unsupported parameter type FILTER for @docPermissions; use a parameter decorator supported by this hook/,
+      );
+      expect(mockAcl.setGlobalOptions).not.toHaveBeenCalled();
+      expect(mockAcl.setModelOption).not.toHaveBeenCalled();
+      expect(app.use).not.toHaveBeenCalled();
+    });
+
+    it('should reject duplicate parameter metadata for one method', () => {
+      class UserRouter {
+        handler(doc: any) {
+          return doc;
+        }
+      }
+      applyMethodDecorator(DocPermissions('read'), UserRouter.prototype, 'handler');
+      Reflect.defineMetadata(
+        ARGS_METADATA,
+        [
+          { index: 0, type: HookParamtypes.DOCUMENT },
+          { index: 0, type: HookParamtypes.PERMISSIONS },
+        ],
+        UserRouter,
+        'handler',
+      );
+      Router('User')(UserRouter);
+
+      const TestModule = class {};
+      Module({ routers: [UserRouter] })(TestModule);
+
+      expect(() => EgoseFactory.bootstrap(TestModule, createMockExpressApp())).toThrow(
+        /Invalid decorator configuration on UserRouter\.handler: duplicate parameter decorator at index 0 for @docPermissions; keep only one parameter decorator per argument/,
+      );
     });
   });
 
@@ -620,6 +955,41 @@ describe('EgoseFactory', () => {
       const a = EgoseFactoryStatic.create();
       const b = EgoseFactoryStatic.create();
       expect(a).not.toBe(b);
+    });
+
+    it('should create an isolated runtime by default', () => {
+      mockCreateAccessRuntime.mockClear();
+
+      const factory = EgoseFactoryStatic.create();
+
+      expect(mockCreateAccessRuntime).toHaveBeenCalledTimes(1);
+      expect(factory.runtime).toBe(mockAcl);
+    });
+
+    it('should use an explicitly supplied runtime', () => {
+      const runtime = vi.fn(() => (req: any, res: any, next: any) => next()) as any;
+      runtime.setGlobalOptions = vi.fn();
+      runtime.setGlobalOption = vi.fn();
+      runtime.getGlobalOption = vi.fn();
+      runtime.setModelOptions = vi.fn();
+      runtime.setModelOption = vi.fn();
+      runtime.getModelOption = vi.fn();
+      runtime.setDefaultModelOptions = vi.fn();
+      runtime.setDefaultModelOption = vi.fn();
+      runtime.getDefaultModelOption = vi.fn();
+      runtime.registerModelInstance = vi.fn();
+      runtime.createRouter = vi.fn(() => ({ routes: vi.fn() }));
+
+      const UserRouter = class {};
+      Router('User')(UserRouter);
+      const TestModule = class {};
+      Module({ routers: [UserRouter] })(TestModule);
+
+      EgoseFactoryStatic.create(runtime).bootstrap(TestModule, createMockExpressApp());
+
+      expect(runtime.setModelOptions).toHaveBeenCalledWith('User', {});
+      expect(runtime.createRouter).toHaveBeenCalledWith('User', {});
+      expect(mockAcl.setModelOptions).not.toHaveBeenCalled();
     });
   });
 });

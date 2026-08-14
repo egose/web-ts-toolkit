@@ -6,6 +6,7 @@ id_ed25519*
 _tmp*
 .wip
 .mongoose
+patches
 packages/**/src/**/*.js
 packages/**/src/**/*.js.map
 packages/**/src/**/*.d.ts

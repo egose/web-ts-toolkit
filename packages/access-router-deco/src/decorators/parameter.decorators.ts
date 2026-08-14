@@ -1,9 +1,17 @@
 import 'reflect-metadata';
 import { ARGS_METADATA, HookParamtypes } from '../constants';
 
-const mergeHookParams = (target: any, key: any, index: number, type: HookParamtypes) => {
-  const args = Reflect.getMetadata(ARGS_METADATA, target.constructor, key) || [];
-  Reflect.defineMetadata(ARGS_METADATA, args.concat({ index, type }), target.constructor, key);
+type HookParamMetadata = { index: number; type: HookParamtypes };
+
+const mergeHookParams = (target: object, key: string | symbol | undefined, index: number, type: HookParamtypes) => {
+  if (key === undefined) return;
+  const args = (Reflect.getOwnMetadata(ARGS_METADATA, target.constructor, key) || []) as HookParamMetadata[];
+  Reflect.defineMetadata(
+    ARGS_METADATA,
+    args.filter((arg) => arg.index !== index).concat({ index, type }),
+    target.constructor,
+    key,
+  );
 };
 
 export function Request(): ParameterDecorator {
@@ -20,4 +28,12 @@ export function Permissions(): ParameterDecorator {
 
 export function Context(): ParameterDecorator {
   return (target, key, index) => mergeHookParams(target, key, index, HookParamtypes.CONTEXT);
+}
+
+export function Filter(): ParameterDecorator {
+  return (target, key, index) => mergeHookParams(target, key, index, HookParamtypes.FILTER);
+}
+
+export function Id(): ParameterDecorator {
+  return (target, key, index) => mergeHookParams(target, key, index, HookParamtypes.ID);
 }

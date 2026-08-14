@@ -38,6 +38,8 @@ import {
 import {
   GlobalOptions,
   RootRouterOptions,
+  ExtendedDefaultModelRouterOptions,
+  ExtendedModelRouterOptions,
   ModelRouterOptions,
   DataRouterOptions,
   AccessRouterRequest,
@@ -141,6 +143,7 @@ export type {
   AccessRouterRequestExtensions,
   GlobalOptions,
   RootRouterOptions,
+  ExtendedDefaultModelRouterOptions,
   ModelRouterOptions,
   DataRouterOptions,
   GuardModelCondition,
@@ -186,6 +189,20 @@ export type {
   OpenApiRouterOptions,
 };
 export type { CombinedRouteInput } from './routers';
+export type {
+  ExtendedModelRouterOptions,
+  MaybePromise,
+  GlobalPermissionValue,
+  ModelBaseFilterHook,
+  ModelDeleteHook,
+  ModelDocPermissionsHook,
+  ModelDocumentHook,
+  ModelHook,
+  ModelIdentifierHook,
+  ModelListHook,
+  ModelOverrideFilterHook,
+  ModelValidateHook,
+} from './interfaces';
 export * from './permission';
 export * from './plugins';
 export { redactFilter, redactPayload, safeStringify, isLevelEnabled } from './logger-helpers';
