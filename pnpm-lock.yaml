@@ -563,13 +563,13 @@ importers:
       '@web-ts-toolkit/express-oidc-vault':
         specifier: workspace:*
         version: link:../express-oidc-vault
-      redis:
-        specifier: ^5.9.0
-        version: 5.12.1(@opentelemetry/api@1.9.1)
     devDependencies:
       '@types/node':
         specifier: ^25.9.5
         version: 25.9.5
+      redis:
+        specifier: ^5.9.0
+        version: 5.12.1(@opentelemetry/api@1.9.1)
 
   packages/express-response-handler:
     dependencies:
