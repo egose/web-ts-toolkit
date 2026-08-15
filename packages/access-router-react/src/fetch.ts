@@ -155,6 +155,12 @@ export function useAbortManager(): { replace: (c: AbortController) => void } {
   if (managerRef.current === null) {
     managerRef.current = { replace };
   }
+  // Lazy-init ref read pattern (https://react.dev/reference/react/useRef):
+  // allocate the stable manager exactly once and return the same identity
+  // on every subsequent render. The `react-hooks/refs` rule flags this
+  // render-path read even though React's own docs sanction it for stable
+  // value initialization without re-render churn.
+  // eslint-disable-next-line react-hooks/refs
   return managerRef.current;
 }
 
