@@ -12,7 +12,7 @@ allowBuilds:
   sharp: false
   unix-dgram: false
 minimumReleaseAgeExclude:
-- '@repo-toolkit/changelog@0.12.0'
-- '@repo-toolkit/publish-package@0.12.0'
-- '@repo-toolkit/publish-packages@0.12.0'
-- '@repo-toolkit/release-artifact@0.12.0'
+- '@repo-toolkit/changelog@0.12.2'
+- '@repo-toolkit/publish-package@0.12.2'
+- '@repo-toolkit/publish-packages@0.12.2'
+- '@repo-toolkit/release-artifact@0.12.2'
