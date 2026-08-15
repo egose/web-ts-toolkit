@@ -11,11 +11,18 @@ export default tseslint.config(
     ignores: ['packages/access-router/_tmp_examples/**', 'website/**', 'packages/create-access-router-mongo-starter/template/**', '.mongoose/**'],
   },
   {
-    files: ['**/*.{js,mjs,cjs,ts,mts,cts}'],
+    files: ['**/*.{js,mjs,cjs,ts,tsx,mts,cts}'],
     languageOptions: {
       ecmaVersion: 'latest',
       globals: globals.node,
       sourceType: 'module',
+      parserOptions: {
+        // typescript-eslint v8.67 auto-registers the eslint config dir as a
+        // candidate tsconfigRootDir and throws when more than one is present
+        // (the root config plus apps/react-vite/eslint.config.js are both
+        // loaded during `eslint .`). Pinning the root here disambiguates.
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
   },
   {
@@ -24,6 +31,9 @@ export default tseslint.config(
       ecmaVersion: 'latest',
       globals: { ...globals.browser, ...globals.node },
       sourceType: 'module',
+      parserOptions: {
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     plugins: {
       'react-hooks': reactHooks,

@@ -450,7 +450,7 @@ export class AccessRuntime {
       return;
     }
 
-    const schema = model.schema;
+    const schema = model.schema as mongoose.Schema & { tree: Record<string, unknown>; obj: Record<string, unknown> };
     this.modelRefs[modelName] = buildRefs(schema.tree);
     this.modelSubs[modelName] = buildSubPaths(schema.tree);
     this.modelAtts[modelName] = keys(schema.obj);
