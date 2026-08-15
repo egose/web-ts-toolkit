@@ -13,6 +13,11 @@ export default tseslint.config(
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+      parserOptions: {
+        // Disambiguate the tsconfigRootDir that typescript-eslint v8.67
+        // auto-injects for every eslint config it sees (root + this file).
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     plugins: {
       'react-hooks': reactHooks,
