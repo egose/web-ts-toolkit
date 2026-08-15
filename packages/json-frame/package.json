@@ -1,0 +1,43 @@
+{
+  "name": "@web-ts-toolkit/json-frame",
+  "description": "Normalize and transform any tabular JSON shape (records, columns, split, values, table, index) into a single column-major DataFrame view",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/json-frame",
+  "version": "0.0.0-PLACEHOLDER",
+  "license": "PLACEHOLDER",
+  "sideEffects": false,
+  "repository": "PLACEHOLDER",
+  "keywords": [
+    "dataframe",
+    "json",
+    "tabular",
+    "transform",
+    "adapter",
+    "typescript"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.ts",
+        "default": "./dist/index.d.ts"
+      },
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "test": "pnpm --filter @web-ts-toolkit/json-frame... build && vitest run --config ../../vitest.config.ts"
+  },
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  }
+}

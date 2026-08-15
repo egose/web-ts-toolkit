@@ -1,8 +1,6 @@
 packages:
 - packages/*
 - apps/*
-patchedDependencies:
-  '@repo-toolkit/publish-package@0.7.2': patches/@repo-toolkit__publish-package@0.7.2.patch
 allowBuilds:
   '@parcel/watcher': false
   eccrypto: false
