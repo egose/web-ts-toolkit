@@ -294,7 +294,7 @@ function prepareReleaseArtifactWorkspace(): ReleaseArtifactWorkspace {
 
   const artifactRoot = path.resolve(workspaceRoot, 'dist', `web-ts-toolkit-${testVersion}`);
   if (!existsSync(artifactRoot)) {
-    run('pnpm', ['build-artifact', '--', '--version', testVersion], workspaceRoot);
+    run('pnpm', ['build-artifact', '--version', testVersion], workspaceRoot);
   }
 
   const packageDirs = Object.fromEntries(
