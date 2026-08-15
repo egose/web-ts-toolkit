@@ -69,6 +69,18 @@ create-access-router-mongo-starter/
   package.json
 ```
 
+## Netlify Deploy Prerequisites
+
+The `create-access-router-mongo-starter-deploy-netlify` shell out to the `netlify` CLI to perform the actual deploy. The `netlify-cli` package is **not** bundled as a runtime dependency — it pulls a ~30k-file transitive tree that would bloat the published artifact. Install the CLI separately so it is on `PATH` when you run the deploy helper:
+
+```sh
+npm install -g netlify-cli     # global
+# or, per project:
+pnpm add -D netlify-cli        # binary lands in node_modules/.bin
+```
+
+Verify with `netlify --version`. The deploy helper bails with a clear error if `netlify` is missing.
+
 ## Publish Checklist
 
 Use this before releasing `create-access-router-mongo-starter` to npm:

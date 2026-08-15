@@ -129,6 +129,17 @@ The package also ships helper binaries used by the starter's deployment workflow
 
 Those are mainly for the generated starter's deployment flow rather than day-one scaffolding, but they are packaged so the released starter can reuse them without depending on this repo's source tree.
 
+### Netlify CLI prerequisite
+
+`create-access-router-mongo-starter-deploy-netlify` shells out to the `netlify` CLI to perform the actual deploy. The `netlify-cli` package is **not** bundled as a runtime dependency (it pulled a ~30k-file transitive tree that bloated the published artifact). Instead the `netlify` binary must be resolvable on `PATH` when you run the deploy helper:
+
+```bash
+npm install -g netlify-cli
+# or, per project: pnpm add -D netlify-cli   (the binary lands in node_modules/.bin)
+```
+
+Verify with `netlify --version` before running the deploy bin. The deploy helper bails with a clear error if `netlify` is missing.
+
 ## When To Use It
 
 Use this starter when you want:
