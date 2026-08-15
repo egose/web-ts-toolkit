@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
  * Resolve the real production manifest transformer (`createPublishPackageJson`)
@@ -294,6 +294,18 @@ function prepareReleaseArtifactWorkspace(): ReleaseArtifactWorkspace {
 
   const artifactRoot = path.resolve(workspaceRoot, 'dist', `web-ts-toolkit-${testVersion}`);
   if (!existsSync(artifactRoot)) {
+    // `pnpm build-artifact` walks every `package.json` under `packages/` and
+    // requires each `bin` entry's file to exist as a regular file (it runs
+    // `lstatSync` against it during command discovery). The access-router test
+    // script only builds access-router and its transitive `workspace:`
+    // dependencies (`pnpm --filter @web-ts-toolkit/access-router... build`),
+    // so CLI-only packages outside that closure — e.g.
+    // `@web-ts-toolkit/access-router-runtime`,
+    // `create-access-router-mongo-starter`, and `@web-ts-toolkit/express-runtime`
+    // — may ship an unbuilt `dist/` on a fresh CI runner and trip `Bin entry
+    // must be an existing regular file`. The workspace is built up-front in
+    // `beforeAll` (see the describe block) so every package's compiled outputs
+    // are present before artifact assembly runs.
     run('pnpm', ['build-artifact', '--version', testVersion], workspaceRoot);
   }
 
@@ -519,6 +531,28 @@ afterAll(() => {
 });
 
 describe('ARF-09 packed-package compatibility using the real release-artifact pipeline', () => {
+  // Prime both fixture workspaces up-front so the per-test timeout budget is
+  // spent on the consumer smoke checks rather than the (slow, one-time)
+  // workspace + artifact assembly. Without this, the first artifact test body
+  // would absorb the cost of `pnpm --recursive --if-present build` +
+  // `pnpm build-artifact --version <testVersion>` (~40-90s on a fresh runner)
+  // and routinely blow past the 60s per-test cap. Both `prepare*Workspace`
+  // helpers are idempotent and cache their result, so priming here is a no-op
+  // for the test bodies.
+  beforeAll(() => {
+    // Build every workspace package that `pnpm build-artifact` will scan: it
+    // runs `lstatSync` against each `bin` entry, which must be an existing
+    // regular file. The CLI-only packages
+    // (`@web-ts-toolkit/access-router-runtime`, `create-access-router-mongo-starter`,
+    // `@web-ts-toolkit/express-runtime`) live outside access-router's transitive
+    // build closure, so they need an explicit full-workspace build on a freshly
+    // checked-out runner where their `dist/` is otherwise absent.
+    run('pnpm', ['--recursive', '--if-present', 'build'], workspaceRoot);
+
+    preparePackedWorkspace();
+    prepareReleaseArtifactWorkspace();
+  }, 240_000);
+
   it('applies the real `@repo-toolkit/publish-package` manifest transformation to the access-router tarball', () => {
     const packed = preparePackedWorkspace();
     const stagedManifest = packed.manifests['@web-ts-toolkit/access-router'];
