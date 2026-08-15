@@ -7,6 +7,10 @@
  *   - direct `.netlify/state.json` writing (no `netlify link` CLI needed)
  *   - minimal `netlify.toml` generation for build/functions settings
  *   - `netlify deploy` CLI invocation (the only remaining CLI usage)
+ *     The `netlify` binary must be available on PATH; it is no longer bundled
+ *     as a runtime dependency to keep the artifact small. Install it with
+ *     `npm install -g netlify-cli` (or via your package manager) before
+ *     running this bin.
  *   - runtime env (`API_BASE_URL`, `MONGODB_URI`) management via the
  *     `@netlify/api` SDK
  *
@@ -21,8 +25,8 @@
  * Ephemeral sandboxes live under `/tmp/opencode` and are removed on success
  * unless `--keep-sandbox` is passed.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { delimiter, resolve } from 'node:path';
 import { cancel, confirm, intro, isCancel, outro, password, select, text } from '@clack/prompts';
 import { readRequiredOptionValue } from '../src/shared/arg-parser';
 import {
@@ -91,25 +95,44 @@ export function planRuntimeSiteEnvVars(apiBaseUrl: string, mongodbUri?: string):
 }
 
 function resolveNetlifyCli(): NetlifyCli {
-  if (typeof require !== 'function') {
+  const binName = process.platform === 'win32' ? 'netlify.cmd' : 'netlify';
+  const found = lookupInPath(binName);
+  if (!found) {
     bail(
-      'The Netlify deploy bin must run from the built package so it can resolve its bundled netlify-cli dependency.',
+      'Could not find the `netlify` CLI on PATH. Install it with `npm install -g netlify-cli` ' +
+        '(or your package manager), then re-run this command. The `netlify-cli` package is no longer ' +
+        'bundled with this starter to keep the install small.',
     );
   }
+  return { command: found, argsPrefix: [] };
+}
 
-  try {
-    const packageJsonPath = require.resolve('netlify-cli/package.json');
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { bin?: string | Record<string, string> };
-    const binPath = typeof packageJson.bin === 'string' ? packageJson.bin : packageJson.bin?.netlify;
-    if (!binPath)
-      bail('Could not resolve the installed netlify-cli binary. Reinstall create-access-router-mongo-starter.');
-    return {
-      command: process.execPath,
-      argsPrefix: [resolve(dirname(packageJsonPath), binPath)],
-    };
-  } catch {
-    bail('Could not find the bundled netlify-cli dependency. Reinstall create-access-router-mongo-starter.');
+/**
+ * Resolve an executable by name using PATH lookup, mirroring shell semantics.
+ * Returns the absolute path if found and executable, otherwise undefined.
+ *
+ * Defaults `pathValue` to `process.env.PATH` so callers (and tests) can pass an
+ * isolated `PATH` to assert lookup behaviour without mutating the real env.
+ *
+ * Exported for tests; not part of the package's public surface.
+ */
+export function lookupInPath(binName: string, pathValue: string | undefined = process.env.PATH): string | undefined {
+  const pathSegments = (pathValue ?? '').split(delimiter).filter(Boolean);
+  const isExecutable = (p: string): boolean => {
+    try {
+      accessSync(p, constants.X_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  for (const dir of pathSegments) {
+    if (!dir) continue;
+    const candidate = resolve(dir, binName);
+    if (isExecutable(candidate)) return candidate;
   }
+  return undefined;
 }
 
 function runCaptureNetlify(

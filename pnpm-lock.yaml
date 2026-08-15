@@ -24,14 +24,14 @@ importers:
         specifier: ^8.0.0
         version: 8.0.0(release-it@21.0.2(@types/node@26.2.0)(magicast@0.5.4)(supports-color@10.2.2))
       '@repo-toolkit/changelog':
-        specifier: ^0.12.2
-        version: 0.12.2
+        specifier: ^0.13.0
+        version: 0.13.0
       '@repo-toolkit/publish-packages':
-        specifier: ^0.12.2
-        version: 0.12.2
+        specifier: ^0.13.0
+        version: 0.13.0
       '@repo-toolkit/release-artifact':
-        specifier: ^0.12.2
-        version: 0.12.2
+        specifier: ^0.13.0
+        version: 0.13.0
       '@types/node':
         specifier: ^26.2.0
         version: 26.2.0
@@ -465,13 +465,13 @@ importers:
       '@netlify/api':
         specifier: ^15.1.0
         version: 15.1.1
-      netlify-cli:
-        specifier: 26.2.0
-        version: 26.2.0(@parcel/watcher@2.6.0)(@types/node@25.9.5)(picomatch@4.0.5)(rollup@4.62.4)(supports-color@10.2.2)
     devDependencies:
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.5
+      netlify-cli:
+        specifier: 26.2.0
+        version: 26.2.0(@parcel/watcher@2.6.0)(@types/node@25.9.5)(picomatch@4.0.5)(rollup@4.62.4)(supports-color@10.2.2)
       tsup:
         specifier: ^8.5.1
         version: 8.5.1(jiti@2.7.0)(postcss@8.5.26)(supports-color@10.2.2)(tsx@4.23.12)(typescript@5.9.3)(yaml@2.9.0)
@@ -4073,23 +4073,23 @@ packages:
     peerDependencies:
       release-it: ^18.0.0 || ^19.0.0 || ^20.0.0 || ^21.0.0
 
-  '@repo-toolkit/changelog@0.12.2':
-    resolution: {integrity: sha512-gabdFKKB+dZHhzT7btyWK0wnQio2MqqBJaWlwNHjXhiZgnQmZPudWjlnBPRmewpmEBJynV1pF1rUmSkx1NcPoA==}
+  '@repo-toolkit/changelog@0.13.0':
+    resolution: {integrity: sha512-RHNK9jB/ojqzRpZ6h3v8vfa6q0xRg0GK3LvpX3/IUHwvn7VnWJRNUbsNK8E0/A7Aaz8Wfx9/mhPv+QuSf2c1zw==}
     engines: {node: '>=20'}
     hasBin: true
 
-  '@repo-toolkit/publish-package@0.12.2':
-    resolution: {integrity: sha512-3pASFg7dEAytBreullHHBzbvBVMelrRaoYYJKTBbAcF3liTD6B8/tpamhBaSoZeAUfkLyA4J20nHnqDXkW/iyg==}
+  '@repo-toolkit/publish-package@0.13.0':
+    resolution: {integrity: sha512-0OBO0MwVqy6Gks1pgpRo9MUN+cPhCZT1OQ/0Gm3vdTk8ZMcX3mH5wT6LS+yvAH+41onicxhY6bZkOC+IKduuGg==}
     engines: {node: '>=20'}
     hasBin: true
 
-  '@repo-toolkit/publish-packages@0.12.2':
-    resolution: {integrity: sha512-5cbEZ9TvkcUOV8SdQFjfVUwzSNAHoHZcf47rEE6DFaQIHfh31SICmLDHunTeXs9yk/MIH8fkVIRy1E6s3bfpDg==}
+  '@repo-toolkit/publish-packages@0.13.0':
+    resolution: {integrity: sha512-pEiMu1AIA4etUDu/ZYkaHrC4bNUtmY8aYzFmaQs0954CGDM3E14IgNtJSXu+arSryZnElJ7jHJbXjiC3fnv3sA==}
     engines: {node: '>=20'}
     hasBin: true
 
-  '@repo-toolkit/release-artifact@0.12.2':
-    resolution: {integrity: sha512-i5GclE7rARe64SuaXXdJMB7GcAk7ghMSX8jYvCY8F3tOaPhLpte32DsAem/Y5UeyVpue1qO8fLfoeNdEm2GlmQ==}
+  '@repo-toolkit/release-artifact@0.13.0':
+    resolution: {integrity: sha512-iJ+uC7czByae5/G694dd/Ck9D/N22ldH7jomQavUuqgvsi8jm2FQNOzKuhETwB3k2OzxX3eFWmGehJbfFTeGxw==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -14496,25 +14496,25 @@ snapshots:
       release-it: 21.0.2(@types/node@26.2.0)(magicast@0.5.4)(supports-color@10.2.2)
       semver: 7.8.5
 
-  '@repo-toolkit/changelog@0.12.2':
+  '@repo-toolkit/changelog@0.13.0':
     dependencies:
-      '@repo-toolkit/publish-package': 0.12.2
+      '@repo-toolkit/publish-package': 0.13.0
       conventional-changelog: 7.2.1
       conventional-changelog-conventionalcommits: 9.3.1
     transitivePeerDependencies:
       - conventional-commits-filter
 
-  '@repo-toolkit/publish-package@0.12.2':
+  '@repo-toolkit/publish-package@0.13.0':
     dependencies:
       '@clack/prompts': 1.7.0
 
-  '@repo-toolkit/publish-packages@0.12.2':
+  '@repo-toolkit/publish-packages@0.13.0':
     dependencies:
-      '@repo-toolkit/publish-package': 0.12.2
+      '@repo-toolkit/publish-package': 0.13.0
 
-  '@repo-toolkit/release-artifact@0.12.2':
+  '@repo-toolkit/release-artifact@0.13.0':
     dependencies:
-      '@repo-toolkit/publish-package': 0.12.2
+      '@repo-toolkit/publish-package': 0.13.0
 
   '@rolldown/binding-android-arm64@1.2.4':
     optional: true
