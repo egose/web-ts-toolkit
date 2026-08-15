@@ -11,3 +11,8 @@ allowBuilds:
   secp256k1: false
   sharp: false
   unix-dgram: false
+minimumReleaseAgeExclude:
+- '@repo-toolkit/changelog@0.11.0'
+- '@repo-toolkit/publish-package@0.11.0'
+- '@repo-toolkit/publish-packages@0.11.0'
+- '@repo-toolkit/release-artifact@0.11.0'
