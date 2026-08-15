@@ -83,6 +83,10 @@ const toc = [{
   "id": "deployment-helpers",
   "level": 2
 }, {
+  "value": "Netlify CLI prerequisite",
+  "id": "netlify-cli-prerequisite",
+  "level": 3
+}, {
   "value": "When To Use It",
   "id": "when-to-use-it",
   "level": 2
@@ -103,6 +107,7 @@ function _createMdxContent(props) {
     ol: "ol",
     p: "p",
     pre: "pre",
+    strong: "strong",
     table: "table",
     tbody: "tbody",
     td: "td",
@@ -367,6 +372,34 @@ function _createMdxContent(props) {
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Those are mainly for the generated starter's deployment flow rather than day-one scaffolding, but they are packaged so the released starter can reuse them without depending on this repo's source tree."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "netlify-cli-prerequisite",
+      children: "Netlify CLI prerequisite"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "create-access-router-mongo-starter-deploy-netlify"
+      }), " shells out to the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "netlify"
+      }), " CLI to perform the actual deploy. The ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "netlify-cli"
+      }), " package is ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "not"
+      }), " bundled as a runtime dependency (it pulled a ~30k-file transitive tree that bloated the published artifact). Instead the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "netlify"
+      }), " binary must be resolvable on ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "PATH"
+      }), " when you run the deploy helper:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-bash",
+        children: "npm install -g netlify-cli\n# or, per project: pnpm add -D netlify-cli   (the binary lands in node_modules/.bin)\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Verify with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "netlify --version"
+      }), " before running the deploy bin. The deploy helper bails with a clear error if ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "netlify"
+      }), " is missing."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "when-to-use-it",
       children: "When To Use It"
