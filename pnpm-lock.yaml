@@ -24,14 +24,14 @@ importers:
         specifier: ^8.0.0
         version: 8.0.0(release-it@21.0.2(@types/node@26.2.0)(magicast@0.5.4)(supports-color@10.2.2))
       '@repo-toolkit/changelog':
-        specifier: ^0.11.0
-        version: 0.11.0
+        specifier: ^0.12.0
+        version: 0.12.0
       '@repo-toolkit/publish-packages':
-        specifier: ^0.11.0
-        version: 0.11.0
+        specifier: ^0.12.0
+        version: 0.12.0
       '@repo-toolkit/release-artifact':
-        specifier: ^0.11.0
-        version: 0.11.0
+        specifier: ^0.12.0
+        version: 0.12.0
       '@types/node':
         specifier: ^26.2.0
         version: 26.2.0
@@ -3705,23 +3705,23 @@ packages:
     peerDependencies:
       release-it: ^18.0.0 || ^19.0.0 || ^20.0.0 || ^21.0.0
 
-  '@repo-toolkit/changelog@0.11.0':
-    resolution: {integrity: sha512-I6fuECc71CnwfW8Nv3CWfLshvZyxLHnrkHuGZPKaIKuQnp2L/5wPiHi6hlvUdixmPkcSFG8lIPeLrXBEDQARug==}
+  '@repo-toolkit/changelog@0.12.0':
+    resolution: {integrity: sha512-rMMTxlfnAkLVyix9QqeODB1mPTicZuz/XdHb2ScV+hyJkXjREAf3+tQTiXrnEtkle8lXfObx5uR004YwNTxQww==}
     engines: {node: '>=20'}
     hasBin: true
 
-  '@repo-toolkit/publish-package@0.11.0':
-    resolution: {integrity: sha512-gP6676bAw0QGGMef3ULR+H/DxIbdi65I4AsQQZ2UysPoziEj5wz6ic2/nKB3F/30uJB2AizgGQGLj38PUoVmwQ==}
+  '@repo-toolkit/publish-package@0.12.0':
+    resolution: {integrity: sha512-xv5d8ZrH8XS04J/4WIoquECKPuBcAbmBRRlxL/IinX4xmabbv9ZVG2IZY1Q11vhvAo8PBsvyfQu8L+4V+uDi3g==}
     engines: {node: '>=20'}
     hasBin: true
 
-  '@repo-toolkit/publish-packages@0.11.0':
-    resolution: {integrity: sha512-kY498KmbBA0aHY12tbWcEYQ51EqnZTlIY/LvM/4eHHWQHixDpDfwixT94SpULZ4T43PncKbxSC60tzGHOeMXBA==}
+  '@repo-toolkit/publish-packages@0.12.0':
+    resolution: {integrity: sha512-D7RDF3xSNBgnnQeI3TutNaN7WlDW3Dc/XNlU0yckz3fgNcSRI0XzR6ITYCwsoMgXTsw34R3r4Ql6AG5T8prgQA==}
     engines: {node: '>=20'}
     hasBin: true
 
-  '@repo-toolkit/release-artifact@0.11.0':
-    resolution: {integrity: sha512-KI+q4TDDSa+gaHfiN8fdwX+MElTO7WsRDypOuqcUCgMeD9VxInl5qGV5d+a644rahALSyG4qMcIGgvkThzLd1A==}
+  '@repo-toolkit/release-artifact@0.12.0':
+    resolution: {integrity: sha512-UcdhFX8rcHW7xV+5OE0yoa3MrMRqd8mg7qOpBlzXJ+Bn/+64MTSV75+GP3f80q+OQ8ZPqzEGQPGylbtvysDTog==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -5745,6 +5745,7 @@ packages:
   cron-parser@4.9.0:
     resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==}
     engines: {node: '>=12.0.0'}
+    deprecated: v4 is no longer maintained, upgrade to v5
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -5763,6 +5764,7 @@ packages:
 
   crypto-js@4.2.0:
     resolution: {integrity: sha512-KALDyEYgpY+Rlob/iriUtjV6d5Eq+Y191A5g4UqLAi8CyGP9N1+FdVbkc1SxKc2r4YAYqG8JzO2KGL+AizD70Q==}
+    deprecated: Active development of CryptoJS has been discontinued. This library is no longer maintained.
 
   crypto-random-string@2.0.0:
     resolution: {integrity: sha512-v1plID3y9r/lPhviJ1wrXpLeyUIGAZ2SHNYTEapm7/8A9nLPoyvVp3RK/EPFqn5kEznyWgYZNsRtYYIWbuG8KA==}
@@ -14209,25 +14211,25 @@ snapshots:
       release-it: 21.0.2(@types/node@26.2.0)(magicast@0.5.4)(supports-color@10.2.2)
       semver: 7.8.5
 
-  '@repo-toolkit/changelog@0.11.0':
+  '@repo-toolkit/changelog@0.12.0':
     dependencies:
-      '@repo-toolkit/publish-package': 0.11.0
+      '@repo-toolkit/publish-package': 0.12.0
       conventional-changelog: 7.2.1
       conventional-changelog-conventionalcommits: 9.3.1
     transitivePeerDependencies:
       - conventional-commits-filter
 
-  '@repo-toolkit/publish-package@0.11.0':
+  '@repo-toolkit/publish-package@0.12.0':
     dependencies:
       '@clack/prompts': 1.7.0
 
-  '@repo-toolkit/publish-packages@0.11.0':
+  '@repo-toolkit/publish-packages@0.12.0':
     dependencies:
-      '@repo-toolkit/publish-package': 0.11.0
+      '@repo-toolkit/publish-package': 0.12.0
 
-  '@repo-toolkit/release-artifact@0.11.0':
+  '@repo-toolkit/release-artifact@0.12.0':
     dependencies:
-      '@repo-toolkit/publish-package': 0.11.0
+      '@repo-toolkit/publish-package': 0.12.0
 
   '@rolldown/binding-android-arm64@1.0.2':
     optional: true
