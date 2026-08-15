@@ -35,4 +35,6 @@ jobs:
       uses: ./.github/actions/setup-npm
 
     - name: Run unit tests
-      run: pnpm test
+      run: |
+        pnpm build
+        pnpm test
