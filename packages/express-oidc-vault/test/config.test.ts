@@ -7,14 +7,14 @@ describe('resolveOidcVaultConfig', () => {
     const config = resolveOidcVaultConfig({
       issuer: ' https://issuer.example.com ',
       clientId: 'client_1',
-      clientSecret: 'secret_1',
+      clientSecret: 'secret_1', // pragma: allowlist secret
     });
 
     expect(config).toEqual({
       mode: 'issuer',
       issuer: 'https://issuer.example.com/',
       clientId: 'client_1',
-      clientSecret: 'secret_1',
+      clientSecret: 'secret_1', // pragma: allowlist secret
       scopes: DEFAULT_OIDC_SCOPES,
     });
   });

@@ -26,7 +26,7 @@ describe('AR-19 structured, redacted, lazy logging', () => {
     it('redacts known sensitive keys at any depth while preserving shape and insensitive values', () => {
       const input = {
         username: 'alice',
-        password: 'hunter2',
+        password: 'hunter2', // pragma: allowlist secret
         profile: {
           email: 'a@example.com',
           token: 'verysecret',
@@ -63,7 +63,7 @@ describe('AR-19 structured, redacted, lazy logging', () => {
     });
 
     it('does not mutate the input', () => {
-      const input = { password: 'secret', other: { token: 't' } };
+      const input = { password: 'secret', other: { token: 't' } }; // pragma: allowlist secret
       const snapshot = JSON.parse(JSON.stringify(input));
       redactFilter(input);
       expect(input).toEqual(snapshot);
@@ -167,13 +167,13 @@ describe('AR-19 service logging call sites', () => {
     });
 
     await mongoose.model(modelName).create([
-      { name: 'alice', password: 'hunter2' },
-      { name: 'bob', password: 'pw' },
+      { name: 'alice', password: 'hunter2' }, // pragma: allowlist secret
+      { name: 'bob', password: 'pw' }, // pragma: allowlist secret
     ]);
 
     await request(app)
       .post(`/${modelName}/__query`)
-      .send({ filter: { password: 'hunter2', name: 'alice' } })
+      .send({ filter: { password: 'hunter2', name: 'alice' } }) // pragma: allowlist secret
       .expect(200);
 
     expect(debugSpy).toHaveBeenCalled();

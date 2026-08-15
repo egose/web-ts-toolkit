@@ -196,7 +196,7 @@ const createPopulateIntegrationApp = async (orgReadAccess: boolean = true) => {
     return req.macl.genPopulate(userModelName, 'read', 'org');
   });
 
-  const org = await Org.create({ name: 'org-1', secret: 'top-secret' });
+  const org = await Org.create({ name: 'org-1', secret: 'top-secret' }); // pragma: allowlist secret
   await User.create([{ name: 'user1', org: org._id }]);
 
   const app = express();

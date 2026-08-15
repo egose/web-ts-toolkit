@@ -268,7 +268,7 @@ describe('provider client resource bounds', () => {
         tokenEndpoint: 'https://issuer.example.com/token',
         jwksUri: 'https://issuer.example.com/jwks',
         clientId: 'client:id',
-        clientSecret: 'secret/value?x=y&z',
+        clientSecret: 'secret/value?x=y&z', // pragma: allowlist secret
         scopes: 'openid',
       },
       { grant_type: 'refresh_token', refresh_token: 'refresh_1' },

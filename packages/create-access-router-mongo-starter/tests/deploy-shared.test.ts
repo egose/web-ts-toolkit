@@ -74,7 +74,7 @@ describe('redactCommand', () => {
   });
 
   it('redacts multiple secrets', () => {
-    const cmd = 'netlify deploy --auth token123 --site abc --mongodb-uri mongodb://user:pass@host';
+    const cmd = 'netlify deploy --auth token123 --site abc --mongodb-uri mongodb://user:pass@host'; // pragma: allowlist secret
     const redacted = redactCommand(cmd, ['mongodb://user:pass@host', 'token123']);
     expect(redacted).toBe('netlify deploy --auth [REDACTED] --site abc --mongodb-uri [REDACTED]');
   });

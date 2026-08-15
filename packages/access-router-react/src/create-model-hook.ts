@@ -986,6 +986,17 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     const [previousData, setPreviousData] = useState<DataArray | undefined>(undefined);
     const [totalCount, setTotalCount] = useState(0);
     const latestDataRef = useRef(data);
+    // ARR-08 req 1: mirror `data` into a ref on every render so the async
+    // `baseFetch` closure captures the freshest settled data at request
+    // start for `previousData`. This MUST happen during render, not in a
+    // `useEffect`: `useAutoQuery`'s post-commit refetch effects fire
+    // (child-first, declaration-order) before this hook's own commit
+    // effects, so a post-commit sync would let the refetch capture the
+    // prior-but-not-yet-mirrored data. Writing a read-only mirror into a
+    // ref during render is the React-blessed escape hatch when an async
+    // callback needs the latest committed value without subscribing to
+    // state changes.
+    // eslint-disable-next-line react-hooks/refs
     latestDataRef.current = data;
     // `hasSettledRef` records whether `applyResult` has run for this hook
     // instance (i.e. the hook has produced at least one settled list
