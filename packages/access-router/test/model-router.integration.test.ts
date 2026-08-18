@@ -4,7 +4,7 @@ import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import acl, { guard, permissionsPlugin, setGlobalOptions } from '../dist/index.mjs';
+import acl, { createAccessRuntime, guard, permissionsPlugin, setGlobalOptions } from '../dist/index.mjs';
 import type { ModelRouterOptions } from '../src/interfaces';
 import { useMongoTestDatabase } from './setup';
 
@@ -902,6 +902,45 @@ describe('model router integration', () => {
       name: 'user1',
     });
     expect(readWithPopulate.body.org).toEqual(expect.any(String));
+  });
+
+  it('can allow populate targets without a registered router through a global option', async () => {
+    const orgModelName = `AclMongoOrg${++modelCounter}`;
+    const userModelName = `AclMongoPopulateUser${++modelCounter}`;
+    mongoose.model(orgModelName, new mongoose.Schema({ name: String }));
+    mongoose.model(
+      userModelName,
+      new mongoose.Schema({
+        name: String,
+        org: { type: mongoose.Schema.Types.ObjectId, ref: orgModelName },
+      }),
+    );
+
+    const runtime = createAccessRuntime();
+    runtime.setDefaultModelOptions({ operationAccess: { read: true } });
+    const userRouter = runtime.createRouter(userModelName, {
+      basePath: '/optional-populate-users',
+      operationAccess: { read: true },
+      permissionSchema: {
+        name: { read: true },
+        org: { read: true },
+      },
+    });
+    userRouter.router.get('/custom/populate-query', async (req) => {
+      return req.macl.genPopulate(userModelName, 'read', 'org');
+    });
+
+    const app = express();
+    app.use(userRouter.routes);
+
+    expect(runtime.runtime.hasModel(orgModelName)).toBe(false);
+    const deniedByDefault = await request(app).get('/optional-populate-users/custom/populate-query').expect(200);
+    expect(deniedByDefault.body).toEqual([]);
+
+    runtime.setGlobalOption('requireRegisteredPopulateModels', false);
+    const allowed = await request(app).get('/optional-populate-users/custom/populate-query').expect(200);
+    expect(allowed.body).toHaveLength(1);
+    expect(allowed.body[0]).toMatchObject({ path: 'org', match: {} });
   });
 
   it('supports user-defined requestSchemas for create and advanced mutation data', async () => {

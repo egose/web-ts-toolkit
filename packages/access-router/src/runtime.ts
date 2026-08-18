@@ -148,6 +148,7 @@ export class AccessRuntime {
   private readonly globalOptions = new OptionsManager<GlobalOptions, GlobalOptions>({
     requestPermissionField: '_permissions',
     globalPermissions: () => ({}),
+    requireRegisteredPopulateModels: true,
     logger: defaultLogger,
     requestComplexity: defaultRequestComplexity,
   }).build();
