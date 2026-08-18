@@ -17,7 +17,7 @@ import {
   reduce,
   set,
 } from '@web-ts-toolkit/utils';
-import { getModelOption, getExactModelOption } from './options';
+import { getGlobalOption, getModelOption, getExactModelOption } from './options';
 import { getModelRef } from './meta';
 import {
   Populate,
@@ -239,8 +239,12 @@ export class Core {
           if (!refModelName) return null;
 
           const runtime = getActiveRuntime();
-          if (runtime && !runtime.hasModel(refModelName)) {
-            return null;
+          if (!runtime) return null;
+
+          const requireRegisteredPopulateModels = getGlobalOption('requireRegisteredPopulateModels', true);
+
+          if (!runtime.hasModel(refModelName)) {
+            return requireRegisteredPopulateModels ? null : ret;
           }
 
           const allowedTargetOperation = await this.req.macl.isAllowed(refModelName, populateAccess);

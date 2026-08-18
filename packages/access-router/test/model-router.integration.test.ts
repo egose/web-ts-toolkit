@@ -904,7 +904,7 @@ describe('model router integration', () => {
     expect(readWithPopulate.body.org).toEqual(expect.any(String));
   });
 
-  it('can allow populate targets without a registered router through a global option', async () => {
+  it('can return raw populate targets without a registered router through a global option', async () => {
     const orgModelName = `AclMongoOrg${++modelCounter}`;
     const userModelName = `AclMongoPopulateUser${++modelCounter}`;
     mongoose.model(orgModelName, new mongoose.Schema({ name: String }));
@@ -939,8 +939,8 @@ describe('model router integration', () => {
 
     runtime.setGlobalOption('requireRegisteredPopulateModels', false);
     const allowed = await request(app).get('/optional-populate-users/custom/populate-query').expect(200);
-    expect(allowed.body).toHaveLength(1);
-    expect(allowed.body[0]).toMatchObject({ path: 'org', match: {} });
+    expect(allowed.body).toEqual([{ path: 'org' }]);
+    expect(runtime.runtime.hasModel(orgModelName)).toBe(false);
   });
 
   it('supports user-defined requestSchemas for create and advanced mutation data', async () => {
