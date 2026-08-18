@@ -1,0 +1,15 @@
+{
+  "schema": {
+    "fields": [
+      { "name": "ri", "type": "string", "extDtype": "str" },
+      { "name": "flag", "type": "boolean" }
+    ],
+    "primaryKey": ["ri"],
+    "pandas_version": "1.4.0"
+  },
+  "data": [
+    { "ri": "r0", "flag": true },
+    { "ri": "r1", "flag": false },
+    { "ri": "r2", "flag": true }
+  ]
+}

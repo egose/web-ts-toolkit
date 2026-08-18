@@ -1,0 +1,337 @@
+{
+  "generator": {
+    "script": "generate.py",
+    "python": "3.14.6",
+    "pythonImplementation": "CPython",
+    "pandas": "3.0.3"
+  },
+  "note": "Every fixture is produced by a single `DataFrame.to_json(**args)` call whose complete argument map is recorded verbatim in the `to_json_args` field of the matching entry. Re-running this script in the documented Python environment must produce semantically identical JSON. The fixtures are the executable compatibility reference for the parser implementation.",
+  "fixtures": [
+    {
+      "fixture": "generated/allSixStringIndex-records.json",
+      "factory": "DataFrame(...).to_json",
+      "to_json_args": {
+        "orient": "records"
+      }
+    },
+    {
+      "fixture": "generated/allSixStringIndex-index.json",
+      "factory": "DataFrame(...).to_json",
+      "to_json_args": {
+        "orient": "index"
+      }
+    },
+    {
+      "fixture": "generated/allSixStringIndex-columns.json",
+      "factory": "DataFrame(...).to_json",
+      "to_json_args": {
+        "orient": "columns"
+      }
+    },
+    {
+      "fixture": "generated/allSixStringIndex-values.json",
+      "factory": "DataFrame(...).to_json",
+      "to_json_args": {
+        "orient": "values"
+      }
+    },
+    {
+      "fixture": "generated/allSixStringIndex-split.json",
+      "factory": "DataFrame(...).to_json",
+      "to_json_args": {
+        "orient": "split"
+      }
+    },
+    {
+      "fixture": "generated/allSixStringIndex-table.json",
+      "factory": "DataFrame(...).to_json",
+      "to_json_args": {
+        "orient": "table"
+      }
+    },
+    {
+      "fixture": "generated/allSixRangeIndex-records.json",
+      "factory": "DataFrame(...).to_json",
+      "to_json_args": {
+        "orient": "records"
+      }
+    },
+    {
+      "fixture": "generated/allSixRangeIndex-index.json",
+      "factory": "DataFrame(...).to_json",
+      "to_json_args": {
+        "orient": "index"
+      }
+    },
+    {
+      "fixture": "generated/allSixRangeIndex-columns.json",
+      "factory": "DataFrame(...).to_json",
+      "to_json_args": {
+        "orient": "columns"
+      }
+    },
+    {
+      "fixture": "generated/allSixRangeIndex-values.json",
+      "factory": "DataFrame(...).to_json",
+      "to_json_args": {
+        "orient": "values"
+      }
+    },
+    {
+      "fixture": "generated/allSixRangeIndex-split.json",
+      "factory": "DataFrame(...).to_json",
+      "to_json_args": {
+        "orient": "split"
+      }
+    },
+    {
+      "fixture": "generated/allSixRangeIndex-table.json",
+      "factory": "DataFrame(...).to_json",
+      "to_json_args": {
+        "orient": "table"
+      }
+    },
+    {
+      "fixture": "generated/indexFalse-split.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "split",
+        "index": false
+      }
+    },
+    {
+      "fixture": "generated/indexFalse-records.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "records",
+        "index": false
+      }
+    },
+    {
+      "fixture": "generated/indexFalse-values.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "values",
+        "index": false
+      }
+    },
+    {
+      "fixture": "generated/indexFalse-table.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "table",
+        "index": false
+      }
+    },
+    {
+      "fixture": "generated/indexFalse-columns.err.txt",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "columns",
+        "index": false
+      },
+      "raises": "ValueError: 'index=False' is only valid when 'orient' is 'split', 'table', 'records', or 'values'."
+    },
+    {
+      "fixture": "generated/indexFalse-index.err.txt",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "index",
+        "index": false
+      },
+      "raises": "ValueError: 'index=False' is only valid when 'orient' is 'split', 'table', 'records', or 'values'."
+    },
+    {
+      "fixture": "generated/nullsColumns-records.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "records"
+      }
+    },
+    {
+      "fixture": "generated/nullsColumns-table.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "table"
+      }
+    },
+    {
+      "fixture": "generated/boolIndex-records.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "records"
+      }
+    },
+    {
+      "fixture": "generated/boolIndex-table.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "table"
+      }
+    },
+    {
+      "fixture": "generated/strings-records.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "records"
+      }
+    },
+    {
+      "fixture": "generated/strings-table.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "table"
+      }
+    },
+    {
+      "fixture": "generated/ints-records.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "records"
+      }
+    },
+    {
+      "fixture": "generated/ints-table.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "table"
+      }
+    },
+    {
+      "fixture": "generated/floats-records.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "records"
+      }
+    },
+    {
+      "fixture": "generated/floats-table.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "table"
+      }
+    },
+    {
+      "fixture": "generated/datetimeEpoch-records.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "records",
+        "date_format": "epoch"
+      }
+    },
+    {
+      "fixture": "generated/datetimeIso-records.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "records",
+        "date_format": "iso"
+      }
+    },
+    {
+      "fixture": "generated/datetimeTable-table.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "table"
+      }
+    },
+    {
+      "fixture": "generated/datetimeIsoTable-table.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "table",
+        "date_format": "iso"
+      }
+    },
+    {
+      "fixture": "generated/categoricalTable-table.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "table"
+      }
+    },
+    {
+      "fixture": "generated/empty-records.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "records"
+      }
+    },
+    {
+      "fixture": "generated/empty-index.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "index"
+      }
+    },
+    {
+      "fixture": "generated/empty-columns.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "columns"
+      }
+    },
+    {
+      "fixture": "generated/empty-values.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "values"
+      }
+    },
+    {
+      "fixture": "generated/empty-split.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "split"
+      }
+    },
+    {
+      "fixture": "generated/empty-table.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "table"
+      }
+    },
+    {
+      "fixture": "generated/prototypeLabels-split.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "split"
+      }
+    },
+    {
+      "fixture": "generated/prototypeLabels-columns.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "columns"
+      }
+    },
+    {
+      "fixture": "generated/prototypeLabels-index.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "index"
+      }
+    },
+    {
+      "fixture": "generated/prototypeLabels-records.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "records"
+      }
+    },
+    {
+      "fixture": "generated/unsupported/multiIndexTable-table.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "table"
+      }
+    },
+    {
+      "fixture": "generated/unsupported/nonStringColumnsSplit-split.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "split"
+      }
+    }
+  ]
+}

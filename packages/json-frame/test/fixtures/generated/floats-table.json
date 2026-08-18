@@ -1,0 +1,15 @@
+{
+  "schema": {
+    "fields": [
+      { "name": "ri", "type": "string", "extDtype": "str" },
+      { "name": "temperature", "type": "number" }
+    ],
+    "primaryKey": ["ri"],
+    "pandas_version": "1.4.0"
+  },
+  "data": [
+    { "ri": "r0", "temperature": 1.5 },
+    { "ri": "r1", "temperature": 2.5 },
+    { "ri": "r2", "temperature": 3.5 }
+  ]
+}

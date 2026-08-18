@@ -1,0 +1,15 @@
+{
+  "schema": {
+    "fields": [
+      { "name": "i", "type": "string", "extDtype": "str" },
+      { "name": "grade", "type": "any", "constraints": { "enum": ["a", "b", "c"] }, "ordered": true }
+    ],
+    "primaryKey": ["i"],
+    "pandas_version": "1.4.0"
+  },
+  "data": [
+    { "i": "x0", "grade": "a" },
+    { "i": "x1", "grade": "b" },
+    { "i": "x2", "grade": "a" }
+  ]
+}

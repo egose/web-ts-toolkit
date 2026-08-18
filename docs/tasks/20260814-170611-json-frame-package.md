@@ -370,9 +370,16 @@ Verification:
 - Run the generator in its documented Python environment.
 - Review every generated orient against the fixture manifest.
 
+Completion evidence:
+
+- Changed: `packages/json-frame/test/fixtures/generate.py`, `packages/json-frame/test/fixtures/manifest.json`, `packages/json-frame/test/fixtures/README.md`, `packages/json-frame/test/fixtures/generated/**`
+- Verified: `asdf set python 3.14.6 && python3 generate.py`; `python3 - <<'PY' ... parity check against a freshly generated temp tree ... PY`; `pnpm install --frozen-lockfile`; `pnpm lint`; `pnpm --filter @web-ts-toolkit/json-frame build`
+- Result: 45 committed pandas 3.0.3 fixtures generated from Python 3.14.6, including all six orients for named-string and RangeIndex frames, `index=False` allow/deny cases, datetime epoch/ISO outputs, categorical table schema metadata, empty frames, prototype-sensitive labels, and unsupported MultiIndex/non-string-column references; temp-tree parity check matched committed fixtures byte-for-byte
+- Follow-up: none
+
 ### Task JFRAME-01: Scaffold The Publishable Package
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -429,6 +436,13 @@ Verification:
 - `pnpm --filter @web-ts-toolkit/json-frame build`
 - `pnpm exec tsc --noEmit -p packages/json-frame/tsconfig.json`
 - `npm pack --dry-run --json` from `packages/json-frame/`
+
+Completion evidence:
+
+- Changed: `packages/json-frame/tsconfig.json`, `tsconfig.base.json`
+- Verified: `pnpm install --frozen-lockfile`; `pnpm --filter @web-ts-toolkit/json-frame build`; `pnpm exec tsc --noEmit -p packages/json-frame/tsconfig.json`; `npm pack --dry-run --json` from `packages/json-frame/`; `pnpm exec tsc --noEmit -p /tmp/opencode/json-frame-ambient-check.tsconfig.json`
+- Result: confirmed the existing scaffold already matched the single-entry package pattern for manifest, exports, build script, minimal README, and empty named-export-only entrypoint; added the root and wildcard `@web-ts-toolkit/json-frame` source aliases and removed Node ambient types from package source typechecking; build emitted `dist/index.js`, `dist/index.mjs`, `dist/index.d.ts`, and `dist/index.d.mts`; the ESM entry contained no internal relative imports; `npm pack --dry-run --json` packed only `package.json`, `README.md`, and `dist/*`; the ambient-type check failed on `process`, `Buffer`, and `document` as required
+- Follow-up: `JFRAME-02`
 
 ## Wave 2: Validation, Types, And Ingestion
 

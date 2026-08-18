@@ -1,0 +1,15 @@
+{
+  "schema": {
+    "fields": [
+      { "name": "ri", "type": "string", "extDtype": "str" },
+      { "name": "count", "type": "integer" }
+    ],
+    "primaryKey": ["ri"],
+    "pandas_version": "1.4.0"
+  },
+  "data": [
+    { "ri": "r0", "count": 1 },
+    { "ri": "r1", "count": 2 },
+    { "ri": "r2", "count": 3 }
+  ]
+}

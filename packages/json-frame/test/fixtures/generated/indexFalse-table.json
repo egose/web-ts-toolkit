@@ -1,0 +1,14 @@
+{
+  "schema": {
+    "fields": [
+      { "name": "a", "type": "integer" },
+      { "name": "b", "type": "number" }
+    ],
+    "pandas_version": "1.4.0"
+  },
+  "data": [
+    { "a": 1, "b": 10.0 },
+    { "a": 2, "b": 20.0 },
+    { "a": 3, "b": 30.0 }
+  ]
+}

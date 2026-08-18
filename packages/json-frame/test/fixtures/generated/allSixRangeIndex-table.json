@@ -1,0 +1,16 @@
+{
+  "schema": {
+    "fields": [
+      { "name": "index", "type": "integer" },
+      { "name": "a", "type": "integer" },
+      { "name": "b", "type": "number" }
+    ],
+    "primaryKey": ["index"],
+    "pandas_version": "1.4.0"
+  },
+  "data": [
+    { "index": 0, "a": 1, "b": 10.0 },
+    { "index": 1, "a": 2, "b": 20.0 },
+    { "index": 2, "a": 3, "b": 30.0 }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema": {
+    "fields": [
+      { "name": "g", "type": "string", "extDtype": "str" },
+      { "name": "n", "type": "integer" },
+      { "name": "v", "type": "integer" }
+    ],
+    "primaryKey": ["g", "n"],
+    "pandas_version": "1.4.0"
+  },
+  "data": [
+    { "g": "a", "n": 1, "v": 10 },
+    { "g": "b", "n": 2, "v": 20 }
+  ]
+}

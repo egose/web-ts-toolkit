@@ -1,0 +1,8 @@
+{
+  "columns": ["city", "temp"],
+  "index": ["r0", "r1"],
+  "data": [
+    ["NYC", 70.0],
+    ["LA", 80.0]
+  ]
+}
