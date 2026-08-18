@@ -147,10 +147,6 @@ const getIndexFieldTemplate = (state: FrameState): TableSchemaField | undefined 
     return undefined;
   }
 
-  if (state.tableSchema.fields.length === state.columns.length + 1) {
-    return state.tableSchema.fields[0];
-  }
-
   return state.tableSchema.fields.find((field) => field.name === state.tableIndexField);
 };
 
@@ -159,29 +155,8 @@ const getDataFieldTemplates = (state: FrameState): readonly TableSchemaField[] =
     return [];
   }
 
-  if (state.tableIndexField === undefined) {
-    return state.tableSchema.fields.slice(0, state.columns.length);
-  }
-
-  if (state.tableSchema.fields.length >= state.columns.length + 1) {
-    return state.tableSchema.fields.slice(1, state.columns.length + 1);
-  }
-
-  let skippedIndexField = false;
-  const templates: TableSchemaField[] = [];
-  for (const field of state.tableSchema.fields) {
-    if (!skippedIndexField && field.name === state.tableIndexField) {
-      skippedIndexField = true;
-      continue;
-    }
-
-    templates.push(field);
-    if (templates.length === state.columns.length) {
-      break;
-    }
-  }
-
-  return templates;
+  const fieldsByName = new Map(state.tableSchema.fields.map((field) => [field.name, field]));
+  return state.columns.map((column) => fieldsByName.get(column)).filter((field) => field !== undefined);
 };
 
 const resolveIndexFieldName = (state: FrameState, options?: ToTableOptions): string | undefined => {

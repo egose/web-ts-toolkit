@@ -31,7 +31,13 @@
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
-    "test": "pnpm --filter @web-ts-toolkit/json-frame... build && vitest run --config ../../vitest.config.ts"
+    "test": "pnpm typecheck && vitest run --config ../../vitest.config.ts",
+    "typecheck": "pnpm --filter @web-ts-toolkit/json-frame... build && pnpm typecheck:source && pnpm typecheck:nodenext-strict && pnpm typecheck:bundler-strict && pnpm typecheck:bundler-browser",
+    "typecheck:source": "tsc --noEmit -p tsconfig.json",
+    "typecheck:nodenext-strict": "tsc --noEmit -p test-decl-consumer/tsconfig-nodenext.json",
+    "typecheck:bundler-strict": "tsc --noEmit -p test-decl-consumer/tsconfig-bundler.json",
+    "typecheck:bundler-browser": "tsc --noEmit -p test-decl-consumer/tsconfig-bundler-browser.json",
+    "test:packed-consumer": "pnpm --filter @web-ts-toolkit/json-frame build && vitest run --config ../../vitest.config.ts test/packed-consumer.test.ts"
   },
   "files": [
     "README.md",

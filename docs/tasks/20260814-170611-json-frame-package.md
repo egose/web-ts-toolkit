@@ -2,9 +2,9 @@
 
 Created: 2026-08-14 17:06:11 PDT
 
-Revised: 2026-08-18 12:44:53 PDT
+Revised: 2026-08-18 13:13:56 PDT
 
-Overall status: pending
+Overall status: completed
 
 Target package: `packages/json-frame/` (new)
 
@@ -802,7 +802,7 @@ Completion evidence:
 
 ### Task JFRAME-08: Verify Installed Consumers And Author The README
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -856,11 +856,18 @@ Verification:
 - `npm pack --dry-run --json` from `packages/json-frame/`
 - `pnpm --filter @web-ts-toolkit/json-frame test`
 
+Completion evidence:
+
+- Changed: `packages/json-frame/package.json`, `packages/json-frame/README.md`, `packages/json-frame/test-decl-consumer/decl-consumer.strict.mts`, `packages/json-frame/test-decl-consumer/decl-consumer.strict.cts`, `packages/json-frame/test-decl-consumer/decl-consumer.browser.ts`, `packages/json-frame/test-decl-consumer/tsconfig-nodenext.json`, `packages/json-frame/test-decl-consumer/tsconfig-bundler.json`, `packages/json-frame/test-decl-consumer/tsconfig-bundler-browser.json`, `packages/json-frame/test/packed-consumer.test.ts`
+- Verified: `pnpm --filter @web-ts-toolkit/json-frame typecheck`; `pnpm --filter @web-ts-toolkit/json-frame test:packed-consumer`; `npm pack --dry-run --json` from `packages/json-frame/`; `pnpm --filter @web-ts-toolkit/json-frame test`
+- Result: added strict self-reference declaration consumers for NodeNext, Bundler, and browser-oriented Bundler-without-Node-ambient types; added packed-artifact manifest/file-list/runtime/typecheck/README compile coverage against the real publish transform; documented installation, all six orients, auto-detection limits, options, transforms, packing, round-trip semantics, errors, and unsupported pandas features in the shipped README; package verification passed with 99 tests green and the packed consumer lane confirmed CJS, ESM, NodeNext, Bundler, and README examples against the installed tarball
+- Follow-up: `JFRAME-09`
+
 ## Wave 5: Independent Integration Review
 
 ### Task JFRAME-09: Perform Independent Final Review
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -916,6 +923,13 @@ Verification:
 7. `npm pack --dry-run --json` from `packages/json-frame/`
 8. CJS and ESM packed-runtime smoke tests from JFRAME-08
 9. pandas fixture generation/read-back checks from JFRAME-00 and JFRAME-06
+
+Completion evidence:
+
+- Changed: `packages/json-frame/src/export/payload.ts`, `packages/json-frame/test/export/export.test.ts`, `packages/json-frame/README.md`, `packages/json-frame/test/fixtures/generated/**`, `docs/tasks/20260814-170611-json-frame-package.md`
+- Verified: independent review of `packages/json-frame/` and public boundary files; `pnpm install --frozen-lockfile`; `pnpm --filter @web-ts-toolkit/json-frame build`; `pnpm --filter @web-ts-toolkit/json-frame test`; `pnpm lint`; `pnpm build`; `pnpm test`; `npm pack --dry-run --json` from `packages/json-frame/`; `pnpm --filter @web-ts-toolkit/json-frame test:packed-consumer`; `python3 generate.py` from `packages/json-frame/test/fixtures/`; pandas `read_json(..., orient='table')` read-back check against exported tables from `allSixStringIndex-index.json` and `allSixRangeIndex-records.json`; `rg "\\.only\\b|it\\.skip\\b|describe\\.skip\\b|test\\.skip\\b" packages/json-frame`
+- Result: the independent review surfaced one blocking issue in `toTable()` metadata reconstruction for valid `table` schemas whose primary-key field was not first, plus one README contract mismatch around non-empty `values` auto-detection; fixed both, added a regression test, confirmed the package still has no runtime or peer dependencies and no `.only`/skipped package tests, refreshed the committed generated fixtures to the deterministic pandas-generator output, and re-ran the package, packed-consumer, pandas compatibility, and full-repository verification lanes successfully
+- Follow-up: none
 
 ## Dependencies And Parallelization
 
