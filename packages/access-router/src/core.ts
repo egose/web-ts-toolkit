@@ -17,7 +17,7 @@ import {
   reduce,
   set,
 } from '@web-ts-toolkit/utils';
-import { getGlobalOption, getModelOption, getExactModelOption } from './options';
+import { getModelOption, getExactModelOption } from './options';
 import { getModelRef } from './meta';
 import {
   Populate,
@@ -239,7 +239,7 @@ export class Core {
           if (!refModelName) return null;
 
           const runtime = getActiveRuntime();
-          if (getGlobalOption('requireRegisteredPopulateModels', true) && runtime && !runtime.hasModel(refModelName)) {
+          if (runtime && !runtime.hasModel(refModelName)) {
             return null;
           }
 
