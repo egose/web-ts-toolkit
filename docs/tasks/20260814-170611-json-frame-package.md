@@ -2,7 +2,7 @@
 
 Created: 2026-08-14 17:06:11 PDT
 
-Revised: 2026-08-18 11:06:07 PDT
+Revised: 2026-08-18 12:44:53 PDT
 
 Overall status: pending
 
@@ -317,7 +317,7 @@ Round-trip equivalence is semantic, not byte-for-byte:
 
 ### Task JFRAME-00: Commit Pandas-Generated Contract Fixtures
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -448,7 +448,7 @@ Completion evidence:
 
 ### Task JFRAME-02: Define Public Types And Structured Errors
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -500,9 +500,16 @@ Verification:
 - `pnpm exec tsc --noEmit -p packages/json-frame/tsconfig.json`
 - Focused Vitest tests for runtime error fields and option validation
 
+Completion evidence:
+
+- Changed: `packages/json-frame/src/types.ts`, `packages/json-frame/src/errors.ts`, `packages/json-frame/src/options.ts`, `packages/json-frame/src/index.ts`, `packages/json-frame/test/options-and-errors.test.ts`
+- Verified: `pnpm exec tsc --noEmit -p packages/json-frame/tsconfig.json`; `pnpm --filter @web-ts-toolkit/json-frame test -- test/options-and-errors.test.ts`; `rg "(:|<)\s*any\b|\bany\[|\bArray<any>" packages/json-frame/dist/index.d.ts packages/json-frame/dist/index.d.mts`
+- Result: added the public JSON/orient/payload/schema/column/exporter option vocabulary, an internal normalized options type with defaulted scalar fields and optional `columns`/`columnTypes`, and structured `JsonFrameError` subclasses for parse, option, validation, ambiguity, unsupported-feature, and export-collision failures; targeted tests passed for runtime error fields and invalid `packThreshold` values (`-1`, fractional, `NaN`, and infinities); the built declaration entries contained no `: any` occurrences
+- Follow-up: `JFRAME-03`
+
 ### Task JFRAME-03: Validate And Parse The Six Orients
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -560,11 +567,18 @@ Verification:
 
 - `pnpm --filter @web-ts-toolkit/json-frame test -- test/parse`
 
+Completion evidence:
+
+- Changed: `packages/json-frame/src/parse/index.ts`, `packages/json-frame/src/parse/parse.ts`, `packages/json-frame/src/parse/types.ts`, `packages/json-frame/test/parse/parse.test.ts`
+- Verified: `pnpm --filter @web-ts-toolkit/json-frame test -- test/parse`; `pnpm exec tsc --noEmit -p packages/json-frame/tsconfig.json`
+- Result: added an internal parser pipeline that parses JSON strings once, recursively rejects non-JSON programmatic inputs with path-bearing `JsonFrameValidationError`s, auto-detects only the locked unambiguous shapes, parses all six pandas orients into a consistent column-major frame shape, preserves source Table Schema metadata plus source table index-field names, rejects ambiguous nested-object and empty payloads under `auto`, and covers every committed happy-path fixture plus malformed widths, unequal column index keys, MultiIndex table rejection, duplicate/non-string columns, and prototype-sensitive labels in 63 passing targeted tests
+- Follow-up: `JFRAME-04`
+
 ## Wave 3: Storage And Immutable Behavior
 
 ### Task JFRAME-04: Implement Logical Types And Lossless Packing
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -607,9 +621,16 @@ Verification:
 
 - `pnpm --filter @web-ts-toolkit/json-frame test -- test/frame/column.test.ts`
 
+Completion evidence:
+
+- Changed: `packages/json-frame/src/frame/column.ts`, `packages/json-frame/test/frame/column.test.ts`
+- Verified: `pnpm --filter @web-ts-toolkit/json-frame test -- test/frame/column.test.ts`; `pnpm exec tsc --noEmit -p packages/json-frame/tsconfig.json`
+- Result: added an internal frame-state builder that derives logical column metadata from full-column scans or authoritative Table Schema fields, validates explicit `columnTypes` against parsed columns, packs eligible non-null numeric columns into `Int32Array` or `Float64Array` without changing materialized JSON values, and provides reusable column materialization helpers; targeted verification passed with 69 tests across the package's current suite
+- Follow-up: `JFRAME-05`
+
 ### Task JFRAME-05: Implement Immutable `DataFrame` Access And Transforms
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -656,9 +677,16 @@ Verification:
 
 - `pnpm --filter @web-ts-toolkit/json-frame test -- test/frame/DataFrame.test.ts`
 
+Completion evidence:
+
+- Changed: `packages/json-frame/src/frame/column.ts`, `packages/json-frame/src/frame/DataFrame.ts`, `packages/json-frame/test/frame/DataFrame.test.ts`
+- Verified: `pnpm --filter @web-ts-toolkit/json-frame test -- test/frame/DataFrame.test.ts`; `pnpm exec tsc --noEmit -p packages/json-frame/tsconfig.json`
+- Result: added an internal immutable `DataFrame` over validated frame state with guarded construction, defensive `columns`/`index`/`columnInfo`/row access, stable sort, filter/select/rename/resetIndex transforms, transform-time repacking through rebuilt frame state, and table-schema alignment for select/rename/resetIndex; verification passed with the package's current 75-test suite green and package source typechecking clean
+- Follow-up: `JFRAME-06`
+
 ### Task JFRAME-06: Implement All Orient Exporters
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -706,11 +734,18 @@ Verification:
 - `pnpm --filter @web-ts-toolkit/json-frame test -- test/export`
 - pandas table read-back check in the documented fixture environment
 
+Completion evidence:
+
+- Changed: `packages/json-frame/src/export/payload.ts`, `packages/json-frame/src/frame/DataFrame.ts`, `packages/json-frame/test/export/export.test.ts`
+- Verified: `pnpm exec tsc --noEmit -p packages/json-frame/tsconfig.json`; `pnpm --filter @web-ts-toolkit/json-frame test -- test/export`; `pnpm --filter access-router-runtime-example exec tsx -e "import { readFile } from 'node:fs/promises'; import path from 'node:path'; import { createFrameState } from '/home/jahn/projects/_web-ts-toolkit/packages/json-frame/src/frame/column.ts'; import { DataFrame } from '/home/jahn/projects/_web-ts-toolkit/packages/json-frame/src/frame/DataFrame.ts'; import { normalizeFromOrientOptions } from '/home/jahn/projects/_web-ts-toolkit/packages/json-frame/src/options.ts'; import { parseInput } from '/home/jahn/projects/_web-ts-toolkit/packages/json-frame/src/parse/index.ts'; void (async () => { const dir = '/home/jahn/projects/_web-ts-toolkit/packages/json-frame/test/fixtures/generated'; const mk = (input, options) => { const normalized = normalizeFromOrientOptions(options); const parsed = parseInput(input, normalized); return DataFrame.fromState(createFrameState(parsed, normalized), normalized.packThreshold); }; const cases = await Promise.all(['allSixStringIndex-index.json', 'allSixRangeIndex-records.json'].map(async (name) => { const text = await readFile(path.join(dir, name), 'utf8'); const frame = mk(text, name === 'allSixRangeIndex-records.json' ? { orient: 'records' } : { orient: 'index' }); return { name, table: frame.toTable(), expectedRows: frame.rows(), expectedIndex: frame.index, expectSourceIndex: name !== 'allSixRangeIndex-records.json' }; })); process.stdout.write(JSON.stringify(cases)); })();" | python3 -c "import io, json, sys; import pandas as pd; cases = json.load(sys.stdin); results = []; for case in cases: frame = pd.read_json(io.StringIO(json.dumps(case['table'])), orient='table'); records = frame.to_dict(orient='records'); assert records == case['expectedRows'], (case['name'], records, case['expectedRows']); index_values = frame.index.tolist(); assert index_values == (case['expectedIndex'] if case['expectSourceIndex'] else list(range(len(case['expectedRows'])))), (case['name'], index_values, case['expectedIndex']); results.append(case['name']); print(json.dumps(results))"`
+- Result: added all six parsed-payload exporters plus `toJSONString()` on the internal `DataFrame`, centralized object-key collision checks and table-schema reconstruction in a dedicated export helper, preserved source Table Schema metadata through table export, omitted synthetic indexes from table payloads, and added focused export tests covering semantic round trips across the canonical six-orient fixtures, fresh detached exporter containers, index-stringification collisions, index-field override behavior, packed-vs-unpacked equivalence, and `toJSONString()` parity; the export test run passed with the package's current 91-test suite green, and pandas 3.0.3 successfully read back representative source-index and synthetic-index table exports
+- Follow-up: `JFRAME-07`
+
 ## Wave 4: Public API And Installed Consumer
 
 ### Task JFRAME-07: Assemble `fromOrient` And The Public Entry Point
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -757,6 +792,13 @@ Verification:
 - `pnpm --filter @web-ts-toolkit/json-frame test -- test/api.test.ts`
 - `pnpm --filter @web-ts-toolkit/json-frame build`
 - Inspect `dist/index.d.ts` and `dist/index.d.mts`
+
+Completion evidence:
+
+- Changed: `packages/json-frame/src/api.ts`, `packages/json-frame/src/index.ts`, `packages/json-frame/src/types.ts`, `packages/json-frame/src/frame/DataFrame.ts`, `packages/json-frame/test/api.test.ts`, `packages/json-frame/test/frame/DataFrame.test.ts`, `packages/json-frame/test/export/export.test.ts`
+- Verified: `pnpm --filter @web-ts-toolkit/json-frame test -- test/api.test.ts`; `pnpm --filter @web-ts-toolkit/json-frame build`; `pnpm exec tsc --noEmit -p packages/json-frame/tsconfig.json`; inspected `packages/json-frame/dist/index.d.ts` and `packages/json-frame/dist/index.d.mts`
+- Result: added the public `fromOrient()` API facade, kept option validation ahead of payload traversal, reworked the package root to expose only the intended runtime values plus public types/errors, preserved high-value JSDoc in the built declarations, and split the public `DataFrame` contract from the internal class so the built entrypoint exposes no parser, storage-helper, constructor, or frame-state internals; the package build succeeded and the package test run passed with 96 tests green
+- Follow-up: `JFRAME-08`
 
 ### Task JFRAME-08: Verify Installed Consumers And Author The README
 
