@@ -1,0 +1,14 @@
+{
+  "schema": {
+    "fields": [
+      { "name": "ri", "type": "string", "extDtype": "str" },
+      { "name": "ts", "type": "datetime" }
+    ],
+    "primaryKey": ["ri"],
+    "pandas_version": "1.4.0"
+  },
+  "data": [
+    { "ri": "r0", "ts": "2024-01-02T03:04:05.000" },
+    { "ri": "r1", "ts": "2024-01-02T03:04:06.000" }
+  ]
+}

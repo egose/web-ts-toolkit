@@ -1,0 +1,15 @@
+{
+  "schema": {
+    "fields": [
+      { "name": "ri", "type": "string", "extDtype": "str" },
+      { "name": "city", "type": "string", "extDtype": "str" }
+    ],
+    "primaryKey": ["ri"],
+    "pandas_version": "1.4.0"
+  },
+  "data": [
+    { "ri": "r0", "city": "NYC" },
+    { "ri": "r1", "city": "LA" },
+    { "ri": "r2", "city": "SF" }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "schema": {
+    "fields": [
+      { "name": "ri", "type": "string", "extDtype": "str" },
+      { "name": "i", "type": "number" },
+      { "name": "f", "type": "number" },
+      { "name": "b", "type": "string" }
+    ],
+    "primaryKey": ["ri"],
+    "pandas_version": "1.4.0"
+  },
+  "data": [
+    { "ri": "r0", "i": 1.0, "f": 1.5, "b": true },
+    { "ri": "r1", "i": null, "f": null, "b": null },
+    { "ri": "r2", "i": 3.0, "f": 3.5, "b": false }
+  ]
+}

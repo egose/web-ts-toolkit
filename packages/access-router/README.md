@@ -32,6 +32,8 @@ import acl, { permissionsPlugin } from '@web-ts-toolkit/access-router';
 // 1. Configure how request permissions are resolved globally.
 acl.setGlobalOptions({
   requestPermissionField: '_permissions',
+  // Set to false only when legacy clients populate models without createRouter().
+  requireRegisteredPopulateModels: true,
   globalPermissions(req) {
     return req.headers.user === 'admin' ? ['isAdmin'] : [];
   },

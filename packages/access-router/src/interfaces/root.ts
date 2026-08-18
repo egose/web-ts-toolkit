@@ -129,6 +129,8 @@ export interface AccessRouterLogger {
 export interface GlobalOptions {
   requestPermissionField?: string;
   globalPermissions?: (this: AccessRouterRequest, req: AccessRouterRequest) => MaybePromise<GlobalPermissionValue>;
+  /** Require populate target models to be registered in the active runtime. Defaults to `true`. */
+  requireRegisteredPopulateModels?: boolean;
   logger?: AccessRouterLogger;
   requestComplexity?: RequestComplexityOptions;
 }

@@ -33,7 +33,9 @@
       "@web-ts-toolkit/access-router-runtime": ["packages/access-router-runtime/src/index.ts"],
       "@web-ts-toolkit/access-router-runtime/*": ["packages/access-router-runtime/src/*"],
       "@web-ts-toolkit/mongoose-rxdb": ["packages/mongoose-rxdb/src/index.ts"],
-      "@web-ts-toolkit/mongoose-rxdb/*": ["packages/mongoose-rxdb/src/*"]
+      "@web-ts-toolkit/mongoose-rxdb/*": ["packages/mongoose-rxdb/src/*"],
+      "@web-ts-toolkit/json-frame": ["packages/json-frame/src/index.ts"],
+      "@web-ts-toolkit/json-frame/*": ["packages/json-frame/src/*"]
     }
   }
 }

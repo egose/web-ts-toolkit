@@ -1,0 +1,15 @@
+{
+  "schema": {
+    "fields": [
+      { "name": "row_name", "type": "string", "extDtype": "str" },
+      { "name": "city", "type": "string", "extDtype": "str" },
+      { "name": "temp", "type": "number" }
+    ],
+    "primaryKey": ["row_name"],
+    "pandas_version": "1.4.0"
+  },
+  "data": [
+    { "row_name": "r0", "city": "NYC", "temp": 70.0 },
+    { "row_name": "r1", "city": "LA", "temp": 80.0 }
+  ]
+}
