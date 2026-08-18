@@ -227,6 +227,43 @@ describe('DataFrame exporters', () => {
     });
   });
 
+  it('preserves table field metadata by field name when the primary-key field is not first', () => {
+    const frame = buildDataFrame(
+      {
+        schema: {
+          fields: [
+            { name: 'city', type: 'string', extDtype: 'str' },
+            { name: 'row_name', type: 'string', extDtype: 'string[python]' },
+            { name: 'temp', type: 'number', tz: 'UTC' },
+          ],
+          primaryKey: ['row_name'],
+          pandas_version: '3.0.3',
+        },
+        data: [
+          { row_name: 'r0', city: 'NYC', temp: 70 },
+          { row_name: 'r1', city: 'LA', temp: 80 },
+        ],
+      },
+      { orient: 'table' },
+    );
+
+    expect(frame.toTable()).toEqual({
+      schema: {
+        fields: [
+          { name: 'row_name', type: 'string', extDtype: 'string[python]' },
+          { name: 'city', type: 'string', extDtype: 'str' },
+          { name: 'temp', type: 'number', tz: 'UTC' },
+        ],
+        primaryKey: ['row_name'],
+        pandas_version: '3.0.3',
+      },
+      data: [
+        { row_name: 'r0', city: 'NYC', temp: 70 },
+        { row_name: 'r1', city: 'LA', temp: 80 },
+      ],
+    });
+  });
+
   it('exports identical payloads from packed and unpacked storage', () => {
     const packed = buildDataFrame(
       [

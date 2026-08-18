@@ -239,8 +239,12 @@ export class Core {
           if (!refModelName) return null;
 
           const runtime = getActiveRuntime();
-          if (getGlobalOption('requireRegisteredPopulateModels', true) && runtime && !runtime.hasModel(refModelName)) {
-            return null;
+          if (!runtime) return null;
+
+          const requireRegisteredPopulateModels = getGlobalOption('requireRegisteredPopulateModels', true);
+
+          if (!runtime.hasModel(refModelName)) {
+            return requireRegisteredPopulateModels ? null : ret;
           }
 
           const allowedTargetOperation = await this.req.macl.isAllowed(refModelName, populateAccess);
