@@ -14,6 +14,7 @@ TypeScript packages for backend and web tooling.
 - `@web-ts-toolkit/http-errors`: typed HTTP error classes and payload helpers for backend APIs
 - `@web-ts-toolkit/message-service`: template-driven messaging core for Mongoose + Express applications
 - `@web-ts-toolkit/moo`: Mongoose helpers for schema fields, ObjectId checks, and document plugins
+- `@web-ts-toolkit/pdf-reader`: resource-safe browser PDF rendering and extraction built on PDF.js
 - `@web-ts-toolkit/utils`: shared collection, object, async, and URL helpers used across workspace packages
 
 ## Starter template

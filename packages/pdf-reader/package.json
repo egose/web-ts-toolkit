@@ -1,0 +1,50 @@
+{
+  "name": "@web-ts-toolkit/pdf-reader",
+  "description": "Resource-safe browser PDF rendering, text extraction, and embedded-image extraction built on PDF.js",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/pdf-reader",
+  "version": "0.0.0-PLACEHOLDER",
+  "license": "PLACEHOLDER",
+  "sideEffects": false,
+  "repository": "PLACEHOLDER",
+  "keywords": [
+    "pdf",
+    "pdfjs",
+    "browser",
+    "canvas",
+    "text-extraction",
+    "typescript"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.ts",
+        "default": "./dist/index.d.ts"
+      },
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "test": "pnpm --filter @web-ts-toolkit/pdf-reader... build && vitest run --config ../../vitest.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "pdfjs-dist": "^5.0.0"
+  },
+  "devDependencies": {
+    "pdfjs-dist": "^5.7.284"
+  }
+}
