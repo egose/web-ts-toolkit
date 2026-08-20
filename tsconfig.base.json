@@ -35,7 +35,9 @@
       "@web-ts-toolkit/mongoose-rxdb": ["packages/mongoose-rxdb/src/index.ts"],
       "@web-ts-toolkit/mongoose-rxdb/*": ["packages/mongoose-rxdb/src/*"],
       "@web-ts-toolkit/json-frame": ["packages/json-frame/src/index.ts"],
-      "@web-ts-toolkit/json-frame/*": ["packages/json-frame/src/*"]
+      "@web-ts-toolkit/json-frame/*": ["packages/json-frame/src/*"],
+      "@web-ts-toolkit/pdf-reader": ["packages/pdf-reader/src/index.ts"],
+      "@web-ts-toolkit/pdf-reader/*": ["packages/pdf-reader/src/*"]
     }
   }
 }
