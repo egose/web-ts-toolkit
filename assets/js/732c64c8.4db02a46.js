@@ -1,7 +1,7 @@
 "use strict";
-(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[195],{
+(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[919],{
 
-/***/ 6948
+/***/ 9843
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 // ESM COMPAT FLAG
@@ -13,12 +13,12 @@ __webpack_require__.d(__webpack_exports__, {
   contentTitle: () => (/* binding */ contentTitle),
   "default": () => (/* binding */ MDXContent),
   frontMatter: () => (/* binding */ frontMatter),
-  metadata: () => (/* reexport */ site_docs_packages_express_runtime_md_6be_namespaceObject),
+  metadata: () => (/* reexport */ site_docs_packages_message_service_md_732_namespaceObject),
   toc: () => (/* binding */ toc)
 });
 
-;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-runtime-md-6be.json
-const site_docs_packages_express_runtime_md_6be_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-runtime","title":"@web-ts-toolkit/express-runtime","description":"Express app factory plus serverless handler and local dev server helpers.","source":"@site/docs/packages/express-runtime.md","sourceDirName":"packages","slug":"/packages/express-runtime","permalink":"/docs/packages/express-runtime","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":2,"frontMatter":{"sidebar_label":"Express Runtime","sidebar_position":2},"sidebar":"packagesSidebar","previous":{"title":"Express JSON Router","permalink":"/docs/packages/express-json-router"},"next":{"title":"Access Router React","permalink":"/docs/packages/access-router-react"}}');
+;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-message-service-md-732.json
+const site_docs_packages_message_service_md_732_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/message-service","title":"@web-ts-toolkit/message-service","description":"Template-driven messaging service for Mongoose + Express applications.","source":"@site/docs/packages/message-service.md","sourceDirName":"packages","slug":"/packages/message-service","permalink":"/docs/packages/message-service","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":15,"frontMatter":{"sidebar_label":"Message Service","sidebar_position":15},"sidebar":"packagesSidebar","previous":{"title":"Access Router Runtime","permalink":"/docs/packages/access-router-runtime"},"next":{"title":"Moo","permalink":"/docs/packages/moo"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -27,14 +27,14 @@ var lib = __webpack_require__(1982);
 var Tabs = __webpack_require__(5250);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@docusaurus+theme-classic@3.10.1_@types+react@19.2.14_react-dom@19.2.6_react@19.2.6__react@19.2.6_typescript@6.0.3/node_modules/@docusaurus/theme-classic/lib/theme/TabItem/index.js + 1 modules
 var TabItem = __webpack_require__(6574);
-;// ./docs/packages/express-runtime.md
+;// ./docs/packages/message-service.md
 
 
 const frontMatter = {
-	sidebar_label: 'Express Runtime',
-	sidebar_position: 2
+	sidebar_label: 'Message Service',
+	sidebar_position: 15
 };
-const contentTitle = '@web-ts-toolkit/express-runtime';
+const contentTitle = '@web-ts-toolkit/message-service';
 
 const assets = {
 
@@ -57,64 +57,56 @@ const toc = [{
   "id": "quick-start",
   "level": 2
 }, {
-  "value": "Module API: local server",
-  "id": "module-api-local-server",
-  "level": 3
-}, {
-  "value": "Module API: serverless handler",
-  "id": "module-api-serverless-handler",
-  "level": 3
-}, {
-  "value": "Error handling and finalize hook",
-  "id": "error-handling-and-finalize-hook",
-  "level": 3
-}, {
-  "value": "CLI",
-  "id": "cli",
+  "value": "Route Factory",
+  "id": "route-factory",
   "level": 2
 }, {
-  "value": "Local dev",
-  "id": "local-dev",
+  "value": "Route-factory example with custom request extraction",
+  "id": "route-factory-example-with-custom-request-extraction",
   "level": 3
 }, {
-  "value": "Dev with env, preload, and watch",
-  "id": "dev-with-env-preload-and-watch",
+  "value": "Create-from-template request example",
+  "id": "create-from-template-request-example",
   "level": 3
 }, {
-  "value": "Build a local runtime bundle",
-  "id": "build-a-local-runtime-bundle",
-  "level": 3
-}, {
-  "value": "Start a built local bundle",
-  "id": "start-a-built-local-bundle",
-  "level": 3
-}, {
-  "value": "Build a serverless bundle",
-  "id": "build-a-serverless-bundle",
-  "level": 3
-}, {
-  "value": "Start a built serverless bundle locally",
-  "id": "start-a-built-serverless-bundle-locally",
-  "level": 3
-}, {
-  "value": "Command summary",
-  "id": "command-summary",
-  "level": 3
-}, {
-  "value": "<code>createExpressApp(options?)</code>",
-  "id": "createexpressappoptions",
+  "value": "<code>MessageService</code>",
+  "id": "messageservice",
   "level": 2
 }, {
-  "value": "<code>createServerlessHandler(app, options?)</code>",
-  "id": "createserverlesshandlerapp-options",
+  "value": "Direct notification example",
+  "id": "direct-notification-example",
+  "level": 3
+}, {
+  "value": "Direct template-action example",
+  "id": "direct-template-action-example",
+  "level": 3
+}, {
+  "value": "Template Registry",
+  "id": "template-registry",
   "level": 2
 }, {
-  "value": "<code>startLocalServer(app, options?)</code>",
-  "id": "startlocalserverapp-options",
+  "value": "Schema Factories",
+  "id": "schema-factories",
   "level": 2
 }, {
-  "value": "<code>@web-ts-toolkit/express-runtime/cli</code>",
-  "id": "web-ts-toolkitexpress-runtimecli",
+  "value": "Schema config example",
+  "id": "schema-config-example",
+  "level": 3
+}, {
+  "value": "Providers",
+  "id": "providers",
+  "level": 2
+}, {
+  "value": "Email provider",
+  "id": "email-provider",
+  "level": 3
+}, {
+  "value": "Payment provider",
+  "id": "payment-provider",
+  "level": 3
+}, {
+  "value": "Typed Errors",
+  "id": "typed-errors",
   "level": 2
 }, {
   "value": "When To Use It",
@@ -129,15 +121,8 @@ function _createMdxContent(props) {
     h3: "h3",
     header: "header",
     li: "li",
-    ol: "ol",
     p: "p",
     pre: "pre",
-    table: "table",
-    tbody: "tbody",
-    td: "td",
-    th: "th",
-    thead: "thead",
-    tr: "tr",
     ul: "ul",
     ...(0,lib/* useMDXComponents */.R)(),
     ...props.components
@@ -145,24 +130,28 @@ function _createMdxContent(props) {
   return (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, {
     children: [(0,jsx_runtime.jsx)(_components.header, {
       children: (0,jsx_runtime.jsx)(_components.h1, {
-        id: "web-ts-toolkitexpress-runtime",
+        id: "web-ts-toolkitmessage-service",
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/express-runtime"
+          children: "@web-ts-toolkit/message-service"
         })
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Express app factory plus serverless handler and local dev server helpers."
+      children: "Template-driven messaging service for Mongoose + Express applications."
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Use this package when you want one Express app definition that can:"
+      children: "This package combines:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["run locally with ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "http.createServer(...)"
-        })]
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Mongoose schemas for active, archived, and idempotent-request records"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "be wrapped as a platform-agnostic serverless handler"
+        children: "a template registry and interpolation engine"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["a direct ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "MessageService"
+        }), " API"]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "be built and started through a shared CLI instead of hand-written runtime glue"
+        children: "a route factory for mounting message endpoints in Express"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "pluggable email and payment provider interfaces"
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
@@ -174,7 +163,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @web-ts-toolkit/express-runtime express\n"
+            children: "npm install @web-ts-toolkit/message-service mongoose express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -183,7 +172,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @web-ts-toolkit/express-runtime express\n"
+            children: "yarn add @web-ts-toolkit/message-service mongoose express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -192,7 +181,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @web-ts-toolkit/express-runtime express\n"
+            children: "pnpm add @web-ts-toolkit/message-service mongoose express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -201,554 +190,425 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @web-ts-toolkit/express-runtime express\n"
+            children: "bun add @web-ts-toolkit/message-service mongoose express\n"
           })
         })
       })]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Peer dependency: ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "express >= 5"
-      })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Peer dependencies:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "mongoose >= 8"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "express >= 5"
+        })
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "what-it-exposes",
       children: "What It Exposes"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Root entrypoint:"
+      children: "Schema exports:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "createExpressApp(options?)"
+          children: "buildMessageSchema(config?)"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "createServerlessHandler(app, options?)"
+          children: "buildMessageArchiveSchema()"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "startLocalServer(app, options?)"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "defaultRequestHook(...)"
+          children: "buildMessageRequestSchema()"
         })
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["types such as ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "ExpressAppOptions"
+        children: ["model-name constants such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "MESSAGE_MODEL_NAME"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "RouterMount"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "ServerlessHandlerOptions"
+          children: "MESSAGE_ARCHIVE_MODEL_NAME"
         }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "Logger"
+          children: "MESSAGE_REQUEST_MODEL_NAME"
         })]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "CLI binary:"
+      children: "Template and registry exports:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "wtt-express-runtime dev"
+          children: "TemplateRegistry"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "wtt-express-runtime build"
+          children: "defaultRegistry"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "wtt-express-runtime start"
+          children: "interpolateTemplate(...)"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "wtt-express-runtime build-serverless"
+          children: "filterActions(...)"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "wtt-express-runtime start-serverless"
+          children: "isActionAllowed(...)"
         })
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Published subpath:"
+      children: "Service and route exports:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "MessageService"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "createMessageRoutes(options)"
+        })
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Provider exports:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/express-runtime/cli"
-        }), " for reusable CLI parsing, env loading, build, watch, and runtime helpers"]
+          children: "EmailProvider"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "NoopEmailProvider"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "PaymentProvider"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "NoopPaymentProvider"
+        })]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Typed errors:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "TemplateNotFoundError"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "ActionNotFoundError"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "ActionNotAllowedError"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "MessageNotFoundError"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "MessageArchivedError"
+        })
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "quick-start",
       children: "Quick Start"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Choose one runtime mode per app instance. If you want both a local server and a serverless export, create them from separate app instances instead of mutating one shared app in two directions."
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "module-api-local-server",
-      children: "Module API: local server"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import express from 'express';\nimport { createExpressApp, startLocalServer } from '@web-ts-toolkit/express-runtime';\n\nconst myRouter = express.Router();\n\nconst app = createExpressApp({\n  routers: [\n    {\n      path: () => '/api',\n      handler: myRouter,\n    },\n  ],\n});\n\nstartLocalServer(app, {\n  port: 8080,\n  host: '0.0.0.0',\n});\n"
+        children: "import express from 'express';\nimport mongoose from 'mongoose';\nimport {\n  buildMessageArchiveSchema,\n  buildMessageRequestSchema,\n  buildMessageSchema,\n  createMessageRoutes,\n  defaultRegistry,\n  MESSAGE_ARCHIVE_MODEL_NAME,\n  MESSAGE_MODEL_NAME,\n  MESSAGE_REQUEST_MODEL_NAME,\n  type MessageTemplate,\n} from '@web-ts-toolkit/message-service';\n\nconst app = express();\nconst myAuthMiddleware: express.RequestHandler = (_req, _res, next) => next();\n\nawait mongoose.connect('mongodb://localhost/mydb');\n\nmongoose.model(MESSAGE_MODEL_NAME, buildMessageSchema());\nmongoose.model(MESSAGE_ARCHIVE_MODEL_NAME, buildMessageArchiveSchema());\nmongoose.model(MESSAGE_REQUEST_MODEL_NAME, buildMessageRequestSchema());\n\nconst welcomeTemplate: MessageTemplate = {\n  templateCd: 'welcome',\n  senderContent: {\n    title: 'Welcome {{name}}',\n  },\n  receiverContent: {\n    title: 'Welcome {{name}}',\n  },\n  prepare: async ({ payload }) => ({\n    payload,\n  }),\n};\n\ndefaultRegistry.register(welcomeTemplate);\n\nconst { router, service } = createMessageRoutes({\n  getModel: mongoose.model.bind(mongoose),\n});\n\napp.use('/api/messages', myAuthMiddleware, router);\n"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "module-api-serverless-handler",
-      children: "Module API: serverless handler"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import express from 'express';\nimport { createExpressApp, createServerlessHandler } from '@web-ts-toolkit/express-runtime';\n\nconst myRouter = express.Router();\n\nasync function connectDatabase(): Promise<void> {}\n\nconst app = createExpressApp({\n  routers: [\n    {\n      path: () => (process.env.NODE_ENV === 'production' ? '/.netlify/functions/main' : '/api'),\n      handler: myRouter,\n    },\n  ],\n});\n\nexport const handler = createServerlessHandler(app, {\n  init: async () => {\n    await connectDatabase();\n  },\n});\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "error-handling-and-finalize-hook",
-      children: "Error handling and finalize hook"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import express from 'express';\nimport { createExpressApp } from '@web-ts-toolkit/express-runtime';\n\nconst requestLogger: express.RequestHandler = (_req, _res, next) => next();\nconst authMiddleware: express.RequestHandler = (_req, _res, next) => next();\nconst notFoundMiddleware: express.RequestHandler = (_req, _res, next) => next();\nconst apiRouter = express.Router();\n\nconst app = createExpressApp({\n  middleware: [requestLogger, authMiddleware],\n  routers: [{ path: '/api', handler: apiRouter }],\n  postMiddleware: [notFoundMiddleware],\n  finalize(app) {\n    app.get('/health', (_req, res) => {\n      res.json({ ok: true });\n    });\n  },\n  errorHandler(err, _req, res, _next) {\n    res.status(500).json({\n      message: err instanceof Error ? err.message : 'unexpected server error',\n    });\n  },\n});\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "cli",
-      children: "CLI"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "The CLI runs any module that exports an Express app or a built serverless handler."
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "local-dev",
-      children: "Local dev"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-bash",
-        children: "npx wtt-express-runtime dev ./dist/app.js --port 3000 --host localhost\n"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["For TypeScript app modules, run the CLI through ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "tsx"
-      }), ":"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-bash",
-        children: "npx tsx ./node_modules/@web-ts-toolkit/express-runtime/dist/cli.js dev ./src/app.ts --env .env\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "dev-with-env-preload-and-watch",
-      children: "Dev with env, preload, and watch"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-bash",
-        children: "npx tsx ./node_modules/@web-ts-toolkit/express-runtime/dist/cli.js dev ./src/app.ts \\\n  --env .env \\\n  --require tsconfig-paths/register \\\n  --watch ./src,./shared \\\n  --ext ts,json\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Use this when your app module is TypeScript, depends on path aliases, or should restart on source changes."
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "build-a-local-runtime-bundle",
-      children: "Build a local runtime bundle"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-bash",
-        children: "npx wtt-express-runtime build ./src/app.ts --out-dir dist\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "With an optional init hook:"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-bash",
-        children: "npx wtt-express-runtime build ./src/app.ts --init ./src/init.ts --out-dir dist\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "start-a-built-local-bundle",
-      children: "Start a built local bundle"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-bash",
-        children: "npx wtt-express-runtime start ./dist/app.js --port 9000 --env .env\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "build-a-serverless-bundle",
-      children: "Build a serverless bundle"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-bash",
-        children: "npx wtt-express-runtime build-serverless ./src/app.ts --out-dir netlify/functions\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "start-a-built-serverless-bundle-locally",
-      children: "Start a built serverless bundle locally"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-bash",
-        children: "npx wtt-express-runtime start-serverless ./netlify/functions/handler.js --port 9000 --env .env\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "command-summary",
-      children: "Command summary"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
-      children: [(0,jsx_runtime.jsx)(_components.thead, {
-        children: (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.th, {
-            children: "Command"
-          }), (0,jsx_runtime.jsx)(_components.th, {
-            children: "Purpose"
-          })]
-        })
-      }), (0,jsx_runtime.jsxs)(_components.tbody, {
-        children: [(0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "dev"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Run an app module directly as a local dev server"
-          })]
-        }), (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "build"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Bundle an app module into a local runtime file"
-          })]
-        }), (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "start"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Start the built local runtime bundle"
-          })]
-        }), (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "build-serverless"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Bundle an app module into a serverless handler"
-          })]
-        }), (0,jsx_runtime.jsxs)(_components.tr, {
-          children: [(0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "start-serverless"
-            })
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Run a built serverless handler locally through an adapter"
-          })]
-        })]
-      })]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Common options worth knowing:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "--env <path>"
-        }), " loads one or more env files without overwriting already-set variables"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "--require <module>"
-        }), " preloads modules before loading the app"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "--watch <paths>"
-        }), " restarts the ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "dev"
-        }), " command on file changes"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "--out-dir <path>"
-        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "--out-name <name>"
-        }), " control build output paths"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "--external <pkg>"
-        }), " keeps dependencies external during bundling"]
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "createexpressappoptions",
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "createExpressApp(options?)"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "This is the package's central app-construction primitive."
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Middleware order:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ol, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "preMiddleware"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "built-in body parsers"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "middleware"
-        })
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "router"
-        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "routers"
-        })]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "postMiddleware"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "finalize(app)"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "errorHandler"
-        })
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Built-in defaults:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "x-powered-by"
-        }), " is disabled unless ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "disablePoweredBy: false"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "etag"
-        }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "false"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "trust proxy"
-        }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "false"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "express.json()"
-        }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "{ limit: '1mb' }"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "express.urlencoded()"
-        }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "{ extended: false, limit: '1mb' }"
-        })]
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Important options:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "preMiddleware"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "middleware"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "postMiddleware"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "json"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "urlencoded"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "router"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "routers"
-        })]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "trustProxy"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "finalize"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "errorHandler"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "logger"
-        })
-      }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "RouterMount"
-      }), " accepts:"]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "path: string | () => string"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "handler: RequestHandler"
-        })
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["That function form is useful when the same app should mount under ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "/api"
-      }), " locally and a serverless path in production."]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Example ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "RouterMount"
-      }), " usage:"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import express from 'express';\n\nconst apiRouter = express.Router();\n\nconst app = createExpressApp({\n  routers: [\n    {\n      path: () => (process.env.NODE_ENV === 'production' ? '/.netlify/functions/main' : '/api'),\n      handler: apiRouter,\n    },\n  ],\n});\n"
-      })
+        children: "createMessageRoutes(...)"
+      }), " returns both the mounted router and the underlying ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MessageService"
+      }), " instance."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "This is the shortest path when you want a working message API quickly and still want direct access to the underlying service for app-specific workflows."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "createserverlesshandlerapp-options",
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "createServerlessHandler(app, options?)"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Wraps an Express app into a platform-agnostic serverless handler."
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Notable behavior:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "init()"
-        }), " runs once per cold start and is memoized"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["rejected ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "init()"
-        }), " results are also memoized until you call ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "handler.reset()"
-        })]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "the default request hook decodes buffered JSON and text bodies before Express sees them"
-      }), "\n"]
+      id: "route-factory",
+      children: "Route Factory"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "createMessageRoutes(options)"
+      }), " creates a standalone Express router with template-based message routes."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Important options:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "init"
+          children: "getModel"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "request"
+          children: "paymentProvider"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "response"
+          children: "adminRoles"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "serverlessOptions"
+          children: "registry"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "maxBodyBytes"
+          children: "authMiddleware"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "logger"
+          children: "getUser"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "getPermissions"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "getIdentity"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "adminPermissionKey"
         })
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Netlify-style example:"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import type { Handler } from '@netlify/functions';\nimport express from 'express';\nimport { createExpressApp, createServerlessHandler } from '@web-ts-toolkit/express-runtime';\n\nconst myRouter = express.Router();\n\nasync function connectDatabase(): Promise<void> {}\n\nconst app = createExpressApp({\n  routers: [{ path: () => '/.netlify/functions/main', handler: myRouter }],\n});\n\nexport const handler: Handler = createServerlessHandler(app, {\n  init: async () => {\n    await connectDatabase();\n  },\n});\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "startlocalserverapp-options",
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "startLocalServer(app, options?)"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Starts the app with friendly local-server behavior:"
+      children: "Mounted routes:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "TCP port or named-pipe binding"
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["graceful ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "SIGINT"
-        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "SIGTERM"
-        }), " shutdown by default"]
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "POST /new/:templateCd"
+        })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "configurable shutdown timeout for draining in-flight requests"
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["optional ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "init"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "onShutdown"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "onListening"
-        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "onError"
-        }), " hooks"]
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "GET /:id/actions/:usertype"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "GET /:id/action/:actionCd"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "POST /:id/action/:actionCd"
+        })
       }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Example with shutdown hooks:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The route factory uses ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/express-json-router"
+      }), ", so typed message-service errors become normal HTTP responses without extra controller wiring."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "route-factory-example-with-custom-request-extraction",
+      children: "Route-factory example with custom request extraction"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "async function connectDatabase(): Promise<void> {}\nasync function disconnectDatabase(): Promise<void> {}\n\nconst server = startLocalServer(app, {\n  port: 8080,\n  init: async () => {\n    await connectDatabase();\n  },\n  onShutdown: async () => {\n    await disconnectDatabase();\n  },\n  onListening: () => {\n    console.log('server is ready');\n  },\n});\n\nawait server.shutdown();\n"
+        children: "import type express from 'express';\n\nconst requireAuth: express.RequestHandler = (_req, _res, next) => next();\ntype RequestWithAuth = express.Request & {\n  user?: unknown;\n  permissions?: Record<string, boolean>;\n};\n\nconst { router } = createMessageRoutes({\n  getModel: mongoose.model.bind(mongoose),\n  authMiddleware: [requireAuth],\n  getUser(req) {\n    return (req as RequestWithAuth).user;\n  },\n  getPermissions(req) {\n    return (req as RequestWithAuth).permissions ?? {};\n  },\n  getIdentity(req) {\n    return {\n      tenantId: req.headers['x-tenant-id'],\n    };\n  },\n});\n\napp.use('/api/messages', router);\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "create-from-template-request-example",
+      children: "Create-from-template request example"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "await fetch('/api/messages/new/welcome', {\n  method: 'POST',\n  headers: { 'content-type': 'application/json' },\n  body: JSON.stringify({\n    name: 'Ada',\n    clientRequestId: 'req_123',\n  }),\n});\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["When ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "clientRequestId"
+      }), " is present and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MessageRequest"
+      }), " is registered, duplicate retries reuse the original in-flight or completed result instead of producing duplicate side effects."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "messageservice",
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "MessageService"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MessageService"
+      }), " directly when you want the message workflow without the route factory."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Common methods:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "createMessage(params)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "createNotification(params)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "listMessages({ user, limit?, skip?, populate? })"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "countMessages(user)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "findMessage(id, options?)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "findMessageOrThrow(id, options?)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "getActions(id, usertype, options?)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "handleAction(templateCd, actionCd, options)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "buildVisibilityFilter(user)"
+        })
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Example:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { MessageService, TemplateRegistry } from '@web-ts-toolkit/message-service';\n\nconst registry = new TemplateRegistry();\nregistry.register(welcomeTemplate);\n\nconst service = new MessageService({\n  getModel: mongoose.model.bind(mongoose),\n  registry,\n});\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "direct-notification-example",
+      children: "Direct notification example"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "await service.createNotification({\n  fromUser: { _id: 'system', name: 'System' },\n  toUser: { _id: 'user_123', name: 'Ada' },\n  receiverContent: {\n    title: 'Deployment finished',\n    body: 'Your deployment completed successfully.',\n  },\n});\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "direct-template-action-example",
+      children: "Direct template-action example"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "const message = await service.findMessageOrThrow('message_123');\n\nawait service.handleAction('welcome', 'acknowledge', {\n  message,\n  user: { _id: 'user_123', name: 'Ada' },\n  permissions: { 'message.ack': true },\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "web-ts-toolkitexpress-runtimecli",
+      id: "template-registry",
+      children: "Template Registry"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "TemplateRegistry"
+      }), " is the in-memory registry for message templates."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/express-runtime/cli"
+        className: "language-ts",
+        children: "const registry = new TemplateRegistry();\n\nregistry.register(template);\nregistry.find('welcome');\nregistry.has('welcome');\nregistry.getAll();\nregistry.unregister('welcome');\nregistry.clear();\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Use the public ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "./cli"
-      }), " subpath when another package wants the same runtime CLI behavior without shelling out to ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "wtt-express-runtime"
-      }), "."]
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "defaultRegistry"
+      }), " is a shared global instance for simpler applications."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Prefer a dedicated ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "TemplateRegistry"
+      }), " instance when different apps, tenants, or tests should not share template definitions through process-global state."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "schema-factories",
+      children: "Schema Factories"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "It re-exports the parser and helpers used by the binary, including:"
+      children: "Register all three schemas when you want full message-service behavior, especially idempotent create flows:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import {\n  buildMessageArchiveSchema,\n  buildMessageRequestSchema,\n  buildMessageSchema,\n  MESSAGE_ARCHIVE_MODEL_NAME,\n  MESSAGE_MODEL_NAME,\n  MESSAGE_REQUEST_MODEL_NAME,\n} from '@web-ts-toolkit/message-service';\n\nmongoose.model(MESSAGE_MODEL_NAME, buildMessageSchema());\nmongoose.model(MESSAGE_ARCHIVE_MODEL_NAME, buildMessageArchiveSchema());\nmongoose.model(MESSAGE_REQUEST_MODEL_NAME, buildMessageRequestSchema());\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Why the third schema matters:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["argument types such as ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "DevArgs"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "BuildArgs"
-        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "StartArgs"
-        })]
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "clientRequestId"
+        }), " is only safe for concurrent retries when ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "MessageRequest"
+        }), " is registered"]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "parseArgs(...)"
-        })
+        children: "the winner reserves the idempotency key before template preparation or payment-session creation runs"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "runDevCommand(...)"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "runCliCommand(...)"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "env-loading, module preloading, and build helpers"
+        children: "later duplicate requests return the same outcome instead of causing duplicate side effects"
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "schema-config-example",
+      children: "Schema config example"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "const Message = mongoose.model(\n  MESSAGE_MODEL_NAME,\n  buildMessageSchema({\n    userModelName: 'User',\n    archiveModelName: MESSAGE_ARCHIVE_MODEL_NAME,\n    emailNotificationExclusions: ['silent-template'],\n  }),\n);\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "providers",
+      children: "Providers"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Email and payment integrations are interfaces, not hard dependencies."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "email-provider",
+      children: "Email provider"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import type { EmailProvider } from '@web-ts-toolkit/message-service';\n\nasync function sendWithProvider(to: string, subject: string, text: string): Promise<void> {\n  void { to, subject, text };\n}\n\nclass SendGridEmailProvider implements EmailProvider {\n  async sendNotification(to: string, title: string, body: string) {\n    await sendWithProvider(to, title, body);\n  }\n}\n"
+      })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["This is the same public subpath ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/access-router-runtime"
-      }), " builds on for its own config-driven CLI."]
+      children: ["Use the provider with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "buildMessageSchema({ emailNotifier })"
+      }), " when you want schema-level notification hooks."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "payment-provider",
+      children: "Payment provider"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import type { PaymentProvider } from '@web-ts-toolkit/message-service';\n\nasync function createCheckoutSession(user: unknown, code: string, priceArgs: unknown): Promise<string> {\n  void { user, code, priceArgs };\n  return 'session_123';\n}\n\nasync function expireCheckoutSession(sessionId: string): Promise<void> {\n  void sessionId;\n}\n\nasync function refundCheckoutSession(sessionId: string): Promise<void> {\n  void sessionId;\n}\n\nclass StripePaymentProvider implements PaymentProvider {\n  async createSession(user, code, priceArgs) {\n    return await createCheckoutSession(user, code, priceArgs);\n  }\n\n  async expireSession(sessionId) {\n    await expireCheckoutSession(sessionId);\n  }\n\n  async refundPayment(sessionId) {\n    await refundCheckoutSession(sessionId);\n  }\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Pass it to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createMessageRoutes({ paymentProvider })"
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "new MessageService({ paymentProvider })"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "typed-errors",
+      children: "Typed Errors"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import {\n  ActionNotAllowedError,\n  ActionNotFoundError,\n  MessageNotFoundError,\n  TemplateNotFoundError,\n} from '@web-ts-toolkit/message-service';\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["These are useful both in route handlers and in direct service usage with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "instanceof"
+      }), " checks."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "try {\n  await service.findMessageOrThrow('missing-id');\n} catch (error) {\n  if (error instanceof MessageNotFoundError) {\n    console.error('message not found');\n  }\n}\n"
+      })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "when-to-use-it",
       children: "When To Use It"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/express-runtime"
+        children: "@web-ts-toolkit/message-service"
       }), " when you want:"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "a small runtime layer over normal Express apps"
+        children: "template-based notification and action workflows"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "one app definition that can run locally and in serverless environments"
+        children: "Mongoose-backed persistence for active and archived messages"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "shared CLI build/start/dev behavior across packages"
+        children: "an Express router you can mount quickly, with a direct service API underneath"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "idempotent create flows and pluggable provider integration"
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "If you already have a custom runtime with your own entrypoints, bundling, and local server bootstrap, this package may be more abstraction than you need."
+      children: "If your app only needs a thin email wrapper or a one-off notification table, this package may be broader than you need."
     })]
   });
 }

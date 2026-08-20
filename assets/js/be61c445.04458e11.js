@@ -18,7 +18,7 @@ __webpack_require__.d(__webpack_exports__, {
 });
 
 ;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-http-errors-md-be6.json
-const site_docs_packages_http_errors_md_be6_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/http-errors","title":"@web-ts-toolkit/http-errors","description":"HTTP error classes for backend APIs, including 4xx client errors and 5xx server errors.","source":"@site/docs/packages/http-errors.md","sourceDirName":"packages","slug":"/packages/http-errors","permalink":"/docs/packages/http-errors","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":4,"frontMatter":{"sidebar_label":"HTTP Errors","sidebar_position":4},"sidebar":"packagesSidebar","previous":{"title":"OIDC Vault Memory Store","permalink":"/docs/packages/express-oidc-vault-memory-store"},"next":{"title":"OIDC Vault Redis Store","permalink":"/docs/packages/express-oidc-vault-redis-store"}}');
+const site_docs_packages_http_errors_md_be6_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/http-errors","title":"@web-ts-toolkit/http-errors","description":"HTTP error classes for backend APIs, including 4xx client errors and 5xx server errors.","source":"@site/docs/packages/http-errors.md","sourceDirName":"packages","slug":"/packages/http-errors","permalink":"/docs/packages/http-errors","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":2,"frontMatter":{"sidebar_label":"HTTP Errors","sidebar_position":2},"sidebar":"packagesSidebar","previous":{"title":"Utils","permalink":"/docs/packages/utils"},"next":{"title":"Express Runtime","permalink":"/docs/packages/express-runtime"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -32,7 +32,7 @@ var TabItem = __webpack_require__(6574);
 
 const frontMatter = {
 	sidebar_label: 'HTTP Errors',
-	sidebar_position: 4
+	sidebar_position: 2
 };
 const contentTitle = '@web-ts-toolkit/http-errors';
 

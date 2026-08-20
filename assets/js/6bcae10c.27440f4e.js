@@ -18,7 +18,7 @@ __webpack_require__.d(__webpack_exports__, {
 });
 
 ;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-create-access-router-mongo-starter-md-6bc.json
-const site_docs_packages_create_access_router_mongo_starter_md_6bc_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/create-access-router-mongo-starter","title":"create-access-router-mongo-starter","description":"Starter CLI for scaffolding a MongoDB-backed access-router + React application.","source":"@site/docs/packages/create-access-router-mongo-starter.md","sourceDirName":"packages","slug":"/packages/create-access-router-mongo-starter","permalink":"/docs/packages/create-access-router-mongo-starter","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":9,"frontMatter":{"sidebar_label":"Create Access Router Starter","sidebar_position":9},"sidebar":"packagesSidebar","previous":{"title":"Utils","permalink":"/docs/packages/utils"},"next":{"title":"Mongoose-RxDB","permalink":"/docs/packages/mongoose-rxdb"}}');
+const site_docs_packages_create_access_router_mongo_starter_md_6bc_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/create-access-router-mongo-starter","title":"create-access-router-mongo-starter","description":"Starter CLI for scaffolding a MongoDB-backed access-router + React application.","source":"@site/docs/packages/create-access-router-mongo-starter.md","sourceDirName":"packages","slug":"/packages/create-access-router-mongo-starter","permalink":"/docs/packages/create-access-router-mongo-starter","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":19,"frontMatter":{"sidebar_label":"Create Access Router Starter","sidebar_position":19},"sidebar":"packagesSidebar","previous":{"title":"PDF Reader","permalink":"/docs/packages/pdf-reader"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -28,7 +28,7 @@ var lib = __webpack_require__(1982);
 
 const frontMatter = {
 	sidebar_label: 'Create Access Router Starter',
-	sidebar_position: 9
+	sidebar_position: 19
 };
 const contentTitle = 'create-access-router-mongo-starter';
 

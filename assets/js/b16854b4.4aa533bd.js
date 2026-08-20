@@ -1,7 +1,7 @@
 "use strict";
-(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[887],{
+(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[743],{
 
-/***/ 8543
+/***/ 2792
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 // ESM COMPAT FLAG
@@ -13,12 +13,12 @@ __webpack_require__.d(__webpack_exports__, {
   contentTitle: () => (/* binding */ contentTitle),
   "default": () => (/* binding */ MDXContent),
   frontMatter: () => (/* binding */ frontMatter),
-  metadata: () => (/* reexport */ site_docs_packages_express_oidc_vault_redis_store_md_f9d_namespaceObject),
+  metadata: () => (/* reexport */ site_docs_packages_moo_md_b16_namespaceObject),
   toc: () => (/* binding */ toc)
 });
 
-;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-oidc-vault-redis-store-md-f9d.json
-const site_docs_packages_express_oidc_vault_redis_store_md_f9d_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-oidc-vault-redis-store","title":"@web-ts-toolkit/express-oidc-vault-redis-store","description":"Redis-backed store provider for @web-ts-toolkit/express-oidc-vault.","source":"@site/docs/packages/express-oidc-vault-redis-store.md","sourceDirName":"packages","slug":"/packages/express-oidc-vault-redis-store","permalink":"/docs/packages/express-oidc-vault-redis-store","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":5,"frontMatter":{"sidebar_label":"OIDC Vault Redis Store","sidebar_position":5},"sidebar":"packagesSidebar","previous":{"title":"HTTP Errors","permalink":"/docs/packages/http-errors"},"next":{"title":"Moo","permalink":"/docs/packages/moo"}}');
+;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-moo-md-b16.json
+const site_docs_packages_moo_md_b16_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/moo","title":"@web-ts-toolkit/moo","description":"Helpers for common Mongoose patterns.","source":"@site/docs/packages/moo.md","sourceDirName":"packages","slug":"/packages/moo","permalink":"/docs/packages/moo","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":16,"frontMatter":{"sidebar_label":"Moo","sidebar_position":16},"sidebar":"packagesSidebar","previous":{"title":"Message Service","permalink":"/docs/packages/message-service"},"next":{"title":"Mongoose-RxDB","permalink":"/docs/packages/mongoose-rxdb"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -27,14 +27,14 @@ var lib = __webpack_require__(1982);
 var Tabs = __webpack_require__(5250);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@docusaurus+theme-classic@3.10.1_@types+react@19.2.14_react-dom@19.2.6_react@19.2.6__react@19.2.6_typescript@6.0.3/node_modules/@docusaurus/theme-classic/lib/theme/TabItem/index.js + 1 modules
 var TabItem = __webpack_require__(6574);
-;// ./docs/packages/express-oidc-vault-redis-store.md
+;// ./docs/packages/moo.md
 
 
 const frontMatter = {
-	sidebar_label: 'OIDC Vault Redis Store',
-	sidebar_position: 5
+	sidebar_label: 'Moo',
+	sidebar_position: 16
 };
-const contentTitle = '@web-ts-toolkit/express-oidc-vault-redis-store';
+const contentTitle = '@web-ts-toolkit/moo';
 
 const assets = {
 
@@ -49,45 +49,37 @@ const toc = [{
   "id": "installation",
   "level": 2
 }, {
+  "value": "What It Exposes",
+  "id": "what-it-exposes",
+  "level": 2
+}, {
+  "value": "Published Entry Points",
+  "id": "published-entry-points",
+  "level": 3
+}, {
   "value": "Quick Start",
   "id": "quick-start",
   "level": 2
 }, {
-  "value": "Namespaced Redis keys",
-  "id": "namespaced-redis-keys",
+  "value": "Schema helpers",
+  "id": "schema-helpers",
   "level": 3
 }, {
-  "value": "Behavior",
-  "id": "behavior",
-  "level": 2
+  "value": "ObjectId checks",
+  "id": "objectid-checks",
+  "level": 3
 }, {
-  "value": "Supported Redis Topologies",
-  "id": "supported-redis-topologies",
-  "level": 2
+  "value": "Utilities subpath",
+  "id": "utilities-subpath",
+  "level": 3
 }, {
-  "value": "Client Lifecycle And Ownership",
-  "id": "client-lifecycle-and-ownership",
-  "level": 2
+  "value": "Model function plugin",
+  "id": "model-function-plugin",
+  "level": 3
 }, {
-  "value": "Key Namespace And Migration",
-  "id": "key-namespace-and-migration",
-  "level": 2
-}, {
-  "value": "Stored Data Characteristics",
-  "id": "stored-data-characteristics",
-  "level": 2
-}, {
-  "value": "When To Use It",
-  "id": "when-to-use-it",
-  "level": 2
-}, {
-  "value": "API",
-  "id": "api",
-  "level": 2
-}, {
-  "value": "Operational Notes",
-  "id": "operational-notes",
-  "level": 2
+  "value": "Cascade delete plugin",
+  "id": "cascade-delete-plugin",
+  "level": 3
 }, {
   "value": "Related Packages",
   "id": "related-packages",
@@ -104,7 +96,6 @@ function _createMdxContent(props) {
     li: "li",
     p: "p",
     pre: "pre",
-    strong: "strong",
     ul: "ul",
     ...(0,lib/* useMDXComponents */.R)(),
     ...props.components
@@ -112,28 +103,28 @@ function _createMdxContent(props) {
   return (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, {
     children: [(0,jsx_runtime.jsx)(_components.header, {
       children: (0,jsx_runtime.jsx)(_components.h1, {
-        id: "web-ts-toolkitexpress-oidc-vault-redis-store",
+        id: "web-ts-toolkitmoo",
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/express-oidc-vault-redis-store"
+          children: "@web-ts-toolkit/moo"
         })
       })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Redis-backed store provider for ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/express-oidc-vault"
-      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Helpers for common Mongoose patterns."
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "This package includes:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "partial-index helpers for nullable or empty string fields"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["an ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isObjectId(...)"
+        }), " guard for strict ObjectId checks"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "document plugins for model-bound helper functions and cascade deletes"
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
       children: "Installation"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "redis"
-      }), " package is referenced by the quick start below, but this package\ntreats it as a development-only dependency: the package does not import ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "redis"
-      }), "\nat runtime and accepts any client that implements the ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "OidcVaultRedisClient"
-      }), "\ncontract. Install ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "redis"
-      }), " (or your adapter of choice) in your app."]
     }), "\n", (0,jsx_runtime.jsxs)(Tabs/* default */.A, {
       groupId: "npm2yarn",
       children: [(0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -141,7 +132,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-redis-store express redis\n"
+            children: "npm install mongoose @web-ts-toolkit/moo\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -150,7 +141,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-redis-store express redis\n"
+            children: "yarn add mongoose @web-ts-toolkit/moo\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -159,7 +150,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-redis-store express redis\n"
+            children: "pnpm add mongoose @web-ts-toolkit/moo\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -168,301 +159,146 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-redis-store express redis\n"
+            children: "bun add mongoose @web-ts-toolkit/moo\n"
           })
         })
       })]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "what-it-exposes",
+      children: "What It Exposes"
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "published-entry-points",
+      children: "Published Entry Points"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Root entrypoint:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["schema helpers such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "uniqueNullableString(...)"
+        })]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "isObjectId(...)"
+        })
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Published subpaths:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/moo/schema"
+        }), " for schema field helpers"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/moo/is"
+        }), " for type guards such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isObjectId(...)"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/moo/utils"
+        }), " for schema and reference helpers such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isSchema(...)"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isObjectIdType(...)"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isReference(...)"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/moo/plugins"
+        }), " for the shared plugin entrypoint"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/moo/plugins/cascade-delete"
+        }), " for the cascade-delete plugin"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/moo/plugins/model-function"
+        }), " for the model-function plugin"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Example subpath imports:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { isObjectId } from '@web-ts-toolkit/moo/is';\nimport { cascadeDeletePlugin } from '@web-ts-toolkit/moo/plugins/cascade-delete';\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "quick-start",
       children: "Quick Start"
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "schema-helpers",
+      children: "Schema helpers"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import express from 'express';\nimport { createClient } from 'redis';\nimport { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { createRedisOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-redis-store';\n\nconst app = express();\nconst redis = createClient({ url: process.env.REDIS_URL });\n\nawait redis.connect();\n\napp.use(\n  createOidcVaultMiddleware({\n    basePath: '/auth/oidc',\n    backendOrigin: 'https://api.example.com',\n    config: {\n      issuer: process.env.OIDC_ISSUER,\n      clientId: process.env.OIDC_CLIENT_ID,\n      clientSecret: process.env.OIDC_CLIENT_SECRET,\n    },\n    frontendRedirectUri: 'https://frontend.example.com/callback',\n    postLogoutRedirectUri: 'https://frontend.example.com/logged-out',\n    storeProvider: createRedisOidcVaultStore({\n      client: redis,\n      keyPrefix: 'oidc-vault',\n    }),\n  }),\n);\n"
+        children: "import { Schema } from 'mongoose';\nimport { uniqueEmptiableString, uniqueNullableString } from '@web-ts-toolkit/moo';\n\nconst userSchema = new Schema({\n  email: uniqueNullableString('email'),\n  username: uniqueEmptiableString('username'),\n});\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "The dedicated schema subpath is also available when you want the import to point directly at field helpers:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { uniqueNullableString } from '@web-ts-toolkit/moo/schema';\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "namespaced-redis-keys",
-      children: "Namespaced Redis keys"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "keyPrefix"
-      }), " when the same Redis instance stores data for multiple apps or environments."]
+      id: "objectid-checks",
+      children: "ObjectId checks"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "const storeProvider = createRedisOidcVaultStore({\n  client: redis,\n  keyPrefix: 'my-app:oidc-vault',\n});\n"
+        children: "import { isObjectId } from '@web-ts-toolkit/moo';\n\nif (!isObjectId(value)) {\n  throw new Error('expected a valid MongoDB ObjectId');\n}\n"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "This prevents the OIDC vault records from colliding with other apps using the same Redis deployment."
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "behavior",
-      children: "Behavior"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "uses prefixed Redis keys for sessions, authorization transactions, and exchange codes"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "stores JSON payloads directly in Redis values"
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["uses ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "PXAT"
-        }), " for expiry timestamps"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["uses ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "GETDEL"
-        }), " for atomic one-time record consumption through ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "sendCommand(...)"
-        })]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "updates subject and provider-session indexes so logout and backchannel logout can delete matching sessions efficiently"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "uses Redis-side scripts for session writes, deletes, and rotation so concurrent refreshes do not fork multiple active sessions"
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "supported-redis-topologies",
-      children: "Supported Redis Topologies"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["supported: standalone Redis with the official ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "redis"
-        }), " ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "createClient(...)"
-        }), " client (", (0,jsx_runtime.jsx)(_components.code, {
-          children: "RedisClientType"
-        }), ")"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["supported: Redis Sentinel, by passing the underlying master client retrieved from a ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "redis.createSentinel(...)"
-        }), " sentinel (e.g. via ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "await sentinel.acquire()"
-        }), " or ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "await sentinel.use(c => c)"
-        }), ")"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["unsupported: Redis Cluster with the official ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "redis"
-        }), " ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "createCluster(...)"
-        }), " client"]
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The bare ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "createSentinel(...)"
-      }), " root client does NOT satisfy this package's structural contract directly: its ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "sendCommand(isReadonly, args, options?)"
-      }), " requires an ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "isReadonly"
-      }), " first argument, while this store calls ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "sendCommand(args)"
-      }), ". Pass the underlying master client returned by ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "sentinel.acquire()"
-      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "sentinel.use(c => c)"
-      }), ", or wrap the Sentinel root with an adapter conforming to ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "OidcVaultRedisClient"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Redis Cluster clients are rejected when the store is created. The store uses atomic scripts that touch multiple vault keys, and this package does not currently provide a Cluster routing/hash-slot adapter that colocates every key used by one script."
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.strong, {
-        children: "Minimum Redis version: 6.2."
-      }), " One-time authorization transactions and exchange codes are consumed with ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "GETDEL"
-      }), ", which is unavailable before Redis 6.2. Versions 6.2 and 7.2 are exercised in integration tests."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "client-lifecycle-and-ownership",
-      children: "Client Lifecycle And Ownership"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.strong, {
-          children: "Connect the client yourself."
-        }), " The store never calls ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "client.connect()"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "client.quit()"
-        }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "client.disconnect()"
-        }), ". Pass an already-connected client and reuse it across requests."]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsxs)(_components.strong, {
-          children: ["Own ", (0,jsx_runtime.jsx)(_components.code, {
-            children: "error"
-          }), " listeners, reconnects, and shutdown."]
-        }), " The store reads and writes commands but does not attach ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "error"
-        }), " listeners, suppress client errors, or close the client. Always register a client ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "error"
-        }), " listener on production connections; an unhandled client error can crash the process."]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.strong, {
-          children: "Graceful shutdown."
-        }), " Drain ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "createSession"
-        }), "/", (0,jsx_runtime.jsx)(_components.code, {
-          children: "rotateSession"
-        }), "/", (0,jsx_runtime.jsx)(_components.code, {
-          children: "deleteSessionsBy*"
-        }), " in-flight calls, then ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "client.quit()"
-        }), ". The store holds no background timers, so no store-side teardown is required beyond verifying in-flight operations have settled."]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.strong, {
-          children: "Concurrency."
-        }), " Store methods are safe to call concurrently from one or more processes. Atomic operations are protected by Redis server-side scripts; concurrent duplicate ID creation, concurrent indexed revocation of overlapping indexes, concurrent rotation into the same target ID, and concurrent same-ID rotation conflicting with indexed revocation are all bounded."]
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "key-namespace-and-migration",
-      children: "Key Namespace And Migration"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["All vault keys are written as ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "<keyPrefix>:<kind>:<id>"
-        }), " and default to the ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "oidc-vault"
-        }), " prefix. Use ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "keyPrefix"
-        }), " when the same Redis instance stores data for multiple apps, environments, or tenants."]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.strong, {
-          children: "Changing the prefix is not a migration."
-        }), " Switching ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "keyPrefix"
-        }), " starts an independent empty namespace: existing sessions, indexes, aliases, exchange codes, and authorization transactions remain under the previous prefix and are neither revoked nor cleaned up by the new store. Rotate the prefix only when you are prepared to lose access to, or coordinate decommissioning of, the previous namespace."]
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "stored-data-characteristics",
-      children: "Stored Data Characteristics"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["This package stores refresh tokens, ID tokens, access tokens (when present), and session metadata as ", (0,jsx_runtime.jsx)(_components.strong, {
-          children: "plaintext JSON"
-        }), " in Redis values. It does not encrypt the values, redact them on read, or strip token fields before returning them."]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "Audit-trail and long-term persistence safety depends entirely on your Redis deployment: AOF/RDB snapshots, replicas, backups, and slow-query logs may all retain these plaintext values. Treat the Redis instance, its backups, and any persistence or replication as trusted infrastructure with the same access control you apply to your application database."
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["ACLs, TLS, network isolation, and Redis instance boundaries are the responsibility of the operator. Run the Redis instance on a private network, enable TLS for any cross-network hop, and apply ACL rules that limit clients to the ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "keyPrefix"
-        }), " keyspace."]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "The package holds no cross-version schema migration guarantee. Treat the package version as the schema owner unless a future release documents a migration path."
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "when-to-use-it",
-      children: "When To Use It"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Use Redis when you need:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "shared session state across multiple app instances"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "fast short-lived exchange code handling"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "production-grade server-side session storage without coupling auth data to your primary database"
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "This is usually the best production default when you already operate Redis and want auth/session state decoupled from your primary app database."
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "api",
-      children: "API"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "utilities-subpath",
+      children: "Utilities subpath"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "createRedisOidcVaultStore(options)"
+        className: "language-ts",
+        children: "import { Schema } from 'mongoose';\nimport { isReference, isSchema } from '@web-ts-toolkit/moo/utils';\n\nconst userSchema = new Schema({\n  manager: { type: Schema.Types.ObjectId, ref: 'User' },\n});\n\nisSchema(userSchema);\nisReference({ type: Schema.Types.ObjectId, ref: 'User' }, 'User');\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "model-function-plugin",
+      children: "Model function plugin"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import mongoose, { type Model } from 'mongoose';\nimport {\n  type ModelDocument,\n  type ModelFunctionInstanceMethods,\n  type ModelFunctionStaticMethods,\n  modelFunctionPlugin,\n} from '@web-ts-toolkit/moo';\n\ntype Cart = {\n  name: string;\n  price: number;\n};\n\ntype CartDocument = ModelDocument<Cart, CartMethods>;\n\ntype CartMethods = ModelFunctionInstanceMethods<'applyDiscount', [suffix: string, priceChange: number], CartDocument>;\n\ntype CartModel = Model<Cart, {}, CartMethods> &\n  ModelFunctionStaticMethods<'applyDiscount', CartDocument, [suffix: string, priceChange: number], CartDocument>;\n\nconst cartSchema = new mongoose.Schema<Cart, CartModel, CartMethods>({\n  name: { type: String, required: true },\n  price: { type: Number, required: true },\n});\n\ncartSchema.plugin(modelFunctionPlugin, {\n  fnName: 'applyDiscount',\n  fn: (cart: CartDocument, suffix: string, priceChange: number) => {\n    cart.name = `${cart.name}-${suffix}`;\n    cart.price += priceChange;\n    return cart;\n  },\n});\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "cascade-delete-plugin",
+      children: "Cascade delete plugin"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import mongoose, { type Model, type Types } from 'mongoose';\nimport {\n  type CascadeDeleteDependencyMap,\n  type CascadeDeleteDocumentMethods,\n  type CascadeDeleteModelStatics,\n  cascadeDeletePlugin,\n} from '@web-ts-toolkit/moo/plugins';\n\nconst referenceModelName = 'Reference';\n\ntype Reference = {\n  name: string;\n};\n\ntype File = {\n  refs: Types.ObjectId[];\n};\n\ntype FileMethods = CascadeDeleteDocumentMethods<typeof referenceModelName, Reference>;\n\ntype FileModel = Model<File, {}, FileMethods> & CascadeDeleteModelStatics<typeof referenceModelName, Reference>;\n\ntype FileDependents = CascadeDeleteDependencyMap<typeof referenceModelName, Reference>;\n\nconst fileSchema = new mongoose.Schema<File, FileModel, FileMethods>({\n  refs: [{ type: mongoose.Schema.Types.ObjectId, ref: referenceModelName }],\n});\n\nfileSchema.plugin(cascadeDeletePlugin, {\n  model: referenceModelName,\n  localField: 'refs',\n  foreignField: '_id',\n});\n\nconst File = mongoose.model<File, FileModel>('File', fileSchema);\n\nasync function example(file: mongoose.HydratedDocument<File, FileMethods>) {\n  const dependents = (await file.findDependents()) as FileDependents;\n  const references = await file.findDependents(referenceModelName);\n  const orphans = await File.findOrphans(referenceModelName);\n\n  dependents.Reference;\n  references?.[0]?.name;\n  orphans?.[0]?.name;\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Creates a Redis-backed implementation of the core ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "OidcVaultStoreProvider"
-      }), " contract."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: ["If you prefer importing the plugin from its dedicated published entrypoint instead of the grouped ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "plugins"
+      }), " subpath, use:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "RedisOidcVaultStoreOptions"
+        className: "language-ts",
+        children: "import { cascadeDeletePlugin } from '@web-ts-toolkit/moo/plugins/cascade-delete';\n"
       })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "client"
-        }), ": connected Redis client or compatible adapter"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "keyPrefix?"
-        }), ": optional key namespace, defaults to ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "oidc-vault"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "now?"
-        }), ": override clock source for tests or deterministic simulations"]
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "OidcVaultRedisClient"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Minimal client shape used by the package: ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "set"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "get"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "del"
-      }), ", and the required ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "sendCommand(args)"
-      }), ". ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "sendCommand"
-      }), " carries ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "EVAL"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "GETDEL"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "TYPE"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "TIME"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "ZRANGE"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "ZSCAN"
-      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "MGET"
-      }), " for atomic vault operations; official standalone ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "redis"
-      }), " clients (", (0,jsx_runtime.jsx)(_components.code, {
-        children: "RedisClientType"
-      }), ") satisfy it directly, and Sentinel-wrapped master clients or adapter-compliant clients do too. Cluster-shaped clients are intentionally excluded."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "operational-notes",
-      children: "Operational Notes"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "the package expects a connected client before use"
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["official standalone and Sentinel clients from ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "redis"
-        }), " satisfy the required API shape"]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "one-time authorization transactions and exchange codes are consumed atomically"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "subject and provider-session indexes make bulk session deletion practical for logout flows"
-      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "related-packages",
       children: "Related Packages"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "./express-oidc-vault",
+          href: "./access-router",
           children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/express-oidc-vault"
+            children: "@web-ts-toolkit/access-router"
           })
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "./express-oidc-vault-memory-store",
+          href: "./access-router-runtime",
           children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/express-oidc-vault-memory-store"
-          })
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "./express-oidc-vault-mongodb-store",
-          children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/express-oidc-vault-mongodb-store"
+            children: "@web-ts-toolkit/access-router-runtime"
           })
         })
       }), "\n"]

@@ -18,7 +18,7 @@ __webpack_require__.d(__webpack_exports__, {
 });
 
 ;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-pdf-reader-md-0c7.json
-const site_docs_packages_pdf_reader_md_0c7_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/pdf-reader","title":"@web-ts-toolkit/pdf-reader","description":"@web-ts-toolkit/pdf-reader wraps PDF.js with explicit worker setup, bounded canvas allocation, cancellation, deterministic cleanup, streaming page results, and best-effort embedded-image extraction.","source":"@site/docs/packages/pdf-reader.md","sourceDirName":"packages","slug":"/packages/pdf-reader","permalink":"/docs/packages/pdf-reader","draft":false,"unlisted":false,"tags":[],"version":"current","frontMatter":{"sidebar_label":"PDF Reader"},"sidebar":"packagesSidebar","previous":{"title":"Mongoose-RxDB","permalink":"/docs/packages/mongoose-rxdb"}}');
+const site_docs_packages_pdf_reader_md_0c7_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/pdf-reader","title":"@web-ts-toolkit/pdf-reader","description":"@web-ts-toolkit/pdf-reader wraps PDF.js with explicit worker setup, bounded canvas allocation, cancellation, deterministic cleanup, streaming page results, and best-effort embedded-image extraction.","source":"@site/docs/packages/pdf-reader.md","sourceDirName":"packages","slug":"/packages/pdf-reader","permalink":"/docs/packages/pdf-reader","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":18,"frontMatter":{"sidebar_label":"PDF Reader","sidebar_position":18},"sidebar":"packagesSidebar","previous":{"title":"Mongoose-RxDB","permalink":"/docs/packages/mongoose-rxdb"},"next":{"title":"Create Access Router Starter","permalink":"/docs/packages/create-access-router-mongo-starter"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -27,7 +27,8 @@ var lib = __webpack_require__(1982);
 
 
 const frontMatter = {
-	sidebar_label: 'PDF Reader'
+	sidebar_label: 'PDF Reader',
+	sidebar_position: 18
 };
 const contentTitle = '@web-ts-toolkit/pdf-reader';
 

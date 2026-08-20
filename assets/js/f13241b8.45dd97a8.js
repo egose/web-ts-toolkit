@@ -18,7 +18,7 @@ __webpack_require__.d(__webpack_exports__, {
 });
 
 ;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-access-router-react-md-f13.json
-const site_docs_packages_access_router_react_md_f13_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router-react","title":"@web-ts-toolkit/access-router-react","description":"React hooks for @web-ts-toolkit/access-router-client model services.","source":"@site/docs/packages/access-router-react.md","sourceDirName":"packages","slug":"/packages/access-router-react","permalink":"/docs/packages/access-router-react","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":3,"frontMatter":{"sidebar_label":"Access Router React","sidebar_position":3},"sidebar":"packagesSidebar","previous":{"title":"Express Runtime","permalink":"/docs/packages/express-runtime"},"next":{"title":"Express OIDC Vault","permalink":"/docs/packages/express-oidc-vault"}}');
+const site_docs_packages_access_router_react_md_f13_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router-react","title":"@web-ts-toolkit/access-router-react","description":"React hooks for @web-ts-toolkit/access-router-client model services.","source":"@site/docs/packages/access-router-react.md","sourceDirName":"packages","slug":"/packages/access-router-react","permalink":"/docs/packages/access-router-react","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":12,"frontMatter":{"sidebar_label":"Access Router React","sidebar_position":12},"sidebar":"packagesSidebar","previous":{"title":"TypeScript And Errors","permalink":"/docs/packages/access-router-client/typescript-and-errors"},"next":{"title":"Access Router Deco","permalink":"/docs/packages/access-router-deco"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -32,7 +32,7 @@ var TabItem = __webpack_require__(6574);
 
 const frontMatter = {
 	sidebar_label: 'Access Router React',
-	sidebar_position: 3
+	sidebar_position: 12
 };
 const contentTitle = '@web-ts-toolkit/access-router-react';
 

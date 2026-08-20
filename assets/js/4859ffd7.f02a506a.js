@@ -1,7 +1,7 @@
 "use strict";
-(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[210],{
+(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[246],{
 
-/***/ 4274
+/***/ 604
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 // ESM COMPAT FLAG
@@ -13,12 +13,12 @@ __webpack_require__.d(__webpack_exports__, {
   contentTitle: () => (/* binding */ contentTitle),
   "default": () => (/* binding */ MDXContent),
   frontMatter: () => (/* binding */ frontMatter),
-  metadata: () => (/* reexport */ site_docs_packages_access_router_index_mdx_c6c_namespaceObject),
+  metadata: () => (/* reexport */ site_docs_packages_utils_md_485_namespaceObject),
   toc: () => (/* binding */ toc)
 });
 
-;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-access-router-index-mdx-c6c.json
-const site_docs_packages_access_router_index_mdx_c6c_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router/index","title":"@web-ts-toolkit/access-router","description":"ACL-aware Express routers and in-memory data services for Mongoose-backed APIs.","source":"@site/docs/packages/access-router/index.mdx","sourceDirName":"packages/access-router","slug":"/packages/access-router/","permalink":"/docs/packages/access-router/","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":1,"frontMatter":{"sidebar_label":"Overview","sidebar_position":1},"sidebar":"packagesSidebar","previous":{"title":"Overview","permalink":"/docs/packages/"},"next":{"title":"Routing","permalink":"/docs/packages/access-router/routing"}}');
+;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-utils-md-485.json
+const site_docs_packages_utils_md_485_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/utils","title":"@web-ts-toolkit/utils","description":"Shared utility helpers used across the workspace.","source":"@site/docs/packages/utils.md","sourceDirName":"packages","slug":"/packages/utils","permalink":"/docs/packages/utils","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":1,"frontMatter":{"sidebar_label":"Utils","sidebar_position":1},"sidebar":"packagesSidebar","previous":{"title":"Overview","permalink":"/docs/packages/"},"next":{"title":"HTTP Errors","permalink":"/docs/packages/http-errors"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -27,14 +27,14 @@ var lib = __webpack_require__(1982);
 var Tabs = __webpack_require__(5250);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@docusaurus+theme-classic@3.10.1_@types+react@19.2.14_react-dom@19.2.6_react@19.2.6__react@19.2.6_typescript@6.0.3/node_modules/@docusaurus/theme-classic/lib/theme/TabItem/index.js + 1 modules
 var TabItem = __webpack_require__(6574);
-;// ./docs/packages/access-router/index.mdx
+;// ./docs/packages/utils.md
 
 
 const frontMatter = {
-	sidebar_label: 'Overview',
+	sidebar_label: 'Utils',
 	sidebar_position: 1
 };
-const contentTitle = '@web-ts-toolkit/access-router';
+const contentTitle = '@web-ts-toolkit/utils';
 
 const assets = {
 
@@ -57,12 +57,44 @@ const toc = [{
   "id": "quick-start",
   "level": 2
 }, {
-  "value": "When To Use It",
-  "id": "when-to-use-it",
+  "value": "Common Use Cases",
+  "id": "common-use-cases",
   "level": 2
 }, {
-  "value": "Package Guide",
-  "id": "package-guide",
+  "value": "Object-path reads and writes",
+  "id": "object-path-reads-and-writes",
+  "level": 3
+}, {
+  "value": "URL normalization",
+  "id": "url-normalization",
+  "level": 3
+}, {
+  "value": "Boolean query parsing",
+  "id": "boolean-query-parsing",
+  "level": 3
+}, {
+  "value": "Stable collection sorting",
+  "id": "stable-collection-sorting",
+  "level": 3
+}, {
+  "value": "Grouping and totals",
+  "id": "grouping-and-totals",
+  "level": 3
+}, {
+  "value": "Async object mapping",
+  "id": "async-object-mapping",
+  "level": 3
+}, {
+  "value": "String normalization helpers",
+  "id": "string-normalization-helpers",
+  "level": 3
+}, {
+  "value": "Filtering object records",
+  "id": "filtering-object-records",
+  "level": 3
+}, {
+  "value": "When To Use It",
+  "id": "when-to-use-it",
   "level": 2
 }, {
   "value": "Related Packages",
@@ -75,6 +107,7 @@ function _createMdxContent(props) {
     code: "code",
     h1: "h1",
     h2: "h2",
+    h3: "h3",
     header: "header",
     li: "li",
     p: "p",
@@ -86,13 +119,15 @@ function _createMdxContent(props) {
   return (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, {
     children: [(0,jsx_runtime.jsx)(_components.header, {
       children: (0,jsx_runtime.jsx)(_components.h1, {
-        id: "web-ts-toolkitaccess-router",
+        id: "web-ts-toolkitutils",
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/access-router"
+          children: "@web-ts-toolkit/utils"
         })
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "ACL-aware Express routers and in-memory data services for Mongoose-backed APIs."
+      children: "Shared utility helpers used across the workspace."
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "This package contains small focused helpers for object-path access, array and record transforms, lightweight type guards, async mapping, and URL normalization. It is intentionally low-level."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
       children: "Installation"
@@ -103,7 +138,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @web-ts-toolkit/access-router express mongoose\n"
+            children: "npm install @web-ts-toolkit/utils\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -112,7 +147,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @web-ts-toolkit/access-router express mongoose\n"
+            children: "yarn add @web-ts-toolkit/utils\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -121,7 +156,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @web-ts-toolkit/access-router express mongoose\n"
+            children: "pnpm add @web-ts-toolkit/utils\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -130,7 +165,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @web-ts-toolkit/access-router express mongoose\n"
+            children: "bun add @web-ts-toolkit/utils\n"
           })
         })
       })]
@@ -138,60 +173,134 @@ function _createMdxContent(props) {
       id: "what-it-exposes",
       children: "What It Exposes"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Main entrypoint:"
+      children: "The package exports individual functions from the root entrypoint, including:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["default export ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "acl"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["named export ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "acl"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "createAccessRuntime()"
-        }), " for isolated runtime state"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "createOpenApiRouter(...)"
-        }), " for ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "/openapi.json"
-        }), " and Swagger UI routes"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "combineRoutes(...)"
-        }), " for mounting multiple routers together"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "guard(...)"
-        }), " for route guards"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "permissionsPlugin"
-        }), " for schema-based permission access"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "RootRouter"
+        children: ["object helpers: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "get"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "ModelRouter"
+          children: "set"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "DataRouter"
+          children: "hasOwn"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "pick"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "pickBy"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "omit"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "omitBy"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "assign"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "cloneDeep"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "keys"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "toStringRecord"
         })]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "option getters and setters for global, model, and data options"
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Low-level entrypoints:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/access-router/advanced"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/access-router/processors"
-        })
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["array and collection helpers: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "map"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "filter"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "reduce"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "find"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "forEach"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "flatten"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "flattenDeep"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "compact"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "uniq"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "uniqBy"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "difference"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "intersection"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "intersectionBy"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "groupBy"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sum"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sumBy"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "orderBy"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["type guards: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isArray"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isBoolean"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isEmpty"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isEqual"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isFunction"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isMatch"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isNaN"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isNil"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isNumber"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isObject"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isPlainObject"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isPromise"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isString"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isUndefined"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["URL helpers: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "addLeadingSlash"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "removeConsecutiveSlashesFromUrl"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "normalizeUrlPath"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["async helpers: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "mapValuesAsync"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "toAsyncFn"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["string helpers: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "startCase"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "upperCase"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["misc helpers: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "castArray"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "arrayToRecord"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "mapValues"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "mapKeys"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "noop"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "padEnd"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "parseBooleanString"
+        })]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "quick-start",
@@ -199,99 +308,114 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import acl from '@web-ts-toolkit/access-router';\n\nacl.setGlobalOptions({\n  globalPermissions(req) {\n    return req.headers.user === 'admin' ? ['isAdmin'] : [];\n  },\n});\n\nconst fruitRouter = acl.createDataRouter('fruit', {\n  basePath: '/fruit',\n  data: [{ id: 'apple', name: 'Apple', public: true }],\n  idField: 'id',\n  operationAccess: { list: true, read: true },\n  permissionSchema: {\n    id: true,\n    name: 'isAdmin',\n    public: true,\n  },\n});\n\nconst userRouter = acl.createRouter('User', {\n  basePath: '/users',\n});\n"
+        children: "import {\n  get,\n  groupBy,\n  hasOwn,\n  normalizeUrlPath,\n  orderBy,\n  parseBooleanString,\n  set,\n  startCase,\n  sumBy,\n  uniqBy,\n} from '@web-ts-toolkit/utils';\n\nconst payload = {\n  user: {\n    profile: {\n      name: 'Ada',\n    },\n  },\n};\n\nget(payload, 'user.profile.name');\nset(payload, 'user.profile.role', 'admin');\nhasOwn(payload.user.profile, 'name');\n\nnormalizeUrlPath('api//users/42');\nparseBooleanString('true', false);\n\nuniqBy(\n  [\n    { id: 'a', name: 'Ada' },\n    { id: 'a', name: 'Ada Lovelace' },\n    { id: 'b', name: 'Grace' },\n  ],\n  'id',\n);\n\ngroupBy(\n  [\n    { type: 'fruit', name: 'apple' },\n    { type: 'fruit', name: 'banana' },\n    { type: 'vegetable', name: 'carrot' },\n  ],\n  'type',\n);\n\norderBy(\n  [\n    { name: 'B', score: 2 },\n    { name: 'A', score: 2 },\n    { name: 'C', score: 1 },\n  ],\n  ['score', 'name'],\n  ['desc', 'asc'],\n);\n\nstartCase('api_response_time');\nsumBy([{ hours: 2 }, { hours: 3 }], 'hours');\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "common-use-cases",
+      children: "Common Use Cases"
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "object-path-reads-and-writes",
+      children: "Object-path reads and writes"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { get, set } from '@web-ts-toolkit/utils';\n\nconst state = { filters: { status: 'active' } };\n\nget(state, 'filters.status');\nset(state, 'filters.page', 2);\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "url-normalization",
+      children: "URL normalization"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { normalizeUrlPath } from '@web-ts-toolkit/utils';\n\nnormalizeUrlPath('api//users');\n// '/api/users'\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "boolean-query-parsing",
+      children: "Boolean query parsing"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { parseBooleanString } from '@web-ts-toolkit/utils';\n\nparseBooleanString('true');\nparseBooleanString('false');\nparseBooleanString(undefined, true);\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "parseBooleanString(str, defaultValue)"
+      }), " returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "true"
+      }), " only for the exact string ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "'true'"
+      }), ", returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), " for any other defined string, and falls back to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "defaultValue"
+      }), " when the input is ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "stable-collection-sorting",
+      children: "Stable collection sorting"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { orderBy } from '@web-ts-toolkit/utils';\n\nconst sorted = orderBy(users, ['lastName', 'firstName'], ['asc', 'asc']);\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "grouping-and-totals",
+      children: "Grouping and totals"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { groupBy, sumBy } from '@web-ts-toolkit/utils';\n\nconst grouped = groupBy(\n  [\n    { team: 'api', hours: 3 },\n    { team: 'api', hours: 5 },\n    { team: 'web', hours: 2 },\n  ],\n  'team',\n);\n\nconst totalHours = sumBy(grouped.api, 'hours');\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "async-object-mapping",
+      children: "Async object mapping"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { mapValuesAsync } from '@web-ts-toolkit/utils';\n\nconst result = await mapValuesAsync(\n  {\n    users: '/api/users/count',\n    projects: '/api/projects/count',\n  },\n  async (url) => {\n    const response = await fetch(url);\n    return await response.json();\n  },\n);\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "string-normalization-helpers",
+      children: "String normalization helpers"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { startCase, upperCase } from '@web-ts-toolkit/utils';\n\nstartCase('api_response_time');\nupperCase('build id');\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "filtering-object-records",
+      children: "Filtering object records"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { omitBy } from '@web-ts-toolkit/utils';\n\nconst requestHeaders = omitBy(headers, (value) => value === undefined);\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "when-to-use-it",
       children: "When To Use It"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "access-router"
-      }), " when you want:"]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "model-backed CRUD routers with ACL-aware filtering and field selection"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "in-memory data routers with the same request/permission model"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "root batch routes for grouped operations"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "OpenAPI generation and Swagger UI without hand-maintaining route docs"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "reusable permission helpers, hooks, and request validation"
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["If you only need low-level validation schemas, symbols, or enums, import from the ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "advanced"
-      }), " subpath instead."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "package-guide",
-      children: "Package Guide"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.a, {
-          href: "./routing",
-          children: "Routing"
-        }), ": router factories, generated endpoints, and batch routing"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.a, {
-          href: "./configuration",
-          children: "Configuration"
-        }), ": global, model, and data router options"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.a, {
-          href: "./services",
-          children: "Services"
-        }), ": public service methods behind the generated routes"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.a, {
-          href: "./hooks",
-          children: "Hooks"
-        }), ": ACL, filter, validation, decoration, and persistence hooks"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.a, {
-          href: "./validation",
-          children: "Validation"
-        }), ": built-in schemas and custom validator adapters"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.a, {
-          href: "./openapi",
-          children: "OpenAPI"
-        }), ": generated spec routes, Swagger UI, and custom schema metadata"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.a, {
-          href: "./advanced",
-          children: "Advanced"
-        }), ": lower-level types, enums, symbols, and validation helpers"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.a, {
-          href: "./processors",
-          children: "Processors"
-        }), ": document processing helpers"]
-      }), "\n"]
+        children: "@web-ts-toolkit/utils"
+      }), " when you want small shared helpers without pulling in a larger utility library."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "If you only need one or two language-level operations, native JavaScript is usually simpler."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "related-packages",
       children: "Related Packages"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "../access-router-runtime",
+          href: "./http-errors",
           children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/access-router-runtime"
+            children: "@web-ts-toolkit/http-errors"
           })
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "../access-router-client",
+          href: "./moo",
           children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/access-router-client"
-          })
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "../access-router-deco",
-          children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/access-router-deco"
+            children: "@web-ts-toolkit/moo"
           })
         })
       }), "\n"]

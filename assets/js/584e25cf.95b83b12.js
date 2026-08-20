@@ -18,7 +18,7 @@ __webpack_require__.d(__webpack_exports__, {
 });
 
 ;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-oidc-vault-md-584.json
-const site_docs_packages_express_oidc_vault_md_584_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-oidc-vault","title":"@web-ts-toolkit/express-oidc-vault","description":"OIDC session middleware for Express with body or cookie session transport and server-side storage of upstream refresh tokens and logout-capable id_tokens.","source":"@site/docs/packages/express-oidc-vault.md","sourceDirName":"packages","slug":"/packages/express-oidc-vault","permalink":"/docs/packages/express-oidc-vault","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":3,"frontMatter":{"sidebar_label":"Express OIDC Vault","sidebar_position":3},"sidebar":"packagesSidebar","previous":{"title":"Access Router React","permalink":"/docs/packages/access-router-react"},"next":{"title":"Express Response Handler","permalink":"/docs/packages/express-response-handler"}}');
+const site_docs_packages_express_oidc_vault_md_584_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-oidc-vault","title":"@web-ts-toolkit/express-oidc-vault","description":"OIDC session middleware for Express with body or cookie session transport and server-side storage of upstream refresh tokens and logout-capable id_tokens.","source":"@site/docs/packages/express-oidc-vault.md","sourceDirName":"packages","slug":"/packages/express-oidc-vault","permalink":"/docs/packages/express-oidc-vault","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":6,"frontMatter":{"sidebar_label":"Express OIDC Vault","sidebar_position":6},"sidebar":"packagesSidebar","previous":{"title":"Express JSON Router","permalink":"/docs/packages/express-json-router"},"next":{"title":"OIDC Vault Memory Store","permalink":"/docs/packages/express-oidc-vault-memory-store"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -32,7 +32,7 @@ var TabItem = __webpack_require__(6574);
 
 const frontMatter = {
 	sidebar_label: 'Express OIDC Vault',
-	sidebar_position: 3
+	sidebar_position: 6
 };
 const contentTitle = '@web-ts-toolkit/express-oidc-vault';
 

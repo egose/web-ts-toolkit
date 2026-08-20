@@ -1,7 +1,7 @@
 "use strict";
-(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[743],{
+(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[210],{
 
-/***/ 2792
+/***/ 4274
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 // ESM COMPAT FLAG
@@ -13,12 +13,12 @@ __webpack_require__.d(__webpack_exports__, {
   contentTitle: () => (/* binding */ contentTitle),
   "default": () => (/* binding */ MDXContent),
   frontMatter: () => (/* binding */ frontMatter),
-  metadata: () => (/* reexport */ site_docs_packages_moo_md_b16_namespaceObject),
+  metadata: () => (/* reexport */ site_docs_packages_access_router_index_mdx_c6c_namespaceObject),
   toc: () => (/* binding */ toc)
 });
 
-;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-moo-md-b16.json
-const site_docs_packages_moo_md_b16_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/moo","title":"@web-ts-toolkit/moo","description":"Helpers for common Mongoose patterns.","source":"@site/docs/packages/moo.md","sourceDirName":"packages","slug":"/packages/moo","permalink":"/docs/packages/moo","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":5,"frontMatter":{"sidebar_label":"Moo","sidebar_position":5},"sidebar":"packagesSidebar","previous":{"title":"OIDC Vault Redis Store","permalink":"/docs/packages/express-oidc-vault-redis-store"},"next":{"title":"OIDC Vault MongoDB Store","permalink":"/docs/packages/express-oidc-vault-mongodb-store"}}');
+;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-access-router-index-mdx-c6c.json
+const site_docs_packages_access_router_index_mdx_c6c_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router/index","title":"@web-ts-toolkit/access-router","description":"ACL-aware Express routers and in-memory data services for Mongoose-backed APIs.","source":"@site/docs/packages/access-router/index.mdx","sourceDirName":"packages/access-router","slug":"/packages/access-router/","permalink":"/docs/packages/access-router/","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":1,"frontMatter":{"sidebar_label":"Overview","sidebar_position":1},"sidebar":"packagesSidebar","previous":{"title":"OIDC Vault MongoDB Store","permalink":"/docs/packages/express-oidc-vault-mongodb-store"},"next":{"title":"Routing","permalink":"/docs/packages/access-router/routing"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -27,14 +27,14 @@ var lib = __webpack_require__(1982);
 var Tabs = __webpack_require__(5250);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@docusaurus+theme-classic@3.10.1_@types+react@19.2.14_react-dom@19.2.6_react@19.2.6__react@19.2.6_typescript@6.0.3/node_modules/@docusaurus/theme-classic/lib/theme/TabItem/index.js + 1 modules
 var TabItem = __webpack_require__(6574);
-;// ./docs/packages/moo.md
+;// ./docs/packages/access-router/index.mdx
 
 
 const frontMatter = {
-	sidebar_label: 'Moo',
-	sidebar_position: 5
+	sidebar_label: 'Overview',
+	sidebar_position: 1
 };
-const contentTitle = '@web-ts-toolkit/moo';
+const contentTitle = '@web-ts-toolkit/access-router';
 
 const assets = {
 
@@ -53,33 +53,17 @@ const toc = [{
   "id": "what-it-exposes",
   "level": 2
 }, {
-  "value": "Published Entry Points",
-  "id": "published-entry-points",
-  "level": 3
-}, {
   "value": "Quick Start",
   "id": "quick-start",
   "level": 2
 }, {
-  "value": "Schema helpers",
-  "id": "schema-helpers",
-  "level": 3
+  "value": "When To Use It",
+  "id": "when-to-use-it",
+  "level": 2
 }, {
-  "value": "ObjectId checks",
-  "id": "objectid-checks",
-  "level": 3
-}, {
-  "value": "Utilities subpath",
-  "id": "utilities-subpath",
-  "level": 3
-}, {
-  "value": "Model function plugin",
-  "id": "model-function-plugin",
-  "level": 3
-}, {
-  "value": "Cascade delete plugin",
-  "id": "cascade-delete-plugin",
-  "level": 3
+  "value": "Package Guide",
+  "id": "package-guide",
+  "level": 2
 }, {
   "value": "Related Packages",
   "id": "related-packages",
@@ -91,7 +75,6 @@ function _createMdxContent(props) {
     code: "code",
     h1: "h1",
     h2: "h2",
-    h3: "h3",
     header: "header",
     li: "li",
     p: "p",
@@ -103,25 +86,13 @@ function _createMdxContent(props) {
   return (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, {
     children: [(0,jsx_runtime.jsx)(_components.header, {
       children: (0,jsx_runtime.jsx)(_components.h1, {
-        id: "web-ts-toolkitmoo",
+        id: "web-ts-toolkitaccess-router",
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/moo"
+          children: "@web-ts-toolkit/access-router"
         })
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Helpers for common Mongoose patterns."
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "This package includes:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "partial-index helpers for nullable or empty string fields"
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["an ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isObjectId(...)"
-        }), " guard for strict ObjectId checks"]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "document plugins for model-bound helper functions and cascade deletes"
-      }), "\n"]
+      children: "ACL-aware Express routers and in-memory data services for Mongoose-backed APIs."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
       children: "Installation"
@@ -132,7 +103,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install mongoose @web-ts-toolkit/moo\n"
+            children: "npm install @web-ts-toolkit/access-router express mongoose\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -141,7 +112,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add mongoose @web-ts-toolkit/moo\n"
+            children: "yarn add @web-ts-toolkit/access-router express mongoose\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -150,7 +121,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add mongoose @web-ts-toolkit/moo\n"
+            children: "pnpm add @web-ts-toolkit/access-router express mongoose\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -159,146 +130,168 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add mongoose @web-ts-toolkit/moo\n"
+            children: "bun add @web-ts-toolkit/access-router express mongoose\n"
           })
         })
       })]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "what-it-exposes",
       children: "What It Exposes"
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "published-entry-points",
-      children: "Published Entry Points"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Root entrypoint:"
+      children: "Main entrypoint:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["schema helpers such as ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "uniqueNullableString(...)"
+        children: ["default export ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "acl"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["named export ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "acl"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "createAccessRuntime()"
+        }), " for isolated runtime state"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "createOpenApiRouter(...)"
+        }), " for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "/openapi.json"
+        }), " and Swagger UI routes"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "combineRoutes(...)"
+        }), " for mounting multiple routers together"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "guard(...)"
+        }), " for route guards"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "permissionsPlugin"
+        }), " for schema-based permission access"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "RootRouter"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ModelRouter"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DataRouter"
         })]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "option getters and setters for global, model, and data options"
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Low-level entrypoints:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "isObjectId(...)"
+          children: "@web-ts-toolkit/access-router/advanced"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/access-router/processors"
         })
       }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Published subpaths:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/moo/schema"
-        }), " for schema field helpers"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/moo/is"
-        }), " for type guards such as ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isObjectId(...)"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/moo/utils"
-        }), " for schema and reference helpers such as ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isSchema(...)"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isObjectIdType(...)"
-        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "isReference(...)"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/moo/plugins"
-        }), " for the shared plugin entrypoint"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/moo/plugins/cascade-delete"
-        }), " for the cascade-delete plugin"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/moo/plugins/model-function"
-        }), " for the model-function plugin"]
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Example subpath imports:"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import { isObjectId } from '@web-ts-toolkit/moo/is';\nimport { cascadeDeletePlugin } from '@web-ts-toolkit/moo/plugins/cascade-delete';\n"
-      })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "quick-start",
       children: "Quick Start"
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "schema-helpers",
-      children: "Schema helpers"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { Schema } from 'mongoose';\nimport { uniqueEmptiableString, uniqueNullableString } from '@web-ts-toolkit/moo';\n\nconst userSchema = new Schema({\n  email: uniqueNullableString('email'),\n  username: uniqueEmptiableString('username'),\n});\n"
+        children: "import acl from '@web-ts-toolkit/access-router';\n\nacl.setGlobalOptions({\n  globalPermissions(req) {\n    return req.headers.user === 'admin' ? ['isAdmin'] : [];\n  },\n});\n\nconst fruitRouter = acl.createDataRouter('fruit', {\n  basePath: '/fruit',\n  data: [{ id: 'apple', name: 'Apple', public: true }],\n  idField: 'id',\n  operationAccess: { list: true, read: true },\n  permissionSchema: {\n    id: true,\n    name: 'isAdmin',\n    public: true,\n  },\n});\n\nconst userRouter = acl.createRouter('User', {\n  basePath: '/users',\n});\n"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "The dedicated schema subpath is also available when you want the import to point directly at field helpers:"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import { uniqueNullableString } from '@web-ts-toolkit/moo/schema';\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "objectid-checks",
-      children: "ObjectId checks"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import { isObjectId } from '@web-ts-toolkit/moo';\n\nif (!isObjectId(value)) {\n  throw new Error('expected a valid MongoDB ObjectId');\n}\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "utilities-subpath",
-      children: "Utilities subpath"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import { Schema } from 'mongoose';\nimport { isReference, isSchema } from '@web-ts-toolkit/moo/utils';\n\nconst userSchema = new Schema({\n  manager: { type: Schema.Types.ObjectId, ref: 'User' },\n});\n\nisSchema(userSchema);\nisReference({ type: Schema.Types.ObjectId, ref: 'User' }, 'User');\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "model-function-plugin",
-      children: "Model function plugin"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import mongoose, { type Model } from 'mongoose';\nimport {\n  type ModelDocument,\n  type ModelFunctionInstanceMethods,\n  type ModelFunctionStaticMethods,\n  modelFunctionPlugin,\n} from '@web-ts-toolkit/moo';\n\ntype Cart = {\n  name: string;\n  price: number;\n};\n\ntype CartDocument = ModelDocument<Cart, CartMethods>;\n\ntype CartMethods = ModelFunctionInstanceMethods<'applyDiscount', [suffix: string, priceChange: number], CartDocument>;\n\ntype CartModel = Model<Cart, {}, CartMethods> &\n  ModelFunctionStaticMethods<'applyDiscount', CartDocument, [suffix: string, priceChange: number], CartDocument>;\n\nconst cartSchema = new mongoose.Schema<Cart, CartModel, CartMethods>({\n  name: { type: String, required: true },\n  price: { type: Number, required: true },\n});\n\ncartSchema.plugin(modelFunctionPlugin, {\n  fnName: 'applyDiscount',\n  fn: (cart: CartDocument, suffix: string, priceChange: number) => {\n    cart.name = `${cart.name}-${suffix}`;\n    cart.price += priceChange;\n    return cart;\n  },\n});\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "cascade-delete-plugin",
-      children: "Cascade delete plugin"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import mongoose, { type Model, type Types } from 'mongoose';\nimport {\n  type CascadeDeleteDependencyMap,\n  type CascadeDeleteDocumentMethods,\n  type CascadeDeleteModelStatics,\n  cascadeDeletePlugin,\n} from '@web-ts-toolkit/moo/plugins';\n\nconst referenceModelName = 'Reference';\n\ntype Reference = {\n  name: string;\n};\n\ntype File = {\n  refs: Types.ObjectId[];\n};\n\ntype FileMethods = CascadeDeleteDocumentMethods<typeof referenceModelName, Reference>;\n\ntype FileModel = Model<File, {}, FileMethods> & CascadeDeleteModelStatics<typeof referenceModelName, Reference>;\n\ntype FileDependents = CascadeDeleteDependencyMap<typeof referenceModelName, Reference>;\n\nconst fileSchema = new mongoose.Schema<File, FileModel, FileMethods>({\n  refs: [{ type: mongoose.Schema.Types.ObjectId, ref: referenceModelName }],\n});\n\nfileSchema.plugin(cascadeDeletePlugin, {\n  model: referenceModelName,\n  localField: 'refs',\n  foreignField: '_id',\n});\n\nconst File = mongoose.model<File, FileModel>('File', fileSchema);\n\nasync function example(file: mongoose.HydratedDocument<File, FileMethods>) {\n  const dependents = (await file.findDependents()) as FileDependents;\n  const references = await file.findDependents(referenceModelName);\n  const orphans = await File.findOrphans(referenceModelName);\n\n  dependents.Reference;\n  references?.[0]?.name;\n  orphans?.[0]?.name;\n}\n"
-      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "when-to-use-it",
+      children: "When To Use It"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["If you prefer importing the plugin from its dedicated published entrypoint instead of the grouped ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "plugins"
-      }), " subpath, use:"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import { cascadeDeletePlugin } from '@web-ts-toolkit/moo/plugins/cascade-delete';\n"
-      })
+      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access-router"
+      }), " when you want:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "model-backed CRUD routers with ACL-aware filtering and field selection"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "in-memory data routers with the same request/permission model"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "root batch routes for grouped operations"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "OpenAPI generation and Swagger UI without hand-maintaining route docs"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "reusable permission helpers, hooks, and request validation"
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["If you only need low-level validation schemas, symbols, or enums, import from the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "advanced"
+      }), " subpath instead."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "package-guide",
+      children: "Package Guide"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./routing",
+          children: "Routing"
+        }), ": router factories, generated endpoints, and batch routing"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./configuration",
+          children: "Configuration"
+        }), ": global, model, and data router options"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./services",
+          children: "Services"
+        }), ": public service methods behind the generated routes"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./hooks",
+          children: "Hooks"
+        }), ": ACL, filter, validation, decoration, and persistence hooks"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./validation",
+          children: "Validation"
+        }), ": built-in schemas and custom validator adapters"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./openapi",
+          children: "OpenAPI"
+        }), ": generated spec routes, Swagger UI, and custom schema metadata"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./advanced",
+          children: "Advanced"
+        }), ": lower-level types, enums, symbols, and validation helpers"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./processors",
+          children: "Processors"
+        }), ": document processing helpers"]
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "related-packages",
       children: "Related Packages"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "./access-router",
+          href: "../access-router-runtime",
           children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/access-router"
+            children: "@web-ts-toolkit/access-router-runtime"
           })
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "./access-router-runtime",
+          href: "../access-router-client",
           children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/access-router-runtime"
+            children: "@web-ts-toolkit/access-router-client"
+          })
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.a, {
+          href: "../access-router-deco",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/access-router-deco"
           })
         })
       }), "\n"]

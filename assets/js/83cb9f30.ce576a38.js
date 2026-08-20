@@ -18,7 +18,7 @@ __webpack_require__.d(__webpack_exports__, {
 });
 
 ;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-response-handler-md-83c.json
-const site_docs_packages_express_response_handler_md_83c_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-response-handler","title":"@web-ts-toolkit/express-response-handler","description":"FastAPI-style return-value responses for Express.","source":"@site/docs/packages/express-response-handler.md","sourceDirName":"packages","slug":"/packages/express-response-handler","permalink":"/docs/packages/express-response-handler","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":3,"frontMatter":{"sidebar_label":"Express Response Handler","sidebar_position":3},"sidebar":"packagesSidebar","previous":{"title":"Express OIDC Vault","permalink":"/docs/packages/express-oidc-vault"},"next":{"title":"OIDC Vault Memory Store","permalink":"/docs/packages/express-oidc-vault-memory-store"}}');
+const site_docs_packages_express_response_handler_md_83c_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-response-handler","title":"@web-ts-toolkit/express-response-handler","description":"FastAPI-style return-value responses for Express.","source":"@site/docs/packages/express-response-handler.md","sourceDirName":"packages","slug":"/packages/express-response-handler","permalink":"/docs/packages/express-response-handler","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":4,"frontMatter":{"sidebar_label":"Express Response Handler","sidebar_position":4},"sidebar":"packagesSidebar","previous":{"title":"Express Runtime","permalink":"/docs/packages/express-runtime"},"next":{"title":"Express JSON Router","permalink":"/docs/packages/express-json-router"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -32,7 +32,7 @@ var TabItem = __webpack_require__(6574);
 
 const frontMatter = {
 	sidebar_label: 'Express Response Handler',
-	sidebar_position: 3
+	sidebar_position: 4
 };
 const contentTitle = '@web-ts-toolkit/express-response-handler';
 

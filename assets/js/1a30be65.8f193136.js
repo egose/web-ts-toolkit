@@ -1,7 +1,7 @@
 "use strict";
-(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[79],{
+(globalThis["webpackChunkwebsite"] = globalThis["webpackChunkwebsite"] || []).push([[844],{
 
-/***/ 4424
+/***/ 4952
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 // ESM COMPAT FLAG
@@ -13,12 +13,12 @@ __webpack_require__.d(__webpack_exports__, {
   contentTitle: () => (/* binding */ contentTitle),
   "default": () => (/* binding */ MDXContent),
   frontMatter: () => (/* binding */ frontMatter),
-  metadata: () => (/* reexport */ site_docs_packages_express_oidc_vault_mongodb_store_md_bed_namespaceObject),
+  metadata: () => (/* reexport */ site_docs_packages_access_router_runtime_md_1a3_namespaceObject),
   toc: () => (/* binding */ toc)
 });
 
-;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-oidc-vault-mongodb-store-md-bed.json
-const site_docs_packages_express_oidc_vault_mongodb_store_md_bed_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-oidc-vault-mongodb-store","title":"@web-ts-toolkit/express-oidc-vault-mongodb-store","description":"MongoDB-backed store provider for @web-ts-toolkit/express-oidc-vault.","source":"@site/docs/packages/express-oidc-vault-mongodb-store.md","sourceDirName":"packages","slug":"/packages/express-oidc-vault-mongodb-store","permalink":"/docs/packages/express-oidc-vault-mongodb-store","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":6,"frontMatter":{"sidebar_label":"OIDC Vault MongoDB Store","sidebar_position":6},"sidebar":"packagesSidebar","previous":{"title":"Moo","permalink":"/docs/packages/moo"},"next":{"title":"Message Service","permalink":"/docs/packages/message-service"}}');
+;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-access-router-runtime-md-1a3.json
+const site_docs_packages_access_router_runtime_md_1a3_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/access-router-runtime","title":"@web-ts-toolkit/access-router-runtime","description":"Config-driven wrapper around @web-ts-toolkit/access-router and @web-ts-toolkit/express-runtime.","source":"@site/docs/packages/access-router-runtime.md","sourceDirName":"packages","slug":"/packages/access-router-runtime","permalink":"/docs/packages/access-router-runtime","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":14,"frontMatter":{"sidebar_label":"Access Router Runtime","sidebar_position":14},"sidebar":"packagesSidebar","previous":{"title":"Access Router Deco","permalink":"/docs/packages/access-router-deco"},"next":{"title":"Message Service","permalink":"/docs/packages/message-service"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -27,14 +27,14 @@ var lib = __webpack_require__(1982);
 var Tabs = __webpack_require__(5250);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@docusaurus+theme-classic@3.10.1_@types+react@19.2.14_react-dom@19.2.6_react@19.2.6__react@19.2.6_typescript@6.0.3/node_modules/@docusaurus/theme-classic/lib/theme/TabItem/index.js + 1 modules
 var TabItem = __webpack_require__(6574);
-;// ./docs/packages/express-oidc-vault-mongodb-store.md
+;// ./docs/packages/access-router-runtime.md
 
 
 const frontMatter = {
-	sidebar_label: 'OIDC Vault MongoDB Store',
-	sidebar_position: 6
+	sidebar_label: 'Access Router Runtime',
+	sidebar_position: 14
 };
-const contentTitle = '@web-ts-toolkit/express-oidc-vault-mongodb-store';
+const contentTitle = '@web-ts-toolkit/access-router-runtime';
 
 const assets = {
 
@@ -49,40 +49,60 @@ const toc = [{
   "id": "installation",
   "level": 2
 }, {
+  "value": "What It Exposes",
+  "id": "what-it-exposes",
+  "level": 2
+}, {
   "value": "Quick Start",
   "id": "quick-start",
   "level": 2
 }, {
-  "value": "Custom collection names",
-  "id": "custom-collection-names",
+  "value": "CLI",
+  "id": "cli",
+  "level": 2
+}, {
+  "value": "Local dev",
+  "id": "local-dev",
   "level": 3
 }, {
-  "value": "Behavior",
-  "id": "behavior",
+  "value": "Build a local runtime bundle",
+  "id": "build-a-local-runtime-bundle",
+  "level": 3
+}, {
+  "value": "Build a serverless bundle",
+  "id": "build-a-serverless-bundle",
+  "level": 3
+}, {
+  "value": "Start built artifacts",
+  "id": "start-built-artifacts",
+  "level": 3
+}, {
+  "value": "Relationship To The Lower-Level Packages",
+  "id": "relationship-to-the-lower-level-packages",
+  "level": 2
+}, {
+  "value": "Loading A Runtime Instance",
+  "id": "loading-a-runtime-instance",
+  "level": 2
+}, {
+  "value": "Programmatic Runtime Creation",
+  "id": "programmatic-runtime-creation",
+  "level": 2
+}, {
+  "value": "TypeScript Config Helper",
+  "id": "typescript-config-helper",
+  "level": 2
+}, {
+  "value": "Config Shape",
+  "id": "config-shape",
+  "level": 2
+}, {
+  "value": "In-Repo Example",
+  "id": "in-repo-example",
   "level": 2
 }, {
   "value": "When To Use It",
   "id": "when-to-use-it",
-  "level": 2
-}, {
-  "value": "API",
-  "id": "api",
-  "level": 2
-}, {
-  "value": "Operational Notes",
-  "id": "operational-notes",
-  "level": 2
-}, {
-  "value": "Security Notes",
-  "id": "security-notes",
-  "level": 2
-}, {
-  "value": "Scoped Deletion Indexes",
-  "id": "scoped-deletion-indexes",
-  "level": 2
-}, {
-  "value": "Related Packages",
-  "id": "related-packages",
   "level": 2
 }];
 function _createMdxContent(props) {
@@ -103,15 +123,40 @@ function _createMdxContent(props) {
   return (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, {
     children: [(0,jsx_runtime.jsx)(_components.header, {
       children: (0,jsx_runtime.jsx)(_components.h1, {
-        id: "web-ts-toolkitexpress-oidc-vault-mongodb-store",
+        id: "web-ts-toolkitaccess-router-runtime",
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/express-oidc-vault-mongodb-store"
+          children: "@web-ts-toolkit/access-router-runtime"
         })
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["MongoDB-backed store provider for ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/express-oidc-vault"
+      children: ["Config-driven wrapper around ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./access-router/",
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/access-router"
+        })
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/express-runtime"
       }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["This package is for the case where you want the generated resource REST API from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access-router"
+      }), ", but you do not want to hand-wire:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Mongoose model registration"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["global ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access-router"
+        }), " options"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "root and OpenAPI routers"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Express app setup"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "local dev vs. serverless runtime entry modules"
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Instead, you describe the API in one TypeScript config file and let the package assemble the app and CLI entrypoints."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
       children: "Installation"
@@ -122,7 +167,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-mongodb-store express mongodb\n"
+            children: "npm install @web-ts-toolkit/access-router-runtime @web-ts-toolkit/access-router @web-ts-toolkit/express-runtime express mongoose\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -131,7 +176,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-mongodb-store express mongodb\n"
+            children: "yarn add @web-ts-toolkit/access-router-runtime @web-ts-toolkit/access-router @web-ts-toolkit/express-runtime express mongoose\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -140,7 +185,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-mongodb-store express mongodb\n"
+            children: "pnpm add @web-ts-toolkit/access-router-runtime @web-ts-toolkit/access-router @web-ts-toolkit/express-runtime express mongoose\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -149,234 +194,351 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-mongodb-store express mongodb\n"
+            children: "bun add @web-ts-toolkit/access-router-runtime @web-ts-toolkit/access-router @web-ts-toolkit/express-runtime express mongoose\n"
           })
         })
       })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "what-it-exposes",
+      children: "What It Exposes"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Main entrypoint:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "defineRuntimeConfig(...)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "createAccessRouterRuntime(config)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "createAccessRouterRuntimeApp(config)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "createAccessRouterRuntimeServerlessHandler(config, options?)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "loadAccessRouterRuntime(path, options?)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "loadAccessRouterRuntimeConfigSync(path)"
+        })
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Published extras:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/access-router-runtime/tsconfig.json"
+        }), " for a reusable strict TypeScript config base when authoring runtime config modules"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "CLI binary:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "wtt-access-router-runtime dev"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "wtt-access-router-runtime build"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "wtt-access-router-runtime start"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "wtt-access-router-runtime build-serverless"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "wtt-access-router-runtime start-serverless"
+        })
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "quick-start",
       children: "Quick Start"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import express from 'express';\nimport { MongoClient } from 'mongodb';\nimport { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { createMongoOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-mongodb-store';\n\nconst app = express();\nconst mongo = new MongoClient(process.env.MONGODB_URI!);\n\nawait mongo.connect();\n\nconst storeProvider = createMongoOidcVaultStore({\n  db: mongo.db('app-auth'),\n});\n\nawait storeProvider.ready();\n\napp.use(\n  createOidcVaultMiddleware({\n    basePath: '/auth/oidc',\n    backendOrigin: 'https://api.example.com',\n    config: {\n      issuer: process.env.OIDC_ISSUER,\n      clientId: process.env.OIDC_CLIENT_ID,\n      clientSecret: process.env.OIDC_CLIENT_SECRET,\n    },\n    frontendRedirectUri: 'https://frontend.example.com/callback',\n    postLogoutRedirectUri: 'https://frontend.example.com/logged-out',\n    storeProvider,\n  }),\n);\n\nconst server = app.listen(3000);\n\nprocess.once('SIGTERM', async () => {\n  server.close();\n  await mongo.close();\n});\n"
+        children: "import mongoose from 'mongoose';\nimport { defineRuntimeConfig } from '@web-ts-toolkit/access-router-runtime';\n\nconst OPEN_ACCESS = { list: true, read: true, create: true, update: true, delete: true } as const;\n\nconst UserSchema = new mongoose.Schema({\n  name: { type: String, required: true },\n  role: { type: String, default: 'user' },\n});\n\nexport default defineRuntimeConfig({\n  db: {\n    url: process.env.MONGODB_URI,\n  },\n  globalOptions: {\n    globalPermissions() {\n      return [];\n    },\n  },\n  models: [\n    {\n      name: 'User',\n      schema: UserSchema,\n      router: {\n        basePath: '/api/users',\n        operationAccess: OPEN_ACCESS,\n        permissionSchema: {\n          name: OPEN_ACCESS,\n          role: OPEN_ACCESS,\n        },\n      },\n      customRoutes: [\n        {\n          method: 'get',\n          path: '/:id/profile',\n          handler: async (req) => ({ id: req.params.id, profile: true }),\n        },\n      ],\n    },\n  ],\n  rootRouter: {\n    basePath: '/api/root',\n    operationAccess: true,\n  },\n  openApi: {\n    title: 'Example API',\n    version: '1.0.0',\n    jsonPath: '/api/openapi.json',\n  },\n});\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["For a fuller in-repo starter, see ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "packages/access-router-runtime/examples/basic/access-router.config.ts"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "cli",
+      children: "CLI"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The runtime CLI mirrors the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "express-runtime"
+      }), " commands, but starts from a config file instead of a hand-wired app module."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "local-dev",
+      children: "Local dev"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-bash",
+        children: "wtt-access-router-runtime dev ./src/access-router.config.ts --env .env --port 3000\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "custom-collection-names",
-      children: "Custom collection names"
+      id: "build-a-local-runtime-bundle",
+      children: "Build a local runtime bundle"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-bash",
+        children: "wtt-access-router-runtime build ./src/access-router.config.ts --out-dir dist\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "build-a-serverless-bundle",
+      children: "Build a serverless bundle"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-bash",
+        children: "wtt-access-router-runtime build-serverless ./src/access-router.config.ts --out-dir netlify/functions\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "start-built-artifacts",
+      children: "Start built artifacts"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["These are pass-through wrappers to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "wtt-express-runtime"
+      }), ":"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-bash",
+        children: "wtt-access-router-runtime start ./dist/app.js --port 3000\nwtt-access-router-runtime start-serverless ./netlify/functions/handler.js --port 9000\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "relationship-to-the-lower-level-packages",
+      children: "Relationship To The Lower-Level Packages"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "access-router-runtime"
+      }), " does not replace the two core packages. It composes them."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/access-router"
+        }), " still owns router generation, permissions, hooks, validation, and OpenAPI metadata."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/express-runtime"
+        }), " still owns the Express app factory, local server lifecycle, serverless wrapper, and bundling CLI behavior."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/access-router-runtime"
+        }), " adds a config layer so those two packages can be used with less application boilerplate."]
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "If your deployment needs explicit collection naming, pass the collection names up front:"
+      children: "If you want full low-level control over app wiring, use the two core packages directly. If your API is mostly generated model/data/root routes, this package is the shorter path."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "loading-a-runtime-instance",
+      children: "Loading A Runtime Instance"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["If you want a fully constructed runtime from a config file path, use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "loadAccessRouterRuntime(...)"
+      }), " instead of loading the config and wiring the runtime separately."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "const storeProvider = createMongoOidcVaultStore({\n  db: mongo.db('app-auth'),\n  authorizationTransactionsCollectionName: 'auth_oidc_transactions',\n  exchangeCodesCollectionName: 'auth_oidc_exchange_codes',\n  sessionsCollectionName: 'auth_oidc_sessions',\n  backchannelLogoutTokenJtisCollectionName: 'auth_oidc_backchannel_logout_jtis',\n  rotatedSessionAliasesCollectionName: 'auth_oidc_rotated_session_aliases',\n});\n"
+        children: "import { loadAccessRouterRuntime } from '@web-ts-toolkit/access-router-runtime';\n\nconst runtime = loadAccessRouterRuntime('./src/access-router.config.ts');\n\nexport const app = runtime.app;\nexport const handler = runtime.createServerlessHandler();\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "behavior",
-      children: "Behavior"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "uses separate collections for authorization transactions, exchange codes, sessions, backchannel logout token JTIs, and rotated-session aliases"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "creates TTL indexes on expiring records"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "checks expiration during relevant reads or consumes for authorization transactions, exchange codes, backchannel logout token JTIs, and rotated-session aliases so behavior does not depend only on MongoDB's background TTL monitor timing"
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["stores session records by ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "sessionId"
-        }), " and replaces them during rotation"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["creates scoped compound indexes for ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "subject"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "providerSessionId"
-        }), ", session ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "logicalSessionId"
-        }), ", and rotated-alias ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "logicalSessionId"
-        }), " so logout and backchannel logout queries can efficiently remove matching sessions and aliases"]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "requires MongoDB transactions for session rotation; use a replica set or sharded deployment because standalone servers fail closed instead of using non-atomic multi-write rotation"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "readiness creates required indexes, validates collection names, and verifies transaction-capable topology before traffic is accepted"
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["stores rotated-session aliases with finite expiry; sessions without explicit expiry use a 5 minute alias-retention window by default, configurable with ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "rotatedSessionAliasRetentionMs"
-        })]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "removes aliases when deleting by current session ID, stale rotated ID, logical session ID, subject, or provider session ID"
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "when-to-use-it",
-      children: "When To Use It"
+      id: "programmatic-runtime-creation",
+      children: "Programmatic Runtime Creation"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Use MongoDB when:"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "your team already standardizes on MongoDB"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "you want OIDC vault data in the same operational platform as the rest of the app"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "Redis is not available or not preferred in your environment"
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "This is a strong fit when your application already depends on MongoDB operationally and you prefer to keep auth-vault data alongside the rest of your infrastructure."
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "api",
-      children: "API"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "If your app already owns the config object in code, create the runtime directly:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "createMongoOidcVaultStore(options)"
+        className: "language-ts",
+        children: "import config from './access-router.config';\nimport { createAccessRouterRuntime } from '@web-ts-toolkit/access-router-runtime';\n\nconst runtime = createAccessRouterRuntime(config);\n\nexport const app = runtime.app;\nexport const handler = runtime.createServerlessHandler();\n"
       })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "typescript-config-helper",
+      children: "TypeScript Config Helper"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Creates a MongoDB-backed implementation of the core ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "OidcVaultStoreProvider"
-      }), " contract with an additional ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "ready()"
-      }), " startup check."]
+      children: ["The package also publishes ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/access-router-runtime/tsconfig.json"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Use it when you want a small shared baseline for runtime-config files:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "OidcVaultMongoStoreProvider"
+        className: "language-json",
+        children: "{\n  \"extends\": \"@web-ts-toolkit/access-router-runtime/tsconfig.json\"\n}\n"
       })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["extends ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "OidcVaultStoreProvider"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "ready()"
-        }), ": waits for collection-name validation, required index creation, and transaction-topology verification"]
-      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "config-shape",
+      children: "Config Shape"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        children: "MongoOidcVaultStoreOptions"
-      })
+      children: "The config object can describe:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "db"
-        }), ": MongoDB database handle"]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "authorizationTransactionsCollectionName?"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "exchangeCodesCollectionName?"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "sessionsCollectionName?"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "backchannelLogoutTokenJtisCollectionName?"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "rotatedSessionAliasesCollectionName?"
-        })
+        }), ": MongoDB connection URL and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "mongoose.connect(...)"
+        }), " options"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "rotatedSessionAliasRetentionMs?"
-        }), ": finite positive alias retention for sessions without explicit expiry, defaulting to 5 minutes"]
+          children: "globalOptions"
+        }), ": global ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access-router"
+        }), " options"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "now?"
-        }), ": override clock source for tests"]
+          children: "defaultModelOptions"
+        }), ": shared model-router defaults"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "models"
+        }), ": model-backed resource routers from ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "schema"
+        }), " or existing ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "model"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "models[].customRoutes"
+        }), ": extra model-scoped routes mounted through the model router's ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "JsonRouter"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "data"
+        }), ": in-memory data routers"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "rootRouter"
+        }), ": grouped root batch route"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "openApi"
+        }), ": generated JSON and Swagger UI routes"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "extraRoutes"
+        }), ": extra Express/access-router routes to mount alongside generated routers"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "express"
+        }), ": Express middleware, parser, and error-handler options"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "init"
+        }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "shutdown"
+        }), ": runtime lifecycle hooks"]
       }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "operational-notes",
-      children: "Operational Notes"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["startup order should be: connect the MongoDB client, create the store, await ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "storeProvider.ready()"
-        }), ", then call ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "app.listen()"
-        }), " or otherwise accept traffic"]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "the application owns MongoDB client shutdown; this package never closes the client"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "TTL index cleanup in MongoDB is asynchronous, so the package also validates expiration during reads"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "rotated-session aliases are retained to bridge in-flight refresh/logout races after a session ID rotates; if a request uses a stale rotated ID after the alias expires, that stale ID no longer revokes the active logical session"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "readiness verifies the deployment reports transaction support before any store operation can run"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "standalone MongoDB servers without transactions cannot rotate sessions with this provider; migrate to a replica set or sharded deployment before enabling refresh flows"
-      }), "\n"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "security-notes",
-      children: "Security Notes"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Session records contain refresh tokens, ID tokens, access tokens, and related bearer-equivalent secrets. Require TLS, least-privilege MongoDB roles, encryption at rest and in backups, restricted logging/metrics/tracing/export paths, and explicit retention policies for all five store collections."
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "This package does not implement application-level field encryption or client-side field-level encryption. Configure those at the MongoDB/client layer if your deployment requires them."
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "scoped-deletion-indexes",
-      children: "Scoped Deletion Indexes"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "The sessions collection creates these deletion indexes:"
+      children: "Model definitions can use either:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "subject_scope_idx"
-        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "{ subject: 1, 'provider.issuer': 1, 'provider.clientId': 1 }"
-        })]
+          children: "model"
+        }), ": an already-created Mongoose model"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "provider_session_scope_idx"
-        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "{ providerSessionId: 1, 'provider.issuer': 1, 'provider.clientId': 1 }"
-        })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "logical_session_idx"
-        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "{ logicalSessionId: 1 }"
-        })]
+          children: "schema"
+        }), ": a schema plus ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "name"
+        }), ", so the runtime registers the model for you"]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Representative ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "explain('executionStats')"
-      }), " evidence used a dataset with 2 repeated identities, 10 issuers, 10 clients, and 10 duplicate sessions per issuer/client scope. With only single-field identity indexes, scoped delete lookups examined all 1,000 matching identity documents. With the compound indexes above, ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "subject/providerSessionId + issuer"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "subject/providerSessionId + clientId"
-      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "subject/providerSessionId + issuer + clientId"
-      }), " examined 100, 100, and 10 documents respectively, matching the scoped result set size in that dataset."]
+      children: ["Model definitions can also include ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "customRoutes"
+      }), " when you need model-specific endpoints alongside the generated CRUD routes."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "customRoutes[].path"
+        }), " is relative to the model router ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "basePath"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "customRoutes[].method"
+        }), " supports ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "all"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "get"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "post"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "put"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "patch"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "delete"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "head"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "options"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "customRoutes[].handler"
+        }), " uses ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/express-json-router"
+        }), " semantics, so returning plain data works"]
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "The package creates one compound index per public scoped identity delete path rather than one index per optional-filter permutation. The leading identity key still supports identity-only deletes, while issuer/client scoped deletes avoid broad scans in multi-tenant collections. Very large deployments should still expect deletion cost to scale with the number of sessions being revoked inside the selected issuer/client scope."
+      children: "Example:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "customRoutes: [\n  {\n    method: 'get',\n    path: '/:id/profile',\n    handler: async (req) => ({ id: req.params.id, profile: true }),\n  },\n];\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["With ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "basePath: '/api/users'"
+      }), ", that route mounts at ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/api/users/:id/profile"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "related-packages",
-      children: "Related Packages"
+      id: "in-repo-example",
+      children: "In-Repo Example"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "A copyable starter config lives in the package source:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "./express-oidc-vault",
-          children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/express-oidc-vault"
-          })
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "./express-oidc-vault-memory-store",
-          children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/express-oidc-vault-memory-store"
-          })
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.a, {
-          href: "./express-oidc-vault-redis-store",
-          children: (0,jsx_runtime.jsx)(_components.code, {
-            children: "@web-ts-toolkit/express-oidc-vault-redis-store"
-          })
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "packages/access-router-runtime/examples/basic/access-router.config.ts"
         })
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "That example shows one model router, one data router, a root router, OpenAPI setup, a model-level custom route, global permissions, and Express finalize/error handling."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "when-to-use-it",
+      children: "When To Use It"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access-router-runtime"
+      }), " when you want:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "generated resource REST endpoints with minimal application wiring"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "one config file as the source of truth for DB, routers, and runtime behavior"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "both local and serverless execution without maintaining separate app entry files"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["to keep using ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access-router"
+        }), " options for global, root, model, and data routes"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["If your app has highly custom Express composition or only uses a small part of ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access-router"
+      }), ", the lower-level packages may still be a better fit."]
     })]
   });
 }

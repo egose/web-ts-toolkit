@@ -18,7 +18,7 @@ __webpack_require__.d(__webpack_exports__, {
 });
 
 ;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-mongoose-rxdb-md-113.json
-const site_docs_packages_mongoose_rxdb_md_113_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/mongoose-rxdb","title":"@web-ts-toolkit/mongoose-rxdb","description":"A Mongoose-shaped API (Schema, Document, Query, Model, Connection, pre/post middleware)","source":"@site/docs/packages/mongoose-rxdb.md","sourceDirName":"packages","slug":"/packages/mongoose-rxdb","permalink":"/docs/packages/mongoose-rxdb","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":10,"frontMatter":{"sidebar_label":"Mongoose-RxDB","sidebar_position":10},"sidebar":"packagesSidebar","previous":{"title":"Create Access Router Starter","permalink":"/docs/packages/create-access-router-mongo-starter"},"next":{"title":"PDF Reader","permalink":"/docs/packages/pdf-reader"}}');
+const site_docs_packages_mongoose_rxdb_md_113_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/mongoose-rxdb","title":"@web-ts-toolkit/mongoose-rxdb","description":"A Mongoose-shaped API (Schema, Document, Query, Model, Connection, pre/post middleware)","source":"@site/docs/packages/mongoose-rxdb.md","sourceDirName":"packages","slug":"/packages/mongoose-rxdb","permalink":"/docs/packages/mongoose-rxdb","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":17,"frontMatter":{"sidebar_label":"Mongoose-RxDB","sidebar_position":17},"sidebar":"packagesSidebar","previous":{"title":"Moo","permalink":"/docs/packages/moo"},"next":{"title":"PDF Reader","permalink":"/docs/packages/pdf-reader"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.6/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1325);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.14_react@19.2.6/node_modules/@mdx-js/react/lib/index.js
@@ -32,7 +32,7 @@ var TabItem = __webpack_require__(6574);
 
 const frontMatter = {
 	sidebar_label: 'Mongoose-RxDB',
-	sidebar_position: 10
+	sidebar_position: 17
 };
 const contentTitle = '@web-ts-toolkit/mongoose-rxdb';
 
