@@ -200,6 +200,13 @@ function _createMdxContent(props) {
         }), ": Mongoose helpers for schema fields, ObjectId checks, and document plugins."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./pdf-reader",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/pdf-reader"
+          })
+        }), ": resource-safe browser PDF rendering, text extraction, and embedded-image extraction built on PDF.js."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
           href: "./utils",
           children: (0,jsx_runtime.jsx)(_components.code, {
             children: "@web-ts-toolkit/utils"
