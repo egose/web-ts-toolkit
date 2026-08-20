@@ -14,6 +14,7 @@ type RemoteUser = {
   firstName?: string;
   lastName?: string;
   enabled?: boolean;
+  attributes?: Record<string, string[]>;
 };
 
 type RemoteRole = { id: string; name: string };
@@ -88,6 +89,7 @@ type User = {
   firstName?: string;
   archived: boolean;
   roles: string[];
+  attributes?: Record<string, unknown>;
 };
 
 const createUserModel = (keycloak: ReturnType<typeof createKeycloak>, options: Record<string, unknown> = {}) => {
@@ -99,6 +101,7 @@ const createUserModel = (keycloak: ReturnType<typeof createKeycloak>, options: R
     firstName: String,
     archived: { type: Boolean, default: false },
     roles: { type: [String], default: [] },
+    attributes: { type: mongoose.Schema.Types.Mixed },
   });
 
   schema.plugin(keycloakUserSyncPlugin, {
@@ -229,6 +232,70 @@ describe('keycloakUserSyncPlugin', () => {
 
     expect(keycloak.coreUsers.update).not.toHaveBeenCalled();
     expect(keycloak.users[0].email).toBeUndefined();
+  });
+
+  it('syncs dynamic attributes from the configured attributes path', async () => {
+    const UserModel = createUserModel(keycloak);
+
+    await UserModel.create({
+      username: 'alice',
+      email: 'alice@example.com',
+      attributes: {
+        tenantId: 'tenant-1',
+        active: true,
+        score: 42,
+        tags: ['one', 2, false, null],
+        ignored: null,
+      },
+    });
+
+    expect(keycloak.users[0].attributes).toEqual({
+      tenantId: ['tenant-1'],
+      active: ['true'],
+      score: ['42'],
+      tags: ['one', '2', 'false'],
+    });
+  });
+
+  it('syncs mapped managed attributes while preserving unmanaged Keycloak attributes', async () => {
+    keycloak.users.push({
+      id: 'existing',
+      username: 'alice',
+      email: 'alice@example.com',
+      attributes: {
+        tenantId: ['old-tenant'],
+        plan: ['old-plan'],
+        external: ['keep-me'],
+      },
+    });
+    const UserModel = createUserModel(keycloak, {
+      managedAttributes: ['tenantId', 'plan', 'removed'],
+      attributePaths: ['attributes'],
+      mapAttributes: (document: unknown) => {
+        const doc = document as { get(path: string): unknown };
+        const attributes = doc.get('attributes') as Record<string, unknown>;
+
+        return {
+          tenantId: attributes.tenantId,
+          plan: attributes.plan,
+        };
+      },
+    });
+    const user = new UserModel({
+      providerId: 'existing',
+      username: 'alice',
+      email: 'alice@example.com',
+      attributes: {
+        tenantId: 'tenant-2',
+      },
+    });
+
+    await user.save();
+
+    expect(keycloak.users[0].attributes).toEqual({
+      external: ['keep-me'],
+      tenantId: ['tenant-2'],
+    });
   });
 
   it('deletes the identified Keycloak user before deleting the document', async () => {

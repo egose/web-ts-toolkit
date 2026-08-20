@@ -9,7 +9,8 @@ export type KeycloakUserSyncField =
   | 'firstName'
   | 'lastName'
   | 'enabled'
-  | 'roles';
+  | 'roles'
+  | 'attributes';
 
 export interface KeycloakUserSyncPaths {
   providerId: string;
@@ -21,6 +22,7 @@ export interface KeycloakUserSyncPaths {
   enabled: string;
   archived: string;
   roles: string;
+  attributes: string;
 }
 
 export interface KeycloakUserSyncErrorContext {
@@ -30,6 +32,10 @@ export interface KeycloakUserSyncErrorContext {
 
 export interface KeycloakUserSyncLogger {
   error(message: string, context: KeycloakUserSyncErrorContext & { error: unknown }): void;
+}
+
+export interface KeycloakUserSyncDocument {
+  get(path: string): unknown;
 }
 
 export interface KeycloakUserSyncPluginOptions {
@@ -43,7 +49,13 @@ export interface KeycloakUserSyncPluginOptions {
   /** Set a field to false to exclude it from change detection and Keycloak updates. */
   syncFields?: Partial<Record<KeycloakUserSyncField, boolean>>;
   /** Convert the configured roles path into Keycloak realm-role names. */
-  mapRoles?: (roles: unknown, document: unknown) => readonly string[];
+  mapRoles?: (roles: unknown, document: KeycloakUserSyncDocument) => readonly string[];
+  /** Convert document state into Keycloak user attributes. Values are normalized to string arrays. */
+  mapAttributes?: (document: KeycloakUserSyncDocument) => Record<string, unknown> | null | undefined;
+  /** Mongoose paths that should trigger attribute syncing when mapAttributes reads dynamic fields. */
+  attributePaths?: readonly string[];
+  /** Attribute keys owned by this plugin. Only managed keys are removed when missing from the mapper result. */
+  managedAttributes?: readonly string[];
   /** Restrict role removal to this set. Without it, assigned realm roles are reconciled exactly. */
   managedRoles?: readonly string[];
   /** Create missing desired realm roles before assigning them. Defaults to true. */
@@ -68,9 +80,10 @@ type KeycloakUser = {
   firstName?: string;
   lastName?: string;
   enabled?: boolean;
+  attributes?: Record<string, string[]>;
 };
 
-type PluginDocument = {
+type PluginDocument = KeycloakUserSyncDocument & {
   _id: unknown;
   isNew: boolean;
   $locals: Record<string, unknown>;
@@ -80,7 +93,6 @@ type PluginDocument = {
     };
     updateOne(filter: Record<string, unknown>, update: Record<string, unknown>): Promise<unknown>;
   };
-  get(path: string): unknown;
   set(path: string, value: unknown): void;
   unmarkModified(path: string): void;
   isModified(path: string): boolean;
@@ -102,6 +114,7 @@ const defaultPaths: KeycloakUserSyncPaths = {
   enabled: 'enabled',
   archived: 'archived',
   roles: 'roles',
+  attributes: 'attributes',
 };
 const defaultSyncFields: Record<KeycloakUserSyncField, boolean> = {
   username: true,
@@ -111,6 +124,7 @@ const defaultSyncFields: Record<KeycloakUserSyncField, boolean> = {
   lastName: true,
   enabled: true,
   roles: true,
+  attributes: true,
 };
 
 const stringValue = (value: unknown) => {
@@ -130,6 +144,36 @@ const getPathValue = (value: Record<string, unknown> | null | undefined, path: s
 const uniqueStrings = (values: readonly unknown[]) => [
   ...new Set(values.map(stringValue).filter((value): value is string => value !== null)),
 ];
+
+const normalizeAttributeValue = (value: unknown): string[] | null => {
+  if (value === null || value === undefined) return null;
+
+  const values = Array.isArray(value) ? value : [value];
+  const normalized = values
+    .map((item) => {
+      if (item instanceof Date) return item.toISOString();
+      if (typeof item === 'string') return item;
+      if (typeof item === 'number' || typeof item === 'boolean' || typeof item === 'bigint') return String(item);
+      return null;
+    })
+    .filter((item): item is string => item !== null);
+
+  return normalized.length ? normalized : null;
+};
+
+const normalizeAttributes = (attributes: unknown) => {
+  if (typeof attributes !== 'object' || attributes === null || Array.isArray(attributes)) return {};
+
+  return Object.entries(attributes as Record<string, unknown>).reduce<Record<string, string[]>>(
+    (result, [key, value]) => {
+      const normalizedKey = stringValue(key);
+      const normalizedValue = normalizeAttributeValue(value);
+      if (normalizedKey && normalizedValue) result[normalizedKey] = normalizedValue;
+      return result;
+    },
+    {},
+  );
+};
 
 const getState = (document: PluginDocument) => document.$locals[syncStateKey] as SyncState | undefined;
 
@@ -158,6 +202,7 @@ export function keycloakUserSyncPlugin(schema: Schema, options: KeycloakUserSync
       .flatMap(([field]) =>
         field === 'enabled' ? [paths.enabled, paths.archived] : [paths[field as keyof KeycloakUserSyncPaths]],
       ),
+    ...(syncFields.attributes && options.attributePaths ? options.attributePaths : []),
   ]);
 
   const handleError = async (error: unknown, context: KeycloakUserSyncErrorContext) => {
@@ -260,6 +305,30 @@ export function keycloakUserSyncPlugin(schema: Schema, options: KeycloakUserSync
     return uniqueStrings(mapped);
   };
 
+  const getDesiredAttributes = (document: PluginDocument) => {
+    if (!syncFields.attributes) return null;
+    const source = options.mapAttributes ? options.mapAttributes(document) : getDocumentValue(document, 'attributes');
+    return normalizeAttributes(source);
+  };
+
+  const mergeAttributes = (user: KeycloakUser | null, document: PluginDocument) => {
+    const desiredAttributes = getDesiredAttributes(document);
+    if (!desiredAttributes) return undefined;
+
+    const currentAttributes = { ...(user?.attributes ?? {}) };
+
+    if (options.managedAttributes) {
+      for (const key of options.managedAttributes) {
+        delete currentAttributes[key];
+      }
+    }
+
+    return {
+      ...currentAttributes,
+      ...desiredAttributes,
+    };
+  };
+
   const syncRoles = async (user: KeycloakUser, document: PluginDocument) => {
     if (!syncFields.roles || !user.id) return;
 
@@ -320,6 +389,7 @@ export function keycloakUserSyncPlugin(schema: Schema, options: KeycloakUserSync
     if (!user) {
       const username = getUsername(document);
       if (!username) throw new Error('Cannot create a Keycloak user without a username or email');
+      payload.attributes = mergeAttributes(null, document);
       user = await realmHandle.user(username).create(payload);
       created = true;
     }
@@ -338,6 +408,7 @@ export function keycloakUserSyncPlugin(schema: Schema, options: KeycloakUserSync
 
     if (!created) {
       if (emailChanged) payload.emailVerified = false;
+      payload.attributes = mergeAttributes(user, document);
       await options.client.core.users.update({ realm: options.realm, id: userId }, payload);
       user = { ...user, ...payload };
     }
