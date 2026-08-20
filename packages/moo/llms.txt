@@ -59,7 +59,13 @@ userSchema.plugin(keycloakUserSyncPlugin, {
   realm: 'application',
   identifyBy: ['providerId', 'username', 'email'],
   managedRoles: ['admin', 'editor', 'viewer'],
-  syncFields: { email: true, firstName: true, lastName: true, roles: true },
+  managedAttributes: ['tenantId', 'plan'],
+  syncFields: { email: true, firstName: true, lastName: true, roles: true, attributes: true },
+  attributePaths: ['tenantId', 'subscription.plan'],
+  mapAttributes: (doc) => ({
+    tenantId: doc.get('tenantId'),
+    plan: doc.get('subscription.plan'),
+  }),
   onError: reportSyncError,
 });
 ```
@@ -74,6 +80,9 @@ userSchema.plugin(keycloakUserSyncPlugin, {
 - Keycloak sync covers document `save()` and document `deleteOne()`, not query updates/deletes
 - Keycloak sync errors are logged and rethrown by default; MongoDB saves have already committed when post-save sync runs
 - duplicate-email realms prioritize providerId/username; email lookup is rejected when more than one exact match exists
+- Keycloak attributes sync from the `attributes` path or `mapAttributes`; values become string arrays
+- use `managedAttributes` for keys the plugin may remove; unmanaged remote attributes are preserved
+- use `attributePaths` when `mapAttributes` reads dynamic paths outside the default `attributes` path
 
 ## Subpaths
 

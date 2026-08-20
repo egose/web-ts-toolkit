@@ -102,11 +102,20 @@ userSchema.plugin(keycloakUserSyncPlugin, {
   realm: 'application',
   identifyBy: ['providerId', 'username', 'email'],
   managedRoles: ['admin', 'editor', 'viewer'],
+  managedAttributes: ['tenantId', 'plan'],
   syncFields: {
     firstName: true,
     lastName: true,
     email: true,
     roles: true,
+    attributes: true,
+  },
+  attributePaths: ['tenantId', 'subscription.plan'],
+  mapAttributes(document) {
+    return {
+      tenantId: document.get('tenantId'),
+      plan: document.get('subscription.plan'),
+    };
   },
   onError(error, { operation, document }) {
     reportKeycloakSyncError({ error, operation, document });
@@ -121,11 +130,14 @@ The plugin:
 - stores the Keycloak user ID in `providerId` by default
 - resets `emailVerified` and sends a verification email when an existing email changes
 - creates desired realm roles by default and reconciles role mappings
+- syncs Keycloak user attributes from an `attributes` path or a custom `mapAttributes` function
 - reads `archived` as the inverse of Keycloak `enabled`, falling back to an `enabled` field
 
 `identifyBy` accepts one identity or an ordered list. When the realm allows duplicate emails, the plugin always prioritizes configured `providerId` and `username` identities before email. An email lookup proceeds only when it has exactly one match; multiple matches are reported as an error, and no user is changed or deleted.
 
-Use `paths` to map different Mongoose path names. Use `syncFields` to disable profile fields or role syncing, `mapRoles` to translate application roles, and `managedRoles` to limit which assigned roles may be removed. Without `managedRoles`, the configured document roles are treated as the complete desired realm-role set.
+Use `paths` to map different Mongoose path names. Use `syncFields` to disable profile fields, role syncing, or attribute syncing. Use `mapRoles` to translate application roles, and `managedRoles` to limit which assigned roles may be removed. Without `managedRoles`, the configured document roles are treated as the complete desired realm-role set.
+
+Attributes are normalized to Keycloak string arrays. Use `mapAttributes` for dynamic key/value mappings and `attributePaths` to list the Mongoose fields that should trigger an attribute resync. Existing unmanaged Keycloak attributes are preserved. Set `managedAttributes` to the keys this plugin owns; managed keys are replaced by the mapper result and removed when omitted or returned as `null`/`undefined`.
 
 Errors are logged to `console.error` and rethrown by default. Set `logger: false` to disable logging, provide `logger.error(...)` for structured logging, use `onError` for reporting, or set `throwOnError: false` for best-effort syncing.
 

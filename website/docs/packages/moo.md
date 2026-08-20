@@ -199,14 +199,22 @@ userSchema.plugin(keycloakUserSyncPlugin, {
   realm: 'application',
   identifyBy: ['providerId', 'username', 'email'],
   managedRoles: ['admin', 'editor', 'viewer'],
-  syncFields: { email: true, firstName: true, lastName: true, roles: true },
+  managedAttributes: ['tenantId', 'plan'],
+  syncFields: { email: true, firstName: true, lastName: true, roles: true, attributes: true },
+  attributePaths: ['tenantId', 'subscription.plan'],
+  mapAttributes(document) {
+    return {
+      tenantId: document.get('tenantId'),
+      plan: document.get('subscription.plan'),
+    };
+  },
   onError(error, context) {
     reportKeycloakSyncError(error, context);
   },
 });
 ```
 
-The plugin syncs document saves and document `deleteOne()` calls. It handles changed emails, verification emails, realm-role reconciliation, custom field paths, per-field enablement, duplicate-email safety, structured logging, and custom error handling. Query updates and deletes bypass document middleware. Post-save Keycloak errors cannot roll back the MongoDB save, so use an outbox when atomic delivery is required.
+The plugin syncs document saves and document `deleteOne()` calls. It handles changed emails, verification emails, realm-role reconciliation, dynamic user attributes, custom field paths, per-field enablement, duplicate-email safety, structured logging, and custom error handling. Attribute values are normalized to Keycloak string arrays. Existing unmanaged Keycloak attributes are preserved; set `managedAttributes` for keys the plugin may replace or remove. Query updates and deletes bypass document middleware. Post-save Keycloak errors cannot roll back the MongoDB save, so use an outbox when atomic delivery is required.
 
 ## Related Packages
 
