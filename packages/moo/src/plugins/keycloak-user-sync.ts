@@ -10,7 +10,8 @@ export type KeycloakUserSyncField =
   | 'lastName'
   | 'enabled'
   | 'roles'
-  | 'attributes';
+  | 'attributes'
+  | 'password';
 
 export interface KeycloakUserSyncPaths {
   providerId: string;
@@ -23,6 +24,7 @@ export interface KeycloakUserSyncPaths {
   archived: string;
   roles: string;
   attributes: string;
+  password: string;
 }
 
 export interface KeycloakUserSyncErrorContext {
@@ -52,6 +54,8 @@ export interface KeycloakUserSyncPluginOptions {
   mapRoles?: (roles: unknown, document: KeycloakUserSyncDocument) => readonly string[];
   /** Convert document state into Keycloak user attributes. Values are normalized to string arrays. */
   mapAttributes?: (document: KeycloakUserSyncDocument) => Record<string, unknown> | null | undefined;
+  /** Convert document state into a Keycloak password. Only used when syncFields.password is true. */
+  mapPassword?: (document: KeycloakUserSyncDocument) => string | null | undefined;
   /** Mongoose paths that should trigger attribute syncing when mapAttributes reads dynamic fields. */
   attributePaths?: readonly string[];
   /** Attribute keys owned by this plugin. Only managed keys are removed when missing from the mapper result. */
@@ -64,6 +68,8 @@ export interface KeycloakUserSyncPluginOptions {
   persistProviderId?: boolean;
   /** Send VERIFY_EMAIL after changing an existing user's email. Defaults to true. */
   sendVerificationEmailOnChange?: boolean;
+  /** Mark synced Keycloak passwords as temporary. Defaults to false. */
+  passwordTemporary?: boolean;
   /** Called after an error is logged and before it is optionally rethrown. */
   onError?: (error: unknown, context: KeycloakUserSyncErrorContext) => void | Promise<void>;
   /** Set to false to disable logging or provide a structured logger. Defaults to console. */
@@ -81,6 +87,7 @@ type KeycloakUser = {
   lastName?: string;
   enabled?: boolean;
   attributes?: Record<string, string[]>;
+  password?: string;
 };
 
 type PluginDocument = KeycloakUserSyncDocument & {
@@ -100,6 +107,7 @@ type PluginDocument = KeycloakUserSyncDocument & {
 
 type SyncState = {
   shouldSync: boolean;
+  passwordChanged: boolean;
   previous?: Record<string, unknown> | null;
 };
 
@@ -115,6 +123,7 @@ const defaultPaths: KeycloakUserSyncPaths = {
   archived: 'archived',
   roles: 'roles',
   attributes: 'attributes',
+  password: 'password', // pragma: allowlist secret
 };
 const defaultSyncFields: Record<KeycloakUserSyncField, boolean> = {
   username: true,
@@ -125,6 +134,7 @@ const defaultSyncFields: Record<KeycloakUserSyncField, boolean> = {
   enabled: true,
   roles: true,
   attributes: true,
+  password: false,
 };
 
 const stringValue = (value: unknown) => {
@@ -311,6 +321,12 @@ export function keycloakUserSyncPlugin(schema: Schema, options: KeycloakUserSync
     return normalizeAttributes(source);
   };
 
+  const getDesiredPassword = (document: PluginDocument) => {
+    if (!syncFields.password) return null;
+    const value = options.mapPassword ? options.mapPassword(document) : getDocumentValue(document, 'password');
+    return typeof value === 'string' && value.length > 0 ? value : null;
+  };
+
   const mergeAttributes = (user: KeycloakUser | null, document: PluginDocument) => {
     const desiredAttributes = getDesiredAttributes(document);
     if (!desiredAttributes) return undefined;
@@ -379,17 +395,19 @@ export function keycloakUserSyncPlugin(schema: Schema, options: KeycloakUserSync
     document.unmarkModified(paths.providerId);
   };
 
-  const syncDocument = async (document: PluginDocument, previous?: Record<string, unknown> | null) => {
+  const syncDocument = async (document: PluginDocument, state: SyncState) => {
     const realmHandle = options.client.realm(options.realm);
-    const resolved = await resolveUser(document, previous);
+    const resolved = await resolveUser(document, state.previous);
     let user = resolved.user;
     let created = false;
     const payload = buildPayload(document);
+    const desiredPassword = getDesiredPassword(document);
 
     if (!user) {
       const username = getUsername(document);
       if (!username) throw new Error('Cannot create a Keycloak user without a username or email');
       payload.attributes = mergeAttributes(null, document);
+      if (desiredPassword) payload.password = desiredPassword;
       user = await realmHandle.user(username).create(payload);
       created = true;
     }
@@ -397,7 +415,7 @@ export function keycloakUserSyncPlugin(schema: Schema, options: KeycloakUserSync
     if (!user?.id) throw new Error('Keycloak did not return a user ID');
     const userId = user.id;
 
-    const previousEmail = normalizeEmail(getPreviousValue(previous, 'email'));
+    const previousEmail = normalizeEmail(getPreviousValue(state.previous, 'email'));
     const currentEmail = normalizeEmail(getDocumentValue(document, 'email'));
     const remoteEmail = normalizeEmail(user.email);
     const emailChanged =
@@ -411,6 +429,18 @@ export function keycloakUserSyncPlugin(schema: Schema, options: KeycloakUserSync
       payload.attributes = mergeAttributes(user, document);
       await options.client.core.users.update({ realm: options.realm, id: userId }, payload);
       user = { ...user, ...payload };
+    }
+
+    if (!created && state.passwordChanged && desiredPassword) {
+      await options.client.core.users.resetPassword({
+        realm: options.realm,
+        id: userId,
+        credential: {
+          temporary: options.passwordTemporary ?? false,
+          type: 'password',
+          value: desiredPassword,
+        },
+      });
     }
 
     await syncRoles(user, document);
@@ -427,8 +457,9 @@ export function keycloakUserSyncPlugin(schema: Schema, options: KeycloakUserSync
   };
 
   schema.pre('save', async function keycloakUserSyncPreSave(this: PluginDocument) {
+    const passwordChanged = syncFields.password && this.isModified(paths.password);
     const shouldSync = this.isNew || trackedPaths.some((path) => this.isModified(path));
-    const state: SyncState = { shouldSync };
+    const state: SyncState = { shouldSync, passwordChanged };
     this.$locals[syncStateKey] = state;
     if (!shouldSync || this.isNew) return;
     state.previous = await this.constructor.findById(this._id).select(trackedPaths).lean();
@@ -438,7 +469,7 @@ export function keycloakUserSyncPlugin(schema: Schema, options: KeycloakUserSync
     const state = getState(this);
     if (!state?.shouldSync) return;
     try {
-      await syncDocument(this, state.previous);
+      await syncDocument(this, state);
     } catch (error) {
       await handleError(error, { operation: 'save', document: this });
     }

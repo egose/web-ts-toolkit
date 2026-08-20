@@ -15,6 +15,7 @@ type RemoteUser = {
   lastName?: string;
   enabled?: boolean;
   attributes?: Record<string, string[]>;
+  password?: string;
 };
 
 type RemoteRole = { id: string; name: string };
@@ -37,6 +38,7 @@ const createKeycloak = () => {
       if (index >= 0) users.splice(index, 1);
     }),
     sendVerifyEmail: vi.fn(async () => undefined),
+    resetPassword: vi.fn(async () => undefined),
     listRealmRoleMappings: vi.fn(async ({ id }: { id: string }) => mappings.get(id) ?? []),
     addRealmRoleMappings: vi.fn(async ({ id, roles: added }: { id: string; roles: RemoteRole[] }) => {
       mappings.set(id, [...(mappings.get(id) ?? []), ...added]);
@@ -90,6 +92,7 @@ type User = {
   archived: boolean;
   roles: string[];
   attributes?: Record<string, unknown>;
+  password?: string;
 };
 
 const createUserModel = (keycloak: ReturnType<typeof createKeycloak>, options: Record<string, unknown> = {}) => {
@@ -102,6 +105,7 @@ const createUserModel = (keycloak: ReturnType<typeof createKeycloak>, options: R
     archived: { type: Boolean, default: false },
     roles: { type: [String], default: [] },
     attributes: { type: mongoose.Schema.Types.Mixed },
+    password: String,
   });
 
   schema.plugin(keycloakUserSyncPlugin, {
@@ -296,6 +300,39 @@ describe('keycloakUserSyncPlugin', () => {
       external: ['keep-me'],
       tenantId: ['tenant-2'],
     });
+  });
+
+  it('updates the Keycloak password when password syncing is enabled and the password changes', async () => {
+    const UserModel = createUserModel(keycloak, { syncFields: { password: true }, passwordTemporary: true });
+    const user = await UserModel.create({ username: 'alice', email: 'alice@example.com', password: 'initial-secret' }); // pragma: allowlist secret
+    keycloak.coreUsers.resetPassword.mockClear();
+
+    user.password = 'next-secret'; // pragma: allowlist secret
+    await user.save();
+
+    expect(keycloak.coreUsers.resetPassword).toHaveBeenCalledWith({
+      realm: 'test',
+      id: 'user-1',
+      credential: {
+        temporary: true,
+        type: 'password',
+        value: 'next-secret',
+      },
+    });
+    expect(keycloak.coreUsers.update).toHaveBeenLastCalledWith(
+      { realm: 'test', id: 'user-1' },
+      expect.not.objectContaining({ password: expect.any(String) }),
+    );
+  });
+
+  it('does not update the Keycloak password unless password syncing is enabled', async () => {
+    const UserModel = createUserModel(keycloak);
+    const user = await UserModel.create({ username: 'alice', email: 'alice@example.com', password: 'initial-secret' }); // pragma: allowlist secret
+
+    user.password = 'next-secret'; // pragma: allowlist secret
+    await user.save();
+
+    expect(keycloak.coreUsers.resetPassword).not.toHaveBeenCalled();
   });
 
   it('deletes the identified Keycloak user before deleting the document', async () => {
