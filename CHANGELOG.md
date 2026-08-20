@@ -1,79 +1,43 @@
-## Unreleased
+## [0.33.0](https://github.com/egose/web-ts-toolkit/compare/v0.32.0...v0.33.0) (2026-08-14)
 
-### Breaking Changes: `@web-ts-toolkit/pdf-reader`
+### Features
 
-This release finalizes the browser-only `@web-ts-toolkit/pdf-reader` contract around explicit worker setup, lifecycle ownership, page image output, and migration from the original application-local reader.
+* **access-router:** add direct esbuild dependency for smoke testing ([fb2c86b](https://github.com/egose/web-ts-toolkit/commit/fb2c86b226e224841371744d2e56e13194a13f14))
+* add decorator support for runtime-owned routers and option metadata ([65bcd14](https://github.com/egose/web-ts-toolkit/commit/65bcd14a87b541ae17e70826b553f8f65b53f213))
+* add logical session revocation to memory, MongoDB, and Redis stores ([69c250c](https://github.com/egose/web-ts-toolkit/commit/69c250c12516c807a1fd9d5262596dc3ab508dd0))
+* add MongoDB startup readiness and scoped deletion aliases ([88e9c40](https://github.com/egose/web-ts-toolkit/commit/88e9c4086930934957cb32d157084479f8b4653a))
+* add runtime isolation, model-instance registration, and OpenAPI collision checks ([f756e82](https://github.com/egose/web-ts-toolkit/commit/f756e82a15afab5c9d87523b07653d88c68b6949))
+* add strict React hook typings and consumer coverage ([52351f7](https://github.com/egose/web-ts-toolkit/commit/52351f7176a22d4b92f7de959b03e05311d364ce))
+* extend store contracts with alias cleanup and provider conformance tests ([323e70c](https://github.com/egose/web-ts-toolkit/commit/323e70cab29871a7592d48dfce74f92ce5832aeb))
+* harden access-router contracts, logging, and OpenAPI collisions ([1fc21ea](https://github.com/egose/web-ts-toolkit/commit/1fc21ea8d0cf8d05a0acc78f8802d9e1e12c8513))
+* harden express response handling and CSV streaming ([dd86403](https://github.com/egose/web-ts-toolkit/commit/dd86403091cbf19d2818fe8c2174d407f1c47c4c))
+* remediate express-json-router packaging, typings, and route registration ([b90169b](https://github.com/egose/web-ts-toolkit/commit/b90169b6722ed4b9174ee0daaade865a43a7cdd0))
+* remediate OIDC vault transport, config, and store contracts ([100e57e](https://github.com/egose/web-ts-toolkit/commit/100e57e3d6f75cc098b3fe8270a39dd6f91f5d66))
+* tighten access-router-client contract and runtime behavior ([ca7dac6](https://github.com/egose/web-ts-toolkit/commit/ca7dac661cdb7487fbd15095562d1c4d82a822cd))
+* tighten client runtime support and request semantics ([2209d04](https://github.com/egose/web-ts-toolkit/commit/2209d04cfe3f92d6b9accb3047beacb9cd01057e))
+* tighten http error status contracts and payload serialization ([0c0dd1c](https://github.com/egose/web-ts-toolkit/commit/0c0dd1cf6109a37a5a21f2877a04831a3f49b8e6))
+* tighten redis store contract and support sentinel topologies ([33a2df4](https://github.com/egose/web-ts-toolkit/commit/33a2df46044dca90129c3a767327425975e4454f))
+* tighten response handling security and streaming support ([8c40918](https://github.com/egose/web-ts-toolkit/commit/8c409182d8a90fec9a20eaf7716eb6f95ba2d86c))
 
-| Area | Previous contract | New contract and migration |
-| --- | --- | --- |
-| Imports and worker setup | Earlier application-local usage often relied on a default export shape and app-specific worker wiring. | Import named exports from `@web-ts-toolkit/pdf-reader` and configure PDF.js explicitly with `configurePdfWorker(...)` in application code. There is no default export, no supported deep import, and no package-owned worker asset emission. |
-| Lifecycle and load state | Shared-load cancellation, retry semantics, and reader states were not a fully documented public contract. | Concurrent `load()` callers now share one task safely; one caller abort does not tear down unrelated callers. `reader.state` reports `new`, `loading`, `loaded`, `iterating`, `failed`, and `destroyed`, and `destroy()` is the only supported teardown path. |
-| Load options | `load()` cancellation was documented narrowly and had no package deadline contract. | `load()` accepts either an `AbortSignal` or `{ signal, deadlineMs }`. `deadlineMs` is caller-local and rejects with `DEADLINE_EXCEEDED` without cancelling unrelated concurrent callers. |
-| Page image results | Older code could rely on top-level image fields such as `dataURL`, `dataUrl`, `mimeType`, or `isPNG`, with base64-only output. | Full-page renders now live on `page.pageImage` as a discriminated union. Keep the default `{ kind: 'data-url', mimeType, dataUrl }` path or opt into `{ kind: 'blob', mimeType, blob }` with `pageImageOutput: 'blob'`. |
-| Option names and unsupported runtimes | Application-local names such as `getText`, `getDataURL`, `getImages`, and `config` were not part of the package contract, and unsupported canvas environments could surface as arbitrary runtime errors. | Use `includeText`, `includePageImage`, `includeEmbeddedImages`, and constructor `options`. Unsupported canvas/runtime features now reject with package `PdfReaderError` code `UNSUPPORTED_ENVIRONMENT` instead of plain `Error` values. |
+### Bug Fixes
 
-### Breaking Changes: `@web-ts-toolkit/express-oidc-vault`
+* **access-router-client:** update test-docs mapping for regenerated response types ([e2cddc7](https://github.com/egose/web-ts-toolkit/commit/e2cddc7f55c0b44f0b3010b43f6d169b64479b75))
+* **access-router:** build all access-router entries in one tsup invocation ([fa14fe3](https://github.com/egose/web-ts-toolkit/commit/fa14fe36d55753a0c825d2e91887b3e7699aae8a))
+* update model service countAdvanced to stop sending access options ([b475158](https://github.com/egose/web-ts-toolkit/commit/b4751585aae630a2e04bc34176dbc8980d6612f3))
 
-This release tightens the OIDC session contract around callback origin pinning, cookie transport, CSRF enforcement, provider response validation, upstream logout, parser limits, and sanitized client errors.
+### Documentation
 
-| Area | Previous contract | New contract and migration |
-| --- | --- | --- |
-| Cookie transport refresh/logout | Body `sessionId` fallback could be ambiguous in cookie deployments. | Cookie transport uses the `HttpOnly` session cookie for refresh/logout and rejects body-only session IDs. Send browser requests with cookie credentials and configure `trustedOrigins` for cookie-authenticated flows. |
-| Origins and redirects | Callback and logout origin expectations were easier to infer from examples than from the public contract. | `backendOrigin` is the pinned public backend origin used for callback redirect URIs. `postLogoutRedirectUri`, when set, must be an absolute provider-registered HTTP(S) URL. |
-| Provider and error handling | Provider parse failures and hook/store/token errors were not consistently documented as sanitized. | Client responses use stable `{ code, message }` payloads and do not expose raw provider, store, hook, token issuer, or validator errors. Log originals through `onError` and private server logging. |
-
-### Breaking Changes: `@web-ts-toolkit/express-oidc-vault-mongodb-store`
-
-| Area | Previous contract | New contract and migration |
-| --- | --- | --- |
-| Session rotation topology | Standalone MongoDB servers attempted non-transaction multi-write session rotation with best-effort rollback. | Session rotation requires a transaction-capable MongoDB deployment: replica set or sharded cluster. Standalone deployments fail closed before rotation; migrate MongoDB topology before enabling refresh flows with this provider. |
-
-### Breaking Changes: `@web-ts-toolkit/http-errors`
-
-| Area | Previous contract | New contract and migration |
-| --- | --- | --- |
-| Constructor status validation | `HttpError`, `ClientError`, and `ServerError` accepted any number, including success/redirect statuses and non-finite values. | `HttpError` accepts only finite integer `400`-`599` statuses. `ClientError` accepts `400`-`499`; `ServerError` accepts `500`-`599`. Use success response helpers for non-error responses and choose the matching error base class for dynamic statuses. |
-
-### Breaking Changes: `@web-ts-toolkit/express-response-handler`
-
-This release tightens Express lifecycle, error, CSV, and public type contracts:
-
-| Area | Previous contract | New contract and migration |
-| --- | --- | --- |
-| Generic failures | Unexpected thrown `Error` values were returned as `422` responses with their raw message. | Unexpected non-HTTP failures return `500` with `Internal Server Error`. Log original errors through hooks or Express error middleware. Use typed `@web-ts-toolkit/http-errors` errors for intentional client-facing `4xx` payloads. |
-| Express `next(...)` | Some `next(value)` calls were converted into package-managed JSON errors. | `next()`, `next('route')`, `next('router')`, and arbitrary `next(error)` values are forwarded to Express and cancel package serialization. Return successful values instead of passing them to `next(...)`. |
-| Hook semantics | Hook return values were not documented as a stable contract. | Hooks are observational only. Returned values do not transform payloads; rejected pre-hooks use the normal error path, and rejected post-hooks are delegated to Express after response completion. |
-| Public lifecycle internals | Internal lifecycle helpers could appear on the runtime handler object or declarations. | `handleResponse`, `HttpResponse`, `createHandler`, provider, and hooks are the supported handler surface. Internal lifecycle helpers are not public API. |
-| CSV streaming | CSV sources were eager array-like inputs with looser failure/backpressure behavior. | CSV supports arrays, sync iterables, and async iterables. Lazy sources require explicit `headers`; streaming respects backpressure and closes active iterators on abort/failure. |
-| CSV formula safety | Formula-like cells were emitted unchanged without an explicit policy. | Formula neutralization remains application responsibility. Use `CSVResponse`/`HttpResponse.csv` `processor` when user-controlled cells may be opened in spreadsheet software. |
-
-Additional public API changes are additive: root named `handleResponse`, root `CSVResponse`, response wrapper subpaths, stricter Express request/response generics, and packed ESM/CJS/subpath export-map compatibility are verified by package tests.
-
-### Breaking Changes: `@web-ts-toolkit/access-router-client`
-
-This release aligns the client with the current `@web-ts-toolkit/access-router`
-protocol and closes cache, batching, persistence, response-shape, and declaration
-gaps. Consumers upgrading from the previous client contract should make these
-changes:
-
-| Area | Previous contract | New contract and migration |
-| --- | --- | --- |
-| Subdocuments | Subdocument results could be `Model<S>` instances, so code could call `sub.data.save()`. | Every direct and grouped subdocument result is plain data. Persist through `service.id(parentId).subs(field).update(subId, data)`, `create(...)`, `bulkUpdate(...)`, or `delete(...)`. |
-| Subdocument create/list counts | Create was typed as a single model and subdocument list results used `totalCount`. | Subdocument `create(object | object[])` always returns the post-create plain array. Read `SubDocumentListResponse.count`; replace every subdocument `totalCount` read. |
-| Model create cardinality | Model create accepted and returned one document. | `create(...)` and `createAdvanced(...)` preserve input cardinality: object input returns `ModelResponse<T>`; array input, including a one-item array, returns `ArrayModelResponse<T>`. |
-| Response narrowing | `Response` fields did not accurately describe failures, and callers commonly used `data` without checking success. | `Response<TRaw, TData>` is `SuccessResult | FailureResult`. Branch on `result.success`; success has non-null `raw`/`data`, while failure has `data: null` and its server problem payload in `raw`. Model/data `totalCount` defaults to `0` when count metadata is unavailable; read subdocument `count` after a successful list result. |
-| Cache defaults and identity | An enabled cache could be unbounded, and credentialed responses could be cached without a stable identity partition. | Caching remains disabled by default (`cacheTTL: 0`). When enabled it is GET-only, defaults to a 100-entry LRU, and credentialed requests bypass caching unless `cachePartition` returns a stable non-secret identity token. Call `clearCache()` on identity changes and `disposeCache()` on teardown. |
-| Lazy/group execution | One lazy request could be replayed by more than one group or executed directly after grouping. | A lazy request is atomically claimed for exactly one direct or grouped execution. Create a new lazy request for another execution; do not reuse an awaited, started, or grouped request. |
-| Group error policy | Grouped requests could ignore adapter/service `throwOnError`, mix policies, stop callbacks at the first failure, and expose outer headers as entry headers. | Every member must have the same effective per-call/service/adapter `throwOnError` policy. Mixed policies reject before dispatch. Non-throwing groups return all entries; throwing groups run every executed callback once and then reject with the first failed entry's `ServiceError`. Entry `headers` are `{}` and structured server failures remain in `raw`. |
-| Protocol signatures | Data permission options, non-string data sort values, and a `countAdvanced` access argument were accepted despite not being supported by the server. | Remove `includePermissions` from `DataService` calls, use a string data sort such as `'age'` or `'-age'`, and call `countAdvanced(filter, axiosRequestConfig?)`. Model `update`/`upsert` now support `includePermissions`. |
-| Filter typing | `FilterQuery<T>` accepted unknown fields and invalid known-field values/operators. | Fix invalid filters or explicitly opt into `DottedPathFilter<T>` / `ServerSideCast<T>` for dynamic dotted paths and intentional server-side casting. |
-| URL and config handling | Dynamic path values were interpolated directly, and caller-owned Axios configuration could be mutated. | Pass raw path values; the client now applies `encodeURIComponent` exactly once. Do not pre-encode unless the literal percent-encoded text is the intended identifier. Reused request/default configs and `AxiosHeaders` now remain unchanged. |
-| Model persistence | In-flight saves could overwrite newer edits, and projected existing models without `_id` could be mistaken for drafts. | Newer local edits remain dirty after save. ID-based reads retain persistence identity outside the projection; an existing model with no recoverable identity throws `MissingPersistenceIdentityError` instead of creating a duplicate. Direct nested mutations are still not tracked: use `set(...)` or `markModified(...)`. |
-
-Additional public API changes are additive: named option/cache types and
-`MissingPersistenceIdentityError` are exported from the package root. The
-package is named-export-only and supports Node 22+ and modern evergreen
-browsers.
+* **access-router-client:** add express response handler remediation task ([52c5802](https://github.com/egose/web-ts-toolkit/commit/52c580217ecf3fe5131fd0fe4c588840ee7a218f))
+* **access-router-client:** preserve executable doc example formatting in access-router client tests ([b2ea06f](https://github.com/egose/web-ts-toolkit/commit/b2ea06fb7c356e87f16cb8102bee6f00e40f6b0b))
+* add access-router-client remediation plan and contract updates ([3142d21](https://github.com/egose/web-ts-toolkit/commit/3142d21fcc04b490c082e6e956011082a0a4d135))
+* add access-router-client remediation task plan ([87fb895](https://github.com/egose/web-ts-toolkit/commit/87fb89549ffd4762633d96c4f24e161ce1dad9d8))
+* document redis topology, lifecycle, and data handling ([6472f3c](https://github.com/egose/web-ts-toolkit/commit/6472f3c1cffe4156cd48a57a22d848974b37752c))
+* mark response handler remediation task complete ([6874145](https://github.com/egose/web-ts-toolkit/commit/6874145ba765b474b58199be0e5682c8ff243912))
+* mark response handler remediation task complete ([1698b39](https://github.com/egose/web-ts-toolkit/commit/1698b39a0626515bc037c64cd6cad5f2fcb4fa01))
+* record express-json-router review remediation tasks ([eb65491](https://github.com/egose/web-ts-toolkit/commit/eb6549113d1d809b6ab7c1103da3c33351a1737c))
+* record remediation tasks for the store review ([1297b2d](https://github.com/egose/web-ts-toolkit/commit/1297b2d91ddb578e43f29bd8d9be5a01e6dac19a))
+* update changelog and remediation task status ([10a44c0](https://github.com/egose/web-ts-toolkit/commit/10a44c0c2bd9ad8ad3ce8fb17f64f90c42a571a7))
+* update MongoDB store guidance and operational notes ([4df7a47](https://github.com/egose/web-ts-toolkit/commit/4df7a47b94fb3246cc3e9ca6bd23b69eee9bd9b1))
 
 ## [0.32.0](https://github.com/egose/web-ts-toolkit/compare/v0.31.5...v0.32.0) (2026-08-01)
 
