@@ -60,7 +60,10 @@ userSchema.plugin(keycloakUserSyncPlugin, {
   identifyBy: ['providerId', 'username', 'email'],
   managedRoles: ['admin', 'editor', 'viewer'],
   managedAttributes: ['tenantId', 'plan'],
-  syncFields: { email: true, firstName: true, lastName: true, roles: true, attributes: true },
+  paths: { password: 'pendingPassword' }, // pragma: allowlist secret
+  syncFields: { email: true, firstName: true, lastName: true, roles: true, attributes: true, password: true },
+  passwordTemporary: true,
+  mapPassword: (doc) => doc.get('pendingPassword') as string | undefined,
   attributePaths: ['tenantId', 'subscription.plan'],
   mapAttributes: (doc) => ({
     tenantId: doc.get('tenantId'),
@@ -83,6 +86,8 @@ userSchema.plugin(keycloakUserSyncPlugin, {
 - Keycloak attributes sync from the `attributes` path or `mapAttributes`; values become string arrays
 - use `managedAttributes` for keys the plugin may remove; unmanaged remote attributes are preserved
 - use `attributePaths` when `mapAttributes` reads dynamic paths outside the default `attributes` path
+- password sync is opt-in with `syncFields.password: true`; map a plaintext pending password, not a stored hash
+- password updates use Keycloak reset-password; `passwordTemporary` defaults to false
 
 ## Subpaths
 

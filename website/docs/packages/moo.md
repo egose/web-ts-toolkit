@@ -200,7 +200,12 @@ userSchema.plugin(keycloakUserSyncPlugin, {
   identifyBy: ['providerId', 'username', 'email'],
   managedRoles: ['admin', 'editor', 'viewer'],
   managedAttributes: ['tenantId', 'plan'],
-  syncFields: { email: true, firstName: true, lastName: true, roles: true, attributes: true },
+  paths: { password: 'pendingPassword' }, // pragma: allowlist secret
+  syncFields: { email: true, firstName: true, lastName: true, roles: true, attributes: true, password: true },
+  passwordTemporary: true,
+  mapPassword(document) {
+    return document.get('pendingPassword') as string | undefined;
+  },
   attributePaths: ['tenantId', 'subscription.plan'],
   mapAttributes(document) {
     return {
@@ -214,7 +219,7 @@ userSchema.plugin(keycloakUserSyncPlugin, {
 });
 ```
 
-The plugin syncs document saves and document `deleteOne()` calls. It handles changed emails, verification emails, realm-role reconciliation, dynamic user attributes, custom field paths, per-field enablement, duplicate-email safety, structured logging, and custom error handling. Attribute values are normalized to Keycloak string arrays. Existing unmanaged Keycloak attributes are preserved; set `managedAttributes` for keys the plugin may replace or remove. Query updates and deletes bypass document middleware. Post-save Keycloak errors cannot roll back the MongoDB save, so use an outbox when atomic delivery is required.
+The plugin syncs document saves and document `deleteOne()` calls. It handles changed emails, verification emails, realm-role reconciliation, dynamic user attributes, opt-in password updates, custom field paths, per-field enablement, duplicate-email safety, structured logging, and custom error handling. Attribute values are normalized to Keycloak string arrays. Existing unmanaged Keycloak attributes are preserved; set `managedAttributes` for keys the plugin may replace or remove. Password sync is disabled by default; enable `syncFields.password` only for a plaintext pending password value, not a stored hash. Query updates and deletes bypass document middleware. Post-save Keycloak errors cannot roll back the MongoDB save, so use an outbox when atomic delivery is required.
 
 ## Related Packages
 
