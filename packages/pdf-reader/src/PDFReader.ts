@@ -1,32 +1,46 @@
-import { getDocument, OPS, Util } from 'pdfjs-dist';
+import { getDocument } from 'pdfjs-dist';
 import type { PageViewport, PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
 
+import { extractEmbeddedImages } from './embeddedImages';
 import { PdfReaderError } from './errors';
-import { getTransformedUnitBounds } from './geometry';
 import { assertPositiveFinite, resolveConvertOptions, resolvePageNumbers } from './options';
 import type {
   ConvertOptions,
-  ExtractedImage,
+  LoadOptions,
+  PageImageMimeType,
+  PageImageOutputMode,
+  PageImageResult,
   PageResult,
   PdfReaderOptions,
+  PdfReaderState,
+  PdfReaderSourceInfo,
   PdfSource,
-  TransformMatrix,
   ViewportScale,
 } from './types';
 
-const identityTransform: TransformMatrix = [1, 0, 0, 1, 0, 0];
 const defaultLimits = {
   maxDocumentPages: 1_000,
   maxCanvasPixels: 40_000_000,
   maxEmbeddedImagePixels: 25_000_000,
 } as const;
 
-interface PdfImageObject {
-  width?: unknown;
-  height?: unknown;
-  bitmap?: unknown;
-  data?: unknown;
-  dataLen?: unknown;
+interface LoadState {
+  task?: PDFDocumentLoadingTask;
+  promise: Promise<PDFDocumentProxy>;
+  destroyPromise?: Promise<void>;
+  destroyed: boolean;
+}
+
+interface ResolvedLoadOptions {
+  signal?: AbortSignal;
+  deadlineMs?: number;
+}
+
+interface ResolvedLimits {
+  maxSourceBytes?: number;
+  maxDocumentPages: number;
+  maxCanvasPixels: number;
+  maxEmbeddedImagePixels: number;
 }
 
 /** Browser PDF reader with bounded canvas allocation and deterministic cleanup. */
@@ -34,16 +48,22 @@ export class PDFReader {
   readonly #source: PdfSource;
   readonly #createCanvas: () => HTMLCanvasElement;
   readonly #logger: PdfReaderOptions['logger'];
-  readonly #limits: Required<NonNullable<PdfReaderOptions['limits']>>;
-  #loadingTask?: PDFDocumentLoadingTask;
+  readonly #limits: ResolvedLimits;
+  readonly #sourcePolicy: PdfReaderOptions['sourcePolicy'];
+  #loadingState?: LoadState;
   #document?: PDFDocumentProxy;
+  #destroyPromise?: Promise<void>;
+  readonly #activeRenderTasks = new Set<RenderTask>();
+  #activePageWorkCount = 0;
   #destroyed = false;
+  #lastLoadFailed = false;
 
   public constructor(source: PdfSource, options: PdfReaderOptions = {}) {
     this.#source = source;
     this.#createCanvas = options.canvasFactory ?? (() => document.createElement('canvas'));
     this.#logger = options.logger;
     this.#limits = { ...defaultLimits, ...options.limits };
+    this.#sourcePolicy = options.sourcePolicy;
     this.#validateLimits();
   }
 
@@ -51,38 +71,45 @@ export class PDFReader {
     return this.#document?.numPages;
   }
 
-  /** Loads once and returns the underlying PDF.js document proxy. */
-  public async load(signal?: AbortSignal): Promise<PDFDocumentProxy> {
-    this.#throwIfAborted(signal);
-    if (this.#destroyed) throw new Error('PDFReader has been destroyed.');
-    if (this.#document) return this.#document;
+  /** Current lifecycle state for load, iteration/rendering, retry, and teardown boundaries. */
+  public get state(): PdfReaderState {
+    if (this.#destroyed) return 'destroyed';
+    if (this.#activePageWorkCount > 0) return 'iterating';
+    if (this.#document) return 'loaded';
+    if (this.#loadingState) return 'loading';
+    if (this.#lastLoadFailed) return 'failed';
+    return 'new';
+  }
 
-    const task = (this.#loadingTask ??= getDocument(this.#source));
-    const abort = () => void task.destroy();
-    signal?.addEventListener('abort', abort, { once: true });
+  /** Loads once and returns the underlying PDF.js document proxy. */
+  public load(signal?: AbortSignal): Promise<PDFDocumentProxy>;
+  public load(options?: LoadOptions): Promise<PDFDocumentProxy>;
+  public load(options?: AbortSignal | LoadOptions): Promise<PDFDocumentProxy> {
+    const resolved = this.#resolveLoadOptions(options);
+    this.#throwIfAborted(resolved.signal);
+    this.#throwIfDestroyed();
+    if (this.#document) return Promise.resolve(this.#document);
+
+    return this.#load(resolved);
+  }
+
+  async #load(options: ResolvedLoadOptions): Promise<PDFDocumentProxy> {
+    const state = this.#getOrCreateLoadState();
     try {
-      const documentProxy = await task.promise;
-      this.#throwIfAborted(signal);
-      if (documentProxy.numPages > this.#limits.maxDocumentPages) {
-        await documentProxy.destroy();
-        throw new PdfReaderError(
-          'PAGE_LIMIT_EXCEEDED',
-          `PDF has ${documentProxy.numPages} pages; limit is ${this.#limits.maxDocumentPages}.`,
-        );
-      }
-      this.#document = documentProxy;
+      const documentProxy = await this.#awaitWithSignal(state.promise, options.signal, options.deadlineMs);
+      this.#throwIfDestroyed();
+      this.#throwIfAborted(options.signal);
       return documentProxy;
     } catch (error) {
-      this.#loadingTask = undefined;
-      this.#throwIfAborted(signal);
+      this.#throwIfDestroyed();
+      this.#throwIfAborted(options.signal);
       throw error;
-    } finally {
-      signal?.removeEventListener('abort', abort);
     }
   }
 
   /** Streams page results so callers do not need to retain the entire document conversion in memory. */
   public async *pages(options: ConvertOptions = {}): AsyncGenerator<PageResult> {
+    this.#throwIfDestroyed();
     const documentProxy = this.#document;
     if (!documentProxy) {
       throw new PdfReaderError('DOCUMENT_NOT_LOADED', 'Document not loaded. Call load() first.');
@@ -94,12 +121,25 @@ export class PDFReader {
     }
 
     for (let pageNumber = start; pageNumber <= Math.min(end, documentProxy.numPages); pageNumber += 1) {
+      this.#throwIfDestroyed();
       this.#throwIfAborted(resolved.signal);
-      const page = await documentProxy.getPage(pageNumber);
+      let page: PDFPageProxy | undefined;
+      let ownsActivePageWork = false;
       try {
-        yield await this.#processPage(page, pageNumber, documentProxy.numPages, resolved);
-      } finally {
+        this.#activePageWorkCount += 1;
+        ownsActivePageWork = true;
+        page = await documentProxy.getPage(pageNumber);
+        const result = await this.#processPage(page, pageNumber, documentProxy.numPages, resolved);
         page.cleanup();
+        page = undefined;
+        this.#activePageWorkCount -= 1;
+        ownsActivePageWork = false;
+        yield result;
+      } catch (error) {
+        this.#rethrowLifecycleError(error, resolved.signal);
+      } finally {
+        if (ownsActivePageWork) this.#activePageWorkCount -= 1;
+        page?.cleanup();
       }
     }
   }
@@ -111,16 +151,26 @@ export class PDFReader {
     return results;
   }
 
-  /** Terminates the loading task, document, and worker. The reader cannot be reused afterwards. */
+  /** Terminates the loading task and document resources. The reader cannot be reused afterwards. */
   public async destroy(): Promise<void> {
-    if (this.#destroyed) return;
+    if (this.#destroyPromise) return this.#destroyPromise;
     this.#destroyed = true;
     const documentProxy = this.#document;
-    const loadingTask = this.#loadingTask;
+    const loadingState = this.#loadingState;
     this.#document = undefined;
-    this.#loadingTask = undefined;
-    if (documentProxy) await documentProxy.destroy();
-    else if (loadingTask) await loadingTask.destroy();
+    this.#loadingState = undefined;
+    this.#destroyPromise = (async () => {
+      for (const renderTask of this.#activeRenderTasks) renderTask.cancel();
+      if (documentProxy) {
+        await documentProxy.destroy();
+        return;
+      }
+      if (!loadingState) return;
+      loadingState.destroyed = true;
+      loadingState.destroyPromise ??= loadingState.task ? loadingState.task.destroy() : Promise.resolve();
+      await loadingState.destroyPromise;
+    })();
+    await this.#destroyPromise;
   }
 
   async #processPage(
@@ -139,24 +189,77 @@ export class PDFReader {
     };
 
     this.#throwIfAborted(options.signal);
-    if (options.includeText) result.text = await page.getTextContent();
+    this.#throwIfDestroyed();
+    if (options.includeText) {
+      try {
+        result.text = await page.getTextContent();
+      } catch (error) {
+        this.#rethrowLifecycleError(error, options.signal);
+      }
+    }
     this.#throwIfAborted(options.signal);
-    if (options.includeEmbeddedImages) result.images = await this.#extractImages(page, viewport, options.signal);
+    this.#throwIfDestroyed();
+    if (options.includeEmbeddedImages) {
+      try {
+        result.images = await extractEmbeddedImages(page, viewport, {
+          signal: options.signal,
+          createCanvas: this.#createCanvas,
+          maxPixels: this.#limits.maxEmbeddedImagePixels,
+          logger: this.#logger,
+          throwIfAborted: (signal) => this.#throwIfAborted(signal),
+          throwIfDestroyed: () => this.#throwIfDestroyed(),
+        });
+      } catch (error) {
+        this.#rethrowLifecycleError(error, options.signal);
+      }
+    }
     this.#throwIfAborted(options.signal);
+    this.#throwIfDestroyed();
     if (options.includePageImage) {
       const canvas = this.#allocateCanvas(viewport.width, viewport.height, this.#limits.maxCanvasPixels, 'page');
       try {
         const context = canvas.getContext('2d');
-        if (!context) throw new Error(`Failed to create a 2D canvas context for page ${pageNumber}.`);
+        if (!context) {
+          throw this.#createUnsupportedEnvironmentError(`Failed to create a 2D canvas context for page ${pageNumber}.`);
+        }
         const renderTask = page.render({ canvas, canvasContext: context, viewport });
         await this.#waitForRender(renderTask, options.signal);
-        result.dataUrl = canvas.toDataURL(options.imageFormat, options.jpegQuality);
-        result.mimeType = options.imageFormat;
+        result.pageImage = await this.#encodePageImage(
+          canvas,
+          options.imageFormat,
+          options.pageImageOutput,
+          options.jpegQuality,
+          options.signal,
+        );
       } finally {
         this.#releaseCanvas(canvas);
       }
     }
     return result;
+  }
+
+  async #encodePageImage(
+    canvas: HTMLCanvasElement,
+    mimeType: PageImageMimeType,
+    output: PageImageOutputMode,
+    jpegQuality: number,
+    signal?: AbortSignal,
+  ): Promise<PageImageResult> {
+    this.#throwIfDestroyed();
+    this.#throwIfAborted(signal);
+    const quality = mimeType === 'image/jpeg' ? jpegQuality : undefined;
+
+    if (output === 'data-url') {
+      const dataUrl = quality === undefined ? canvas.toDataURL(mimeType) : canvas.toDataURL(mimeType, quality);
+      this.#throwIfDestroyed();
+      this.#throwIfAborted(signal);
+      return { kind: 'data-url', mimeType, dataUrl };
+    }
+
+    const blob = await this.#encodeCanvasToBlob(canvas, mimeType, quality, signal);
+    this.#throwIfDestroyed();
+    this.#throwIfAborted(signal);
+    return { kind: 'blob', mimeType, blob };
   }
 
   #resolveViewport(page: PDFPageProxy, viewportScale: ViewportScale): PageViewport {
@@ -167,108 +270,50 @@ export class PDFReader {
     return page.getViewport({ scale });
   }
 
-  async #extractImages(page: PDFPageProxy, viewport: PageViewport, signal?: AbortSignal): Promise<ExtractedImage[]> {
-    const operators = await page.getOperatorList();
-    const images: ExtractedImage[] = [];
-    const stack: TransformMatrix[] = [];
-    let transform: TransformMatrix = identityTransform;
+  async #encodeCanvasToBlob(
+    canvas: HTMLCanvasElement,
+    mimeType: PageImageMimeType,
+    quality: number | undefined,
+    signal?: AbortSignal,
+  ): Promise<Blob> {
+    if (typeof canvas.toBlob !== 'function') {
+      throw this.#createUnsupportedEnvironmentError(
+        'Canvas Blob encoding is not supported by this canvas implementation.',
+      );
+    }
+    this.#throwIfAborted(signal);
 
-    for (let index = 0; index < operators.fnArray.length; index += 1) {
-      this.#throwIfAborted(signal);
-      const operation = operators.fnArray[index];
-      if (operation === OPS.save) {
-        stack.push([...transform]);
-      } else if (operation === OPS.restore) {
-        transform = stack.pop() ?? identityTransform;
-      } else if (operation === OPS.transform) {
-        transform = Util.transform(transform, operators.argsArray[index] as number[]) as unknown as TransformMatrix;
-      } else if (
-        operation === OPS.paintXObject ||
-        operation === OPS.paintImageXObject ||
-        operation === OPS.paintInlineImageXObject
-      ) {
-        const reference = operators.argsArray[index]?.[0];
-        try {
-          const image = (
-            operation === OPS.paintInlineImageXObject ? reference : await page.objs.get(reference)
-          ) as PdfImageObject;
-          const dataUrl = this.#imageToDataUrl(image);
-          if (!dataUrl) continue;
-          const bounds = getTransformedUnitBounds(transform);
-          images.push({
-            dataUrl,
-            x: bounds.left,
-            y: bounds.top,
-            width: bounds.width,
-            height: bounds.height,
-            size: this.#imageByteLength(image),
-            mimeType: 'image/png',
-            pageWidth: viewport.width / viewport.scale,
-            pageHeight: viewport.height / viewport.scale,
-            transform: [...transform],
-          });
-        } catch (error) {
-          if (error instanceof PdfReaderError || signal?.aborted) throw error;
-          this.#logger?.warn(`Failed to extract embedded image ${String(reference)}.`, error);
+    return await new Promise<Blob>((resolve, reject) => {
+      let settled = false;
+      const onAbort = () => settle(() => reject(this.#createAbortedError()));
+      const cleanup = () => signal?.removeEventListener('abort', onAbort);
+      const settle = (callback: () => void) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        callback();
+      };
+
+      signal?.addEventListener('abort', onAbort, { once: true });
+      try {
+        const resolveBlob = (blob: Blob | null) => {
+          if (!blob) {
+            settle(() =>
+              reject(this.#createUnsupportedEnvironmentError(`Canvas Blob encoding returned null for ${mimeType}.`)),
+            );
+            return;
+          }
+          settle(() => resolve(blob));
+        };
+        if (quality === undefined) {
+          canvas.toBlob(resolveBlob, mimeType);
+        } else {
+          canvas.toBlob(resolveBlob, mimeType, quality);
         }
+      } catch (error) {
+        settle(() => reject(error));
       }
-    }
-    return images;
-  }
-
-  #imageToDataUrl(image: PdfImageObject): string | undefined {
-    const width = image.width;
-    const height = image.height;
-    if (
-      !Number.isSafeInteger(width) ||
-      !Number.isSafeInteger(height) ||
-      (width as number) <= 0 ||
-      (height as number) <= 0
-    ) {
-      return undefined;
-    }
-    const canvas = this.#allocateCanvas(
-      width as number,
-      height as number,
-      this.#limits.maxEmbeddedImagePixels,
-      'embedded image',
-    );
-    try {
-      const context = canvas.getContext('2d');
-      if (!context) return undefined;
-      if (typeof ImageBitmap !== 'undefined' && image.bitmap instanceof ImageBitmap) {
-        context.drawImage(image.bitmap, 0, 0);
-      } else if (ArrayBuffer.isView(image.data)) {
-        const source = new Uint8ClampedArray(image.data.buffer, image.data.byteOffset, image.data.byteLength);
-        const rgba = this.#toRgba(source, width as number, height as number);
-        if (!rgba) return undefined;
-        const pixels = context.createImageData(width as number, height as number);
-        pixels.data.set(rgba);
-        context.putImageData(pixels, 0, 0);
-      } else {
-        return undefined;
-      }
-      return canvas.toDataURL('image/png');
-    } finally {
-      this.#releaseCanvas(canvas);
-    }
-  }
-
-  #toRgba(data: Uint8ClampedArray, width: number, height: number): Uint8ClampedArray | undefined {
-    const pixels = width * height;
-    if (data.length === pixels * 4) return data;
-    if (data.length !== pixels && data.length !== pixels * 3) return undefined;
-    const channels = data.length / pixels;
-    const rgba = new Uint8ClampedArray(pixels * 4);
-    for (let pixel = 0; pixel < pixels; pixel += 1) {
-      const input = pixel * channels;
-      const output = pixel * 4;
-      rgba[output] = data[input];
-      rgba[output + 1] = channels === 1 ? data[input] : data[input + 1];
-      rgba[output + 2] = channels === 1 ? data[input] : data[input + 2];
-      rgba[output + 3] = 255;
-    }
-    return rgba;
+    });
   }
 
   #allocateCanvas(width: number, height: number, limit: number, subject: string): HTMLCanvasElement {
@@ -287,18 +332,18 @@ export class PDFReader {
 
   async #waitForRender(renderTask: RenderTask, signal?: AbortSignal): Promise<void> {
     const abort = () => renderTask.cancel();
+    this.#activeRenderTasks.add(renderTask);
     signal?.addEventListener('abort', abort, { once: true });
     try {
       await renderTask.promise;
+      this.#throwIfDestroyed();
       this.#throwIfAborted(signal);
+    } catch (error) {
+      this.#rethrowLifecycleError(error, signal);
     } finally {
       signal?.removeEventListener('abort', abort);
+      this.#activeRenderTasks.delete(renderTask);
     }
-  }
-
-  #imageByteLength(image: PdfImageObject): number {
-    if (typeof image.dataLen === 'number' && Number.isFinite(image.dataLen)) return image.dataLen;
-    return ArrayBuffer.isView(image.data) ? image.data.byteLength : 0;
   }
 
   #releaseCanvas(canvas: HTMLCanvasElement): void {
@@ -306,12 +351,223 @@ export class PDFReader {
     canvas.height = 0;
   }
 
+  #getOrCreateLoadState(): LoadState {
+    const existing = this.#loadingState;
+    if (existing) return existing;
+
+    this.#lastLoadFailed = false;
+    const state = { destroyed: false } as LoadState;
+    state.promise = (async () => {
+      try {
+        const policyResult = this.#enforceSourcePolicy();
+        if (this.#isPromiseLike(policyResult)) await policyResult;
+        if (state.destroyed || this.#destroyed) {
+          throw this.#createDestroyedError();
+        }
+        const task = getDocument(this.#source);
+        state.task = task;
+        const documentProxy = await task.promise;
+        if (state.destroyed || state.destroyPromise) {
+          await state.destroyPromise?.catch(() => undefined);
+          throw this.#createDestroyedError();
+        }
+        if (documentProxy.numPages > this.#limits.maxDocumentPages) {
+          await documentProxy.destroy();
+          throw new PdfReaderError(
+            'PAGE_LIMIT_EXCEEDED',
+            `PDF has ${documentProxy.numPages} pages; limit is ${this.#limits.maxDocumentPages}.`,
+          );
+        }
+        this.#throwIfDestroyed();
+        this.#document = documentProxy;
+        this.#lastLoadFailed = false;
+        return documentProxy;
+      } catch (error) {
+        if (state.destroyed || state.destroyPromise || this.#destroyed) {
+          await state.destroyPromise?.catch(() => undefined);
+          throw this.#createDestroyedError();
+        }
+        this.#lastLoadFailed = true;
+        throw error;
+      } finally {
+        if (this.#loadingState === state) this.#loadingState = undefined;
+      }
+    })();
+    state.promise.catch(() => undefined);
+    this.#loadingState = state;
+    return state;
+  }
+
+  async #awaitWithSignal<T>(promise: Promise<T>, signal?: AbortSignal, deadlineMs?: number): Promise<T> {
+    this.#throwIfAborted(signal);
+    if (!signal && deadlineMs === undefined) return promise;
+
+    return await new Promise<T>((resolve, reject) => {
+      let settled = false;
+      const onAbort = () => settle(() => reject(this.#createAbortedError()));
+      const cleanup = () => {
+        signal?.removeEventListener('abort', onAbort);
+        if (timer !== undefined) clearTimeout(timer);
+      };
+      const settle = (callback: () => void) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        callback();
+      };
+      const timer =
+        deadlineMs === undefined
+          ? undefined
+          : setTimeout(() => settle(() => reject(this.#createDeadlineExceededError())), deadlineMs);
+      signal?.addEventListener('abort', onAbort, { once: true });
+      promise
+        .then(
+          (value) => settle(() => resolve(value)),
+          (error) => settle(() => reject(error)),
+        )
+        .catch(() => undefined);
+    });
+  }
+
+  #createAbortedError(): PdfReaderError {
+    return new PdfReaderError('ABORTED', 'PDF operation was aborted.');
+  }
+
+  #createDestroyedError(): PdfReaderError {
+    return new PdfReaderError('DESTROYED', 'PDFReader has been destroyed.');
+  }
+
+  #createDeadlineExceededError(): PdfReaderError {
+    return new PdfReaderError('DEADLINE_EXCEEDED', 'PDF load exceeded the configured deadline.');
+  }
+
+  #createUnsupportedEnvironmentError(message: string): PdfReaderError {
+    return new PdfReaderError('UNSUPPORTED_ENVIRONMENT', message);
+  }
+
+  #rethrowLifecycleError(error: unknown, signal?: AbortSignal): never {
+    this.#throwIfDestroyed();
+    this.#throwIfAborted(signal);
+    throw error;
+  }
+
+  #throwIfDestroyed(): void {
+    if (this.#destroyed) throw this.#createDestroyedError();
+  }
+
   #throwIfAborted(signal?: AbortSignal): void {
-    if (signal?.aborted) throw new PdfReaderError('ABORTED', 'PDF operation was aborted.');
+    if (signal?.aborted) throw this.#createAbortedError();
+  }
+
+  #resolveLoadOptions(options?: AbortSignal | LoadOptions): ResolvedLoadOptions {
+    if (!options) return {};
+    if (this.#isAbortSignal(options)) return { signal: options };
+    if (options.deadlineMs !== undefined && (!Number.isFinite(options.deadlineMs) || options.deadlineMs <= 0)) {
+      throw new PdfReaderError('INVALID_OPTION', 'deadlineMs must be a positive finite number.');
+    }
+    return options;
+  }
+
+  #isAbortSignal(value: AbortSignal | LoadOptions): value is AbortSignal {
+    return 'aborted' in value && 'addEventListener' in value && 'removeEventListener' in value;
+  }
+
+  #enforceSourcePolicy(): Promise<void> | void {
+    const source = this.#inspectSource(this.#source);
+    if (
+      source.byteLength !== undefined &&
+      this.#limits.maxSourceBytes !== undefined &&
+      source.byteLength > this.#limits.maxSourceBytes
+    ) {
+      throw new PdfReaderError(
+        'SOURCE_LIMIT_EXCEEDED',
+        `PDF source is ${source.byteLength} bytes; limit is ${this.#limits.maxSourceBytes}.`,
+      );
+    }
+    if (!this.#sourcePolicy) return;
+    try {
+      const result = this.#sourcePolicy(source);
+      if (!this.#isPromiseLike(result)) return;
+      return result.catch((error: unknown) => {
+        if (error instanceof PdfReaderError) throw error;
+        throw new PdfReaderError('SOURCE_POLICY_VIOLATION', 'PDF source rejected by sourcePolicy.');
+      });
+    } catch (error) {
+      if (error instanceof PdfReaderError) throw error;
+      throw new PdfReaderError('SOURCE_POLICY_VIOLATION', 'PDF source rejected by sourcePolicy.');
+    }
+  }
+
+  #isPromiseLike(value: Promise<void> | void): value is Promise<void> {
+    return value instanceof Promise;
+  }
+
+  #inspectSource(source: PdfSource): PdfReaderSourceInfo {
+    if (typeof source === 'string') {
+      return {
+        rawSource: source,
+        kind: 'url',
+        url: source,
+        hasHttpHeaders: false,
+        withCredentials: false,
+      };
+    }
+    if (typeof URL !== 'undefined' && source instanceof URL) {
+      return {
+        rawSource: source,
+        kind: 'url',
+        url: source.toString(),
+        hasHttpHeaders: false,
+        withCredentials: false,
+      };
+    }
+    const byteLength = this.#knownByteLength(source);
+    if (byteLength !== undefined) {
+      return {
+        rawSource: source,
+        kind: 'bytes',
+        byteLength,
+        hasHttpHeaders: false,
+        withCredentials: false,
+      };
+    }
+
+    const candidate = source as Record<string, unknown>;
+    const headers = this.#readHttpHeaders(candidate.httpHeaders);
+    return {
+      rawSource: source,
+      kind: 'document-init-parameters',
+      url: this.#readUrl(candidate.url),
+      byteLength: this.#knownByteLength(candidate.data),
+      hasHttpHeaders: headers !== undefined,
+      httpHeaders: headers,
+      withCredentials: candidate.withCredentials === true,
+    };
+  }
+
+  #knownByteLength(value: unknown): number | undefined {
+    if (value instanceof ArrayBuffer) return value.byteLength;
+    if (ArrayBuffer.isView(value)) return value.byteLength;
+    if (Array.isArray(value) && value.every((entry) => Number.isFinite(entry))) return value.length;
+    return undefined;
+  }
+
+  #readUrl(value: unknown): string | undefined {
+    if (typeof value === 'string') return value;
+    if (typeof URL !== 'undefined' && value instanceof URL) return value.toString();
+    return undefined;
+  }
+
+  #readHttpHeaders(value: unknown): Readonly<Record<string, string>> | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    const entries = Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string');
+    if (entries.length === 0) return undefined;
+    return Object.freeze(Object.fromEntries(entries));
   }
 
   #validateLimits(): void {
     for (const [name, value] of Object.entries(this.#limits)) {
+      if (value === undefined) continue;
       if (!Number.isSafeInteger(value) || value <= 0) {
         throw new PdfReaderError('INVALID_OPTION', `${name} must be a positive safe integer.`);
       }

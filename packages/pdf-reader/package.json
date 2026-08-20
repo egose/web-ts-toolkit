@@ -14,24 +14,21 @@
     "text-extraction",
     "typescript"
   ],
-  "main": "dist/index.js",
+  "main": "dist/index.mjs",
   "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
+  "types": "dist/index.d.mts",
   "exports": {
     ".": {
-      "types": {
-        "import": "./dist/index.d.mts",
-        "require": "./dist/index.d.ts",
-        "default": "./dist/index.d.ts"
-      },
+      "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "default": "./dist/index.js"
+      "default": "./dist/index.mjs"
     }
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
-    "test": "pnpm --filter @web-ts-toolkit/pdf-reader... build && vitest run --config ../../vitest.config.ts",
+    "benchmark": "pnpm --filter @web-ts-toolkit/pdf-reader build && vitest run --config vitest.benchmark.config.ts",
+    "test": "pnpm --filter @web-ts-toolkit/pdf-reader... build && vitest run --config ../../vitest.config.ts && pnpm test:browser",
+    "test:browser": "pnpm --filter @web-ts-toolkit/pdf-reader build && vitest run --config vitest.browser.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "files": [
@@ -42,9 +39,11 @@
     "node": ">=22"
   },
   "peerDependencies": {
-    "pdfjs-dist": "^5.0.0"
+    "pdfjs-dist": "~5.7.284"
   },
   "devDependencies": {
-    "pdfjs-dist": "^5.7.284"
+    "@vitest/browser-playwright": "^4.1.10",
+    "pdfjs-dist": "^5.7.284",
+    "playwright": "^1.62.1"
   }
 }

@@ -2,6 +2,8 @@
 node_modules
 dist
 coverage
+packages/**/test/__screenshots__
+packages/**/.vitest-attachments
 id_ed25519*
 _tmp*
 .wip

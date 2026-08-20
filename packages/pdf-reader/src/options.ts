@@ -7,6 +7,7 @@ export interface ResolvedConvertOptions {
   imageFormat: 'image/png' | 'image/jpeg';
   jpegQuality: number;
   includePageImage: boolean;
+  pageImageOutput: 'data-url' | 'blob';
   includeText: boolean;
   includeEmbeddedImages: boolean;
   signal?: AbortSignal;
@@ -19,6 +20,7 @@ export function resolveConvertOptions(options: ConvertOptions): ResolvedConvertO
     imageFormat: options.imageFormat ?? 'image/png',
     jpegQuality: options.jpegQuality ?? 0.92,
     includePageImage: options.includePageImage ?? true,
+    pageImageOutput: options.pageImageOutput ?? 'data-url',
     includeText: options.includeText ?? true,
     includeEmbeddedImages: options.includeEmbeddedImages ?? false,
     signal: options.signal,
@@ -29,6 +31,9 @@ export function resolveConvertOptions(options: ConvertOptions): ResolvedConvertO
   }
   if (!Number.isFinite(resolved.jpegQuality) || resolved.jpegQuality < 0 || resolved.jpegQuality > 1) {
     throw new PdfReaderError('INVALID_OPTION', 'jpegQuality must be a finite number from 0 through 1.');
+  }
+  if (resolved.pageImageOutput !== 'data-url' && resolved.pageImageOutput !== 'blob') {
+    throw new PdfReaderError('INVALID_OPTION', 'pageImageOutput must be either "data-url" or "blob".');
   }
   validatePageRange(resolved.pageRange);
   return resolved;
