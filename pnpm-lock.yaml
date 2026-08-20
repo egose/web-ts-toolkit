@@ -682,6 +682,9 @@ importers:
         specifier: workspace:*
         version: link:../utils
     devDependencies:
+      '@egose/keycloak-fluent':
+        specifier: ^0.7.0
+        version: 0.7.0
       mongodb-memory-server:
         specifier: ^11.2.0
         version: 11.2.0(socks@2.8.9)(supports-color@10.2.2)
@@ -1494,6 +1497,10 @@ packages:
   '@dependents/detective-less@5.0.3':
     resolution: {integrity: sha512-v6oD9Ukp+N7V4n6p5I/+mM5fIohSfkrDSGlFm5w/pYmchvbk+sMIHsLxrFJ5Lnujewj1BzWL0K84d88lwZAMQA==}
     engines: {node: '>=18'}
+
+  '@egose/keycloak-fluent@0.7.0':
+    resolution: {integrity: sha512-ptGhX/gTW0gcFpDpEOXEspvaMV1tTk5j2qn9sy/rJQiWUSkk5wPY5H0WJPPxDohE2HiywG5GJOwa+/6O8RlHTg==}
+    engines: {node: '>=20'}
 
   '@egose/shadcn-theme@0.1.13':
     resolution: {integrity: sha512-ZzzRfNNCbRlhw8afDS2Fo6Xr1WuLuqOQqyBkKXV3UaqZXg7fShE21W6w/4aUQ1VwNFPH2pklJbhJoAJGf5J5Aw==}
@@ -2791,6 +2798,10 @@ packages:
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
 
+  '@keycloak/keycloak-admin-client@26.7.2':
+    resolution: {integrity: sha512-pnuUTXVv4dJUBYKofbfniNp9pm+lEGGVnDwXJ6vmHo8wiJiLHRgy8kgmZteqWH5yRX5LR0DvPAVnCCdfGf5Bcg==}
+    engines: {node: '>=18'}
+
   '@koa/cors@5.0.0':
     resolution: {integrity: sha512-x/iUDjcS90W69PryLDIMgFyV21YLTnG9zOpPXS7Bkt2b8AsY3zZsIpOLBkYr9fBcF3HbkKaER5hOBZLfpLgYNw==}
     engines: {node: '>= 14.0.0'}
@@ -2803,6 +2814,24 @@ packages:
     resolution: {integrity: sha512-uwPAhccfFJlsfCxMYTwOdVfOz3xqyj8xYL3zJj8f0pb30tLohnnFPhLuqp4/qoEz8sNxe4SESZedcBojRefIzg==}
     engines: {node: '>=18'}
     hasBin: true
+
+  '@microsoft/kiota-abstractions@1.0.0-preview.103':
+    resolution: {integrity: sha512-om7nKH8nWyEAQ0lgbIdKdrkmznhkdDJdliCnAIo31X/hlUah1aBzvfUx+pbyp67Q040yLK+2J6P7AnvGSoN/qQ==}
+
+  '@microsoft/kiota-http-fetchlibrary@1.0.0-preview.103':
+    resolution: {integrity: sha512-DbhGL+pdVjtv2AVvxB4fxvNC/GMzKbYyeQsknaXJXwqnPR/oIClWjaXlIxWL5SBK72DOmrZ18leaWMB2vfWvpw==}
+
+  '@microsoft/kiota-serialization-form@1.0.0-preview.103':
+    resolution: {integrity: sha512-AD5Q59Qu61DfhaLLN7Mvgx4Zw0Zmftqx04XAbrRreC+r9hwT1BqTf0EReCraMzEoC4sdrp/8haI2Arm8dWUWuQ==}
+
+  '@microsoft/kiota-serialization-json@1.0.0-preview.103':
+    resolution: {integrity: sha512-dTr8q6H42TSe+HaCPBXU4Pv6ypo7MjMGRo/r9GRbnCuy8VCWfe+Vh38rnAZJx4r8cmvOUD7Yw74IJ6q4Hjv3mg==}
+
+  '@microsoft/kiota-serialization-multipart@1.0.0-preview.103':
+    resolution: {integrity: sha512-b3ePXYgFv/2TQtbzFQ8ZY+hzMtCRkz4Cx5y/Pf8vtoQu56KU0/9rYq5kA9wySDdCx/oZxfubQQRV/8QSTxmejw==}
+
+  '@microsoft/kiota-serialization-text@1.0.0-preview.103':
+    resolution: {integrity: sha512-FkiboqpNtT2F40xUC9LETHK9ckHd+WuocLJE70ljI4EYvD59MQDsrTERYAwbmkfPIJ6JRE4OfLXFVh510LG1/Q==}
 
   '@mongodb-js/saslprep@1.4.13':
     resolution: {integrity: sha512-E3Sv4eCYAlKYUTx8S3ioQcDUscOif+8zZ5OnW1IzJ+Tt+EO+ke8mn+Y3FX6N1H79picwbdOavVOb1jPi2EOyrg==}
@@ -4522,6 +4551,9 @@ packages:
   '@standard-schema/utils@0.3.0':
     resolution: {integrity: sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g==}
 
+  '@std-uritemplate/std-uritemplate@2.0.12':
+    resolution: {integrity: sha512-s/R828vYTrFPgAOFAUiHuP4i1eSZHCO9PKVfzVR+2DFERJ/G71BpZJVObM2yy3xeMjMW3wB61gvanb6/pV1lJw==}
+
   '@sveltejs/acorn-typescript@1.0.13':
     resolution: {integrity: sha512-wgKggnhZVL9Bfx1OaKKTrYY9BFRk6C8UAkQNUcIv1+llzYrIqy+RZm5HPKzn0NpEBvTVhTqB4kQyllZywsRBRQ==}
     peerDependencies:
@@ -5573,6 +5605,10 @@ packages:
   camelcase@8.0.0:
     resolution: {integrity: sha512-8WB3Jcas3swSvjIeA2yvCJ+Miyz5l1ZmB6HFb9R1317dt9LCQoswg/BGrmAmkWVEszSrrg4RwmO46qIm2OEnSA==}
     engines: {node: '>=16'}
+
+  camelize-ts@3.0.0:
+    resolution: {integrity: sha512-cgRwKKavoDKLTjO4FQTs3dRBePZp/2Y9Xpud0FhuCOTE86M2cniKN4CCXgRnsyXNMmQMifVHcv6SPaMtTx6ofQ==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   caniuse-lite@1.0.30001809:
     resolution: {integrity: sha512-xxWVywk6a6Arlk+hymeycyn/VgqEfLDxupvhH/xiY5SJ/18kmi9o6MiO320DCUzypORHLtvh0I4i04tUhCNHNQ==}
@@ -10034,6 +10070,9 @@ packages:
     resolution: {integrity: sha512-uo33abH+Ays0xYaDysoBt494Hb3hsEczMpcC0MwFl773pazORx4fmvKhclhR1wonUbB6vvpRsvVMwnhfqeMc+A==}
     engines: {node: ^16.14.0 || >= 17.3.0}
 
+  tinyduration@3.4.1:
+    resolution: {integrity: sha512-NemFoamVYn7TmtwZKZ3OiliM9fZkr6EWiTM+wKknco6POSy2gS689xx/pXip0JYp40HXpUw6k65CUYHWYUXdaA==}
+
   tinyexec@0.3.2:
     resolution: {integrity: sha512-KQQR9yN7R5+OSwaK0XQoj22pwHoTlgYqmUscPYoknOoWCWfj/5/ABTMRi69FrKU5ffPVh5QcFikpWJI/P1ocHA==}
 
@@ -10425,6 +10464,10 @@ packages:
 
   url-join@5.0.0:
     resolution: {integrity: sha512-n2huDr9h9yzd6exQVnH/jU5mr+Pfx08LRXXZhkLLetAMESRj+anQsTAh940iMrIetKAmry9coFuZQ2jY8/p3WA==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
+
+  url-template@3.1.1:
+    resolution: {integrity: sha512-4oszoaEKE/mQOtAmdMWqIRHmkxWkUZMnXFnjQ5i01CuRSK3uluxcH1MRVVVWmhlnzT1SCDfKxxficm2G37qzCA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   urlpattern-polyfill@10.1.0:
@@ -11915,6 +11958,11 @@ snapshots:
       gonzales-pe: 4.3.0
       node-source-walk: 7.0.2
 
+  '@egose/keycloak-fluent@0.7.0':
+    dependencies:
+      '@keycloak/keycloak-admin-client': 26.7.2
+      lodash-es: 4.18.1
+
   '@egose/shadcn-theme@0.1.13(@date-fns/tz@1.5.0)(@standard-schema/spec@1.1.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(ajv-errors@3.0.0(ajv@8.20.0))(ajv@8.20.0)(react-dom@19.2.8(react@19.2.8))(react-hook-form@7.85.0(react@19.2.8))(react@19.2.8)(sonner@2.0.8(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))':
     dependencies:
       '@base-ui/react': 1.7.0(@date-fns/tz@1.5.0)(@types/react@19.2.18)(date-fns@4.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -12983,6 +13031,17 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
+  '@keycloak/keycloak-admin-client@26.7.2':
+    dependencies:
+      '@microsoft/kiota-abstractions': 1.0.0-preview.103
+      '@microsoft/kiota-http-fetchlibrary': 1.0.0-preview.103
+      '@microsoft/kiota-serialization-form': 1.0.0-preview.103
+      '@microsoft/kiota-serialization-json': 1.0.0-preview.103
+      '@microsoft/kiota-serialization-multipart': 1.0.0-preview.103
+      '@microsoft/kiota-serialization-text': 1.0.0-preview.103
+      camelize-ts: 3.0.0
+      url-template: 3.1.1
+
   '@koa/cors@5.0.0':
     dependencies:
       vary: 1.1.2
@@ -13001,6 +13060,39 @@ snapshots:
     transitivePeerDependencies:
       - encoding
       - supports-color
+
+  '@microsoft/kiota-abstractions@1.0.0-preview.103':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@std-uritemplate/std-uritemplate': 2.0.12
+      tinyduration: 3.4.1
+      tslib: 2.8.1
+
+  '@microsoft/kiota-http-fetchlibrary@1.0.0-preview.103':
+    dependencies:
+      '@microsoft/kiota-abstractions': 1.0.0-preview.103
+      '@opentelemetry/api': 1.9.1
+      tslib: 2.8.1
+
+  '@microsoft/kiota-serialization-form@1.0.0-preview.103':
+    dependencies:
+      '@microsoft/kiota-abstractions': 1.0.0-preview.103
+      tslib: 2.8.1
+
+  '@microsoft/kiota-serialization-json@1.0.0-preview.103':
+    dependencies:
+      '@microsoft/kiota-abstractions': 1.0.0-preview.103
+      tslib: 2.8.1
+
+  '@microsoft/kiota-serialization-multipart@1.0.0-preview.103':
+    dependencies:
+      '@microsoft/kiota-abstractions': 1.0.0-preview.103
+      tslib: 2.8.1
+
+  '@microsoft/kiota-serialization-text@1.0.0-preview.103':
+    dependencies:
+      '@microsoft/kiota-abstractions': 1.0.0-preview.103
+      tslib: 2.8.1
 
   '@mongodb-js/saslprep@1.4.13':
     dependencies:
@@ -14940,6 +15032,8 @@ snapshots:
 
   '@standard-schema/utils@0.3.0': {}
 
+  '@std-uritemplate/std-uritemplate@2.0.12': {}
+
   '@sveltejs/acorn-typescript@1.0.13(acorn@8.18.0)':
     dependencies:
       acorn: 8.18.0
@@ -16160,6 +16254,8 @@ snapshots:
   camelcase@6.3.0: {}
 
   camelcase@8.0.0: {}
+
+  camelize-ts@3.0.0: {}
 
   caniuse-lite@1.0.30001809: {}
 
@@ -21310,6 +21406,8 @@ snapshots:
 
   tinyclip@0.1.15: {}
 
+  tinyduration@3.4.1: {}
+
   tinyexec@0.3.2: {}
 
   tinyexec@1.3.0: {}
@@ -21667,6 +21765,8 @@ snapshots:
       punycode: 2.3.1
 
   url-join@5.0.0: {}
+
+  url-template@3.1.1: {}
 
   urlpattern-polyfill@10.1.0: {}
 

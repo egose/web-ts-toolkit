@@ -1,3 +1,22 @@
+## Unreleased
+
+### ⚠ BREAKING CHANGES
+
+* **moo:** Keycloak user sync no longer removes assigned realm roles by default. Role synchronization is additive-only unless `managedRoles` explicitly declares the role names this plugin owns.
+* **moo:** Keycloak user sync now rejects invalid identity/path configuration at schema registration and treats persisted provider IDs as server-controlled.
+* **moo:** Keycloak user sync now rejects session-backed saves/deletes and keeps failed remote deletes retryable under its direct-hook delivery contract.
+* **moo:** Keycloak user sync now rejects more than 100 desired roles per operation by default; configure `maxRolesPerSync` for applications with a larger explicit bound.
+* **moo:** Keycloak user sync is no longer re-exported from the root or grouped plugin entrypoints; import it from `@web-ts-toolkit/moo/plugins/keycloak-user-sync` and install the optional `@egose/keycloak-fluent` peer only when using that subpath.
+
+### Bug Fixes
+
+* **moo:** define Keycloak profile clearing and preserve unmanaged attributes during user sync
+* **moo:** preserve unmanaged Keycloak realm-role mappings during user sync
+* **moo:** snapshot Keycloak user-sync options and prevent provider-ID mutation from redirecting remote synchronization
+* **moo:** document non-atomic Keycloak user-sync delivery and block local deletion when remote deletion fails
+* **moo:** bound Keycloak user-sync role request cost and skip no-op role mapping reads
+* **moo:** align Keycloak user-sync peer metadata, documentation, and installed-consumer import guidance
+
 ## [0.33.0](https://github.com/egose/web-ts-toolkit/compare/v0.32.0...v0.33.0) (2026-08-14)
 
 ### Features
