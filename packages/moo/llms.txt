@@ -29,7 +29,11 @@ Cascade-delete plugin:
 ```ts
 import { cascadeDeletePlugin } from '@web-ts-toolkit/moo/plugins/cascade-delete';
 
-userSchema.plugin(cascadeDeletePlugin, { foreignKey: 'parentRef' });
+userSchema.plugin(cascadeDeletePlugin, {
+  model: 'Session',
+  localField: '_id',
+  foreignField: 'userId',
+});
 ```
 
 Model-function plugin:
@@ -45,12 +49,31 @@ userSchema.plugin(modelFunctionPlugin, {
 // static + instance methods `fullName` and `fullNameById` are now available on the model
 ```
 
+Keycloak user-sync plugin:
+
+```ts
+import { keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
+
+userSchema.plugin(keycloakUserSyncPlugin, {
+  client: authenticatedKeycloakFluentClient,
+  realm: 'application',
+  identifyBy: ['providerId', 'username', 'email'],
+  managedRoles: ['admin', 'editor', 'viewer'],
+  syncFields: { email: true, firstName: true, lastName: true, roles: true },
+  onError: reportSyncError,
+});
+```
+
 ## Gotchas
 
 - peer dependency: `mongoose >= 8`
-- root entrypoint exports schema helpers and `isObjectId`; plugins and utils live under subpaths
+- peer dependency: `@egose/keycloak-fluent ^0.7`
+- root entrypoint exports schema helpers, `isObjectId`, and plugins; dedicated plugin subpaths are also available
 - `isObjectId(...)` is a strict guard: it rejects strings that `ObjectId.isValid` accepts but that don't round-trip back to the same string
 - `uniqueNullableString`/`uniqueEmptiableString` return partial-index field definitions, not full schemas
+- Keycloak sync covers document `save()` and document `deleteOne()`, not query updates/deletes
+- Keycloak sync errors are logged and rethrown by default; MongoDB saves have already committed when post-save sync runs
+- duplicate-email realms prioritize providerId/username; email lookup is rejected when more than one exact match exists
 
 ## Subpaths
 
@@ -60,6 +83,7 @@ userSchema.plugin(modelFunctionPlugin, {
 - `@web-ts-toolkit/moo/plugins` — re-exports all plugins
 - `@web-ts-toolkit/moo/plugins/cascade-delete` — `cascadeDeletePlugin`
 - `@web-ts-toolkit/moo/plugins/model-function` — `modelFunctionPlugin`
+- `@web-ts-toolkit/moo/plugins/keycloak-user-sync` — `keycloakUserSyncPlugin`
 
 ## Pointers
 

@@ -11,7 +11,7 @@ This package includes:
 
 - partial-index helpers for nullable or empty string fields
 - an `isObjectId(...)` guard for strict ObjectId checks
-- document plugins for model-bound helper functions and cascade deletes
+- document plugins for model-bound helper functions, cascade deletes, and Keycloak user sync
 
 ## Installation
 
@@ -36,6 +36,7 @@ Published subpaths:
 - `@web-ts-toolkit/moo/plugins` for the shared plugin entrypoint
 - `@web-ts-toolkit/moo/plugins/cascade-delete` for the cascade-delete plugin
 - `@web-ts-toolkit/moo/plugins/model-function` for the model-function plugin
+- `@web-ts-toolkit/moo/plugins/keycloak-user-sync` for the Keycloak user-sync plugin
 
 Example subpath imports:
 
@@ -181,6 +182,31 @@ If you prefer importing the plugin from its dedicated published entrypoint inste
 ```ts
 import { cascadeDeletePlugin } from '@web-ts-toolkit/moo/plugins/cascade-delete';
 ```
+
+### Keycloak user sync
+
+Install `@egose/keycloak-fluent`, authenticate a client, and attach it to the user schema:
+
+```ts
+import KeycloakAdminClientFluent from '@egose/keycloak-fluent';
+import { keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
+
+const keycloak = new KeycloakAdminClientFluent({ baseUrl, realmName: 'master' });
+await keycloak.simpleAuth({ clientId, clientSecret });
+
+userSchema.plugin(keycloakUserSyncPlugin, {
+  client: keycloak,
+  realm: 'application',
+  identifyBy: ['providerId', 'username', 'email'],
+  managedRoles: ['admin', 'editor', 'viewer'],
+  syncFields: { email: true, firstName: true, lastName: true, roles: true },
+  onError(error, context) {
+    reportKeycloakSyncError(error, context);
+  },
+});
+```
+
+The plugin syncs document saves and document `deleteOne()` calls. It handles changed emails, verification emails, realm-role reconciliation, custom field paths, per-field enablement, duplicate-email safety, structured logging, and custom error handling. Query updates and deletes bypass document middleware. Post-save Keycloak errors cannot roll back the MongoDB save, so use an outbox when atomic delivery is required.
 
 ## Related Packages
 
