@@ -1,6 +1,6 @@
 ---
 sidebar_label: Mongoose-RxDB
-sidebar_position: 10
+sidebar_position: 17
 ---
 
 # `@web-ts-toolkit/mongoose-rxdb`

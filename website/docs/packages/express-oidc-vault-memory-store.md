@@ -1,6 +1,6 @@
 ---
 sidebar_label: OIDC Vault Memory Store
-sidebar_position: 4
+sidebar_position: 7
 ---
 
 # `@web-ts-toolkit/express-oidc-vault-memory-store`

@@ -76,6 +76,18 @@ try {
 
 Use `pages()` for large PDFs because it lets the caller consume and release each result incrementally. `convert(options)` provides the same results as an array for small documents.
 
+For a remote PDF, use `pdfUrlSource(...)` to create constructor-ready PDF.js loading data:
+
+```ts
+import { PDFReader, pdfUrlSource } from '@web-ts-toolkit/pdf-reader';
+
+const reader = new PDFReader(
+  pdfUrlSource('https://static.example.com/document.pdf', {
+    withCredentials: false,
+  }),
+);
+```
+
 Call `load()` before `pages()` or `convert()`. Concurrent `load()` callers share one PDF.js loading task, but aborting one caller only rejects that caller; call `destroy()` to tear down the shared load. `destroy()` is idempotent, permanently closes the reader, cancels active renders, and causes in-flight lifecycle work to reject with `DESTROYED`.
 
 ## Reader State And Ownership

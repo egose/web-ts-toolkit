@@ -1,6 +1,6 @@
 ---
 sidebar_label: Express Response Handler
-sidebar_position: 3
+sidebar_position: 4
 ---
 
 # `@web-ts-toolkit/express-response-handler`

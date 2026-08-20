@@ -1,6 +1,6 @@
 ---
 sidebar_label: Express JSON Router
-sidebar_position: 2
+sidebar_position: 5
 ---
 
 # `@web-ts-toolkit/express-json-router`

@@ -1,6 +1,6 @@
 ---
 sidebar_label: Access Router React
-sidebar_position: 3
+sidebar_position: 12
 ---
 
 # `@web-ts-toolkit/access-router-react`

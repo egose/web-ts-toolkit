@@ -1,6 +1,6 @@
 ---
 sidebar_label: Message Service
-sidebar_position: 7
+sidebar_position: 15
 ---
 
 # `@web-ts-toolkit/message-service`
