@@ -8,6 +8,7 @@ export default defineConfig({
     'src/utils/index.ts',
     'src/plugins/index.ts',
     'src/plugins/cascade-delete.ts',
+    'src/plugins/keycloak-user-sync.ts',
     'src/plugins/model-function.ts',
   ],
   format: ['cjs', 'esm'],

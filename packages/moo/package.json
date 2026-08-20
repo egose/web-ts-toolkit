@@ -58,6 +58,12 @@
       "import": "./dist/plugins/model-function.mjs",
       "require": "./dist/plugins/model-function.js",
       "default": "./dist/plugins/model-function.js"
+    },
+    "./plugins/keycloak-user-sync": {
+      "types": "./dist/plugins/keycloak-user-sync.d.ts",
+      "import": "./dist/plugins/keycloak-user-sync.mjs",
+      "require": "./dist/plugins/keycloak-user-sync.js",
+      "default": "./dist/plugins/keycloak-user-sync.js"
     }
   },
   "scripts": {
@@ -73,12 +79,14 @@
     "node": ">=22"
   },
   "peerDependencies": {
+    "@egose/keycloak-fluent": "^0.7.0",
     "mongoose": ">=8.0.0"
   },
   "dependencies": {
     "@web-ts-toolkit/utils": "workspace:*"
   },
   "devDependencies": {
+    "@egose/keycloak-fluent": "^0.7.0",
     "mongodb-memory-server": "^11.2.0",
     "mongoose": "^9.8.0"
   }
