@@ -1,6 +1,6 @@
 ---
 sidebar_label: OIDC Vault MongoDB Store
-sidebar_position: 6
+sidebar_position: 9
 ---
 
 # `@web-ts-toolkit/express-oidc-vault-mongodb-store`

@@ -1,7 +1,9 @@
 export { PdfReaderError } from './errors';
 export type { PdfReaderErrorCode } from './errors';
 export { PDFReader } from './PDFReader';
+export { pdfUrlSource } from './source';
 export { configurePdfWorker } from './worker';
+export type { PdfUrlSource, PdfUrlSourceOptions } from './source';
 export type {
   BlobPageImage,
   ConvertOptions,

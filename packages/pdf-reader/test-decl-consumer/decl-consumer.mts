@@ -9,6 +9,7 @@ import {
   PDFReader,
   PdfReaderError,
   configurePdfWorker,
+  pdfUrlSource,
   type BlobPageImage,
   type ConvertOptions,
   type DataUrlPageImage,
@@ -18,6 +19,8 @@ import {
   type PdfReaderOptions,
   type PdfReaderState,
   type PdfSource,
+  type PdfUrlSource,
+  type PdfUrlSourceOptions,
   type PdfTextContent,
 } from '@web-ts-toolkit/pdf-reader';
 
@@ -29,6 +32,8 @@ const workerUrl = new URL('./pdf.worker.min.mjs', import.meta.url).toString();
 configurePdfWorker(workerUrl);
 
 const source: PdfSource = { data: new Uint8Array([0x25, 0x50, 0x44, 0x46]) };
+const urlSourceOptions: PdfUrlSourceOptions = { withCredentials: false };
+const urlSource: PdfUrlSource = pdfUrlSource('https://example.com/document.pdf', urlSourceOptions);
 const options: PdfReaderOptions = {
   canvasFactory: () => document.createElement('canvas'),
   limits: {
@@ -39,6 +44,7 @@ const options: PdfReaderOptions = {
 };
 
 const reader = new PDFReader(source, options);
+const urlReader = new PDFReader(urlSource, options);
 const loadResult = reader.load(new AbortController().signal);
 const convertOptions: ConvertOptions = {
   imageFormat: 'image/png',
@@ -58,6 +64,7 @@ const publicText: PdfTextContent | undefined = page.text;
 const state: PdfReaderState = reader.state;
 
 expectTypeAssignableTo<typeof PDFReader>(PDFReader);
+expectTypeAssignableTo<PdfSource>(urlSource);
 expectTypeAssignableTo<Promise<PDFDocumentProxy>>(loadResult);
 expectTypeAssignableTo<AsyncGenerator<PageResult>>(pages);
 expectTypeAssignableTo<Promise<PageResult[]>>(converted);
@@ -109,4 +116,5 @@ void [
   page.viewport,
   pdfError.code,
   state,
+  urlReader.state,
 ];

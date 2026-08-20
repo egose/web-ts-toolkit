@@ -32,7 +32,7 @@ vi.mock('pdfjs-dist', () => ({
   },
 }));
 
-import { configurePdfWorker, PDFReader, PdfReaderError } from '../src';
+import { configurePdfWorker, PDFReader, PdfReaderError, pdfUrlSource } from '../src';
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -369,6 +369,34 @@ describe('PDFReader', () => {
     await expect(reader.load()).rejects.toMatchObject({ code: 'SOURCE_POLICY_VIOLATION' });
     expect(sourcePolicy).toHaveBeenCalledOnce(); // pragma: allowlist secret
     expect(pdfjs.getDocument).not.toHaveBeenCalled();
+  });
+
+  it('creates constructor-ready PDF URL sources with PDF.js loading options', async () => {
+    const pdf = createPdfHarness({ numPages: 1 });
+    const source = pdfUrlSource(new URL('https://example.com/public.pdf'), {
+      withCredentials: true,
+      httpHeaders: { Authorization: 'Bearer secret' },
+      password: 'secret-password', // pragma: allowlist secret
+    });
+    const sourcePolicy = vi.fn();
+    const reader = new PDFReader(source, { sourcePolicy });
+
+    await expect(reader.load()).resolves.toBe(pdf.documentProxy);
+    expect(source).toMatchObject({
+      url: new URL('https://example.com/public.pdf'),
+      withCredentials: true,
+      httpHeaders: { Authorization: 'Bearer secret' },
+      password: 'secret-password', // pragma: allowlist secret
+    });
+    expect(sourcePolicy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'document-init-parameters',
+        url: 'https://example.com/public.pdf',
+        hasHttpHeaders: true,
+        withCredentials: true,
+      }),
+    );
+    expect(pdfjs.getDocument).toHaveBeenCalledWith(source);
   });
 
   it('passes allowed loading parameters through unchanged after source policy approval', async () => {

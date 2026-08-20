@@ -1,6 +1,6 @@
 ---
 sidebar_label: HTTP Errors
-sidebar_position: 4
+sidebar_position: 2
 ---
 
 # `@web-ts-toolkit/http-errors`

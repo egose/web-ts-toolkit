@@ -1,5 +1,6 @@
 ---
 sidebar_label: PDF Reader
+sidebar_position: 18
 ---
 
 # `@web-ts-toolkit/pdf-reader`

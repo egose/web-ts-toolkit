@@ -1,6 +1,6 @@
 ---
 sidebar_label: Express OIDC Vault
-sidebar_position: 3
+sidebar_position: 6
 ---
 
 # `@web-ts-toolkit/express-oidc-vault`

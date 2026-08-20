@@ -1,6 +1,6 @@
 ---
 sidebar_label: Access Router Deco
-sidebar_position: 2
+sidebar_position: 13
 ---
 
 # `@web-ts-toolkit/access-router-deco`
