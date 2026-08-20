@@ -77,8 +77,16 @@ const toc = [{
   "id": "model-function-plugin",
   "level": 3
 }, {
+  "value": "New document plugin",
+  "id": "new-document-plugin",
+  "level": 3
+}, {
   "value": "Cascade delete plugin",
   "id": "cascade-delete-plugin",
+  "level": 3
+}, {
+  "value": "Keycloak user sync",
+  "id": "keycloak-user-sync",
   "level": 3
 }, {
   "value": "Related Packages",
@@ -120,7 +128,7 @@ function _createMdxContent(props) {
           children: "isObjectId(...)"
         }), " guard for strict ObjectId checks"]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "document plugins for model-bound helper functions and cascade deletes"
+        children: "document plugins for model-bound helper functions, new-document callbacks, cascade deletes, and Keycloak user sync"
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
@@ -163,6 +171,48 @@ function _createMdxContent(props) {
           })
         })
       })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Install ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@egose/keycloak-fluent"
+      }), " only when using the Keycloak user-sync subpath:"]
+    }), "\n", (0,jsx_runtime.jsxs)(Tabs/* default */.A, {
+      groupId: "npm2yarn",
+      children: [(0,jsx_runtime.jsx)(TabItem/* default */.A, {
+        value: "npm",
+        children: (0,jsx_runtime.jsx)(_components.pre, {
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            className: "language-bash",
+            children: "npm install @egose/keycloak-fluent\n"
+          })
+        })
+      }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
+        value: "yarn",
+        label: "Yarn",
+        children: (0,jsx_runtime.jsx)(_components.pre, {
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            className: "language-bash",
+            children: "yarn add @egose/keycloak-fluent\n"
+          })
+        })
+      }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
+        value: "pnpm",
+        label: "pnpm",
+        children: (0,jsx_runtime.jsx)(_components.pre, {
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            className: "language-bash",
+            children: "pnpm add @egose/keycloak-fluent\n"
+          })
+        })
+      }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
+        value: "bun",
+        label: "Bun",
+        children: (0,jsx_runtime.jsx)(_components.pre, {
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            className: "language-bash",
+            children: "bun add @egose/keycloak-fluent\n"
+          })
+        })
+      })]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "what-it-exposes",
       children: "What It Exposes"
@@ -180,6 +230,8 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "isObjectId(...)"
         })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "non-Keycloak document plugins"
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Published subpaths:"
@@ -216,7 +268,21 @@ function _createMdxContent(props) {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "@web-ts-toolkit/moo/plugins/model-function"
         }), " for the model-function plugin"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/moo/plugins/new-document"
+        }), " for the new-document plugin"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/moo/plugins/keycloak-user-sync"
+        }), " for the Keycloak user-sync plugin"]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The Keycloak plugin is intentionally available only from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/moo/plugins/keycloak-user-sync"
+      }), ". The root and grouped ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/moo/plugins"
+      }), " entrypoints do not require the optional Keycloak peer."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Example subpath imports:"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
@@ -267,6 +333,22 @@ function _createMdxContent(props) {
         children: "import mongoose, { type Model } from 'mongoose';\nimport {\n  type ModelDocument,\n  type ModelFunctionInstanceMethods,\n  type ModelFunctionStaticMethods,\n  modelFunctionPlugin,\n} from '@web-ts-toolkit/moo';\n\ntype Cart = {\n  name: string;\n  price: number;\n};\n\ntype CartDocument = ModelDocument<Cart, CartMethods>;\n\ntype CartMethods = ModelFunctionInstanceMethods<'applyDiscount', [suffix: string, priceChange: number], CartDocument>;\n\ntype CartModel = Model<Cart, {}, CartMethods> &\n  ModelFunctionStaticMethods<'applyDiscount', CartDocument, [suffix: string, priceChange: number], CartDocument>;\n\nconst cartSchema = new mongoose.Schema<Cart, CartModel, CartMethods>({\n  name: { type: String, required: true },\n  price: { type: Number, required: true },\n});\n\ncartSchema.plugin(modelFunctionPlugin, {\n  fnName: 'applyDiscount',\n  fn: (cart: CartDocument, suffix: string, priceChange: number) => {\n    cart.name = `${cart.name}-${suffix}`;\n    cart.price += priceChange;\n    return cart;\n  },\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "new-document-plugin",
+      children: "New document plugin"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { newDocumentPlugin } from '@web-ts-toolkit/moo/plugins/new-document';\n\nuserSchema.plugin(newDocumentPlugin, {\n  async fn(user) {\n    await sendWelcomeEmail(user.email);\n  },\n});\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The plugin stores ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "isNew"
+      }), " before Mongoose saves the document, then runs ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "fn"
+      }), " after the first successful ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "save()"
+      }), ". Later saves of the same document do not trigger the callback."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "cascade-delete-plugin",
       children: "Cascade delete plugin"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
@@ -283,6 +365,106 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "import { cascadeDeletePlugin } from '@web-ts-toolkit/moo/plugins/cascade-delete';\n"
       })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "keycloak-user-sync",
+      children: "Keycloak user sync"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Install ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@egose/keycloak-fluent"
+      }), ", authenticate a client, and attach it to the user schema through the direct Keycloak subpath:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import KeycloakAdminClientFluent from '@egose/keycloak-fluent';\nimport { keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';\n\nconst keycloak = new KeycloakAdminClientFluent({ baseUrl, realmName: 'master' });\nawait keycloak.simpleAuth({ clientId, clientSecret });\n\nuserSchema.plugin(keycloakUserSyncPlugin, {\n  client: keycloak,\n  realm: 'application',\n  identifyBy: ['providerId', 'username', 'email'],\n  managedRoles: ['admin', 'editor', 'viewer'],\n  managedAttributes: ['tenantId', 'plan'],\n  paths: { password: 'pendingPassword' }, // pragma: allowlist secret\n  syncFields: { email: true, firstName: true, lastName: true, roles: true, attributes: true, password: true },\n  passwordTemporary: true,\n  mapPassword(document) {\n    return document.get('pendingPassword') as string | undefined;\n  },\n  attributePaths: ['tenantId', 'subscription.plan'],\n  mapAttributes(document) {\n    return {\n      tenantId: document.get('tenantId'),\n      plan: document.get('subscription.plan'),\n    };\n  },\n  onError(error, context) {\n    reportKeycloakSyncError(error, context);\n  },\n});\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The plugin syncs document saves and document ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "deleteOne()"
+      }), " calls. It handles changed emails, verification emails, realm-role reconciliation, dynamic user attributes, opt-in password updates, custom field paths, per-field enablement, duplicate-email safety, redacted structured logging, and custom error handling. Email comparison is case-insensitive. Initial linking to an existing Keycloak user with the same email preserves the remote ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "emailVerified"
+      }), " value and sends no verification email. Persisted local email changes and detected remote email drift reset ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "emailVerified"
+      }), " and send VERIFY_EMAIL by default; set ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sendVerificationEmailOnChange: false"
+      }), " to skip the email action, or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "syncFields.emailVerified: false"
+      }), " to disable all email-verification writes. Attribute values are normalized to Keycloak string arrays. Existing unmanaged Keycloak attributes are preserved; set ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "managedAttributes"
+      }), " for keys the plugin may replace or remove. Password sync is disabled by default; enable ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "syncFields.password"
+      }), " only for a plaintext pending password value, not a stored hash. Passwords are not sent in create or profile-update payloads; created and existing users are updated through Keycloak's reset-password endpoint using ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "passwordTemporary"
+      }), ". A newly resolved Keycloak ID is stored before optional password, role, and verification-email work so retries can target the same remote user. The application owns that plaintext field's lifecycle and should keep it short-lived, avoid persistence where possible, and prevent it from entering logs, traces, or error reporters. Error logger metadata and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onError"
+      }), " context include safe fields such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "operation"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "localDocumentId"
+      }), " by default, not the document, email address, password, or payload. Set ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "includeDocumentInErrorContext: true"
+      }), " only for private error handlers that can receive the full sensitive Mongoose document. Logger and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onError"
+      }), " failures do not replace the original sync error; with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "throwOnError: false"
+      }), ", they are swallowed as best-effort observer failures. Query updates and deletes bypass document middleware. Post-save Keycloak errors cannot roll back the MongoDB save, so use an outbox when atomic delivery is required."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["For existing Keycloak users, synced string profile fields (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "username"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "email"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "firstName"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "lastName"
+      }), ") are cleared when the local value is ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), ", an empty string, or a whitespace-only string. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), " values and disabled ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "syncFields"
+      }), " preserve unmanaged remote profile data. New-user creation omits clearing values. Existing unmanaged Keycloak attributes are preserved, including after email-based resolution. Managed attributes are removed when omitted, mapped to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), ", mapped to an empty array, or mapped to unsupported object values. Attribute keys named ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "__proto__"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "prototype"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "constructor"
+      }), " are rejected."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The selected delivery contract is direct, non-atomic hooks. Keycloak work is not part of the MongoDB commit, and the plugin rejects documents saved or deleted with a Mongoose session or transaction. Applications that need transactional delivery should write their own outbox intent in the MongoDB transaction and process it after commit. Save failures after MongoDB persistence are observable through thrown errors/logging/callbacks but require an application-owned retry. Delete failures block the local deletion even when ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "throwOnError: false"
+      }), ", so the same provider ID remains available for retry."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Configuration is validated during ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "schema.plugin(...)"
+      }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "realm"
+      }), ", configured paths, managed names, and attribute trigger paths must be non-empty; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "identifyBy"
+      }), " must be a supported non-empty identity list; and built-in synced field paths must exist in the schema. Mapper-driven ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "attributePaths"
+      }), " may name dynamic fields that the mapper reads. Options are snapshotted at registration, duplicate registration on the same schema is rejected, and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "providerId"
+      }), " is immutable after persistence so document updates cannot redirect synchronization to another Keycloak user."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Role sync is additive-only by default: desired local roles are assigned, but unrelated existing Keycloak realm roles are preserved. Set ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "managedRoles"
+      }), " to the exact role names this plugin owns; only those roles may be removed when omitted from an explicit local roles array. An absent or non-array roles value is treated as no role-sync intent, while an empty array removes assigned managed roles and preserves unmanaged roles. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ensureRoles"
+      }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "true"
+      }), ", so desired missing roles are created before assignment; set it to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), " if typos or insufficient administrative privileges should fail instead. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "maxRolesPerSync"
+      }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "100"
+      }), " and rejects larger desired role arrays before role lookup or mapping requests."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Remote work is field-specific after identity resolution. A single owned profile or attribute change resolves the user and performs one update, without password reset or role reconciliation. A new user with no role-sync intent skips role mapping calls. Role reconciliation is sequential and deterministic; it performs one ensure/get pair per desired owned role plus one mapping list and optional add/remove calls. Realm metadata is fetched for each sync instead of cached, so duplicate-email policy changes are observed without an invalidation API."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "related-packages",
       children: "Related Packages"
