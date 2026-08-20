@@ -59,6 +59,12 @@
       "require": "./dist/plugins/model-function.js",
       "default": "./dist/plugins/model-function.js"
     },
+    "./plugins/new-document": {
+      "types": "./dist/plugins/new-document.d.ts",
+      "import": "./dist/plugins/new-document.mjs",
+      "require": "./dist/plugins/new-document.js",
+      "default": "./dist/plugins/new-document.js"
+    },
     "./plugins/keycloak-user-sync": {
       "types": "./dist/plugins/keycloak-user-sync.d.ts",
       "import": "./dist/plugins/keycloak-user-sync.mjs",

@@ -10,6 +10,7 @@ export default defineConfig({
     'src/plugins/cascade-delete.ts',
     'src/plugins/keycloak-user-sync.ts',
     'src/plugins/model-function.ts',
+    'src/plugins/new-document.ts',
   ],
   format: ['cjs', 'esm'],
   dts: true,

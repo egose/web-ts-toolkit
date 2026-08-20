@@ -11,7 +11,7 @@ This package includes:
 
 - partial-index helpers for nullable or empty string fields
 - an `isObjectId(...)` guard for strict ObjectId checks
-- document plugins for model-bound helper functions, cascade deletes, and Keycloak user sync
+- document plugins for model-bound helper functions, new-document callbacks, cascade deletes, and Keycloak user sync
 
 ## Installation
 
@@ -36,6 +36,7 @@ Published subpaths:
 - `@web-ts-toolkit/moo/plugins` for the shared plugin entrypoint
 - `@web-ts-toolkit/moo/plugins/cascade-delete` for the cascade-delete plugin
 - `@web-ts-toolkit/moo/plugins/model-function` for the model-function plugin
+- `@web-ts-toolkit/moo/plugins/new-document` for the new-document plugin
 - `@web-ts-toolkit/moo/plugins/keycloak-user-sync` for the Keycloak user-sync plugin
 
 Example subpath imports:
@@ -126,6 +127,20 @@ cartSchema.plugin(modelFunctionPlugin, {
   },
 });
 ```
+
+### New document plugin
+
+```ts
+import { newDocumentPlugin } from '@web-ts-toolkit/moo/plugins/new-document';
+
+userSchema.plugin(newDocumentPlugin, {
+  async fn(user) {
+    await sendWelcomeEmail(user.email);
+  },
+});
+```
+
+The plugin stores `isNew` before Mongoose saves the document, then runs `fn` after the first successful `save()`. Later saves of the same document do not trigger the callback.
 
 ### Cascade delete plugin
 

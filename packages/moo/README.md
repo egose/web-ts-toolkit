@@ -18,6 +18,7 @@ Peer dependencies:
 - partial-index helpers for nullable or empty-string fields
 - strict `isObjectId(...)` guard
 - model-function plugin
+- new-document plugin
 - cascade-delete plugin
 - Keycloak user-sync plugin
 
@@ -49,6 +50,7 @@ Subpath entrypoints:
 - `@web-ts-toolkit/moo/plugins` — plugin entrypoint
 - `@web-ts-toolkit/moo/plugins/cascade-delete` — cascade-delete plugin
 - `@web-ts-toolkit/moo/plugins/model-function` — model-function plugin
+- `@web-ts-toolkit/moo/plugins/new-document` — new-document plugin
 - `@web-ts-toolkit/moo/plugins/keycloak-user-sync` — Keycloak user-sync plugin
 
 ### Subpath import example
@@ -68,6 +70,25 @@ userSchema.plugin(cascadeDeletePlugin, {
   foreignField: 'userId',
 });
 ```
+
+## New Document Plugin
+
+```ts
+import { Schema } from 'mongoose';
+import { newDocumentPlugin } from '@web-ts-toolkit/moo/plugins/new-document';
+
+const userSchema = new Schema({
+  email: String,
+});
+
+userSchema.plugin(newDocumentPlugin, {
+  async fn(user) {
+    await sendWelcomeEmail(user.email);
+  },
+});
+```
+
+The plugin runs `fn` after the first successful `save()` of a new document. Later saves of the same document do not run it.
 
 ## Keycloak User Sync
 

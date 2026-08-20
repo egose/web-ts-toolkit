@@ -49,6 +49,18 @@ userSchema.plugin(modelFunctionPlugin, {
 // static + instance methods `fullName` and `fullNameById` are now available on the model
 ```
 
+New-document plugin:
+
+```ts
+import { newDocumentPlugin } from '@web-ts-toolkit/moo/plugins/new-document';
+
+userSchema.plugin(newDocumentPlugin, {
+  fn: async (doc) => {
+    await sendWelcomeEmail(doc.get('email'));
+  },
+});
+```
+
 Keycloak user-sync plugin:
 
 ```ts
@@ -80,6 +92,7 @@ userSchema.plugin(keycloakUserSyncPlugin, {
 - root entrypoint exports schema helpers, `isObjectId`, and plugins; dedicated plugin subpaths are also available
 - `isObjectId(...)` is a strict guard: it rejects strings that `ObjectId.isValid` accepts but that don't round-trip back to the same string
 - `uniqueNullableString`/`uniqueEmptiableString` return partial-index field definitions, not full schemas
+- new-document plugin runs its callback only after the first successful `save()` of a newly inserted document
 - Keycloak sync covers document `save()` and document `deleteOne()`, not query updates/deletes
 - Keycloak sync errors are logged and rethrown by default; MongoDB saves have already committed when post-save sync runs
 - duplicate-email realms prioritize providerId/username; email lookup is rejected when more than one exact match exists
@@ -97,6 +110,7 @@ userSchema.plugin(keycloakUserSyncPlugin, {
 - `@web-ts-toolkit/moo/plugins` — re-exports all plugins
 - `@web-ts-toolkit/moo/plugins/cascade-delete` — `cascadeDeletePlugin`
 - `@web-ts-toolkit/moo/plugins/model-function` — `modelFunctionPlugin`
+- `@web-ts-toolkit/moo/plugins/new-document` — `newDocumentPlugin`
 - `@web-ts-toolkit/moo/plugins/keycloak-user-sync` — `keycloakUserSyncPlugin`
 
 ## Pointers
