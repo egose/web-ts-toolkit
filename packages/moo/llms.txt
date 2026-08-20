@@ -88,8 +88,9 @@ userSchema.plugin(keycloakUserSyncPlugin, {
 ## Gotchas
 
 - peer dependency: `mongoose >= 8`
-- peer dependency: `@egose/keycloak-fluent ^0.7`
-- root entrypoint exports schema helpers, `isObjectId`, and plugins; dedicated plugin subpaths are also available
+- optional peer dependency: `@egose/keycloak-fluent ^0.7` only for `@web-ts-toolkit/moo/plugins/keycloak-user-sync`
+- root entrypoint exports schema helpers, `isObjectId`, and non-Keycloak plugins; dedicated plugin subpaths are also available
+- Keycloak user sync is not re-exported from root or `@web-ts-toolkit/moo/plugins`; import it from the direct subpath
 - `isObjectId(...)` is a strict guard: it rejects strings that `ObjectId.isValid` accepts but that don't round-trip back to the same string
 - `uniqueNullableString`/`uniqueEmptiableString` return partial-index field definitions, not full schemas
 - new-document plugin runs its callback only after the first successful `save()` of a newly inserted document

@@ -88,6 +88,11 @@
     "@egose/keycloak-fluent": "^0.7.0",
     "mongoose": ">=8.0.0"
   },
+  "peerDependenciesMeta": {
+    "@egose/keycloak-fluent": {
+      "optional": true
+    }
+  },
   "dependencies": {
     "@web-ts-toolkit/utils": "workspace:*"
   },
