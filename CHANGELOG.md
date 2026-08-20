@@ -1,5 +1,17 @@
 ## Unreleased
 
+### Breaking Changes: `@web-ts-toolkit/pdf-reader`
+
+This release finalizes the browser-only `@web-ts-toolkit/pdf-reader` contract around explicit worker setup, lifecycle ownership, page image output, and migration from the original application-local reader.
+
+| Area | Previous contract | New contract and migration |
+| --- | --- | --- |
+| Imports and worker setup | Earlier application-local usage often relied on a default export shape and app-specific worker wiring. | Import named exports from `@web-ts-toolkit/pdf-reader` and configure PDF.js explicitly with `configurePdfWorker(...)` in application code. There is no default export, no supported deep import, and no package-owned worker asset emission. |
+| Lifecycle and load state | Shared-load cancellation, retry semantics, and reader states were not a fully documented public contract. | Concurrent `load()` callers now share one task safely; one caller abort does not tear down unrelated callers. `reader.state` reports `new`, `loading`, `loaded`, `iterating`, `failed`, and `destroyed`, and `destroy()` is the only supported teardown path. |
+| Load options | `load()` cancellation was documented narrowly and had no package deadline contract. | `load()` accepts either an `AbortSignal` or `{ signal, deadlineMs }`. `deadlineMs` is caller-local and rejects with `DEADLINE_EXCEEDED` without cancelling unrelated concurrent callers. |
+| Page image results | Older code could rely on top-level image fields such as `dataURL`, `dataUrl`, `mimeType`, or `isPNG`, with base64-only output. | Full-page renders now live on `page.pageImage` as a discriminated union. Keep the default `{ kind: 'data-url', mimeType, dataUrl }` path or opt into `{ kind: 'blob', mimeType, blob }` with `pageImageOutput: 'blob'`. |
+| Option names and unsupported runtimes | Application-local names such as `getText`, `getDataURL`, `getImages`, and `config` were not part of the package contract, and unsupported canvas environments could surface as arbitrary runtime errors. | Use `includeText`, `includePageImage`, `includeEmbeddedImages`, and constructor `options`. Unsupported canvas/runtime features now reject with package `PdfReaderError` code `UNSUPPORTED_ENVIRONMENT` instead of plain `Error` values. |
+
 ### Breaking Changes: `@web-ts-toolkit/express-oidc-vault`
 
 This release tightens the OIDC session contract around callback origin pinning, cookie transport, CSRF enforcement, provider response validation, upstream logout, parser limits, and sanitized client errors.
