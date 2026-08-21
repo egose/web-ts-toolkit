@@ -226,13 +226,12 @@ export function stableStringify(value: unknown): string {
  *     a future consumer cannot quietly rely on the current
  *     (unspecified) `toString()` shape.
  *
- * The thrown error is a recoverable programming error: the hook surface
- * catches `RequestKeyError` from the dependency-key construction path so
- * a user-supplied filter with an unsupported value surfaces as a hook
- * `error` (the relevant query's `onError` fires once with the
- * `RequestKeyError`-as-`ServiceError` payload) rather than crashing the
- * render. The throw is the documented contract; testing covers each
- * category directly.
+ * The thrown error is a recoverable programming error: query hooks catch
+ * `RequestKeyError` while building their structural dependency key,
+ * rethrow a plain `Error` with the original `RequestKeyError` in
+ * `cause`, and interrupt render before any auto-fetch effect runs. The
+ * throw is the documented contract; testing covers each category
+ * directly.
  */
 export class RequestKeyError extends Error {
   constructor(message: string) {
