@@ -157,7 +157,7 @@ describe('ARR-10 packed-package compatibility using the real release transformat
     expect(report).toHaveLength(1);
     const [entry] = report;
     expect(entry.bundled).toEqual([]);
-    const paths = entry.files.map((f) => f.path).sort();
+    const paths = entry.files.map((f: { path: string }) => f.path).sort();
     // LICENSE + README.md + four dist outputs + package.json. The React
     // package publishes no `llms.txt` (the website docs are the canonical
     // source per ARR-11), so the file set is one fewer than the client.

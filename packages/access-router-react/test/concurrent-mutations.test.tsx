@@ -55,7 +55,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { createModelHooks } from '../src/create-model-hook';
 import type { Document, Model, ModelResponse, Response } from '@web-ts-toolkit/access-router-client';
 import { ServiceError } from '@web-ts-toolkit/access-router-client';
-import { createMockService, type ControlledLazyRequest, flushMicrotasks } from './support';
+import { createMockService, type ControlledLazyRequest, type MethodResult, flushMicrotasks } from './support';
 
 interface TestDoc extends Document {
   _id: string;
@@ -133,7 +133,7 @@ function makeSeed(): ReturnType<typeof createMockService<TestDoc>>['seed'] {
 async function armDeferredAndFire<M extends 'create' | 'update' | 'upsert' | 'delete'>(
   mock: ReturnType<typeof createMockService<TestDoc>>,
   method: M,
-  value: Awaited<ReturnType<ReturnType<typeof createMockService<TestDoc>>['spies'][M]>>,
+  value: MethodResult<TestDoc, M>,
   expectCalls: number,
   fire: () => Promise<unknown> | void,
 ): Promise<ControlledLazyRequest<unknown>> {

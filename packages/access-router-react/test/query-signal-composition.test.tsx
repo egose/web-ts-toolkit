@@ -44,12 +44,20 @@ function makeSeed() {
     status: 200,
     headers: {},
   };
+  const deleteResult: Response<string> = {
+    success: true,
+    raw: '1',
+    data: '1',
+    message: 'ok',
+    status: 200,
+    headers: {},
+  };
 
   return {
     list: listResult,
     read: readResult,
     create: readResult,
-    delete: { success: true, raw: '1', data: '1', message: 'ok', status: 200, headers: {} },
+    delete: deleteResult,
     count: countResult,
     distinct: distinctResult,
   };

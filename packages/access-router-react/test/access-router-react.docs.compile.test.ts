@@ -108,8 +108,8 @@ function readMappedBlocks(): MappedBlock[] {
 
   return inventory[1]
     .split('\n')
-    .filter((line) => line.trim() && !line.startsWith('#'))
-    .map((line) => {
+    .filter((line: string) => line.trim() && !line.startsWith('#'))
+    .map((line: string) => {
       const [source, ordinalText, hash, classificationText, fixtureText, ...extra] = line.split('\t');
       const classification = classificationText as BlockClassification;
       const ordinal = Number(ordinalText);
@@ -161,7 +161,7 @@ afterAll(() => {
 describe('ARR-10/ARR-11 documentation examples (README + website) compile against the packed artifact', () => {
   it('maps every actual TypeScript documentation block in the README and website docs to a fixture or an explicit partial/negative classification', () => {
     expect(existsSync(docsExamplesDir)).toBe(true);
-    const fixtures = readdirSync(docsExamplesDir).filter((f) => /\.(ts|tsx)$/.test(f));
+    const fixtures = readdirSync(docsExamplesDir).filter((f: string) => /\.(ts|tsx)$/.test(f));
     expect(fixtures.length).toBeGreaterThan(0);
     expect(existsSync(snippetsMappingPath)).toBe(true);
 

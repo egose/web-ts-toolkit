@@ -53,7 +53,13 @@ import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { createModelHooks } from '../src/create-model-hook';
 import { requestKeyFor, RequestKeyError } from '../src/fetch';
-import type { Document, ListModelResponse, Model, ModelResponse } from '@web-ts-toolkit/access-router-client';
+import type {
+  Document,
+  FilterQuery,
+  ListModelResponse,
+  Model,
+  ModelResponse,
+} from '@web-ts-toolkit/access-router-client';
 import { createMockService, flushMicrotasks } from './support';
 
 interface TestDoc extends Document {
@@ -553,7 +559,8 @@ describe('ARR-06: hook dependency-key policy', () => {
       const d2 = new Date('2026-02-01T00:00:00.000Z');
 
       const { rerender } = renderHook(
-        ({ since }: { since: Date }) => useList({ advanced: true, filter: { since } as unknown as { since: Date } }),
+        ({ since }: { since: Date }) =>
+          useList({ advanced: true, filter: { since } as unknown as FilterQuery<TestDoc> }),
         { initialProps: { since: d1 } },
       );
 
@@ -638,7 +645,8 @@ describe('ARR-06: hook dependency-key policy', () => {
       const d2 = new Date('2026-02-01T00:00:00.000Z');
 
       const { rerender } = renderHook(
-        ({ since }: { since: Date }) => useCount({ advanced: true, filter: { since } as unknown as { since: Date } }),
+        ({ since }: { since: Date }) =>
+          useCount({ advanced: true, filter: { since } as unknown as FilterQuery<TestDoc> }),
         { initialProps: { since: d1 } },
       );
 
@@ -659,7 +667,8 @@ describe('ARR-06: hook dependency-key policy', () => {
       const { useDistinct } = createModelHooks({ modelService: mock.service });
 
       const { rerender } = renderHook(
-        ({ _tick }: { _tick: number }) => useDistinct({ field: 'status', conditions: { org: '1' } }),
+        ({ _tick }: { _tick: number }) =>
+          useDistinct({ field: 'status', conditions: { org: '1' } as unknown as FilterQuery<TestDoc> }),
         { initialProps: { _tick: 0 } },
       );
 
@@ -677,7 +686,8 @@ describe('ARR-06: hook dependency-key policy', () => {
       const { useDistinct } = createModelHooks({ modelService: mock.service });
 
       const { rerender } = renderHook(
-        ({ org }: { org: string }) => useDistinct({ field: 'status', conditions: { org } }),
+        ({ org }: { org: string }) =>
+          useDistinct({ field: 'status', conditions: { org } as unknown as FilterQuery<TestDoc> }),
         { initialProps: { org: 'a' } },
       );
 

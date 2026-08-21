@@ -143,9 +143,9 @@ describe('access-router-react public export contract (ARR-10)', () => {
       type _RequestConfig = import('../src').RequestConfig;
       type _QueryCallOptions = import('../src').QueryCallOptions;
       const cfg: _RequestConfig = { headers: { 'x-trace': 'abc' } };
-      const opts: _QueryCallOptions = { throwOnError: false };
+      const opts: _QueryCallOptions = { signal: new AbortController().signal };
       expect(typeof cfg).toBe('object');
-      expect(opts.throwOnError).toBe(false);
+      expect(opts.signal).toBeInstanceOf(AbortSignal);
     });
 
     it('exports UseBaseOptions and every per-method query option and result interface', () => {
@@ -158,7 +158,7 @@ describe('access-router-react public export contract (ARR-10)', () => {
       const hooks = createModelHooks({ modelService: petService });
 
       // UseBaseOptions is the common shape every options interface extends.
-      const base: UseBaseOptions = { enabled: true };
+      const base: UseBaseOptions = { requestConfig: { headers: { 'x-trace': 'base' } } };
       void base;
 
       // Each per-method option and result interface is reachable via the

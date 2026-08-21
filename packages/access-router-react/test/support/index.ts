@@ -12,14 +12,10 @@ import { createLazyRequest, createImmediateLazyRequest, createImmediateRejectedL
 import { createMockService, makeFailureResult, makeServiceError } from './mock-service';
 import { flushAsync, flushMicrotasks } from './flush';
 
+export type { ControlledLazyRequest, DeferredController } from './lazy-request';
+export type { MockMethodName, MockService, MockServiceResults, MockServiceSurface, MethodResult } from './mock-service';
+
 export {
-  type MockService,
-  type MockServiceResults,
-  type MockServiceSurface,
-  type MockMethodName,
-  type MethodResult,
-  type ControlledLazyRequest,
-  type DeferredController,
   createMockService,
   makeFailureResult,
   makeServiceError,

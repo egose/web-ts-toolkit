@@ -24,7 +24,14 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { createModelHooks } from '../src/create-model-hook';
-import type { Document, ListModelResponse, Model, ModelResponse, Response } from '@web-ts-toolkit/access-router-client';
+import type {
+  Document,
+  FilterQuery,
+  ListModelResponse,
+  Model,
+  ModelResponse,
+  Response,
+} from '@web-ts-toolkit/access-router-client';
 import { createMockService, makeFailureResult, makeServiceError, flushMicrotasks } from './support';
 
 interface TestDoc extends Document {
@@ -131,16 +138,16 @@ describe('ARR-01 harness', () => {
       // Pre-arm two consecutive read() calls as deferred.
       mock.planDeferred('read', {
         success: true,
-        raw: { _id: '1', name: 'Older' },
-        data: { _id: '1', name: 'Older' } as Model<TestDoc> & TestDoc,
+        raw: { _id: '1', name: 'Older', status: 'active' },
+        data: { _id: '1', name: 'Older', status: 'active' } as Model<TestDoc> & TestDoc,
         message: 'ok',
         status: 200,
         headers: {},
       });
       mock.planDeferred('read', {
         success: true,
-        raw: { _id: '7b', name: 'Newer' },
-        data: { _id: '7b', name: 'Newer' } as Model<TestDoc> & TestDoc,
+        raw: { _id: '7b', name: 'Newer', status: 'active' },
+        data: { _id: '7b', name: 'Newer', status: 'active' } as Model<TestDoc> & TestDoc,
         message: 'ok',
         status: 200,
         headers: {},
@@ -184,7 +191,7 @@ describe('ARR-01 harness', () => {
         secondControlled!.controller.resolve();
       });
       await waitFor(() => {
-        expect(lastSample().data).toEqual({ _id: '7b', name: 'Newer' });
+        expect(lastSample().data).toEqual({ _id: '7b', name: 'Newer', status: 'active' });
       });
 
       // Release the OLDER request after. The implementation's reaction
@@ -498,7 +505,7 @@ describe('ARR-01 harness', () => {
     it('distinctAdvanced() forwards exact field, conditions, and request config', async () => {
       const mock = createMockService<TestDoc>(makeSeed());
       const { useDistinct } = createModelHooks({ modelService: mock.service });
-      const conditions = { org: '1' };
+      const conditions = { org: '1' } as unknown as FilterQuery<TestDoc>;
       const requestConfig = { headers: { 'X-Trace': 'g' } };
       renderHook(() => useDistinct({ field: 'status', conditions, requestConfig }));
       await waitFor(() => expect(mock.spies.distinctAdvanced).toHaveBeenCalledTimes(1));
