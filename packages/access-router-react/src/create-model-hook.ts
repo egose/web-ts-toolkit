@@ -167,7 +167,9 @@ function useEventCallback<A extends unknown[], R>(cb: ((...args: A) => R) | unde
 
 function useLatestRef<T>(value: T) {
   const ref = useRef(value);
-  ref.current = value;
+  useLayoutEffect(() => {
+    ref.current = value;
+  }, [value]);
   return ref;
 }
 
@@ -452,6 +454,7 @@ function useAutoQuery<R>({
       // request settles only after the transport observes the abort
       // (ARR-04 req 2). `setState(false)` is idempotent; the writes are
       // coalesced into the current render batch.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(false);
       setIsFetching(false);
       // ARR-08 req 1: ancillary state captured at a prior request start
@@ -1183,7 +1186,7 @@ export function createModelHooks<
       // cannot see that derivation, so the missing-deps warning is
       // silenced here intentionally.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [modelService, advanced, filterKey, sortKey, requestKey, keepPreviousData, latestDataRef],
+      [modelService, advanced, listParamsKey, filterKey, sortKey, requestKey, keepPreviousData, latestDataRef],
     );
 
     // `listParams` is captured by the closure but only its structural

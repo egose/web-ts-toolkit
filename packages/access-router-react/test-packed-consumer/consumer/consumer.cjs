@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Consumer CJS entry exercised by ARR-H08 packed-tarball install test.
  *

@@ -1,5 +1,5 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const assert = require('node:assert');
-const path = require('node:path');
 
 const { JSDOM } = require('jsdom');
 

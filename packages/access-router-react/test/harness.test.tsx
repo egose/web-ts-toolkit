@@ -468,6 +468,40 @@ describe('ARR-01 harness', () => {
       });
     });
 
+    it('manual query() uses the latest configured listParams after rerender', async () => {
+      const mock = createMockService<TestDoc>(makeSeed());
+      const { useList } = createModelHooks({ modelService: mock.service });
+
+      const { result, rerender } = renderHook(
+        ({ listParams }: { listParams: { page: number; pageSize: number } }) =>
+          useList({
+            advanced: true,
+            enabled: false,
+            listParams,
+            filter: { status: 'active' },
+            sort: [['name', 'asc']],
+          }),
+        {
+          initialProps: {
+            listParams: { page: 3, pageSize: 20 },
+          },
+        },
+      );
+
+      rerender({ listParams: { page: 4, pageSize: 25 } });
+
+      await act(async () => {
+        await result.current.query();
+      });
+
+      expect(mock.spies.listAdvanced).toHaveBeenCalledTimes(1);
+      expect(mock.spies.listAdvanced.mock.calls[0]?.[1]).toMatchObject({
+        page: 4,
+        pageSize: 25,
+        sort: [['name', 'asc']],
+      });
+    });
+
     it('count() forwards exactly the request config', async () => {
       const mock = createMockService<TestDoc>(makeSeed());
       const { useCount } = createModelHooks({ modelService: mock.service });

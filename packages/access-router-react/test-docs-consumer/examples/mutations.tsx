@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 /**
  * ARR-11: README mutation blocks (#8 useCreate, #9 useUpdate, #10 useUpsert,
  * #11 useDelete).
