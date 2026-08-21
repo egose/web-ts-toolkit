@@ -435,7 +435,7 @@ Completion evidence:
 
 ### Task ARC-H07: Snapshot Service Defaults At Construction
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -474,6 +474,20 @@ Acceptance criteria:
 - ModelService and DataService direct-construction tests cover nested arrays and objects.
 - Adapter-level plus per-service default precedence remains unchanged.
 - Package tests and strict typecheck pass.
+
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/services/shared.ts`, `packages/access-router-client/src/services/model-service.ts`, `packages/access-router-client/src/services/data-service.ts`, `packages/access-router-client/test/access-router-client.config-immutability.unit.test.ts`.
+- Regression coverage: added direct-construction `ModelService` and `DataService` tests that assert constructors do not add missing default keys to caller-owned defaults, then mutate nested caller projections, populate arrays, and option objects after construction and verify subsequent wire payloads still use the original snapshot.
+- Implementation evidence: service constructors now use shared `normalizeServiceDefaults` to clone defaults, fill required nested default objects on the clone, and deep-freeze the internal normalized snapshot. `CHANGELOG.md` was not updated.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.config-immutability.unit.test.ts`.
+- Result: focused config immutability suite passed, 1 test file and 15 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck`.
+- Result: passed; package build, strict source, dedicated type-test fixture, strict NodeNext declaration consumer, and strict Bundler declaration consumer all exited 0.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: package build/typecheck passed; 19 Node test files and 331 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `git diff --check`.
+- Result: passed.
 
 ### Task ARC-H08: Make Installed Runtime And API Claims Truthful
 
