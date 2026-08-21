@@ -185,7 +185,7 @@ Completion evidence:
 
 ### Task ARC-H03: Preserve Known Identity On Update Results
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -226,6 +226,21 @@ Acceptance criteria:
 - Filter reads without a known identifier still throw `MissingPersistenceIdentityError` when `_id` is absent.
 - Tests cover `returningAll: false`, `_id`-excluding advanced projection, and direct/grouped paths.
 - Package tests and strict packed declaration consumers pass.
+
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/services/model-service.ts`, `packages/access-router-client/src/services/shared.ts`, `packages/access-router-client/test/access-router-client.arc21-projection-identity.integration.test.ts`.
+- Regression coverage: added update-result persistence identity tests for direct `update(id, ..., { returningAll: false })`, direct `updateAdvanced(id, ...)` with an `_id`-excluding projection, and grouped `updateAdvanced(id, ...)` with an `_id`-excluding projection. Each test strips `_id` from the returned wrapper state before the follow-up `save()` and asserts the save uses `PATCH /api/users/<originalId>` with `returning_all=false`, not `POST`.
+- Implementation evidence: direct `update` and `updateAdvanced` now pass the request identifier into `Model.create`; grouped root finalization now preserves `query.id` for `op === 'update'` through the same captured-persistence-identity path used by grouped reads. Filter reads without a known identifier are unchanged and remain covered by the existing `MissingPersistenceIdentityError` regression.
+- Documentation evidence: `CHANGELOG.md` was not updated.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.arc21-projection-identity.integration.test.ts`.
+- Result: focused projection-identity suite passed, 1 test file and 7 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck`.
+- Result: package build/typecheck passed, including strict NodeNext and Bundler declaration consumers.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: package build/typecheck passed; 19 Node test files and 320 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `git diff --check`.
+- Result: passed.
 
 ### Task ARC-H04: Validate Group Configs And Root Response Shape
 
