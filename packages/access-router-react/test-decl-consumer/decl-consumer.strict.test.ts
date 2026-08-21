@@ -28,8 +28,25 @@ interface Pet extends ARDocument {
   status: string;
 }
 
+interface PetCreateInput {
+  name: string;
+  source: 'import' | 'manual';
+}
+
+interface PetUpdateInput {
+  status: 'active' | 'disabled';
+  auditToken: string;
+}
+
+interface PetUpsertInput {
+  externalId: string;
+  name: string;
+}
+
 const petService = {} as unknown as ModelService<Pet>;
 const hooks = createModelHooks({ modelService: petService });
+const typedPetService = {} as unknown as ModelService<Pet, PetCreateInput, PetUpdateInput, PetUpsertInput>;
+const typedHooks = createModelHooks({ modelService: typedPetService });
 
 // Type-only helper mirroring the client package's strict consumer
 // harness so the `tsc` errors caught by `@ts-expect-error` directives
@@ -246,6 +263,31 @@ describe('access-router-react built-declaration consumer (ARR-09)', () => {
       },
     };
     void opts;
+  });
+
+  it('preserves custom create/update/upsert input types from the bound service and rejects array create input', () => {
+    const createMutation = typedHooks.useCreate();
+    void createMutation.mutate({ name: 'Northwind Labs', source: 'manual' });
+    // @ts-expect-error create input keeps the service-required `source` field.
+    void createMutation.mutate({ name: 'Northwind Labs' });
+    // @ts-expect-error unrelated keys are still rejected.
+    void createMutation.mutate({ name: 'Northwind Labs', source: 'manual', status: 'active' });
+    // @ts-expect-error useCreate is single-record-only; array input is rejected.
+    void createMutation.mutate([{ name: 'Northwind Labs', source: 'manual' }]);
+
+    const updateMutation = typedHooks.useUpdate();
+    void updateMutation.mutate('pet_1', { status: 'active', auditToken: 'audit-1' });
+    // @ts-expect-error update input keeps the service-required audit token.
+    void updateMutation.mutate('pet_1', { status: 'active' });
+    // @ts-expect-error update input rejects unrelated keys.
+    void updateMutation.mutate('pet_1', { status: 'active', auditToken: 'audit-1', name: 'Extra' });
+
+    const upsertMutation = typedHooks.useUpsert();
+    void upsertMutation.mutate({ externalId: 'crm-1', name: 'Northwind Labs' });
+    // @ts-expect-error upsert input keeps the service-required external id.
+    void upsertMutation.mutate({ name: 'Northwind Labs' });
+    // @ts-expect-error upsert input rejects unrelated keys.
+    void upsertMutation.mutate({ externalId: 'crm-1', name: 'Northwind Labs', source: 'manual' });
   });
 
   it('useList without `select` returns ListModelResponse<Pet> from query()', async () => {

@@ -46,8 +46,25 @@ interface Pet extends ARDocument {
   status: string;
 }
 
+interface PetCreateInput {
+  name: string;
+  source: 'import' | 'manual';
+}
+
+interface PetUpdateInput {
+  status: 'active' | 'disabled';
+  auditToken: string;
+}
+
+interface PetUpsertInput {
+  externalId: string;
+  name: string;
+}
+
 const petService = {} as unknown as ModelService<Pet>;
 const hooks = createModelHooks({ modelService: petService });
+const typedPetService = {} as unknown as ModelService<Pet, PetCreateInput, PetUpdateInput, PetUpsertInput>;
+const typedHooks = createModelHooks({ modelService: typedPetService });
 
 // Type-only helper mirroring the in-repo ARR-09 strict consumer harness so
 // the `tsc` errors caught by `@ts-expect-error` directives confirm the bug
@@ -213,6 +230,25 @@ const upsertOpts: UseUpsertMutateOptions<Pet, readonly ['name']> = {
   },
 };
 void upsertOpts;
+
+// ── Mutation input inference from ModelService generics ──
+
+const typedCreate = typedHooks.useCreate();
+void typedCreate.mutate({ name: 'Northwind Labs', source: 'manual' });
+// @ts-expect-error — create input keeps the service-required `source` field.
+void typedCreate.mutate({ name: 'Northwind Labs' });
+// @ts-expect-error — useCreate is single-record-only; array input is rejected.
+void typedCreate.mutate([{ name: 'Northwind Labs', source: 'manual' }]);
+
+const typedUpdate = typedHooks.useUpdate();
+void typedUpdate.mutate('pet_1', { status: 'active', auditToken: 'audit-1' });
+// @ts-expect-error — update input keeps the service-required audit token.
+void typedUpdate.mutate('pet_1', { status: 'active' });
+
+const typedUpsert = typedHooks.useUpsert();
+void typedUpsert.mutate({ externalId: 'crm-1', name: 'Northwind Labs' });
+// @ts-expect-error — upsert input keeps the service-required external id.
+void typedUpsert.mutate({ name: 'Northwind Labs' });
 
 // ── Manual query()/refetch() response payloads ──
 

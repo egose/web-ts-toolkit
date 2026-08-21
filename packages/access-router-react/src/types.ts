@@ -1,6 +1,7 @@
 import type {
   Document,
   Model,
+  ModelMutationInput,
   ServiceError,
   FilterQuery,
   Projection,
@@ -141,6 +142,8 @@ export interface UseBaseOptions {
   requestConfig?: RequestConfig;
 }
 
+type SingleMutationInput<TInput extends object> = TInput extends readonly unknown[] ? never : TInput;
+
 // ── Read ──
 
 export interface UseReadQueryOptions<
@@ -270,11 +273,15 @@ export interface UseCreateMutateOptions<
   onSettled?: (result: ProjectedModelResponse<T, TSelect> | null, error: ServiceError | null) => void;
 }
 
-export interface UseCreateMutateResult<T extends Document, TSelect extends Projection = Projection> {
+export interface UseCreateMutateResult<
+  T extends Document,
+  TSelect extends Projection = Projection,
+  TCreateInput extends object = ModelMutationInput<T>,
+> {
   data: ProjectedShape<T, TSelect> | null;
   isPending: boolean;
   error: ServiceError | null;
-  mutate: (data: object) => Promise<ProjectedModelResponse<T, TSelect>>;
+  mutate: (data: SingleMutationInput<TCreateInput>) => Promise<ProjectedModelResponse<T, TSelect>>;
   reset: () => void;
 }
 
@@ -299,11 +306,15 @@ export interface UseUpdateMutateOptions<
   onSettled?: (result: ProjectedModelResponse<T, TSelect> | null, error: ServiceError | null) => void;
 }
 
-export interface UseUpdateMutateResult<T extends Document, TSelect extends Projection = Projection> {
+export interface UseUpdateMutateResult<
+  T extends Document,
+  TSelect extends Projection = Projection,
+  TUpdateInput extends object = ModelMutationInput<T>,
+> {
   data: ProjectedShape<T, TSelect> | null;
   isPending: boolean;
   error: ServiceError | null;
-  mutate: (id: string, data: object) => Promise<ProjectedModelResponse<T, TSelect>>;
+  mutate: (id: string, data: TUpdateInput) => Promise<ProjectedModelResponse<T, TSelect>>;
   reset: () => void;
 }
 
@@ -328,11 +339,15 @@ export interface UseUpsertMutateOptions<
   onSettled?: (result: ProjectedModelResponse<T, TSelect> | null, error: ServiceError | null) => void;
 }
 
-export interface UseUpsertMutateResult<T extends Document, TSelect extends Projection = Projection> {
+export interface UseUpsertMutateResult<
+  T extends Document,
+  TSelect extends Projection = Projection,
+  TUpsertInput extends object = ModelMutationInput<T>,
+> {
   data: ProjectedShape<T, TSelect> | null;
   isPending: boolean;
   error: ServiceError | null;
-  mutate: (data: object) => Promise<ProjectedModelResponse<T, TSelect>>;
+  mutate: (data: TUpsertInput) => Promise<ProjectedModelResponse<T, TSelect>>;
   reset: () => void;
 }
 

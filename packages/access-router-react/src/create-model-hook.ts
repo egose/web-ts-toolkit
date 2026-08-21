@@ -57,6 +57,46 @@ import {
  */
 type SuccessResultPayload<T1, T2, TError> = Extract<Response<T1, T2, TError>, { success: true }>;
 
+type ServiceDocument<TService extends ModelService<Document, object, object, object>> =
+  TService extends ModelService<infer TDocument, object, object, object> ? TDocument : never;
+
+type ServiceCreateInput<TService extends ModelService<Document, object, object, object>> =
+  TService extends ModelService<Document, infer TInput, object, object> ? TInput : never;
+
+type ServiceUpdateInput<TService extends ModelService<Document, object, object, object>> =
+  TService extends ModelService<Document, object, infer TInput, object> ? TInput : never;
+
+type ServiceUpsertInput<TService extends ModelService<Document, object, object, object>> =
+  TService extends ModelService<Document, object, object, infer TInput> ? TInput : never;
+
+type SingleCreateInput<TInput extends object> = TInput extends readonly unknown[] ? never : TInput;
+
+type CreateModelHooksResult<
+  T extends Document,
+  TCreateInput extends object,
+  TUpdateInput extends object,
+  TUpsertInput extends object,
+> = {
+  useRead: <TSelect extends Projection = Projection>(
+    options?: UseReadQueryOptions<T, TSelect>,
+  ) => UseReadQueryResult<T, TSelect>;
+  useList: <TSelect extends Projection = Projection>(
+    options?: UseListQueryOptions<T, TSelect>,
+  ) => UseListQueryResult<T, TSelect>;
+  useCreate: <TSelect extends Projection = Projection>(
+    options?: UseCreateMutateOptions<T, TSelect>,
+  ) => UseCreateMutateResult<T, TSelect, SingleCreateInput<TCreateInput>>;
+  useUpdate: <TSelect extends Projection = Projection>(
+    options?: UseUpdateMutateOptions<T, TSelect>,
+  ) => UseUpdateMutateResult<T, TSelect, TUpdateInput>;
+  useUpsert: <TSelect extends Projection = Projection>(
+    options?: UseUpsertMutateOptions<T, TSelect>,
+  ) => UseUpsertMutateResult<T, TSelect, TUpsertInput>;
+  useDelete: (options?: UseDeleteMutateOptions) => UseDeleteMutateResult;
+  useCount: (options?: UseCountQueryOptions<T>) => UseCountQueryResult;
+  useDistinct: (options: UseDistinctQueryOptions<T>) => UseDistinctQueryResult;
+};
+
 /**
  * Single typed normalization boundary for every query and mutation
  * response (ARR-02). The client resolves failed HTTP/network operations
@@ -763,7 +803,20 @@ function useMutation<A extends unknown[], R, D>(
  * @example
  * const { useList, useCreate } = createModelHooks({ modelService });
  */
-export function createModelHooks<T extends Document>(config: { modelService: ModelService<T> }) {
+export function createModelHooks<TService extends ModelService<Document, object, object, object>>(config: {
+  modelService: TService;
+}): CreateModelHooksResult<
+  ServiceDocument<TService>,
+  ServiceCreateInput<TService>,
+  ServiceUpdateInput<TService>,
+  ServiceUpsertInput<TService>
+>;
+export function createModelHooks<
+  T extends Document,
+  TCreateInput extends object,
+  TUpdateInput extends object,
+  TUpsertInput extends object,
+>(config: { modelService: ModelService<T, TCreateInput, TUpdateInput, TUpsertInput> }) {
   const { modelService } = config;
 
   // ── Query hooks ──
@@ -1229,7 +1282,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
 
   function useCreate<TSelect extends Projection = Projection>(
     options: UseCreateMutateOptions<T, TSelect> = {},
-  ): UseCreateMutateResult<T, TSelect> {
+  ): UseCreateMutateResult<T, TSelect, SingleCreateInput<TCreateInput>> {
     const {
       advanced,
       select,
@@ -1247,11 +1300,12 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     // is the projected `ModelResponse<T, S>` (or full `ModelResponse<T>`
     // when no literal `select` was supplied); `DataShape` is the
     // projected single-model shape used for hook-level `data` state.
+    type CreateInput = SingleCreateInput<TCreateInput>;
     type ResM = ProjectedModelResponse<T, TSelect>;
     type DataShape = ProjectedShape<T, TSelect>;
 
     const execute = useCallback(
-      async (createData: object): Promise<ResM> => {
+      async (createData: CreateInput): Promise<ResM> => {
         let res: ResM;
         if (advanced) {
           res = (await modelService
@@ -1297,14 +1351,19 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       error,
       executeMutate,
       reset: resetMutation,
-    } = useMutation<[object], ResM, DataShape>(
-      execute as (...args: [object]) => Promise<ResM>,
+    } = useMutation<[CreateInput], ResM, DataShape>(
+      execute as (...args: [CreateInput]) => Promise<ResM>,
       (res: ResM) => res.data as DataShape,
       { onSuccess, onSettled },
     );
 
     const mutate = useCallback(
-      async (createData: object): Promise<ResM> => {
+      async (createData: CreateInput): Promise<ResM> => {
+        if (Array.isArray(createData)) {
+          throw new TypeError(
+            'useCreate.mutate is single-record-only. Array input is not supported by the hook; call modelService.create(...) directly for bulk create.',
+          );
+        }
         try {
           return await executeMutate(createData);
         } catch (err) {
@@ -1330,7 +1389,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
 
   function useUpdate<TSelect extends Projection = Projection>(
     options: UseUpdateMutateOptions<T, TSelect> = {},
-  ): UseUpdateMutateResult<T, TSelect> {
+  ): UseUpdateMutateResult<T, TSelect, TUpdateInput> {
     const {
       advanced,
       select,
@@ -1345,11 +1404,12 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     } = options;
     const mountRef = useMountRef();
     // ARR-09: see `useCreate`.
+    type UpdateInput = TUpdateInput;
     type ResM = ProjectedModelResponse<T, TSelect>;
     type DataShape = ProjectedShape<T, TSelect>;
 
     const execute = useCallback(
-      async (updateId: string, updateData: object): Promise<ResM> => {
+      async (updateId: string, updateData: UpdateInput): Promise<ResM> => {
         let res: ResM;
         if (advanced) {
           res = (await modelService
@@ -1389,14 +1449,14 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       error,
       executeMutate,
       reset: resetMutation,
-    } = useMutation<[string, object], ResM, DataShape>(
-      execute as (...args: [string, object]) => Promise<ResM>,
+    } = useMutation<[string, UpdateInput], ResM, DataShape>(
+      execute as (...args: [string, UpdateInput]) => Promise<ResM>,
       (res: ResM) => res.data as DataShape,
       { onSuccess, onSettled },
     );
 
     const mutate = useCallback(
-      async (updateId: string, updateData: object): Promise<ResM> => {
+      async (updateId: string, updateData: UpdateInput): Promise<ResM> => {
         try {
           return await executeMutate(updateId, updateData);
         } catch (err) {
@@ -1418,7 +1478,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
 
   function useUpsert<TSelect extends Projection = Projection>(
     options: UseUpsertMutateOptions<T, TSelect> = {},
-  ): UseUpsertMutateResult<T, TSelect> {
+  ): UseUpsertMutateResult<T, TSelect, TUpsertInput> {
     const {
       advanced,
       select,
@@ -1433,11 +1493,12 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     } = options;
     const mountRef = useMountRef();
     // ARR-09: see `useCreate`.
+    type UpsertInput = TUpsertInput;
     type ResM = ProjectedModelResponse<T, TSelect>;
     type DataShape = ProjectedShape<T, TSelect>;
 
     const execute = useCallback(
-      async (upsertData: object): Promise<ResM> => {
+      async (upsertData: UpsertInput): Promise<ResM> => {
         let res: ResM;
         if (advanced) {
           res = (await modelService
@@ -1474,14 +1535,14 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       error,
       executeMutate,
       reset: resetMutation,
-    } = useMutation<[object], ResM, DataShape>(
-      execute as (...args: [object]) => Promise<ResM>,
+    } = useMutation<[UpsertInput], ResM, DataShape>(
+      execute as (...args: [UpsertInput]) => Promise<ResM>,
       (res: ResM) => res.data as DataShape,
       { onSuccess, onSettled },
     );
 
     const mutate = useCallback(
-      async (upsertData: object): Promise<ResM> => {
+      async (upsertData: UpsertInput): Promise<ResM> => {
         try {
           return await executeMutate(upsertData);
         } catch (err) {
