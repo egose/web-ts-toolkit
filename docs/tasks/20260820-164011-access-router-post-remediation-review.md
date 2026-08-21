@@ -552,7 +552,7 @@ Completion evidence:
 
 ### Task ART-10: Define Configuration And In-Memory Data Ownership
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -591,6 +591,20 @@ Acceptance criteria:
 - Supported setter calls update policy and derived model-permission keys together.
 - Concurrent requests cannot observe a partially updated permission configuration.
 - Data ownership behavior is explicit in types/docs and covered by tests.
+
+Completion evidence:
+
+- Implemented in `packages/access-router/src/options/manager.ts`: option assignment and setter ingress now deep-clone array/plain-object configuration while preserving function identities and the existing logger object identity contract; fetched option snapshots are cloned and frozen so callers cannot mutate live runtime policy through getter results. Nested setter calls replace the top-level option atomically, so listeners observe one complete updated value instead of a partial nested mutation.
+- Implemented in `packages/access-router/src/runtime.ts`: model permission metadata recomputation is centralized and now runs for both `permissionSchema` changes and `modelPermissionPrefix` changes. Nested supported updates such as `permissionSchema.secret` recompute `_permissionSchemaKeys`, `_globalPermissionKeys`, and `_modelPermissionKeys` together.
+- Documented in `packages/access-router/src/interfaces/root.ts` and `packages/access-router/README.md`: in-memory data-router records are owned as immutable configured snapshots. Mutating the original `data` array/records or fetched options snapshots does not change served records; callers replace configured data intentionally through `router.data(next)` or `setDataOption(name, 'data', next)`.
+- Added `packages/access-router/test/options-ownership.test.ts` covering original-option mutation isolation, frozen fetched snapshots, function/logger identity preservation, nested permission-schema setter metadata refresh, nested setter ingress cloning, and data-router snapshot replacement semantics.
+- Pre-work `git status --short`: clean.
+- `CHANGELOG.md` was not edited per maintainer instruction.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router build`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/options-ownership.test.ts test/data-router.test.ts` passed, 2 files and 25 tests.
+- Verification passed: `git diff --check`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router typecheck`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router test` passed, 41 files and 351 tests.
 
 ### Task ART-11: Introduce A Testable Model Adapter Seam
 
