@@ -159,7 +159,13 @@ TUpdateInput>(...)`.
   or `markModified('topLevelField')` after a direct mutation (forces dirty
   without reconciling). Reverting a value to its snapshot clears the dirty
   flag. `save()` persists only tracked modified top-level fields; if `_id`
-  exists it calls `update(...)`, otherwise it calls `create(...)`.
+  exists it calls `update(...)`, otherwise it calls `create(...)`. Multiple
+  overlapping `save()` calls on the same wrapper are serialized in call order.
+  Document fields named like model methods (`save`, `reset`, `set`, `get`,
+  `assign`, `toJSON`, etc.) are reserved for the wrapper API on direct
+  property access; use `get(...)`, `set(...)`, `assign(...)`, or `toObject()`
+  for those data fields. The exported `ModelData<T>` helper reflects that
+  reserved-name contract in response and `Model.create(...)` types.
 - **Supported runtimes:** Node 22+ and modern evergreen browsers (see
   [Supported Runtimes](#supported-runtimes) and
   [Browser And Node Support](#browser-and-node-support) above).
@@ -215,6 +221,7 @@ import type {
   ModelResponse,
   ArrayModelResponse,
   ListModelResponse,
+  ModelData,
   DataResponse,
   ArrayDataResponse,
   ListDataResponse,
@@ -262,6 +269,7 @@ type StablePublicTypes = [
   ModelResponse<Document>,
   ArrayModelResponse<Document>,
   ListModelResponse<Document>,
+  ModelData<Document>,
   DataResponse<unknown>,
   ArrayDataResponse<unknown>,
   ListDataResponse<unknown>,

@@ -202,12 +202,14 @@ Model reads and writes return `Model<T>` instances instead of plain objects.
 
 That wrapper provides:
 
-- direct property access like `user.data.name`
+- direct property access like `user.data.name` for non-reserved field names
 - `assign(...)`, `get(...)`, and `set(...)`
 - `isDirty(...)` and `markModified(...)`
 - `save()` for create-or-update persistence
 - `reset()` to restore the last loaded or persisted snapshot
 - `toObject()` / `toJSON()` for safe cloning and serialization
+
+Fields named like wrapper methods (`save`, `reset`, `set`, `get`, `assign`, `toJSON`, etc.) are reserved on direct property access. Use `get(...)`, `set(...)`, `assign(...)`, or `toObject()` for those data fields. Overlapping `save()` calls on the same wrapper are serialized in call order.
 
 ## Package Guide
 

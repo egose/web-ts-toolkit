@@ -25,7 +25,7 @@ references.
 ```text docs-block-map
 # source	ordinal	sha256	classification	fixture-or--
 packages/access-router-client/README.md	1	ea7f7dc92479cfb046e024221154724a81f43c282438921f949548bbccf1ca63	derived	readme-quickstart.ts
-packages/access-router-client/README.md	2	691bb642f50a36bfae7456b1578571c894ec927a18c981db5c1f695112eb08fc	exact	readme-exports.ts
+packages/access-router-client/README.md	2	c3e75694ffacd37ce898ab14c69a661c79d94c7dbfd139b36cf475b212a889dd	exact	readme-exports.ts
 packages/access-router-client/llms.txt	1	6db26e108fd3e45bb6d5154b747f431943bbb914c027055514202d88e759199e	derived	readme-quickstart.ts
 packages/access-router-client/llms.txt	2	0cb6d1d0b741cc903bc3f4e7a3d00136f130fd703f3ceb02275e36368e105a13	derived	services-data.ts
 packages/access-router-client/llms.txt	3	5b07e991c4d49e4e151554cc017cf6d018b090d4f11acceef1daf11b3aab2f11	derived	readme-quickstart.ts

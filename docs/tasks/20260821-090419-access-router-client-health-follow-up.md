@@ -574,7 +574,7 @@ Completion evidence:
 
 ### Task ARC-H09: Decide Model Collision And Overlapping-Save Contracts
 
-Status: pending
+Status: completed
 
 Priority: P2 investigation before implementation
 
@@ -617,6 +617,29 @@ Acceptance criteria:
 - Overlapping same-path and different-path saves have deterministic tested behavior with no silently cleared unsent edit.
 - Existing single-save concurrency, reset-baseline, projected-identity, and dirty-tracking tests remain green.
 - If implementation is deferred, the file records rationale, consumer guidance, and residual risk.
+
+Maintainer decision:
+
+- Field-collision contract: public `Model` member names remain reserved for the wrapper API on direct property access. Document fields named `save`, `reset`, `set`, `get`, `assign`, `toObject`, `toJSON`, and similar public wrapper members are accessed through `get(...)`, `set(...)`, `assign(...)`, or `toObject()`, not through direct property syntax. The exported `ModelData<T, TData>` helper and model response aliases reflect this by omitting reserved wrapper names from the typed direct-field data surface.
+- Overlapping-save contract: multiple `save()` calls on the same `Model` instance are serialized in call order. The first save starts immediately; a later overlapping save snapshots dirty paths only after the previous save has finished reconciliation, so same-path and different-path edits made while the first save is in flight are deterministically submitted by the queued save.
+- Redesign decision: no breaking proxy or method-namespace redesign was implemented. Residual risk is limited to consumers that previously relied on the unsound `Model<T> & TData` type for direct property access to collided field names; runtime already reserved those names, and helper access remains supported.
+
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/model.ts`, `packages/access-router-client/src/types.ts`, `packages/access-router-client/test/access-router-client.model-reconciliation.unit.test.ts`, `packages/access-router-client/test-typecheck/model-reserved-fields.ts`, `packages/access-router-client/test/access-router-client.exports.unit.test.ts`, `packages/access-router-client/README.md`, `packages/access-router-client/llms.txt`, `packages/access-router-client/test-docs-consumer/examples/readme-exports.ts`, `packages/access-router-client/test-docs-consumer/snippets-mapping.md`, `website/docs/packages/access-router-client/index.md`, `website/docs/packages/access-router-client/model.mdx`, `website/docs/packages/access-router-client/typescript-and-errors.mdx`.
+- Regression coverage: added strict type assertions that collided data keys are not exposed as ordinary direct properties on `Model.create(...)` and `ModelResponse` data while `get(...)`, `set(...)`, and `assign(...)` still accept those fields. Added unit characterization for overlapping same-path and different-path saves, asserting the second save waits for the first and submits only the remaining dirty paths after reconciliation.
+- Implementation evidence: `Model.save(...)` now starts the first save immediately and queues later overlapping saves on the same instance; the original reconciliation logic runs inside the queued implementation. `Model.create(...)`, `ModelResponse`, and `ArrayModelResponse` now use exported `ModelData<T, TData>` so public types no longer promise direct property access for reserved wrapper names.
+- Documentation evidence: README, `llms.txt`, website overview/model/type docs, export tests, and docs compile fixtures record the reserved-name and serialized-save contracts. `CHANGELOG.md` was not updated.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.model-reconciliation.unit.test.ts test/access-router-client.model.integration.test.ts test/access-router-client.exports.unit.test.ts`.
+- Result: focused model/export suites passed, 3 test files and 37 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck`.
+- Result: package build, strict source, dedicated type-test fixture, strict NodeNext declaration consumer, and strict Bundler declaration consumer all exited 0.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.docs.compile.test.ts`.
+- Result: docs compile suite passed, 1 test file and 2 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: package build/typecheck passed; 19 Node test files and 335 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `git diff --check`.
+- Result: passed.
 
 ## Wave 5: Independent Integration Review
 

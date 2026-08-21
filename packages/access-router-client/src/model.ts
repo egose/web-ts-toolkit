@@ -39,10 +39,13 @@ export class MissingPersistenceIdentityError extends Error {
  * since the last save and merges the server response per the documented
  * concurrency contract.
  *
- * `Model.create<T>(data, service)` is typed as `Model<T, TData> & TData` so
- * callers can read/write fields directly on the wrapper (`user.role =
- * 'owner'`) while still calling `save()`/`reset()`/`isDirty(...)`. The
- * returned wrapper is a fresh snapshot of the post-operation local state;
+ * `Model.create<T>(data, service)` is typed as `Model<T, TData> &
+ * ModelData<T, TData>` so callers can read/write ordinary fields directly on
+ * the wrapper (`user.role = 'owner'`) while still calling
+ * `save()`/`reset()`/`isDirty(...)`. Fields whose names collide with public
+ * model methods or properties are reserved for the wrapper API and remain
+ * reachable through `get(...)`, `set(...)`, `assign(...)`, and `toObject()`.
+ * The returned wrapper is a fresh snapshot of the post-operation local state;
  * mutating it does not affect sibling wrappers created from the same
  * underlying document.
  *
@@ -64,6 +67,7 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
   private _snapshot!: TData;
   private readonly _service!: ModelService<T>;
   private modifiedPaths!: Set<string>;
+  private _saveQueue: Promise<void> | undefined;
   // ARC-21: persistence identity, captured at read time and decoupled from
   // the projected `_data` payload so a projection that strips `_id` cannot
   // cause `save()` to silently create a duplicate of the source document.
@@ -93,7 +97,7 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     persistenceId?: string,
     fromExisting?: boolean,
   ) {
-    return new Model<T, TData>(data, adapter, persistenceId, fromExisting) as Model<T, TData> & TData;
+    return new Model<T, TData>(data, adapter, persistenceId, fromExisting) as Model<T, TData> & ModelData<T, TData>;
   }
 
   /**
@@ -102,22 +106,26 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
    *
    * Concurrency contract:
    *
-   * 1. Submitted paths and their values are snapshotted before the request
+   * 1. Multiple `save()` calls on the same wrapper are serialized in call
+   *    order. A later save snapshots its dirty paths only after the previous
+   *    save has finished reconciling, so overlapping callers cannot submit
+   *    the same stale dirty set concurrently.
+   * 2. Submitted paths and their values are snapshotted before the request
    *    starts, so an in-flight response cannot wipe edits that were made
    *    while the request was pending.
-   * 2. On success, a submitted path is cleared from `modifiedPaths` only if
+   * 3. On success, a submitted path is cleared from `modifiedPaths` only if
    *    its current local value still equals the submitted value — i.e. the
    *    user has not concurrently re-edited it to a different value.
-   * 3. Server-returned values overwrite local values for paths the user did
+   * 4. Server-returned values overwrite local values for paths the user did
    *    NOT concurrently re-modify during the in-flight save; for paths the
    *    user did concurrently re-modify, the local value is preserved and
    *    the dirty flag is retained so the concurrent edit is resubmitted on
    *    the next `save()`. (Deterministic conflict rule: the newer local
    *    edit wins for the same path; the server value becomes its reset
    *    baseline without replacing the newer local value.)
-   * 4. On failure, no dirty state is cleared and no local value is
+   * 5. On failure, no dirty state is cleared and no local value is
    *    overwritten; the caller can retry `save()` with the same set.
-   * 5. The return value echoes `{ ...result, data }` where `data` is a
+   * 6. The return value echoes `{ ...result, data }` where `data` is a
    *    refreshed `Model` snapshot of the post-save local state (or `null`
    *    on failure), matching `ModelResponse<T, TData>`.
    *
@@ -133,6 +141,26 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
    * of POSTing a new document.
    */
   async save(reqConfig?: AxiosRequestConfig): Promise<ModelResponse<T, TData>> {
+    const queuedSave = this._saveQueue
+      ? this._saveQueue.then(
+          () => this.saveNow(reqConfig),
+          () => this.saveNow(reqConfig),
+        )
+      : this.saveNow(reqConfig);
+    const queueSlot = queuedSave.then(
+      () => undefined,
+      () => undefined,
+    );
+    this._saveQueue = queueSlot;
+    void queueSlot.then(() => {
+      if (this._saveQueue === queueSlot) {
+        this._saveQueue = undefined;
+      }
+    });
+    return queuedSave;
+  }
+
+  private async saveNow(reqConfig?: AxiosRequestConfig): Promise<ModelResponse<T, TData>> {
     // 1. Snapshot submitted paths and their values BEFORE the request.
     const submittedPaths = new Set(this.modifiedPaths);
     const submittedValues: Record<string, unknown> = {};
@@ -460,3 +488,14 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     }
   }
 }
+
+/**
+ * Directly exposed data fields for a `Model` wrapper.
+ *
+ * Runtime property forwarding reserves public `Model` member names such as
+ * `save`, `reset`, `set`, `get`, `assign`, `toObject`, and `toJSON` for the
+ * wrapper API. Documents may still contain those field names, but callers must
+ * access them via `get(...)`, `set(...)`, `assign(...)`, or `toObject()` rather
+ * than ordinary direct property access.
+ */
+export type ModelData<T extends Document, TData extends Partial<T> = T> = Omit<TData, keyof Model<T, TData>>;

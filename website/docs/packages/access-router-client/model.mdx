@@ -259,7 +259,13 @@ doc.data.get('save');
 doc.data.set('save', 'field-value');
 ```
 
-If a document field collides with a method name, access it with `get(...)` and `set(...)` instead of direct property syntax.
+If a document field collides with a method or property name, access it with `get(...)`, `set(...)`, `assign(...)`, or `toObject()` instead of direct property syntax. The exported `ModelData<T>` helper and model response types omit those reserved names from the typed direct-field surface.
+
+## Overlapping Saves
+
+Multiple `save()` calls on the same model instance are serialized in call order. A queued save snapshots dirty paths only after the previous save has finished reconciling, so overlapping callers do not submit the same stale dirty set concurrently.
+
+Edits made while a save is in flight remain local and dirty when they were not submitted by that save, or when they changed the same path to a newer value. The next queued or manual `save()` sends those remaining dirty paths.
 
 ## Practical Guidance
 

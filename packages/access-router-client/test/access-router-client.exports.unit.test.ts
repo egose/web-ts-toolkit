@@ -163,6 +163,7 @@ describe('access-router-client public export contract (ARC-17)', () => {
     it('exports model and data response aliases', () => {
       type _ModelResponse = import('../src').ModelResponse<import('../src').Document>;
       type _ListModelResponse = import('../src').ListModelResponse<import('../src').Document>;
+      type _ModelData = import('../src').ModelData<import('../src').Document>;
       type _DataResponse = import('../src').DataResponse<unknown>;
       type _ListDataResponse = import('../src').ListDataResponse<unknown>;
       type _SubDocumentResponse = import('../src').SubDocumentResponse<unknown>;
@@ -189,6 +190,7 @@ describe('access-router-client public export contract (ARC-17)', () => {
       expect(subList.count).toBe(0);
       // Force usage of all probed aliases so unused-type linting stays happy.
       void ({} as _ModelResponse);
+      void ({} as _ModelData);
       void ({} as _DataResponse);
       void ({} as _ListDataResponse);
       void ({} as _SubDocumentResponse);
