@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ModelRequest } from '../src/interfaces/index.ts';
 import { RequestConcurrencyScheduler } from '../src/helpers/concurrency.ts';
+import type { ModelAdapter } from '../src/model.ts';
 import { setGlobalOptions } from '../src/options/index.ts';
 import { Base } from '../src/services/base.ts';
 import { Service } from '../src/services/service.ts';
@@ -18,6 +19,38 @@ class TestBase extends Base {
   }
 }
 
+const testModelOptions = {
+  defaults: {},
+  documentPermissionField: '_permissions',
+  listHardLimit: 1000,
+};
+
+const createAdapterService = <TModel = unknown>(req: ModelRequest, modelName: string, adapter: ModelAdapter) => {
+  return new (class TestService extends Service<TModel> {
+    protected createModelAdapter() {
+      return adapter;
+    }
+
+    protected getModelRouterOptions() {
+      return testModelOptions as never;
+    }
+  })(req, modelName);
+};
+
+const createFakeAdapter = (modelName: string, overrides: Partial<ModelAdapter> = {}): ModelAdapter => ({
+  modelName,
+  mongooseModel: {} as ModelAdapter['mongooseModel'],
+  new: vi.fn(),
+  create: vi.fn(),
+  find: vi.fn(),
+  findOne: vi.fn(),
+  exists: vi.fn(),
+  countDocuments: vi.fn(),
+  distinct: vi.fn(),
+  aggregate: vi.fn(),
+  ...overrides,
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
   setGlobalOptions({ requestComplexity: {} });
@@ -27,15 +60,14 @@ afterEach(() => {
 describe('access-router internals', () => {
   it('uses the authorized upsert filter for the existence check', async () => {
     const modelName = `AclServiceInternal${++modelCounter}`;
-    mongoose.model(modelName, new mongoose.Schema({ name: String, public: Boolean }));
+    const findOneSpy = vi.fn().mockResolvedValue(null);
 
-    const service = new Service({ macl: {} } as ModelRequest, modelName);
-    const authorizedFilter = { public: true, name: 'hidden-user' };
-    const findOneSpy = vi.spyOn(
-      (service as never as { model: { findOne: (query: unknown) => Promise<unknown> } }).model,
-      'findOne',
+    const service = createAdapterService(
+      { macl: {} } as ModelRequest,
+      modelName,
+      createFakeAdapter(modelName, { findOne: findOneSpy }),
     );
-    findOneSpy.mockResolvedValue(null);
+    const authorizedFilter = { public: true, name: 'hidden-user' };
 
     vi.spyOn(
       service as never as { genFilter: (access: string, filter: unknown) => Promise<unknown> },
@@ -59,23 +91,20 @@ describe('access-router internals', () => {
 
   it('builds grouped counts with the requested access filter and canonical keys', async () => {
     const modelName = `AclServiceInternal${++modelCounter}`;
-    mongoose.model(modelName, new mongoose.Schema({ ownerId: String, public: Boolean }));
+    const aggregateSpy = vi.fn().mockResolvedValue([
+      { _id: 'u1', documentIds: ['p1', 'p2'] },
+      { _id: 'u2', documentIds: ['p2'] },
+    ]);
 
-    const service = new Service({ macl: {} } as ModelRequest, modelName);
+    const service = createAdapterService(
+      { macl: {} } as ModelRequest,
+      modelName,
+      createFakeAdapter(modelName, { aggregate: aggregateSpy }),
+    );
     vi.spyOn(
       service as never as { genFilter: (access: string, filter: unknown) => Promise<unknown> },
       'genFilter',
     ).mockImplementation(async (access, filter) => ({ ...(filter as object), access }));
-    const aggregateSpy = vi
-      .spyOn(
-        (service as never as { model: { model: { aggregate: (pipeline: unknown[]) => Promise<unknown[]> } } }).model
-          .model,
-        'aggregate',
-      )
-      .mockResolvedValue([
-        { _id: 'u1', documentIds: ['p1', 'p2'] },
-        { _id: 'u2', documentIds: ['p2'] },
-      ]);
 
     const result = await service.countByFieldValues('ownerId', ['u1', 'u1', 'u2'], { public: true }, 'count');
 
@@ -272,7 +301,7 @@ describe('access-router internals', () => {
   it('returns stable indexed bulk parse errors before validation or persistence', async () => {
     setGlobalOptions({ requestComplexity: { maxBulkConcurrency: 3 } });
     const modelName = `AclServiceInternal${++modelCounter}`;
-    mongoose.model(modelName, new mongoose.Schema({ ownerId: String }));
+    const createSpy = vi.fn();
     const req = {
       macl: {
         isAllowed: vi.fn(async () => false),
@@ -282,11 +311,7 @@ describe('access-router internals', () => {
         prepare: vi.fn(),
       },
     } as unknown as ModelRequest;
-    const service = new Service(req, modelName);
-    const createSpy = vi.spyOn(
-      (service as never as { model: { create: (items: unknown[]) => Promise<unknown[]> } }).model,
-      'create',
-    );
+    const service = createAdapterService(req, modelName, createFakeAdapter(modelName, { create: createSpy }));
 
     const result = await service.create([
       { ownerId: { $$sq: { model: 'Post', op: 'list', filter: { order: 0 } } } },

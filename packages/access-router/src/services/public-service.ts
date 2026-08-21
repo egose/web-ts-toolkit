@@ -57,7 +57,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     }
 
     const docs = await this.decorateAll(result.data, 'list', {
-      mongooseModel: this.model.model,
+      mongooseModel: this.model.mongooseModel,
       modelName: this.modelName,
       operation: 'list',
       resolvedQuery: result.query,
