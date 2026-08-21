@@ -436,7 +436,7 @@ Completion evidence:
 
 ### Task ART-08: Bound Bulk Parsing And Nested Subquery Scheduling
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -477,6 +477,18 @@ Acceptance criteria:
 - Parse failures return stable indexed errors and cause zero prepare/persist calls.
 - Valid bulk output order remains input order.
 - Repeated runs are deterministic.
+
+Completion evidence:
+
+- Implemented request-scoped bulk parse scheduling in `packages/access-router/src/helpers/concurrency.ts`, `packages/access-router/src/helpers/index.ts`, `packages/access-router/src/services/base.ts`, and `packages/access-router/src/services/service.ts`: `RequestConcurrencyScheduler` now bounds parse traversal and subquery execution through the same `maxBulkConcurrency` budget, including nested arrays, while preserving result order.
+- Updated bulk create parsing in `packages/access-router/src/services/service.ts` to collect client-request parse errors by stable input index and return before validation, prepare, model create, after-persist, or decorate phases run.
+- Added ART-08 coverage in `packages/access-router/test/service.internal.test.ts`: delayed nested subqueries with `maxBulkConcurrency: 3` never exceed three simultaneous target calls, parsed output order matches input order, and bulk parse failures return indexed errors with zero validation/prepare/persist calls. The internal test imports edited `.ts` modules explicitly because extensionless imports resolve to stale sibling `src/*.js` files in this package.
+- Pre-work `git status --short`: clean.
+- `CHANGELOG.md` was not edited per maintainer instruction.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/service.internal.test.ts` passed, 1 file and 8 tests.
+- Verification passed: `git diff --check`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router typecheck`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router test` passed, 40 files and 346 tests.
 
 ## Wave 3: Encapsulation, Reuse, And Public Contracts
 
