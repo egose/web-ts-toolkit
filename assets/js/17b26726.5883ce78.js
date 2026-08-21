@@ -59,6 +59,10 @@ const toc = [{
   "id": "overriding-the-inferred-shape",
   "level": 2
 }, {
+  "value": "Mutation Input Types",
+  "id": "mutation-input-types",
+  "level": 2
+}, {
   "value": "Important Response Types",
   "id": "important-response-types",
   "level": 2
@@ -210,7 +214,15 @@ function _createMdxContent(props) {
         children: "$in"
       }), " query), ", (0,jsx_runtime.jsx)(_components.code, {
         children: "RegExp"
-      }), " when the field is string-typed, and the comparison / element / evaluation operators valid for that scalar. Root operators (", (0,jsx_runtime.jsx)(_components.code, {
+      }), " when the field is string-typed, and the comparison / element / evaluation operators valid for that scalar. Array operands belong in direct conditions or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$in"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$nin"
+      }), "; scalar comparison operators such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$gt"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$lte"
+      }), " use the scalar or array-element type. Root operators (", (0,jsx_runtime.jsx)(_components.code, {
         children: "$and"
       }), " / ", (0,jsx_runtime.jsx)(_components.code, {
         children: "$nor"
@@ -276,6 +288,37 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "const user = await userService.readAdvanced<{ name: string }>('user-1', {\n  select: { name: 1, role: 1 } as const,\n});\n"
       })
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "mutation-input-types",
+      children: "Mutation Input Types"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Model mutation payloads are checked against consumer model fields by default:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "userService.create({ name: 'Max' });\nuserService.update('user-1', { age: 42 });\n\nuserService.create({ naem: 'Max' });      // error: misspelled field\nuserService.update('user-1', { age: 'x' }); // error: wrong scalar type\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The default model mutation input is ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelMutationInput<T>"
+      }), " (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Partial<T>"
+      }), "). This catches misspelled fields and wrong scalar values without claiming required create fields the sibling runtime schema cannot infer. If your API accepts request schemas that differ from the response model, pass explicit generics:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "type UserCreateInput = { name: string; age: number };\ntype UserUpdateInput = { name?: string; age?: number };\ntype UserUpsertInput = { externalId: string; name?: string };\n\nconst users = adapter.createModelService<User, UserCreateInput, UserUpdateInput, UserUpsertInput>({\n  modelName: 'User',\n  basePath: 'users',\n});\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Subdocument helpers infer ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "S"
+      }), " from array fields and use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "SubDocumentMutationInput<S>"
+      }), " (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Partial<S>"
+      }), " for object subdocuments) for create/update payloads. Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "subs<S, K, TCreateInput, TUpdateInput>(...)"
+      }), " when a subdocument request schema differs from the returned subdocument shape."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "That is most useful when:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
@@ -320,6 +363,12 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "ListModelResponse<T, TData = T>"
         })
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "ModelData<T, TData = T>"
+        }), " — direct-field data surface of a ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Model<T>"
+        }), " with reserved wrapper method names omitted"]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "DataResponse<T>"
@@ -339,6 +388,14 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "SubDocumentListResponse<S, TData = S>"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "ModelMutationInput<T>"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "SubDocumentMutationInput<S>"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {

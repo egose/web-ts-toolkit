@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">@web-ts-toolkit/access-router-client | web-ts-toolkit</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" name="twitter:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" property="og:url" content="https://web-ts-toolkit.pages.dev/docs/packages/access-router-client/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="@web-ts-toolkit/access-router-client | web-ts-toolkit"><meta data-rh="true" name="description" content="Typed Axios-based client utilities for @web-ts-toolkit/access-router model routers, data routers, and root batch routes."><meta data-rh="true" property="og:description" content="Typed Axios-based client utilities for @web-ts-toolkit/access-router model routers, data routers, and root batch routes."><link data-rh="true" rel="icon" href="/img/logo.svg"><link data-rh="true" rel="canonical" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router-client/"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router-client/" hreflang="en"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router-client/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Access Router Client","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router-client/"}]}</script><link rel="stylesheet" href="/assets/css/styles.b147e000.css">
-<script src="/assets/js/runtime~main.dbe9c375.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.e69ca08f.js" defer="defer"></script>
 <script src="/assets/js/main.f2bcb123.js" defer="defer"></script>
 </head>
 <body>
@@ -25,7 +25,7 @@
 browsers</strong> (Chrome 94+, Edge 94+, Firefox 93+, Safari 16+):</p>
 <ul>
 <li class=""><code>package.json</code> <code>engines.node: &quot;&gt;=22&quot;</code> — npm/pnpm warn or refuse on older Node</li>
-<li class=""><code>package.json</code> <code>browserslist: [&quot;supports es2022-module&quot;]</code> — bundlers narrow to the same browser floor</li>
+<li class=""><code>package.json</code> <code>browserslist: [&quot;chrome &gt;= 94&quot;, &quot;edge &gt;= 94&quot;, &quot;firefox &gt;= 93&quot;, &quot;safari &gt;= 16&quot;]</code> — bundlers narrow to the same browser floor</li>
 <li class=""><code>tsup.config.ts</code> ships the bundle at the <code>es2022</code> syntax intersection of
 both runtimes; the source imports no Node built-ins, so the same
 <code>dist/index.mjs</code> and <code>dist/index.js</code> run in either environment</li>
@@ -36,8 +36,8 @@ values; see <a class="" href="/docs/packages/access-router-client/adapter#cache-
 <code>unref()</code> guard work in both runtimes.</li>
 <li class=""><code>pnpm --filter @web-ts-toolkit/access-router-client test:browser-smoke</code>
 runs a jsdom + Vite smoke test against the <em>built</em> <code>dist/index.mjs</code> and
-fails if a Node built-in leaks into the bundle or the bundle emits
-syntax the declared <code>browserslist</code> floor cannot run.</li>
+fails if a Node built-in leaks into the bundle. This is a browser-like smoke
+check, not a real-browser engine/version compatibility gate.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_PSXB" id="relationship-to-the-server">Relationship To The Server<a href="#relationship-to-the-server" class="hash-link" aria-label="Direct link to Relationship To The Server" title="Direct link to Relationship To The Server" translate="no">​</a></h2>
 <p><code>access-router-client</code> is not a generic REST SDK generator.</p>
@@ -128,13 +128,14 @@ should narrow on <code>success</code> before reading the successful list&#x27;s 
 <p>Model reads and writes return <code>Model&lt;T&gt;</code> instances instead of plain objects.</p>
 <p>That wrapper provides:</p>
 <ul>
-<li class="">direct property access like <code>user.data.name</code></li>
+<li class="">direct property access like <code>user.data.name</code> for non-reserved field names</li>
 <li class=""><code>assign(...)</code>, <code>get(...)</code>, and <code>set(...)</code></li>
 <li class=""><code>isDirty(...)</code> and <code>markModified(...)</code></li>
 <li class=""><code>save()</code> for create-or-update persistence</li>
 <li class=""><code>reset()</code> to restore the last loaded or persisted snapshot</li>
 <li class=""><code>toObject()</code> / <code>toJSON()</code> for safe cloning and serialization</li>
 </ul>
+<p>Fields named like wrapper methods (<code>save</code>, <code>reset</code>, <code>set</code>, <code>get</code>, <code>assign</code>, <code>toJSON</code>, etc.) are reserved on direct property access. Use <code>get(...)</code>, <code>set(...)</code>, <code>assign(...)</code>, or <code>toObject()</code> for those data fields. Overlapping <code>save()</code> calls on the same wrapper are serialized in call order.</p>
 <h2 class="anchor anchorTargetStickyNavbar_PSXB" id="package-guide">Package Guide<a href="#package-guide" class="hash-link" aria-label="Direct link to Package Guide" title="Direct link to Package Guide" translate="no">​</a></h2>
 <ul>
 <li class=""><a class="" href="/docs/packages/access-router-client/adapter">Adapter And Setup</a>: configuring <code>createAdapter(...)</code>, batching, wrapping arbitrary endpoints, and cache behavior</li>

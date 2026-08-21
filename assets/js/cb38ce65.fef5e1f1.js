@@ -188,7 +188,7 @@ function _createMdxContent(props) {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "package.json"
         }), " ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "browserslist: [\"supports es2022-module\"]"
+          children: "browserslist: [\"chrome >= 94\", \"edge >= 94\", \"firefox >= 93\", \"safari >= 16\"]"
         }), " — bundlers narrow to the same browser floor"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
@@ -222,9 +222,7 @@ function _createMdxContent(props) {
           children: "built"
         }), " ", (0,jsx_runtime.jsx)(_components.code, {
           children: "dist/index.mjs"
-        }), " and\nfails if a Node built-in leaks into the bundle or the bundle emits\nsyntax the declared ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "browserslist"
-        }), " floor cannot run."]
+        }), " and\nfails if a Node built-in leaks into the bundle. This is a browser-like smoke\ncheck, not a real-browser engine/version compatibility gate."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "relationship-to-the-server",
@@ -559,7 +557,7 @@ function _createMdxContent(props) {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["direct property access like ", (0,jsx_runtime.jsx)(_components.code, {
           children: "user.data.name"
-        })]
+        }), " for non-reserved field names"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "assign(...)"
@@ -589,6 +587,30 @@ function _createMdxContent(props) {
           children: "toJSON()"
         }), " for safe cloning and serialization"]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Fields named like wrapper methods (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "save"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "reset"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "get"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "assign"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "toJSON"
+      }), ", etc.) are reserved on direct property access. Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "get(...)"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set(...)"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "assign(...)"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "toObject()"
+      }), " for those data fields. Overlapping ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "save()"
+      }), " calls on the same wrapper are serialized in call order."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "package-guide",
       children: "Package Guide"

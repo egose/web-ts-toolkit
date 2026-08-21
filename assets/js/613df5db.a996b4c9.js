@@ -227,10 +227,10 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "throwOnError?: boolean"
         })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "cacheTTL?: number"
-        })
+        }), " — milliseconds a cached GET response is reused before revalidation"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "cachePartition?: CachePartitioner"
@@ -277,7 +277,7 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "cacheTTL > 0"
-        }), " installs in-memory Axios interceptors for cacheable requests; credentialed caching is off unless ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " installs in-memory Axios interceptors for cacheable requests; the value is measured in milliseconds; credentialed caching is off unless ", (0,jsx_runtime.jsx)(_components.code, {
           children: "cachePartition"
         }), " returns a stable, non-secret identity token"]
       }), "\n"]
@@ -319,11 +319,13 @@ function _createMdxContent(props) {
         children: "www-authenticate"
       }), ") are excluded from cache keys\nregardless of the partition token."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Browser cookie credentials, ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Browser cookie credentials controlled by ", (0,jsx_runtime.jsx)(_components.code, {
         children: "withCredentials"
-      }), ", explicit Authorization/proxy\nauthorization headers, API-key style headers, and Node ", (0,jsx_runtime.jsx)(_components.code, {
+      }), "/CORS/cookie policy,\nexplicit Authorization/proxy authorization headers, API-key style headers, and\nNode ", (0,jsx_runtime.jsx)(_components.code, {
         children: "Cookie"
-      }), " headers supplied\non the Axios config are all treated as credentialed for cache partitioning."]
+      }), " headers supplied on the Axios config are all treated as\ncredentialed for cache partitioning. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "withCredentials"
+      }), " does not create\nAuthorization headers or a Node cookie jar."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Only GET requests using supported JSON or text response modes are eligible.\nStream/blob/array-buffer/document responses, custom request or response\ntransforms, custom parameter serializers, cancellation-sensitive requests, and\nvalues that cannot be serialized stably bypass both storage and in-flight\ndeduplication. Successful POST/PUT/PATCH/DELETE requests invalidate cached\nreads even when made directly through ", (0,jsx_runtime.jsx)(_components.code, {
         children: "adapter.axios"
@@ -341,12 +343,12 @@ function _createMdxContent(props) {
       }), " declares ", (0,jsx_runtime.jsx)(_components.code, {
         children: "engines.node: \">=22\""
       }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "browserslist: [\"supports es2022-module\"]"
-      }), "; the same\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "browserslist: [\"chrome >= 94\", \"edge >= 94\", \"firefox >= 93\", \"safari >= 16\"]"
+      }), ";\nthe same ", (0,jsx_runtime.jsx)(_components.code, {
         children: "dist/index.mjs"
       }), " and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "dist/index.js"
-      }), " run in either environment because the\nsource imports no Node built-ins."]
+      }), " run in either environment because\nthe source imports no Node built-ins."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
@@ -373,7 +375,7 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "pnpm --filter @web-ts-toolkit/access-router-client test:browser-smoke"
-        }), "\nruns a jsdom + Vite smoke test against the built bundle that fails on\nNode-only built-in leaks or unsupported syntax. It also runs as part of\nthe package's default ", (0,jsx_runtime.jsx)(_components.code, {
+        }), "\nruns a jsdom + Vite smoke test against the built bundle. It catches\nNode-only built-in leaks and basic ESM browser-bundling regressions, but it\nis not a real-browser engine/version gate. It also runs as part of the\npackage's default ", (0,jsx_runtime.jsx)(_components.code, {
           children: "pnpm test"
         }), "."]
       }), "\n"]

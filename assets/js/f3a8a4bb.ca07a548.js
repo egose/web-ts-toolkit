@@ -79,6 +79,10 @@ const toc = [{
   "id": "field-name-collisions",
   "level": 2
 }, {
+  "value": "Overlapping Saves",
+  "id": "overlapping-saves",
+  "level": 2
+}, {
   "value": "Practical Guidance",
   "id": "practical-guidance",
   "level": 2
@@ -477,11 +481,28 @@ function _createMdxContent(props) {
         children: "const doc = await weirdService.read('1');\n\ntypeof doc.data.save;\n// 'function'\n\ndoc.data.get('save');\ndoc.data.set('save', 'field-value');\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["If a document field collides with a method name, access it with ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["If a document field collides with a method or property name, access it with ", (0,jsx_runtime.jsx)(_components.code, {
         children: "get(...)"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "set(...)"
-      }), " instead of direct property syntax."]
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "assign(...)"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "toObject()"
+      }), " instead of direct property syntax. The exported ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelData<T>"
+      }), " helper and model response types omit those reserved names from the typed direct-field surface."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "overlapping-saves",
+      children: "Overlapping Saves"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Multiple ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "save()"
+      }), " calls on the same model instance are serialized in call order. A queued save snapshots dirty paths only after the previous save has finished reconciling, so overlapping callers do not submit the same stale dirty set concurrently."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Edits made while a save is in flight remain local and dirty when they were not submitted by that save, or when they changed the same path to a newer value. The next queued or manual ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "save()"
+      }), " sends those remaining dirty paths."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "practical-guidance",
       children: "Practical Guidance"
