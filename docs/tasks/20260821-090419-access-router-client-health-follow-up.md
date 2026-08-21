@@ -116,7 +116,7 @@ Completion evidence:
 
 ### Task ARC-H02: Separate Cache Bypass From Mutation Invalidation
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -165,6 +165,21 @@ Acceptance criteria:
 - A read started before a successful grouped mutation cannot repopulate or join the post-mutation generation.
 - Custom clone behavior, if retained, is identical for source, hit, and deduplicated-tail callers.
 - Focused cache/group tests and the package suite pass.
+
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/services/interceptors.ts`, `packages/access-router-client/src/services/wrap.ts`, `packages/access-router-client/src/services/model-service.ts`, `packages/access-router-client/src/adapter.ts`, `packages/access-router-client/test/access-router-client.cache.unit.test.ts`, `packages/access-router-client/test/access-router-client.arc22-adversarial.unit.test.ts`, `packages/access-router-client/test/access-router-client.arc22-parity.integration.test.ts`.
+- Regression coverage: added cache-bypassed GET retention coverage, grouped all-read retention coverage with network request counts, failed grouped mutation retention count assertions, successful grouped mutation invalidation count assertions, deterministic pre-mutation in-flight read generation coverage, and custom clone policy coverage across source, in-flight tail, and cache hit paths.
+- Implementation evidence: cache bypass and successful-mutation invalidation are now represented separately; package service/wrap mutations carry an internal invalidation signal that is consumed before network dispatch; root batches strip direct-mutation invalidation metadata and invalidate only when a mutating root entry succeeds; cache snapshots and tails use the configured clone policy consistently.
+- Documentation evidence: `CHANGELOG.md` was not updated.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.cache.unit.test.ts test/access-router-client.arc22-parity.integration.test.ts`.
+- Result: focused cache/group suites passed, 2 test files and 48 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.arc22-adversarial.unit.test.ts test/access-router-client.adapter.integration.test.ts`.
+- Result: focused adversarial/adapter suites passed, 2 test files and 42 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: package build/typecheck passed; 19 Node test files and 317 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `git diff --check`.
+- Result: passed.
 
 ## Wave 2: Model And Protocol Correctness
 
