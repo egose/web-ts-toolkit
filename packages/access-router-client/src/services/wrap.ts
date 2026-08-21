@@ -2,6 +2,7 @@ import { AxiosHeaders, AxiosRequestConfig, AxiosInstance, mergeConfig } from 'ax
 import { CACHE_HEADER } from '../constants';
 import { getWrapContext } from '../helpers';
 import { WrapOptions } from '../types';
+import { cloneConfigWithCacheBypass } from './interceptors';
 
 const removeTrailingSlash = (s: string) => s.replace(/\/$/, '');
 const removeLeadingSlash = (s: string) => s.replace(/^\/+/g, '');
@@ -22,12 +23,14 @@ function prepareConfig(
   defaultConfig: AxiosRequestConfig,
   cacheValue: string,
   requestConfig?: AxiosRequestConfig,
+  invalidateOnSuccess = false,
 ): AxiosRequestConfig {
   const headerClone = new AxiosHeaders(defaultConfig.headers);
   headerClone.set(CACHE_HEADER, cacheValue);
 
   const defaulted: AxiosRequestConfig = { ...defaultConfig, headers: headerClone };
-  return mergeConfig(defaulted, requestConfig);
+  const merged = mergeConfig(defaulted, requestConfig);
+  return invalidateOnSuccess ? cloneConfigWithCacheBypass(merged) : merged;
 }
 
 export function createWrapHelper(axios: AxiosInstance, basePath?: string) {
@@ -50,7 +53,7 @@ export function createWrapHelper(axios: AxiosInstance, basePath?: string) {
         const { finalUrl, finalConfig } = getWrapContext(
           _url,
           options,
-          prepareConfig(defaultConfig, 'false', requestConfig),
+          prepareConfig(defaultConfig, 'false', requestConfig, true),
         );
         return axios.post<T>(finalUrl, data, finalConfig);
       };
@@ -62,7 +65,7 @@ export function createWrapHelper(axios: AxiosInstance, basePath?: string) {
         const { finalUrl, finalConfig } = getWrapContext(
           _url,
           options,
-          prepareConfig(defaultConfig, 'false', requestConfig),
+          prepareConfig(defaultConfig, 'false', requestConfig, true),
         );
         return axios.put<T>(finalUrl, data, finalConfig);
       };
@@ -74,7 +77,7 @@ export function createWrapHelper(axios: AxiosInstance, basePath?: string) {
         const { finalUrl, finalConfig } = getWrapContext(
           _url,
           options,
-          prepareConfig(defaultConfig, 'false', requestConfig),
+          prepareConfig(defaultConfig, 'false', requestConfig, true),
         );
         return axios.patch<T>(finalUrl, data, finalConfig);
       };
@@ -86,7 +89,7 @@ export function createWrapHelper(axios: AxiosInstance, basePath?: string) {
         const { finalUrl, finalConfig } = getWrapContext(
           _url,
           options,
-          prepareConfig(defaultConfig, 'false', requestConfig),
+          prepareConfig(defaultConfig, 'false', requestConfig, true),
         );
         return axios.delete<T>(finalUrl, finalConfig);
       };

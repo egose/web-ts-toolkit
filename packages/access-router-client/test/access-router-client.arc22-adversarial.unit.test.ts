@@ -2,7 +2,7 @@ import { describe, expect, it, vi, afterEach } from 'vitest';
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 
 import { createAdapter } from '../src/adapter';
-import { useCacheInterceptors } from '../src/services/interceptors';
+import { cloneConfigWithCacheBypass, useCacheInterceptors } from '../src/services/interceptors';
 import { CACHE_HEADER } from '../src/constants';
 
 /**
@@ -210,7 +210,7 @@ describe('ARC-22 mutation execution/invalidation — every mutation method', () 
     await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     expect(readInvocations).toBe(1);
 
-    await instance.put('/mutate', { a: 1 }, { headers: { [CACHE_HEADER]: 'false' } });
+    await instance.put('/mutate', { a: 1 }, cloneConfigWithCacheBypass({}));
     expect(mutationInvocations).toBe(1);
 
     const read3 = await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
@@ -235,7 +235,7 @@ describe('ARC-22 mutation execution/invalidation — every mutation method', () 
     await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     expect(readInvocations).toBe(1);
 
-    await instance.patch('/mutate', { a: 1 }, { headers: { [CACHE_HEADER]: 'false' } });
+    await instance.patch('/mutate', { a: 1 }, cloneConfigWithCacheBypass({}));
     expect(mutationInvocations).toBe(1);
 
     const read3 = await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
@@ -260,7 +260,7 @@ describe('ARC-22 mutation execution/invalidation — every mutation method', () 
     await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     expect(readInvocations).toBe(1);
 
-    await instance.delete('/mutate', { headers: { [CACHE_HEADER]: 'false' } });
+    await instance.delete('/mutate', cloneConfigWithCacheBypass({}));
     expect(mutationInvocations).toBe(1);
 
     const read3 = await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
@@ -285,7 +285,7 @@ describe('ARC-22 mutation execution/invalidation — every mutation method', () 
     await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     expect(readInvocations).toBe(1);
 
-    await instance.delete('/mutate', { headers: { [CACHE_HEADER]: 'false' } });
+    await instance.delete('/mutate', cloneConfigWithCacheBypass({}));
     expect(mutationInvocations).toBe(1);
 
     const read3 = await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });

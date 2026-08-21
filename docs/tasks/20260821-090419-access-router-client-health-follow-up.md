@@ -116,7 +116,7 @@ Completion evidence:
 
 ### Task ARC-H02: Separate Cache Bypass From Mutation Invalidation
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -166,11 +166,26 @@ Acceptance criteria:
 - Custom clone behavior, if retained, is identical for source, hit, and deduplicated-tail callers.
 - Focused cache/group tests and the package suite pass.
 
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/services/interceptors.ts`, `packages/access-router-client/src/services/wrap.ts`, `packages/access-router-client/src/services/model-service.ts`, `packages/access-router-client/src/adapter.ts`, `packages/access-router-client/test/access-router-client.cache.unit.test.ts`, `packages/access-router-client/test/access-router-client.arc22-adversarial.unit.test.ts`, `packages/access-router-client/test/access-router-client.arc22-parity.integration.test.ts`.
+- Regression coverage: added cache-bypassed GET retention coverage, grouped all-read retention coverage with network request counts, failed grouped mutation retention count assertions, successful grouped mutation invalidation count assertions, deterministic pre-mutation in-flight read generation coverage, and custom clone policy coverage across source, in-flight tail, and cache hit paths.
+- Implementation evidence: cache bypass and successful-mutation invalidation are now represented separately; package service/wrap mutations carry an internal invalidation signal that is consumed before network dispatch; root batches strip direct-mutation invalidation metadata and invalidate only when a mutating root entry succeeds; cache snapshots and tails use the configured clone policy consistently.
+- Documentation evidence: `CHANGELOG.md` was not updated.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.cache.unit.test.ts test/access-router-client.arc22-parity.integration.test.ts`.
+- Result: focused cache/group suites passed, 2 test files and 48 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.arc22-adversarial.unit.test.ts test/access-router-client.adapter.integration.test.ts`.
+- Result: focused adversarial/adapter suites passed, 2 test files and 42 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: package build/typecheck passed; 19 Node test files and 317 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `git diff --check`.
+- Result: passed.
+
 ## Wave 2: Model And Protocol Correctness
 
 ### Task ARC-H03: Preserve Known Identity On Update Results
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -211,6 +226,21 @@ Acceptance criteria:
 - Filter reads without a known identifier still throw `MissingPersistenceIdentityError` when `_id` is absent.
 - Tests cover `returningAll: false`, `_id`-excluding advanced projection, and direct/grouped paths.
 - Package tests and strict packed declaration consumers pass.
+
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/services/model-service.ts`, `packages/access-router-client/src/services/shared.ts`, `packages/access-router-client/test/access-router-client.arc21-projection-identity.integration.test.ts`.
+- Regression coverage: added update-result persistence identity tests for direct `update(id, ..., { returningAll: false })`, direct `updateAdvanced(id, ...)` with an `_id`-excluding projection, and grouped `updateAdvanced(id, ...)` with an `_id`-excluding projection. Each test strips `_id` from the returned wrapper state before the follow-up `save()` and asserts the save uses `PATCH /api/users/<originalId>` with `returning_all=false`, not `POST`.
+- Implementation evidence: direct `update` and `updateAdvanced` now pass the request identifier into `Model.create`; grouped root finalization now preserves `query.id` for `op === 'update'` through the same captured-persistence-identity path used by grouped reads. Filter reads without a known identifier are unchanged and remain covered by the existing `MissingPersistenceIdentityError` regression.
+- Documentation evidence: `CHANGELOG.md` was not updated.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.arc21-projection-identity.integration.test.ts`.
+- Result: focused projection-identity suite passed, 1 test file and 7 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck`.
+- Result: package build/typecheck passed, including strict NodeNext and Bundler declaration consumers.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: package build/typecheck passed; 19 Node test files and 320 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `git diff --check`.
+- Result: passed.
 
 ### Task ARC-H04: Validate Group Configs And Root Response Shape
 

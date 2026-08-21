@@ -4,8 +4,9 @@ import { normalizeConfigValue } from './cache-utils';
 
 const DEFAULT_CACHE_CAPACITY = 100;
 const CACHEABLE_METHODS = new Set(['get']);
-const MUTATION_METHODS = new Set(['post', 'put', 'patch', 'delete']);
 const CACHEABLE_RESPONSE_TYPES = new Set(['', 'json', 'text']);
+const CACHE_INVALIDATE_ON_SUCCESS = '__accessRouterClientCacheInvalidateOnSuccess';
+const CACHE_INVALIDATE_HEADER = 'x-axios-cache-invalidate-on-success';
 
 const SENSITIVE_CACHE_HEADERS = new Set([
   'authorization',
@@ -81,7 +82,10 @@ export interface CachePolicy {
  * The returned object is detached from the caller; mutating it has no effect
  * on caller-owned AxiosHeaders or config objects.
  */
-export const cloneConfigWithCacheBypass = <T extends { headers?: unknown }>(config: T | undefined): T => {
+export const cloneConfigWithCacheBypass = <T extends { headers?: unknown }>(
+  config: T | undefined,
+  invalidateOnSuccess = true,
+): T => {
   const baseConfig = (config ?? {}) as T;
   const next = { ...baseConfig } as T & { headers: Record<string, unknown> };
 
@@ -95,7 +99,36 @@ export const cloneConfigWithCacheBypass = <T extends { headers?: unknown }>(conf
   }
 
   (next.headers as Record<string, unknown>)[CACHE_HEADER] = 'false';
+  if (invalidateOnSuccess) {
+    (next as T & Record<typeof CACHE_INVALIDATE_ON_SUCCESS, true>)[CACHE_INVALIDATE_ON_SUCCESS] = true;
+    (next.headers as Record<string, unknown>)[CACHE_INVALIDATE_HEADER] = 'true';
+  }
   return next;
+};
+
+export const removeCacheInvalidationSignal = <T extends object>(config: T): T => {
+  const headers = (config as { headers?: unknown }).headers;
+  const hasHeaderSignal =
+    headers instanceof AxiosHeaders
+      ? headers.has(CACHE_INVALIDATE_HEADER)
+      : Boolean(headers && typeof headers === 'object' && CACHE_INVALIDATE_HEADER in headers);
+
+  if (CACHE_INVALIDATE_ON_SUCCESS in config || hasHeaderSignal) {
+    const next = { ...config } as T & { headers?: unknown };
+    delete (next as Record<string, unknown>)[CACHE_INVALIDATE_ON_SUCCESS];
+
+    if (headers instanceof AxiosHeaders) {
+      const clonedHeaders = AxiosHeaders.from(headers);
+      clonedHeaders.delete(CACHE_INVALIDATE_HEADER);
+      next.headers = clonedHeaders;
+    } else if (headers && typeof headers === 'object') {
+      next.headers = { ...(headers as Record<string, unknown>) };
+      delete (next.headers as Record<string, unknown>)[CACHE_INVALIDATE_HEADER];
+    }
+
+    return next;
+  }
+  return config;
 };
 
 class SimpleCache<T> {
@@ -216,6 +249,7 @@ const CACHE_DISPOSED_ERROR = 'Access router client cache was disposed while the 
 
 type CacheRequestConfig = InternalAxiosRequestConfig & {
   [CACHE_REQUEST_STATE]?: CacheRequestState;
+  [CACHE_INVALIDATE_ON_SUCCESS]?: true;
 };
 
 const setCacheRequestState = (config: InternalAxiosRequestConfig, state: CacheRequestState): void => {
@@ -250,14 +284,14 @@ const isUnsupportedResponseBody = (response: AxiosResponse): boolean => {
   }
 };
 
-const snapshotResponse = (response: AxiosResponse): CachedResponseSnapshot => {
+const snapshotResponse = (response: AxiosResponse, clone: <U>(value: U) => U): CachedResponseSnapshot => {
   const headers =
     response.headers instanceof AxiosHeaders ? response.headers.toJSON() : { ...(response.headers ?? {}) };
   return {
-    data: defaultClone(response.data),
+    data: clone(response.data),
     status: response.status,
     statusText: response.statusText,
-    headers: defaultClone(headers) as Record<string, unknown>,
+    headers: clone(headers) as Record<string, unknown>,
   };
 };
 
@@ -286,6 +320,23 @@ const hasHeaderValue = (value: unknown): boolean => {
   if (value == null || value === false) return false;
   if (typeof value === 'string') return value.trim().length > 0;
   return true;
+};
+
+const consumeCacheInvalidationSignal = (config: CacheRequestConfig): void => {
+  const headers = config.headers;
+  const hasSignal =
+    headers instanceof AxiosHeaders
+      ? headers.has(CACHE_INVALIDATE_HEADER)
+      : Boolean(headers && typeof headers === 'object' && CACHE_INVALIDATE_HEADER in headers);
+
+  if (!hasSignal && !config[CACHE_INVALIDATE_ON_SUCCESS]) return;
+
+  config[CACHE_INVALIDATE_ON_SUCCESS] = true;
+  if (headers instanceof AxiosHeaders) {
+    headers.delete(CACHE_INVALIDATE_HEADER);
+  } else if (headers && typeof headers === 'object') {
+    delete (headers as Record<string, unknown>)[CACHE_INVALIDATE_HEADER];
+  }
 };
 
 const hasAuthenticationHeader = (headers: InternalAxiosRequestConfig['headers']): boolean => {
@@ -390,6 +441,7 @@ const hasUsablePartition = (partition: string | undefined): partition is string 
 
 export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: CachePolicy | number): CacheController {
   const policy: CachePolicy = typeof policyOrTtl === 'number' ? { ttl: policyOrTtl } : policyOrTtl;
+  const clone = policy.clone ?? defaultClone;
   const store = new SimpleCache<CachedResponseSnapshot>({ capacity: policy.capacity, clone: policy.clone });
   const withCredentialsDefault =
     policy.withCredentialsDefault ?? Boolean((instance.defaults as { withCredentials?: boolean }).withCredentials);
@@ -432,6 +484,7 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
 
   instance.interceptors.request.use(
     async (config) => {
+      consumeCacheInvalidationSignal(config as CacheRequestConfig);
       if (disposed || config.headers[CACHE_HEADER] === 'false' || !isCacheEligible(config, instance)) return config;
 
       const isCredentialed =
@@ -474,7 +527,7 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
           const response = await existing.promise;
           const shared = response as unknown as CachedResponseSnapshot & { config?: unknown };
           return {
-            data: defaultClone(shared.data),
+            data: clone(shared.data),
             status: shared.status,
             statusText: shared.statusText,
             headers: { ...shared.headers, [CACHE_HEADER]: 'true' },
@@ -561,12 +614,9 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
 
   instance.interceptors.response.use(
     (response) => {
-      // Mutations set the cache-bypass header to "false"; clear the cache on
-      // 2xx success so subsequent reads cannot observe the pre-mutation entry.
-      // Failed mutations (4xx/5xx) reach the error interceptor below and never
-      // invalidate, even when a caller opts into receiving the raw response.
-      const method = (response.config.method ?? 'get').toLowerCase();
-      if (response.config.headers[CACHE_HEADER] === 'false' || MUTATION_METHODS.has(method)) {
+      // Cache bypass only controls cache eligibility. Service mutations carry a
+      // separate internal signal so cache-bypassed reads do not evict entries.
+      if ((response.config as CacheRequestConfig)[CACHE_INVALIDATE_ON_SUCCESS]) {
         if (response.status >= 200 && response.status < 300) {
           invalidate();
         }
@@ -578,10 +628,15 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
         return response;
       }
 
-      if (response.status >= 200 && response.status < 300) {
-        if (!disposed && state.generation === generation && !isUnsupportedResponseBody(response)) {
-          store.set(state.key, snapshotResponse(response), policy.ttl);
+      if (response.status >= 200 && response.status < 300 && !isUnsupportedResponseBody(response)) {
+        const snapshot = snapshotResponse(response, clone);
+        response.data = clone(snapshot.data);
+        response.headers = clone(snapshot.headers) as AxiosResponse['headers'];
+        if (!disposed && state.generation === generation) {
+          store.set(state.key, snapshot, policy.ttl);
         }
+        resolveInflight(state.slot, snapshot as unknown as AxiosResponse);
+        return response;
       }
 
       // Tails captured this exact slot in the request phase. Resolving the slot

@@ -3,7 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { MissingPersistenceIdentityError, Model } from '../src';
 import { setupIntegrationSuite, type User } from './support/integration-suite';
 
-const { services, seedState } = setupIntegrationSuite();
+const suite = setupIntegrationSuite();
+const { services, seedState, protocolRequests } = suite;
+
+const stripProjectedId = (model: Model<User, Partial<User>> & Partial<User>) => {
+  delete (model as unknown as { _data: Partial<User> })._data._id;
+  expect(model.toObject()).not.toHaveProperty('_id');
+};
 
 /**
  * ARC-21 (client side): Projection identity contracts. The accompanying
@@ -108,6 +114,94 @@ describe('access-router-client projection identity and count argument (ARC-21)',
       expect(counted.data).toBe(1);
 
       await cleanup();
+    });
+  });
+
+  describe('update -> save() with an _id-stripping response', () => {
+    it('update(id, ..., { returningAll: false }) captures the route identity for a later save()', async () => {
+      const headers = { headers: { user: 'admin' } };
+      const userId = String(seedState.admin._id);
+
+      const updated = await services.userService.update(userId, { role: 'owner' }, { returningAll: false }, headers);
+      expect(updated.success).toBe(true);
+      expect(updated.data.role).toBe('owner');
+      stripProjectedId(updated.data);
+
+      protocolRequests.length = 0;
+      updated.data.set('role', 'admin');
+      const saved = await updated.data.save(headers);
+      expect(saved.success).toBe(true);
+      expect(saved.data.role).toBe('admin');
+      expect(protocolRequests).toEqual([
+        {
+          method: 'PATCH',
+          path: `/api/users/${userId}`,
+          query: { returning_all: 'false', include_permissions: 'true' },
+          body: { role: 'admin' },
+        },
+      ]);
+    });
+
+    it('updateAdvanced(id, ...) captures the route identity when the projection excludes _id', async () => {
+      const headers = { headers: { user: 'admin' } };
+      const userId = String(seedState.admin._id);
+
+      const updated = await services.userService.updateAdvanced(
+        userId,
+        { role: 'owner' },
+        { select: ['role', '-_id'] },
+        { includePermissions: false },
+        headers,
+      );
+      expect(updated.success).toBe(true);
+      expect(updated.data.role).toBe('owner');
+      stripProjectedId(updated.data);
+
+      protocolRequests.length = 0;
+      updated.data.set('role', 'admin');
+      const saved = await updated.data.save(headers);
+      expect(saved.success).toBe(true);
+      expect(saved.data.role).toBe('admin');
+      expect(protocolRequests).toEqual([
+        {
+          method: 'PATCH',
+          path: `/api/users/${userId}`,
+          query: { returning_all: 'false', include_permissions: 'true' },
+          body: { role: 'admin' },
+        },
+      ]);
+    });
+
+    it('grouped updateAdvanced(id, ...) captures the route identity when the projection excludes _id', async () => {
+      const headers = { headers: { user: 'admin' } };
+      const userId = String(seedState.admin._id);
+
+      const [updated] = await suite.adapter.group(
+        services.userService.updateAdvanced(
+          userId,
+          { role: 'owner' },
+          { select: ['role', '-_id'] },
+          { includePermissions: false },
+          headers,
+        ),
+      );
+      expect(updated.success).toBe(true);
+      expect(updated.data.role).toBe('owner');
+      stripProjectedId(updated.data);
+
+      protocolRequests.length = 0;
+      updated.data.set('role', 'admin');
+      const saved = await updated.data.save(headers);
+      expect(saved.success).toBe(true);
+      expect(saved.data.role).toBe('admin');
+      expect(protocolRequests).toEqual([
+        {
+          method: 'PATCH',
+          path: `/api/users/${userId}`,
+          query: { returning_all: 'false', include_permissions: 'true' },
+          body: { role: 'admin' },
+        },
+      ]);
     });
   });
 

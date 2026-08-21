@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import axios, { AxiosHeaders, type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 
-import { useCacheInterceptors, type CacheController, type CachePolicy } from '../src/services/interceptors';
+import {
+  cloneConfigWithCacheBypass,
+  useCacheInterceptors,
+  type CacheController,
+  type CachePolicy,
+} from '../src/services/interceptors';
 import { CACHE_HEADER } from '../src/constants';
+import { createAdapter } from '../src';
 
 function createFakeAdapter(
   handler: (
@@ -339,12 +345,35 @@ describe('cache mutation bypass and invalidation', () => {
     expect(read1.data).toEqual({ count: 1 });
     expect(read2.data).toEqual({ count: 1 });
 
-    await instance.post('/mutate', { a: 1 }, { headers: { [CACHE_HEADER]: 'false' } });
+    await instance.post('/mutate', { a: 1 }, cloneConfigWithCacheBypass({}));
     expect(mutationInvocations).toBe(1);
 
     const read3 = await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     expect(readInvocations).toBe(2);
     expect(read3.data).toEqual({ count: 2 });
+  });
+
+  it('does not evict unrelated cached reads for a cache-bypassed GET', async () => {
+    let readInvocations = 0;
+    let bypassInvocations = 0;
+    const { instance } = createFakeAdapter((config) => {
+      if ((config as { url?: string }).url === '/read') {
+        readInvocations += 1;
+        return { data: { count: readInvocations }, status: 200, headers: {} };
+      }
+      bypassInvocations += 1;
+      return { data: { bypass: bypassInvocations }, status: 200, headers: {} };
+    });
+
+    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+
+    await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
+    await instance.get('/other', { headers: { [CACHE_HEADER]: 'false' } });
+    const cachedRead = await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
+
+    expect(readInvocations).toBe(1);
+    expect(bypassInvocations).toBe(1);
+    expect(cachedRead.data).toEqual({ count: 1 });
   });
 
   it('detaches active read slots after a successful mutation without stranding existing callers', async () => {
@@ -365,7 +394,7 @@ describe('cache mutation bypass and invalidation', () => {
     await new Promise((resolve) => setImmediate(resolve));
     expect(readInvocations).toBe(1);
 
-    await instance.post('/mutate', {}, { headers: { [CACHE_HEADER]: 'false' } });
+    await instance.post('/mutate', {}, cloneConfigWithCacheBypass({}));
     const newSource = instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     const newTail = instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     await new Promise((resolve) => setImmediate(resolve));
@@ -384,6 +413,89 @@ describe('cache mutation bypass and invalidation', () => {
     ]);
     const cached = await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     expect(cached.data).toEqual({ generation: 'new' });
+    expect(readInvocations).toBe(2);
+  });
+
+  it('does not let a read started before a successful grouped mutation populate the post-mutation generation', async () => {
+    type DeferredResult = { data: unknown; status: number; headers: Record<string, unknown> };
+    let readInvocations = 0;
+    let resolveRead: ((value: DeferredResult) => void) | undefined;
+    const adapter = createAdapter(
+      {
+        baseURL: 'http://localhost/api',
+        adapter: async (config) => {
+          if (config.method === 'get' && config.url === 'users/1') {
+            readInvocations += 1;
+            if (readInvocations === 1) {
+              return new Promise<AxiosResponse>((resolve) => {
+                resolveRead = (value) =>
+                  resolve({
+                    data: value.data,
+                    status: value.status,
+                    statusText: 'OK',
+                    headers: value.headers,
+                    config,
+                  } as AxiosResponse);
+              });
+            }
+            return {
+              data: { _id: '1', name: 'cached-user', role: 'maintainer', public: true },
+              status: 200,
+              statusText: 'OK',
+              headers: {},
+              config,
+            } as AxiosResponse;
+          }
+
+          if (config.method === 'post' && config.url === 'root') {
+            return {
+              data: [
+                {
+                  result: {
+                    success: true,
+                    kind: 'single',
+                    data: { _id: '1', name: 'cached-user', role: 'maintainer', public: true },
+                  },
+                  message: '',
+                  statusCode: 200,
+                  op: 'update',
+                },
+              ],
+              status: 200,
+              statusText: 'OK',
+              headers: {},
+              config,
+            } as AxiosResponse;
+          }
+
+          throw new Error(`unexpected request ${config.method ?? 'get'} ${config.url ?? ''}`);
+        },
+      },
+      { cacheTTL: 60_000, cachePartition: () => 'admin' },
+    );
+    const service = adapter.createModelService<{ _id?: string; name: string; role: string; public: boolean }>({
+      modelName: 'User',
+      basePath: 'users',
+    });
+    const headers = { headers: { user: 'admin' } };
+
+    const oldRead = service.read('1', undefined, headers).exec();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(readInvocations).toBe(1);
+
+    const [updated] = await adapter.group(service.update('1', { role: 'maintainer' }, undefined, headers));
+    expect(updated.success).toBe(true);
+
+    resolveRead?.({
+      data: { _id: '1', name: 'cached-user', role: 'editor', public: true },
+      status: 200,
+      headers: {},
+    });
+    await oldRead;
+
+    const fresh = await service.read('1', undefined, headers);
+    expect(fresh.success).toBe(true);
+    expect(fresh.data.role).toBe('maintainer');
     expect(readInvocations).toBe(2);
   });
 
@@ -453,6 +565,44 @@ describe('cache value isolation and bounds', () => {
     (second.data as { value: { nested: string } }).value.nested = 'mid';
     const third = await instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
     expect(third.data).toEqual({ value: { nested: 'original' }, items: [{ id: 1 }] });
+  });
+
+  it('uses the configured clone policy for source, in-flight tail, and cache hit snapshots', async () => {
+    let invocations = 0;
+    let cloneCount = 0;
+    let resolveSource:
+      | ((value: { data: unknown; status: number; headers: Record<string, unknown> }) => void)
+      | undefined;
+    const { instance } = createFakeAdapter(() => {
+      invocations += 1;
+      return new Promise((resolve) => {
+        resolveSource = resolve;
+      });
+    });
+
+    const clone = <U>(value: U): U => {
+      const cloned = JSON.parse(JSON.stringify(value)) as U;
+      if (cloned && typeof cloned === 'object' && 'items' in cloned) {
+        cloneCount += 1;
+        (cloned as { cloneCount: number }).cloneCount = cloneCount;
+      }
+      return cloned;
+    };
+    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false, clone });
+
+    const source = instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
+    const tail = instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
+    await new Promise((resolve) => setImmediate(resolve));
+    resolveSource?.({ data: { items: [{ id: 1 }] }, status: 200, headers: {} });
+
+    const [sourceResult, tailResult] = await Promise.all([source, tail]);
+    const hitResult = await instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
+
+    expect(invocations).toBe(1);
+    expect(sourceResult.data).toMatchObject({ items: [{ id: 1 }], cloneCount: expect.any(Number) });
+    expect(tailResult.data).toMatchObject({ items: [{ id: 1 }], cloneCount: expect.any(Number) });
+    expect(hitResult.data).toMatchObject({ items: [{ id: 1 }], cloneCount: expect.any(Number) });
+    expect(new Set([sourceResult.data.cloneCount, tailResult.data.cloneCount, hitResult.data.cloneCount]).size).toBe(3);
   });
 
   it('enforces a configurable capacity with deterministic eviction order', async () => {

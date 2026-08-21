@@ -198,6 +198,32 @@ describe('ARC-22 direct vs grouped parity — Model.save', () => {
 });
 
 describe('ARC-22 direct vs grouped parity — cache policy', () => {
+  const countRequests = (path: string) => suite.protocolRequests.filter((request) => request.path === path).length;
+
+  it('keeps a cached GET after an all-read group on the same cached adapter', async () => {
+    const cachedAdapter = suite.createCachedAdapter((config) => {
+      return (config.headers?.['user'] as string) ?? undefined;
+    });
+    const cachedService = cachedAdapter.createModelService<User>({
+      modelName: 'AdapterJsIntegrationUser',
+      basePath: 'users',
+    });
+    const headers = { headers: { user: 'admin' } };
+    const userId = String(seedState.admin._id);
+    const userPath = `/api/users/${userId}`;
+
+    await cachedService.read(userId, undefined, headers);
+    await cachedService.read(userId, undefined, headers);
+    expect(countRequests(userPath)).toBe(1);
+
+    const grouped = await cachedAdapter.group(cachedService.read(userId, undefined, headers));
+    expect(grouped[0].success).toBe(true);
+    expect(countRequests('/api/root')).toBe(1);
+
+    await cachedService.read(userId, undefined, headers);
+    expect(countRequests(userPath)).toBe(1);
+  });
+
   it('a successful grouped mutation invalidates the cached reads on the same cached adapter; a failed grouped mutation does not', async () => {
     const cachedAdapter = suite.createCachedAdapter((config) => {
       // Partition on the `user` header so credentialed admin reads cache.
@@ -216,6 +242,7 @@ describe('ARC-22 direct vs grouped parity — cache policy', () => {
     );
     expect(created.success).toBe(true);
     const userId = String(created.data._id);
+    const userPath = `/api/users/${userId}`;
 
     // Two direct reads; second coalesces into the cached entry under the
     // `admin` partition.
@@ -223,6 +250,7 @@ describe('ARC-22 direct vs grouped parity — cache policy', () => {
     const read2 = await cachedService.read(userId, undefined, headers);
     expect(read1.success).toBe(true);
     expect(read2.success).toBe(true);
+    expect(countRequests(userPath)).toBe(1);
 
     // Grouped UPDATE through the cached adapter triggers a mutation. The
     // store.clear() on a 2xx mutation bypasses the previously cached entry.
@@ -234,6 +262,7 @@ describe('ARC-22 direct vs grouped parity — cache policy', () => {
     const read3 = await cachedService.read(userId, undefined, headers);
     expect(read3.success).toBe(true);
     expect(read3.data.role).toBe('maintainer');
+    expect(countRequests(userPath)).toBe(2);
 
     // A failed grouped mutation must NOT invalidate the fresh entry just
     // cached by read3.
@@ -246,6 +275,7 @@ describe('ARC-22 direct vs grouped parity — cache policy', () => {
     expect(read4.success).toBe(true);
     // Still cached from read3 (failed grouped mutation must not invalidate).
     expect(read4.data.role).toBe('maintainer');
+    expect(countRequests(userPath)).toBe(2);
 
     await services.userService.delete(userId, { headers });
   });
