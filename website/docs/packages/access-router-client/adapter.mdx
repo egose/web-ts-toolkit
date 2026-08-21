@@ -56,7 +56,7 @@ Supported adapter options:
 - `onSuccess?: (res) => void`
 - `onFailure?: (res) => void`
 - `throwOnError?: boolean`
-- `cacheTTL?: number`
+- `cacheTTL?: number` — milliseconds a cached GET response is reused before revalidation
 - `cachePartition?: CachePartitioner` — required to cache credentialed requests safely (see [Cache Controls](#cache-controls)); returning `undefined` bypasses the cache for that credentialed request so one identity cannot receive a response created under another
 - `cacheCapacity?: number` — bounds the number of cached entries per adapter (defaults to 100 with LRU eviction)
 - `modelDefaults?: Defaults` — adapter-level defaults inherited by every `createModelService<T>(...)` unless overridden per-service
@@ -67,7 +67,7 @@ Behavior notes:
 - `rootRouterPath` must match the path used by your server-side root router
 - `throwOnError` becomes the default for services created by this adapter
 - `onSuccess` and `onFailure` run after the client normalizes the response
-- `cacheTTL > 0` installs in-memory Axios interceptors for cacheable requests; credentialed caching is off unless `cachePartition` returns a stable, non-secret identity token
+- `cacheTTL > 0` installs in-memory Axios interceptors for cacheable requests; the value is measured in milliseconds; credentialed caching is off unless `cachePartition` returns a stable, non-secret identity token
 
 ## Cache Controls
 
@@ -84,9 +84,11 @@ tenant id); sensitive headers (`authorization`, `cookie`, `set-cookie`,
 `proxy-authorization`, `www-authenticate`) are excluded from cache keys
 regardless of the partition token.
 
-Browser cookie credentials, `withCredentials`, explicit Authorization/proxy
-authorization headers, API-key style headers, and Node `Cookie` headers supplied
-on the Axios config are all treated as credentialed for cache partitioning.
+Browser cookie credentials controlled by `withCredentials`/CORS/cookie policy,
+explicit Authorization/proxy authorization headers, API-key style headers, and
+Node `Cookie` headers supplied on the Axios config are all treated as
+credentialed for cache partitioning. `withCredentials` does not create
+Authorization headers or a Node cookie jar.
 
 Only GET requests using supported JSON or text response modes are eligible.
 Stream/blob/array-buffer/document responses, custom request or response
@@ -99,9 +101,9 @@ reads even when made directly through `adapter.axios` without package headers.
 
 The package supports **browsers and Node** (maintainer decision, ARC-19).
 The bundle targets `es2022` and `package.json` declares `engines.node:
-">=22"` and `browserslist: ["supports es2022-module"]`; the same
-`dist/index.mjs` and `dist/index.js` run in either environment because the
-source imports no Node built-ins.
+">=22"` and `browserslist: ["chrome >= 94", "edge >= 94", "firefox >= 93", "safari >= 16"]`;
+the same `dist/index.mjs` and `dist/index.js` run in either environment because
+the source imports no Node built-ins.
 
 - `withCredentials: true` (the adapter default) permits browser cookie
   credentials when CORS and cookie policy allow them. Authorization, proxy
@@ -114,9 +116,10 @@ source imports no Node built-ins.
   feature-detected and is a no-op in browsers, so `clearCache()` and
   `disposeCache()` are safe to call in either runtime.
 - `pnpm --filter @web-ts-toolkit/access-router-client test:browser-smoke`
-  runs a jsdom + Vite smoke test against the built bundle that fails on
-  Node-only built-in leaks or unsupported syntax. It also runs as part of
-  the package's default `pnpm test`.
+  runs a jsdom + Vite smoke test against the built bundle. It catches
+  Node-only built-in leaks and basic ESM browser-bundling regressions, but it
+  is not a real-browser engine/version gate. It also runs as part of the
+  package's default `pnpm test`.
 
 ## Matching Server Paths
 

@@ -302,6 +302,15 @@ describe('access-router-client lazy request ownership and execution state (ARC-0
     expect(await lazy4.then((v) => v.toUpperCase())).toBe('ONCE');
   });
 
+  it('rejects group() of a consumer-created wrapLazyPromise without adapter-owned service metadata', async () => {
+    const custom = wrapLazyPromise(async () => ({ success: true, data: 'direct-only' }));
+
+    await expect(suite.adapter.group(custom as never)).rejects.toThrow(
+      /Cannot group a request owned by a different adapter/,
+    );
+    await expect(custom.exec()).resolves.toEqual({ success: true, data: 'direct-only' });
+  });
+
   it('rejects group() of a request that has already started execution (no mutation replay)', async () => {
     // A request that has already been awaited has `__started === true`.
     // group() must reject it BEFORE any network activity — otherwise the

@@ -45,9 +45,8 @@ const EXPECTED_RUNTIME_EXPORTS = [
   'MissingPersistenceIdentityError',
   // Model dirty-tracking wrapper.
   'Model',
-  // Cache/lazy-request internals exposed and documented as stable so
-  // consumers can wrap their own lazy promises and meta-stamp grouping
-  // markers (`__query`, `__service`, ...) when building custom batches.
+  // Low-level lazy wrapper exposed for direct execution semantics. Grouping
+  // compatibility requires private adapter-owned metadata from service calls.
   'wrapLazyPromise',
   // Public enum of normalized response-count / pagination header names.
   'CustomHeaders',
@@ -121,7 +120,7 @@ describe('access-router-client public export contract (ARC-17)', () => {
       // Exercise the option types through the documented factory call so the
       // structural presence of `cacheTTL`/`cachePartition`/`cacheCapacity` and
       // `modelName`/`basePath`/`dataName` is enforced.
-      const opts: _Probe1 = { cacheTTL: 60, cacheCapacity: 100, cachePartition: () => 'id-1' };
+      const opts: _Probe1 = { cacheTTL: 60_000, cacheCapacity: 100, cachePartition: () => 'id-1' };
       const adapter = createAdapter(undefined, opts);
       const mOpts: _Probe2 = { modelName: 'User', basePath: 'users' };
       const dOpts: _Probe3 = { dataName: 'fruit', basePath: 'fruit' };

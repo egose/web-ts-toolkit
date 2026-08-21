@@ -20,7 +20,7 @@ The package is officially supported in **Node 22+** and **modern evergreen
 browsers** (Chrome 94+, Edge 94+, Firefox 93+, Safari 16+):
 
 - `package.json` `engines.node: ">=22"` — npm/pnpm warn or refuse on older Node
-- `package.json` `browserslist: ["supports es2022-module"]` — bundlers narrow to the same browser floor
+- `package.json` `browserslist: ["chrome >= 94", "edge >= 94", "firefox >= 93", "safari >= 16"]` — bundlers narrow to the same browser floor
 - `tsup.config.ts` ships the bundle at the `es2022` syntax intersection of
   both runtimes; the source imports no Node built-ins, so the same
   `dist/index.mjs` and `dist/index.js` run in either environment
@@ -31,8 +31,8 @@ browsers** (Chrome 94+, Edge 94+, Firefox 93+, Safari 16+):
   `unref()` guard work in both runtimes.
 - `pnpm --filter @web-ts-toolkit/access-router-client test:browser-smoke`
   runs a jsdom + Vite smoke test against the _built_ `dist/index.mjs` and
-  fails if a Node built-in leaks into the bundle or the bundle emits
-  syntax the declared `browserslist` floor cannot run.
+  fails if a Node built-in leaks into the bundle. This is a browser-like smoke
+  check, not a real-browser engine/version compatibility gate.
 
 ## Relationship To The Server
 

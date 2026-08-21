@@ -52,12 +52,12 @@ const grouped = await adapter.group(
 
 ## Gotchas
 
-- supports **browsers and Node** (maintainer decision, ARC-19). Bundle target is `es2022`; `engines.node: ">=22"`, `browserslist: ["supports es2022-module"]`. The source imports no Node built-ins; the cache `unref()` guard is feature-detected and a no-op in browsers.
+- supports **browsers and Node** (maintainer decision, ARC-19). Bundle target is `es2022`; `engines.node: ">=22"`, `browserslist: ["chrome >= 94", "edge >= 94", "firefox >= 93", "safari >= 16"]`. The source imports no Node built-ins; the cache `unref()` guard is feature-detected and a no-op in browsers.
 - `withCredentials: true` is the adapter default; in the browser this permits cookie credentials when CORS and cookie policy allow them. `Authorization`, proxy authorization, API-key style headers, and Node `Cookie` headers are explicit Axios config values; `withCredentials` does not create them. Credentialed caching still requires an explicit `cachePartition` token so one identity cannot receive another's cached response.
-- caching is disabled by default (`cacheTTL: 0`). When enabled, only GET requests with supported JSON/text semantics cache or deduplicate, custom transforms/serializers and cancellation-sensitive requests bypass caching, and the default LRU capacity is 100 entries.
+- caching is disabled by default (`cacheTTL: 0`). `cacheTTL` is milliseconds. When enabled, only GET requests with supported JSON/text semantics cache or deduplicate, custom transforms/serializers and cancellation-sensitive requests bypass caching, and the default LRU capacity is 100 entries.
 - `axios` is a regular runtime dependency (declared in `package.json` `dependencies`); an installed consumer does not need to add axios separately. Use it as a peer only if you intentionally dedupe against an existing axios install.
 - service methods return lazy requests; they do not execute until `await`, `.then()`, `.exec()`, etc.
-- `adapter.group(...)` only batches lazy requests from this client, not raw Axios calls
+- `adapter.group(...)` only batches service lazy requests from the same adapter, not raw Axios calls or consumer-created `wrapLazyPromise(...)` values
 - grouped requests must have one effective `throwOnError` policy after per-call/service/adapter precedence; mixed policies reject before dispatch. Non-throwing groups return all partial-failure entries. Throwing groups invoke every executed entry callback once, then reject with the first failed entry's `ServiceError`. Group entry `headers` are `{}` because root responses do not carry per-operation headers
 - the client `basePath` is relative to the adapter `baseURL`, not the full server path
 - match `queryPath`/`mutationPath` to the server-side `queryRouteSegment` and mutation route configuration
@@ -85,4 +85,4 @@ Model `create(...)` and `createAdvanced(...)` preserve cardinality: object input
 
 - README: installation, quickstart, main exports, browser+Node runtime matrix
 - website (not packed into the npm tarball; use the live URLs after install): full documentation online at https://web-ts-toolkit.pages.dev/docs/packages/access-router-client (adapter, services, model, typing and errors)
-- `pnpm --filter @web-ts-toolkit/access-router-client test:browser-smoke`: jsdom+Vite browser smoke test that imports the built bundle
+- `pnpm --filter @web-ts-toolkit/access-router-client test:browser-smoke`: jsdom+Vite smoke test that imports the built bundle; this is not a real-browser engine/version gate

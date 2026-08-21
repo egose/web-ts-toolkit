@@ -15,9 +15,9 @@ import {
   // Thrown instead of creating a duplicate when an existing projected model
   // has no recoverable persistence identity.
   MissingPersistenceIdentityError,
-  // Lazy-promise wrapper with non-enumerable metadata and a single
-  // shared execution. Used internally by service methods; exported so
-  // consumers can build compatible lazy promises for custom batches.
+  // Low-level lazy-promise wrapper with a single shared execution. Service
+  // methods add private adapter metadata required by `adapter.group(...)`;
+  // consumer-created wrappers execute directly and are not groupable.
   wrapLazyPromise,
   // Normalized response-count / pagination header names.
   CustomHeaders,

@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
  * This smoke test imports the *built* ESM bundle (`dist/index.mjs`), not the
  * source, then runs it under a `jsdom` browser environment (Vitest is
  * Vite-powered, so the import goes through Vite's module pipeline). It
- * catches:
+ * catches smoke-level regressions:
  *
  * 1. **Node built-ins** — `jsdom` does not implement `process`, `Buffer`,
  *    `setImmediate`, `global`, or Node's `http`/`https`/`url` core modules.
@@ -19,9 +19,8 @@ import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
  *    because `tsup` bundles `axios` for a neutral platform; if a Node entry
  *    were leaked instead, the smoke test would fail at the network adapter
  *    resolution step.
- * 2. **Incompatible syntax** — a `node22`-only target would emit syntax that
- *    older browser engines cannot run; sub-es2022 output keeps the bundle
- *    safe for the `browserslist` floor declared in `package.json`.
+ * 2. **Basic ESM browser bundling** — the built ESM artifact can be imported
+ *    through Vite in a browser-like environment.
  * 3. **Public surface stability** — the runtime export set must match
  *    ARC-17's contract so the same names that work in Node also work in the
  *    browser bundle.
@@ -29,8 +28,9 @@ import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
  *    TTL expiry and `clearCache()` run without Node timers; the feature-
  *    detected `unref()` guard must be a no-op in the browser.
  *
- * All HTTP paths use a custom Axios adapter that resolves without touching
- * the network, so the test stays offline and deterministic in CI.
+ * This is not a real-browser engine/version compatibility gate. All HTTP paths
+ * use a custom Axios adapter that resolves without touching the network, so the
+ * test stays offline and deterministic in CI.
  */
 
 // `import * as pkg` is intentionally relative to the built bundle so the test

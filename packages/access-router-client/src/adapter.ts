@@ -155,7 +155,7 @@ const mergeServiceDefaults = <TDefaults extends object>(
  *
  * Cache controls (only in effect when `cacheTTL > 0`):
  *
- * - `cacheTTL` — seconds a cached GET response is reused before revalidation.
+ * - `cacheTTL` — milliseconds a cached GET response is reused before revalidation.
  * - `cachePartition` — required to cache credentialed requests safely (see
  *   {@link CachePartitioner}); requests using browser cookies,
  *   `withCredentials`, or explicit auth headers without a stable, non-secret
@@ -280,7 +280,7 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
   const cacheController: CacheController =
     cacheTTL > 0
       ? useCacheInterceptors(instance, {
-          ttl: cacheTTL,
+          ttlMs: cacheTTL,
           capacity: cacheCapacity,
           withCredentialsDefault: Boolean((instance.defaults as { withCredentials?: boolean }).withCredentials),
           partitionForRequest: cachePartition,

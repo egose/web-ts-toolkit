@@ -33,7 +33,7 @@ export class MissingPersistenceIdentityError extends Error {
 /**
  * A dirty-tracking wrapper around a model document. Constructed via
  * {@link ModelService.create}, {@link ModelService.read},
- * {@link ModelService.findOne}, or the list methods that return
+ * {@link ModelService.readAdvanced}, or the list methods that return
  * `Model<T>[]`. Property access through the wrapper directly reads/writes
  * the underlying data; `save()` persists only the paths flagged dirty
  * since the last save and merges the server response per the documented

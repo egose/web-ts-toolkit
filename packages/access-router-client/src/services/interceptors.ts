@@ -50,7 +50,7 @@ export interface CacheController {
 export type CachePartitioner = (config: InternalAxiosRequestConfig) => string | undefined;
 
 export interface CachePolicy {
-  ttl: number;
+  ttlMs: number;
   withCredentialsDefault?: boolean;
   partitionForRequest?: CachePartitioner;
   onCacheKey?: (key: string) => void;
@@ -145,7 +145,7 @@ class SimpleCache<T> {
     this.clone = opts.clone ?? defaultClone;
   }
 
-  set(key: string, value: T, ttl?: number): void {
+  set(key: string, value: T, ttlMs?: number): void {
     if (this.cache.size >= this.capacity && !this.cache.has(key)) {
       const oldestKey = this.cache.keys().next().value as string | undefined;
       if (oldestKey !== undefined) {
@@ -156,14 +156,14 @@ class SimpleCache<T> {
     this.cache.delete(key);
     this.cache.set(key, value);
 
-    if (ttl && ttl > 0) {
+    if (ttlMs && ttlMs > 0) {
       const existing = this.timers.get(key);
       if (existing) clearTimeout(existing);
 
       const timer = setTimeout(() => {
         this.cache.delete(key);
         this.timers.delete(key);
-      }, ttl);
+      }, ttlMs);
       if (typeof timer === 'object' && timer && 'unref' in timer && typeof timer.unref === 'function') {
         timer.unref();
       }
@@ -440,7 +440,7 @@ const hasUsablePartition = (partition: string | undefined): partition is string 
   typeof partition === 'string' && partition.trim().length > 0;
 
 export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: CachePolicy | number): CacheController {
-  const policy: CachePolicy = typeof policyOrTtl === 'number' ? { ttl: policyOrTtl } : policyOrTtl;
+  const policy: CachePolicy = typeof policyOrTtl === 'number' ? { ttlMs: policyOrTtl } : policyOrTtl;
   const clone = policy.clone ?? defaultClone;
   const store = new SimpleCache<CachedResponseSnapshot>({ capacity: policy.capacity, clone: policy.clone });
   const withCredentialsDefault =
@@ -633,7 +633,7 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
         response.data = clone(snapshot.data);
         response.headers = clone(snapshot.headers) as AxiosResponse['headers'];
         if (!disposed && state.generation === generation) {
-          store.set(state.key, snapshot, policy.ttl);
+          store.set(state.key, snapshot, policy.ttlMs);
         }
         resolveInflight(state.slot, snapshot as unknown as AxiosResponse);
         return response;

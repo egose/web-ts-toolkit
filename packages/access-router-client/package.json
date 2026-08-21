@@ -47,7 +47,10 @@
     "node": ">=22"
   },
   "browserslist": [
-    "supports es2022-module"
+    "chrome >= 94",
+    "edge >= 94",
+    "firefox >= 93",
+    "safari >= 16"
   ],
   "dependencies": {
     "@web-ts-toolkit/utils": "workspace:*",

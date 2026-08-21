@@ -491,7 +491,7 @@ Completion evidence:
 
 ### Task ARC-H08: Make Installed Runtime And API Claims Truthful
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -552,6 +552,25 @@ Acceptance criteria:
 - Browser support claims are backed by the named verification environment; jsdom is not presented as a browser-engine/version gate.
 - README, `llms.txt`, runtime export tests, and emitted declarations no longer contradict one another about stable exports or custom batching.
 - `npm pack --dry-run --json`, packed CJS/ESM execution, strict consumers, docs compile checks, and package tests pass.
+
+Completion evidence:
+
+- Changed: `packages/access-router-client/package.json`, `packages/access-router-client/src/adapter.ts`, `packages/access-router-client/src/services/interceptors.ts`, `packages/access-router-client/src/model.ts`, `packages/access-router-client/README.md`, `packages/access-router-client/llms.txt`, `packages/access-router-client/vitest.browser.config.ts`, `packages/access-router-client/test/access-router-client.browser-smoke.ts`, `packages/access-router-client/test/access-router-client.arc22-adversarial.unit.test.ts`, `packages/access-router-client/test/access-router-client.adapter.integration.test.ts`, `packages/access-router-client/test/access-router-client.exports.unit.test.ts`, `packages/access-router-client/test/access-router-client.packed-consumer.test.ts`, `packages/access-router-client/test/packed-consumer-harness.ts`, `packages/access-router-client/test-docs-consumer/examples/adapter-setup.ts`, `packages/access-router-client/test-docs-consumer/examples/readme-exports.ts`, `packages/access-router-client/test-docs-consumer/snippets-mapping.md`, `website/docs/packages/access-router-client/adapter.mdx`, `website/docs/packages/access-router-client/index.md`.
+- Regression coverage: added a 1,000 ms cache TTL boundary assertion (cached at 999 ms, expired at 1,000 ms), a runtime assertion that consumer-created `wrapLazyPromise(...)` values are direct-only and rejected by `adapter.group(...)`, and packed-package assertions for the valid Browserslist floor plus `pnpm exec browserslist` resolution.
+- Implementation evidence: package metadata now uses a valid explicit evergreen floor (`chrome >= 94`, `edge >= 94`, `firefox >= 93`, `safari >= 16`); adapter JSDoc and docs define `cacheTTL` as milliseconds; cache interceptor policy uses internal `ttlMs`; auth docs separate browser cookies/`withCredentials`, explicit auth headers, and Node manually supplied `Cookie` headers; jsdom/Vite smoke docs are narrowed to browser-like bundle smoke coverage rather than a real-browser engine/version gate; README wording now presents primary exports while `llms.txt`/export tests retain the full inventory; stale `ModelService.findOne` JSDoc was replaced.
+- Documentation evidence: `CHANGELOG.md` was not updated.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck`.
+- Result: passed; package build, strict source, dedicated type-test fixture, strict NodeNext declaration consumer, and strict Bundler declaration consumer all exited 0.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.arc22-adversarial.unit.test.ts test/access-router-client.adapter.integration.test.ts test/access-router-client.exports.unit.test.ts test/access-router-client.docs.compile.test.ts test/access-router-client.packed-consumer.test.ts`.
+- Result: focused runtime/docs/packed suites passed, 5 test files and 76 tests.
+- Verified: `pnpm exec browserslist` from `packages/access-router-client`.
+- Result: resolved without error and included the documented floor entries (`chrome 94`, `edge 94`, `firefox 93`, `safari 16.0`).
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: package build/typecheck passed; 19 Node test files and 333 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `npm pack --dry-run --json` from `packages/access-router-client`.
+- Result: passed and listed 7 packed files (`package.json`, `README.md`, `llms.txt`, and four `dist` outputs).
+- Verified: `git diff --check`.
+- Result: passed.
 
 ### Task ARC-H09: Decide Model Collision And Overlapping-Save Contracts
 

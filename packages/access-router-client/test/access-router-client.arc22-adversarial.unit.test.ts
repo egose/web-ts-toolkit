@@ -49,7 +49,7 @@ afterEach(() => {
 });
 
 describe('ARC-22 cache bounds — TTL expiry is enforced', () => {
-  it('serves an entry before the TTL elapses and forces a fresh miss after the timer fires', async () => {
+  it('treats cache TTL as milliseconds at the 1,000 ms boundary', async () => {
     let invocations = 0;
     const { instance } = createFakeAdapter(() => {
       invocations += 1;
@@ -57,20 +57,21 @@ describe('ARC-22 cache bounds — TTL expiry is enforced', () => {
     });
 
     vi.useFakeTimers();
-    useCacheInterceptors(instance, { ttl: 1_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 1_000, withCredentialsDefault: false });
 
     const first = await instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
     expect(invocations).toBe(1);
     expect(first.data).toEqual({ value: 1 });
 
     // Within TTL: cached hit. No new network call.
+    await vi.advanceTimersByTimeAsync(999);
     const cached = await instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
     expect(invocations).toBe(1);
     expect(cached.data).toEqual({ value: 1 });
 
-    // Advance past TTL. The SimpleCache setTimeout delete fires; the next read
-    // must miss and reach the server.
-    await vi.advanceTimersByTimeAsync(1_001);
+    // Advance to the 1,000 ms boundary. The SimpleCache setTimeout delete
+    // fires; the next read must miss and reach the server.
+    await vi.advanceTimersByTimeAsync(1);
     const expired = await instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
     expect(invocations).toBe(2);
     expect(expired.data).toEqual({ value: 2 });
@@ -152,7 +153,7 @@ describe('ARC-22 cache bounds — eviction releases the TTL timer', () => {
 
     vi.useFakeTimers();
     useCacheInterceptors(instance, {
-      ttl: 60_000,
+      ttlMs: 60_000,
       withCredentialsDefault: false,
       capacity: 1,
     });
@@ -204,7 +205,7 @@ describe('ARC-22 mutation execution/invalidation — every mutation method', () 
       return { data: { ok: true }, status: 200, headers: {} };
     });
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
@@ -230,7 +231,7 @@ describe('ARC-22 mutation execution/invalidation — every mutation method', () 
       return { data: { ok: true }, status: 200, headers: {} };
     });
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     expect(readInvocations).toBe(1);
@@ -255,7 +256,7 @@ describe('ARC-22 mutation execution/invalidation — every mutation method', () 
       return { data: { ok: true }, status: 200, headers: {} };
     });
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     expect(readInvocations).toBe(1);
@@ -280,7 +281,7 @@ describe('ARC-22 mutation execution/invalidation — every mutation method', () 
       return { data: undefined, status: 204, headers: {} };
     });
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     expect(readInvocations).toBe(1);
@@ -302,7 +303,7 @@ describe('ARC-22 mutation execution/invalidation — every mutation method', () 
     });
 
     useCacheInterceptors(instance, {
-      ttl: 60_000,
+      ttlMs: 60_000,
       withCredentialsDefault: false,
       onCacheKey: (key) => {
         capturedKeys.push(key);
@@ -343,7 +344,7 @@ describe('ARC-22 response isolation — headers', () => {
       };
     });
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     const first = await instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
     expect(invocations).toBe(1);
@@ -381,7 +382,7 @@ describe('ARC-22 dispose — in-flight map is cleared', () => {
     });
 
     const controller = useCacheInterceptors(instance, {
-      ttl: 60_000,
+      ttlMs: 60_000,
       withCredentialsDefault: false,
     });
 
