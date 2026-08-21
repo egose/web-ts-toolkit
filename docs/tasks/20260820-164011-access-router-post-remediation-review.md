@@ -494,7 +494,7 @@ Completion evidence:
 
 ### Task ART-09: Make Runtime Model Ownership Internally Consistent
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -534,6 +534,21 @@ Acceptance criteria:
 - Two runtimes with same-name models cannot resolve each other's connection.
 - `hasModelInstance()` and `getModelInstance()` agree about ownership.
 - Default-runtime model-name usage remains covered.
+
+Completion evidence:
+
+- Implemented in `packages/access-router/src/runtime.ts` and `packages/access-router/src/model.ts`: isolated runtimes now use registry-only model lookup for `hasModelInstance()`, `getModelInstance()`, metadata construction, router construction, and service model adapters. Missing isolated-runtime models throw a deterministic registry-missing error during router/options construction before request handling.
+- Preserved default-runtime string model-name compatibility by constructing `defaultRuntime` with global lookup enabled. When `acl` resolves a global `mongoose.model(name, schema)`, it registers that exact global model instance into the runtime registry so subsequent `hasModelInstance()` and `getModelInstance()` agree.
+- Added ART-09 coverage in `packages/access-router/test/runtime-isolation.integration.test.ts`: a fresh isolated runtime does not acquire a global model by string name and fails predictably until explicit registration; default `acl` adopts a global model by name; existing same-name separate-connection runtime tests continue to prove isolated runtimes do not resolve each other's model instances.
+- Updated isolated-runtime fixtures in affected tests to pass the actual `mongoose.Model` instance rather than relying on process-global string-name lookup, preserving the new ownership contract across OpenAPI, subdocument, distinct, and populate coverage.
+- Documented the final runtime ownership contract in `packages/access-router/README.md` and fixed the isolated-runtime ordering/guidance in `packages/access-router/llms.txt`.
+- Pre-work `git status --short`: clean.
+- `CHANGELOG.md` was not edited per maintainer instruction.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router build`.
+- Verification passed after updating isolated-runtime fixtures: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/arf12-new-route-denial.integration.test.ts test/arf12-root-distinct.authorization.integration.test.ts test/model-router.integration.test.ts test/model-subdocument-routes.integration.test.ts test/openapi-collision.test.ts test/openapi.test.ts test/subdocument-populate-authorization.integration.test.ts test/runtime-isolation.integration.test.ts` passed, 8 files and 83 tests. Before those fixture updates, the full package test failed because legacy isolated-runtime tests still used string-name global lookup, which ART-09 intentionally removed.
+- Verification passed: `git diff --check`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router typecheck`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router test` passed, 40 files and 348 tests.
 
 ### Task ART-10: Define Configuration And In-Memory Data Ownership
 

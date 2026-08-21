@@ -132,10 +132,14 @@ runtime.setGlobalOptions({ globalPermissions: () => [] });
 ```
 
 Two isolated runtimes with the same model name resolve against their own model registry and options without interference.
+An isolated runtime does not look up process-global `mongoose.models` by string name; pass a `mongoose.Model` instance
+to `runtime.createRouter(model, options)` or call `runtime.registerModelInstance(name, model)` before constructing a
+string-name router. The default `acl` runtime retains string-name compatibility with `mongoose.model(name, schema)` and
+adopts that exact global model instance into its registry on first lookup.
 
 ## createRouter overloads
 
-`createRouter(modelName, options)` — accept the Mongoose model name registered with `mongoose.model(name, schema)`.
+`createRouter(modelName, options)` — on the default `acl` runtime, accept the Mongoose model name registered with `mongoose.model(name, schema)`. On isolated runtimes, the name must already be registered with that runtime.
 
 `createRouter(model, options)` — accept a `mongoose.Model` instance directly. The instance is registered with the active runtime's registry, so a model attached to a non-default `mongoose.createConnection()` works without polluting the global registry.
 
