@@ -873,7 +873,7 @@ Completion evidence:
 
 ### Task ART-16: Remove Process-Global Test Coupling And Restore Parallelism
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -913,6 +913,20 @@ Acceptance criteria:
 - No suite can disconnect another suite, delete its model, clear its records, or collide in OpenAPI registration.
 - Test duration and worker count are recorded before/after.
 - Repository `pnpm test` remains serialized at the package-script level as required by `AGENTS.md`.
+
+Completion evidence:
+
+- Implemented in `packages/access-router/test/setup.ts`: each Mongo-backed test file now connects to a unique random database name, continues deleting only that file's collections after each test, and deletes the file's registered Mongoose models during teardown before disconnecting/stopping its own `MongoMemoryServer`.
+- Implemented in `packages/access-router/vitest.config.ts`: removed global `fileParallelism: false`, set `maxWorkers: 4` for an explicit bounded parallel worker count, and raised `testTimeout` to `30_000` so slower documentation/runtime tests remain stable under worker load.
+- Implemented in `packages/access-router/test/packed-consumer-compatibility.test.ts`: removed the in-worker full workspace build that could clean `packages/access-router/dist` while declaration/export tests copied or read it. The test now builds only missing release-artifact bin-package outputs outside access-router's transitive test build closure, preserving the already-built access-router `dist/` during parallel Vitest execution.
+- Pre-work `git status --short`: clean. `CHANGELOG.md` was not edited per maintainer instruction.
+- Initial parallel verification exposed two issues that were fixed before completion: the default 5s timeout was too low under worker load, and the packed-consumer in-test full workspace build raced with declaration-copy/export-contract tests by mutating live `dist/`.
+- Before/after duration and worker count: serialized comparison `pnpm exec vitest run --config vitest.config.ts --fileParallelism=false` passed, 41 files and 357 tests, duration `90.82s`, worker count effectively 1 file at a time. Parallel configured run uses up to 4 workers and passed twice without rebuilds, durations `31.78s` and `33.79s`.
+- Verification passed after rebuild: `pnpm --filter @web-ts-toolkit/access-router build`.
+- Verification passed twice: `pnpm exec vitest run --config vitest.config.ts` passed, 41 files and 357 tests, durations `31.78s` and `33.79s`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router test` passed, 41 files and 357 tests, Vitest duration `35.11s`; package script still performs the serialized workspace prebuild before the package's bounded parallel Vitest run.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router typecheck`.
+- Verification passed: `git diff --check`.
 
 ## Dependency And Parallelization Guidance
 
