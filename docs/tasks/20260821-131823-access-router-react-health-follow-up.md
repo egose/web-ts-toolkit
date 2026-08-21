@@ -357,7 +357,7 @@ Completion evidence:
 
 ### Task ARR-H06: Add Clean Source And Test Typecheck Gates
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -405,6 +405,21 @@ Acceptance criteria:
 - A package coverage command reports source branch/function coverage and enforces maintainer-approved thresholds that do not encourage low-value tests.
 - Removing a real public property or introducing an invalid runtime test fixture makes an appropriate typecheck fail.
 - `pnpm --filter @web-ts-toolkit/access-router-react test` passes.
+
+Completion evidence:
+
+- Changed: `packages/access-router-react/package.json`, `packages/access-router-react/tsconfig.json`, `packages/access-router-react/tsconfig.typecheck.json`, `packages/access-router-react/tsconfig.test-typecheck.json`, `packages/access-router-react/tsup.config.ts`, `packages/access-router-react/vitest.config.ts`, `packages/access-router-react/test/access-router-react.exports.unit.test.ts`, `packages/access-router-react/test/access-router-react.docs.compile.test.ts`, `packages/access-router-react/test/access-router-react.packed-consumer.test.ts`, `packages/access-router-react/test/cancellation.test.tsx`, `packages/access-router-react/test/concurrent-mutations.test.tsx`, `packages/access-router-react/test/dependency-policy.test.tsx`, `packages/access-router-react/test/harness.test.tsx`, `packages/access-router-react/test/hooks.test.tsx`, `packages/access-router-react/test/projection.test.tsx`, `packages/access-router-react/test/query-signal-composition.test.tsx`, `packages/access-router-react/test/support/index.ts`
+- Implemented: the package now has separate no-emit source and runtime-test configs that clear inherited workspace source-path aliases, typecheck against ES2022 + DOM/Vitest/Node libs intentionally, and run as `typecheck:source`, `typecheck:test`, `typecheck:nodenext-strict`, and `typecheck:bundler-strict` under the default package `test` gate.
+- Implemented: invalid runtime test probes and fixtures were corrected instead of excluded, including stale `throwOnError` / `UseBaseOptions.enabled` export assertions, missing type-only barrel re-exports, overly broad response fixtures, unsupported ad-hoc filter literals, and stale success payload shapes that only Vitest transpilation had been tolerating.
+- Implemented: the package target used for type/build verification is now aligned at ES2022, and `test:coverage` reports `src/**` V8 coverage with enforced global thresholds.
+- Verified: `pnpm exec tsc --noEmit -p tsconfig.typecheck.json`
+- Result: passed.
+- Verified: `pnpm exec tsc --noEmit -p tsconfig.test-typecheck.json`
+- Result: passed.
+- Verified: `pnpm test:coverage`
+- Result: passed with source coverage `statements 96.8%`, `branches 86.11%`, `functions 96.84%`, `lines 96.81%`; enforced thresholds set to `96/86/96/96`.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, all four typecheck categories, and 16 Vitest files with 218 tests passed.
 
 ### Task ARR-H07: Align Runtime Target, Engines, And React Compatibility Lanes
 

@@ -4,6 +4,18 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary'],
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.d.ts'],
+      thresholds: {
+        statements: 96,
+        branches: 86,
+        functions: 96,
+        lines: 96,
+      },
+    },
     // Exclude the strict declaration-consumer fixtures from vitest's
     // runtime — they are TYPE-ONLY compile-time suites validated by
     // `pnpm typecheck:nodenext-strict` / `pnpm typecheck:bundler-strict`
