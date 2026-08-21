@@ -227,10 +227,10 @@ The hook's `requestConfig.signal` is composed with the per-call `query()` `optio
 
 `reset()` is a synchronous state-clear, not a cancellation:
 
-- Query `reset()` clears `data`/`error`/`isLoading`/`isFetching` (and `previousData` for `useList`).
+- Query `reset()` clears `data`/`error`/`isLoading`/`isFetching` (and `previousData` for `useList`) and invalidates the current query owner's right to publish settlement. A pre-reset success, failure, rejection, or abort may still finish at the transport layer, but it is stale for hook state and callbacks.
 - Mutation `reset()` clears `data`/`error` and bumps the latest-invocation token. Any already-running mutation loses its claim on the shared `data`/`error` state — when it later settles, its per-invocation `onSuccess`/`onSettled` still fire, but it cannot repopulate the cleared `data`/`error`. `isPending` remains true until the active count reaches zero; `reset` does not implicitly cancel.
 
-If you need to cancel an in-flight query, drop `id`/`listParams` or set `enabled: false` rather than calling `reset`.
+After query `reset()`, `isFetching` reflects authoritative hook activity, not physical transport activity, so it becomes false immediately even if the abandoned request is still finishing underneath. If you need to cancel an in-flight query, drop `id`/`listParams` or set `enabled: false` rather than calling `reset`.
 
 ### `refetch()` and `query()`
 

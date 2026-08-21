@@ -128,7 +128,7 @@ Completion evidence:
 
 ### Task ARR-H02: Make Query Reset Invalidate Pending Settlement
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -174,6 +174,16 @@ Acceptance criteria:
 - `useList` does not revive stale `previousData` or `totalCount` after reset.
 - Mutation reset behavior remains unchanged.
 - Focused tests and the package test pass.
+
+Completion evidence:
+
+- Changed: `packages/access-router-react/src/create-model-hook.ts`, `packages/access-router-react/README.md`, `website/docs/packages/access-router-react.md`, `packages/access-router-react/test/query-reset.test.tsx`
+- Implemented: query `reset()` now invalidates the current query owner token inside `useAutoQuery` before clearing visible loading/fetching state, so pre-reset settlements become stale for state and callbacks without aborting the underlying transport.
+- Implemented: query reset docs now state that stale pre-reset success/failure/rejection/abort settlements are ignored and that `isFetching` reflects authoritative hook activity after reset rather than physical transport activity.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/query-reset.test.tsx`
+- Result: 1 file, 5 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, NodeNext and Bundler declaration checks, and 14 Vitest files with 212 tests passed.
 
 ## Wave 2: Public Runtime And Type Contracts
 
