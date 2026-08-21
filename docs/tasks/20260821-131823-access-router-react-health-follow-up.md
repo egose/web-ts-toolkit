@@ -59,7 +59,7 @@ Verified on 2026-08-21:
 
 ### Task ARR-H01: Enforce Three-Source Query Cancellation At One Boundary
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -115,6 +115,16 @@ Acceptance criteria:
 - Instrumented listener tests cover success, failure, each source abort, already-aborted signals, same-signal inputs, replacement, unmount, and repeated release; 100 settled requests leave zero outstanding listeners.
 - Original config, headers, and source signals are not mutated.
 - Focused tests and `pnpm --filter @web-ts-toolkit/access-router-react test` pass.
+
+Completion evidence:
+
+- Changed: `packages/access-router-react/src/create-model-hook.ts`, `packages/access-router-react/src/fetch.ts`, `packages/access-router-react/src/types.ts`, `packages/access-router-react/README.md`, `website/docs/packages/access-router-react.md`, `packages/access-router-react/test/query-signal-composition.test.tsx`, `packages/access-router-react/test/fetch.abort-signals.test.ts`
+- Implemented: `useAutoQuery` now composes the hook-owned controller, `requestConfig.signal`, and per-call `QueryCallOptions.signal` into one effective signal used for both transport forwarding and cancellation classification.
+- Implemented: `requestConfig.signal` is excluded from structural request-key generation, so signal-only replacement does not trigger an automatic refetch while future query executions still use the latest signal.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/query-signal-composition.test.tsx test/fetch.abort-signals.test.ts`
+- Result: 2 files, 9 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, strict declaration checks, and 13 Vitest files with 207 tests passed.
 
 ### Task ARR-H02: Make Query Reset Invalidate Pending Settlement
 
