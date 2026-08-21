@@ -54,6 +54,8 @@ import type {
   DataDefaults,
   // Filter, projection, populate, sort, and request-meta primitives.
   FilterQuery,
+  ModelMutationInput,
+  SubDocumentMutationInput,
   DottedPathFilter,
   ServerSideCast,
   Projection,
@@ -96,6 +98,8 @@ type StablePublicTypes = [
   Defaults,
   DataDefaults,
   FilterQuery<Document>,
+  ModelMutationInput<Document>,
+  SubDocumentMutationInput<{ label: string }>,
   DottedPathFilter<Document>,
   ServerSideCast<Document>,
   Projection,

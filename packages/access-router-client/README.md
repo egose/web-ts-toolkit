@@ -142,6 +142,15 @@ consumer needs:
 - **Model create cardinality:** `create(...)` and `createAdvanced(...)` accept
   either one object or an array. Scalar input returns `ModelResponse<T>`;
   array input returns `ArrayModelResponse<T>`, including for a one-item array.
+- **Mutation input types:** model create/update/upsert payloads default to
+  `ModelMutationInput<T>` (`Partial<T>`), so object literals are checked for
+  known field names and scalar types without pretending the server can infer
+  required create fields. Pass `createModelService<T, TCreateInput,
+TUpdateInput, TUpsertInput>(...)` when request schemas differ from the
+  response model. Subdocument create/update helpers use
+  `SubDocumentMutationInput<S>` (`Partial<S>` for object subdocuments) by
+  default and can be customized through `subs<S, K, TCreateInput,
+TUpdateInput>(...)`.
 - **Nested model edits:** `Model<T>` tracks modified top-level paths and
   reconciles writes against the last loaded/saved snapshot. Direct mutation
   of nested objects/arrays (`obj.arr.push(...)`, `obj.sub.field = x`) is
@@ -216,6 +225,8 @@ import type {
   DataDefaults,
   // Filter, projection, populate, sort, and request-meta primitives.
   FilterQuery,
+  ModelMutationInput,
+  SubDocumentMutationInput,
   DottedPathFilter,
   ServerSideCast,
   Projection,
@@ -258,6 +269,8 @@ type StablePublicTypes = [
   Defaults,
   DataDefaults,
   FilterQuery<Document>,
+  ModelMutationInput<Document>,
+  SubDocumentMutationInput<{ label: string }>,
   DottedPathFilter<Document>,
   ServerSideCast<Document>,
   Projection,

@@ -281,6 +281,8 @@ describe('access-router-client public export contract (ARC-17)', () => {
       type _Sort = import('../src').Sort;
       type _SortOrder = import('../src').SortOrder;
       type _FilterQuery = import('../src').FilterQuery<unknown>;
+      type _ModelMutationInput = import('../src').ModelMutationInput<{ _id?: string; name: string }>;
+      type _SubDocumentMutationInput = import('../src').SubDocumentMutationInput<{ label: string }>;
       type _DottedPathFilter = import('../src').DottedPathFilter<unknown>;
       type _ServerSideCast = import('../src').ServerSideCast<unknown>;
       type _Populate = import('../src').Populate;
@@ -301,6 +303,8 @@ describe('access-router-client public export contract (ARC-17)', () => {
       void ({} as _Sort);
       void ({} as _SortOrder);
       void ({} as _FilterQuery);
+      void ({} as _ModelMutationInput);
+      void ({} as _SubDocumentMutationInput);
       void ({} as _DottedPathFilter);
       void ({} as _ServerSideCast);
       void ({} as _Populate);

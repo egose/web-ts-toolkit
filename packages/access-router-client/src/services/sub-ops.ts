@@ -6,6 +6,7 @@ import {
   Response,
   SubDocumentResponse,
   SubDocumentListResponse,
+  SubDocumentMutationInput,
 } from '../types';
 import { cloneConfigWithCacheBypass } from './interceptors';
 import { makeRequest } from './request';
@@ -32,7 +33,11 @@ const ensureSubdocumentListCount = <T extends { count?: number }>(result: T): T 
   return result as T & { count: number };
 };
 
-export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: string) {
+export function buildSubDocumentOps<
+  S,
+  TCreateInput = SubDocumentMutationInput<S>,
+  TUpdateInput = SubDocumentMutationInput<S>,
+>(ctx: SubOpsContext<S>, id: string, sub: string) {
   const { axios, basePath, modelName, queryPath, handleSuccess, handleError, _handleCallbacks, parentService } = ctx;
 
   return {
@@ -212,7 +217,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
       );
     },
 
-    update: (subId: string, data: object, axiosRequestConfig?: RequestConfig) => {
+    update: (subId: string, data: TUpdateInput, axiosRequestConfig?: RequestConfig) => {
       const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
       return makeRequest<SubDocumentResponse<S>>(
@@ -251,7 +256,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
       );
     },
 
-    bulkUpdate: (data: object[], axiosRequestConfig?: RequestConfig) => {
+    bulkUpdate: (data: TUpdateInput[], axiosRequestConfig?: RequestConfig) => {
       const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
       return makeRequest<SubDocumentListResponse<S>>(
@@ -293,7 +298,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
       );
     },
 
-    create: (data: object | object[], axiosRequestConfig?: RequestConfig) => {
+    create: (data: TCreateInput | TCreateInput[], axiosRequestConfig?: RequestConfig) => {
       const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
       // The sibling server's `createSub` route returns the FULL subdocument

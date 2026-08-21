@@ -1,6 +1,6 @@
 import axios, { mergeConfig, AxiosRequestConfig } from 'axios';
 import { ModelService, DataService } from './services';
-import { DataRequest, ModelRequest, ResponseCallback, Document } from './types';
+import { DataRequest, ModelRequest, ResponseCallback, Document, ModelMutationInput } from './types';
 import { Defaults, DataDefaults } from './interface';
 import {
   removeCacheInvalidationSignal,
@@ -308,7 +308,12 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
     axios: instance,
     clearCache: cacheController.clear,
     disposeCache: cacheController.dispose,
-    createModelService: <T extends Document>(
+    createModelService: <
+      T extends Document,
+      TCreateInput extends object = ModelMutationInput<T>,
+      TUpdateInput extends object = ModelMutationInput<T>,
+      TUpsertInput extends object = ModelMutationInput<T>,
+    >(
       {
         modelName,
         basePath,
@@ -320,7 +325,7 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
       }: ModelServiceOptions,
       defaults?: Defaults,
     ) => {
-      const service = new ModelService<T>(
+      const service = new ModelService<T, TCreateInput, TUpdateInput, TUpsertInput>(
         {
           axios: instance,
           modelName,

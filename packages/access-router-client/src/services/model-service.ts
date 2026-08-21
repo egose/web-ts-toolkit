@@ -10,6 +10,8 @@ import {
   ArrayModelResponse,
   ListModelResponse,
   ResponseCallback,
+  ModelMutationInput,
+  SubDocumentMutationInput,
 } from '../types';
 
 import {
@@ -62,7 +64,18 @@ interface Props {
  * const userService = adapter.createModelService<User>({ modelName: 'User', basePath: 'users' });
  * const user = await userService.read('user-id-1');
  */
-export class ModelService<T extends Document> extends Service {
+type InferredSubDocument<T, K extends keyof T, S> = [S] extends [never]
+  ? NonNullable<T[K]> extends readonly (infer TItem)[]
+    ? TItem
+    : never
+  : S;
+
+export class ModelService<
+  T extends Document,
+  TCreateInput extends object = ModelMutationInput<T>,
+  TUpdateInput extends object = ModelMutationInput<T>,
+  TUpsertInput extends object = ModelMutationInput<T>,
+> extends Service {
   private _modelName!: string;
   private _queryPath!: string;
   private _mutationPath!: string;
@@ -268,17 +281,17 @@ export class ModelService<T extends Document> extends Service {
   }
 
   create<TData extends Partial<T> = T>(
-    data: object[],
+    data: TCreateInput[],
     options?: CreateOptions,
     axiosRequestConfig?: RequestConfig,
   ): ModelRequest<ArrayModelResponse<T, TData>>;
   create<TData extends Partial<T> = T>(
-    data: object,
+    data: TCreateInput,
     options?: CreateOptions,
     axiosRequestConfig?: RequestConfig,
   ): ModelRequest<ModelResponse<T, TData>>;
   create<TData extends Partial<T> = T>(
-    data: object | object[],
+    data: TCreateInput | TCreateInput[],
     options?: CreateOptions,
     axiosRequestConfig?: RequestConfig,
   ): ModelRequest<ModelResponse<T, TData> | ArrayModelResponse<T, TData>> {
@@ -329,19 +342,19 @@ export class ModelService<T extends Document> extends Service {
   }
 
   createAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
-    data: object[],
+    data: TCreateInput[],
     args?: CreateAdvancedArgs<TSelect>,
     options?: CreateAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
   ): ModelRequest<ArrayModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>;
   createAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
-    data: object,
+    data: TCreateInput,
     args?: CreateAdvancedArgs<TSelect>,
     options?: CreateAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
   ): ModelRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>;
   createAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
-    data: object | object[],
+    data: TCreateInput | TCreateInput[],
     args?: CreateAdvancedArgs<TSelect>,
     options?: CreateAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
@@ -408,7 +421,11 @@ export class ModelService<T extends Document> extends Service {
     );
   }
 
-  upsert<TData extends Partial<T> = T>(data: object, options?: UpsertOptions, axiosRequestConfig?: RequestConfig) {
+  upsert<TData extends Partial<T> = T>(
+    data: TUpsertInput,
+    options?: UpsertOptions,
+    axiosRequestConfig?: RequestConfig,
+  ) {
     const {
       returningAll = this._defaults.upsertOptions.returningAll ?? true,
       includePermissions = this._defaults.upsertOptions.includePermissions ?? true,
@@ -454,7 +471,7 @@ export class ModelService<T extends Document> extends Service {
   }
 
   upsertAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
-    data: object,
+    data: TUpsertInput,
     args?: UpsertAdvancedArgs<TSelect>,
     options?: UpsertAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
@@ -922,7 +939,7 @@ export class ModelService<T extends Document> extends Service {
 
   update<TData extends Partial<T> = T>(
     identifier: string,
-    data: object,
+    data: TUpdateInput,
     options?: UpdateOptions,
     axiosRequestConfig?: RequestConfig,
   ) {
@@ -972,7 +989,7 @@ export class ModelService<T extends Document> extends Service {
 
   updateAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
     identifier: string,
-    data: object,
+    data: TUpdateInput,
     args?: UpdateAdvancedArgs<TSelect>,
     options?: UpdateAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
@@ -1042,11 +1059,16 @@ export class ModelService<T extends Document> extends Service {
 
   id(id: string) {
     return {
-      subs: <S = never, K extends keyof T = keyof T>(field: K) => {
+      subs: <
+        S = never,
+        K extends keyof T = keyof T,
+        TSubCreateInput = SubDocumentMutationInput<InferredSubDocument<T, K, S>>,
+        TSubUpdateInput = SubDocumentMutationInput<InferredSubDocument<T, K, S>>,
+      >(
+        field: K,
+      ) => {
         const sub = String(field);
-        return buildSubDocumentOps<
-          [S] extends [never] ? (NonNullable<T[K]> extends readonly (infer TItem)[] ? TItem : never) : S
-        >(
+        return buildSubDocumentOps<InferredSubDocument<T, K, S>, TSubCreateInput, TSubUpdateInput>(
           {
             axios: this._axios,
             basePath: this._basePath,

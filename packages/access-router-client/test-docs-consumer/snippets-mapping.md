@@ -25,7 +25,7 @@ references.
 ```text docs-block-map
 # source	ordinal	sha256	classification	fixture-or--
 packages/access-router-client/README.md	1	ea7f7dc92479cfb046e024221154724a81f43c282438921f949548bbccf1ca63	derived	readme-quickstart.ts
-packages/access-router-client/README.md	2	8d2c4f93e0c7de487e6d309806ad49b192abe5665401b401e7dc4ff4f412e6dd	exact	readme-exports.ts
+packages/access-router-client/README.md	2	5d8930b349e2001a9e4d170fe0b5b03b647ff09bacf8ab94bb0416aa93abe910	exact	readme-exports.ts
 packages/access-router-client/llms.txt	1	6db26e108fd3e45bb6d5154b747f431943bbb914c027055514202d88e759199e	derived	readme-quickstart.ts
 packages/access-router-client/llms.txt	2	0cb6d1d0b741cc903bc3f4e7a3d00136f130fd703f3ceb02275e36368e105a13	derived	services-data.ts
 packages/access-router-client/llms.txt	3	5b07e991c4d49e4e151554cc017cf6d018b090d4f11acceef1daf11b3aab2f11	derived	readme-quickstart.ts
@@ -67,14 +67,16 @@ website/docs/packages/access-router-client/typescript-and-errors.mdx	3	d9fe86f2a
 website/docs/packages/access-router-client/typescript-and-errors.mdx	4	a1d7bfa3ab5a31c16d69ab5b8e082532df4338b01b5c747748c775b0332ddcde	negative	-
 website/docs/packages/access-router-client/typescript-and-errors.mdx	5	bb603304fbe88689a0082a2e4656e62eb129c8ec3a7805d423d0833f8c418d34	derived	types-filters.ts
 website/docs/packages/access-router-client/typescript-and-errors.mdx	6	b851a82cb399bc36fdeb4908a3ee7eb3f4540cb6a280cbfee7acd378062a0df7	derived	types-filters.ts
-website/docs/packages/access-router-client/typescript-and-errors.mdx	7	bcb410da5c3114298f2324f9fd5ea597b98219c1d0dcaa0a6a1ca6d4592b79c6	derived	types-responses.ts
-website/docs/packages/access-router-client/typescript-and-errors.mdx	8	011d0a5047e6a65cc9907e9508dade834753456e07d1403a35bc4c6c306a761b	derived	types-errors.ts
-website/docs/packages/access-router-client/typescript-and-errors.mdx	9	1f2b2b9026b136da5914bb0db4a04be230e991e25612d47c0ae9b10c9853141a	derived	types-errors.ts
-website/docs/packages/access-router-client/typescript-and-errors.mdx	10	0c46167967fb5accefceb38810a7c16625264330cf4a4a5260253dd27a9d0bc9	derived	types-errors.ts
-website/docs/packages/access-router-client/typescript-and-errors.mdx	11	f8c67eb98fffca82fd445b891365e1ab6ed89b7221ed657cd8636d625a4361b4	derived	types-errors.ts
-website/docs/packages/access-router-client/typescript-and-errors.mdx	12	39f63409a0102ce94652429533a07dd17ea9ef752cc14225a5f97b7e09fe0f30	derived	types-responses.ts
-website/docs/packages/access-router-client/typescript-and-errors.mdx	13	eca019ec389680a6763d22d73182871d34df944e76494000c0009647d8124948	derived	group-wrapper.ts
-website/docs/packages/access-router-client/typescript-and-errors.mdx	14	72fece6ae30cdd5f92b2958f495a01ca840813ecba92ff61ae5ebd05fa663aaf	negative	-
+website/docs/packages/access-router-client/typescript-and-errors.mdx	7	c04e2c3be4024f616142906734d1c3d62daede0c6979b52133e8491e89991b76	derived	types-mutation-inputs.ts
+website/docs/packages/access-router-client/typescript-and-errors.mdx	8	8eb9b3195c1227b66f4b77e51f06184f8a8d55a27f7a690260d46cb02b3c47df	derived	types-mutation-inputs.ts
+website/docs/packages/access-router-client/typescript-and-errors.mdx	9	bcb410da5c3114298f2324f9fd5ea597b98219c1d0dcaa0a6a1ca6d4592b79c6	derived	types-responses.ts
+website/docs/packages/access-router-client/typescript-and-errors.mdx	10	011d0a5047e6a65cc9907e9508dade834753456e07d1403a35bc4c6c306a761b	derived	types-errors.ts
+website/docs/packages/access-router-client/typescript-and-errors.mdx	11	1f2b2b9026b136da5914bb0db4a04be230e991e25612d47c0ae9b10c9853141a	derived	types-errors.ts
+website/docs/packages/access-router-client/typescript-and-errors.mdx	12	0c46167967fb5accefceb38810a7c16625264330cf4a4a5260253dd27a9d0bc9	derived	types-errors.ts
+website/docs/packages/access-router-client/typescript-and-errors.mdx	13	f8c67eb98fffca82fd445b891365e1ab6ed89b7221ed657cd8636d625a4361b4	derived	types-errors.ts
+website/docs/packages/access-router-client/typescript-and-errors.mdx	14	39f63409a0102ce94652429533a07dd17ea9ef752cc14225a5f97b7e09fe0f30	derived	types-responses.ts
+website/docs/packages/access-router-client/typescript-and-errors.mdx	15	eca019ec389680a6763d22d73182871d34df944e76494000c0009647d8124948	derived	group-wrapper.ts
+website/docs/packages/access-router-client/typescript-and-errors.mdx	16	72fece6ae30cdd5f92b2958f495a01ca840813ecba92ff61ae5ebd05fa663aaf	negative	-
 ```
 
 ## Compiled fixtures
@@ -83,20 +85,21 @@ The fixtures live in `examples/` and are semantically compiled by
 `access-router-client.docs.compile.test.ts` against the packed npm tarball
 (the same artifact exercised by ARC-18's packed-consumer test).
 
-| Fixture                | Source block(s)                                                                                                                                 |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `readme-quickstart.ts` | README.md "Quick Start"; index.md "Quick Start"                                                                                                 |
-| `readme-exports.ts`    | README.md "Main Exports" (verbatim extracted block)                                                                                             |
-| `adapter-setup.ts`     | adapter.mdx "Basic Setup", "Adapter Options", "Matching Server Paths"; README.md "Contract"                                                     |
-| `services-model.ts`    | README.md "Unreleased Migration" model-create cardinality; services.mdx "ModelService" "Advanced query", "Service Defaults"                     |
-| `services-subdocs.ts`  | services.mdx "Subqueries", "Subdocument Helpers" + the create/update/bulk/edit example block                                                    |
-| `services-data.ts`     | services.mdx "DataService" "Advanced read options", "Example"                                                                                   |
-| `model-basics.ts`      | model.mdx "Basic Usage", "Dirty Tracking" + Revert, "`save()`", "`reset()`", "Field Collisions", `new Model`                                    |
-| `model-nested.ts`      | model.mdx "Nested-edit contract"                                                                                                                |
-| `types-filters.ts`     | typescript-and-errors.mdx "Selected Field Inference", "Filter Query Types", "Escape hatches", "Overriding The Inferred Shape"                   |
-| `types-responses.ts`   | README.md / index.md "Unreleased Migration" response narrowing; typescript-and-errors.mdx "Important Response Types"; index.md "Response shape" |
-| `types-errors.ts`      | typescript-and-errors.mdx "Error Handling Modes", "`ServiceError`", "One Practical Rule"                                                        |
-| `group-wrapper.ts`     | adapter.mdx "Wrapped Endpoints", "Adapter-Level vs Service-Level", "Dynamic path segment encoding"                                              |
+| Fixture                    | Source block(s)                                                                                                                                 |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `readme-quickstart.ts`     | README.md "Quick Start"; index.md "Quick Start"                                                                                                 |
+| `readme-exports.ts`        | README.md "Main Exports" (verbatim extracted block)                                                                                             |
+| `adapter-setup.ts`         | adapter.mdx "Basic Setup", "Adapter Options", "Matching Server Paths"; README.md "Contract"                                                     |
+| `services-model.ts`        | README.md "Unreleased Migration" model-create cardinality; services.mdx "ModelService" "Advanced query", "Service Defaults"                     |
+| `services-subdocs.ts`      | services.mdx "Subqueries", "Subdocument Helpers" + the create/update/bulk/edit example block                                                    |
+| `services-data.ts`         | services.mdx "DataService" "Advanced read options", "Example"                                                                                   |
+| `model-basics.ts`          | model.mdx "Basic Usage", "Dirty Tracking" + Revert, "`save()`", "`reset()`", "Field Collisions", `new Model`                                    |
+| `model-nested.ts`          | model.mdx "Nested-edit contract"                                                                                                                |
+| `types-filters.ts`         | typescript-and-errors.mdx "Selected Field Inference", "Filter Query Types", "Escape hatches", "Overriding The Inferred Shape"                   |
+| `types-mutation-inputs.ts` | typescript-and-errors.mdx "Mutation Input Types"                                                                                                |
+| `types-responses.ts`       | README.md / index.md "Unreleased Migration" response narrowing; typescript-and-errors.mdx "Important Response Types"; index.md "Response shape" |
+| `types-errors.ts`          | typescript-and-errors.mdx "Error Handling Modes", "`ServiceError`", "One Practical Rule"                                                        |
+| `group-wrapper.ts`         | adapter.mdx "Wrapped Endpoints", "Adapter-Level vs Service-Level", "Dynamic path segment encoding"                                              |
 
 ## Intentionally partial snippets (embedded into the fixtures above)
 

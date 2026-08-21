@@ -88,6 +88,21 @@ export interface Document {
 }
 
 /**
+ * Default request payload type for model mutations.
+ *
+ * The sibling access-router runtime accepts generic records and does not know
+ * a consumer application's required create/update schema. The client therefore
+ * defaults mutation inputs to `Partial<T>` so known fields are checked without
+ * claiming compile-time requiredness. Consumers with distinct request schemas
+ * can pass explicit `ModelService<T, TCreateInput, TUpdateInput, TUpsertInput>`
+ * or `createModelService<T, ...>(...)` generics.
+ */
+export type ModelMutationInput<T extends Document> = Partial<T>;
+
+/** Default request payload type for subdocument create/update helpers. */
+export type SubDocumentMutationInput<T> = T extends object ? Partial<T> : T;
+
+/**
  * Successful response. `raw` and `data` are non-null and `success` is
  * narrowed to `true` so `if (result.success)` exposes the documented
  * payload shape. `message` is initialized for symmetry with failures but
