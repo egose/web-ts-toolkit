@@ -482,7 +482,7 @@ Completion evidence:
 
 ### Task ARR-H08: Execute Hook Behavior From The Packed Artifact
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -521,6 +521,16 @@ Acceptance criteria:
 - Tests fail if React is accidentally bundled, the client peer is unresolved, or an export points at source/workspace files.
 - ESM/CJS runtime and NodeNext/Bundler type consumers all pass for the declared compatibility matrix.
 - `npm pack --dry-run --json` includes only intended package files.
+
+Completion evidence:
+
+- Changed: `packages/access-router-react/test/packed-consumer-harness.ts`, `packages/access-router-react/test/access-router-react.packed-consumer.test.ts`, `packages/access-router-react/test-packed-consumer/consumer/consumer.cjs`, `packages/access-router-react/test-packed-consumer/consumer/consumer.mjs`, `packages/access-router-react/test-packed-consumer/consumer/hooks-smoke-core.cjs`
+- Implemented: the packed-consumer harness now provisions isolated React 19 and React 18 consumers with runtime smoke dependencies, while the packed CJS and ESM consumer entries mount `createModelHooks` from the installed tarball and exercise read success, normalized failure, caller cancellation, and create mutation success.
+- Implemented: packed runtime smoke now asserts the resolved package entry stays inside installed `node_modules` rather than source/test paths, so export-map regressions and accidental bundled-React/client-peer breakage fail against the shipped artifact.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/access-router-react.packed-consumer.test.ts`
+- Result: 1 file, 4 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, all four typecheck categories, React 19 runtime lane, isolated React 18 runtime lane, and non-runtime packed/docs/export checks passed; packed-consumer verification now covers React 19 and React 18 installed-tarball hook smoke plus strict NodeNext and Bundler consumers.
 
 ## Wave 4: Documentation And Performance Hardening
 
