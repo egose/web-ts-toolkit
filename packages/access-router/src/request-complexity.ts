@@ -10,6 +10,7 @@ export interface RequestComplexityOptions {
   maxIncludeCount?: number;
   maxSubQueryCount?: number;
   maxBulkConcurrency?: number;
+  maxHookConcurrency?: number;
 }
 
 export const defaultRequestComplexity: Required<RequestComplexityOptions> = {
@@ -21,6 +22,7 @@ export const defaultRequestComplexity: Required<RequestComplexityOptions> = {
   maxIncludeCount: 10,
   maxSubQueryCount: 10,
   maxBulkConcurrency: 10,
+  maxHookConcurrency: 10,
 };
 
 type ComplexityScope = 'request' | 'filter';
@@ -42,6 +44,10 @@ export const resolveRequestComplexity = (
   maxBulkConcurrency: normalizePositiveInteger(
     options?.maxBulkConcurrency,
     defaultRequestComplexity.maxBulkConcurrency,
+  ),
+  maxHookConcurrency: normalizePositiveInteger(
+    options?.maxHookConcurrency,
+    defaultRequestComplexity.maxHookConcurrency,
   ),
 });
 

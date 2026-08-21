@@ -1,4 +1,5 @@
 export * from './collection';
+export * from './concurrency';
 export * from './document';
 export * from './errors';
 export * from './query';

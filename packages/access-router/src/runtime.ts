@@ -12,7 +12,7 @@ import {
   isString,
   keys,
 } from '@web-ts-toolkit/utils';
-import { buildRefs, buildSubPaths } from './helpers';
+import { DEFAULT_LIST_HARD_LIMIT, buildRefs, buildSubPaths } from './helpers';
 import type { OpenApiDocumentOptions, OpenApiRouteDescriptor } from './openapi/types';
 import { OpenApiRegistry } from './openapi/registry';
 import type {
@@ -59,6 +59,7 @@ const defaultDataOptions: DataRouterOptions = {
   basePath: null,
   parentPath: '/',
   queryRouteSegment: '__query',
+  listHardLimit: DEFAULT_LIST_HARD_LIMIT,
 };
 
 const normalizeBasePath = (name: string, value: string | null | undefined) => {
@@ -157,7 +158,7 @@ export class AccessRuntime {
     DefaultModelRouterOptions,
     ExtendedDefaultModelRouterOptions
   >({
-    listHardLimit: 1000,
+    listHardLimit: DEFAULT_LIST_HARD_LIMIT,
     documentPermissionField: '_permissions',
     idParam: 'id',
     idField: '_id',

@@ -1,5 +1,12 @@
-import { getDataOptions } from '../options';
-import { findElement, filterCollection, genPagination, normalizeSortForOrderBy, validateSortFields } from '../helpers';
+import { getDataOptions, getGlobalOption } from '../options';
+import {
+  findElement,
+  filterCollection,
+  genPagination,
+  mapWithConcurrencyLimit,
+  normalizeSortForOrderBy,
+  validateSortFields,
+} from '../helpers';
 import { validateClientFilter } from './base';
 import {
   DataHookContext,
@@ -23,6 +30,7 @@ import {
 } from '../interfaces';
 import { Codes } from '../enums';
 import { orderBy, pick } from '@web-ts-toolkit/utils';
+import { resolveRequestComplexity } from '../request-complexity';
 
 export class DataService<T> {
   protected req: DataRequest;
@@ -92,6 +100,7 @@ export class DataService<T> {
     if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
     const { select, sort, skip, limit, page, pageSize } = args ?? {};
+    const hasExplicitLimit = limit != null || pageSize != null;
 
     const [_filter, _select, pagination] = await Promise.all([
       this.genFilter('list', filter),
@@ -123,13 +132,16 @@ export class DataService<T> {
 
     const pagedDocs = docs.slice(query.skip, query.limit && query.skip + query.limit);
 
-    const trimmed = await Promise.all(
-      pagedDocs.map(async (doc) => {
-        doc = await this.trimOutputFields(doc, 'list');
-        if (_select.length > 0) doc = pick(doc as object, _select) as T;
-        return doc;
-      }),
-    );
+    const { maxHookConcurrency } = this.getRequestComplexity();
+    const trimmed = await mapWithConcurrencyLimit(pagedDocs, maxHookConcurrency, async (doc) => {
+      doc = await this.trimOutputFields(doc, 'list');
+      if (_select.length > 0) doc = pick(doc as object, _select) as T;
+      return doc;
+    });
+
+    if (!hasExplicitLimit && trimmed.length === totalCount) {
+      query.limit = trimmed.length;
+    }
 
     return {
       success: true,
@@ -148,6 +160,10 @@ export class DataService<T> {
 
   public decorateAll<TDoc>(docs: TDoc[], access: DecorateAllAccess, context?: DataHookContext): Promise<TDoc[]> {
     return this.req.dacl.decorateAll(this.dataName, docs, access, context);
+  }
+
+  public getRequestComplexity() {
+    return resolveRequestComplexity(getGlobalOption('requestComplexity'));
   }
 
   public genAllowedFields(doc: unknown, access: SelectAccess, baseFields?: string[]): Promise<string[]> {

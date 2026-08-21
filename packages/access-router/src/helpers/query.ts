@@ -1,6 +1,8 @@
 import { flattenDeep, isNil, isPlainObject, isString, reduce } from '@web-ts-toolkit/utils';
 import { Projection, KeyValueProjection } from '../interfaces';
 
+export const DEFAULT_LIST_HARD_LIMIT = 1000;
+
 const normalizeSafeInteger = (value: number | string | undefined, min: number): number | null => {
   if (isNil(value)) return null;
 
@@ -22,11 +24,12 @@ export function genPagination(
     page?: number | string;
     pageSize?: number | string;
   },
-  hardLimit: number,
+  hardLimit?: number,
 ) {
+  const resolvedHardLimit = normalizeSafeInteger(hardLimit, 1) ?? DEFAULT_LIST_HARD_LIMIT;
   let _skip = 0;
-  let _limit = normalizeSafeInteger(limit ?? pageSize, 1) ?? hardLimit;
-  if (!Number.isSafeInteger(_limit) || _limit > hardLimit) _limit = hardLimit;
+  let _limit = normalizeSafeInteger(limit ?? pageSize, 1) ?? resolvedHardLimit;
+  if (!Number.isSafeInteger(_limit) || _limit > resolvedHardLimit) _limit = resolvedHardLimit;
 
   const normalizedSkip = normalizeSafeInteger(skip, 0);
   const normalizedPage = normalizeSafeInteger(page, 0);
