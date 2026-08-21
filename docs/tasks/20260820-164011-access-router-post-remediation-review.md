@@ -823,7 +823,7 @@ Completion evidence:
 
 ### Task ART-15: Replace Wall-Clock Gates With Deterministic Performance Evidence
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -860,6 +860,16 @@ Acceptance criteria:
 - A full-match shaping regression fails deterministic cardinality assertions.
 - Benchmark and production paths use the same precomputed or equivalent filtered match set.
 - The package suite remains stable under repeated execution.
+
+Completion evidence:
+
+- Updated `packages/access-router/test/data-service-scaling.test.ts`: removed `performance.now()` ceilings, best-of sampling, and timing comparisons. The scaling suite now asserts deterministic `totalCount`, `returnedCount`, dynamic field-trim call counts, decorate call counts, and peak trim/decorate concurrency for page sizes 10, 50, and 100.
+- Added a shared `matchingComplexFilter()` counterfactual fixture so the production request and diagnostic full-match trim use the same equivalent filtered match set. The diagnostic route still uses the production `req.dacl.pickAllowedFields()` trim helper and proves a full-match shaping regression would trim `matched.length` rows instead of the returned page.
+- `CHANGELOG.md` was not edited per maintainer instruction.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/data-service-scaling.test.ts` passed, 1 file and 2 tests.
+- Verification passed: `git diff --check`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router test` passed, 41 files and 357 tests.
+- Verification passed after rerunning serialized to avoid the documented shared `dist/` build race: `pnpm --filter @web-ts-toolkit/access-router typecheck`. An earlier concurrent typecheck attempt overlapped with the full package test and failed in `@web-ts-toolkit/express-response-handler` tsup declaration cleanup (`ENOENT unlink dist/error-format.d.mts`), matching the repository warning against concurrent package build/test scripts.
 
 ### Task ART-16: Remove Process-Global Test Coupling And Restore Parallelism
 
