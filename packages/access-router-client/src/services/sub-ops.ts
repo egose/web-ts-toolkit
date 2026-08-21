@@ -15,7 +15,7 @@ import type { ModelService } from './model-service';
 
 type RequestConfig = AxiosRequestConfig & { throwOnError?: boolean };
 
-interface SubOpsContext<S> {
+interface SubOpsContext {
   axios: AxiosInstance;
   basePath: string;
   modelName: string;
@@ -37,7 +37,7 @@ export function buildSubDocumentOps<
   S,
   TCreateInput = SubDocumentMutationInput<S>,
   TUpdateInput = SubDocumentMutationInput<S>,
->(ctx: SubOpsContext<S>, id: string, sub: string) {
+>(ctx: SubOpsContext, id: string, sub: string) {
   const { axios, basePath, modelName, queryPath, handleSuccess, handleError, _handleCallbacks, parentService } = ctx;
 
   return {

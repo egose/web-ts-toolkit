@@ -37,20 +37,25 @@ model.assign({ reset: 'updated reset field' });
 
 // @ts-expect-error collided data fields are reserved for Model methods on direct property access.
 const directSaveField: string = model.save;
+void directSaveField;
 
 // @ts-expect-error collided data fields are reserved for Model methods on direct property access.
 const directResetField: string = model.reset;
+void directResetField;
 
 if (response.success) {
   response.data.save();
   const responseSaveField: string = response.data.get('save');
+  void responseSaveField;
   response.data.set('toJSON', 'updated response field');
 
   // @ts-expect-error response data also reserves collided direct property names.
   const directResponseSaveField: string = response.data.save;
+  void directResponseSaveField;
 
   // @ts-expect-error response data also reserves collided direct property names.
   const directResponseToJsonField: string = response.data.toJSON;
+  void directResponseToJsonField;
 }
 
 void saveField;
