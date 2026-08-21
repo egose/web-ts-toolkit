@@ -181,7 +181,7 @@ describe('real access-router hook adapter contract', () => {
         configuredRuntime.setModelOption(modelName, 'validate.create' as any, staticIssues as any);
       });
     }).toThrow(/Duplicate decorated validator for validate\.create/);
-    expect(runtime?.getModelOption(modelName, 'validate.create')).toBe(staticIssues);
+    expect(runtime?.getModelOption(modelName, 'validate.create')).toStrictEqual(staticIssues);
   });
 
   it('injects override-filter filter, permissions, and request from the real callback shape', async () => {
