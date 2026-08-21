@@ -26,7 +26,7 @@ const organizationService = adapter.createModelService<Organization>({
 const { useRead } = createModelHooks({ modelService: organizationService });
 
 function ProjectionExample() {
-  // README block #14
+  // docs-block-start: packages/access-router-react/README.md#15
   const { data } = useRead({
     id: 'org_123',
     advanced: true,
@@ -37,10 +37,8 @@ function ProjectionExample() {
     const name: string = data.name; // definitely present
     const status: string | undefined = data.status; // selected, still T[key] | undefined
     const id: string | undefined = data._id; // omitted-key reads as possibly undefined
-    void name;
-    void status;
-    void id;
   }
+  // docs-block-end: packages/access-router-react/README.md#15
 
   return null;
 }

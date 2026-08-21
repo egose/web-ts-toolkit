@@ -2,10 +2,9 @@
  * ARR-11: website "Active Record Integration" block (#15).
  *
  * Exercises the `Model<T>` wrapper surface (`save()` and `find`/`_id`) on
- * `useList` data, anchored against the published declarations. The block is
- * derived: it embeds the renamed organization's unmodified-state mutation
- * to demonstrate the Active-Record back-end; the surrounding context lives in
- * this fixture.
+ * `useList` data, anchored against the published declarations. The documented
+ * block stays verbatim inside scaffold markers while this fixture provides the
+ * surrounding hook setup.
  */
 import type { Document } from '@web-ts-toolkit/access-router-client';
 import { createModelHooks } from '@web-ts-toolkit/access-router-react';
@@ -25,7 +24,7 @@ const organizationService = adapter.createModelService<Organization>({
 const { useList } = createModelHooks({ modelService: organizationService });
 
 function ActiveRecordExample() {
-  // website block #15
+  // docs-block-start: website/docs/packages/access-router-react.md#15
   const { data, refetch } = useList({ listParams: { pageSize: 20 } });
 
   async function rename(id: string, name: string) {
@@ -39,6 +38,7 @@ function ActiveRecordExample() {
       refetch();
     }
   }
+  // docs-block-end: website/docs/packages/access-router-react.md#15
 
   void rename;
   return null;

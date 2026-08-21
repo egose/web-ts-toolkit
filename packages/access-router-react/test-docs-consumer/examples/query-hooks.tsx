@@ -30,7 +30,7 @@ const { useRead, useList, useCount, useDistinct } = createModelHooks({
 });
 
 function ReadExample() {
-  // README block #4
+  // docs-block-start: packages/access-router-react/README.md#4
   const { data, isLoading, isFetching, error, query, refetch, reset } = useRead({
     id: 'org_123',
     advanced: true,
@@ -38,6 +38,7 @@ function ReadExample() {
     onSuccess: (result) => console.log(result.data?.name),
     onSettled: (result, err) => console.log({ result, err }),
   });
+  // docs-block-end: packages/access-router-react/README.md#4
 
   void data;
   void isLoading;
@@ -50,7 +51,7 @@ function ReadExample() {
 }
 
 function ListExample() {
-  // README block #5
+  // docs-block-start: packages/access-router-react/README.md#5
   const { data, previousData, totalCount, isLoading, isFetching, error, query, refetch, reset } = useList({
     listParams: { pageSize: 20 },
     filter: { status: 'active' },
@@ -59,6 +60,7 @@ function ListExample() {
     select: ['name', 'status'] as const,
     keepPreviousData: true,
   });
+  // docs-block-end: packages/access-router-react/README.md#5
 
   void data;
   void previousData;
@@ -73,11 +75,12 @@ function ListExample() {
 }
 
 function CountExample() {
-  // README block #6
+  // docs-block-start: packages/access-router-react/README.md#6
   const { data, isLoading, error, query, refetch, reset } = useCount({
     advanced: true,
     filter: { status: 'active' },
   });
+  // docs-block-end: packages/access-router-react/README.md#6
 
   void data;
   void isLoading;
@@ -89,26 +92,26 @@ function CountExample() {
 }
 
 function DistinctExample() {
-  // README block #7
+  // docs-block-start: packages/access-router-react/README.md#7
   const { data, error } = useDistinct({
     field: 'status',
     conditions: { organizationId: 'org_123' },
   });
+  // docs-block-end: packages/access-router-react/README.md#7
 
   void data;
   void error;
   return null;
 }
 
-// Website variant of useRead (block #3): plain-array `select` (no `as const`).
-// The broad `Projection` sentinel accepts the plain-array form without
-// literal narrowing, so `data.status` retains its base-model type.
 function ReadPlainSelectExample() {
+  // docs-block-start: website/docs/packages/access-router-react.md#3
   const { data, isLoading, isFetching, error, query, refetch, reset } = useRead({
     id: 'org_123',
     advanced: true,
     select: ['name', 'status'],
   });
+  // docs-block-end: website/docs/packages/access-router-react.md#3
 
   void data;
   void isLoading;
@@ -120,8 +123,8 @@ function ReadPlainSelectExample() {
   return null;
 }
 
-// Website variant of useList (block #4): no `select`, plain object traffic.
 function ListNoSelectExample() {
+  // docs-block-start: website/docs/packages/access-router-react.md#4
   const { data, previousData, totalCount, isLoading, isFetching, error, query, refetch, reset } = useList({
     listParams: { pageSize: 20 },
     filter: { status: 'active' },
@@ -129,6 +132,7 @@ function ListNoSelectExample() {
     sort: { name: 1 },
     keepPreviousData: true,
   });
+  // docs-block-end: website/docs/packages/access-router-react.md#4
 
   void data;
   void previousData;
@@ -142,9 +146,27 @@ function ListNoSelectExample() {
   return null;
 }
 
+function CountWebsiteExample() {
+  // docs-block-start: website/docs/packages/access-router-react.md#5
+  const { data, isLoading, error, query, refetch, reset } = useCount({
+    advanced: true,
+    filter: { status: 'active' },
+  });
+  // docs-block-end: website/docs/packages/access-router-react.md#5
+
+  void data;
+  void isLoading;
+  void error;
+  void query;
+  void refetch;
+  void reset;
+  return null;
+}
+
 void ReadExample;
 void ListExample;
 void CountExample;
 void DistinctExample;
 void ReadPlainSelectExample;
 void ListNoSelectExample;
+void CountWebsiteExample;

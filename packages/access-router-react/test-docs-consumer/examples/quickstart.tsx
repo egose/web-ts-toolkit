@@ -1,11 +1,10 @@
 /**
  * ARR-11: README "Quick Start" block (#3).
  *
- * Extracted from README "Quick Start" — declared `derived` because the
- * published block references `useList` and `useCreate` whose setup context
- * lives above the block. The `setup.ts` fixture supplies the adapter/service
- * factory wiring; this fixture anchors the README block against the published
- * declaration surface.
+ * Extracted from README "Quick Start" with explicit surrounding setup so the
+ * documented component stays verbatim inside scaffold markers. The `setup.ts`
+ * fixture supplies the adapter/service factory wiring; this fixture anchors
+ * the README block against the published declaration surface.
  */
 import type { Document } from '@web-ts-toolkit/access-router-client';
 import { createModelHooks } from '@web-ts-toolkit/access-router-react';
@@ -24,6 +23,7 @@ const organizationService = adapter.createModelService<Organization>({
 
 const { useList, useCreate } = createModelHooks({ modelService: organizationService });
 
+// docs-block-start: packages/access-router-react/README.md#3
 function OrganizationList() {
   const { data, isLoading, error } = useList({
     listParams: { pageSize: 20 },
@@ -50,5 +50,6 @@ function OrganizationList() {
     </div>
   );
 }
+// docs-block-end: packages/access-router-react/README.md#3
 
 void OrganizationList;

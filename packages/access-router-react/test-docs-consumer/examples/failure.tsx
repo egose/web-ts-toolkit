@@ -26,7 +26,7 @@ const organizationService = adapter.createModelService<Organization>({
 
 const { useRead, useCreate } = createModelHooks({ modelService: organizationService });
 
-// README block #12 — failure handling
+// docs-block-start: packages/access-router-react/README.md#12
 function FailureExample() {
   const { data, error, refetch } = useRead({
     id: 'org_404',
@@ -47,10 +47,9 @@ function FailureExample() {
   }
 
   void data;
-  void error;
   void refetch;
   void retryCreate;
-  return null;
 }
+// docs-block-end: packages/access-router-react/README.md#12
 
 void FailureExample;
