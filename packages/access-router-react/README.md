@@ -140,7 +140,7 @@ If `conditions` is empty or omitted, the hook falls back to the basic `distinct(
 
 ## Mutation Hooks
 
-`useCreate`, `useUpdate`, `useUpsert`, and `useDelete` expose `mutate(...)`, `isPending`, `error`, and `reset()`. The first three also expose `data` (the last returned projected model). Each `mutate(...)` call returns a promise that resolves the response, or rejects with a `ServiceError` on failure.
+`useCreate`, `useUpdate`, `useUpsert`, and `useDelete` expose `mutate(...)`, `isPending`, `error`, and `reset()`. The first three also expose `data` (the last returned projected model). Each `mutate(...)` call returns a promise that resolves the response, or rejects with a `ServiceError` on failure. Mutation input types are inferred from the bound `ModelService<T, TCreateInput, TUpdateInput, TUpsertInput>` generics. `useCreate().mutate(...)` is intentionally single-record-only and rejects array input; call `modelService.create([...])` directly when you need bulk create.
 
 ### `useCreate`
 

@@ -238,7 +238,7 @@ Completion evidence:
 
 ### Task ARR-H04: Preserve Mutation Input Types And Resolve Bulk Create
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -283,6 +283,18 @@ Acceptance criteria:
 - No cast can turn `ArrayModelResponse` into `ProjectedModelResponse` on an accepted path.
 - Existing mutation concurrency/reset behavior remains green.
 - NodeNext and Bundler declaration consumers and the package test pass.
+
+Completion evidence:
+
+- Changed: `packages/access-router-react/src/types.ts`, `packages/access-router-react/src/create-model-hook.ts`, `packages/access-router-react/README.md`, `website/docs/packages/access-router-react.md`, `packages/access-router-react/test/mutation-inputs.test.tsx`, `packages/access-router-react/test-decl-consumer/decl-consumer.strict.test.ts`, `packages/access-router-react/test-packed-consumer/consumer/consumer-types.ts`
+- Contract: `createModelHooks` now preserves custom create/update/upsert input types from the bound `ModelService`, and `useCreate().mutate(...)` is explicitly single-record-only for both TypeScript and runtime callers.
+- Implemented: `useCreate` rejects array input before calling the client service, so no accepted path can cast `ArrayModelResponse` into the hook's single-model `ProjectedModelResponse` state or callback surface.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/mutation-inputs.test.tsx`
+- Result: 1 file, 2 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, NodeNext and Bundler declaration consumers, and 15 Vitest files with 215 tests passed.
+- Verified: `pnpm test:packed-consumer`
+- Result: 2 files, 6 tests passed.
 
 ### Task ARR-H05: Isolate Callback Observers And Consolidate Mutation Ownership
 
@@ -654,12 +666,12 @@ Shared hotspots:
 
 ## Deferred Decisions Requiring Maintainer Input
 
-1. Bulk create contract: should `useCreate().mutate` support array input with an explicit array-aware result surface, or remain single-record-only and reject arrays? ARR-H04 cannot finalize public types until this is decided. Recommended default: keep the existing hook single-record-only and reject arrays; add a separate bulk API only when a concrete consumer requires it.
+1. Bulk create contract: resolved by ARR-H04 for the current public API. `useCreate().mutate` remains single-record-only and rejects array input; add a separate bulk hook/result surface only when a concrete consumer requires it.
 2. Runtime floor: should this package align with the workspace's Node `>=20`, raise its JS target to ES2022, or preserve ES2020/browser compatibility by avoiding the `Error` cause constructor overload? ARR-H06 and ARR-H07 require one explicit compatibility contract. Recommended default: match the client package's ES2022 target and workspace Node `>=20`, then verify browser bundling separately.
 3. Request-key budget: maximum depth/node/output limits are externally observable. ARR-H10 must present benchmark evidence and a proposed budget before enforcing one. Until decided, the unbounded render-work risk remains.
 4. Observer exceptions: should all callbacks be attempted independently when an earlier callback throws? Recommended default: yes, because the documented contract calls them observers; report each error asynchronously without skipping `onSettled`.
 
-Only decisions 1 and 2 block their respective public-contract implementations. Other tasks may proceed.
+Only decision 2 blocks its remaining public-contract implementations. Other tasks may proceed.
 
 ## Definition Of Done
 
