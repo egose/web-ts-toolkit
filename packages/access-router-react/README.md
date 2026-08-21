@@ -229,7 +229,7 @@ function FailureExample() {
 
 A dependency change, `query()`/`refetch()` invocation, or unmount aborts the in-flight request and replaces it. Cancellation is authoritative: an aborted request never writes `error`, never fires `onError` or `onSettled`, and converges `isLoading`/`isFetching`/`isPending` to false. The hooks decide cancellation on `signal.aborted` rather than `instanceof DOMException`, so axios `CanceledError`, `Error('Canceled')` with `code: 'ERR_CANCELED'`, or any other transport-specific cancellation shape is handled uniformly.
 
-For manual `query()` calls, pass `{ signal }` to compose a caller signal with the hook's internal controller. Aborting either source cancels the effective request.
+For manual `query()` calls, pass `{ signal }` to compose a caller signal with the hook's `requestConfig.signal` and internal controller. Aborting any source cancels the effective request.
 
 ```tsx
 const controller = new AbortController();
@@ -344,7 +344,7 @@ try {
 ## Notes
 
 - These hooks do not implement shared caching, deduplication, invalidation, retry, or background revalidation. They are thin stateful wrappers over `ModelService` from `@web-ts-toolkit/access-router-client`. If you need cache orchestration, use these services underneath a query library.
-- `requestConfig` is forwarded to the underlying client request via a fresh shallow copy on every request; the caller's `requestConfig` object, its `headers`, and other fields are not mutated. The hook's internal `requestConfig.signal` is composed with the caller-supplied `query()` `options.signal` and the hook-owned controller signal — aborting any source cancels the effective request.
+- `requestConfig` is forwarded to the underlying client request via a fresh shallow copy on every request; the caller's `requestConfig` object, its `headers`, and other fields are not mutated. `requestConfig.signal` is composed with the caller-supplied `query()` `options.signal` and the hook-owned controller signal, and that one effective signal is used for both transport cancellation and hook settlement classification. Replacing only `requestConfig.signal` does not trigger an automatic refetch.
 
 ## Documentation
 

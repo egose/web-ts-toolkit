@@ -4,75 +4,96 @@ export function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'AbortError';
 }
 
+type RequestConfigLike = { signal?: AbortSignal; [key: string]: unknown };
+
 /**
- * Compose caller `callerSignal` with the hook-owned `internalSignal` so
- * that aborting EITHER source aborts the resulting signal (Task ARR-05).
+ * Compose the hook-owned controller signal with any caller-provided query
+ * signals so aborting ANY source aborts the resulting signal (Task ARR-H01).
  *
- * - If `callerSignal` is missing, the hook-owned `internalSignal` is the
- *   effective signal (no extra controller or listeners are allocated).
- *   `release` is a no-op in this case.
- * - If `callerSignal` is already aborted, return it directly: the request
- *   must observe an already-aborted state synchronously. `release` is a
- *   no-op (no listeners were attached to a settled signal).
- * - Otherwise allocate a fresh `AbortController`, listen to BOTH source
- *   signals, abort the composed controller with the reason of whichever
- *   source aborts first, and release both listeners immediately afterward.
+ * - If a source is already aborted, return the first aborted source in
+ *   argument order so the request observes its aborted state synchronously.
+ * - If only one unique, non-aborted source exists, reuse it directly.
+ * - Otherwise allocate a fresh `AbortController`, listen to every unique
+ *   source signal, abort the composed controller with the reason of the
+ *   first source that aborts, and release all listeners immediately.
  *
  * The returned object owns a single composition controller for the lifetime
  * of one request invocation. Callers MUST invoke `release()` once after
- * the request settles to detach listeners from a long-lived caller signal
+ * the request settles to detach listeners from any long-lived source signal
  * — even when neither source aborted. The `release` is idempotent and
  * safe to call multiple times; a focused resource-cleanup test guards
  * that repeated requests do not accumulate `addEventListener` listeners
- * on a long-lived caller signal (ARR-05 acceptance criterion).
+ * on long-lived source signals (ARR-H01 acceptance criterion).
  *
  * The returned `AbortSignal` is what the hook forwards to the underlying
- * `ModelService` request. The service observes a single signal whose
- * `aborted` state is the union of the two cancellation sources; an
- * application-level caller abort and a hook-level cleanup/replace abort
- * are indistinguishable to the transport.
+ * `ModelService` request and what the hook uses as the authoritative
+ * cancellation source after resolve/reject.
  */
 export function composeAbortSignals(
-  callerSignal: AbortSignal | undefined,
   internalSignal: AbortSignal,
+  ...otherSignals: (AbortSignal | undefined)[]
 ): { signal: AbortSignal; release: () => void } {
-  if (!callerSignal) {
-    return { signal: internalSignal, release: () => {} };
+  const uniqueSignals: AbortSignal[] = [];
+
+  for (const signal of [internalSignal, ...otherSignals]) {
+    if (!signal || uniqueSignals.includes(signal)) {
+      continue;
+    }
+    if (signal.aborted) {
+      return { signal, release: () => {} };
+    }
+    uniqueSignals.push(signal);
   }
-  if (callerSignal.aborted) {
-    return { signal: callerSignal, release: () => {} };
-  }
-  if (internalSignal.aborted) {
-    return { signal: internalSignal, release: () => {} };
-  }
-  // If the two are the same signal there is nothing to compose: either
-  // source firing is the union already, so avoid the extra controller and
-  // listener allocation.
-  if (callerSignal === internalSignal) {
-    return { signal: internalSignal, release: () => {} };
+
+  if (uniqueSignals.length === 1) {
+    return { signal: uniqueSignals[0], release: () => {} };
   }
 
   const composed = new AbortController();
-  const detach = () => {
-    callerSignal.removeEventListener('abort', onCallerAbort);
-    internalSignal.removeEventListener('abort', onInternalAbort);
+  let released = false;
+  const listeners = new Map<AbortSignal, () => void>();
+
+  const release = () => {
+    if (released) {
+      return;
+    }
+    released = true;
+    for (const [signal, onAbort] of listeners) {
+      signal.removeEventListener('abort', onAbort);
+    }
+    listeners.clear();
   };
+
   const settle = (source: AbortSignal) => {
-    composed.abort(source.reason);
-    // Detach listeners from both sources immediately so the signals can
-    // be gc'd and no listener leaks across requests.
-    detach();
+    if (!composed.signal.aborted) {
+      composed.abort(source.reason);
+    }
+    release();
   };
-  const onCallerAbort = () => settle(callerSignal);
-  const onInternalAbort = () => settle(internalSignal);
-  callerSignal.addEventListener('abort', onCallerAbort, { once: true });
-  internalSignal.addEventListener('abort', onInternalAbort, { once: true });
+
+  for (const signal of uniqueSignals) {
+    const onAbort = () => settle(signal);
+    listeners.set(signal, onAbort);
+    signal.addEventListener('abort', onAbort, { once: true });
+  }
+
   return {
     signal: composed.signal,
-    // Idempotent: detach is safe to call even after the listeners already
-    // fired and detached on abort.
-    release: detach,
+    release,
   };
+}
+
+/**
+ * `requestConfig.signal` controls request lifetime but is not part of the
+ * structural request identity. Excluding it from the request key avoids an
+ * automatic refetch when only the signal instance changes.
+ */
+export function requestConfigKeyInput(requestConfig: RequestConfigLike | undefined): RequestConfigLike | undefined {
+  if (!requestConfig) {
+    return undefined;
+  }
+  const { signal: _signal, ...rest } = requestConfig;
+  return Object.keys(rest).length === 0 ? undefined : rest;
 }
 
 /**
@@ -90,9 +111,9 @@ export function composeAbortSignals(
  * config are overwritten by the composed signal intentionally.
  */
 export function mergeRequestConfig(
-  requestConfig: { signal?: AbortSignal; [key: string]: unknown } | undefined,
+  requestConfig: RequestConfigLike | undefined,
   signal: AbortSignal | undefined,
-): { signal?: AbortSignal; [key: string]: unknown } {
+): RequestConfigLike {
   // Only overwrite the caller-supplied `signal` field when a composed
   // signal is actually present (Task ARR-05). When `signal === undefined`
   // the caller did not provide one AND the hook could not build one (a

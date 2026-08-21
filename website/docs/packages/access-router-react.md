@@ -213,7 +213,7 @@ const result = await query('org_123', { signal: controller.signal });
 controller.abort(); // cancels the in-flight manual request
 ```
 
-The hook's internal `requestConfig.signal` is composed with the per-call `query()` `options.signal` and the hook-owned controller signal, then forwarded to the underlying client request via a fresh shallow copy of `requestConfig`. Aborting any source cancels the effective request; the caller's `requestConfig` object, its `headers`, and other fields are not mutated.
+The hook's `requestConfig.signal` is composed with the per-call `query()` `options.signal` and the hook-owned controller signal, then forwarded to the underlying client request via a fresh shallow copy of `requestConfig`. That one effective signal also drives hook-side cancellation classification after resolve/reject. Aborting any source cancels the effective request; the caller's `requestConfig` object, its `headers`, and other fields are not mutated.
 
 ### `previousData` lifecycle (`useList` only)
 
@@ -357,7 +357,7 @@ Use explicit mutation hooks when you want local pending and error state around a
 ## Notes
 
 - These hooks do **not** implement shared caching, deduplication, invalidation, retry, or background revalidation. They are thin stateful wrappers over `ModelService` from `@web-ts-toolkit/access-router-client`. If you need cache orchestration, use these services underneath a query library.
-- `requestConfig` is forwarded to the underlying client request via a fresh shallow copy on every request; the caller's `requestConfig` object, its `headers`, and other fields are not mutated. The hook's internal `requestConfig.signal` is composed with the caller-supplied `query()` `options.signal` and the hook-owned controller signal — aborting any source cancels the effective request. There is **no** way to bypass the hook's abort manager; an inline `requestConfig.signal` you pass to a query hook is treated as a structural key input (so changing it triggers a refetch) but is _not_ forwarded verbatim, because the hook composes its own controller from the same options.
+- `requestConfig` is forwarded to the underlying client request via a fresh shallow copy on every request; the caller's `requestConfig` object, its `headers`, and other fields are not mutated. `requestConfig.signal` is composed with the caller-supplied `query()` `options.signal` and the hook-owned controller signal, and that one effective signal is used for both transport cancellation and hook settlement classification. There is **no** way to bypass the hook's abort manager. Replacing only `requestConfig.signal` does not trigger an automatic refetch, but the latest signal is used for future query executions.
 
 ## Related Packages
 

@@ -44,6 +44,7 @@ import {
   useMountRef,
   composeAbortSignals,
   mergeRequestConfig,
+  requestConfigKeyInput,
 } from './fetch';
 
 // ── Internal helpers ──
@@ -124,6 +125,12 @@ function useEventCallback<A extends unknown[], R>(cb: ((...args: A) => R) | unde
   return invoker;
 }
 
+function useLatestRef<T>(value: T) {
+  const ref = useRef(value);
+  ref.current = value;
+  return ref;
+}
+
 interface AutoQueryConfig<R> {
   /**
    * Builds the request promise for a query invocation. The hook calls it
@@ -137,6 +144,7 @@ interface AutoQueryConfig<R> {
   applyResult: (res: R) => void;
   shouldFetch: boolean;
   deps: unknown[];
+  getRequestSignal?: () => AbortSignal | undefined;
   onSuccess?: (result: R) => void;
   onError?: (error: ServiceError) => void;
   onSettled?: (result: R | null, error: ServiceError | null) => void;
@@ -221,6 +229,7 @@ function useAutoQuery<R>({
   applyResult,
   shouldFetch,
   deps,
+  getRequestSignal,
   onSuccess,
   onError,
   onSettled,
@@ -254,6 +263,20 @@ function useAutoQuery<R>({
   // callbacks, so an out-of-order settlement cannot grandfather stale
   // data/error through to the hook surface.
   const ownerIdRef = useRef(0);
+
+  const createAbortScope = useCallback(
+    (callerSignal?: AbortSignal) => {
+      const controller = new AbortController();
+      manager.replace(controller);
+      const composed = composeAbortSignals(controller.signal, getRequestSignal?.(), callerSignal);
+      return {
+        controller,
+        effectiveSignal: composed.signal,
+        release: composed.release,
+      };
+    },
+    [manager, getRequestSignal],
+  );
 
   const fireCallbacksSafely = useCallback(
     (settle: { result: R } | { error: ServiceError }) => {
@@ -300,19 +323,22 @@ function useAutoQuery<R>({
    *      invocation is responsible for converging loading/fetching.
    */
   const runWithCallbacks = useCallback(
-    async (controller: AbortController, doFetchOverride: (signal?: AbortSignal) => Promise<R>): Promise<R> => {
-      const signal = controller.signal;
+    async (
+      abortScope: { controller: AbortController; effectiveSignal: AbortSignal; release: () => void },
+      doFetchOverride: (signal?: AbortSignal) => Promise<R>,
+    ): Promise<R> => {
+      const { effectiveSignal, release } = abortScope;
       const myId = ++ownerIdRef.current;
       setIsFetching(true);
       setError(null);
       if (!hasDataRef.current) setIsLoading(true);
       try {
-        const res = await doFetchOverride(signal);
+        const res = await doFetchOverride(effectiveSignal);
         if (myId !== ownerIdRef.current) {
           // A newer query owns state. Leave loading/fetching/error to it.
           return res;
         }
-        if (signal.aborted) {
+        if (effectiveSignal.aborted) {
           // Abort is authoritative for cancellation. If the hook is still
           // mounted, converge loading/fetching flags. No `error`, no
           // callbacks: cancellation is not a request error (ARR-04 req 3,
@@ -339,7 +365,7 @@ function useAutoQuery<R>({
           // Replaced: the newer invocation owns error/loading/fetching.
           throw err;
         }
-        if (signal.aborted) {
+        if (effectiveSignal.aborted) {
           // Abort is authoritative even when the transport throws a
           // non-DOM cancellation object (e.g. axios `CanceledError`,
           // `Error('Canceled')` with `code: 'ERR_CANCELED'`, or any other
@@ -367,6 +393,8 @@ function useAutoQuery<R>({
         // terminal path, mirroring the `applyResult` clear on success.
         onFailed?.();
         throw err;
+      } finally {
+        release();
       }
     },
     [applyResult, fireCallbacksSafely, mountRef, onFailed, onAborted],
@@ -391,14 +419,13 @@ function useAutoQuery<R>({
       return;
     }
     setIsLoading(!hasDataRef.current);
-    const controller = new AbortController();
-    manager.replace(controller);
+    const abortScope = createAbortScope();
 
     // `runWithCallbacks` handles `setError`, `setIsLoading`,
     // `setIsFetching`, and all callbacks internally; the trailing `.catch`
     // only suppresses the unhandled-promise-rejection warning so the
     // rejection does not bubble past the effect.
-    runWithCallbacks(controller, doFetch).catch(() => {
+    runWithCallbacks(abortScope, doFetch).catch(() => {
       /* handled inside runWithCallbacks; suppress unhandled rejection */
     });
 
@@ -408,7 +435,7 @@ function useAutoQuery<R>({
       // aborted branch (or be replaced by a newer invocation which owns
       // them). We do NOT mutate `mountRef.current` here; `useMountRef`'s
       // own `[]` cleanup is the sole owner of that flag.
-      controller.abort();
+      abortScope.controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
@@ -428,36 +455,20 @@ function useAutoQuery<R>({
    * `query()` without `await`; an awaiter's `await` still throws
    * because `await` observes the returned promise's settled state.
    *
-   * Caller cancellation (ARR-05 req 4): if `callerSignal` is supplied,
-   * it is composed with the hook's internal controller signal so
-   * aborting either source cancels the effective request. The internal
-   * controller is still created and `manager.replace`'d so subsequent
-   * dependency changes / `refetch()` / `query()` invocations replace the
-   * in-flight request the same way they would without a caller signal —
-   * manual query callers do not lose hook-owned cancellation by
-   * passing their own signal.
+   * Query cancellation is centralized here: every invocation composes the
+   * hook-owned controller, the current `requestConfig.signal`, and any
+   * per-call `QueryCallOptions.signal` into one effective signal.
    */
   const query = useCallback(
     (doFetchOverride: (signal?: AbortSignal) => Promise<R>, callerSignal?: AbortSignal): Promise<R> => {
-      const controller = new AbortController();
-      manager.replace(controller);
-      // Compose caller + hook signals (ARR-05 req 4). The composition
-      // helper returns a control object whose `release()` MUST be invoked
-      // once the request settles to detach listeners from a long-lived
-      // caller signal; the `.finally` below guarantees release on success,
-      // failure, and abort paths. When `callerSignal` is missing the
-      // composition is a no-op and `release()` is a safe no-op too.
-      const composed = callerSignal
-        ? composeAbortSignals(callerSignal, controller.signal)
-        : { signal: controller.signal, release: () => {} };
-      const effectiveSignal = composed.signal;
-      const p = runWithCallbacks(controller, () => doFetchOverride(effectiveSignal));
-      p.finally(() => composed.release()).catch(() => {
+      const abortScope = createAbortScope(callerSignal);
+      const p = runWithCallbacks(abortScope, doFetchOverride);
+      p.catch(() => {
         /* handled inside runWithCallbacks; suppress unhandled rejection */
       });
       return p;
     },
-    [runWithCallbacks, manager],
+    [createAbortScope, runWithCallbacks],
   );
 
   /**
@@ -469,14 +480,13 @@ function useAutoQuery<R>({
    * leaking an unhandled rejection.
    */
   const refetch = useCallback((): Promise<R> => {
-    const controller = new AbortController();
-    manager.replace(controller);
-    const p = runWithCallbacks(controller, doFetch);
+    const abortScope = createAbortScope();
+    const p = runWithCallbacks(abortScope, doFetch);
     p.catch(() => {
       /* handled inside runWithCallbacks; suppress unhandled rejection */
     });
     return p;
-  }, [runWithCallbacks, manager, doFetch]);
+  }, [createAbortScope, runWithCallbacks, doFetch]);
 
   const resetError = useCallback(() => {
     setError(null);
@@ -801,6 +811,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     type ResM = ProjectedModelResponse<T, TSelect>;
     type DataShape = ProjectedShape<T, TSelect>;
     const [data, setData] = useState<DataShape | null>(initialData as DataShape | null);
+    const requestConfigRef = useLatestRef(requestConfig);
 
     const applyResult = useCallback((res: ResM) => {
       setData(res.data as DataShape);
@@ -832,7 +843,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
         tasks,
         basicOptions,
         advancedOptions,
-        requestConfig,
+        requestConfig: requestConfigKeyInput(requestConfig),
       });
     } catch (e) {
       if (e instanceof RequestKeyError) {
@@ -858,7 +869,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
         // of `requestConfig` so the caller's config object, its headers,
         // and any other fields retain identity/content and are not
         // mutated.
-        const forwardedConfig = mergeRequestConfig(requestConfig, signal);
+        const forwardedConfig = mergeRequestConfig(requestConfigRef.current, signal);
         if (advanced) {
           const raw = (await modelService
             .readAdvanced(
@@ -911,6 +922,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     const onSuccessStable = useEventCallback<[ResM], void>(onSuccess);
     const onErrorStable = useEventCallback<[ServiceError], void>(onError);
     const onSettledStable = useEventCallback<[ResM | null, ServiceError | null], void>(onSettled);
+    const getRequestSignal = useCallback(() => requestConfigRef.current?.signal, [requestConfigRef]);
 
     const {
       isLoading,
@@ -925,6 +937,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       applyResult,
       shouldFetch,
       deps: [id, enabled, advanced, requestKey],
+      getRequestSignal,
       onSuccess: onSuccessStable,
       onError: onErrorStable,
       onSettled: onSettledStable,
@@ -983,6 +996,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     type ResL = ProjectedListModelResponse<T, TSelect>;
     type DataArray = ProjectedShapeArray<T, TSelect>;
     const [data, setData] = useState<DataArray>((initialData as DataArray | undefined) ?? []);
+    const requestConfigRef = useLatestRef(requestConfig);
     const [previousData, setPreviousData] = useState<DataArray | undefined>(undefined);
     const [totalCount, setTotalCount] = useState(0);
     const latestDataRef = useRef(data);
@@ -1059,7 +1073,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
         tasks,
         basicOptions,
         advancedOptions,
-        requestConfig,
+        requestConfig: requestConfigKeyInput(requestConfig),
       });
     } catch (e) {
       if (e instanceof RequestKeyError) {
@@ -1090,7 +1104,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
         // `baseFetch` forwards the signal via a fresh shallow copy so
         // the caller's `requestConfig`, headers, and other fields are
         // not mutated.
-        const forwardedConfig = mergeRequestConfig(requestConfig, signal);
+        const forwardedConfig = mergeRequestConfig(requestConfigRef.current, signal);
         if (advanced) {
           const raw = (await modelService
             .listAdvanced(
@@ -1146,6 +1160,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     const onSuccessStable = useEventCallback<[ResL], void>(onSuccess);
     const onErrorStable = useEventCallback<[ServiceError], void>(onError);
     const onSettledStable = useEventCallback<[ResL | null, ServiceError | null], void>(onSettled);
+    const getRequestSignal = useCallback(() => requestConfigRef.current?.signal, [requestConfigRef]);
 
     const {
       isLoading,
@@ -1160,6 +1175,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       applyResult,
       shouldFetch,
       deps: [listParamsKey, filterKey, advanced, enabled, sortKey, requestKey],
+      getRequestSignal,
       onSuccess: onSuccessStable,
       onError: onErrorStable,
       onSettled: onSettledStable,
@@ -1545,6 +1561,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
   function useCount(options: UseCountQueryOptions<T> = {}): UseCountQueryResult {
     const { advanced, filter, enabled = true, requestConfig, onSuccess, onError, onSettled } = options;
     const [data, setData] = useState<number | null>(null);
+    const requestConfigRef = useLatestRef(requestConfig);
 
     const applyResult = useCallback((res: Response<number>) => {
       setData(res.data as number);
@@ -1557,7 +1574,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     let requestKey: string;
     try {
       filterKey = requestKeyFor(filter);
-      requestKey = requestKeyFor(requestConfig);
+      requestKey = requestKeyFor(requestConfigKeyInput(requestConfig));
     } catch (e) {
       if (e instanceof RequestKeyError) {
         throw new Error(`useCount: ${e.message}`, { cause: e });
@@ -1571,7 +1588,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
         // ARR-05). Composition lives in `useAutoQuery`'s entry points;
         // `doFetch` forwards the signal via a fresh shallow copy so the
         // caller's `requestConfig` and headers retain identity/content.
-        const forwardedConfig = mergeRequestConfig(requestConfig, signal);
+        const forwardedConfig = mergeRequestConfig(requestConfigRef.current, signal);
         if (advanced) {
           // ARC-21: countAdvanced no longer accepts the obsolete `access`
           // second argument (the server's `countBodySchema` rejects it).
@@ -1597,6 +1614,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     const onSuccessStable = useEventCallback<[Response<number>], void>(onSuccess);
     const onErrorStable = useEventCallback<[ServiceError], void>(onError);
     const onSettledStable = useEventCallback<[Response<number> | null, ServiceError | null], void>(onSettled);
+    const getRequestSignal = useCallback(() => requestConfigRef.current?.signal, [requestConfigRef]);
 
     const {
       isLoading,
@@ -1611,6 +1629,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       applyResult,
       shouldFetch: enabled,
       deps: [enabled, advanced, filterKey, requestKey],
+      getRequestSignal,
       onSuccess: onSuccessStable,
       onError: onErrorStable,
       onSettled: onSettledStable,
@@ -1640,6 +1659,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
   function useDistinct(options: UseDistinctQueryOptions<T>): UseDistinctQueryResult {
     const { field, conditions, enabled = true, requestConfig, onSuccess, onError, onSettled } = options;
     const [data, setData] = useState<string[] | null>(null);
+    const requestConfigRef = useLatestRef(requestConfig);
 
     const applyResult = useCallback((res: Response<string[]>) => {
       setData(res.data as string[]);
@@ -1650,7 +1670,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     let requestKey: string;
     try {
       conditionsKey = requestKeyFor(conditions);
-      requestKey = requestKeyFor(requestConfig);
+      requestKey = requestKeyFor(requestConfigKeyInput(requestConfig));
     } catch (e) {
       if (e instanceof RequestKeyError) {
         throw new Error(`useDistinct: ${e.message}`, { cause: e });
@@ -1664,7 +1684,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
         // ARR-05). Composition lives in `useAutoQuery`'s entry points;
         // `doFetch` forwards the signal via a fresh shallow copy so the
         // caller's `requestConfig` and headers retain identity/content.
-        const forwardedConfig = mergeRequestConfig(requestConfig, signal);
+        const forwardedConfig = mergeRequestConfig(requestConfigRef.current, signal);
         if (conditions && Object.keys(conditions).length > 0) {
           const raw = (await modelService
             .distinctAdvanced(field, conditions as FilterQuery<T>, forwardedConfig)
@@ -1688,6 +1708,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     const onSuccessStable = useEventCallback<[Response<string[]>], void>(onSuccess);
     const onErrorStable = useEventCallback<[ServiceError], void>(onError);
     const onSettledStable = useEventCallback<[Response<string[]> | null, ServiceError | null], void>(onSettled);
+    const getRequestSignal = useCallback(() => requestConfigRef.current?.signal, [requestConfigRef]);
 
     const {
       isLoading,
@@ -1702,6 +1723,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       applyResult,
       shouldFetch: enabled,
       deps: [enabled, field, conditionsKey, requestKey],
+      getRequestSignal,
       onSuccess: onSuccessStable,
       onError: onErrorStable,
       onSettled: onSettledStable,
