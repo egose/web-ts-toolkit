@@ -423,7 +423,7 @@ Completion evidence:
 
 ### Task ARR-H07: Align Runtime Target, Engines, And React Compatibility Lanes
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -468,6 +468,17 @@ Acceptance criteria:
 - A deliberately wrong React DOM major or incomplete install is detected before Vitest runs.
 - Two concurrent React-matrix setup jobs use distinct directories and clean them afterward.
 - The React 18 lane's test inventory difference is removed or explicitly justified and enforced.
+
+Completion evidence:
+
+- Changed: `packages/access-router-react/package.json`, `packages/access-router-react/vitest.config.ts`, `packages/access-router-react/vitest.runtime.config.ts`, `packages/access-router-react/vitest.runtime-shared.ts`, `packages/access-router-react/vitest.react18.config.ts`, `packages/access-router-react/test/react18-lane.ts`, `packages/access-router-react/test/run-react18-lane.ts`, `packages/access-router-react/test/react18-lane.test.ts`, `packages/access-router-react/test/access-router-react.packed-consumer.test.ts`, `packages/access-router-react/README.md`, `website/docs/packages/access-router-react.md`
+- Contract: `@web-ts-toolkit/access-router-react` now states one ES2022 / Node `>=20` compatibility floor across package metadata, packed-consumer assertions, installed README, and website docs while preserving the `react ^18 || ^19` peer contract.
+- Implemented: the default package `test` gate now requires both runtime lanes sequentially via `test:react19` and `test:react18`, with the React 18 lane sharing the same runtime test inventory as React 19 and non-runtime packed/docs/export checks running separately under `test:nonruntime`.
+- Implemented: `test:react18` now provisions a fresh `mkdtemp` dependency workspace on every run, installs exact `react@18.3.1`, `react-dom@18.3.1`, and `@testing-library/react@16.3.2` versions, validates the installed tree before Vitest starts, supports a caller-provided temp parent via `ACCESS_ROUTER_REACT18_TMPDIR`, and removes the isolated tree in `finally`.
+- Verified: `pnpm exec vitest run --config vitest.runtime.config.ts test/react18-lane.test.ts`
+- Result: 1 file, 3 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build and all four typecheck categories passed; the React 19 runtime lane ran 14 files / 203 tests, the isolated React 18 runtime lane ran the same 14 files / 203 tests, and the non-runtime packed/docs/export lane ran 3 files / 18 tests.
 
 ### Task ARR-H08: Execute Hook Behavior From The Packed Artifact
 

@@ -1,5 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
+import { fixtureOnlyExcludes } from './vitest.runtime-shared';
+
 export default defineConfig({
   test: {
     environment: 'jsdom',
@@ -32,12 +34,6 @@ export default defineConfig({
     //    `.tsx` inside `examples/` are compiled via `tsc --noEmit` against
     //    the installed consumer declarations, not via vitest runtime; the
     //    inventory file (`snippets-mapping.md`) is parse-only.
-    exclude: [
-      '**/node_modules/**',
-      '**/dist/**',
-      'test-decl-consumer/**',
-      'test-packed-consumer/**',
-      'test-docs-consumer/**',
-    ],
+    exclude: fixtureOnlyExcludes,
   },
 });

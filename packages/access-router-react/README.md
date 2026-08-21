@@ -15,6 +15,8 @@ Peer dependencies:
 - `react ^18 || ^19` — verified by a React 18 lane in this package's own test suite (React 19 remains the primary lane)
 - `@web-ts-toolkit/access-router-client`
 
+Published builds target `ES2022`. Direct Node consumers should use Node `>=20`; browser apps can bundle the package as long as their toolchain supports ES2022 output.
+
 ## Factory
 
 ```ts
