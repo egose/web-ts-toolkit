@@ -645,7 +645,7 @@ Completion evidence:
 
 ### Task ARC-H10: Independently Verify Security, Protocol, Types, And Artifact
 
-Status: pending
+Status: completed
 
 Priority: P1 release gate
 
@@ -681,6 +681,27 @@ Acceptance criteria:
 - `pnpm exec browserslist` resolves the package configuration without error.
 - `git diff --check` passes.
 - No task is marked completed without changed-file evidence, failing-regression evidence for confirmed defects, and command results.
+
+Completion evidence:
+
+- Changed: `docs/tasks/20260821-090419-access-router-client-health-follow-up.md`, `packages/access-router-client/src/services/sub-ops.ts`, `packages/access-router-client/test-typecheck/model-reserved-fields.ts`.
+- Independent review evidence: a separate review agent inspected ARC-H01 through ARC-H09 coverage, changed package surfaces, sibling protocol references, docs, and packed-artifact tests. It reported no blocking findings. It identified current coverage for credential classification, cache invalidation/generation, root protocol parity, public export/type inventory, packed CJS/ESM and strict consumer checks, Browserslist, jsdom/Vite browser-smoke claim wording, and the ARC-H09 maintainer decision/residual-risk statement.
+- Regression evidence: ARC-H01 through ARC-H09 already contain changed-file, regression, implementation, documentation, and verification evidence in this task file. During ARC-H10, the first repository lint gate exposed six release-gate failures from ARC-H09 type/lint work: an unused generic on `SubOpsContext<S>` and unused type-test assertion variables in `model-reserved-fields.ts`. The minimal fix removes the unused generic and consumes assertion variables without changing runtime behavior. `CHANGELOG.md` was not updated.
+- Artifact evidence: `npm pack --dry-run --json` from `packages/access-router-client` passed and listed 7 packed files: `package.json`, `README.md`, `llms.txt`, `dist/index.js`, `dist/index.mjs`, `dist/index.d.ts`, and `dist/index.d.mts`.
+- Browser metadata evidence: `pnpm exec browserslist` from `packages/access-router-client` resolved without error and included the documented floor entries `chrome 94`, `edge 94`, `firefox 93`, and `safari 16.0`.
+- Browser/runtime claim evidence: the package test flow ran the documented jsdom/Vite browser-smoke suite; ARC-H08 documentation narrows this to browser-like bundle smoke coverage rather than claiming real browser-engine CI.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck`.
+- Result: passed; package build, strict source, dedicated type-test fixture, strict NodeNext declaration consumer, and strict Bundler declaration consumer all exited 0.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: passed; package build/typecheck passed; 19 Node test files and 335 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `pnpm lint`.
+- Result: initially failed with 6 access-router-client lint errors listed above; after the minimal fixes, passed.
+- Verified: `pnpm build`.
+- Result: passed at repository level. Existing Vite config/chunk-size warnings were emitted but did not fail the build.
+- Verified: `pnpm test`.
+- Result: passed serially at repository level. Output included existing Vite native-loader warnings; access-router-client package tests passed within the repo run with 19 Node test files/335 tests and 1 browser-smoke file/10 tests.
+- Verified: `git diff --check`.
+- Result: passed.
 
 ## Dependency And Parallelization Guidance
 
