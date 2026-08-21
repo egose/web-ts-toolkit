@@ -298,7 +298,7 @@ Completion evidence:
 
 ### Task ARR-H05: Isolate Callback Observers And Consolidate Mutation Ownership
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -342,6 +342,16 @@ Acceptance criteria:
 - No callback fires after unmount.
 - Create/update/upsert/delete use the same mutation observer boundary without repeated wrapper try/catch implementations.
 - Concurrent mutation, resolved-failure, cancellation, and package tests pass.
+
+Completion evidence:
+
+- Changed: `packages/access-router-react/src/create-model-hook.ts`, `packages/access-router-react/test/callback-observers.test.tsx`
+- Implemented: query and mutation observers now run through one isolated ordered dispatcher, so each observer is attempted once even if an earlier callback throws, and callback failures are still reported asynchronously without reclassifying the request result.
+- Implemented: mutation `onError` now lives inside the shared `useMutation` lifecycle, letting create/update/upsert/delete share one mount-gated observer boundary while keeping `useCreate`'s single-record array guard local to that hook.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/callback-observers.test.tsx`
+- Result: 1 file, 3 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, strict NodeNext and Bundler declaration checks, and 16 Vitest files with 218 tests passed.
 
 ## Wave 3: Verification And Compatibility Gates
 

@@ -171,6 +171,22 @@ function useLatestRef<T>(value: T) {
   return ref;
 }
 
+function reportObserverError(error: unknown) {
+  queueMicrotask(() => {
+    throw error;
+  });
+}
+
+function runObserverSequence(invocations: Array<() => void>) {
+  for (const invoke of invocations) {
+    try {
+      invoke();
+    } catch (error) {
+      reportObserverError(error);
+    }
+  }
+}
+
 interface AutoQueryConfig<R> {
   /**
    * Builds the request promise for a query invocation. The hook calls it
@@ -256,13 +272,13 @@ interface AutoQueryConfig<R> {
  *   never reaches `error` or `onError` because the catch path branches on
  *   `signal.aborted`, not on `instanceof DOMException`.
  *
- * Callback observers (ARR-03 requirement 5 + deferred decision 1):
- *   `onSuccess`/`onError`/`onSettled` are invoked inside a try/catch. A
- *   thrown callback is rethrown asynchronously via `queueMicrotask` so it
- *   surfaces as an uncaught microtask error without converting a successful
- *   request into a request failure or mutating hook-level `error`. The
- *   promise returned by `query()`/`refetch()` resolves/rejects based on
- *   the request, not on whether a callback threw.
+ * Callback observers (ARR-H05):
+ *   `onSuccess`/`onError`/`onSettled` are isolated observers attempted in
+ *   deterministic order. A thrown callback is rethrown asynchronously via
+ *   `queueMicrotask` so it surfaces as an uncaught microtask error without
+ *   converting a successful request into a request failure or mutating
+ *   hook-level `error`. The promise returned by `query()`/`refetch()`
+ *   resolves/rejects based on the request, not on whether a callback threw.
  */
 function useAutoQuery<R>({
   doFetch,
@@ -320,24 +336,11 @@ function useAutoQuery<R>({
 
   const fireCallbacksSafely = useCallback(
     (settle: { result: R } | { error: ServiceError }) => {
-      try {
-        if ('result' in settle) {
-          onSuccess?.(settle.result);
-          onSettled?.(settle.result, null);
-        } else {
-          onError?.(settle.error);
-          onSettled?.(null, settle.error);
-        }
-      } catch (cbErr) {
-        // Callbacks are observers. A thrown callback does not convert a
-        // successful request into a request failure or mutate hook-level
-        // `error`. Re-throw asynchronously so the exception still surfaces
-        // (it becomes an uncaught microtask error) without affecting the
-        // returned promise settlement.
-        queueMicrotask(() => {
-          throw cbErr;
-        });
+      if ('result' in settle) {
+        runObserverSequence([() => onSuccess?.(settle.result), () => onSettled?.(settle.result, null)]);
+        return;
       }
+      runObserverSequence([() => onError?.(settle.error), () => onSettled?.(null, settle.error)]);
     },
     [onSuccess, onError, onSettled],
   );
@@ -656,13 +659,17 @@ function useAutoQuery<R>({
 function useMutation<A extends unknown[], R, D>(
   execute: (...args: A) => Promise<R>,
   applyData: (result: R) => D,
-  options?: { onSuccess?: (result: R) => void; onSettled?: (result: R | null, error: ServiceError | null) => void },
+  options?: {
+    onSuccess?: (result: R) => void;
+    onError?: (error: ServiceError) => void;
+    onSettled?: (result: R | null, error: ServiceError | null) => void;
+  },
 ) {
   const [data, setData] = useState<D | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<ServiceError | null>(null);
   const mountRef = useMountRef();
-  const { onSuccess, onSettled } = options ?? {};
+  const { onSuccess, onError, onSettled } = options ?? {};
   // `activeCountRef` tracks how many invocations of `executeMutate` are
   // in flight at once. `setIsPending(false)` only fires when the count
   // transitions back to zero, so overlapping mutations keep `isPending`
@@ -700,20 +707,10 @@ function useMutation<A extends unknown[], R, D>(
         const result = await execute(...args);
         if (mountRef.current) {
           // Per-invocation observers always fire, regardless of
-          // latest-invocation claim (Task ARR-07 req 3). A thrown
-          // callback is rethrown asynchronously so it surfaces
-          // without converting a successful request into a request
-          // failure or mutating hook-level `error` — the same
-          // observer-isolation contract `useAutoQuery.fireCallbacksSafely`
-          // applies (deferred decision 1).
-          try {
-            onSuccess?.(result);
-            onSettled?.(result, null);
-          } catch (cbErr) {
-            queueMicrotask(() => {
-              throw cbErr;
-            });
-          }
+          // latest-invocation claim (Task ARR-07 req 3). Observer
+          // failures are reported asynchronously without changing the
+          // request result or skipping later observers.
+          runObserverSequence([() => onSuccess?.(result), () => onSettled?.(result, null)]);
           // Latest-invocation-wins for the state write (Task ARR-07
           // req 2). `myId === latestIdRef.current` is the gate: a
           // stale invocation that settled after a newer one started
@@ -729,21 +726,10 @@ function useMutation<A extends unknown[], R, D>(
       } catch (err) {
         const svcErr = err as ServiceError;
         if (mountRef.current) {
-          // Per-invocation observer (Task ARR-07 req 3). `onError`
-          // is NOT in `useMutation`'s options on purpose: the
-          // wrapper at the hook factory (`useCreate.mutate`,
-          // `useUpdate.mutate`, ...) owns `onError` so it fires
-          // exactly once even when `executeMutate` rethrows for the
-          // consumer `await` (ARR-02's contract). `onSettled` lives
-          // here as the invocation-specific observer alongside
-          // `onSuccess`.
-          try {
-            onSettled?.(null, svcErr);
-          } catch (cbErr) {
-            queueMicrotask(() => {
-              throw cbErr;
-            });
-          }
+          // Per-invocation observers fire from the shared mutation
+          // lifecycle too, so create/update/upsert/delete share the same
+          // ordering, mount gate, and isolation boundary.
+          runObserverSequence([() => onError?.(svcErr), () => onSettled?.(null, svcErr)]);
           if (myId === latestIdRef.current) {
             setError(svcErr);
           }
@@ -762,7 +748,7 @@ function useMutation<A extends unknown[], R, D>(
         }
       }
     },
-    [execute, applyData, mountRef, onSuccess, onSettled],
+    [execute, applyData, mountRef, onSuccess, onError, onSettled],
   );
 
   /**
@@ -1295,7 +1281,6 @@ export function createModelHooks<
       onError,
       onSettled,
     } = options;
-    const mountRef = useMountRef();
     // ARR-09: same projection threading rationale as `useRead`. `ResM`
     // is the projected `ModelResponse<T, S>` (or full `ModelResponse<T>`
     // when no literal `select` was supplied); `DataShape` is the
@@ -1329,7 +1314,7 @@ export function createModelHooks<
       // documented pattern for `createModelHooks`. The same pattern
       // is used in `useRead.useList.useCount.useDistinct` query hooks.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig, mountRef],
+      [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig],
     );
 
     // ARR-07: `data` is owned by `useMutation` so the
@@ -1354,7 +1339,7 @@ export function createModelHooks<
     } = useMutation<[CreateInput], ResM, DataShape>(
       execute as (...args: [CreateInput]) => Promise<ResM>,
       (res: ResM) => res.data as DataShape,
-      { onSuccess, onSettled },
+      { onSuccess, onError, onSettled },
     );
 
     const mutate = useCallback(
@@ -1364,27 +1349,12 @@ export function createModelHooks<
             'useCreate.mutate is single-record-only. Array input is not supported by the hook; call modelService.create(...) directly for bulk create.',
           );
         }
-        try {
-          return await executeMutate(createData);
-        } catch (err) {
-          // `onError` is the only mutation callback not owned by
-          // `useMutation.executeMutate`'s mountRef gate (ARR-02 placed it
-          // here so it fires exactly once even when `executeMutate` rethrows
-          // for the consumer `await`). ARR-04 req 4: after unmount the
-          // mutation must not call any callback, so gate the wrapper's
-          // `onError` on `mountRef.current` too.
-          if (mountRef.current) onError?.(err as ServiceError);
-          throw err;
-        }
+        return executeMutate(createData);
       },
-      [executeMutate, onError, mountRef],
+      [executeMutate],
     );
 
-    const reset = useCallback(() => {
-      resetMutation();
-    }, [resetMutation]);
-
-    return { data, isPending, error, mutate, reset };
+    return { data, isPending, error, mutate, reset: resetMutation };
   }
 
   function useUpdate<TSelect extends Projection = Projection>(
@@ -1402,7 +1372,6 @@ export function createModelHooks<
       onError,
       onSettled,
     } = options;
-    const mountRef = useMountRef();
     // ARR-09: see `useCreate`.
     type UpdateInput = TUpdateInput;
     type ResM = ProjectedModelResponse<T, TSelect>;
@@ -1436,7 +1405,7 @@ export function createModelHooks<
       // documented pattern for `createModelHooks`. The same pattern
       // is used in `useRead.useList.useCount.useDistinct` query hooks.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig, mountRef],
+      [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig],
     );
 
     // ARR-07: see `useCreate` — `data` is owned by `useMutation` so
@@ -1452,28 +1421,10 @@ export function createModelHooks<
     } = useMutation<[string, UpdateInput], ResM, DataShape>(
       execute as (...args: [string, UpdateInput]) => Promise<ResM>,
       (res: ResM) => res.data as DataShape,
-      { onSuccess, onSettled },
+      { onSuccess, onError, onSettled },
     );
 
-    const mutate = useCallback(
-      async (updateId: string, updateData: UpdateInput): Promise<ResM> => {
-        try {
-          return await executeMutate(updateId, updateData);
-        } catch (err) {
-          // See useCreate.mutate: ARR-04 req 4 gates the wrapper's
-          // `onError` on `mountRef.current`.
-          if (mountRef.current) onError?.(err as ServiceError);
-          throw err;
-        }
-      },
-      [executeMutate, onError, mountRef],
-    );
-
-    const reset = useCallback(() => {
-      resetMutation();
-    }, [resetMutation]);
-
-    return { data, isPending, error, mutate, reset };
+    return { data, isPending, error, mutate: executeMutate, reset: resetMutation };
   }
 
   function useUpsert<TSelect extends Projection = Projection>(
@@ -1491,7 +1442,6 @@ export function createModelHooks<
       onError,
       onSettled,
     } = options;
-    const mountRef = useMountRef();
     // ARR-09: see `useCreate`.
     type UpsertInput = TUpsertInput;
     type ResM = ProjectedModelResponse<T, TSelect>;
@@ -1522,7 +1472,7 @@ export function createModelHooks<
       // documented pattern for `createModelHooks`. The same pattern
       // is used in `useRead.useList.useCount.useDistinct` query hooks.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig, mountRef],
+      [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig],
     );
 
     // ARR-07: see `useCreate` — `data` is owned by `useMutation` so
@@ -1538,39 +1488,14 @@ export function createModelHooks<
     } = useMutation<[UpsertInput], ResM, DataShape>(
       execute as (...args: [UpsertInput]) => Promise<ResM>,
       (res: ResM) => res.data as DataShape,
-      { onSuccess, onSettled },
+      { onSuccess, onError, onSettled },
     );
 
-    const mutate = useCallback(
-      async (upsertData: UpsertInput): Promise<ResM> => {
-        try {
-          return await executeMutate(upsertData);
-        } catch (err) {
-          // See useCreate.mutate: ARR-04 req 4 gates the wrapper's
-          // `onError` on `mountRef.current`.
-          if (mountRef.current) onError?.(err as ServiceError);
-          throw err;
-        }
-      },
-      [executeMutate, onError, mountRef],
-    );
-
-    const reset = useCallback(() => {
-      resetMutation();
-    }, [resetMutation]);
-
-    return { data, isPending, error, mutate, reset };
+    return { data, isPending, error, mutate: executeMutate, reset: resetMutation };
   }
 
   function useDelete(options: UseDeleteMutateOptions = {}): UseDeleteMutateResult {
     const { requestConfig, onSuccess, onError, onSettled } = options;
-    // `useDelete` has no hook-level `data` state (delete returns a string
-    // the consumer can read off the resolved mutation), but it still
-    // needs `mountRef` to gate the `mutate` wrapper's `onError` after
-    // unmount (ARR-04 req 4) so the public `onError` callback is not
-    // invoked for a mutation that settles post-unmount.
-    const mountRef = useMountRef();
-
     const execute = useCallback(
       async (deleteId: string): Promise<Response<string>> => {
         const res = (await modelService.delete(deleteId, requestConfig).exec()) as unknown as Response<string>;
@@ -1597,28 +1522,10 @@ export function createModelHooks<
     } = useMutation<[string], Response<string>, null>(
       execute as (...args: [string]) => Promise<Response<string>>,
       () => null,
-      { onSuccess, onSettled },
+      { onSuccess, onError, onSettled },
     );
 
-    const mutate = useCallback(
-      async (deleteId: string): Promise<Response<string>> => {
-        try {
-          return await executeMutate(deleteId);
-        } catch (err) {
-          // See useCreate.mutate: ARR-04 req 4 gates the wrapper's
-          // `onError` on `mountRef.current`.
-          if (mountRef.current) onError?.(err as ServiceError);
-          throw err;
-        }
-      },
-      [executeMutate, onError, mountRef],
-    );
-
-    const reset = useCallback(() => {
-      resetMutation();
-    }, [resetMutation]);
-
-    return { isPending, error, mutate, reset };
+    return { isPending, error, mutate: executeMutate, reset: resetMutation };
   }
 
   // ── Count ──
