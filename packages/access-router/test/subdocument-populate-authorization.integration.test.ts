@@ -58,7 +58,7 @@ const createSubdocumentPopulateApp = async ({
   });
 
   if (registerReviewerRouter) {
-    runtime.createRouter(reviewerModelName, {
+    runtime.createRouter(Reviewer, {
       basePath: '/reviewers',
       operationAccess: { read: reviewerReadAllowed },
       baseFilter: {
@@ -72,7 +72,7 @@ const createSubdocumentPopulateApp = async ({
     });
   }
 
-  const postRouter = runtime.createRouter(postModelName, {
+  const postRouter = runtime.createRouter(Post, {
     basePath: '/posts',
     operationAccess: {
       read: true,

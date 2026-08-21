@@ -12,7 +12,7 @@ const createApp = (options: Record<string, unknown> = {}, openApiRouter = true) 
   const acl = createAccessRuntime();
   const modelName = `OpenApiUser${++modelCounter}`;
 
-  mongoose.model(
+  const User = mongoose.model(
     modelName,
     new mongoose.Schema({
       name: String,
@@ -20,7 +20,7 @@ const createApp = (options: Record<string, unknown> = {}, openApiRouter = true) 
     }),
   );
 
-  const router = acl.createRouter(modelName, {
+  const router = acl.createRouter(User, {
     basePath: '/users',
     operationAccess: false,
     permissionSchema: {

@@ -48,7 +48,7 @@ const buildDistinctRuntimeApp = (globalPermissionsFactory: (req: express.Request
     globalPermissions: globalPermissionsFactory,
   });
 
-  const modelRouter = runtime.createRouter(modelName, {
+  const modelRouter = runtime.createRouter(User, {
     basePath: '/arf12-distinct-users',
     operationAccess: {
       list: true,

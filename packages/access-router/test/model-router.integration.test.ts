@@ -908,7 +908,7 @@ describe('model router integration', () => {
     const orgModelName = `AclMongoOrg${++modelCounter}`;
     const userModelName = `AclMongoPopulateUser${++modelCounter}`;
     mongoose.model(orgModelName, new mongoose.Schema({ name: String }));
-    mongoose.model(
+    const User = mongoose.model(
       userModelName,
       new mongoose.Schema({
         name: String,
@@ -918,7 +918,7 @@ describe('model router integration', () => {
 
     const runtime = createAccessRuntime();
     runtime.setDefaultModelOptions({ operationAccess: { read: true } });
-    const userRouter = runtime.createRouter(userModelName, {
+    const userRouter = runtime.createRouter(User, {
       basePath: '/optional-populate-users',
       operationAccess: { read: true },
       permissionSchema: {

@@ -219,8 +219,8 @@ describe('AR-20 OpenAPI collision and edge-case behavior', () => {
     const makeModelRouter = (api: ReturnType<typeof createAccessRuntime>, name: string, basePath: string) => {
       const Schema = new mongoose.Schema({ name: String });
       Schema.plugin(permissionsPlugin, { modelName: name });
-      mongoose.model(name, Schema);
-      return api.createRouter(name, {
+      const Model = mongoose.model(name, Schema);
+      return api.createRouter(Model, {
         basePath,
         operationAccess: false,
         permissionSchema: { name: true },
