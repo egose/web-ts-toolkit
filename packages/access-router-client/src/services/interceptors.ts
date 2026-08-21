@@ -15,6 +15,15 @@ const SENSITIVE_CACHE_HEADERS = new Set([
   'www-authenticate',
 ]);
 
+const AUTHENTICATION_REQUEST_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'proxy-authorization',
+  'x-api-key',
+  'x-auth-token',
+  'x-access-token',
+]);
+
 /**
  * Adapter-scoped cache control surface returned by `useCacheInterceptors`.
  * The adapter delegates `clearCache()` to {@link clear} on credential
@@ -272,6 +281,20 @@ const serializeHeaders = (headers: InternalAxiosRequestConfig['headers']) => {
   return JSON.stringify(normalizeConfigValue(normalizedHeaders));
 };
 
+const hasHeaderValue = (value: unknown): boolean => {
+  if (Array.isArray(value)) return value.some(hasHeaderValue);
+  if (value == null || value === false) return false;
+  if (typeof value === 'string') return value.trim().length > 0;
+  return true;
+};
+
+const hasAuthenticationHeader = (headers: InternalAxiosRequestConfig['headers']): boolean => {
+  const resolvedHeaders = headers instanceof AxiosHeaders ? headers.toJSON() : headers;
+  return Object.entries(resolvedHeaders ?? {}).some(
+    ([key, value]) => AUTHENTICATION_REQUEST_HEADERS.has(key.toLowerCase()) && hasHeaderValue(value),
+  );
+};
+
 const hasStableCacheValue = (value: unknown, seen = new Set<object>()): boolean => {
   if (value == null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
     return true;
@@ -362,6 +385,9 @@ const resolveWithCredentials = (config: InternalAxiosRequestConfig, withCredenti
   return withCredentialsDefault;
 };
 
+const hasUsablePartition = (partition: string | undefined): partition is string =>
+  typeof partition === 'string' && partition.trim().length > 0;
+
 export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: CachePolicy | number): CacheController {
   const policy: CachePolicy = typeof policyOrTtl === 'number' ? { ttl: policyOrTtl } : policyOrTtl;
   const store = new SimpleCache<CachedResponseSnapshot>({ capacity: policy.capacity, clone: policy.clone });
@@ -408,10 +434,11 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
     async (config) => {
       if (disposed || config.headers[CACHE_HEADER] === 'false' || !isCacheEligible(config, instance)) return config;
 
-      const isCredentialed = resolveWithCredentials(config, withCredentialsDefault);
+      const isCredentialed =
+        resolveWithCredentials(config, withCredentialsDefault) || hasAuthenticationHeader(config.headers);
       const partitionKey = policy.partitionForRequest?.(config);
 
-      if (isCredentialed && !partitionKey) {
+      if (isCredentialed && !hasUsablePartition(partitionKey)) {
         return config;
       }
 
