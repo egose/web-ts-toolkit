@@ -944,10 +944,9 @@ export class ModelService<T extends Document> extends Service {
           )
           .then(this.handleSuccess)
           .then((result: ModelResponse<T, TData>) => {
-            // ARC-21: update resolves to an existing doc; mark
-            // `_fromExisting=true` so a later save() on the returned wrapper
-            // cannot become a duplicate create.
-            result.data = result.success ? Model.create<T, TData>(result.raw, this, undefined, true) : null;
+            // Preserve the route id as a fallback persistence identity when
+            // the update projection omits `_id`.
+            result.data = result.success ? Model.create<T, TData>(result.raw, this, identifier, true) : null;
             return result;
           })
           .catch(this.handleError<ModelResponse<T, TData>>)
@@ -1006,11 +1005,10 @@ export class ModelService<T extends Document> extends Service {
           )
           .then(this.handleSuccess)
           .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
-            // ARC-21: updateAdvanced resolves to an existing doc; mark
-            // `_fromExisting=true` so a later save() on the returned wrapper
-            // cannot become a duplicate create if `_id` is dropped.
+            // Preserve the route id as a fallback persistence identity when
+            // the advanced update projection omits `_id`.
             result.data = result.success
-              ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this, undefined, true)
+              ? Model.create<T, ResolvedSelectedShape<T, TSelect, TData>>(result.raw, this, identifier, true)
               : null;
             return result;
           })

@@ -139,7 +139,8 @@ export function finalizeRootEntry(
         // response; marking them `_fromExisting=true` prevents a grouped
         // subquery-derived wrapper from silently creating a duplicate.
         const fromExisting = op !== 'new';
-        const persistenceId = op === 'read' && query.target === 'model' && 'id' in query ? query.id : undefined;
+        const persistenceId =
+          (op === 'read' || op === 'update') && query.target === 'model' && 'id' in query ? query.id : undefined;
         _data = Model.create(_data, modelService, persistenceId, fromExisting);
       }
     }
