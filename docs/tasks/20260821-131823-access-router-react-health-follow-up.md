@@ -601,7 +601,7 @@ Completion evidence:
 
 ### Task ARR-H10: Bound And Measure Structural Request-Key Work
 
-Status: pending
+Status: completed
 
 Priority: P2 hardening; implementation details may remain P3 until measured
 
@@ -649,6 +649,21 @@ Acceptance criteria:
 - Normal small inputs retain deterministic ordering, Date handling, cycle/accessor rejection, and collision tests.
 - No global strong-reference cache retains request objects.
 - Focused tests and the package test pass.
+
+Completion evidence:
+
+- Changed: `packages/access-router-react/src/fetch.ts`, `packages/access-router-react/test/dependency-policy.test.tsx`, `packages/access-router-react/README.md`, `website/docs/packages/access-router-react.md`, `packages/access-router-react/test-docs-consumer/examples/query-hooks.tsx`, `packages/access-router-react/test-docs-consumer/examples/mutations.tsx`, `packages/access-router-react/test-docs-consumer/examples/concurrent-mutations.tsx`, `packages/access-router-react/test-docs-consumer/examples/active-record.tsx`, `packages/access-router-react/test-docs-consumer/examples/cancellation.tsx`, `packages/access-router-react/test-docs-consumer/examples/projection.tsx`, `packages/access-router-react/test-docs-consumer/examples/website-extras.tsx`
+- Implemented: `requestKeyFor` now enforces deterministic bounds of 64 nested array/object levels, 20,000 first-visit nodes, and 200,000 serialized-key characters; oversized inputs fail closed with actionable `RequestKeyError` messages instead of overflowing the stack, building partial keys, or silently colliding.
+- Implemented: repeated object/array references are memoized only within a single `requestKeyFor(...)` call via a per-call `WeakMap`, reducing repeated-reference traversal work without adding any global strong-reference cache or making later renders ignore caller-object mutation.
+- Implemented: docs now state the supported request-key budget and stability assumptions, and the scaffolded docs fixtures were re-aligned verbatim so the package docs compile gate continues to enforce exact README/website snippets after the request-key documentation change.
+- Benchmarked: `node --input-type=module -e '...'` from `packages/access-router-react` against the pre-change serializer logic and the built `dist/index.mjs` implementation, using 2 warmup runs plus 5 measured runs per case under Node 20-compatible runtime semantics. Output proxy was serialized key length on success, else the thrown error category/message.
+- Benchmark results: `flat-1k` before `0.266ms / 12,781 chars`, after `0.753ms / 12,781 chars`; `flat-10k` before `3.400ms / 147,781 chars`, after `3.126ms / 147,781 chars`; `nested-1k` before `0.312ms / 2,003 chars`, after `0.089ms / RequestKeyError(max depth 64)`; `nested-10k` before `0.995ms / RangeError(Maximum call stack size exceeded)`, after `0.087ms / RequestKeyError(max depth 64)`; `repeated-1k` before `2.174ms / 92,013 chars`, after `0.114ms / 92,013 chars`; `repeated-10k` before `27.848ms / 920,013 chars`, after `0.089ms / RequestKeyError(max serialized key length 200,000)`.
+- Verified: `pnpm exec vitest run --config vitest.runtime.config.ts test/dependency-policy.test.tsx`
+- Result: 1 file, 50 tests passed.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/access-router-react.docs.compile.test.ts`
+- Result: 1 file, 2 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, all four typecheck categories, React 19 runtime lane, isolated React 18 runtime lane, and non-runtime exports/packed/docs checks passed; totals were 15 runtime files / 210 tests on React 19, the same 15 files / 210 tests on React 18, and 3 non-runtime files / 18 tests.
 
 ## Wave 5: Independent Integration
 
