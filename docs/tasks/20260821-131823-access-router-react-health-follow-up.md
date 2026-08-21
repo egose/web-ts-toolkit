@@ -189,7 +189,7 @@ Completion evidence:
 
 ### Task ARR-H03: Honor Configured Pagination In Advanced Manual Lists
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -226,6 +226,15 @@ Acceptance criteria:
 - Explicit manual args override the configured values.
 - Basic mode retains its current fallback behavior.
 - A focused regression fails against the current implementation and the package test passes.
+
+Completion evidence:
+
+- Changed: `packages/access-router-react/src/create-model-hook.ts`, `packages/access-router-react/test/harness.test.tsx`
+- Implemented: `useList` now resolves one `effectiveArgs = args ?? listParams` before the basic/advanced branch, so auto-fetch, manual `query()`, and `refetch()` share the same configured-pagination fallback contract.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/harness.test.tsx`
+- Result: 1 file, 15 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, strict NodeNext and Bundler declaration checks, and 14 Vitest files with 213 tests passed.
 
 ### Task ARR-H04: Preserve Mutation Input Types And Resolve Bulk Create
 
