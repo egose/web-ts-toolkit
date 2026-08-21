@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { Sort, Filter, Projection, Populate } from './interfaces';
 import { getActiveRuntime } from './runtime-context';
-import type { AccessRuntime } from './runtime';
+import { defaultRuntime, type AccessRuntime } from './runtime';
 
 interface FindProps {
   filter: Filter;
@@ -30,10 +30,14 @@ class Model {
   constructor(modelName: string, runtime?: AccessRuntime) {
     this.modelName = modelName;
     this.runtime = runtime ?? null;
-    const resolvedRuntime = runtime ?? getActiveRuntime();
-    const registered = resolvedRuntime?.getModelInstance(modelName) ?? null;
-    const global = mongoose.models[modelName] as mongoose.Model<unknown> | undefined;
-    this.model = (registered ?? global ?? mongoose.model(modelName)) as mongoose.Model<any>;
+    const resolvedRuntime = runtime ?? getActiveRuntime() ?? defaultRuntime;
+    const registered = resolvedRuntime.getModelInstance(modelName);
+    if (!registered) {
+      throw new Error(
+        `Runtime model registry missing model "${modelName}". Pass a mongoose.Model instance to createRouter() or register it with registerModelInstance() before using this runtime.`,
+      );
+    }
+    this.model = registered as mongoose.Model<any>;
     if (!this.model) return;
   }
 

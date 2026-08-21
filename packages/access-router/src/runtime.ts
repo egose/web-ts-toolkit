@@ -142,7 +142,10 @@ const classifyPermissionSchema = (
 };
 
 export class AccessRuntime {
-  constructor() {
+  private readonly allowGlobalModelLookup: boolean;
+
+  constructor(options: { allowGlobalModelLookup?: boolean } = {}) {
+    this.allowGlobalModelLookup = options.allowGlobalModelLookup ?? false;
     ensureMongooseJsonSchemaInitialized();
   }
 
@@ -192,14 +195,20 @@ export class AccessRuntime {
   }
 
   hasModelInstance(modelName: string): boolean {
-    return modelName in this.modelInstances;
+    return modelName in this.modelInstances || (this.allowGlobalModelLookup && modelName in mongoose.models);
   }
 
   getModelInstance(modelName: string): mongoose.Model<unknown> | null {
     const registered = this.modelInstances[modelName];
     if (registered) return registered;
+
+    if (!this.allowGlobalModelLookup) return null;
+
     const global = mongoose.models[modelName] as mongoose.Model<unknown> | undefined;
-    return global ?? null;
+    if (!global) return null;
+
+    this.registerModelInstance(modelName, global);
+    return global;
   }
 
   registerOpenApiRoute(route: OpenApiRouteDescriptor) {
@@ -268,7 +277,13 @@ export class AccessRuntime {
   }
 
   private createModelOptions(modelName: string) {
-    const model = (this.getModelInstance(modelName) ?? mongoose.model(modelName)) as ExtendedModel;
+    const model = this.getModelInstance(modelName) as ExtendedModel | null;
+
+    if (!model) {
+      throw new Error(
+        `Runtime model registry missing model "${modelName}". Pass a mongoose.Model instance to createRouter() or register it with registerModelInstance() before using this isolated runtime.`,
+      );
+    }
 
     const manager = new OptionsManager<ModelRouterOptions, ExtendedModelRouterOptions>({
       ...defaultModelOptions,
@@ -475,4 +490,4 @@ export class AccessRuntime {
   }
 }
 
-export const defaultRuntime = new AccessRuntime();
+export const defaultRuntime = new AccessRuntime({ allowGlobalModelLookup: true });
