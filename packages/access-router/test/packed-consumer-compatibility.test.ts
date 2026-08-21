@@ -403,7 +403,9 @@ function installArtifactConsumer(expressVersion: string, mongooseVersion: string
   );
 }
 
-function writeConsumerFiles(consumerDir: string): void {
+function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck: boolean }): void {
+  const skipLibCheck = !options.fullDeclarationCheck;
+
   writeFileSync(
     path.resolve(consumerDir, 'esm.mjs'),
     `import acl, { createAccessRuntime, guard } from '@web-ts-toolkit/access-router';
@@ -493,7 +495,7 @@ void [acl, runtime, condition, MIDDLEWARE, out];
           moduleResolution: 'NodeNext',
           strict: true,
           noEmit: true,
-          skipLibCheck: true,
+          skipLibCheck,
           types: ['node'],
         },
         include: ['consumer.nodenext.ts'],
@@ -513,7 +515,7 @@ void [acl, runtime, condition, MIDDLEWARE, out];
           moduleResolution: 'Bundler',
           strict: true,
           noEmit: true,
-          skipLibCheck: true,
+          skipLibCheck,
           types: ['node'],
         },
         include: ['consumer.bundler.ts'],
@@ -529,10 +531,15 @@ void [acl, runtime, condition, MIDDLEWARE, out];
  * NodeNext/Bundler TypeScript type checks against the installed consumer tree.
  * The ESM smoke file was previously written but never executed, which left
  * ESM-only import failures undetected (ARF-09 finding #2). All four execution
- * paths must pass against the real release-artifact tarballs.
+ * paths must pass against the real release-artifact tarballs. Current-peer
+ * TypeScript configs intentionally keep skipLibCheck disabled so root,
+ * /advanced, and /processors declarations are checked as a real installed
+ * consumer sees them. Minimum-peer runtime smoke keeps lib checking skipped to
+ * avoid failing on old peer declaration internals unrelated to access-router's
+ * emitted declaration graph.
  */
-function runConsumerSmokeTests(consumerDir: string): void {
-  writeConsumerFiles(consumerDir);
+function runConsumerSmokeTests(consumerDir: string, options: { fullDeclarationCheck: boolean }): void {
+  writeConsumerFiles(consumerDir, options);
   run('node', ['esm.mjs'], consumerDir);
   run('node', ['cjs.cjs'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.json'], consumerDir);
@@ -654,7 +661,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     'supports %s from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers',
     (_label, expressVersion, mongooseVersion) => {
       const consumerDir = installPackedConsumer(expressVersion, mongooseVersion);
-      runConsumerSmokeTests(consumerDir);
+      runConsumerSmokeTests(consumerDir, { fullDeclarationCheck: _label === 'current majors' });
     },
     60000,
   );
@@ -666,7 +673,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     'supports %s from the actual build-artifact package tree across ESM, CJS, NodeNext, and Bundler consumers',
     (_label, expressVersion, mongooseVersion) => {
       const consumerDir = installArtifactConsumer(expressVersion, mongooseVersion);
-      runConsumerSmokeTests(consumerDir);
+      runConsumerSmokeTests(consumerDir, { fullDeclarationCheck: _label === 'current majors' });
     },
     60000,
   );

@@ -770,7 +770,7 @@ Completion evidence:
 
 ### Task ART-14: Strengthen Declaration And Minimum-Node Verification
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -808,6 +808,18 @@ Acceptance criteria:
 - Root and both subpaths compile with full declaration checking.
 - Packed CJS and ESM entrypoints execute under Node 22.
 - CI visibly enforces the same floor declared by `engines.node`.
+
+Completion evidence:
+
+- Implemented in `packages/access-router/test/packed-consumer-compatibility.test.ts`: current-peer packed tarball and build-artifact consumers now compile root, `/advanced`, and `/processors` imports through both NodeNext and Bundler configs with `skipLibCheck: false`, so malformed emitted declarations fail installed-consumer verification. Minimum-peer checks keep runtime ESM/CJS smoke and TypeScript import checks with lib checking skipped because Mongoose 8.0.0's own declarations fail under the repository's current Node type definitions independently of access-router's emitted declaration graph.
+- Implemented in `packages/access-router/src/model.ts`: public declaration output for the internal `Model` wrapper now uses Mongoose 8-compatible `Query<Result, Doc>` return types instead of emitting Mongoose 9-only six-argument `Query` instantiations.
+- Implemented in `.github/workflows/test.yml`: added `access-router-minimum-node-smoke`, which rewrites `.tool-versions` to Node `22.20.0`, installs normally, prints the runtime versions, and runs the packed minimum-peer access-router ESM/CJS/NodeNext/Bundler consumer smoke separately from the peer-version matrix.
+- Pre-verification `git status --short`: only intended ART-14 edits were present in `.github/workflows/test.yml` and `packages/access-router/test/packed-consumer-compatibility.test.ts`; `packages/access-router/src/model.ts` was added after the new full declaration check exposed the Mongoose 8 compatibility issue. `CHANGELOG.md` was not edited per maintainer instruction.
+- Verification passed after the model declaration fix: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/packed-consumer-compatibility.test.ts --testNamePattern "supports minimum peers from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers|supports current majors from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers"` passed, 1 file with 2 executed tests and 4 skipped tests.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router typecheck`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/packed-consumer-compatibility.test.ts` passed, 1 file and 6 tests.
+- Verification passed: `git diff --check`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router test` passed, 41 files and 357 tests.
 
 ### Task ART-15: Replace Wall-Clock Gates With Deterministic Performance Evidence
 
