@@ -493,6 +493,11 @@ function useAutoQuery<R>({
   }, []);
 
   const resetLoading = useCallback(() => {
+    // Query reset is an authoritative state clear, not transport
+    // cancellation. Bump the owner token so any already-running request
+    // loses its right to publish state or callbacks when it later settles,
+    // then converge the exposed hook activity flags immediately.
+    ownerIdRef.current += 1;
     setIsLoading(false);
     setIsFetching(false);
     hasDataRef.current = false;
