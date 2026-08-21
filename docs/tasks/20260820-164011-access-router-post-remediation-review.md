@@ -608,7 +608,7 @@ Completion evidence:
 
 ### Task ART-11: Introduce A Testable Model Adapter Seam
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -647,6 +647,17 @@ Acceptance criteria:
 - Service tests no longer use double casts to overwrite protected adapter state.
 - Public declarations do not expose accidental internal adapter types.
 - Integration behavior and package tests remain unchanged.
+
+Completion evidence:
+
+- Implemented in `packages/access-router/src/model.ts`, `packages/access-router/src/services/service.ts`, and `packages/access-router/src/services/public-service.ts`: `model.ts` now defines a narrow source-level `ModelAdapter` contract, the Mongoose-backed `Model` exposes `mongooseModel` and `aggregate()` through that seam, and `Service` constructs persistence and option dependencies through protected factory methods while preserving the public constructor and default Mongoose behavior.
+- Updated `packages/access-router/test/service.internal.test.ts`: adapter-focused service tests now inject an in-memory fake adapter and test options through a test subclass/factory instead of double-casting into protected `model` state. The upsert, grouped-count, and bulk-parse tests assert adapter calls directly through fakes without requiring a global Mongoose model for those service units.
+- Verified built declarations do not export or name `ModelAdapter` from the public entry declarations; `grep "ModelAdapter|createModelAdapter" packages/access-router/dist/*.d.ts` only finds the protected `createModelAdapter(...): any` seam in the internal declaration chunk, with no accidental adapter type export.
+- Worktree check during verification: `git status --short` showed only ART-11 source/test edits; `CHANGELOG.md` was not edited per maintainer instruction.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/service.internal.test.ts` passed, 1 file and 8 tests.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router typecheck`.
+- Verification passed: `git diff --check`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router test` passed, 41 files and 351 tests.
 
 ### Task ART-12: Correct The Processor Output Type And Error Documentation
 

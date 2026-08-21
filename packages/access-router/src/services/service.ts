@@ -16,8 +16,8 @@ import {
   uniqBy,
 } from '@web-ts-toolkit/utils';
 import { diff } from 'just-diff';
-import Model from '../model';
-import { getModelOption, getModelOptions } from '../options';
+import MongooseModelAdapter from '../model';
+import { getModelOptions } from '../options';
 import {
   getDocPermissions,
   genPagination,
@@ -126,23 +126,26 @@ const assertModelDocument = <TModel>(
 };
 
 export class Service<TModel = unknown> extends Base<TModel> {
-  protected model: Model;
+  protected model: any;
   protected options: ModelRouterOptions<TModel>;
   public defaults: Defaults<TModel>;
   protected baseFields: string[];
   protected baseFieldsExt: string[];
 
-  public findRawParentDoc(args: {
-    filter: Filter<TModel>;
-    select: string;
-    populate: unknown;
-    lean: boolean;
-  }): ReturnType<Model['findOne']> {
+  public findRawParentDoc(args: { filter: Filter<TModel>; select: string; populate: unknown; lean: boolean }): any {
     return this.model.findOne({
       ...args,
       filter: args.filter as unknown as Filter,
       populate: args.populate as string | Populate[],
     });
+  }
+
+  protected createModelAdapter(modelName: string): any {
+    return new MongooseModelAdapter(modelName);
+  }
+
+  protected getModelRouterOptions(modelName: string): ModelRouterOptions<TModel> {
+    return getModelOptions<TModel>(modelName);
   }
 
   private asServiceHookContext(context: ModelHookContext): ServiceHookContext {
@@ -185,8 +188,8 @@ export class Service<TModel = unknown> extends Base<TModel> {
   constructor(req: ModelRequest, modelName: string) {
     super(req, modelName);
 
-    this.model = new Model(modelName);
-    this.options = getModelOptions<TModel>(modelName);
+    this.model = this.createModelAdapter(modelName);
+    this.options = this.getModelRouterOptions(modelName);
     this.defaults = this.options.defaults || {};
     this.baseFields = ['_id'];
     this.baseFieldsExt = this.baseFields.concat(this.options.documentPermissionField);
@@ -255,7 +258,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     }
 
     const context: ModelHookContext = {
-      mongooseModel: this.model.model,
+      mongooseModel: this.model.mongooseModel,
       modelName: this.modelName,
       operation: access,
       originalDocumentSnapshot: toObject(doc),
@@ -384,17 +387,17 @@ export class Service<TModel = unknown> extends Base<TModel> {
       return { success: false, kind: 'error', code: Codes.BadRequest, errors: sortErrors, query };
     }
 
-    let docs = await this.model.find({
+    let docs = (await this.model.find({
       ...query,
       hardLimit: this.options.listHardLimit,
       lean,
-    });
+    })) as any[];
 
     const contexts: ModelHookContext[] = docs.map((doc) => ({
-      mongooseModel: this.model.model,
+      mongooseModel: this.model.mongooseModel,
       modelName: this.modelName,
       operation: 'list',
-      originalDocumentSnapshot: toObject(doc),
+      originalDocumentSnapshot: toObject(doc) as Record<string, unknown>,
       resolvedQuery: query,
     }));
 
@@ -519,7 +522,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const validationErrors: Array<{ index: number; errors: unknown[] }> = [];
     const validationItems = await mapWithConcurrencyLimit(dataArr, maxBulkConcurrency, async (item, index) => {
       const context: ModelHookContext = {
-        mongooseModel: this.model.model,
+        mongooseModel: this.model.mongooseModel,
         modelName: this.modelName,
         operation: 'create',
         originalData: item,
@@ -704,7 +707,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     }
 
     const context: ModelHookContext = {
-      mongooseModel: this.model.model,
+      mongooseModel: this.model.mongooseModel,
       modelName: this.modelName,
       operation: 'update',
       resolvedQuery: query,
@@ -892,7 +895,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     }
 
     const context: ModelHookContext = {
-      mongooseModel: this.model.model,
+      mongooseModel: this.model.mongooseModel,
       modelName: this.modelName,
       operation: 'delete',
       originalDocumentSnapshot: toObject(doc) as Record<string, unknown>,
@@ -1019,7 +1022,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query };
     const matchFilter = filter as Record<string, unknown>;
 
-    const rows = (await this.model.model.aggregate([
+    const rows = (await this.model.aggregate([
       { $match: matchFilter },
       {
         $project: {
@@ -1127,8 +1130,8 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const filter = await this.genFilter(access, idFilter);
     if (filter === false) return new Set<string>();
 
-    const docs = await this.model.find({ filter, select: '_id', lean: true });
-    return new Set(docs.map((doc) => String(doc._id)));
+    const docs = (await this.model.find({ filter, select: '_id', lean: true })) as Array<{ _id: unknown }>;
+    return new Set<string>(docs.map((doc) => String(doc._id)));
   }
 
   async listSub(

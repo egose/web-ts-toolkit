@@ -3,7 +3,7 @@ import { Sort, Filter, Projection, Populate } from './interfaces';
 import { getActiveRuntime } from './runtime-context';
 import { defaultRuntime, type AccessRuntime } from './runtime';
 
-interface FindProps {
+export interface FindProps {
   filter: Filter;
   select?: Projection;
   sort?: Sort;
@@ -14,7 +14,7 @@ interface FindProps {
   lean?: boolean;
 }
 
-interface FindOneProps {
+export interface FindOneProps {
   filter: Filter;
   select?: Projection;
   sort?: Sort;
@@ -22,9 +22,22 @@ interface FindOneProps {
   lean?: boolean;
 }
 
+export interface ModelAdapter {
+  readonly modelName: string;
+  readonly mongooseModel: mongoose.Model<any>;
+  'new'(): unknown;
+  create(data: unknown): any;
+  find(props: FindProps): any;
+  findOne(props: FindOneProps): any;
+  exists(filter: Filter): any;
+  countDocuments(filter?: Filter): any;
+  distinct(field: string, conditions?: Filter): any;
+  aggregate(pipeline: unknown[]): any;
+}
+
 class Model {
   modelName: string;
-  model: mongoose.Model<any>;
+  mongooseModel: mongoose.Model<any>;
   runtime: AccessRuntime | null;
 
   constructor(modelName: string, runtime?: AccessRuntime) {
@@ -37,21 +50,21 @@ class Model {
         `Runtime model registry missing model "${modelName}". Pass a mongoose.Model instance to createRouter() or register it with registerModelInstance() before using this runtime.`,
       );
     }
-    this.model = registered as mongoose.Model<any>;
-    if (!this.model) return;
+    this.mongooseModel = registered as mongoose.Model<any>;
+    if (!this.mongooseModel) return;
   }
 
   new() {
-    const doc = new this.model();
+    const doc = new this.mongooseModel();
     return doc;
   }
 
   create(data: unknown) {
-    return this.model.create(data);
+    return this.mongooseModel.create(data);
   }
 
   find({ filter, select, sort, populate, limit, hardLimit, skip, lean }: FindProps) {
-    const builder = this.model.find(filter as Record<string, unknown>);
+    const builder = this.mongooseModel.find(filter as Record<string, unknown>);
     if (select) builder.select(select);
     if (skip) builder.skip(Number(skip));
     const normalizedLimit = Number(limit);
@@ -68,7 +81,7 @@ class Model {
   }
 
   findOne({ filter, select, sort, populate, lean }: FindOneProps) {
-    const builder = this.model.findOne(filter as Record<string, unknown>);
+    const builder = this.mongooseModel.findOne(filter as Record<string, unknown>);
     if (select) builder.select(select);
     if (sort) builder.sort(sort);
     if (populate) builder.populate(populate as mongoose.PopulateOptions | Array<string | mongoose.PopulateOptions>);
@@ -84,12 +97,16 @@ class Model {
 
   // see https://mongoosejs.com/docs/api.html#query_Query-countDocuments
   countDocuments(filter = {}) {
-    return this.model.countDocuments(filter);
+    return this.mongooseModel.countDocuments(filter);
   }
 
   // see https://mongoosejs.com/docs/api.html#model_Model.distinct
   distinct(field: string, conditions = {}) {
-    return this.model.distinct(field, conditions);
+    return this.mongooseModel.distinct(field, conditions);
+  }
+
+  aggregate(pipeline: unknown[]) {
+    return this.mongooseModel.aggregate(pipeline as mongoose.PipelineStage[]);
   }
 }
 
