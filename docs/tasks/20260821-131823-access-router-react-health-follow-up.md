@@ -536,7 +536,7 @@ Completion evidence:
 
 ### Task ARR-H09: Correct Documentation And Test Lifecycle Semantics
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -587,6 +587,17 @@ Acceptance criteria:
 - Swapping or mislabeling `Promise.all` results causes a docs test or explicit assertion to fail.
 - Snippet inventory accounts for every substantive code block and distinguishes exact, scaffolded, and intentionally non-executable examples.
 - Docs tests and the package test pass.
+
+Completion evidence:
+
+- Changed: `packages/access-router-react/README.md`, `website/docs/packages/access-router-react.md`, `packages/access-router-react/src/fetch.ts`, `packages/access-router-react/test/access-router-react.docs.compile.test.ts`, `packages/access-router-react/test/access-router-react.docs-semantic.test.tsx`, `packages/access-router-react/test-docs-consumer/snippets-mapping.md`, `packages/access-router-react/test-docs-consumer/examples/active-record.tsx`, `packages/access-router-react/test-docs-consumer/examples/cancellation.tsx`, `packages/access-router-react/test-docs-consumer/examples/concurrent-mutations.tsx`, `packages/access-router-react/test-docs-consumer/examples/factory-readme.ts`, `packages/access-router-react/test-docs-consumer/examples/factory-website.ts`, `packages/access-router-react/test-docs-consumer/examples/failure.tsx`, `packages/access-router-react/test-docs-consumer/examples/mutations.tsx`, `packages/access-router-react/test-docs-consumer/examples/organization.ts`, `packages/access-router-react/test-docs-consumer/examples/projection.tsx`, `packages/access-router-react/test-docs-consumer/examples/query-hooks.tsx`, `packages/access-router-react/test-docs-consumer/examples/quickstart.tsx`, `packages/access-router-react/test-docs-consumer/examples/request-key.ts`, `packages/access-router-react/test-docs-consumer/examples/website-extras.tsx`, `packages/access-router-react/test-docs-consumer/examples/website-quickstart.tsx`
+- Implemented: installed and website docs now use the correct `createModelHooks({ modelService })` factory shape, describe query failures as promise rejection, show manual-query cancellation while the request is still pending, separate `Promise.all` positional ordering from latest-invocation-wins hook state, correct the `requestKeyFor` helper name, and align request-key failure comments with the actual synchronous render throw contract.
+- Implemented: the docs compile harness now distinguishes `exact`, `scaffolded`, and intentionally non-executable snippets, and scaffolded fixtures must preserve each documented block verbatim between explicit marker comments instead of passing on normalized line inclusion alone.
+- Implemented: new runtime docs-semantics tests prove the cancellation example aborts before awaiting settlement and that overlapping mutation `Promise.all` results stay tied to invocation order even when hook state follows the latest invocation.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/access-router-react.docs.compile.test.ts test/access-router-react.docs-semantic.test.tsx`
+- Result: 2 files, 4 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build and all four typecheck categories passed; the React 19 runtime lane ran 15 files / 205 tests, the isolated React 18 runtime lane ran the same 15 files / 205 tests, and the non-runtime docs/packed/export lane ran 3 files / 18 tests.
 
 ### Task ARR-H10: Bound And Measure Structural Request-Key Work
 

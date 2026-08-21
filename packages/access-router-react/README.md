@@ -2,7 +2,7 @@
 
 React hooks for `@web-ts-toolkit/access-router-client` model services.
 
-`createModelHooks(modelService)` binds one `ModelService` to eight hooks covering read, list, count, distinct, create, update, upsert, and delete. Each hook instance owns its own local state — there is **no shared cache, no deduplication, no invalidation, and no retry**. Two components calling `useRead({ id: '1' })` against the same `ModelService` issue two independent requests and store two independent copies of the result. If you need cache orchestration, layer these services underneath a query library.
+`createModelHooks({ modelService })` binds one `ModelService` to eight hooks covering read, list, count, distinct, create, update, upsert, and delete. Each hook instance owns its own local state — there is **no shared cache, no deduplication, no invalidation, and no retry**. Two components calling `useRead({ id: '1' })` against the same `ModelService` issue two independent requests and store two independent copies of the result. If you need cache orchestration, layer these services underneath a query library.
 
 ## Installation
 
@@ -99,7 +99,7 @@ const { data, isLoading, isFetching, error, query, refetch, reset } = useRead({
 - `id` controls auto-fetching. Set `enabled: false` (or remove `id`) to disable.
 - `advanced: true` switches to `readAdvanced(...)`, which forwards `select`, `populate`, `sort`, `include`, and `tasks`.
 - `onSuccess`, `onError`, and `onSettled` are invocation observers and are **not** part of the effect dependency key; re-rendering a parent with a fresh inline arrow every render does not refetch (see Dependency-Key Policy below).
-- `query(id, { signal })` re-runs the read imperatively; `refetch()` re-runs with the current options. Both return a promise that resolves the `ServiceError` on failure.
+- `query(id, { signal })` re-runs the read imperatively; `refetch()` re-runs with the current options. Both return a promise that resolves with the response or rejects with a `ServiceError` on failure.
 
 ### `useList`
 
@@ -235,8 +235,14 @@ For manual `query()` calls, pass `{ signal }` to compose a caller signal with th
 
 ```tsx
 const controller = new AbortController();
-const result = await query('org_123', { signal: controller.signal });
-controller.abort(); // cancels the in-flight manual request
+const pending = query('org_123', { signal: controller.signal });
+controller.abort(); // cancels the in-flight manual request while it is still pending
+
+try {
+  await pending;
+} catch (error) {
+  console.error('manual query cancelled', error);
+}
 ```
 
 ### `previousData` lifecycle (`useList` only)
@@ -273,9 +279,13 @@ function Save() {
   const { mutate, isPending } = useUpdate({ advanced: true, select: ['name'] as const });
 
   const saveTwice = async () => {
-    const [second] = await Promise.all([mutate('org_1', { name: 'A' }), mutate('org_1', { name: 'B' })]);
-    // `second.data` reflects whoever settled last as the latest-invocation.
-    return second.data;
+    const [firstResult, secondResult] = await Promise.all([
+      mutate('org_1', { name: 'A' }),
+      mutate('org_1', { name: 'B' }),
+    ]);
+    // Promise.all preserves invocation order. Hook state still follows the latest invocation.
+    console.log(firstResult.data?.name, secondResult.data?.name);
+    return secondResult.data;
   };
 
   return (
@@ -318,12 +328,14 @@ A literal `select` requires `advanced: true` to actually reach the server's narr
 
 ## Dependency-Key Policy
 
-The query hooks build one structural key from every request-affecting option and use that key as the React effect dependency. Inline array/object literals at the call site are safe: two `select: ['name']` arrays written at every render produce the same key, so they do not trigger an extra refetch. `Date` compares by instant (`d:<.getTime()>`) and never collides with an ISO-string filter that happens to look like the date. `requireKeyFor` throws a documented `RequestKeyError` (re-thrown by the hook as an `Error` with `cause`) for values it cannot represent deterministically: `bigint`, `function`, `symbol` (and symbol-keyed properties), cycles, accessor properties, and built-in instances such as `RegExp`, `Map`, `Set`, `URL`, `Error`, or non-`Object.prototype` class instances. `Date` and `Object.create(null)` are supported. You can import the helper to construct or validate keys yourself:
+The query hooks build one structural key from every request-affecting option and use that key as the React effect dependency. Inline array/object literals at the call site are safe: two `select: ['name']` arrays written at every render produce the same key, so they do not trigger an extra refetch. `Date` compares by instant (`d:<.getTime()>`) and never collides with an ISO-string filter that happens to look like the date. `requestKeyFor` throws a documented `RequestKeyError`; query hooks catch that, rethrow a plain `Error` with the original `RequestKeyError` in `cause`, and interrupt render before any auto-fetch effect runs. Unsupported values include `bigint`, `function`, `symbol` (and symbol-keyed properties), cycles, accessor properties, and built-in instances such as `RegExp`, `Map`, `Set`, `URL`, `Error`, or non-`Object.prototype` class instances. `Date` and `Object.create(null)` are supported. You can import the helper to construct or validate keys yourself:
 
 ```ts
 import { requestKeyFor, RequestKeyError } from '@web-ts-toolkit/access-router-react';
 
 const key = requestKeyFor({ filter: { status: 'active', since: new Date('2026-01-01') } });
+
+declare const someUserSuppliedFilter: unknown;
 
 try {
   requestKeyFor(someUserSuppliedFilter);

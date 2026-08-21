@@ -7,7 +7,7 @@ sidebar_position: 12
 
 React hooks for `@web-ts-toolkit/access-router-client` model services.
 
-`createModelHooks(modelService)` binds one `ModelService` to eight hooks covering read, list, count, distinct, create, update, upsert, and delete. Each hook instance owns its own local state — there is **no shared cache, no deduplication, no invalidation, and no retry**. Two components calling `useRead({ id: '1' })` against the same `ModelService` issue two independent requests and store two independent copies of the result. If you need cache orchestration, layer these services underneath a query library.
+`createModelHooks({ modelService })` binds one `ModelService` to eight hooks covering read, list, count, distinct, create, update, upsert, and delete. Each hook instance owns its own local state — there is **no shared cache, no deduplication, no invalidation, and no retry**. Two components calling `useRead({ id: '1' })` against the same `ModelService` issue two independent requests and store two independent copies of the result. If you need cache orchestration, layer these services underneath a query library.
 
 ## Installation
 
@@ -209,8 +209,14 @@ A dependency change, `query()`/`refetch()` invocation, or unmount aborts the in-
 
 ```tsx
 const controller = new AbortController();
-const result = await query('org_123', { signal: controller.signal });
-controller.abort(); // cancels the in-flight manual request
+const pending = query('org_123', { signal: controller.signal });
+controller.abort(); // cancels the in-flight manual request while it is still pending
+
+try {
+  await pending;
+} catch (error) {
+  console.error('manual query cancelled', error);
+}
 ```
 
 The hook's `requestConfig.signal` is composed with the per-call `query()` `options.signal` and the hook-owned controller signal, then forwarded to the underlying client request via a fresh shallow copy of `requestConfig`. That one effective signal also drives hook-side cancellation classification after resolve/reject. Aborting any source cancels the effective request; the caller's `requestConfig` object, its `headers`, and other fields are not mutated.
@@ -249,9 +255,13 @@ function Save() {
   const { mutate, isPending } = useUpdate({ advanced: true, select: ['name'] as const });
 
   const saveTwice = async () => {
-    const [second] = await Promise.all([mutate('org_1', { name: 'A' }), mutate('org_1', { name: 'B' })]);
-    // `second.data` reflects whoever settled last as the latest-invocation.
-    return second.data;
+    const [firstResult, secondResult] = await Promise.all([
+      mutate('org_1', { name: 'A' }),
+      mutate('org_1', { name: 'B' }),
+    ]);
+    // Promise.all preserves invocation order. Hook state still follows the latest invocation.
+    console.log(firstResult.data?.name, secondResult.data?.name);
+    return secondResult.data;
   };
 
   return (
@@ -301,7 +311,7 @@ The query hooks (`useRead`, `useList`, `useCount`, `useDistinct`) build one cano
 
 ### Unsupported values
 
-If `requestKeyFor` encounters a value it cannot represent deterministically, it throws a documented `RequestKeyError` (re-thrown by the hook as an `Error` with `cause` set to the original `RequestKeyError`). The hook's React lifecycle interrupts the render so the auto-effect never runs with an unsound key. The categories are:
+If `requestKeyFor` encounters a value it cannot represent deterministically, it throws a documented `RequestKeyError`. Query hooks catch that, rethrow a plain `Error` with the original `RequestKeyError` in `cause`, and interrupt render before the auto-effect runs with an unsound key. The categories are:
 
 - **`bigint`** — silently losing precision is unsafe; convert to a `number` or `string` before passing to a query hook.
 - **`function`** — callback identity is unstable by design; the request contract requires structural data.
@@ -321,11 +331,13 @@ import { requestKeyFor, RequestKeyError } from '@web-ts-toolkit/access-router-re
 
 const key = requestKeyFor({ filter: { status: 'active', since: new Date('2026-01-01') } });
 
+declare const someUserSuppliedFilter: unknown;
+
 try {
   requestKeyFor(someUserSuppliedFilter);
 } catch (e) {
   if (e instanceof RequestKeyError) {
-    // handle the unsupported value
+    // handle an unsupported value before passing it to a query hook
   }
 }
 ```
