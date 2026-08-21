@@ -16,15 +16,14 @@ export interface ProcessCopy {
    *   `src: 'pear.items'`   -> depopulate `docObject.pear.items`
    *
    * Empty strings are treated as safe no-ops. Unsafe segments
-   * (`__proto__`, `prototype`, `constructor`) throw a descriptive
-   * `ProcessorPathError`.
+   * (`__proto__`, `prototype`, `constructor`) throw a descriptive `Error`.
    */
   src: string;
   /**
    * Dotted destination path on `docObject` where the moved objects will be
    * written. Unsafe segments (`__proto__`, `prototype`, `constructor`)
-   * throw a descriptive `ProcessorPathError`. Empty and missing
-   * destinations are safe no-ops.
+   * throw a descriptive `Error`. Empty and missing destinations are safe
+   * no-ops.
    */
   dest: string;
 }
@@ -45,12 +44,22 @@ export interface CopyAndDepopulateOptions {
    * original populated value. Defaults to `'_id'`.
    *
    * For nested populated arrays, every leaf record must carry this field.
-   * Records missing the id field throw a descriptive `ProcessorPathError`.
+   * Records missing the id field throw a descriptive `Error`.
    * Primitive array members (non-record scalars) cannot be depopulated and
    * are left in place as a safe no-op.
    */
   idField?: string;
 }
+
+/**
+ * Conservative default output for {@link copyAndDepopulate}.
+ *
+ * The exact transformed shape depends on runtime path strings, so the default
+ * type intentionally does not claim that populated input leaves still have
+ * their original object shape. Provide an explicit output type argument when
+ * the operation set is known by the caller.
+ */
+export type CopyAndDepopulateOutput = Record<string, unknown>;
 
 const UNSAFE_PATH_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
@@ -105,16 +114,20 @@ function assertSafePath(path: string): void {
  *   `Object.prototype` or any object's prototype.
  * - Empty `src` or `dest` strings are safe no-ops.
  *
- * @typeParam T - Object shape produced by the depopulation.
+ * @typeParam Output - Object shape produced by the depopulation. Defaults to a
+ * conservative record because `src` and `dest` are runtime paths.
+ *
+ * @throws Error when an operation path contains `__proto__`, `prototype`, or
+ * `constructor`, or when a populated record is missing the configured id field.
  */
-export const copyAndDepopulate = <T extends object>(
-  docObject: T,
+export const copyAndDepopulate = <Output extends object = CopyAndDepopulateOutput>(
+  docObject: object,
   operations: ProcessCopy[],
   options: CopyAndDepopulateOptions = { mutable: true, idField: '_id' },
-) => {
+): Output => {
   const mutable = options.mutable !== false;
   const idField = options.idField ?? '_id';
-  const obj = (mutable ? docObject : cloneDeep(docObject)) as T;
+  const obj = (mutable ? docObject : cloneDeep(docObject)) as Record<string, unknown>;
 
   forEach(Array.isArray(operations) ? operations : [], (op: ProcessCopy) => {
     if (!op || typeof op.src !== 'string' || typeof op.dest !== 'string') return;
@@ -177,5 +190,5 @@ export const copyAndDepopulate = <T extends object>(
     });
   });
 
-  return obj;
+  return obj as Output;
 };

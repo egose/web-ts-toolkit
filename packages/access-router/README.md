@@ -24,6 +24,8 @@ Peer dependencies:
 
 ## Quick Start
 
+<!-- doc-example: partial -->
+
 ```ts
 import express from 'express';
 import mongoose from 'mongoose';
@@ -118,21 +120,30 @@ Root entrypoint (`@web-ts-toolkit/access-router`):
 Subpath entrypoints:
 
 - `@web-ts-toolkit/access-router/advanced` — low-level runtime context, symbols (`MIDDLEWARE`, `PERMISSIONS`, ...), enums (`Codes`, `StatusCodes`), internals (`parseBody`, `parseQuery`, request schemas). Does NOT export `acl`, `defaultRuntime`, or router-creation helpers.
-- `@web-ts-toolkit/access-router/processors` — `copyAndDepopulate` and its `ProcessCopy` / `CopyAndDepopulateOptions` types for transforming populated documents.
+- `@web-ts-toolkit/access-router/processors` — `copyAndDepopulate` and its `ProcessCopy` / `CopyAndDepopulateOptions` / `CopyAndDepopulateOutput` types for transforming populated documents.
 
 ## Default runtime vs. isolated runtime
 
 The default export `acl` is bound to a single shared `AccessRuntime`, which is fine for most services.
 For tests, multi-tenant services, or libraries that must avoid global state, create an isolated runtime:
 
+<!-- doc-example: complete-runtime -->
+
 ```ts
+import mongoose, { type Model } from 'mongoose';
 import { createAccessRuntime } from '@web-ts-toolkit/access-router';
+
+type User = { name?: string };
 
 const runtime = createAccessRuntime();
 runtime.setGlobalOptions({ globalPermissions: () => [] });
+const userSchema = new mongoose.Schema<User>({ name: String });
+const UserModel: Model<User> = mongoose.model<User>('ReadmeRuntimeUser', userSchema);
+const userRouter = runtime.createRouter(UserModel, { basePath: '/users' });
 
-// `runtime.createRouter(...)`, `runtime.createDataRouter(...)`,
-// `runtime.createOpenApiRouter(...)`, `runtime.registerModelInstance(...)`, ...
+// `runtime.createDataRouter(...)`, `runtime.createOpenApiRouter(...)`,
+// `runtime.registerModelInstance(...)`, ...
+void userRouter;
 ```
 
 Two isolated runtimes with the same model name resolve against their own model registry and options without interference.
@@ -146,6 +157,8 @@ adopts that exact global model instance into its registry on first lookup.
 `createRouter(modelName, options)` — on the default `acl` runtime, accept the Mongoose model name registered with `mongoose.model(name, schema)`. On isolated runtimes, the name must already be registered with that runtime.
 
 `createRouter(model, options)` — accept a `mongoose.Model` instance directly. The instance is registered with the active runtime's registry, so a model attached to a non-default `mongoose.createConnection()` works without polluting the global registry.
+
+<!-- doc-example: partial -->
 
 ```ts
 import mongoose from 'mongoose';
@@ -171,6 +184,8 @@ Advanced read/list requests can attach related model data with `include` entries
 
 The package ships both a default export and named exports:
 
+<!-- doc-example: partial -->
+
 ```ts
 // default export (preferred for the runtime API)
 import acl from '@web-ts-toolkit/access-router';
@@ -181,16 +196,27 @@ import { createAccessRuntime, fromZod } from '@web-ts-toolkit/access-router';
 
 ### Subpath import example
 
+<!-- doc-example: complete-runtime -->
+
 ```ts
 import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';
 
-const { items } = copyAndDepopulate(
+type DepopulatedItems = {
+  items: string[];
+  itemsSnapshot: Array<{ _id: string; name: string }>;
+};
+
+const { items, itemsSnapshot } = copyAndDepopulate<DepopulatedItems>(
   { items: [{ _id: 'a1', name: 'Apple' }] },
   [{ src: 'items', dest: 'itemsSnapshot' }],
   { mutable: false },
 );
 // `items` is now `['a1']`; `itemsSnapshot` holds the original objects.
 ```
+
+Without an explicit output type, `copyAndDepopulate(...)` returns the conservative `CopyAndDepopulateOutput`
+record because runtime `src` and `dest` path strings can replace populated objects with ids and add new fields.
+Unsafe paths or records missing the configured id field throw plain `Error` instances with descriptive messages.
 
 ## Documentation
 

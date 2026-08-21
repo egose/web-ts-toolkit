@@ -14,12 +14,22 @@ afterAll(() => {
   }
 });
 
-const extractTsBlocks = (markdown: string): string[] => {
-  const blocks: string[] = [];
-  const pattern = /```ts\n([\s\S]*?)```/g;
+type DocumentationBlockKind = 'partial' | 'complete-runtime';
+
+type DocumentationBlock = { kind: DocumentationBlockKind; snippet: string };
+
+const extractTsBlocks = (markdown: string): DocumentationBlock[] => {
+  const blocks: DocumentationBlock[] = [];
+  const pattern = /(?:<!--\s*doc-example:\s*(partial|complete-runtime)\s*-->\s*)?```ts\n([\s\S]*?)```/g;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(markdown)) !== null) {
-    blocks.push(match[1]);
+    const kind = match[1];
+    if (kind !== 'partial' && kind !== 'complete-runtime') {
+      throw new Error(
+        'Every documentation TypeScript block must declare <!-- doc-example: partial --> or <!-- doc-example: complete-runtime -->',
+      );
+    }
+    blocks.push({ kind, snippet: match[2] });
   }
   return blocks;
 };
@@ -121,7 +131,7 @@ const run = (
   }
 };
 
-type CompiledBlock = { name: string; sourcePath: string; snippet: string };
+type CompiledBlock = { name: string; sourcePath: string; kind: DocumentationBlockKind; snippet: string };
 
 const assembleAllBlocks = (): CompiledBlock[] => {
   const blocks: CompiledBlock[] = [];
@@ -133,11 +143,12 @@ const assembleAllBlocks = (): CompiledBlock[] => {
   for (const { name, file } of files) {
     const text = readFileSync(path.resolve(packageRoot, file), 'utf8');
     const rawBlocks = extractTsBlocks(text);
-    rawBlocks.forEach((snippet, i) => {
+    rawBlocks.forEach((block, i) => {
       blocks.push({
         name: `${name}-block-${i + 1}-of-${rawBlocks.length}`,
         sourcePath: file,
-        snippet,
+        kind: block.kind,
+        snippet: block.snippet,
       });
     });
   }
@@ -227,7 +238,7 @@ const fixturize = (snippet: string): string => {
   return snippet + `\nvoid [${Array.from(new Set(names)).join(', ')}];\n`;
 };
 
-describe('ARF-10 documentation examples execute (semantic compile against the published package)', () => {
+describe('documentation examples compile and complete workflows execute against the published package', () => {
   let consumerDir: string;
 
   beforeAll(() => {
@@ -284,19 +295,73 @@ describe('ARF-10 documentation examples execute (semantic compile against the pu
       }
       expect(result.status).toBe(0);
     });
+
+    if (block.kind === 'complete-runtime') {
+      it(`${block.name} executes as a complete runtime workflow against the packed access-router`, () => {
+        const sourceFile = path.resolve(consumerDir, `${block.name}.runtime.mts`);
+        writeFileSync(sourceFile, block.snippet);
+
+        const tsconfigPath = path.resolve(consumerDir, `tsconfig.${block.name}.runtime.json`);
+        const outDir = path.resolve(consumerDir, `runtime-${block.name}`);
+        writeFileSync(
+          tsconfigPath,
+          JSON.stringify(
+            {
+              compilerOptions: {
+                target: 'ES2022',
+                module: 'NodeNext',
+                moduleResolution: 'NodeNext',
+                strict: true,
+                noImplicitOverride: true,
+                noUnusedLocals: false,
+                noUnusedParameters: false,
+                outDir,
+                skipLibCheck: true,
+                types: ['node'],
+                lib: ['ES2022', 'DOM'],
+              },
+              include: [`${block.name}.runtime.mts`],
+            },
+            null,
+            2,
+          ),
+        );
+
+        const tscAbsPath = path.resolve(consumerDir, ...TSC_PATH);
+        const compile = run('node', [tscAbsPath, '-p', tsconfigPath], consumerDir, {});
+        if (compile.status !== 0) {
+          throw new Error(
+            `${block.name} failed runtime workflow emit (${block.sourcePath}):\n` +
+              `--- snippet ---\n${block.snippet}\n` +
+              `--- tsc stdout/stderr ---\n${compile.stdout}${compile.stderr}\n`,
+          );
+        }
+
+        const runtimeFile = path.resolve(outDir, `${block.name}.runtime.mjs`);
+        const result = run('node', [runtimeFile], consumerDir, { NODE_ENV: 'test' });
+        if (result.status !== 0) {
+          throw new Error(
+            `${block.name} failed runtime workflow execution (${block.sourcePath}):\n` +
+              `--- snippet ---\n${block.snippet}\n` +
+              `--- node stdout/stderr ---\n${result.stdout}${result.stderr}\n`,
+          );
+        }
+        expect(result.status).toBe(0);
+      });
+    }
   }
 
   it('README quick start connects to MongoDB before calling app.listen (startup ordering invariant)', () => {
     const quickStart = extractTsBlocks(readFileSync(path.resolve(packageRoot, 'README.md'), 'utf8')).find((b) =>
-      /\bapp\.listen\s*\(/.test(b),
+      /\bapp\.listen\s*\(/.test(b.snippet),
     );
     expect(quickStart).toBeDefined();
     // Locate the actual call expressions (not comment mentions). The prior
     // ARF-10 finding noted the README called `app.listen` before connecting to
     // MongoDB despite prose stating the opposite; the call indices are what
     // the order invariant protects, not the comment text.
-    const listenMatch = quickStart!.match(/\bapp\.listen\s*\(/);
-    const connectMatch = quickStart!.match(/\bmongoose\.connect\s*\(/);
+    const listenMatch = quickStart!.snippet.match(/\bapp\.listen\s*\(/);
+    const connectMatch = quickStart!.snippet.match(/\bmongoose\.connect\s*\(/);
     expect(listenMatch).not.toBeNull();
     expect(connectMatch).not.toBeNull();
     const listenIndex = listenMatch!.index ?? -1;
@@ -304,7 +369,7 @@ describe('ARF-10 documentation examples execute (semantic compile against the pu
     expect(connectIndex).toBeLessThan(listenIndex);
     // Startup failure handling must be present so a failed DB connection
     // cannot silently leave a half-serving process.
-    expect(quickStart!).toMatch(/try\s*{[\s\S]*mongoose\.connect[\s\S]*}\s*catch/);
+    expect(quickStart!.snippet).toMatch(/try\s*{[\s\S]*mongoose\.connect[\s\S]*}\s*catch/);
   });
 
   it('every import and identifier referenced in llms.txt resolves (no unresolved names remaining)', () => {
@@ -319,8 +384,8 @@ describe('ARF-10 documentation examples execute (semantic compile against the pu
     // edit that drops the import surfaces here as an explicit contract
     // failure rather than only as a TS2304 in the compile test.
     for (const block of llmsBlocks) {
-      if (/\bz\.(object|string)\b/.test(block)) {
-        expect(block).toMatch(/import\s*\{[^}]*\bz\b[^}]*\}\s*from\s*['"]zod['"]/);
+      if (/\bz\.(object|string)\b/.test(block.snippet)) {
+        expect(block.snippet).toMatch(/import\s*\{[^}]*\bz\b[^}]*\}\s*from\s*['"]zod['"]/);
       }
     }
   });

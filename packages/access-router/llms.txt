@@ -4,6 +4,7 @@ ACL-aware Express routers and in-memory data services for Mongoose-backed APIs.
 
 ## Main Patterns
 
+<!-- doc-example: partial -->
 ```ts
 import express from 'express';
 import mongoose from 'mongoose';
@@ -34,6 +35,7 @@ const docsRouter = acl.createOpenApiRouter({ title: 'Example API', version: '1.0
 
 Validation adapters:
 
+<!-- doc-example: complete-runtime -->
 ```ts
 import { z } from 'zod';
 import { fromZod, defineRequestSchema } from '@web-ts-toolkit/access-router';
@@ -43,21 +45,37 @@ const schema = defineRequestSchema(validator);
 
 Isolated runtime (no global state shared with default `acl`):
 
+<!-- doc-example: complete-runtime -->
 ```ts
 import { createAccessRuntime } from '@web-ts-toolkit/access-router';
-import mongoose from 'mongoose';
+import mongoose, { type Model } from 'mongoose';
+
+type User = { name?: string };
+
 const runtime = createAccessRuntime();
 runtime.setGlobalOptions({ globalPermissions: () => [] });
-const UserModel = mongoose.model('User', new mongoose.Schema({ name: String }));
-runtime.registerModelInstance('User', UserModel);
-runtime.createRouter('User', { basePath: '/users' });
+const userSchema = new mongoose.Schema<User>({ name: String });
+const UserModel: Model<User> = mongoose.model<User>('User', userSchema);
+runtime.createRouter(UserModel, { basePath: '/users' });
 ```
 
 Subpath imports:
 
+<!-- doc-example: complete-runtime -->
 ```ts
-import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';
+import { copyAndDepopulate, type CopyAndDepopulateOutput } from '@web-ts-toolkit/access-router/processors';
 import { parseBody, Codes, MIDDLEWARE } from '@web-ts-toolkit/access-router/advanced';
+
+type DepopulatedItems = { items: string[]; snapshot: Array<{ _id: string; name: string }> };
+const typed = copyAndDepopulate<DepopulatedItems>(
+  { items: [{ _id: 'x', name: 'x' }] },
+  [{ src: 'items', dest: 'snapshot' }],
+  { mutable: false },
+);
+const conservative: CopyAndDepopulateOutput = copyAndDepopulate({ items: [{ _id: 'x' }] }, [
+  { src: 'items', dest: 'snapshot' },
+]);
+void [typed, conservative];
 ```
 
 ## Gotchas
@@ -68,6 +86,7 @@ import { parseBody, Codes, MIDDLEWARE } from '@web-ts-toolkit/access-router/adva
 - `createRouter('User', ...)` accepts a Mongoose model name OR a `mongoose.Model` instance — passing the instance registers the model with the runtime and preserves non-default `mongoose.createConnection()` instances
 - isolated runtimes do not silently read process-global `mongoose.models`; register the model first or pass the `mongoose.Model` instance to `runtime.createRouter(...)`
 - `/advanced` does NOT export `acl`, `defaultRuntime`, `createRouter`, or `createAccessRuntime` — those live on the root entry only
+- `/processors` `copyAndDepopulate(...)` defaults to conservative `CopyAndDepopulateOutput`; pass an explicit output type when the transformed shape is known. Unsafe paths and missing id fields throw plain `Error` instances.
 - `createDataRouter(...)` holds data in-memory; use it for lightweight/non-persisted resources
 - `package.json` declares `sideEffects` array listing the bundled runtime entries that run the lazy `mongoose-schema-jsonschema` patch on first runtime construction — bundlers must retain those entries
 

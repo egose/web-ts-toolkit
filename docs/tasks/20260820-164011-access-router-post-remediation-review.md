@@ -661,7 +661,7 @@ Completion evidence:
 
 ### Task ART-12: Correct The Processor Output Type And Error Documentation
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -701,11 +701,25 @@ Acceptance criteria:
 - Runtime error tests and declaration JSDoc agree on the thrown error contract.
 - README examples compile against the packed declarations and match runtime values.
 
+Completion evidence:
+
+- Implemented in `packages/access-router/src/processors.ts`: `copyAndDepopulate()` now defaults to conservative `CopyAndDepopulateOutput = Record<string, unknown>` instead of the input object shape, and accepts an explicit output type argument for callers that know the transformed result. Mutable and immutable runtime behavior is unchanged.
+- Corrected processor JSDoc in source and published declarations to document plain `Error` for unsafe paths and missing id fields; no nonexistent `ProcessorPathError` remains in processor docs or generated declarations.
+- Updated installed-consumer docs in `packages/access-router/README.md` and `packages/access-router/llms.txt` to show explicit transformed output typing and the conservative default. `CHANGELOG.md` was not edited per maintainer instruction.
+- Added/updated type and declaration coverage in `packages/access-router/test/strict-consumer-types.test.ts`, `packages/access-router/test/export-contract.test.ts`, and `packages/access-router/test/packed-consumer-compatibility.test.ts`: strict consumers cannot access a depopulated leaf as its old populated object shape without an explicit assertion, consumers can type the transformed output, and `dist/processors.d.ts` plus `dist/processors.d.mts` retain the output type and `@throws Error` JSDoc.
+- Pre-work `git status --short`: clean.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router build`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/processors.test.ts test/processors-path-hardening.test.ts test/export-contract.test.ts test/strict-consumer-types.test.ts test/documentation-examples.test.ts` passed, 5 files and 86 tests.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/packed-consumer-compatibility.test.ts --testNamePattern "supports minimum peers|supports current majors"` passed, 1 file with 4 executed tests and 2 skipped tests.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router typecheck`.
+- Verification passed: `git diff --check`.
+- Verification passed after fixing the documentation snippet and packed-consumer smoke annotations found by an earlier failing run: `pnpm --filter @web-ts-toolkit/access-router test` passed, 41 files and 352 tests.
+
 ## Wave 4: Verification And Test Architecture
 
 ### Task ART-13: Repair Installed Documentation And Execute Complete Workflows
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -743,9 +757,20 @@ Acceptance criteria:
 - Unsupported imports, names, and call signatures still fail semantic checks.
 - Installed README/llms guidance agrees with ART-09's ownership contract.
 
+Completion evidence:
+
+- Implemented in `packages/access-router/llms.txt` and `packages/access-router/README.md`: TypeScript snippets are explicitly classified with `doc-example` markers as `partial` or `complete-runtime`. Isolated-runtime guidance now constructs/registers through the intended `mongoose.Model` instance path before router construction, matching ART-09's runtime ownership contract and avoiding `MissingSchemaError`.
+- Implemented in `packages/access-router/test/documentation-examples.test.ts`: the documentation suite still performs strict semantic compilation for every snippet against the staged installed package, now enforces explicit snippet classification, and emits/executes every `complete-runtime` workflow in a separate Node process against the staged packed package.
+- Pre-work `git status --short`: clean.
+- `CHANGELOG.md` was not edited per maintainer instruction.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/documentation-examples.test.ts` passed, 1 file and 16 tests.
+- Verification passed after rebuild: `pnpm --filter @web-ts-toolkit/access-router typecheck`.
+- Verification passed: `git diff --check`.
+- Verification passed after rebuild: `pnpm --filter @web-ts-toolkit/access-router test` passed, 41 files and 357 tests.
+
 ### Task ART-14: Strengthen Declaration And Minimum-Node Verification
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -784,9 +809,21 @@ Acceptance criteria:
 - Packed CJS and ESM entrypoints execute under Node 22.
 - CI visibly enforces the same floor declared by `engines.node`.
 
+Completion evidence:
+
+- Implemented in `packages/access-router/test/packed-consumer-compatibility.test.ts`: current-peer packed tarball and build-artifact consumers now compile root, `/advanced`, and `/processors` imports through both NodeNext and Bundler configs with `skipLibCheck: false`, so malformed emitted declarations fail installed-consumer verification. Minimum-peer checks keep runtime ESM/CJS smoke and TypeScript import checks with lib checking skipped because Mongoose 8.0.0's own declarations fail under the repository's current Node type definitions independently of access-router's emitted declaration graph.
+- Implemented in `packages/access-router/src/model.ts`: public declaration output for the internal `Model` wrapper now uses Mongoose 8-compatible `Query<Result, Doc>` return types instead of emitting Mongoose 9-only six-argument `Query` instantiations.
+- Implemented in `.github/workflows/test.yml`: added `access-router-minimum-node-smoke`, which rewrites `.tool-versions` to Node `22.20.0`, installs normally, prints the runtime versions, and runs the packed minimum-peer access-router ESM/CJS/NodeNext/Bundler consumer smoke separately from the peer-version matrix.
+- Pre-verification `git status --short`: only intended ART-14 edits were present in `.github/workflows/test.yml` and `packages/access-router/test/packed-consumer-compatibility.test.ts`; `packages/access-router/src/model.ts` was added after the new full declaration check exposed the Mongoose 8 compatibility issue. `CHANGELOG.md` was not edited per maintainer instruction.
+- Verification passed after the model declaration fix: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/packed-consumer-compatibility.test.ts --testNamePattern "supports minimum peers from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers|supports current majors from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers"` passed, 1 file with 2 executed tests and 4 skipped tests.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router typecheck`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/packed-consumer-compatibility.test.ts` passed, 1 file and 6 tests.
+- Verification passed: `git diff --check`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router test` passed, 41 files and 357 tests.
+
 ### Task ART-15: Replace Wall-Clock Gates With Deterministic Performance Evidence
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -824,9 +861,19 @@ Acceptance criteria:
 - Benchmark and production paths use the same precomputed or equivalent filtered match set.
 - The package suite remains stable under repeated execution.
 
+Completion evidence:
+
+- Updated `packages/access-router/test/data-service-scaling.test.ts`: removed `performance.now()` ceilings, best-of sampling, and timing comparisons. The scaling suite now asserts deterministic `totalCount`, `returnedCount`, dynamic field-trim call counts, decorate call counts, and peak trim/decorate concurrency for page sizes 10, 50, and 100.
+- Added a shared `matchingComplexFilter()` counterfactual fixture so the production request and diagnostic full-match trim use the same equivalent filtered match set. The diagnostic route still uses the production `req.dacl.pickAllowedFields()` trim helper and proves a full-match shaping regression would trim `matched.length` rows instead of the returned page.
+- `CHANGELOG.md` was not edited per maintainer instruction.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/data-service-scaling.test.ts` passed, 1 file and 2 tests.
+- Verification passed: `git diff --check`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router test` passed, 41 files and 357 tests.
+- Verification passed after rerunning serialized to avoid the documented shared `dist/` build race: `pnpm --filter @web-ts-toolkit/access-router typecheck`. An earlier concurrent typecheck attempt overlapped with the full package test and failed in `@web-ts-toolkit/express-response-handler` tsup declaration cleanup (`ENOENT unlink dist/error-format.d.mts`), matching the repository warning against concurrent package build/test scripts.
+
 ### Task ART-16: Remove Process-Global Test Coupling And Restore Parallelism
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -866,6 +913,20 @@ Acceptance criteria:
 - No suite can disconnect another suite, delete its model, clear its records, or collide in OpenAPI registration.
 - Test duration and worker count are recorded before/after.
 - Repository `pnpm test` remains serialized at the package-script level as required by `AGENTS.md`.
+
+Completion evidence:
+
+- Implemented in `packages/access-router/test/setup.ts`: each Mongo-backed test file now connects to a unique random database name, continues deleting only that file's collections after each test, and deletes the file's registered Mongoose models during teardown before disconnecting/stopping its own `MongoMemoryServer`.
+- Implemented in `packages/access-router/vitest.config.ts`: removed global `fileParallelism: false`, set `maxWorkers: 4` for an explicit bounded parallel worker count, and raised `testTimeout` to `30_000` so slower documentation/runtime tests remain stable under worker load.
+- Implemented in `packages/access-router/test/packed-consumer-compatibility.test.ts`: removed the in-worker full workspace build that could clean `packages/access-router/dist` while declaration/export tests copied or read it. The test now builds only missing release-artifact bin-package outputs outside access-router's transitive test build closure, preserving the already-built access-router `dist/` during parallel Vitest execution.
+- Pre-work `git status --short`: clean. `CHANGELOG.md` was not edited per maintainer instruction.
+- Initial parallel verification exposed two issues that were fixed before completion: the default 5s timeout was too low under worker load, and the packed-consumer in-test full workspace build raced with declaration-copy/export-contract tests by mutating live `dist/`.
+- Before/after duration and worker count: serialized comparison `pnpm exec vitest run --config vitest.config.ts --fileParallelism=false` passed, 41 files and 357 tests, duration `90.82s`, worker count effectively 1 file at a time. Parallel configured run uses up to 4 workers and passed twice without rebuilds, durations `31.78s` and `33.79s`.
+- Verification passed after rebuild: `pnpm --filter @web-ts-toolkit/access-router build`.
+- Verification passed twice: `pnpm exec vitest run --config vitest.config.ts` passed, 41 files and 357 tests, durations `31.78s` and `33.79s`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router test` passed, 41 files and 357 tests, Vitest duration `35.11s`; package script still performs the serialized workspace prebuild before the package's bounded parallel Vitest run.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router typecheck`.
+- Verification passed: `git diff --check`.
 
 ## Dependency And Parallelization Guidance
 
@@ -908,7 +969,7 @@ These do not block regression tests, but the owning task must record the selecte
 
 ### Task ART-99: Independently Verify Remediation Completion
 
-Status: pending
+Status: completed
 
 Priority: P0 release gate
 
@@ -952,6 +1013,30 @@ Acceptance criteria:
 - Packed ESM, CJS, NodeNext, Bundler, full declarations, and Node 22 consumers pass.
 - Security and externally visible contract changes are present in release notes.
 - Completion evidence lists changed files, command results, and every P2/P3 deferral.
+
+Completion evidence:
+
+- Independent review identified and fixed three release-gate implementation gaps: client-controlled include `args.overrides` could reach target `findOne()` and bypass target read filter/projection; count includes accepted malformed request-controlled `foreignField` values before target aggregation; authorized read-to-list fallback dropped client include execution on the list fallback path.
+- Changed: `packages/access-router/src/services/base.ts`, `packages/access-router/src/services/public-service.ts`, `packages/access-router/src/services/service.ts`, `packages/access-router/test/cross-resource-authorization.integration.test.ts`, `packages/access-router/test/read-list-fallback-authorization.integration.test.ts`, `packages/access-router/test/packed-consumer-compatibility.test.ts`, and this task file.
+- Fixed in `packages/access-router/src/services/base.ts`: include execution now strips client-provided `overrides` before dispatching target read/list calls and validates include `foreignField` syntax before using it in filters or aggregation-backed count includes.
+- Fixed in `packages/access-router/src/services/service.ts`: `countByFieldValues()` rejects malformed `foreignField` values with controlled `Codes.BadRequest` before building the query/aggregation.
+- Fixed in `packages/access-router/src/services/public-service.ts`: `_read()` and `_readFilter()` now preserve `include` when authorized fallback switches from read to list access.
+- Added regression coverage in `packages/access-router/test/cross-resource-authorization.integration.test.ts` for ignored include override bypass attempts and controlled malformed count-include `foreignField` rejection before aggregate execution.
+- Added regression coverage in `packages/access-router/test/read-list-fallback-authorization.integration.test.ts` proving authorized read-to-list fallback still runs list-scoped include behavior.
+- Fixed ART-99 lint gate in `packages/access-router/test/packed-consumer-compatibility.test.ts` by preserving the caught process error as the thrown error's `cause`.
+- `CHANGELOG.md` was not edited per maintainer instruction. This is the recorded release-note exception for ART-99's generic release-note gate; residual risk is that release-note wording remains a separate maintainer/release-manager responsibility before publication.
+- No P2/P3 deferrals were introduced by ART-99.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router build`.
+- Verification passed after fixing an initial test-fixture typo: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/cross-resource-authorization.integration.test.ts test/read-list-fallback-authorization.integration.test.ts`, 2 files and 20 tests.
+- Verification passed after fixing source-helper import resolution for internal tests: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/cross-resource-authorization.integration.test.ts test/read-list-fallback-authorization.integration.test.ts test/service.internal.test.ts`, 3 files and 28 tests.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router typecheck`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router test`, 41 files and 359 tests. An earlier package-test attempt failed before the source-helper import fix with `isValidFieldPath is not a function` in internal source-level tests.
+- Verification passed after fixing an existing lint gate issue: `pnpm lint`. The earlier lint attempt failed on `preserve-caught-error` in `packages/access-router/test/packed-consumer-compatibility.test.ts`.
+- Verification passed: `pnpm build`.
+- Verification passed: `pnpm test`.
+- Verification passed with warnings from pnpm bin-link creation inside the artifact tree: `pnpm build-artifact -- --version 0.99.0-test`; artifact produced at `dist/web-ts-toolkit-0.99.0-test.tar.gz`.
+- Verification passed: `pnpm verify-artifact -- --version 0.99.0-test`.
+- Final quick checks after task cleanup passed: `git diff --check`, `pnpm lint`, and `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/read-list-fallback-authorization.integration.test.ts`, 1 file and 5 tests.
 
 ## Definition Of Done
 

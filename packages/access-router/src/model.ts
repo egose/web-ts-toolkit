@@ -63,7 +63,7 @@ class Model {
     return this.mongooseModel.create(data);
   }
 
-  find({ filter, select, sort, populate, limit, hardLimit, skip, lean }: FindProps) {
+  find({ filter, select, sort, populate, limit, hardLimit, skip, lean }: FindProps): mongoose.Query<any[], any> {
     const builder = this.mongooseModel.find(filter as Record<string, unknown>);
     if (select) builder.select(select);
     if (skip) builder.skip(Number(skip));
@@ -80,7 +80,7 @@ class Model {
     return builder;
   }
 
-  findOne({ filter, select, sort, populate, lean }: FindOneProps) {
+  findOne({ filter, select, sort, populate, lean }: FindOneProps): mongoose.Query<any, any> {
     const builder = this.mongooseModel.findOne(filter as Record<string, unknown>);
     if (select) builder.select(select);
     if (sort) builder.sort(sort);
@@ -96,12 +96,12 @@ class Model {
   }
 
   // see https://mongoosejs.com/docs/api.html#query_Query-countDocuments
-  countDocuments(filter = {}) {
+  countDocuments(filter = {}): mongoose.Query<number, any> {
     return this.mongooseModel.countDocuments(filter);
   }
 
   // see https://mongoosejs.com/docs/api.html#model_Model.distinct
-  distinct(field: string, conditions = {}) {
+  distinct(field: string, conditions = {}): mongoose.Query<any[], any> {
     return this.mongooseModel.distinct(field, conditions);
   }
 

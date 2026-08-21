@@ -61,3 +61,25 @@ jobs:
       run: |
         pnpm build
         pnpm test
+
+  access-router-minimum-node-smoke:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+    - name: Pin minimum access-router Node version
+      run: |
+        printf 'nodejs 22.20.0\npython 3.14.6\npnpm 11.21.0\n' > .tool-versions
+
+    - name: Setup Tools
+      uses: ./.github/actions/setup-tools
+
+    - name: Setup NPM packages
+      uses: ./.github/actions/setup-npm
+
+    - name: Run access-router packed consumer smoke
+      run: |
+        node --version
+        pnpm --version
+        pnpm --filter @web-ts-toolkit/access-router... build
+        pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/packed-consumer-compatibility.test.ts --testNamePattern "supports minimum peers from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers"

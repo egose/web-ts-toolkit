@@ -14,6 +14,7 @@ import {
 } from '@web-ts-toolkit/utils';
 import { getGlobalOption, getModelOption } from '../options';
 import { iterateQuery, setDocValue } from '../helpers';
+import { isValidFieldPath } from '../helpers/sort-policy';
 import { RequestConcurrencyScheduler } from '../helpers/concurrency';
 import {
   ErrorResult,
@@ -332,6 +333,18 @@ export class Base<TModel = unknown> {
     return ids.size;
   }
 
+  private sanitizeIncludeArgs(args: unknown): Record<string, unknown> {
+    if (!isPlainObject(args)) return {};
+    const { overrides: _clientOverrides, ...trustedArgs } = args as Record<string, unknown>;
+    return trustedArgs;
+  }
+
+  private assertIncludeForeignField(include: Include): void {
+    if (!isValidFieldPath(include.foreignField)) {
+      this.throwClientRequestError(Codes.BadRequest, `Invalid include foreignField: ${include.foreignField}`);
+    }
+  }
+
   protected async includeDocs<TDoc>(docs: TDoc | TDoc[], include: Include | Include[]): Promise<TDoc | TDoc[]> {
     if (!include) return docs;
 
@@ -343,6 +356,7 @@ export class Base<TModel = unknown> {
 
     for (let x = 0; x < includes.length; x++) {
       const include = includes[x];
+      this.assertIncludeForeignField(include);
 
       switch (include.op) {
         case 'count':
@@ -375,7 +389,7 @@ export class Base<TModel = unknown> {
         lean: true,
         includePermissions: false,
       };
-      const result = await svc.findOne(filter, args as never, trustedOptions as never);
+      const result = await svc.findOne(filter, this.sanitizeIncludeArgs(args) as never, trustedOptions as never);
 
       if (result.success) {
         setDocValue(doc, path, result.data);
@@ -398,7 +412,7 @@ export class Base<TModel = unknown> {
     const filter = { ...(_filters ?? {}), [foreignField]: { $in: flatten(includeLocalValues) } };
     const authorizedFilter = await svc.genFilter(op, filter);
     const trustedArgs = {
-      ...(args as Record<string, unknown>),
+      ...this.sanitizeIncludeArgs(args),
       overrides: {
         filter: authorizedFilter,
       },

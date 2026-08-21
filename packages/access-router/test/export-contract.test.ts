@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -308,6 +308,17 @@ describe('AR-14 published export contract', () => {
       }
     });
 
+    it('preserves processor output and error JSDoc in published declarations', () => {
+      for (const fileName of ['processors.d.ts', 'processors.d.mts']) {
+        const contents = readFileSync(path.resolve(packageRoot, 'dist', fileName), 'utf8');
+        expect(contents).toContain('type CopyAndDepopulateOutput = Record<string, unknown>');
+        expect(contents).toContain('export { type CopyAndDepopulateOptions, type CopyAndDepopulateOutput');
+        expect(contents).toContain('Provide an explicit output type argument');
+        expect(contents).toContain('@throws Error');
+        expect(contents).not.toContain('ProcessorPathError');
+      }
+    });
+
     it('compiles a TypeScript snippet against published declarations without error', async () => {
       const ts = require('typescript') as typeof import('typescript');
       const rootTypes = path.resolve(packageRoot, 'dist/index.d.ts');
@@ -318,15 +329,16 @@ describe('AR-14 published export contract', () => {
       const snippet = `
         import acl, { AccessRuntime, GuardModelCondition, RootRouterOptions } from '${rootTypes}';
         import { AccessRuntime as AdvancedAccessRuntime, Codes } from '${advancedTypes}';
-        import { copyAndDepopulate, ProcessCopy, CopyAndDepopulateOptions } from '${processorsTypes}';
+        import { copyAndDepopulate, ProcessCopy, CopyAndDepopulateOptions, CopyAndDepopulateOutput } from '${processorsTypes}';
 
         const condition: GuardModelCondition = { modelName: 'User', id: 'x', condition: 'isAdmin' };
         const opts: RootRouterOptions = { basePath: '/api', operationAccess: true };
         const op: ProcessCopy = { src: 'a', dest: 'b' };
         const copyOpts: CopyAndDepopulateOptions = { mutable: false };
+        const copied: CopyAndDepopulateOutput = copyAndDepopulate({ a: { _id: 'a' } }, [op], copyOpts);
         const codes: unknown = Codes;
         const runtime: typeof AdvancedAccessRuntime = AccessRuntime;
-        void [acl, condition, opts, op, copyOpts, codes, runtime];
+        void [acl, condition, opts, op, copyOpts, copied, codes, runtime];
       `;
 
       const program = ts.createProgram([tmp, rootTypes, advancedTypes, processorsTypes], {

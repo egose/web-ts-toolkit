@@ -439,6 +439,40 @@ describe('cross-resource authorization (AR-06)', () => {
     expect(targetCalls.find).toBe(0);
   });
 
+  it('ignores client include overrides that would bypass target read policy', async () => {
+    const { app, targetModelName } = await createIncludeSemanticsApp();
+
+    const response = await request(app)
+      .post('/include-sources/__query')
+      .set('x-perms', 'canReadTargets')
+      .send({
+        filter: { name: 'read-source' },
+        include: {
+          model: targetModelName,
+          op: 'read',
+          path: 'target',
+          localField: 'targetKey',
+          foreignField: 'targetKey',
+          args: {
+            select: ['label', 'targetKey', 'tenant', 'secret'],
+            overrides: {
+              filter: { tenant: 'list', targetKey: 'read-key' },
+              select: ['label', 'targetKey', 'tenant', 'secret'],
+            },
+          },
+        },
+      })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    expect(response.body.data[0].target).toMatchObject({
+      label: 'read-target',
+      targetKey: 'read-key',
+      tenant: 'read',
+    });
+    expect(response.body.data[0].target.secret).toBeUndefined();
+  });
+
   it('executes list includes with target list guard, row filter, field policy, and array cardinality', async () => {
     const { app, targetModelName, targetCalls } = await createIncludeSemanticsApp();
 
@@ -491,6 +525,29 @@ describe('cross-resource authorization (AR-06)', () => {
     expect(targetCalls.aggregate).toBe(1);
     expect(targetCalls.countDocuments).toBe(0);
     expect(targetCalls.find).toBe(0);
+  });
+
+  it('rejects malformed count include foreign fields with a controlled bad request', async () => {
+    const { app, targetModelName, targetCalls } = await createIncludeSemanticsApp();
+
+    const response = await request(app)
+      .post('/include-sources/__query')
+      .set('x-perms', 'canCountTargets')
+      .send({
+        filter: { name: 'count-source' },
+        include: {
+          model: targetModelName,
+          op: 'count',
+          path: 'targetCount',
+          localField: 'targetKey',
+          foreignField: '$targetKey',
+        },
+      })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(response.body).toMatchObject({ status: 400, title: 'Bad Request' });
+    expect(targetCalls.aggregate).toBe(0);
   });
 
   it('does not execute target persistence calls when an include target operation is denied', async () => {

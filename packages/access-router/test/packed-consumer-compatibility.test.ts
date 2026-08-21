@@ -113,14 +113,50 @@ const workspacePackages = [
   { name: '@web-ts-toolkit/access-router', dir: packageRoot },
 ] as const;
 
+const releaseArtifactBinPackages = [
+  {
+    name: '@web-ts-toolkit/access-router-runtime',
+    dir: path.resolve(workspaceRoot, 'packages/access-router-runtime'),
+  },
+  {
+    name: 'create-access-router-mongo-starter',
+    dir: path.resolve(workspaceRoot, 'packages/create-access-router-mongo-starter'),
+  },
+  {
+    name: '@web-ts-toolkit/express-runtime',
+    dir: path.resolve(workspaceRoot, 'packages/express-runtime'),
+  },
+] as const;
+
 const tempRoots: string[] = [];
 
 function run(command: string, args: string[], cwd: string): string {
-  return execFileSync(command, args, {
-    cwd,
-    encoding: 'utf8',
-    stdio: 'pipe',
-  });
+  try {
+    return execFileSync(command, args, {
+      cwd,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+  } catch (err) {
+    const error = err as { stdout?: string; stderr?: string; message?: string };
+    throw new Error(
+      `Command failed: ${command} ${args.join(' ')}\n${error.stdout ?? ''}${error.stderr ?? error.message ?? ''}`,
+      { cause: err },
+    );
+  }
+}
+
+function hasBuiltBinEntries(packageDir: string): boolean {
+  const manifest = JSON.parse(readFileSync(path.resolve(packageDir, 'package.json'), 'utf8')) as PackageJson;
+  const binEntries = typeof manifest.bin === 'string' ? [manifest.bin] : Object.values(manifest.bin ?? {});
+  return binEntries.every((entry) => existsSync(path.resolve(packageDir, entry)));
+}
+
+function ensureReleaseArtifactBinPackagesBuilt(): void {
+  const missing = releaseArtifactBinPackages.filter((pkg) => !hasBuiltBinEntries(pkg.dir));
+  if (missing.length === 0) return;
+
+  run('pnpm', missing.flatMap((pkg) => ['--filter', pkg.name]).concat(['build']), workspaceRoot);
 }
 
 /**
@@ -396,7 +432,9 @@ function installArtifactConsumer(expressVersion: string, mongooseVersion: string
   );
 }
 
-function writeConsumerFiles(consumerDir: string): void {
+function writeConsumerFiles(consumerDir: string, options: { fullDeclarationCheck: boolean }): void {
+  const skipLibCheck = !options.fullDeclarationCheck;
+
   writeFileSync(
     path.resolve(consumerDir, 'esm.mjs'),
     `import acl, { createAccessRuntime, guard } from '@web-ts-toolkit/access-router';
@@ -443,12 +481,14 @@ if (output.items[0] !== 'x') throw new Error('processors subpath failed');
 import { Codes } from '@web-ts-toolkit/access-router/advanced';
 import { copyAndDepopulate, type CopyAndDepopulateOptions, type ProcessCopy } from '@web-ts-toolkit/access-router/processors';
 
+type DepopulatedItems = { items: string[]; snapshot: Array<{ _id: string }> };
+
 const opts: RootRouterOptions = { basePath: '/api', operationAccess: true };
 const condition: GuardModelCondition = { modelName: 'User', id: 'x', condition: 'isAdmin' };
 const op: ProcessCopy = { src: 'items', dest: 'snapshot' };
 const processorOptions: CopyAndDepopulateOptions = { mutable: false };
 const runtime = createAccessRuntime();
-const out = copyAndDepopulate({ items: [{ _id: 'x' }] }, [op], processorOptions);
+const out = copyAndDepopulate({ items: [{ _id: 'x' }] }, [op], processorOptions) as unknown as DepopulatedItems;
 
 void [acl, runtime, opts, condition, Codes, out];
 `,
@@ -460,9 +500,15 @@ void [acl, runtime, opts, condition, Codes, out];
 import { MIDDLEWARE } from '@web-ts-toolkit/access-router/advanced';
 import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';
 
+type DepopulatedItems = { items: string[]; snapshot: Array<{ _id: string }> };
+
 const condition: GuardModelCondition = { modelName: 'User', id: 'x', condition: 'isAdmin' };
 const runtime = createAccessRuntime();
-const out = copyAndDepopulate({ items: [{ _id: 'x' }] }, [{ src: 'items', dest: 'snapshot' }], { mutable: false });
+const out = copyAndDepopulate(
+  { items: [{ _id: 'x' }] },
+  [{ src: 'items', dest: 'snapshot' }],
+  { mutable: false },
+) as unknown as DepopulatedItems;
 
 void [acl, runtime, condition, MIDDLEWARE, out];
 `,
@@ -478,7 +524,7 @@ void [acl, runtime, condition, MIDDLEWARE, out];
           moduleResolution: 'NodeNext',
           strict: true,
           noEmit: true,
-          skipLibCheck: true,
+          skipLibCheck,
           types: ['node'],
         },
         include: ['consumer.nodenext.ts'],
@@ -498,7 +544,7 @@ void [acl, runtime, condition, MIDDLEWARE, out];
           moduleResolution: 'Bundler',
           strict: true,
           noEmit: true,
-          skipLibCheck: true,
+          skipLibCheck,
           types: ['node'],
         },
         include: ['consumer.bundler.ts'],
@@ -514,10 +560,15 @@ void [acl, runtime, condition, MIDDLEWARE, out];
  * NodeNext/Bundler TypeScript type checks against the installed consumer tree.
  * The ESM smoke file was previously written but never executed, which left
  * ESM-only import failures undetected (ARF-09 finding #2). All four execution
- * paths must pass against the real release-artifact tarballs.
+ * paths must pass against the real release-artifact tarballs. Current-peer
+ * TypeScript configs intentionally keep skipLibCheck disabled so root,
+ * /advanced, and /processors declarations are checked as a real installed
+ * consumer sees them. Minimum-peer runtime smoke keeps lib checking skipped to
+ * avoid failing on old peer declaration internals unrelated to access-router's
+ * emitted declaration graph.
  */
-function runConsumerSmokeTests(consumerDir: string): void {
-  writeConsumerFiles(consumerDir);
+function runConsumerSmokeTests(consumerDir: string, options: { fullDeclarationCheck: boolean }): void {
+  writeConsumerFiles(consumerDir, options);
   run('node', ['esm.mjs'], consumerDir);
   run('node', ['cjs.cjs'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.json'], consumerDir);
@@ -540,14 +591,11 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
   // helpers are idempotent and cache their result, so priming here is a no-op
   // for the test bodies.
   beforeAll(() => {
-    // Build every workspace package that `pnpm build-artifact` will scan: it
-    // runs `lstatSync` against each `bin` entry, which must be an existing
-    // regular file. The CLI-only packages
-    // (`@web-ts-toolkit/access-router-runtime`, `create-access-router-mongo-starter`,
-    // `@web-ts-toolkit/express-runtime`) live outside access-router's transitive
-    // build closure, so they need an explicit full-workspace build on a freshly
-    // checked-out runner where their `dist/` is otherwise absent.
-    run('pnpm', ['--recursive', '--if-present', 'build'], workspaceRoot);
+    // `pnpm build-artifact` scans each package `bin` entry. The CLI packages
+    // below live outside access-router's transitive build closure, so build only
+    // missing bin outputs here. A full workspace build inside Vitest would clean
+    // `packages/access-router/dist` while other parallel files copy/read it.
+    ensureReleaseArtifactBinPackagesBuilt();
 
     preparePackedWorkspace();
     prepareReleaseArtifactWorkspace();
@@ -639,7 +687,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     'supports %s from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers',
     (_label, expressVersion, mongooseVersion) => {
       const consumerDir = installPackedConsumer(expressVersion, mongooseVersion);
-      runConsumerSmokeTests(consumerDir);
+      runConsumerSmokeTests(consumerDir, { fullDeclarationCheck: _label === 'current majors' });
     },
     60000,
   );
@@ -651,7 +699,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     'supports %s from the actual build-artifact package tree across ESM, CJS, NodeNext, and Bundler consumers',
     (_label, expressVersion, mongooseVersion) => {
       const consumerDir = installArtifactConsumer(expressVersion, mongooseVersion);
-      runConsumerSmokeTests(consumerDir);
+      runConsumerSmokeTests(consumerDir, { fullDeclarationCheck: _label === 'current majors' });
     },
     60000,
   );

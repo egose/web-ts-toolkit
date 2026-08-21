@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { afterAll, afterEach, beforeAll } from 'vitest';
+import { randomUUID } from 'node:crypto';
 
 const MONGO_HOOK_TIMEOUT = 120_000;
 
@@ -10,7 +11,7 @@ export const useMongoTestDatabase = () => {
   beforeAll(async () => {
     mongoServer = await MongoMemoryServer.create();
     await mongoose.connect(mongoServer.getUri(), {
-      dbName: 'acl-test',
+      dbName: `acl-test-${randomUUID()}`,
     });
   }, MONGO_HOOK_TIMEOUT);
 
@@ -19,6 +20,8 @@ export const useMongoTestDatabase = () => {
   });
 
   afterAll(async () => {
+    mongoose.deleteModel(/.+/);
+
     if (mongoose.connection.readyState !== 0) {
       await mongoose.disconnect();
     }

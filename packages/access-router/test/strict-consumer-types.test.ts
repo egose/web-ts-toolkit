@@ -101,7 +101,12 @@ describe('ARF-14 strict packed-consumer types', () => {
     const snippet = `
       import { createAccessRuntime, guard, type GuardModelCondition } from '@web-ts-toolkit/access-router';
       import { Codes, type Filter, type Projection, type SelectedPublicOutput } from '@web-ts-toolkit/access-router/advanced';
-      import { copyAndDepopulate, type CopyAndDepopulateOptions, type ProcessCopy } from '@web-ts-toolkit/access-router/processors';
+      import {
+        copyAndDepopulate,
+        type CopyAndDepopulateOptions,
+        type CopyAndDepopulateOutput,
+        type ProcessCopy,
+      } from '@web-ts-toolkit/access-router/processors';
 
       type User = {
         name: string;
@@ -133,7 +138,21 @@ describe('ARF-14 strict packed-consumer types', () => {
 
       const op: ProcessCopy = { src: 'profile', dest: 'profileId' };
       const processorOptions: CopyAndDepopulateOptions = { mutable: false };
-      const depopulated = copyAndDepopulate({ profile: { _id: 'p1', email: 'ada@example.com' } }, [op], processorOptions);
+      type DepopulatedProfile = { profile: string; profileId: { _id: string; email: string } };
+      const depopulated = copyAndDepopulate<DepopulatedProfile>(
+        { profile: { _id: 'p1', email: 'ada@example.com' } },
+        [op],
+        processorOptions,
+      );
+      const conservativeDepopulated: CopyAndDepopulateOutput = copyAndDepopulate(
+        { profile: { _id: 'p1', email: 'ada@example.com' } },
+        [op],
+        processorOptions,
+      );
+      const depopulatedProfileId: string = depopulated.profile;
+
+      // @ts-expect-error default processor output cannot be treated as the original populated object shape
+      conservativeDepopulated.profile.email;
 
       // @ts-expect-error requestPermissionField must remain a string
       runtime.setGlobalOption('requestPermissionField', 123);
@@ -157,6 +176,8 @@ describe('ARF-14 strict packed-consumer types', () => {
         projection,
         selected,
         depopulated,
+        depopulatedProfileId,
+        conservativeDepopulated,
         badFilter,
         badNestedFilter,
         badSelected,
