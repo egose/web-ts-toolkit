@@ -969,7 +969,7 @@ These do not block regression tests, but the owning task must record the selecte
 
 ### Task ART-99: Independently Verify Remediation Completion
 
-Status: pending
+Status: completed
 
 Priority: P0 release gate
 
@@ -1013,6 +1013,30 @@ Acceptance criteria:
 - Packed ESM, CJS, NodeNext, Bundler, full declarations, and Node 22 consumers pass.
 - Security and externally visible contract changes are present in release notes.
 - Completion evidence lists changed files, command results, and every P2/P3 deferral.
+
+Completion evidence:
+
+- Independent review identified and fixed three release-gate implementation gaps: client-controlled include `args.overrides` could reach target `findOne()` and bypass target read filter/projection; count includes accepted malformed request-controlled `foreignField` values before target aggregation; authorized read-to-list fallback dropped client include execution on the list fallback path.
+- Changed: `packages/access-router/src/services/base.ts`, `packages/access-router/src/services/public-service.ts`, `packages/access-router/src/services/service.ts`, `packages/access-router/test/cross-resource-authorization.integration.test.ts`, `packages/access-router/test/read-list-fallback-authorization.integration.test.ts`, `packages/access-router/test/packed-consumer-compatibility.test.ts`, and this task file.
+- Fixed in `packages/access-router/src/services/base.ts`: include execution now strips client-provided `overrides` before dispatching target read/list calls and validates include `foreignField` syntax before using it in filters or aggregation-backed count includes.
+- Fixed in `packages/access-router/src/services/service.ts`: `countByFieldValues()` rejects malformed `foreignField` values with controlled `Codes.BadRequest` before building the query/aggregation.
+- Fixed in `packages/access-router/src/services/public-service.ts`: `_read()` and `_readFilter()` now preserve `include` when authorized fallback switches from read to list access.
+- Added regression coverage in `packages/access-router/test/cross-resource-authorization.integration.test.ts` for ignored include override bypass attempts and controlled malformed count-include `foreignField` rejection before aggregate execution.
+- Added regression coverage in `packages/access-router/test/read-list-fallback-authorization.integration.test.ts` proving authorized read-to-list fallback still runs list-scoped include behavior.
+- Fixed ART-99 lint gate in `packages/access-router/test/packed-consumer-compatibility.test.ts` by preserving the caught process error as the thrown error's `cause`.
+- `CHANGELOG.md` was not edited per maintainer instruction. This is the recorded release-note exception for ART-99's generic release-note gate; residual risk is that release-note wording remains a separate maintainer/release-manager responsibility before publication.
+- No P2/P3 deferrals were introduced by ART-99.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router build`.
+- Verification passed after fixing an initial test-fixture typo: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/cross-resource-authorization.integration.test.ts test/read-list-fallback-authorization.integration.test.ts`, 2 files and 20 tests.
+- Verification passed after fixing source-helper import resolution for internal tests: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/cross-resource-authorization.integration.test.ts test/read-list-fallback-authorization.integration.test.ts test/service.internal.test.ts`, 3 files and 28 tests.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router typecheck`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router test`, 41 files and 359 tests. An earlier package-test attempt failed before the source-helper import fix with `isValidFieldPath is not a function` in internal source-level tests.
+- Verification passed after fixing an existing lint gate issue: `pnpm lint`. The earlier lint attempt failed on `preserve-caught-error` in `packages/access-router/test/packed-consumer-compatibility.test.ts`.
+- Verification passed: `pnpm build`.
+- Verification passed: `pnpm test`.
+- Verification passed with warnings from pnpm bin-link creation inside the artifact tree: `pnpm build-artifact -- --version 0.99.0-test`; artifact produced at `dist/web-ts-toolkit-0.99.0-test.tar.gz`.
+- Verification passed: `pnpm verify-artifact -- --version 0.99.0-test`.
+- Final quick checks after task cleanup passed: `git diff --check`, `pnpm lint`, and `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/read-list-fallback-authorization.integration.test.ts`, 1 file and 5 tests.
 
 ## Definition Of Done
 
