@@ -147,6 +147,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
         {
           select,
           populate,
+          include,
           overrides: { idFilter },
         },
         { skim, includePermissions, access, populateAccess, lean },
@@ -204,6 +205,7 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
           select,
           sort,
           populate,
+          include,
           overrides: {},
         },
         { skim, includePermissions, access, populateAccess, lean },

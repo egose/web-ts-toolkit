@@ -161,14 +161,22 @@ describe('read-to-list fallback authorization', () => {
     expect(getListDecorateCalls()).toBe(0);
   });
 
-  it('still applies list row, field, task, and decorate policy when both operations are allowed', async () => {
-    const { app, docId, getListDecorateCalls } = await createFallbackApp();
+  it('still applies list row, field, include, task, and decorate policy when both operations are allowed', async () => {
+    const { app, docId, modelName, getListDecorateCalls } = await createFallbackApp();
 
     const response = await request(app)
       .post(`/fallback-users/__query/${docId}`)
       .set('x-perms', 'canList')
       .send({
         select: ['name', 'tenant', 'secret', 'profile'],
+        include: {
+          model: modelName,
+          op: 'list',
+          path: 'relatedUsers',
+          localField: 'tenant',
+          foreignField: 'tenant',
+          args: { select: ['name', 'tenant', 'secret'] },
+        },
         tasks: [{ type: 'COPY_AND_DEPOPULATE', args: [{ src: 'profile', dest: 'copiedProfile' }] }],
       })
       .expect(200)
@@ -182,6 +190,9 @@ describe('read-to-list fallback authorization', () => {
       copiedProfile: { _id: 'profile-1', label: 'Profile One' },
       decoratedByList: true,
     });
+    expect(response.body.relatedUsers).toEqual([
+      expect.objectContaining({ name: 'list-only', tenant: 'list', secret: 'list-secret' }), // pragma: allowlist secret
+    ]);
     expect(getListDecorateCalls()).toBe(1);
   });
 });

@@ -141,6 +141,7 @@ function run(command: string, args: string[], cwd: string): string {
     const error = err as { stdout?: string; stderr?: string; message?: string };
     throw new Error(
       `Command failed: ${command} ${args.join(' ')}\n${error.stdout ?? ''}${error.stderr ?? error.message ?? ''}`,
+      { cause: err },
     );
   }
 }

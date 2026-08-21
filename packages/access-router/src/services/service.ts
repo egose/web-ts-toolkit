@@ -21,14 +21,12 @@ import { getModelOptions } from '../options';
 import {
   getDocPermissions,
   genPagination,
-  isFieldAllowed,
-  isValidFieldPath,
   mapWithConcurrencyLimit,
   normalizeSelect,
   populateDoc,
   toObject,
-  validateSortFields,
 } from '../helpers';
+import { isFieldAllowed, isValidFieldPath, validateSortFields } from '../helpers/sort-policy';
 import { RequestConcurrencyScheduler } from '../helpers/concurrency';
 import {
   Filter,
@@ -1008,6 +1006,15 @@ export class Service<TModel = unknown> extends Base<TModel> {
     filter: Filter<TModel> = {},
     access: BaseFilterAccess = 'list',
   ): Promise<SingleResult<Map<string, Set<string>>> | ErrorResult> {
+    if (!isValidFieldPath(foreignField)) {
+      return {
+        success: false,
+        kind: 'error',
+        code: Codes.BadRequest,
+        errors: [{ detail: `Invalid include foreignField: ${foreignField}` }],
+      };
+    }
+
     const filterErrors = this.validateClientFilter(filter);
     if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
 
