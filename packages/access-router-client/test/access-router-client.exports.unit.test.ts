@@ -45,9 +45,8 @@ const EXPECTED_RUNTIME_EXPORTS = [
   'MissingPersistenceIdentityError',
   // Model dirty-tracking wrapper.
   'Model',
-  // Cache/lazy-request internals exposed and documented as stable so
-  // consumers can wrap their own lazy promises and meta-stamp grouping
-  // markers (`__query`, `__service`, ...) when building custom batches.
+  // Low-level lazy wrapper exposed for direct execution semantics. Grouping
+  // compatibility requires private adapter-owned metadata from service calls.
   'wrapLazyPromise',
   // Public enum of normalized response-count / pagination header names.
   'CustomHeaders',
@@ -121,7 +120,7 @@ describe('access-router-client public export contract (ARC-17)', () => {
       // Exercise the option types through the documented factory call so the
       // structural presence of `cacheTTL`/`cachePartition`/`cacheCapacity` and
       // `modelName`/`basePath`/`dataName` is enforced.
-      const opts: _Probe1 = { cacheTTL: 60, cacheCapacity: 100, cachePartition: () => 'id-1' };
+      const opts: _Probe1 = { cacheTTL: 60_000, cacheCapacity: 100, cachePartition: () => 'id-1' };
       const adapter = createAdapter(undefined, opts);
       const mOpts: _Probe2 = { modelName: 'User', basePath: 'users' };
       const dOpts: _Probe3 = { dataName: 'fruit', basePath: 'fruit' };
@@ -164,6 +163,7 @@ describe('access-router-client public export contract (ARC-17)', () => {
     it('exports model and data response aliases', () => {
       type _ModelResponse = import('../src').ModelResponse<import('../src').Document>;
       type _ListModelResponse = import('../src').ListModelResponse<import('../src').Document>;
+      type _ModelData = import('../src').ModelData<import('../src').Document>;
       type _DataResponse = import('../src').DataResponse<unknown>;
       type _ListDataResponse = import('../src').ListDataResponse<unknown>;
       type _SubDocumentResponse = import('../src').SubDocumentResponse<unknown>;
@@ -190,6 +190,7 @@ describe('access-router-client public export contract (ARC-17)', () => {
       expect(subList.count).toBe(0);
       // Force usage of all probed aliases so unused-type linting stays happy.
       void ({} as _ModelResponse);
+      void ({} as _ModelData);
       void ({} as _DataResponse);
       void ({} as _ListDataResponse);
       void ({} as _SubDocumentResponse);
@@ -281,6 +282,8 @@ describe('access-router-client public export contract (ARC-17)', () => {
       type _Sort = import('../src').Sort;
       type _SortOrder = import('../src').SortOrder;
       type _FilterQuery = import('../src').FilterQuery<unknown>;
+      type _ModelMutationInput = import('../src').ModelMutationInput<{ _id?: string; name: string }>;
+      type _SubDocumentMutationInput = import('../src').SubDocumentMutationInput<{ label: string }>;
       type _DottedPathFilter = import('../src').DottedPathFilter<unknown>;
       type _ServerSideCast = import('../src').ServerSideCast<unknown>;
       type _Populate = import('../src').Populate;
@@ -301,6 +304,8 @@ describe('access-router-client public export contract (ARC-17)', () => {
       void ({} as _Sort);
       void ({} as _SortOrder);
       void ({} as _FilterQuery);
+      void ({} as _ModelMutationInput);
+      void ({} as _SubDocumentMutationInput);
       void ({} as _DottedPathFilter);
       void ({} as _ServerSideCast);
       void ({} as _Populate);

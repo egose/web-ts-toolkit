@@ -53,7 +53,9 @@ export type ApplyBasicQueryCasting<T> =
   | (T extends AnyArray<unknown> ? Unpacked<T> : never)
   | (T extends string ? RegExp : never);
 
-type Condition<T> = ApplyBasicQueryCasting<T> | QuerySelector<ApplyBasicQueryCasting<T>> | LazyRequest<unknown>;
+type QueryOperatorOperand<T> = T extends AnyArray<unknown> ? Unpacked<T> : T;
+
+type Condition<T> = ApplyBasicQueryCasting<T> | QuerySelector<T> | LazyRequest<unknown>;
 
 export type _FilterQuery<T> = {
   [P in keyof T]?: Condition<T[P]>;
@@ -81,16 +83,16 @@ type RootQuerySelector<T> = {
 
 type QuerySelector<T> = {
   // Comparison
-  $eq?: T;
-  $gt?: T;
-  $gte?: T;
-  $in?: [T] extends AnyArray<unknown> ? Unpacked<T>[] : T[];
-  $lt?: T;
-  $lte?: T;
-  $ne?: T;
-  $nin?: [T] extends AnyArray<unknown> ? Unpacked<T>[] : T[];
+  $eq?: ApplyBasicQueryCasting<T>;
+  $gt?: QueryOperatorOperand<T>;
+  $gte?: QueryOperatorOperand<T>;
+  $in?: QueryOperatorOperand<T>[];
+  $lt?: QueryOperatorOperand<T>;
+  $lte?: QueryOperatorOperand<T>;
+  $ne?: ApplyBasicQueryCasting<T>;
+  $nin?: QueryOperatorOperand<T>[];
   // Logical
-  $not?: T extends string ? QuerySelector<T> | RegExp : QuerySelector<T>;
+  $not?: QueryOperatorOperand<T> extends string ? QuerySelector<T> | RegExp : QuerySelector<T>;
   // Element
   /**
    * When `true`, `$exists` matches the documents that contain the field,
@@ -101,9 +103,9 @@ type QuerySelector<T> = {
   // Evaluation
   $expr?: unknown;
   $jsonSchema?: unknown;
-  $mod?: T extends number ? [number, number] : never;
-  $regex?: T extends string ? RegExp | string : never;
-  $options?: T extends string ? string : never;
+  $mod?: QueryOperatorOperand<T> extends number ? [number, number] : never;
+  $regex?: QueryOperatorOperand<T> extends string ? RegExp | string : never;
+  $options?: QueryOperatorOperand<T> extends string ? string : never;
 };
 
 /**

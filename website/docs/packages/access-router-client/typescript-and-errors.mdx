@@ -83,7 +83,7 @@ const filter: FilterQuery<User> = {
 };
 ```
 
-A known field accepts its scalar, an array of those scalars (the sibling server expands it to an `$in` query), `RegExp` when the field is string-typed, and the comparison / element / evaluation operators valid for that scalar. Root operators (`$and` / `$nor` / `$or` / `$text` / `$where` / `$comment`) are typed only at the root of a filter. Unknown field keys and unknown operators do not compile:
+A known field accepts its scalar, an array of those scalars (the sibling server expands it to an `$in` query), `RegExp` when the field is string-typed, and the comparison / element / evaluation operators valid for that scalar. Array operands belong in direct conditions or `$in` / `$nin`; scalar comparison operators such as `$gt` and `$lte` use the scalar or array-element type. Root operators (`$and` / `$nor` / `$or` / `$text` / `$where` / `$comment`) are typed only at the root of a filter. Unknown field keys and unknown operators do not compile:
 
 ```ts
 const bad: FilterQuery<User> = {
@@ -128,6 +128,33 @@ const user = await userService.readAdvanced<{ name: string }>('user-1', {
 });
 ```
 
+## Mutation Input Types
+
+Model mutation payloads are checked against consumer model fields by default:
+
+```ts
+userService.create({ name: 'Max' });
+userService.update('user-1', { age: 42 });
+
+userService.create({ naem: 'Max' });      // error: misspelled field
+userService.update('user-1', { age: 'x' }); // error: wrong scalar type
+```
+
+The default model mutation input is `ModelMutationInput<T>` (`Partial<T>`). This catches misspelled fields and wrong scalar values without claiming required create fields the sibling runtime schema cannot infer. If your API accepts request schemas that differ from the response model, pass explicit generics:
+
+```ts
+type UserCreateInput = { name: string; age: number };
+type UserUpdateInput = { name?: string; age?: number };
+type UserUpsertInput = { externalId: string; name?: string };
+
+const users = adapter.createModelService<User, UserCreateInput, UserUpdateInput, UserUpsertInput>({
+  modelName: 'User',
+  basePath: 'users',
+});
+```
+
+Subdocument helpers infer `S` from array fields and use `SubDocumentMutationInput<S>` (`Partial<S>` for object subdocuments) for create/update payloads. Use `subs<S, K, TCreateInput, TUpdateInput>(...)` when a subdocument request schema differs from the returned subdocument shape.
+
 That is most useful when:
 
 - the server adds derived fields
@@ -144,11 +171,14 @@ Common exported types include:
 - `ModelResponse<T, TData = T>`
 - `ArrayModelResponse<T, TData = T>`
 - `ListModelResponse<T, TData = T>`
+- `ModelData<T, TData = T>` — direct-field data surface of a `Model<T>` with reserved wrapper method names omitted
 - `DataResponse<T>`
 - `ArrayDataResponse<T>`
 - `ListDataResponse<T>`
 - `SubDocumentResponse<S, TData = S>`
 - `SubDocumentListResponse<S, TData = S>`
+- `ModelMutationInput<T>`
+- `SubDocumentMutationInput<S>`
 - `Projection`
 - `FilterQuery<T>`
 - `DottedPathFilter<T>` — deliberate escape hatch that restores schema-less

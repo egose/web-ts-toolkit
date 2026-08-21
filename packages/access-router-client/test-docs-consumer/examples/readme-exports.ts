@@ -15,9 +15,9 @@ import {
   // Thrown instead of creating a duplicate when an existing projected model
   // has no recoverable persistence identity.
   MissingPersistenceIdentityError,
-  // Lazy-promise wrapper with non-enumerable metadata and a single
-  // shared execution. Used internally by service methods; exported so
-  // consumers can build compatible lazy promises for custom batches.
+  // Low-level lazy-promise wrapper with a single shared execution. Service
+  // methods add private adapter metadata required by `adapter.group(...)`;
+  // consumer-created wrappers execute directly and are not groupable.
   wrapLazyPromise,
   // Normalized response-count / pagination header names.
   CustomHeaders,
@@ -43,6 +43,7 @@ import type {
   ModelResponse,
   ArrayModelResponse,
   ListModelResponse,
+  ModelData,
   DataResponse,
   ArrayDataResponse,
   ListDataResponse,
@@ -54,6 +55,8 @@ import type {
   DataDefaults,
   // Filter, projection, populate, sort, and request-meta primitives.
   FilterQuery,
+  ModelMutationInput,
+  SubDocumentMutationInput,
   DottedPathFilter,
   ServerSideCast,
   Projection,
@@ -88,6 +91,7 @@ type StablePublicTypes = [
   ModelResponse<Document>,
   ArrayModelResponse<Document>,
   ListModelResponse<Document>,
+  ModelData<Document>,
   DataResponse<unknown>,
   ArrayDataResponse<unknown>,
   ListDataResponse<unknown>,
@@ -96,6 +100,8 @@ type StablePublicTypes = [
   Defaults,
   DataDefaults,
   FilterQuery<Document>,
+  ModelMutationInput<Document>,
+  SubDocumentMutationInput<{ label: string }>,
   DottedPathFilter<Document>,
   ServerSideCast<Document>,
   Projection,

@@ -1,5 +1,5 @@
 import { AxiosRequestConfig } from 'axios';
-import { Model } from './model';
+import type { Model, ModelData } from './model';
 import { ModelService, DataService } from './services';
 import { SubQueryOptions } from './interface';
 import { _FilterQuery } from './mongoose/types';
@@ -88,6 +88,21 @@ export interface Document {
 }
 
 /**
+ * Default request payload type for model mutations.
+ *
+ * The sibling access-router runtime accepts generic records and does not know
+ * a consumer application's required create/update schema. The client therefore
+ * defaults mutation inputs to `Partial<T>` so known fields are checked without
+ * claiming compile-time requiredness. Consumers with distinct request schemas
+ * can pass explicit `ModelService<T, TCreateInput, TUpdateInput, TUpsertInput>`
+ * or `createModelService<T, ...>(...)` generics.
+ */
+export type ModelMutationInput<T extends Document> = Partial<T>;
+
+/** Default request payload type for subdocument create/update helpers. */
+export type SubDocumentMutationInput<T> = T extends object ? Partial<T> : T;
+
+/**
  * Successful response. `raw` and `data` are non-null and `success` is
  * narrowed to `true` so `if (result.success)` exposes the documented
  * payload shape. `message` is initialized for symmetry with failures but
@@ -131,10 +146,13 @@ export interface FailureResult<TError = unknown> {
  */
 export type Response<T1, T2 = T1, TError = unknown> = SuccessResult<T1, T2> | FailureResult<TError>;
 
-export type ModelResponse<T extends Document, TData extends Partial<T> = T> = Response<TData, Model<T, TData> & TData>;
+export type ModelResponse<T extends Document, TData extends Partial<T> = T> = Response<
+  TData,
+  Model<T, TData> & ModelData<T, TData>
+>;
 export type ArrayModelResponse<T extends Document, TData extends Partial<T> = T> = Response<
   TData[],
-  (Model<T, TData> & TData)[]
+  (Model<T, TData> & ModelData<T, TData>)[]
 >;
 /**
  * `ListModelResponse` always carries `totalCount` on both branches. The field

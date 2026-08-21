@@ -23,6 +23,16 @@ const success = (raw: Partial<ReconciliationDocument>) =>
 const createService = (update: ReturnType<typeof vi.fn>) =>
   ({ update, create: vi.fn() }) as unknown as ModelService<ReconciliationDocument>;
 
+const deferredSuccess = () => {
+  let resolve!: (value: ModelResponse<ReconciliationDocument, Partial<ReconciliationDocument>>) => void;
+  const promise = new Promise<ModelResponse<ReconciliationDocument, Partial<ReconciliationDocument>>>(
+    (innerResolve) => {
+      resolve = innerResolve;
+    },
+  );
+  return { promise, resolve };
+};
+
 describe('Model save reconciliation', () => {
   it('starts an existing projected model clean and merges unsubmitted server fields into its reset baseline', async () => {
     const update = vi.fn().mockResolvedValue(success({ name: 'SERVER-NAME', generated: 'server-value' }));
@@ -92,5 +102,96 @@ describe('Model save reconciliation', () => {
       note: 'submitted-note',
       generated: 'server-value',
     });
+  });
+
+  it('serializes overlapping saves and resubmits a newer same-path edit after the first save reconciles', async () => {
+    const firstUpdate = deferredSuccess();
+    const secondUpdate = deferredSuccess();
+    const update = vi.fn().mockReturnValueOnce(firstUpdate.promise).mockReturnValueOnce(secondUpdate.promise);
+    const model = Model.create<ReconciliationDocument, Partial<ReconciliationDocument>>(
+      { _id: 'document-id', name: 'before' },
+      createService(update),
+      undefined,
+      true,
+    );
+
+    model.set('name', 'first-submit');
+    const firstSave = model.save();
+    model.set('name', 'second-submit');
+    const secondSave = model.save();
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenNthCalledWith(
+      1,
+      'document-id',
+      { name: 'first-submit' },
+      { returningAll: false },
+      undefined,
+    );
+
+    firstUpdate.resolve(success({ name: 'server-first' }));
+    await firstSave;
+    await Promise.resolve();
+
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(update).toHaveBeenNthCalledWith(
+      2,
+      'document-id',
+      { name: 'second-submit' },
+      { returningAll: false },
+      undefined,
+    );
+
+    secondUpdate.resolve(success({ name: 'server-second' }));
+    await secondSave;
+
+    expect(model.name).toBe('server-second');
+    expect(model.isDirty()).toBe(false);
+  });
+
+  it('serializes overlapping saves and sends only the later different-path edit on the queued save', async () => {
+    const firstUpdate = deferredSuccess();
+    const secondUpdate = deferredSuccess();
+    const update = vi.fn().mockReturnValueOnce(firstUpdate.promise).mockReturnValueOnce(secondUpdate.promise);
+    const model = Model.create<ReconciliationDocument, Partial<ReconciliationDocument>>(
+      { _id: 'document-id', name: 'before', status: 'old' },
+      createService(update),
+      undefined,
+      true,
+    );
+
+    model.set('name', 'first-submit');
+    const firstSave = model.save();
+    model.set('status', 'second-submit');
+    const secondSave = model.save();
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenNthCalledWith(
+      1,
+      'document-id',
+      { name: 'first-submit' },
+      { returningAll: false },
+      undefined,
+    );
+
+    firstUpdate.resolve(success({ name: 'server-first' }));
+    await firstSave;
+    await Promise.resolve();
+
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(update).toHaveBeenNthCalledWith(
+      2,
+      'document-id',
+      { status: 'second-submit' },
+      { returningAll: false },
+      undefined,
+    );
+
+    secondUpdate.resolve(success({ status: 'server-second' }));
+    await secondSave;
+
+    expect(model.name).toBe('server-first');
+    expect(model.status).toBe('server-second');
+    expect(model.isDirty()).toBe(false);
   });
 });

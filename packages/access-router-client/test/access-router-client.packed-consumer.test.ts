@@ -44,6 +44,7 @@ import {
  */
 
 const consumerSourceDir = path.resolve(packageRoot, 'test-packed-consumer', 'consumer');
+const expectedBrowserslist = ['chrome >= 94', 'edge >= 94', 'firefox >= 93', 'safari >= 16'];
 
 function copyConsumerSources(consumerDir: string): void {
   for (const file of [
@@ -79,6 +80,7 @@ describe('ARC-18 packed-package compatibility using the real release transformat
     expect(packedManifest.license).toBe(rootPackageJson.license);
     expect(rootPackageJson.engines).toEqual({ node: '>=20' });
     expect(packedManifest.engines).toEqual({ node: '>=22' });
+    expect(packedManifest.browserslist).toEqual(expectedBrowserslist);
     expect(packedManifest.repository).toEqual({
       ...rootPackageJson.repository,
       directory: 'packages/access-router-client',
@@ -112,6 +114,13 @@ describe('ARC-18 packed-package compatibility using the real release transformat
     expect(containsDisallowedPublishedValue(packedManifest)).toBe(false);
     for (const emitted of ['index.js', 'index.mjs', 'index.d.ts', 'index.d.mts']) {
       expect(existsSync(path.resolve(unpackRoot, emitted))).toBe(true);
+    }
+  });
+
+  it('resolves the package Browserslist config without error', () => {
+    const stdout = run('pnpm', ['exec', 'browserslist'], packageRoot);
+    for (const browser of ['chrome 94', 'edge 94', 'firefox 93', 'safari 16.0']) {
+      expect(stdout).toContain(browser);
     }
   });
 

@@ -1,6 +1,6 @@
 import axios, { mergeConfig, AxiosRequestConfig } from 'axios';
 import { ModelService, DataService } from './services';
-import { DataRequest, ModelRequest, ResponseCallback, Document } from './types';
+import { DataRequest, ModelRequest, ResponseCallback, Document, ModelMutationInput } from './types';
 import { Defaults, DataDefaults } from './interface';
 import {
   removeCacheInvalidationSignal,
@@ -29,6 +29,8 @@ const noopCacheController: CacheController = {
   clear: () => {},
   dispose: () => {},
 };
+
+const noopResponseCallback: ResponseCallback = () => {};
 
 const ROOT_MUTATION_OPS = new Set([
   'create',
@@ -153,7 +155,7 @@ const mergeServiceDefaults = <TDefaults extends object>(
  *
  * Cache controls (only in effect when `cacheTTL > 0`):
  *
- * - `cacheTTL` — seconds a cached GET response is reused before revalidation.
+ * - `cacheTTL` — milliseconds a cached GET response is reused before revalidation.
  * - `cachePartition` — required to cache credentialed requests safely (see
  *   {@link CachePartitioner}); requests using browser cookies,
  *   `withCredentials`, or explicit auth headers without a stable, non-secret
@@ -278,7 +280,7 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
   const cacheController: CacheController =
     cacheTTL > 0
       ? useCacheInterceptors(instance, {
-          ttl: cacheTTL,
+          ttlMs: cacheTTL,
           capacity: cacheCapacity,
           withCredentialsDefault: Boolean((instance.defaults as { withCredentials?: boolean }).withCredentials),
           partitionForRequest: cachePartition,
@@ -306,7 +308,12 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
     axios: instance,
     clearCache: cacheController.clear,
     disposeCache: cacheController.dispose,
-    createModelService: <T extends Document>(
+    createModelService: <
+      T extends Document,
+      TCreateInput extends object = ModelMutationInput<T>,
+      TUpdateInput extends object = ModelMutationInput<T>,
+      TUpsertInput extends object = ModelMutationInput<T>,
+    >(
       {
         modelName,
         basePath,
@@ -318,15 +325,15 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
       }: ModelServiceOptions,
       defaults?: Defaults,
     ) => {
-      const service = new ModelService<T>(
+      const service = new ModelService<T, TCreateInput, TUpdateInput, TUpsertInput>(
         {
           axios: instance,
           modelName,
           basePath,
           queryPath,
           mutationPath,
-          onSuccess: onSuccess ?? onSuccessRoot,
-          onFailure: onFailure ?? onFailureRoot,
+          onSuccess: onSuccess ?? onSuccessRoot ?? noopResponseCallback,
+          onFailure: onFailure ?? onFailureRoot ?? noopResponseCallback,
           throwOnError: throwOnError ?? throwOnErrorRoot ?? false,
         },
         mergeServiceDefaults(adapterModelDefaults, defaults),
@@ -343,8 +350,8 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
           dataName,
           basePath,
           queryPath,
-          onSuccess: onSuccess ?? onSuccessRoot,
-          onFailure: onFailure ?? onFailureRoot,
+          onSuccess: onSuccess ?? onSuccessRoot ?? noopResponseCallback,
+          onFailure: onFailure ?? onFailureRoot ?? noopResponseCallback,
           throwOnError: throwOnError ?? throwOnErrorRoot ?? false,
         },
         mergeServiceDefaults(adapterDataDefaults, defaults),

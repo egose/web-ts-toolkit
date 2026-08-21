@@ -1,4 +1,4 @@
-import { castArray, get, noop, set } from '@web-ts-toolkit/utils';
+import { castArray, get, noop } from '@web-ts-toolkit/utils';
 import { Model } from '../model';
 import { Document, ResponseCallback, RootQueryMeta } from '../types';
 import { CustomHeaders } from '../enums';
@@ -30,7 +30,7 @@ export interface RootEntry {
   };
   message: string;
   statusCode: number;
-  op?: string;
+  op?: string | null;
 }
 
 const getSubdocumentResultShape = (query: RootQueryMeta): 'list' | 'single' | 'scalar' | undefined => {
@@ -141,7 +141,7 @@ export function finalizeRootEntry(
         const fromExisting = op !== 'new';
         const persistenceId =
           (op === 'read' || op === 'update') && query.target === 'model' && 'id' in query ? query.id : undefined;
-        _data = Model.create(_data, modelService, persistenceId, fromExisting);
+        _data = Model.create(_data as Partial<Document>, modelService, persistenceId, fromExisting);
       }
     }
   }
@@ -240,10 +240,46 @@ const isLegacyListPayload = <TData>(value: unknown): value is { count: number; r
   return 'count' in value && typeof value.count === 'number' && 'rows' in value && Array.isArray(value.rows);
 };
 
-export const setDefaultObjectProp = (obj: object, key: string, value: unknown) => {
-  if (!get(obj, key)) {
-    set(obj, key, value);
+const cloneDefaultValue = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneDefaultValue(item)) as T;
   }
+
+  if (value && typeof value === 'object') {
+    const cloned: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+      cloned[key] = cloneDefaultValue(item);
+    }
+    return cloned as T;
+  }
+
+  return value;
+};
+
+const deepFreeze = <T>(value: T): T => {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) {
+    return value;
+  }
+
+  Object.freeze(value);
+  for (const item of Object.values(value)) {
+    deepFreeze(item);
+  }
+
+  return value;
+};
+
+export const normalizeServiceDefaults = <TDefaults extends object>(
+  defaults: TDefaults | undefined,
+  objectKeys: readonly (keyof TDefaults)[],
+): Required<TDefaults> => {
+  const normalized = cloneDefaultValue((defaults ?? {}) as TDefaults) as Record<keyof TDefaults, unknown>;
+
+  for (const key of objectKeys) {
+    normalized[key] ??= {};
+  }
+
+  return deepFreeze(normalized) as Required<TDefaults>;
 };
 
 export const ensureListResultCount = <TResult extends { totalCount?: number }>(

@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.typecheck.json",
   "compilerOptions": {
-    "strict": true
+    "types": ["node"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["test-typecheck/**/*.ts"]
 }

@@ -44,7 +44,7 @@ void defaultAdapter;
 // surface breaks this fixture.
 const opts: AdapterOptions = {
   rootRouterPath: 'root',
-  cacheTTL: 60,
+  cacheTTL: 60_000,
   cacheCapacity: 100,
   cachePartition: () => 'id-1',
 };

@@ -101,6 +101,7 @@ export function setupIntegrationSuite() {
   let adapter: ReturnType<typeof createAdapter>;
   let cacheRouteRequestCount = 0;
   const protocolRequests: ProtocolRequest[] = [];
+  const protocolRequestHeaders: Array<Record<string, string | string[] | undefined>> = [];
 
   const services = {} as {
     userService: ModelService<User>;
@@ -191,6 +192,7 @@ export function setupIntegrationSuite() {
     app.use(express.json());
     app.use((req, _res, next) => {
       protocolRequests.push({ method: req.method, path: req.path, query: { ...req.query }, body: req.body });
+      protocolRequestHeaders.push({ ...req.headers });
       next();
     });
 
@@ -363,6 +365,7 @@ export function setupIntegrationSuite() {
   beforeEach(async () => {
     cacheRouteRequestCount = 0;
     protocolRequests.length = 0;
+    protocolRequestHeaders.length = 0;
     await seedDatabase();
   });
 
@@ -392,6 +395,7 @@ export function setupIntegrationSuite() {
     endpoints,
     seedState,
     protocolRequests,
+    protocolRequestHeaders,
     createCachedAdapter: (partition?: CachePartitioner) =>
       createAdapter({ baseURL: adapter.axios.defaults.baseURL }, { cacheTTL: 60_000, cachePartition: partition }),
   };

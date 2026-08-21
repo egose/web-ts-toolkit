@@ -105,8 +105,9 @@ consumer needs:
   `proxy-authorization`, `www-authenticate`) are excluded from cache keys
   regardless of the partition token. Only GET requests with supported JSON or
   text response semantics are cached; mutations and custom transforms or
-  serializers always bypass caching. `cacheTTL: 0` (the default) disables the
-  cache entirely, while enabled caches retain at most 100 entries by default.
+  serializers always bypass caching. `cacheTTL` is measured in milliseconds;
+  `cacheTTL: 0` (the default) disables the cache entirely, while enabled caches
+  retain at most 100 entries by default.
   `clearCache()` drops every cached entry; `disposeCache()`
   drops entries and releases cache timers (call on adapter teardown so timers
   do not keep a Node process alive).
@@ -142,6 +143,15 @@ consumer needs:
 - **Model create cardinality:** `create(...)` and `createAdvanced(...)` accept
   either one object or an array. Scalar input returns `ModelResponse<T>`;
   array input returns `ArrayModelResponse<T>`, including for a one-item array.
+- **Mutation input types:** model create/update/upsert payloads default to
+  `ModelMutationInput<T>` (`Partial<T>`), so object literals are checked for
+  known field names and scalar types without pretending the server can infer
+  required create fields. Pass `createModelService<T, TCreateInput,
+TUpdateInput, TUpsertInput>(...)` when request schemas differ from the
+  response model. Subdocument create/update helpers use
+  `SubDocumentMutationInput<S>` (`Partial<S>` for object subdocuments) by
+  default and can be customized through `subs<S, K, TCreateInput,
+TUpdateInput>(...)`.
 - **Nested model edits:** `Model<T>` tracks modified top-level paths and
   reconciles writes against the last loaded/saved snapshot. Direct mutation
   of nested objects/arrays (`obj.arr.push(...)`, `obj.sub.field = x`) is
@@ -149,12 +159,18 @@ consumer needs:
   or `markModified('topLevelField')` after a direct mutation (forces dirty
   without reconciling). Reverting a value to its snapshot clears the dirty
   flag. `save()` persists only tracked modified top-level fields; if `_id`
-  exists it calls `update(...)`, otherwise it calls `create(...)`.
+  exists it calls `update(...)`, otherwise it calls `create(...)`. Multiple
+  overlapping `save()` calls on the same wrapper are serialized in call order.
+  Document fields named like model methods (`save`, `reset`, `set`, `get`,
+  `assign`, `toJSON`, etc.) are reserved for the wrapper API on direct
+  property access; use `get(...)`, `set(...)`, `assign(...)`, or `toObject()`
+  for those data fields. The exported `ModelData<T>` helper reflects that
+  reserved-name contract in response and `Model.create(...)` types.
 - **Supported runtimes:** Node 22+ and modern evergreen browsers (see
   [Supported Runtimes](#supported-runtimes) and
   [Browser And Node Support](#browser-and-node-support) above).
 
-## Main Exports
+## Primary Exports
 
 The package is named-export-only (no default export). Import every public
 symbol from the package root:
@@ -177,9 +193,9 @@ import {
   // Thrown instead of creating a duplicate when an existing projected model
   // has no recoverable persistence identity.
   MissingPersistenceIdentityError,
-  // Lazy-promise wrapper with non-enumerable metadata and a single
-  // shared execution. Used internally by service methods; exported so
-  // consumers can build compatible lazy promises for custom batches.
+  // Low-level lazy-promise wrapper with a single shared execution. Service
+  // methods add private adapter metadata required by `adapter.group(...)`;
+  // consumer-created wrappers execute directly and are not groupable.
   wrapLazyPromise,
   // Normalized response-count / pagination header names.
   CustomHeaders,
@@ -205,6 +221,7 @@ import type {
   ModelResponse,
   ArrayModelResponse,
   ListModelResponse,
+  ModelData,
   DataResponse,
   ArrayDataResponse,
   ListDataResponse,
@@ -216,6 +233,8 @@ import type {
   DataDefaults,
   // Filter, projection, populate, sort, and request-meta primitives.
   FilterQuery,
+  ModelMutationInput,
+  SubDocumentMutationInput,
   DottedPathFilter,
   ServerSideCast,
   Projection,
@@ -250,6 +269,7 @@ type StablePublicTypes = [
   ModelResponse<Document>,
   ArrayModelResponse<Document>,
   ListModelResponse<Document>,
+  ModelData<Document>,
   DataResponse<unknown>,
   ArrayDataResponse<unknown>,
   ListDataResponse<unknown>,
@@ -258,6 +278,8 @@ type StablePublicTypes = [
   Defaults,
   DataDefaults,
   FilterQuery<Document>,
+  ModelMutationInput<Document>,
+  SubDocumentMutationInput<{ label: string }>,
   DottedPathFilter<Document>,
   ServerSideCast<Document>,
   Projection,
@@ -268,9 +290,9 @@ type StablePublicTypes = [
 void (null as unknown as StablePublicTypes);
 ```
 
-Only the names above are part of the stable public surface. The package
-ships a runtime export contract test (`access-router-client.exports.unit.test.ts`)
-that fails on accidental additions or removals, so implementation internals
+The names above are the primary public imports most consumers need. The full
+root export inventory is locked by `access-router-client.exports.unit.test.ts`
+and mirrored in `llms.txt`, so implementation internals
 such as `useCacheInterceptors`, `cloneConfigWithCacheBypass`,
 `finalizeRootEntry`, `applyGroupCallbacks`, `makeRequest`, `createWrapHelper`,
 `ADAPTER_ID_KEY`, `STARTED_KEY`, `CACHE_HEADER`, `CachePolicy`, and `RootEntry`
@@ -281,12 +303,11 @@ through the returned adapter's `clearCache()` and `disposeCache()` methods.
 ## Browser And Node Support
 
 - **Bundle target:** `es2022` (see `tsup.config.ts`). The single shared target
-  runs in Node 22+ and all evergreen browsers without transpilation; the
-  source imports no Node built-ins.
+  runs in Node 22+ and the documented evergreen browser floor without
+  transpilation; the source imports no Node built-ins.
 - **Runtime metadata:** `engines.node: ">=22"` (npm/pnpm warn or refuse on
-  older Node) and `browserslist: ["supports es2022-module"]` (bundler tools
-  narrow to the same matrix). Unsupported environments fail clearly via
-  engine warnings rather than appearing accidentally supported.
+  older Node) and `browserslist: ["chrome >= 94", "edge >= 94", "firefox >= 93", "safari >= 16"]`.
+  `pnpm exec browserslist` resolves this package config without error.
 - **Authentication contract:** `withCredentials: true` is the adapter
   default, so browser requests may include cookies when CORS and cookie policy
   allow them. `Authorization`, proxy authorization, API-key style headers, and
@@ -300,9 +321,9 @@ through the returned adapter's `clearCache()` and `disposeCache()` methods.
   `disposeCache()` are safe to call in either runtime.
 - **Smoke test:** `pnpm --filter @web-ts-toolkit/access-router-client
 test:browser-smoke` (powered by Vite + jsdom) imports the _built_
-  `dist/index.mjs` under a browser environment and exercises the public
-  runtime surface. It fails if a Node built-in leaks into the bundle or the
-  bundle emits syntax the declared `browserslist` floor cannot run. This
+  `dist/index.mjs` under a browser-like environment and exercises the public
+  runtime surface. It is a smoke check for Node built-in leaks and basic ESM
+  browser bundling, not a real-browser engine/version compatibility gate. This
   smoke test also runs as part of the default `pnpm test` for the package.
 
 ## Documentation

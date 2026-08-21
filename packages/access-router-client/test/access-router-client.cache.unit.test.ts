@@ -42,7 +42,7 @@ describe('cache interceptors credential safety', () => {
       return { data: { value: invocations }, status: 200, headers: {} };
     });
 
-    const policy: CachePolicy = { ttl: 60_000, withCredentialsDefault: true };
+    const policy: CachePolicy = { ttlMs: 60_000, withCredentialsDefault: true };
     useCacheInterceptors(instance, policy);
 
     instance.defaults.withCredentials = true;
@@ -64,7 +64,7 @@ describe('cache interceptors credential safety', () => {
       return { data: { value }, status: 200, headers: {} };
     });
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     const [first, second] = await Promise.all([
       instance.get('/cached', {
@@ -94,7 +94,7 @@ describe('cache interceptors credential safety', () => {
       return { data: { value: invocations }, status: 200, headers: {} };
     });
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     const headers = new AxiosHeaders({ [CACHE_HEADER]: 'true', CoOkIe: 'session=user-a' });
     const first = await instance.get('/cached', { withCredentials: false, headers });
@@ -114,7 +114,7 @@ describe('cache interceptors credential safety', () => {
     });
 
     const policy: CachePolicy = {
-      ttl: 60_000,
+      ttlMs: 60_000,
       withCredentialsDefault: true,
       partitionForRequest: () => 'identity-admin',
     };
@@ -138,7 +138,7 @@ describe('cache interceptors credential safety', () => {
     });
 
     const policy: CachePolicy = {
-      ttl: 60_000,
+      ttlMs: 60_000,
       withCredentialsDefault: true,
       partitionForRequest: (config) => (config.headers?.['x-identity'] as string) ?? undefined,
     };
@@ -164,7 +164,7 @@ describe('cache interceptors credential safety', () => {
     });
 
     const policy: CachePolicy = {
-      ttl: 60_000,
+      ttlMs: 60_000,
       withCredentialsDefault: false,
       partitionForRequest: (config) => (config.headers?.['x-identity'] as string) ?? undefined,
     };
@@ -196,7 +196,7 @@ describe('cache interceptors credential safety', () => {
       return { data: { value: invocations }, status: 200, headers: {} };
     });
 
-    const policy: CachePolicy = { ttl: 60_000, withCredentialsDefault: true };
+    const policy: CachePolicy = { ttlMs: 60_000, withCredentialsDefault: true };
     useCacheInterceptors(instance, policy);
 
     instance.defaults.withCredentials = false;
@@ -218,7 +218,7 @@ describe('cache interceptors credential safety', () => {
 
     let currentIdentity: string | undefined;
     const policy: CachePolicy = {
-      ttl: 60_000,
+      ttlMs: 60_000,
       withCredentialsDefault: true,
       partitionForRequest: () => currentIdentity,
     };
@@ -247,7 +247,7 @@ describe('cache interceptors credential safety', () => {
     });
 
     const policy: CachePolicy = {
-      ttl: 60_000,
+      ttlMs: 60_000,
       withCredentialsDefault: true,
       partitionForRequest: () => 'identity-shared',
       onCacheKey: (key) => {
@@ -296,7 +296,7 @@ describe('cache mutation bypass and invalidation', () => {
         invocations += 1;
         return { data: { value: invocations }, status: 200, headers: {} };
       });
-      useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+      useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
       const request = () => instance.request({ method, url: '/mutate', data: { a: 1 } });
       const [first, second] = await Promise.all([request(), request()]);
@@ -315,7 +315,7 @@ describe('cache mutation bypass and invalidation', () => {
       return { data: { value: invocations }, status: 201, headers: {} };
     });
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     const first = await instance.post('/mutate', { a: 1 }, { headers: { [CACHE_HEADER]: 'false' } });
     const second = await instance.post('/mutate', { a: 1 }, { headers: { [CACHE_HEADER]: 'false' } });
@@ -337,7 +337,7 @@ describe('cache mutation bypass and invalidation', () => {
       return { data: { ok: true }, status: 200, headers: {} };
     });
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     const read1 = await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     const read2 = await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
@@ -365,7 +365,7 @@ describe('cache mutation bypass and invalidation', () => {
       return { data: { bypass: bypassInvocations }, status: 200, headers: {} };
     });
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     await instance.get('/other', { headers: { [CACHE_HEADER]: 'false' } });
@@ -387,7 +387,7 @@ describe('cache mutation bypass and invalidation', () => {
       }
       return { data: { ok: true }, status: 200, headers: {} };
     });
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     const oldSource = instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     const oldTail = instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
@@ -509,7 +509,7 @@ describe('cache mutation bypass and invalidation', () => {
       return { data: { error: 'nope' }, status: 422, headers: {} };
     });
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     await instance.get('/read', { headers: { [CACHE_HEADER]: 'true' } });
     expect(readInvocations).toBe(1);
@@ -546,7 +546,7 @@ describe('cache value isolation and bounds', () => {
       return { data, status: 200, headers: { 'x-etag': 'v1' } };
     });
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     const first = await instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
     (first.data as { value: { nested: string } }).value.nested = 'mutated';
@@ -588,7 +588,7 @@ describe('cache value isolation and bounds', () => {
       }
       return cloned;
     };
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false, clone });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false, clone });
 
     const source = instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
     const tail = instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
@@ -613,7 +613,7 @@ describe('cache value isolation and bounds', () => {
       return { data: { url, count: invocations }, status: 200, headers: {} };
     });
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false, capacity: 2 });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false, capacity: 2 });
 
     await instance.get('/a', { headers: { [CACHE_HEADER]: 'true' } });
     await instance.get('/b', { headers: { [CACHE_HEADER]: 'true' } });
@@ -643,7 +643,7 @@ describe('cache value isolation and bounds', () => {
       invocations += 1;
       return { data: { url: (config as { url?: string }).url, count: invocations }, status: 200, headers: {} };
     });
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     for (let index = 0; index <= 100; index += 1) {
       await instance.get(`/item/${index}`);
@@ -665,7 +665,7 @@ describe('cache value isolation and bounds', () => {
     });
 
     // Stream-mode (or other) response data prevents safe caching
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     await instance.get('/special', {
       headers: { [CACHE_HEADER]: 'true' },
@@ -687,7 +687,7 @@ describe('cache value isolation and bounds', () => {
       await new Promise((resolve) => setImmediate(resolve));
       return { data: value, status: 200, headers: {} };
     });
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     const [first, second] = await Promise.all([
       instance.get('/stream', { responseType: 'stream' }),
@@ -704,7 +704,7 @@ describe('cache value isolation and bounds', () => {
       invocations += 1;
       return { data: JSON.stringify({ invocation: invocations }), status: 200, headers: {} };
     });
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     const transformResponse = [(value: string) => JSON.parse(value) as unknown];
     await Promise.all([
@@ -723,7 +723,7 @@ describe('cache value isolation and bounds', () => {
       baseInvocations += 1;
       return { data: { source: 'base', invocation: baseInvocations }, status: 200, headers: {} };
     });
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     const customAdapter = async (config: InternalAxiosRequestConfig) => ({
       data: { source: 'custom' },
@@ -749,7 +749,7 @@ describe('cache value isolation and bounds', () => {
       invocations += 1;
       return { data: `response-${invocations}`, status: 200, headers: {} };
     });
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     const json = await instance.get('/typed', { responseType: 'json' });
     const text = await instance.get('/typed', { responseType: 'text' });
@@ -763,7 +763,7 @@ describe('cache value isolation and bounds', () => {
   it('does not leave dangling timers when dispose is called', async () => {
     const { instance } = createFakeAdapter(() => ({ data: { v: 1 }, status: 200, headers: {} }));
 
-    const controller = useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    const controller = useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     await instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
     expect(() => controller.dispose()).not.toThrow();
@@ -783,7 +783,7 @@ describe('cache value isolation and bounds', () => {
         } as unknown as AxiosResponse;
       },
     });
-    useCacheInterceptors(instance2, { ttl: 60_000, withCredentialsDefault: false, capacity: 1 });
+    useCacheInterceptors(instance2, { ttlMs: 60_000, withCredentialsDefault: false, capacity: 1 });
     await instance2.get('/a', { headers: { [CACHE_HEADER]: 'true' } });
     await instance2.get('/b', { headers: { [CACHE_HEADER]: 'true' } });
     await instance2.get('/a', { headers: { [CACHE_HEADER]: 'true' } });
@@ -831,7 +831,7 @@ describe('cache concurrency dedup', () => {
       });
     });
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     const p1 = instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
     const p2 = instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
@@ -868,7 +868,7 @@ describe('cache concurrency dedup', () => {
       { data: { ok: true, count: 1 }, status: 200, headers: {} },
     ]);
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     // Attach handlers synchronously so the rejection of p1/p2 is consumed
     // before the microtask checkpoint (Promise.allSettled would otherwise
@@ -899,7 +899,7 @@ describe('cache concurrency dedup', () => {
     ];
     const { instance, tracker } = createDeferredAdapter(responses);
 
-    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     const p1 = instance.post('/mutate', { a: 1 }, { headers: { [CACHE_HEADER]: 'false' } });
     const p2 = instance.post('/mutate', { a: 1 }, { headers: { [CACHE_HEADER]: 'false' } });
@@ -921,7 +921,7 @@ describe('cache concurrency dedup', () => {
     const { instance, tracker } = createDeferredAdapter(responses);
 
     useCacheInterceptors(instance, {
-      ttl: 60_000,
+      ttlMs: 60_000,
       withCredentialsDefault: false,
       partitionForRequest: (config) => {
         const headers = config.headers as Record<string, unknown> | undefined;
@@ -956,7 +956,7 @@ describe('cache concurrency dedup', () => {
       return { data: { identity, invocation: invocations }, status: 200, headers: {} };
     });
     useCacheInterceptors(instance, {
-      ttl: 60_000,
+      ttlMs: 60_000,
       withCredentialsDefault: true,
       partitionForRequest: () => identity,
     });
@@ -987,7 +987,7 @@ describe('cache concurrency dedup', () => {
           resolvers.push(resolve);
         }),
     );
-    const controller = useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    const controller = useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     const oldSource = instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
     const oldTail = instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
@@ -1027,7 +1027,7 @@ describe('cache concurrency dedup', () => {
       }
       return { data: { invocation: invocations }, status: 200, headers: {} };
     });
-    const controller = useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+    const controller = useCacheInterceptors(instance, { ttlMs: 60_000, withCredentialsDefault: false });
 
     const source = settle(instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } }));
     const tail1 = settle(instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } }));

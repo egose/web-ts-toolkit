@@ -1,4 +1,4 @@
-import { AxiosRequestConfig, mergeConfig } from 'axios';
+import { AxiosInstance, AxiosRequestConfig, mergeConfig } from 'axios';
 import {
   FilterQuery,
   Document,
@@ -6,6 +6,7 @@ import {
   Response,
   SubDocumentResponse,
   SubDocumentListResponse,
+  SubDocumentMutationInput,
 } from '../types';
 import { cloneConfigWithCacheBypass } from './interceptors';
 import { makeRequest } from './request';
@@ -14,8 +15,8 @@ import type { ModelService } from './model-service';
 
 type RequestConfig = AxiosRequestConfig & { throwOnError?: boolean };
 
-interface SubOpsContext<S> {
-  axios: ModelService<S>['_axios'];
+interface SubOpsContext {
+  axios: AxiosInstance;
   basePath: string;
   modelName: string;
   queryPath: string;
@@ -32,7 +33,11 @@ const ensureSubdocumentListCount = <T extends { count?: number }>(result: T): T 
   return result as T & { count: number };
 };
 
-export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: string) {
+export function buildSubDocumentOps<
+  S,
+  TCreateInput = SubDocumentMutationInput<S>,
+  TUpdateInput = SubDocumentMutationInput<S>,
+>(ctx: SubOpsContext, id: string, sub: string) {
   const { axios, basePath, modelName, queryPath, handleSuccess, handleError, _handleCallbacks, parentService } = ctx;
 
   return {
@@ -46,7 +51,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}`,
               mergeConfig(reqConfig, { params: {} }),
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<SubDocumentListResponse<S>>(res))
             .then((result: SubDocumentListResponse<S>) => {
               const rawArray = toArray<S>(result.raw);
               result.raw = rawArray;
@@ -94,7 +99,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               { filter, select },
               reqConfig,
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<SubDocumentListResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>(res))
             .then((result: SubDocumentListResponse<S, ResolvedSelectedShape<S, TSelect, TData>>) => {
               const rawArray = toArray<ResolvedSelectedShape<S, TSelect, TData>>(result.raw);
               result.raw = rawArray;
@@ -138,7 +143,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}/${encodePathSegment(subId)}`,
               mergeConfig(reqConfig, { params: {} }),
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<SubDocumentResponse<S>>(res))
             .then((result: SubDocumentResponse<S>) => {
               result.data = result.success ? (result.raw as S) : null;
               return result;
@@ -182,7 +187,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               { select, populate },
               reqConfig,
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<SubDocumentResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>(res))
             .then((result: SubDocumentResponse<S, ResolvedSelectedShape<S, TSelect, TData>>) => {
               result.data = result.success ? (result.raw as ResolvedSelectedShape<S, TSelect, TData>) : null;
               return result;
@@ -212,7 +217,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
       );
     },
 
-    update: (subId: string, data: object, axiosRequestConfig?: RequestConfig) => {
+    update: (subId: string, data: TUpdateInput, axiosRequestConfig?: RequestConfig) => {
       const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
       return makeRequest<SubDocumentResponse<S>>(
@@ -223,7 +228,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               data,
               mergeConfig(reqConfig, { params: {} }),
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<SubDocumentResponse<S>>(res))
             .then((result: SubDocumentResponse<S>) => {
               result.data = result.success ? (result.raw as S) : null;
               return result;
@@ -251,7 +256,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
       );
     },
 
-    bulkUpdate: (data: object[], axiosRequestConfig?: RequestConfig) => {
+    bulkUpdate: (data: TUpdateInput[], axiosRequestConfig?: RequestConfig) => {
       const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
       return makeRequest<SubDocumentListResponse<S>>(
@@ -262,7 +267,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               data,
               mergeConfig(reqConfig, { params: {} }),
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<SubDocumentListResponse<S>>(res))
             .then((result: SubDocumentListResponse<S>) => {
               const rawArray = toArray<S>(result.raw);
               result.raw = rawArray;
@@ -293,7 +298,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
       );
     },
 
-    create: (data: object | object[], axiosRequestConfig?: RequestConfig) => {
+    create: (data: TCreateInput | TCreateInput[], axiosRequestConfig?: RequestConfig) => {
       const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
 
       // The sibling server's `createSub` route returns the FULL subdocument
@@ -311,7 +316,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               data,
               mergeConfig(reqConfig, { params: {} }),
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<SubDocumentListResponse<S>>(res))
             .then((result: SubDocumentListResponse<S>) => {
               const rawArray = toArray<S>(result.raw);
               result.raw = rawArray;
@@ -342,7 +347,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}/${encodePathSegment(subId)}`,
               reqConfig,
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<Response<string>>(res))
             .then((result: Response<string>) => {
               if (result.success) result.data = result.raw;
               return result;

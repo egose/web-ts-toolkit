@@ -304,7 +304,7 @@ Completion evidence:
 
 ### Task ARC-H05: Make Strict Source And Type-Test Gates Real
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -350,9 +350,25 @@ Acceptance criteria:
 - `skipLibCheck` remains false for strict consumer checks.
 - Package tests pass after the gate changes.
 
+Completion evidence:
+
+- Changed: `packages/access-router-client/package.json`, `packages/access-router-client/tsconfig.typecheck.json`, `packages/access-router-client/tsconfig.strict.json`, `packages/access-router-client/tsconfig.test-typecheck.json`, `packages/access-router-client/test-typecheck/service-call-arity.ts`, `packages/access-router-client/src/services/service.ts`, `packages/access-router-client/src/services/wrap.ts`, `packages/access-router-client/src/services/shared.ts`, `packages/access-router-client/src/services/sub-ops.ts`, `packages/access-router-client/src/services/data-service.ts`, `packages/access-router-client/src/services/model-service.ts`, `packages/access-router-client/src/adapter.ts`, `packages/access-router-client/src/helpers.ts`, `packages/access-router-client/src/model.ts`, `packages/access-router-client/test/access-router-client.arc22-parity.integration.test.ts`, `packages/access-router-client/test/support/integration-suite.ts`.
+- Regression coverage: added `typecheck:test` with `test-typecheck/service-call-arity.ts`; the fixture keeps required `@ts-expect-error` assertions for the known-invalid `count(undefined, config)` and `Model.save(undefined, config)` calls while compiling the intended one-argument config forms.
+- Implementation evidence: `typecheck:source` now runs strict source checking with `skipLibCheck: false` and `paths: {}` so it consumes built workspace declarations instead of sibling source outside package `rootDir`; `tsconfig.strict.json` now extends the same strict source config. The default package `typecheck` script runs strict source, type-test, NodeNext declaration-consumer, and Bundler declaration-consumer gates. Strict diagnostics were fixed at typed service/result boundaries, request config/header normalization, recursive helper return typing, adapter callback defaults, and model save create-call arity.
+- Runtime evidence: ARC-22 parity tests now call `count(headers)` and `Model.save(headers)` instead of passing ignored extra arguments, and the integration harness records request headers separately from exact wire snapshots so the tests assert the `user: admin` header reaches the server.
+- Documentation evidence: `CHANGELOG.md` was not updated.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck`.
+- Result: passed; strict source, dedicated type-test fixture, strict NodeNext declaration consumer, and strict Bundler declaration consumer all exited 0.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.arc22-parity.integration.test.ts`.
+- Result: focused ARC-22 parity suite passed, 1 test file and 12 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: package build/typecheck passed; 19 Node test files and 329 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `git diff --check`.
+- Result: passed.
+
 ### Task ARC-H06: Type Mutation Payloads Against Consumer Models
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -400,11 +416,26 @@ Acceptance criteria:
 - Runtime wire bodies remain accepted by the sibling model/root schemas and cardinality tests stay green.
 - Generated `.d.ts` files expose understandable input generic names and useful editor hover documentation.
 
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/types.ts`, `packages/access-router-client/src/services/model-service.ts`, `packages/access-router-client/src/services/sub-ops.ts`, `packages/access-router-client/src/adapter.ts`, `packages/access-router-client/src/mongoose/types.ts`, `packages/access-router-client/test-typecheck/mutation-input-types.ts`, `packages/access-router-client/test/access-router-client.exports.unit.test.ts`, `packages/access-router-client/README.md`, `packages/access-router-client/llms.txt`, `website/docs/packages/access-router-client/typescript-and-errors.mdx`, `packages/access-router-client/test-docs-consumer/examples/readme-exports.ts`, `packages/access-router-client/test-docs-consumer/examples/types-mutation-inputs.ts`, `packages/access-router-client/test-docs-consumer/snippets-mapping.md`.
+- Regression coverage: added strict type-test assertions that default model and subdocument mutation inputs reject misspelled object-literal fields and wrong scalar values, that custom create/update/upsert input schemas compile without casts, and that scalar filter comparison operators reject array operands while direct array conditions and `$in`/`$nin` continue to compile.
+- Implementation evidence: `ModelService` and `createModelService` now expose explicit create/update/upsert input generics with `ModelMutationInput<T>` (`Partial<T>`) defaults; subdocument helpers infer payloads from `S` with customizable create/update inputs; `QuerySelector` now separates direct-condition casting from scalar operator operands.
+- Documentation evidence: README, `llms.txt`, website TypeScript docs, export allowlist, and docs compile fixtures describe and verify the mutation input aliases and custom-schema escape hatch. `CHANGELOG.md` was not updated.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck`.
+- Result: passed; package build, strict source, dedicated type-test fixture, strict NodeNext declaration consumer, and strict Bundler declaration consumer all exited 0.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.filter-query-types.unit.test.ts test/access-router-client.exports.unit.test.ts test/access-router-client.docs.compile.test.ts`.
+- Result: focused filter/export/docs suites passed, 3 test files and 43 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: package build/typecheck passed; 19 Node test files and 329 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `git diff --check`.
+- Result: passed.
+
 ## Wave 4: Encapsulation And Model Architecture
 
 ### Task ARC-H07: Snapshot Service Defaults At Construction
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -444,9 +475,23 @@ Acceptance criteria:
 - Adapter-level plus per-service default precedence remains unchanged.
 - Package tests and strict typecheck pass.
 
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/services/shared.ts`, `packages/access-router-client/src/services/model-service.ts`, `packages/access-router-client/src/services/data-service.ts`, `packages/access-router-client/test/access-router-client.config-immutability.unit.test.ts`.
+- Regression coverage: added direct-construction `ModelService` and `DataService` tests that assert constructors do not add missing default keys to caller-owned defaults, then mutate nested caller projections, populate arrays, and option objects after construction and verify subsequent wire payloads still use the original snapshot.
+- Implementation evidence: service constructors now use shared `normalizeServiceDefaults` to clone defaults, fill required nested default objects on the clone, and deep-freeze the internal normalized snapshot. `CHANGELOG.md` was not updated.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.config-immutability.unit.test.ts`.
+- Result: focused config immutability suite passed, 1 test file and 15 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck`.
+- Result: passed; package build, strict source, dedicated type-test fixture, strict NodeNext declaration consumer, and strict Bundler declaration consumer all exited 0.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: package build/typecheck passed; 19 Node test files and 331 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `git diff --check`.
+- Result: passed.
+
 ### Task ARC-H08: Make Installed Runtime And API Claims Truthful
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -508,9 +553,28 @@ Acceptance criteria:
 - README, `llms.txt`, runtime export tests, and emitted declarations no longer contradict one another about stable exports or custom batching.
 - `npm pack --dry-run --json`, packed CJS/ESM execution, strict consumers, docs compile checks, and package tests pass.
 
+Completion evidence:
+
+- Changed: `packages/access-router-client/package.json`, `packages/access-router-client/src/adapter.ts`, `packages/access-router-client/src/services/interceptors.ts`, `packages/access-router-client/src/model.ts`, `packages/access-router-client/README.md`, `packages/access-router-client/llms.txt`, `packages/access-router-client/vitest.browser.config.ts`, `packages/access-router-client/test/access-router-client.browser-smoke.ts`, `packages/access-router-client/test/access-router-client.arc22-adversarial.unit.test.ts`, `packages/access-router-client/test/access-router-client.adapter.integration.test.ts`, `packages/access-router-client/test/access-router-client.exports.unit.test.ts`, `packages/access-router-client/test/access-router-client.packed-consumer.test.ts`, `packages/access-router-client/test/packed-consumer-harness.ts`, `packages/access-router-client/test-docs-consumer/examples/adapter-setup.ts`, `packages/access-router-client/test-docs-consumer/examples/readme-exports.ts`, `packages/access-router-client/test-docs-consumer/snippets-mapping.md`, `website/docs/packages/access-router-client/adapter.mdx`, `website/docs/packages/access-router-client/index.md`.
+- Regression coverage: added a 1,000 ms cache TTL boundary assertion (cached at 999 ms, expired at 1,000 ms), a runtime assertion that consumer-created `wrapLazyPromise(...)` values are direct-only and rejected by `adapter.group(...)`, and packed-package assertions for the valid Browserslist floor plus `pnpm exec browserslist` resolution.
+- Implementation evidence: package metadata now uses a valid explicit evergreen floor (`chrome >= 94`, `edge >= 94`, `firefox >= 93`, `safari >= 16`); adapter JSDoc and docs define `cacheTTL` as milliseconds; cache interceptor policy uses internal `ttlMs`; auth docs separate browser cookies/`withCredentials`, explicit auth headers, and Node manually supplied `Cookie` headers; jsdom/Vite smoke docs are narrowed to browser-like bundle smoke coverage rather than a real-browser engine/version gate; README wording now presents primary exports while `llms.txt`/export tests retain the full inventory; stale `ModelService.findOne` JSDoc was replaced.
+- Documentation evidence: `CHANGELOG.md` was not updated.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck`.
+- Result: passed; package build, strict source, dedicated type-test fixture, strict NodeNext declaration consumer, and strict Bundler declaration consumer all exited 0.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.arc22-adversarial.unit.test.ts test/access-router-client.adapter.integration.test.ts test/access-router-client.exports.unit.test.ts test/access-router-client.docs.compile.test.ts test/access-router-client.packed-consumer.test.ts`.
+- Result: focused runtime/docs/packed suites passed, 5 test files and 76 tests.
+- Verified: `pnpm exec browserslist` from `packages/access-router-client`.
+- Result: resolved without error and included the documented floor entries (`chrome 94`, `edge 94`, `firefox 93`, `safari 16.0`).
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: package build/typecheck passed; 19 Node test files and 333 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `npm pack --dry-run --json` from `packages/access-router-client`.
+- Result: passed and listed 7 packed files (`package.json`, `README.md`, `llms.txt`, and four `dist` outputs).
+- Verified: `git diff --check`.
+- Result: passed.
+
 ### Task ARC-H09: Decide Model Collision And Overlapping-Save Contracts
 
-Status: pending
+Status: completed
 
 Priority: P2 investigation before implementation
 
@@ -554,11 +618,34 @@ Acceptance criteria:
 - Existing single-save concurrency, reset-baseline, projected-identity, and dirty-tracking tests remain green.
 - If implementation is deferred, the file records rationale, consumer guidance, and residual risk.
 
+Maintainer decision:
+
+- Field-collision contract: public `Model` member names remain reserved for the wrapper API on direct property access. Document fields named `save`, `reset`, `set`, `get`, `assign`, `toObject`, `toJSON`, and similar public wrapper members are accessed through `get(...)`, `set(...)`, `assign(...)`, or `toObject()`, not through direct property syntax. The exported `ModelData<T, TData>` helper and model response aliases reflect this by omitting reserved wrapper names from the typed direct-field data surface.
+- Overlapping-save contract: multiple `save()` calls on the same `Model` instance are serialized in call order. The first save starts immediately; a later overlapping save snapshots dirty paths only after the previous save has finished reconciliation, so same-path and different-path edits made while the first save is in flight are deterministically submitted by the queued save.
+- Redesign decision: no breaking proxy or method-namespace redesign was implemented. Residual risk is limited to consumers that previously relied on the unsound `Model<T> & TData` type for direct property access to collided field names; runtime already reserved those names, and helper access remains supported.
+
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/model.ts`, `packages/access-router-client/src/types.ts`, `packages/access-router-client/test/access-router-client.model-reconciliation.unit.test.ts`, `packages/access-router-client/test-typecheck/model-reserved-fields.ts`, `packages/access-router-client/test/access-router-client.exports.unit.test.ts`, `packages/access-router-client/README.md`, `packages/access-router-client/llms.txt`, `packages/access-router-client/test-docs-consumer/examples/readme-exports.ts`, `packages/access-router-client/test-docs-consumer/snippets-mapping.md`, `website/docs/packages/access-router-client/index.md`, `website/docs/packages/access-router-client/model.mdx`, `website/docs/packages/access-router-client/typescript-and-errors.mdx`.
+- Regression coverage: added strict type assertions that collided data keys are not exposed as ordinary direct properties on `Model.create(...)` and `ModelResponse` data while `get(...)`, `set(...)`, and `assign(...)` still accept those fields. Added unit characterization for overlapping same-path and different-path saves, asserting the second save waits for the first and submits only the remaining dirty paths after reconciliation.
+- Implementation evidence: `Model.save(...)` now starts the first save immediately and queues later overlapping saves on the same instance; the original reconciliation logic runs inside the queued implementation. `Model.create(...)`, `ModelResponse`, and `ArrayModelResponse` now use exported `ModelData<T, TData>` so public types no longer promise direct property access for reserved wrapper names.
+- Documentation evidence: README, `llms.txt`, website overview/model/type docs, export tests, and docs compile fixtures record the reserved-name and serialized-save contracts. `CHANGELOG.md` was not updated.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.model-reconciliation.unit.test.ts test/access-router-client.model.integration.test.ts test/access-router-client.exports.unit.test.ts`.
+- Result: focused model/export suites passed, 3 test files and 37 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck`.
+- Result: package build, strict source, dedicated type-test fixture, strict NodeNext declaration consumer, and strict Bundler declaration consumer all exited 0.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.docs.compile.test.ts`.
+- Result: docs compile suite passed, 1 test file and 2 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: package build/typecheck passed; 19 Node test files and 335 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `git diff --check`.
+- Result: passed.
+
 ## Wave 5: Independent Integration Review
 
 ### Task ARC-H10: Independently Verify Security, Protocol, Types, And Artifact
 
-Status: pending
+Status: completed
 
 Priority: P1 release gate
 
@@ -594,6 +681,27 @@ Acceptance criteria:
 - `pnpm exec browserslist` resolves the package configuration without error.
 - `git diff --check` passes.
 - No task is marked completed without changed-file evidence, failing-regression evidence for confirmed defects, and command results.
+
+Completion evidence:
+
+- Changed: `docs/tasks/20260821-090419-access-router-client-health-follow-up.md`, `packages/access-router-client/src/services/sub-ops.ts`, `packages/access-router-client/test-typecheck/model-reserved-fields.ts`.
+- Independent review evidence: a separate review agent inspected ARC-H01 through ARC-H09 coverage, changed package surfaces, sibling protocol references, docs, and packed-artifact tests. It reported no blocking findings. It identified current coverage for credential classification, cache invalidation/generation, root protocol parity, public export/type inventory, packed CJS/ESM and strict consumer checks, Browserslist, jsdom/Vite browser-smoke claim wording, and the ARC-H09 maintainer decision/residual-risk statement.
+- Regression evidence: ARC-H01 through ARC-H09 already contain changed-file, regression, implementation, documentation, and verification evidence in this task file. During ARC-H10, the first repository lint gate exposed six release-gate failures from ARC-H09 type/lint work: an unused generic on `SubOpsContext<S>` and unused type-test assertion variables in `model-reserved-fields.ts`. The minimal fix removes the unused generic and consumes assertion variables without changing runtime behavior. `CHANGELOG.md` was not updated.
+- Artifact evidence: `npm pack --dry-run --json` from `packages/access-router-client` passed and listed 7 packed files: `package.json`, `README.md`, `llms.txt`, `dist/index.js`, `dist/index.mjs`, `dist/index.d.ts`, and `dist/index.d.mts`.
+- Browser metadata evidence: `pnpm exec browserslist` from `packages/access-router-client` resolved without error and included the documented floor entries `chrome 94`, `edge 94`, `firefox 93`, and `safari 16.0`.
+- Browser/runtime claim evidence: the package test flow ran the documented jsdom/Vite browser-smoke suite; ARC-H08 documentation narrows this to browser-like bundle smoke coverage rather than claiming real browser-engine CI.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck`.
+- Result: passed; package build, strict source, dedicated type-test fixture, strict NodeNext declaration consumer, and strict Bundler declaration consumer all exited 0.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: passed; package build/typecheck passed; 19 Node test files and 335 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `pnpm lint`.
+- Result: initially failed with 6 access-router-client lint errors listed above; after the minimal fixes, passed.
+- Verified: `pnpm build`.
+- Result: passed at repository level. Existing Vite config/chunk-size warnings were emitted but did not fail the build.
+- Verified: `pnpm test`.
+- Result: passed serially at repository level. Output included existing Vite native-loader warnings; access-router-client package tests passed within the repo run with 19 Node test files/335 tests and 1 browser-smoke file/10 tests.
+- Verified: `git diff --check`.
+- Result: passed.
 
 ## Dependency And Parallelization Guidance
 
