@@ -322,6 +322,8 @@ If `requestKeyFor` encounters a value it cannot represent deterministically, it 
 
 `Date` and `Object.create(null)` plain objects are supported.
 
+Request-key work is intentionally bounded. One `requestKeyFor(...)` call accepts at most 64 nested array/object levels, 20,000 first-visit nodes, and 200,000 serialized key characters; inputs beyond those limits throw `RequestKeyError` instead of overflowing the stack, partially truncating the key, or silently colliding. Keep request-key inputs as plain, stable, reasonably small wire data. Repeated object references may be reused within a single `requestKeyFor(...)` call, but there is no global cache retaining caller objects across renders.
+
 ### Importing the helper
 
 Downstream consumers that want to inspect or build keys themselves can import `requestKeyFor` and `RequestKeyError` directly from `@web-ts-toolkit/access-router-react`:
