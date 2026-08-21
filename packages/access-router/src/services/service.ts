@@ -18,7 +18,16 @@ import {
 import { diff } from 'just-diff';
 import Model from '../model';
 import { getModelOption, getModelOptions } from '../options';
-import { getDocPermissions, genPagination, normalizeSelect, populateDoc, toObject } from '../helpers';
+import {
+  getDocPermissions,
+  genPagination,
+  isFieldAllowed,
+  isValidFieldPath,
+  normalizeSelect,
+  populateDoc,
+  toObject,
+  validateSortFields,
+} from '../helpers';
 import {
   Filter,
   Include,
@@ -225,10 +234,11 @@ export class Service<TModel = unknown> extends Base<TModel> {
       throw error;
     }
 
-    let [_filter, _select, _populate] = await Promise.all([
+    let [_filter, _select, _populate, allowedSortFields] = await Promise.all([
       overrideFilter || this.genFilter(access, parsedFilter),
       overrideSelect || this.genQuerySelect(access, select),
       overridePopulate || this.genPopulate(populateAccess || access, populate),
+      this.genAllowedFields({}, access, this.baseFieldsExt),
     ]);
 
     const { includes, includeLocalFields, includePaths } = this.processInclude(include);
@@ -250,6 +260,12 @@ export class Service<TModel = unknown> extends Base<TModel> {
     if (_filter === false) {
       this.completeOp('findOne', startedAt, Codes.Forbidden, _filter);
       return { success: false, kind: 'error', code: Codes.Forbidden, query };
+    }
+
+    const sortErrors = validateSortFields(sort, allowedSortFields);
+    if (sortErrors.length > 0) {
+      this.completeOp('findOne', startedAt, Codes.BadRequest, _filter);
+      return { success: false, kind: 'error', code: Codes.BadRequest, errors: sortErrors, query };
     }
 
     let doc = await this.model.findOne({ ...query, lean });
@@ -343,11 +359,12 @@ export class Service<TModel = unknown> extends Base<TModel> {
       throw error;
     }
 
-    const [_filter, _select, _populate, pagination] = await Promise.all([
+    const [_filter, _select, _populate, pagination, allowedSortFields] = await Promise.all([
       overrideFilter || this.genFilter('list', parsedFilter),
       overrideSelect || this.genQuerySelect('list', select),
       overridePopulate || this.genPopulate(populateAccess, populate),
       genPagination({ skip, limit, page, pageSize }, this.options.listHardLimit),
+      this.genAllowedFields({}, 'list', this.baseFieldsExt),
     ]);
 
     const finalSelect = normalizeSelect(_select);
@@ -379,6 +396,12 @@ export class Service<TModel = unknown> extends Base<TModel> {
     if (_filter === false) {
       this.completeOp('find', startedAt, Codes.Forbidden, _filter);
       return { success: false, kind: 'error', code: Codes.Forbidden, query };
+    }
+
+    const sortErrors = validateSortFields(sort, allowedSortFields);
+    if (sortErrors.length > 0) {
+      this.completeOp('find', startedAt, Codes.BadRequest, _filter);
+      return { success: false, kind: 'error', code: Codes.BadRequest, errors: sortErrors, query };
     }
 
     let docs = await this.model.find({
@@ -907,25 +930,13 @@ export class Service<TModel = unknown> extends Base<TModel> {
   }
 
   protected isValidDistinctFieldName(field: unknown): boolean {
-    if (typeof field !== 'string' || field.length === 0) return false;
-    if (field.includes('$')) return false;
-    if (field.includes('..')) return false;
-    if (field.startsWith('.') || field.endsWith('.')) return false;
-    if (/\s/.test(field)) return false;
-    return true;
+    return isValidFieldPath(field);
   }
 
   protected async authorizeDistinctField(field: string): Promise<ErrorResult | null> {
     const allowedFields = await this.genAllowedFields(null, 'read');
 
-    const isAllowed = allowedFields.some((allowed) => {
-      if (allowed === field) return true;
-      if (allowed.startsWith(`${field}.`)) return true;
-      if (field.startsWith(`${allowed}.`)) return true;
-      return false;
-    });
-
-    if (!isAllowed) {
+    if (!isFieldAllowed(field, allowedFields)) {
       return {
         success: false,
         kind: 'error',
@@ -979,6 +990,48 @@ export class Service<TModel = unknown> extends Base<TModel> {
     if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query };
 
     return { success: true, kind: 'single', code: Codes.Success, data: await this.model.countDocuments(filter), query };
+  }
+
+  public async countByFieldValues(
+    foreignField: string,
+    values: unknown[],
+    filter: Filter<TModel> = {},
+    access: BaseFilterAccess = 'list',
+  ): Promise<SingleResult<Map<string, Set<string>>> | ErrorResult> {
+    const filterErrors = this.validateClientFilter(filter);
+    if (filterErrors.length > 0) return { success: false, kind: 'error', code: Codes.BadRequest, errors: filterErrors };
+
+    const uniqueValues = uniqBy(values, (value) => String(value));
+    filter = await this.genFilter(access, {
+      ...(filter as object),
+      [foreignField]: { $in: uniqueValues },
+    } as Filter<TModel>);
+
+    const query = { filter };
+
+    if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query };
+    const matchFilter = filter as Record<string, unknown>;
+
+    const rows = (await this.model.model.aggregate([
+      { $match: matchFilter },
+      {
+        $project: {
+          foreignValues: {
+            $cond: [{ $isArray: `$${foreignField}` }, `$${foreignField}`, [`$${foreignField}`]],
+          },
+        },
+      },
+      { $unwind: '$foreignValues' },
+      { $match: { foreignValues: { $in: uniqueValues } } },
+      { $group: { _id: '$foreignValues', documentIds: { $addToSet: '$_id' } } },
+    ])) as Array<{ _id: unknown; documentIds: unknown[] }>;
+
+    const counts = new Map<string, Set<string>>();
+    for (const row of rows) {
+      counts.set(String(row._id), new Set(row.documentIds.map((id) => String(id))));
+    }
+
+    return { success: true, kind: 'single', code: Codes.Success, data: counts, query };
   }
 
   public getDocPermissions(doc: unknown): Record<string, unknown> {

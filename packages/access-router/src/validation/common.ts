@@ -84,7 +84,10 @@ export const includeItemSchema = z
     filter: z.record(z.string(), z.unknown()).optional(),
     localField: z.string().min(1),
     foreignField: z.string().min(1),
-    args: z.unknown().optional(),
+    args: z
+      .unknown()
+      .optional()
+      .describe('Forwarded to list/read includes. Count includes ignore pagination fields so counts remain exact.'),
     options: z.unknown().optional(),
   })
   .passthrough();

@@ -147,6 +147,12 @@ const TenantUser = conn.model('TenantUser', schema);
 const tenantRouter = acl.createRouter(TenantUser, { basePath: '/tenant-users' });
 ```
 
+## Include Cardinality
+
+Advanced read/list requests can attach related model data with `include` entries.
+`op: 'count'` returns exact authorized counts and ignores include pagination fields such as `args.limit`.
+`op: 'list'` materializes authorized related rows through the target model's normal list path, so target `limit`, `page`, `pageSize`, and `listHardLimit` bounds still apply to included rows.
+
 ## Import styles
 
 The package ships both a default export and named exports:

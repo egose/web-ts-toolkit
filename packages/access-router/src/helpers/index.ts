@@ -2,6 +2,7 @@ export * from './collection';
 export * from './document';
 export * from './errors';
 export * from './query';
+export * from './sort-policy';
 
 import { forEach, isArray, isEmpty, isObject, isPlainObject, isString, mapValuesAsync } from '@web-ts-toolkit/utils';
 import { isSchema, isReference } from '../lib';

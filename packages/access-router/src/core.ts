@@ -211,6 +211,7 @@ export class Core {
     modelName: string,
     access: SelectAccess | BaseFilterAccess = 'read',
     _populate: Populate | Populate[] | string | null = null,
+    subPaths: string[] = [],
   ) {
     if (!_populate) return [];
 
@@ -226,12 +227,19 @@ export class Core {
                 select: normalizeSelect(p.select),
               };
 
-          const parentPath = ret.path.includes('.') ? ret.path.split('.')[0] : ret.path;
+          const pathForSourcePermission =
+            subPaths.length > 0 && ret.path.startsWith(`${subPaths[0]}.`)
+              ? ret.path.slice(subPaths[0].length + 1)
+              : ret.path;
+          const parentPath = pathForSourcePermission.includes('.')
+            ? pathForSourcePermission.split('.')[0]
+            : pathForSourcePermission;
           const allowedParentPaths = await this.genSelect(
             modelName,
             populateAccess as SelectAccess,
             [parentPath],
             false,
+            subPaths,
           );
           if (!allowedParentPaths.includes(parentPath)) return null;
 

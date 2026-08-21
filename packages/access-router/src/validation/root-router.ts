@@ -122,7 +122,7 @@ const rootModelCountOptionsSchema = z.object({}).strict().optional();
 const rootDataListArgsSchema = z
   .object({
     select: projectionSchema.optional(),
-    sort: z.string().optional(),
+    sort: sortSchema.optional(),
     skip: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),
     limit: z.union([positiveIntegerSchema, positiveIntegerString]).optional(),
     page: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),

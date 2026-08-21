@@ -1,5 +1,5 @@
 import { getDataOptions } from '../options';
-import { findElement, filterCollection, genPagination, parseSortString } from '../helpers';
+import { findElement, filterCollection, genPagination, normalizeSortForOrderBy, validateSortFields } from '../helpers';
 import { validateClientFilter } from './base';
 import {
   DataHookContext,
@@ -108,22 +108,17 @@ export class DataService<T> {
 
     if (_filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query };
 
-    // ARF-06: authorize the requested sort field(s) against the list field
-    // policy before ordering. Without this, a caller could infer denied data
-    // through ordering even when the field is later removed from the output.
-    if (sort) {
-      const sortFieldErrors = await this.validateSortFields(sort, 'list');
-      if (sortFieldErrors.length > 0) {
-        return { success: false, kind: 'error', code: Codes.BadRequest, errors: sortFieldErrors, query };
-      }
+    const sortFieldErrors = validateSortFields(sort, await this.genAllowedFields({}, 'list'));
+    if (sortFieldErrors.length > 0) {
+      return { success: false, kind: 'error', code: Codes.BadRequest, errors: sortFieldErrors, query };
     }
 
     let docs = await filterCollection(this.data, _filter);
     const totalCount = docs.length;
 
     if (sort) {
-      const { sortKey, sortOrder } = parseSortString(sort);
-      docs = orderBy(docs, [sortKey], [sortOrder]) as T[];
+      const normalizedSort = normalizeSortForOrderBy(sort);
+      docs = orderBy(docs, normalizedSort.fields, normalizedSort.orders) as T[];
     }
 
     const pagedDocs = docs.slice(query.skip, query.limit && query.skip + query.limit);
@@ -191,38 +186,5 @@ export class DataService<T> {
 
   public trimOutputFields<TDoc>(doc: TDoc, access: SelectAccess, baseFields?: string[]): Promise<TDoc> {
     return this.pickAllowedFields(doc, access, baseFields);
-  }
-
-  private async validateSortFields(
-    sort: string,
-    access: SelectAccess,
-  ): Promise<Array<{ detail: string; pointer?: string }>> {
-    const fieldPathPattern = /^[A-Za-z_][A-Za-z0-9_$]*(\.[A-Za-z_][A-Za-z0-9_$]*)*$/;
-    const fields = sort
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((field) => ({
-        raw: field,
-        name: field.startsWith('-') ? field.slice(1) : field,
-      }));
-
-    const errors: Array<{ detail: string; pointer?: string }> = [];
-
-    for (const { raw, name } of fields) {
-      if (!fieldPathPattern.test(name)) {
-        errors.push({ detail: `Invalid sort field: ${raw}`, pointer: `#/sort` });
-        continue;
-      }
-
-      if (name === 'id' || name === '_id') continue;
-
-      const allowed = await this.genAllowedFields({}, access);
-      if (!allowed.includes(name)) {
-        errors.push({ detail: `Sort field is not allowed: ${name}`, pointer: `#/sort` });
-      }
-    }
-
-    return errors;
   }
 }
