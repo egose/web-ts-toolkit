@@ -1110,11 +1110,12 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
         // the caller's `requestConfig`, headers, and other fields are
         // not mutated.
         const forwardedConfig = mergeRequestConfig(requestConfigRef.current, signal);
+        const effectiveArgs = args ?? listParams;
         if (advanced) {
           const raw = (await modelService
             .listAdvanced(
               (filter ?? {}) as FilterQuery<T>,
-              { sort, select, populate, include, tasks, ...args } as ListAdvancedArgs<Projection>,
+              { sort, select, populate, include, tasks, ...effectiveArgs } as ListAdvancedArgs<Projection>,
               advancedOptions,
               forwardedConfig,
             )
@@ -1122,9 +1123,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
           assertSuccess(raw);
           return raw;
         }
-        const raw = (await modelService
-          .list(args ?? listParams, basicOptions, forwardedConfig)
-          .exec()) as unknown as ResL;
+        const raw = (await modelService.list(effectiveArgs, basicOptions, forwardedConfig).exec()) as unknown as ResL;
         assertSuccess(raw);
         return raw;
       },
