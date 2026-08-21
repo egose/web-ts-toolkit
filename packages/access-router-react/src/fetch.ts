@@ -240,11 +240,21 @@ export class RequestKeyError extends Error {
   }
 }
 
+const REQUEST_KEY_MAX_DEPTH = 64;
+const REQUEST_KEY_MAX_NODES = 20_000;
+const REQUEST_KEY_MAX_OUTPUT_LENGTH = 200_000;
+
 interface RequestKeyContext {
   // Set of objects currently on the recursion stack, for cycle
   // detection. A `WeakSet` is sufficient because only reference-equal
   // objects can participate in a cycle.
   stack: WeakSet<object>;
+  // Per-call reuse of repeated object/array references. This is scoped
+  // to one `requestKeyFor(...)` invocation only: it reduces repeated
+  // traversal work without retaining caller objects across renders.
+  cache: WeakMap<object, string>;
+  nodesVisited: number;
+  outputLength: number;
 }
 
 /**
@@ -272,6 +282,9 @@ interface RequestKeyContext {
  *     properties) map to `{<key(sorted)!:<key(value)>!...}` recursively.
  *     The key list is sorted, so two structurally equivalent objects
  *     produce the same string regardless of insertion order.
+ *   - Traversal is bounded: request keys reject inputs deeper than 64
+ *     nested array/object levels, inputs that require more than 20,000
+ *     first-visit nodes, or outputs longer than 200,000 characters.
  *
  * Unsupported values — `bigint`, `function`, `symbol`, accessor
  * properties, cycles, and non-plain built-in objects (`RegExp`,
@@ -281,23 +294,45 @@ interface RequestKeyContext {
  * `Object.getOwnPropertyDescriptor` is rejected before any access.
  */
 export function requestKeyFor(value: unknown): string {
-  return requestKeyForImpl(value, { stack: new WeakSet() });
+  return requestKeyForImpl(value, { stack: new WeakSet(), cache: new WeakMap(), nodesVisited: 0, outputLength: 0 }, 0);
 }
 
-function requestKeyForImpl(value: unknown, ctx: RequestKeyContext): string {
-  if (value === null) return 'n:';
-  if (value === undefined) return 'u:';
+function requestKeyForImpl(value: unknown, ctx: RequestKeyContext, depth: number): string {
+  if (depth > REQUEST_KEY_MAX_DEPTH) {
+    throw new RequestKeyError(
+      `requestKeyFor: request input exceeds the maximum depth of ${REQUEST_KEY_MAX_DEPTH} nested arrays/objects; flatten or normalize the structure before passing it to a query hook.`,
+    );
+  }
+  if (value === null) {
+    noteRequestKeyNode(ctx);
+    return finalizePrimitiveRequestKey(ctx, 'n:');
+  }
+  if (value === undefined) {
+    noteRequestKeyNode(ctx);
+    return finalizePrimitiveRequestKey(ctx, 'u:');
+  }
+
+  if (typeof value === 'object') {
+    const cached = ctx.cache.get(value as object);
+    if (cached !== undefined) {
+      reserveRequestKeyOutput(ctx, cached.length);
+      return cached;
+    }
+  }
+
+  noteRequestKeyNode(ctx);
+
   const t = typeof value;
   switch (t) {
     case 'boolean':
-      return `b:${value}`;
+      return finalizePrimitiveRequestKey(ctx, `b:${value}`);
     case 'number': {
-      if (Number.isNaN(value)) return 'n:NaN';
-      if (Object.is(value, -0)) return 'n:-0';
-      return `n:${String(value)}`;
+      if (Number.isNaN(value)) return finalizePrimitiveRequestKey(ctx, 'n:NaN');
+      if (Object.is(value, -0)) return finalizePrimitiveRequestKey(ctx, 'n:-0');
+      return finalizePrimitiveRequestKey(ctx, `n:${String(value)}`);
     }
     case 'string':
-      return `s:${JSON.stringify(value)}`;
+      return finalizePrimitiveRequestKey(ctx, `s:${JSON.stringify(value)}`);
     case 'bigint':
       throw new RequestKeyError(
         'requestKeyFor: bigint is not supported in request keys; convert to a number or string before passing to a query hook.',
@@ -315,7 +350,7 @@ function requestKeyForImpl(value: unknown, ctx: RequestKeyContext): string {
       // distinct from any ISO-string filter that happens to look like a
       // date.
       if (value instanceof Date) {
-        return `d:${value.getTime()}`;
+        return finalizePrimitiveRequestKey(ctx, `d:${value.getTime()}`);
       }
       // Reject unsupported built-in instances. `RegExp`, `Map`, `Set`,
       // `URL`, `Error`, and class instances are not part of the
@@ -338,13 +373,19 @@ function requestKeyForImpl(value: unknown, ctx: RequestKeyContext): string {
           throw new RequestKeyError('requestKeyFor: cycle detected in array (request key).');
         }
         ctx.stack.add(value);
+        reserveRequestKeyOutput(ctx, 1);
         let out = '[';
         for (let i = 0; i < value.length; i++) {
-          if (i > 0) out += ',';
-          out += requestKeyForImpl(value[i], ctx);
+          if (i > 0) {
+            reserveRequestKeyOutput(ctx, 1);
+            out += ',';
+          }
+          out += requestKeyForImpl(value[i], ctx, depth + 1);
         }
+        reserveRequestKeyOutput(ctx, 1);
         out += ']';
         ctx.stack.delete(value);
+        ctx.cache.set(value, out);
         return out;
       }
       // Plain object path. Reject objects whose prototype is not
@@ -376,9 +417,13 @@ function requestKeyForImpl(value: unknown, ctx: RequestKeyContext): string {
       // reading them so a getter is never accidentally invoked during
       // dep-key construction.
       const keys = Object.keys(value as object).sort();
+      reserveRequestKeyOutput(ctx, 1);
       let out = '{';
       for (let i = 0; i < keys.length; i++) {
-        if (i > 0) out += ',';
+        if (i > 0) {
+          reserveRequestKeyOutput(ctx, 1);
+          out += ',';
+        }
         const k = keys[i];
         const desc = Object.getOwnPropertyDescriptor(value as object, k);
         if (desc === undefined) {
@@ -391,14 +436,41 @@ function requestKeyForImpl(value: unknown, ctx: RequestKeyContext): string {
             `requestKeyFor: accessor property ${JSON.stringify(k)} is not supported in request keys; getters/setters must not run during dep-key construction.`,
           );
         }
-        out += `${JSON.stringify(k)}:${requestKeyForImpl((desc as { value: unknown }).value, ctx)}`;
+        const keyText = JSON.stringify(k);
+        reserveRequestKeyOutput(ctx, keyText.length + 1);
+        out += `${keyText}:${requestKeyForImpl((desc as { value: unknown }).value, ctx, depth + 1)}`;
       }
+      reserveRequestKeyOutput(ctx, 1);
       out += '}';
       ctx.stack.delete(value as object);
+      ctx.cache.set(value as object, out);
       return out;
     }
     default:
       throw new RequestKeyError(`requestKeyFor: unsupported value of type ${t}.`);
+  }
+}
+
+function noteRequestKeyNode(ctx: RequestKeyContext): void {
+  ctx.nodesVisited += 1;
+  if (ctx.nodesVisited > REQUEST_KEY_MAX_NODES) {
+    throw new RequestKeyError(
+      `requestKeyFor: request input exceeds the maximum traversal budget of ${REQUEST_KEY_MAX_NODES} nodes; reduce the filter, params, or requestConfig shape before passing it to a query hook.`,
+    );
+  }
+}
+
+function finalizePrimitiveRequestKey(ctx: RequestKeyContext, key: string): string {
+  reserveRequestKeyOutput(ctx, key.length);
+  return key;
+}
+
+function reserveRequestKeyOutput(ctx: RequestKeyContext, length: number): void {
+  ctx.outputLength += length;
+  if (ctx.outputLength > REQUEST_KEY_MAX_OUTPUT_LENGTH) {
+    throw new RequestKeyError(
+      `requestKeyFor: request input exceeds the maximum serialized key length of ${REQUEST_KEY_MAX_OUTPUT_LENGTH} characters; reduce repeated or oversized request data before passing it to a query hook.`,
+    );
   }
 }
 
