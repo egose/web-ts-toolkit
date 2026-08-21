@@ -9,7 +9,7 @@ import {
   type CachePartitioner,
 } from './services/interceptors';
 import { createWrapHelper } from './services/wrap';
-import { normalizeConfigValue } from './services/cache-utils';
+import { normalizeGroupedRequestConfig } from './services/cache-utils';
 import { applyGroupCallbacks, finalizeRootEntry, finalizeRootTransportFailure } from './services/shared';
 import { ADAPTER_ID_KEY } from './services/symbols';
 import { claimLazyRequest, releaseLazyRequestClaim } from './lazy-promise';
@@ -42,7 +42,74 @@ const ROOT_MUTATION_OPS = new Set([
 ]);
 
 const serializeRequestConfig = (config?: AxiosRequestConfig) =>
-  JSON.stringify(normalizeConfigValue(removeCacheInvalidationSignal(config ?? {})));
+  JSON.stringify(normalizeGroupedRequestConfig(removeCacheInvalidationSignal(config ?? {})));
+
+const createMalformedRootResponseError = (message: string) => {
+  const error = new Error(message);
+  error.name = 'MalformedRootResponseError';
+  return error;
+};
+
+const validateRootResponseEntries = (data: unknown, expectedLength: number) => {
+  if (!Array.isArray(data)) {
+    throw createMalformedRootResponseError('Malformed root response: expected an array');
+  }
+
+  if (data.length !== expectedLength) {
+    throw createMalformedRootResponseError(
+      `Malformed root response: expected ${expectedLength} entries but received ${data.length}`,
+    );
+  }
+
+  return data.map((entry, index) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw createMalformedRootResponseError(`Malformed root response: entry ${index} is not an object`);
+    }
+
+    const { result, message, statusCode, op } = entry as Record<string, unknown>;
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      throw createMalformedRootResponseError(`Malformed root response: entry ${index} result is not an object`);
+    }
+
+    if (typeof (result as { success?: unknown }).success !== 'boolean') {
+      throw createMalformedRootResponseError(`Malformed root response: entry ${index} result.success is not boolean`);
+    }
+
+    if (typeof statusCode !== 'number' || !Number.isFinite(statusCode)) {
+      throw createMalformedRootResponseError(
+        `Malformed root response: entry ${index} statusCode is not a finite number`,
+      );
+    }
+
+    if (message != null && typeof message !== 'string') {
+      throw createMalformedRootResponseError(`Malformed root response: entry ${index} message is not a string`);
+    }
+
+    if (op != null && typeof op !== 'string') {
+      throw createMalformedRootResponseError(`Malformed root response: entry ${index} op is not a string`);
+    }
+
+    return {
+      result: result as { success: boolean; [key: string]: unknown },
+      message: message ?? '',
+      statusCode,
+      op,
+    };
+  });
+};
+
+const applyRootTransportFailure = <T extends readonly (ModelRequest<unknown> | DataRequest<unknown>)[]>(
+  proms: T,
+  groupThrowOnError: boolean | undefined,
+  error: unknown,
+) => {
+  const failures = proms.map((prom) => finalizeRootTransportFailure(prom.__query, error));
+  return applyGroupCallbacks(
+    failures,
+    proms.map((p) => p.__service),
+    groupThrowOnError ?? false,
+  ) as { [K in keyof T]: Awaited<T[K]> };
+};
 
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   value != null && typeof value === 'object' && !Array.isArray(value);
@@ -317,7 +384,7 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
         if (sharedConfigKey != null && sharedConfigKey !== configKey) {
           throw new Error('Grouped requests must share the same axios request config');
         }
-        sharedConfig = prom.__requestConfig ?? {};
+        sharedConfig ??= prom.__requestConfig ?? {};
         sharedConfigKey = configKey;
 
         const query = { ...prom.__query };
@@ -352,12 +419,12 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
       const groupConfig = removeCacheInvalidationSignal(sharedConfig ?? {});
       const result = await instance.post(rootRouterPath, defs, groupConfig).then(
         (res) => {
-          const rawEntries = res.data.map(({ result, message, statusCode, op }) => ({
-            result,
-            message,
-            statusCode,
-            op,
-          }));
+          let rawEntries;
+          try {
+            rawEntries = validateRootResponseEntries(res.data, proms.length);
+          } catch (error) {
+            return applyRootTransportFailure(proms, groupThrowOnError, error);
+          }
 
           if (
             rawEntries.some(
@@ -382,12 +449,7 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
           ) as { [K in keyof T]: Awaited<T[K]> };
         },
         (error: unknown) => {
-          const failures = proms.map((prom) => finalizeRootTransportFailure(prom.__query, error));
-          return applyGroupCallbacks(
-            failures,
-            proms.map((p) => p.__service),
-            groupThrowOnError ?? false,
-          ) as { [K in keyof T]: Awaited<T[K]> };
+          return applyRootTransportFailure(proms, groupThrowOnError, error);
         },
       );
 

@@ -398,3 +398,127 @@ describe('ARC-22 dispose — in-flight map is cleared', () => {
     expect(second.data).toEqual({ value: 2 });
   });
 });
+
+describe('ARC-H04 group preflight — axios config boundary', () => {
+  it('rejects function-valued request configs before dispatch rather than sharing the last config', async () => {
+    let invocations = 0;
+    const adapter = createAdapter({
+      baseURL: 'http://localhost',
+      adapter: async (config) => {
+        invocations += 1;
+        return { data: [], status: 200, statusText: 'OK', headers: {}, config } as unknown as AxiosResponse;
+      },
+    });
+    const service = adapter.createModelService<{ _id: string; name: string }>({ modelName: 'User', basePath: 'users' });
+
+    await expect(
+      adapter.group(
+        service.read('1', undefined, { validateStatus: (status) => status < 500 }),
+        service.read('2', undefined, { validateStatus: (status) => status < 400 }),
+      ),
+    ).rejects.toThrow(/validateStatus/);
+    expect(invocations).toBe(0);
+  });
+
+  it('rejects circular request configs before claims and network activity', async () => {
+    let invocations = 0;
+    const adapter = createAdapter({
+      baseURL: 'http://localhost',
+      adapter: async (config) => {
+        invocations += 1;
+        return { data: [], status: 200, statusText: 'OK', headers: {}, config } as unknown as AxiosResponse;
+      },
+    });
+    const service = adapter.createModelService<{ _id: string; name: string }>({ modelName: 'User', basePath: 'users' });
+    const params: Record<string, unknown> = { id: '1' };
+    params.self = params;
+
+    await expect(adapter.group(service.read('1', undefined, { params }))).rejects.toThrow(/circular axios config/);
+    expect(invocations).toBe(0);
+
+    const grouped = await adapter.group(service.read('1'));
+    expect(grouped[0].success).toBe(false);
+    expect(invocations).toBe(1);
+  });
+});
+
+describe('ARC-H04 group protocol — malformed root responses', () => {
+  const malformedFixtures: Array<[string, unknown]> = [
+    ['empty array', []],
+    ['non-array', { result: { success: true } }],
+    ['short array', [{ result: { success: true, kind: 'single', data: { _id: '1' } }, statusCode: 200 }]],
+    [
+      'extra array entry',
+      [
+        { result: { success: true, kind: 'single', data: { _id: '1' } }, statusCode: 200 },
+        { result: { success: true, kind: 'single', data: { _id: '2' } }, statusCode: 200 },
+        { result: { success: true, kind: 'single', data: { _id: '3' } }, statusCode: 200 },
+      ],
+    ],
+    ['malformed entry', [{ result: { success: true, kind: 'single', data: { _id: '1' } }, statusCode: 200 }, null]],
+    [
+      'malformed result shape',
+      [{ result: { success: true, kind: 'single', data: { _id: '1' } }, statusCode: 200 }, {}],
+    ],
+  ];
+
+  it.each(malformedFixtures)('settles every grouped request for %s with controlled failures', async (_name, data) => {
+    let invocations = 0;
+    let failureCallbacks = 0;
+    const adapter = createAdapter(
+      {
+        baseURL: 'http://localhost',
+        adapter: async (config) => {
+          invocations += 1;
+          return { data, status: 200, statusText: 'OK', headers: {}, config } as unknown as AxiosResponse;
+        },
+      },
+      {
+        onFailure: () => {
+          failureCallbacks += 1;
+        },
+      },
+    );
+    const service = adapter.createModelService<{ _id: string; name: string }>({ modelName: 'User', basePath: 'users' });
+
+    const grouped = await adapter.group(service.read('1'), service.read('2'));
+
+    expect(invocations).toBe(1);
+    expect(failureCallbacks).toBe(2);
+    expect(grouped).toHaveLength(2);
+    for (const result of grouped) {
+      expect(result.success).toBe(false);
+      expect(result.status).toBe(0);
+      expect(result.message).toMatch(/Malformed root response/);
+      expect(result.data).toBeNull();
+    }
+  });
+
+  it('runs callbacks once per entry before throwOnError surfaces malformed root responses', async () => {
+    let failureCallbacks = 0;
+    const adapter = createAdapter(
+      {
+        baseURL: 'http://localhost',
+        adapter: async (config) => {
+          return {
+            data: { not: 'an array' },
+            status: 200,
+            statusText: 'OK',
+            headers: {},
+            config,
+          } as unknown as AxiosResponse;
+        },
+      },
+      {
+        throwOnError: true,
+        onFailure: () => {
+          failureCallbacks += 1;
+        },
+      },
+    );
+    const service = adapter.createModelService<{ _id: string; name: string }>({ modelName: 'User', basePath: 'users' });
+
+    await expect(adapter.group(service.read('1'), service.read('2'))).rejects.toThrow(/Malformed root response/);
+    expect(failureCallbacks).toBe(2);
+  });
+});

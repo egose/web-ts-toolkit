@@ -244,7 +244,7 @@ Completion evidence:
 
 ### Task ARC-H04: Validate Group Configs And Root Response Shape
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -286,6 +286,19 @@ Acceptance criteria:
 - Empty, non-array, short, extra, and malformed root response fixtures settle every grouped request according to the documented policy without incidental TypeErrors.
 - Callback and `throwOnError` behavior remains deterministic for malformed responses.
 - Existing 33-operation protocol parity coverage remains green.
+
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/adapter.ts`, `packages/access-router-client/src/services/cache-utils.ts`, `packages/access-router-client/test/access-router-client.arc22-adversarial.unit.test.ts`.
+- Regression coverage: added grouped Axios config preflight tests for function-valued `validateStatus` configs and circular `params`; both assert no network dispatch. Added malformed root response fixtures for empty, non-array, short, extra, malformed entry, and malformed result-shape payloads, plus `throwOnError` callback determinism coverage.
+- Implementation evidence: grouped request config normalization now rejects unsupported function, symbol, circular, adapter, transform, serializer, cancellation, progress, and `validateStatus` config values before request claims/network dispatch; shared group config preserves the first validated config. Fulfilled root responses are validated as arrays with exact cardinality and minimum per-entry result/status shape before finalization; malformed payloads settle through the existing transport-failure callback policy.
+- Documentation evidence: `CHANGELOG.md` was not updated.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.arc22-adversarial.unit.test.ts test/access-router-client.arc22-parity.integration.test.ts`.
+- Result: focused adversarial/parity suites passed, 2 test files and 32 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: package build/typecheck passed; 19 Node test files and 329 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `git diff --check`.
+- Result: passed.
 
 ## Wave 3: Type Safety And Testability
 
