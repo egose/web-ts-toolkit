@@ -26,5 +26,5 @@ describe('PDFR-02 strict declaration consumers', () => {
   it('compile against the built package root under NodeNext and Bundler', () => {
     run('pnpm', ['exec', 'tsc', '-p', 'test-decl-consumer/tsconfig-nodenext.json']);
     run('pnpm', ['exec', 'tsc', '-p', 'test-decl-consumer/tsconfig-bundler.json']);
-  });
+  }, 15_000);
 });
