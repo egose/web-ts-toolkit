@@ -368,7 +368,7 @@ Completion evidence:
 
 ### Task ARC-H06: Type Mutation Payloads Against Consumer Models
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -415,6 +415,21 @@ Acceptance criteria:
 - Scalar `$gt`/`$lte` with an array operand fails; direct array conditions and `$in`/`$nin` continue to compile as documented.
 - Runtime wire bodies remain accepted by the sibling model/root schemas and cardinality tests stay green.
 - Generated `.d.ts` files expose understandable input generic names and useful editor hover documentation.
+
+Completion evidence:
+
+- Changed: `packages/access-router-client/src/types.ts`, `packages/access-router-client/src/services/model-service.ts`, `packages/access-router-client/src/services/sub-ops.ts`, `packages/access-router-client/src/adapter.ts`, `packages/access-router-client/src/mongoose/types.ts`, `packages/access-router-client/test-typecheck/mutation-input-types.ts`, `packages/access-router-client/test/access-router-client.exports.unit.test.ts`, `packages/access-router-client/README.md`, `packages/access-router-client/llms.txt`, `website/docs/packages/access-router-client/typescript-and-errors.mdx`, `packages/access-router-client/test-docs-consumer/examples/readme-exports.ts`, `packages/access-router-client/test-docs-consumer/examples/types-mutation-inputs.ts`, `packages/access-router-client/test-docs-consumer/snippets-mapping.md`.
+- Regression coverage: added strict type-test assertions that default model and subdocument mutation inputs reject misspelled object-literal fields and wrong scalar values, that custom create/update/upsert input schemas compile without casts, and that scalar filter comparison operators reject array operands while direct array conditions and `$in`/`$nin` continue to compile.
+- Implementation evidence: `ModelService` and `createModelService` now expose explicit create/update/upsert input generics with `ModelMutationInput<T>` (`Partial<T>`) defaults; subdocument helpers infer payloads from `S` with customizable create/update inputs; `QuerySelector` now separates direct-condition casting from scalar operator operands.
+- Documentation evidence: README, `llms.txt`, website TypeScript docs, export allowlist, and docs compile fixtures describe and verify the mutation input aliases and custom-schema escape hatch. `CHANGELOG.md` was not updated.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck`.
+- Result: passed; package build, strict source, dedicated type-test fixture, strict NodeNext declaration consumer, and strict Bundler declaration consumer all exited 0.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.filter-query-types.unit.test.ts test/access-router-client.exports.unit.test.ts test/access-router-client.docs.compile.test.ts`.
+- Result: focused filter/export/docs suites passed, 3 test files and 43 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: package build/typecheck passed; 19 Node test files and 329 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `git diff --check`.
+- Result: passed.
 
 ## Wave 4: Encapsulation And Model Architecture
 
