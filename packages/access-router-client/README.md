@@ -98,6 +98,9 @@ consumer needs:
   defaults to `'__mutation'`; `rootRouterPath` defaults to `'root'`.
 - **Cache & authentication policy:** credentialed requests are **never**
   cached unless `cachePartition` returns a stable, non-secret identity token.
+  Browser cookie credentials, explicit `Authorization`/proxy authorization
+  headers, API-key style headers, and Node `Cookie` headers supplied on the
+  request config are all treated as credentialed.
   Sensitive headers (`authorization`, `cookie`, `set-cookie`,
   `proxy-authorization`, `www-authenticate`) are excluded from cache keys
   regardless of the partition token. Only GET requests with supported JSON or
@@ -285,13 +288,12 @@ through the returned adapter's `clearCache()` and `disposeCache()` methods.
   narrow to the same matrix). Unsupported environments fail clearly via
   engine warnings rather than appearing accidentally supported.
 - **Authentication contract:** `withCredentials: true` is the adapter
-  default, so the browser runtime transmits cookies + the `Authorization`
-  header and the cache partitions credentialed requests via the
-  `cachePartition` option (see [Cache Controls](#cache-controls)). In Node,
-  `withCredentials` is honored by Axios's HTTP adapter the same way for
-  `Cookie` headers you set manually; credentialed caching still requires an
-  explicit `cachePartition` token so one identity cannot receive another's
-  cached response.
+  default, so browser requests may include cookies when CORS and cookie policy
+  allow them. `Authorization`, proxy authorization, API-key style headers, and
+  Node `Cookie` headers are explicit Axios config values; `withCredentials`
+  does not create them. Credentialed caching still requires an explicit
+  `cachePartition` token so one identity cannot receive another's cached
+  response.
 - **Cache timers:** the in-memory cache uses `setTimeout`/`clearTimeout`
   (available in both runtimes). The optional Node `unref()` guard is
   feature-detected and is a no-op in browsers, so `clearCache()` and

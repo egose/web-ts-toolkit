@@ -89,7 +89,6 @@ function createPdfHarness(options: { numPages?: number; renderPromise?: Promise<
   const documentProxy = {
     numPages: options.numPages ?? 2,
     getPage: vi.fn(async () => page),
-    destroy: vi.fn(async () => undefined),
   } as unknown as PDFDocumentProxy;
   const loadingTask = {
     promise: Promise.resolve(documentProxy),
@@ -104,7 +103,6 @@ function createLoadHarness(options: { numPages?: number } = {}) {
   const documentProxy = {
     numPages: options.numPages ?? 2,
     getPage: vi.fn(),
-    destroy: vi.fn(async () => undefined),
   } as unknown as PDFDocumentProxy;
   const loadingTask = {
     promise: deferred.promise,
@@ -146,7 +144,7 @@ describe('PDFReader', () => {
 
     await reader.destroy();
     await reader.destroy();
-    expect(pdf.documentProxy.destroy).toHaveBeenCalledOnce();
+    expect(pdf.loadingTask.destroy).toHaveBeenCalledOnce();
   });
 
   it('rejects unsafe page allocation before creating a canvas and still cleans up the page', async () => {
@@ -329,7 +327,7 @@ describe('PDFReader', () => {
     const reader = new PDFReader(new Uint8Array([1]), { limits: { maxDocumentPages: 3 } });
 
     await expect(reader.load()).rejects.toMatchObject({ code: 'PAGE_LIMIT_EXCEEDED' });
-    expect(oversized.documentProxy.destroy).toHaveBeenCalledOnce();
+    expect(oversized.loadingTask.destroy).toHaveBeenCalledOnce();
 
     createPdfHarness();
     const validReader = new PDFReader(new Uint8Array([1]));
@@ -633,7 +631,7 @@ describe('PDFReader', () => {
     await expect(destroying).resolves.toBeUndefined();
     expect(pdf.renderTask.cancel).toHaveBeenCalledOnce();
     expect(pdf.page.cleanup).toHaveBeenCalledOnce();
-    expect(pdf.documentProxy.destroy).toHaveBeenCalledOnce();
+    expect(pdf.loadingTask.destroy).toHaveBeenCalledOnce();
     expect(canvas.canvas.width).toBe(0);
     expect(canvas.canvas.height).toBe(0);
   });

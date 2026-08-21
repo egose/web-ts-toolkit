@@ -52,7 +52,7 @@ const grouped = await adapter.group(
 ## Gotchas
 
 - supports **browsers and Node** (maintainer decision, ARC-19). Bundle target is `es2022`; `engines.node: ">=22"`, `browserslist: ["supports es2022-module"]`. The source imports no Node built-ins; the cache `unref()` guard is feature-detected and a no-op in browsers.
-- `withCredentials: true` is the adapter default; in the browser this transmits cookies + `Authorization`. In Node it forces Axios to send the `Cookie` header you set manually. Credentialed caching still requires an explicit `cachePartition` token so one identity cannot receive another's cached response.
+- `withCredentials: true` is the adapter default; in the browser this permits cookie credentials when CORS and cookie policy allow them. `Authorization`, proxy authorization, API-key style headers, and Node `Cookie` headers are explicit Axios config values; `withCredentials` does not create them. Credentialed caching still requires an explicit `cachePartition` token so one identity cannot receive another's cached response.
 - caching is disabled by default (`cacheTTL: 0`). When enabled, only GET requests with supported JSON/text semantics cache or deduplicate, custom transforms/serializers and cancellation-sensitive requests bypass caching, and the default LRU capacity is 100 entries.
 - `axios` is a regular runtime dependency (declared in `package.json` `dependencies`); an installed consumer does not need to add axios separately. Use it as a peer only if you intentionally dedupe against an existing axios install.
 - service methods return lazy requests; they do not execute until `await`, `.then()`, `.exec()`, etc.

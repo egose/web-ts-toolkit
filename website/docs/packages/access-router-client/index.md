@@ -24,9 +24,10 @@ browsers** (Chrome 94+, Edge 94+, Firefox 93+, Safari 16+):
 - `tsup.config.ts` ships the bundle at the `es2022` syntax intersection of
   both runtimes; the source imports no Node built-ins, so the same
   `dist/index.mjs` and `dist/index.js` run in either environment
-- `withCredentials: true` is the adapter default; in the browser this
-  transmits cookies + the `Authorization` header (see [Cache Controls](./adapter#cache-controls) for how credentialed cache partitioning mirrors it
-  on Node). The cache's `setTimeout`/`clearTimeout` and feature-detected
+- `withCredentials: true` is the adapter default; in the browser this permits
+  cookie credentials when CORS and cookie policy allow them. Authorization,
+  API-key style headers, and Node `Cookie` headers are explicit Axios config
+  values; see [Cache Controls](./adapter#cache-controls) for credentialed cache partitioning. The cache's `setTimeout`/`clearTimeout` and feature-detected
   `unref()` guard work in both runtimes.
 - `pnpm --filter @web-ts-toolkit/access-router-client test:browser-smoke`
   runs a jsdom + Vite smoke test against the _built_ `dist/index.mjs` and

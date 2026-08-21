@@ -1,12 +1,25 @@
 import type { PageViewport, PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 
+export type PdfDocumentInitParameters = NonNullable<Parameters<typeof import('pdfjs-dist').getDocument>[0]>;
+
+export type PdfTypedArray =
+  | Int8Array
+  | Uint8Array
+  | Uint8ClampedArray
+  | Int16Array
+  | Uint16Array
+  | Int32Array
+  | Uint32Array
+  | Float32Array
+  | Float64Array;
+
 /**
  * PDF.js `getDocument(...)` source accepted by the package root.
  *
  * Prefer trusted in-memory bytes when possible. PDF.js may transfer typed-array
  * ownership to its worker during load.
  */
-export type PdfSource = NonNullable<Parameters<typeof import('pdfjs-dist').getDocument>[0]>;
+export type PdfSource = string | URL | ArrayBuffer | PdfTypedArray | number[] | PdfDocumentInitParameters;
 
 export type TransformMatrix = readonly [number, number, number, number, number, number];
 

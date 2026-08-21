@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import axios, { type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosHeaders, type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 
 import { useCacheInterceptors, type CacheController, type CachePolicy } from '../src/services/interceptors';
 import { CACHE_HEADER } from '../src/constants';
@@ -43,6 +43,57 @@ describe('cache interceptors credential safety', () => {
 
     const first = await instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
     const second = await instance.get('/cached', { headers: { [CACHE_HEADER]: 'true' } });
+
+    expect(invocations).toBe(2);
+    expect(first.data).toEqual({ value: 1 });
+    expect(second.data).toEqual({ value: 2 });
+  });
+
+  it('does not cache or deduplicate authorization-header requests without a partition', async () => {
+    let invocations = 0;
+    const { instance } = createFakeAdapter(async () => {
+      invocations += 1;
+      const value = invocations;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      return { data: { value }, status: 200, headers: {} };
+    });
+
+    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+
+    const [first, second] = await Promise.all([
+      instance.get('/cached', {
+        withCredentials: false,
+        headers: { [CACHE_HEADER]: 'true', Authorization: 'Bearer user-a' },
+      }),
+      instance.get('/cached', {
+        withCredentials: false,
+        headers: { [CACHE_HEADER]: 'true', Authorization: 'Bearer user-b' },
+      }),
+    ]);
+    const third = await instance.get('/cached', {
+      withCredentials: false,
+      headers: { [CACHE_HEADER]: 'true', Authorization: 'Bearer user-a' },
+    });
+
+    expect(invocations).toBe(3);
+    expect(first.data).toEqual({ value: 1 });
+    expect(second.data).toEqual({ value: 2 });
+    expect(third.data).toEqual({ value: 3 });
+  });
+
+  it('does not cache manually supplied cookie-header requests without a partition', async () => {
+    let invocations = 0;
+    const { instance } = createFakeAdapter(() => {
+      invocations += 1;
+      return { data: { value: invocations }, status: 200, headers: {} };
+    });
+
+    useCacheInterceptors(instance, { ttl: 60_000, withCredentialsDefault: false });
+
+    const headers = new AxiosHeaders({ [CACHE_HEADER]: 'true', CoOkIe: 'session=user-a' });
+    const first = await instance.get('/cached', { withCredentials: false, headers });
+    headers.set('CoOkIe', 'session=user-b');
+    const second = await instance.get('/cached', { withCredentials: false, headers });
 
     expect(invocations).toBe(2);
     expect(first.data).toEqual({ value: 1 });
@@ -97,6 +148,39 @@ describe('cache interceptors credential safety', () => {
     expect(adminSecond.data).toEqual({ value: 1 });
     expect(guestFirst.data).toEqual({ value: 2 });
     expect(invocations).toBe(2);
+  });
+
+  it('caches header-authenticated requests only inside an explicit partition', async () => {
+    let invocations = 0;
+    const { instance } = createFakeAdapter(() => {
+      invocations += 1;
+      return { data: { value: invocations }, status: 200, headers: {} };
+    });
+
+    const policy: CachePolicy = {
+      ttl: 60_000,
+      withCredentialsDefault: false,
+      partitionForRequest: (config) => (config.headers?.['x-identity'] as string) ?? undefined,
+    };
+    useCacheInterceptors(instance, policy);
+
+    const adminFirst = await instance.get('/cached', {
+      withCredentials: false,
+      headers: { [CACHE_HEADER]: 'true', Authorization: 'Bearer admin-a', 'x-identity': 'admin' },
+    });
+    const adminSecond = await instance.get('/cached', {
+      withCredentials: false,
+      headers: { [CACHE_HEADER]: 'true', Authorization: 'Bearer admin-b', 'x-identity': 'admin' },
+    });
+    const guestFirst = await instance.get('/cached', {
+      withCredentials: false,
+      headers: { [CACHE_HEADER]: 'true', Authorization: 'Bearer guest', 'x-identity': 'guest' },
+    });
+
+    expect(invocations).toBe(2);
+    expect(adminFirst.data).toEqual({ value: 1 });
+    expect(adminSecond.data).toEqual({ value: 1 });
+    expect(guestFirst.data).toEqual({ value: 2 });
   });
 
   it('still caches anonymous requests without a partition key', async () => {

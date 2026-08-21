@@ -84,6 +84,10 @@ tenant id); sensitive headers (`authorization`, `cookie`, `set-cookie`,
 `proxy-authorization`, `www-authenticate`) are excluded from cache keys
 regardless of the partition token.
 
+Browser cookie credentials, `withCredentials`, explicit Authorization/proxy
+authorization headers, API-key style headers, and Node `Cookie` headers supplied
+on the Axios config are all treated as credentialed for cache partitioning.
+
 Only GET requests using supported JSON or text response modes are eligible.
 Stream/blob/array-buffer/document responses, custom request or response
 transforms, custom parameter serializers, cancellation-sensitive requests, and
@@ -99,11 +103,12 @@ The bundle targets `es2022` and `package.json` declares `engines.node:
 `dist/index.mjs` and `dist/index.js` run in either environment because the
 source imports no Node built-ins.
 
-- `withCredentials: true` (the adapter default) is honored by both Axios's
-  browser `XMLHttpRequest` adapter (sends cookies + `Authorization`) and the
-  Node HTTP adapter (sends the `Cookie`/`Authorization` headers you set on
-  the Axios config). The `cachePartition` policy above applies identically
-  to both runtimes — one identity cannot receive another's cached response.
+- `withCredentials: true` (the adapter default) permits browser cookie
+  credentials when CORS and cookie policy allow them. Authorization, proxy
+  authorization, API-key style headers, and Node `Cookie` headers are explicit
+  Axios config values; `withCredentials` does not create them. The
+  `cachePartition` policy above applies identically to both runtimes: one
+  identity cannot receive another's cached response.
 - The cache timers use `setTimeout`/`clearTimeout`, which are
   browser-native. The optional Node `unref()` optimization is
   feature-detected and is a no-op in browsers, so `clearCache()` and

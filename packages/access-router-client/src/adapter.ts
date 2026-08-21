@@ -71,9 +71,10 @@ const mergeServiceDefaults = <TDefaults extends object>(
  *
  * - `cacheTTL` — seconds a cached GET response is reused before revalidation.
  * - `cachePartition` — required to cache credentialed requests safely (see
- *   {@link CachePartitioner}); credentialed requests without a stable,
- *   non-secret partition token bypass the cache so one identity cannot
- *   receive a response created under another.
+ *   {@link CachePartitioner}); requests using browser cookies,
+ *   `withCredentials`, or explicit auth headers without a stable, non-secret
+ *   partition token bypass the cache so one identity cannot receive a
+ *   response created under another.
  * - `cacheCapacity` — bounds the number of cached entries; defaults to 100 and
  *   evicts the LRU entry when the limit is exceeded.
  *
@@ -88,11 +89,11 @@ export interface AdapterOptions {
   throwOnError?: boolean;
   cacheTTL?: number;
   /**
-   * Partition strategy for credentialed cache entries. When the adapter is
-   * credentialed (which is the default), caching is only enabled for requests
-   * whose `cachePartition` returns a stable, non-secret identity token. Requests
-   * without a partition key bypass the cache so that one identity can never
-   * receive a response created under another identity.
+   * Partition strategy for credentialed cache entries. When a request uses
+   * browser cookies, `withCredentials`, or explicit auth headers, caching is
+   * only enabled when `cachePartition` returns a stable, non-secret identity
+   * token. Requests without a partition key bypass the cache so that one
+   * identity can never receive a response created under another identity.
    *
    * The returned value must be a stable, non-secret token (for example a user
    * id or tenant id). Never return raw cookies, authorization values, or other
