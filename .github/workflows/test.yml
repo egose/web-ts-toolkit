@@ -81,4 +81,5 @@ jobs:
       run: |
         node --version
         pnpm --version
+        pnpm --filter @web-ts-toolkit/access-router... build
         pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/packed-consumer-compatibility.test.ts --testNamePattern "supports minimum peers from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers"
