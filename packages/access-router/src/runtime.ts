@@ -141,6 +141,18 @@ const classifyPermissionSchema = (
   };
 };
 
+const refreshPermissionMetadata = (target: ModelRouterOptions) => {
+  const permissionSchema = (target.permissionSchema ?? {}) as NonNullable<ModelRouterOptions['permissionSchema']>;
+  const { schemaKeys, globalPermissionKeys, modelPermissionKeys } = classifyPermissionSchema(
+    permissionSchema,
+    target.modelPermissionPrefix ?? '',
+  );
+
+  (target as Record<string, unknown>)._permissionSchemaKeys = schemaKeys;
+  (target as Record<string, unknown>)._globalPermissionKeys = globalPermissionKeys;
+  (target as Record<string, unknown>)._modelPermissionKeys = modelPermissionKeys;
+};
+
 export class AccessRuntime {
   private readonly allowGlobalModelLookup: boolean;
 
@@ -149,13 +161,16 @@ export class AccessRuntime {
     ensureMongooseJsonSchemaInitialized();
   }
 
-  private readonly globalOptions = new OptionsManager<GlobalOptions, GlobalOptions>({
-    requestPermissionField: '_permissions',
-    globalPermissions: () => ({}),
-    requireRegisteredPopulateModels: true,
-    logger: defaultLogger,
-    requestComplexity: defaultRequestComplexity,
-  }).build();
+  private readonly globalOptions = new OptionsManager<GlobalOptions, GlobalOptions>(
+    {
+      requestPermissionField: '_permissions',
+      globalPermissions: () => ({}),
+      requireRegisteredPopulateModels: true,
+      logger: defaultLogger,
+      requestComplexity: defaultRequestComplexity,
+    },
+    { preserveKeys: ['logger'] },
+  ).build();
 
   private readonly defaultModelOptions = new OptionsManager<
     DefaultModelRouterOptions,
@@ -291,16 +306,11 @@ export class AccessRuntime {
     });
 
     manager
-      .onchange('permissionSchema', function (newval, key, target) {
-        const permissionSchema = (newval ?? {}) as NonNullable<ModelRouterOptions['permissionSchema']>;
-        const { schemaKeys, globalPermissionKeys, modelPermissionKeys } = classifyPermissionSchema(
-          permissionSchema,
-          target.modelPermissionPrefix ?? '',
-        );
-
-        (target as Record<string, unknown>)._permissionSchemaKeys = schemaKeys;
-        (target as Record<string, unknown>)._globalPermissionKeys = globalPermissionKeys;
-        (target as Record<string, unknown>)._modelPermissionKeys = modelPermissionKeys;
+      .onchange('permissionSchema', function (_newval, _key, target) {
+        refreshPermissionMetadata(target);
+      })
+      .onchange('modelPermissionPrefix', function (_newval, _key, target) {
+        refreshPermissionMetadata(target);
       })
       .onchange('basePath', function (newval, key, target) {
         (target as Record<string, unknown>)[key] = normalizeBasePath(

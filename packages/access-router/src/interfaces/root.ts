@@ -216,6 +216,11 @@ export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouter
 }
 
 export interface DataRouterOptions<TData = unknown> {
+  /**
+   * In-memory records are owned by the router as an immutable configured snapshot.
+   * Mutating this array or its records after configuration does not change served data;
+   * use `setDataOption(name, 'data', nextRecords)` or `router.data(nextRecords)` to replace it.
+   */
   data?: TData[];
   listHardLimit?: number;
   idParam?: string;

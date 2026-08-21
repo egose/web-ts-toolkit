@@ -97,6 +97,10 @@ In-memory data routers default `listHardLimit` to `1000`, matching model routers
 default unless the router sets `listHardLimit` explicitly. `meta.totalCount` still reflects the full authorized
 match set when counts are requested; only returned rows are trimmed and decorated. Per-row data trim/decorate
 hooks run with bounded concurrency controlled by `requestComplexity.maxHookConcurrency` (default `10`).
+Runtime options and data-router records are copied when configured, and option getter results are frozen
+snapshots. Mutating the original options object, a fetched options snapshot, or the original `data` array does
+not change live runtime policy or served in-memory records. Replace configured data through `router.data(next)`
+or `setDataOption(name, 'data', next)`.
 
 ## Main Exports
 
