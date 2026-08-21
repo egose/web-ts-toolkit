@@ -304,7 +304,7 @@ Completion evidence:
 
 ### Task ARC-H05: Make Strict Source And Type-Test Gates Real
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -349,6 +349,22 @@ Acceptance criteria:
 - Runtime tests no longer pass ignored extra arguments to `count` or `save`; server-side probes confirm the intended config is transmitted.
 - `skipLibCheck` remains false for strict consumer checks.
 - Package tests pass after the gate changes.
+
+Completion evidence:
+
+- Changed: `packages/access-router-client/package.json`, `packages/access-router-client/tsconfig.typecheck.json`, `packages/access-router-client/tsconfig.strict.json`, `packages/access-router-client/tsconfig.test-typecheck.json`, `packages/access-router-client/test-typecheck/service-call-arity.ts`, `packages/access-router-client/src/services/service.ts`, `packages/access-router-client/src/services/wrap.ts`, `packages/access-router-client/src/services/shared.ts`, `packages/access-router-client/src/services/sub-ops.ts`, `packages/access-router-client/src/services/data-service.ts`, `packages/access-router-client/src/services/model-service.ts`, `packages/access-router-client/src/adapter.ts`, `packages/access-router-client/src/helpers.ts`, `packages/access-router-client/src/model.ts`, `packages/access-router-client/test/access-router-client.arc22-parity.integration.test.ts`, `packages/access-router-client/test/support/integration-suite.ts`.
+- Regression coverage: added `typecheck:test` with `test-typecheck/service-call-arity.ts`; the fixture keeps required `@ts-expect-error` assertions for the known-invalid `count(undefined, config)` and `Model.save(undefined, config)` calls while compiling the intended one-argument config forms.
+- Implementation evidence: `typecheck:source` now runs strict source checking with `skipLibCheck: false` and `paths: {}` so it consumes built workspace declarations instead of sibling source outside package `rootDir`; `tsconfig.strict.json` now extends the same strict source config. The default package `typecheck` script runs strict source, type-test, NodeNext declaration-consumer, and Bundler declaration-consumer gates. Strict diagnostics were fixed at typed service/result boundaries, request config/header normalization, recursive helper return typing, adapter callback defaults, and model save create-call arity.
+- Runtime evidence: ARC-22 parity tests now call `count(headers)` and `Model.save(headers)` instead of passing ignored extra arguments, and the integration harness records request headers separately from exact wire snapshots so the tests assert the `user: admin` header reaches the server.
+- Documentation evidence: `CHANGELOG.md` was not updated.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client typecheck`.
+- Result: passed; strict source, dedicated type-test fixture, strict NodeNext declaration consumer, and strict Bundler declaration consumer all exited 0.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.arc22-parity.integration.test.ts`.
+- Result: focused ARC-22 parity suite passed, 1 test file and 12 tests.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-client test`.
+- Result: package build/typecheck passed; 19 Node test files and 329 tests passed; 1 browser-smoke file and 10 tests passed.
+- Verified: `git diff --check`.
+- Result: passed.
 
 ### Task ARC-H06: Type Mutation Payloads Against Consumer Models
 
