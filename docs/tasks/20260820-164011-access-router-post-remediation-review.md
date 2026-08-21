@@ -719,7 +719,7 @@ Completion evidence:
 
 ### Task ART-13: Repair Installed Documentation And Execute Complete Workflows
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -756,6 +756,17 @@ Acceptance criteria:
 - At least every block presented as a complete workflow receives a runtime smoke test.
 - Unsupported imports, names, and call signatures still fail semantic checks.
 - Installed README/llms guidance agrees with ART-09's ownership contract.
+
+Completion evidence:
+
+- Implemented in `packages/access-router/llms.txt` and `packages/access-router/README.md`: TypeScript snippets are explicitly classified with `doc-example` markers as `partial` or `complete-runtime`. Isolated-runtime guidance now constructs/registers through the intended `mongoose.Model` instance path before router construction, matching ART-09's runtime ownership contract and avoiding `MissingSchemaError`.
+- Implemented in `packages/access-router/test/documentation-examples.test.ts`: the documentation suite still performs strict semantic compilation for every snippet against the staged installed package, now enforces explicit snippet classification, and emits/executes every `complete-runtime` workflow in a separate Node process against the staged packed package.
+- Pre-work `git status --short`: clean.
+- `CHANGELOG.md` was not edited per maintainer instruction.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/documentation-examples.test.ts` passed, 1 file and 16 tests.
+- Verification passed after rebuild: `pnpm --filter @web-ts-toolkit/access-router typecheck`.
+- Verification passed: `git diff --check`.
+- Verification passed after rebuild: `pnpm --filter @web-ts-toolkit/access-router test` passed, 41 files and 357 tests.
 
 ### Task ART-14: Strengthen Declaration And Minimum-Node Verification
 

@@ -4,6 +4,7 @@ ACL-aware Express routers and in-memory data services for Mongoose-backed APIs.
 
 ## Main Patterns
 
+<!-- doc-example: partial -->
 ```ts
 import express from 'express';
 import mongoose from 'mongoose';
@@ -34,6 +35,7 @@ const docsRouter = acl.createOpenApiRouter({ title: 'Example API', version: '1.0
 
 Validation adapters:
 
+<!-- doc-example: complete-runtime -->
 ```ts
 import { z } from 'zod';
 import { fromZod, defineRequestSchema } from '@web-ts-toolkit/access-router';
@@ -43,18 +45,23 @@ const schema = defineRequestSchema(validator);
 
 Isolated runtime (no global state shared with default `acl`):
 
+<!-- doc-example: complete-runtime -->
 ```ts
 import { createAccessRuntime } from '@web-ts-toolkit/access-router';
-import mongoose from 'mongoose';
+import mongoose, { type Model } from 'mongoose';
+
+type User = { name?: string };
+
 const runtime = createAccessRuntime();
 runtime.setGlobalOptions({ globalPermissions: () => [] });
-const UserModel = mongoose.model('User', new mongoose.Schema({ name: String }));
-runtime.registerModelInstance('User', UserModel);
-runtime.createRouter('User', { basePath: '/users' });
+const userSchema = new mongoose.Schema<User>({ name: String });
+const UserModel: Model<User> = mongoose.model<User>('User', userSchema);
+runtime.createRouter(UserModel, { basePath: '/users' });
 ```
 
 Subpath imports:
 
+<!-- doc-example: complete-runtime -->
 ```ts
 import { copyAndDepopulate, type CopyAndDepopulateOutput } from '@web-ts-toolkit/access-router/processors';
 import { parseBody, Codes, MIDDLEWARE } from '@web-ts-toolkit/access-router/advanced';
