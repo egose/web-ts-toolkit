@@ -80,10 +80,107 @@ const createCrossResourceAuthApp = async () => {
   return { app, orgModelName, orgId: String(org._id) };
 };
 
+const createIncludeSemanticsApp = async () => {
+  const targetModelName = `AclMongoIncludeTarget${++modelCounter}`;
+  const sourceModelName = `AclMongoIncludeSource${modelCounter}`;
+  const targetCalls = { find: 0, findOne: 0, countDocuments: 0, aggregate: 0 };
+
+  const targetSchema = new mongoose.Schema({
+    label: String,
+    targetKey: String,
+    tenant: String,
+    secret: String,
+  });
+  targetSchema.pre('find', function countFindCalls() {
+    targetCalls.find += 1;
+  });
+  targetSchema.pre('findOne', function countFindOneCalls() {
+    targetCalls.findOne += 1;
+  });
+  targetSchema.pre('countDocuments', function countCountDocumentsCalls() {
+    targetCalls.countDocuments += 1;
+  });
+  targetSchema.pre('aggregate', function countAggregateCalls() {
+    targetCalls.aggregate += 1;
+  });
+  targetSchema.plugin(permissionsPlugin, { modelName: targetModelName });
+  const Target = mongoose.model(targetModelName, targetSchema);
+
+  const sourceSchema = new mongoose.Schema({
+    name: String,
+    targetKey: String,
+  });
+  sourceSchema.plugin(permissionsPlugin, { modelName: sourceModelName });
+  const Source = mongoose.model(sourceModelName, sourceSchema);
+
+  setGlobalOptions({
+    requestPermissionField: '_permissions',
+    globalPermissions(req: express.Request) {
+      return String(req.headers['x-perms'] ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+    },
+  });
+
+  acl.createRouter(targetModelName, {
+    basePath: '/include-targets',
+    operationAccess: {
+      list: 'canListTargets',
+      read: 'canReadTargets',
+      count: 'canCountTargets',
+    },
+    permissionSchema: {
+      label: { read: true, list: true },
+      targetKey: { read: true, list: true },
+      tenant: { read: true, list: true },
+      secret: { read: 'canReadTargetSecret', list: true },
+    },
+    baseFilter: {
+      read: () => ({ tenant: 'read' }),
+      list: () => ({ tenant: 'list' }),
+      count: () => ({ tenant: 'count' }),
+    },
+  });
+
+  const sourceRouter = acl.createRouter(sourceModelName, {
+    basePath: '/include-sources',
+    operationAccess: {
+      list: true,
+      read: true,
+    },
+    permissionSchema: {
+      name: true,
+      targetKey: true,
+    },
+  });
+
+  await Target.create([
+    { label: 'read-target', targetKey: 'read-key', tenant: 'read', secret: 'read-secret' }, // pragma: allowlist secret
+    { label: 'list-target', targetKey: 'list-key', tenant: 'list', secret: 'list-secret' }, // pragma: allowlist secret
+    { label: 'count-target-1', targetKey: 'count-key', tenant: 'count', secret: 'count-secret-1' }, // pragma: allowlist secret
+    { label: 'count-target-2', targetKey: 'count-key', tenant: 'count', secret: 'count-secret-2' }, // pragma: allowlist secret
+    { label: 'wrong-tenant', targetKey: 'read-key', tenant: 'list', secret: 'wrong-secret' }, // pragma: allowlist secret
+  ]);
+  await Source.create([
+    { name: 'read-source', targetKey: 'read-key' },
+    { name: 'list-source', targetKey: 'list-key' },
+    { name: 'count-source', targetKey: 'count-key' },
+  ]);
+
+  const app = express();
+  app.use(express.json());
+  app.use(sourceRouter.routes);
+
+  return { app, targetModelName, targetCalls };
+};
+
 afterEach(() => {
   resetGlobalOptions();
   mongoose.deleteModel(/AclMongoCrossOrg.*/);
   mongoose.deleteModel(/AclMongoCrossUser.*/);
+  mongoose.deleteModel(/AclMongoIncludeTarget.*/);
+  mongoose.deleteModel(/AclMongoIncludeSource.*/);
 });
 
 describe('cross-resource authorization (AR-06)', () => {
@@ -308,6 +405,114 @@ describe('cross-resource authorization (AR-06)', () => {
         },
       ],
     });
+  });
+
+  it('executes read includes with target read field policy and single-result cardinality', async () => {
+    const { app, targetModelName, targetCalls } = await createIncludeSemanticsApp();
+
+    const response = await request(app)
+      .post('/include-sources/__query')
+      .set('x-perms', 'canReadTargets')
+      .send({
+        filter: { name: 'read-source' },
+        include: {
+          model: targetModelName,
+          op: 'read',
+          path: 'target',
+          localField: 'targetKey',
+          foreignField: 'targetKey',
+          args: { select: ['label', 'targetKey', 'tenant', 'secret'] },
+        },
+      })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    expect(response.body.data).toHaveLength(1);
+    expect(response.body.data[0].target).toMatchObject({
+      label: 'read-target',
+      targetKey: 'read-key',
+      tenant: 'read',
+    });
+    expect(response.body.data[0].target.secret).toBeUndefined();
+    expect(Array.isArray(response.body.data[0].target)).toBe(false);
+    expect(targetCalls.findOne).toBe(1);
+    expect(targetCalls.find).toBe(0);
+  });
+
+  it('executes list includes with target list guard, row filter, field policy, and array cardinality', async () => {
+    const { app, targetModelName, targetCalls } = await createIncludeSemanticsApp();
+
+    const response = await request(app)
+      .post('/include-sources/__query')
+      .set('x-perms', 'canListTargets')
+      .send({
+        filter: { name: 'list-source' },
+        include: {
+          model: targetModelName,
+          op: 'list',
+          path: 'targets',
+          localField: 'targetKey',
+          foreignField: 'targetKey',
+          args: { select: ['label', 'targetKey', 'tenant', 'secret'] },
+        },
+      })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    expect(response.body.data).toHaveLength(1);
+    expect(response.body.data[0].targets).toEqual([
+      expect.objectContaining({ label: 'list-target', targetKey: 'list-key', tenant: 'list', secret: 'list-secret' }), // pragma: allowlist secret
+    ]);
+    expect(targetCalls.find).toBe(1);
+    expect(targetCalls.findOne).toBe(0);
+  });
+
+  it('executes count includes with target count guard, row filter, and numeric cardinality', async () => {
+    const { app, targetModelName, targetCalls } = await createIncludeSemanticsApp();
+
+    const response = await request(app)
+      .post('/include-sources/__query')
+      .set('x-perms', 'canCountTargets')
+      .send({
+        filter: { name: 'count-source' },
+        include: {
+          model: targetModelName,
+          op: 'count',
+          path: 'targetCount',
+          localField: 'targetKey',
+          foreignField: 'targetKey',
+        },
+      })
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    expect(response.body.data).toHaveLength(1);
+    expect(response.body.data[0].targetCount).toBe(2);
+    expect(targetCalls.aggregate).toBe(1);
+    expect(targetCalls.countDocuments).toBe(0);
+    expect(targetCalls.find).toBe(0);
+  });
+
+  it('does not execute target persistence calls when an include target operation is denied', async () => {
+    const { app, targetModelName, targetCalls } = await createIncludeSemanticsApp();
+
+    const response = await request(app)
+      .post('/include-sources/__query')
+      .send({
+        filter: { name: 'read-source' },
+        include: {
+          model: targetModelName,
+          op: 'read',
+          path: 'target',
+          localField: 'targetKey',
+          foreignField: 'targetKey',
+        },
+      })
+      .expect(401)
+      .expect('Content-Type', /application\/problem\+json/);
+
+    expect(response.body.status).toBe(401);
+    expect(targetCalls).toEqual({ find: 0, findOne: 0, countDocuments: 0, aggregate: 0 });
   });
 
   it('does not fall back to target list access for read subqueries (ARF-01)', async () => {

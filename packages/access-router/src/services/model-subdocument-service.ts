@@ -232,5 +232,6 @@ export async function getParentDoc<TModel>(
   const parentFilter = await service.genFilter(access, await service.genIDFilter(id));
 
   if (parentFilter === false) return null;
-  return service.findRawParentDoc({ filter: parentFilter, select: sub, populate: genSubPopulate(sub, populate), lean });
+  const subPopulate = await service.genPopulate('read', genSubPopulate(sub, populate), [sub, 'sub']);
+  return service.findRawParentDoc({ filter: parentFilter, select: sub, populate: subPopulate, lean });
 }

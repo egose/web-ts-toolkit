@@ -232,7 +232,7 @@ describe('EgoseFactory route construction options', () => {
     expect(options.queryRouteSegment).toBe('search');
     expect(options.mutationRouteSegment).toBe('mutate');
 
-    await request(app).get('/members/new').expect(500);
+    await request(app).get('/members/new').expect(200);
     await request(app).post('/members/search').send({}).expect(500);
     await request(app).get('/tenant/members/:memberId').expect(404);
     await request(app).get('/tenant/members/:defaultId').expect(404);
@@ -269,7 +269,7 @@ describe('EgoseFactory route construction options', () => {
     expect(options.queryRouteSegment).toBe('property-query');
     expect(options.mutationRouteSegment).toBe('property-mutate');
 
-    await request(app).get('/property-members/new').expect(500);
+    await request(app).get('/property-members/new').expect(200);
     await request(app).post('/property-members/property-query').send({}).expect(500);
     await request(app).post('/property-members/__query').send({}).expect(404);
   });

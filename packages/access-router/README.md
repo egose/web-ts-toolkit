@@ -92,6 +92,16 @@ app.listen(port, () => {
 });
 ```
 
+In-memory data routers default `listHardLimit` to `1000`, matching model routers. A list request without
+`limit`/`pageSize`, or with a malformed limit passed through a trusted service call, is capped at that finite
+default unless the router sets `listHardLimit` explicitly. `meta.totalCount` still reflects the full authorized
+match set when counts are requested; only returned rows are trimmed and decorated. Per-row data trim/decorate
+hooks run with bounded concurrency controlled by `requestComplexity.maxHookConcurrency` (default `10`).
+Runtime options and data-router records are copied when configured, and option getter results are frozen
+snapshots. Mutating the original options object, a fetched options snapshot, or the original `data` array does
+not change live runtime policy or served in-memory records. Replace configured data through `router.data(next)`
+or `setDataOption(name, 'data', next)`.
+
 ## Main Exports
 
 Root entrypoint (`@web-ts-toolkit/access-router`):
@@ -126,10 +136,14 @@ runtime.setGlobalOptions({ globalPermissions: () => [] });
 ```
 
 Two isolated runtimes with the same model name resolve against their own model registry and options without interference.
+An isolated runtime does not look up process-global `mongoose.models` by string name; pass a `mongoose.Model` instance
+to `runtime.createRouter(model, options)` or call `runtime.registerModelInstance(name, model)` before constructing a
+string-name router. The default `acl` runtime retains string-name compatibility with `mongoose.model(name, schema)` and
+adopts that exact global model instance into its registry on first lookup.
 
 ## createRouter overloads
 
-`createRouter(modelName, options)` — accept the Mongoose model name registered with `mongoose.model(name, schema)`.
+`createRouter(modelName, options)` — on the default `acl` runtime, accept the Mongoose model name registered with `mongoose.model(name, schema)`. On isolated runtimes, the name must already be registered with that runtime.
 
 `createRouter(model, options)` — accept a `mongoose.Model` instance directly. The instance is registered with the active runtime's registry, so a model attached to a non-default `mongoose.createConnection()` works without polluting the global registry.
 
@@ -146,6 +160,12 @@ const TenantUser = conn.model('TenantUser', schema);
 
 const tenantRouter = acl.createRouter(TenantUser, { basePath: '/tenant-users' });
 ```
+
+## Include Cardinality
+
+Advanced read/list requests can attach related model data with `include` entries.
+`op: 'count'` returns exact authorized counts and ignores include pagination fields such as `args.limit`.
+`op: 'list'` materializes authorized related rows through the target model's normal list path, so target `limit`, `page`, `pageSize`, and `listHardLimit` bounds still apply to included rows.
 
 ## Import styles
 

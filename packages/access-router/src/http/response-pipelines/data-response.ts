@@ -1,5 +1,6 @@
 import type { DataHookContext, ListResult, SingleResult } from '../../interfaces';
 import type { DataService } from '../../services';
+import { mapWithConcurrencyLimit } from '../../helpers';
 
 type QueryContext = Pick<DataHookContext, 'dataName' | 'resolvedQuery'>;
 
@@ -13,7 +14,10 @@ export async function decorateDataListResult<TData, TResult>(
     operation: 'list',
     resolvedQuery: result.query,
   };
-  const decoratedDocs = await Promise.all(result.data.map((doc) => svc.decorate(doc, 'list', decorateContext)));
+  const { maxHookConcurrency } = svc.getRequestComplexity();
+  const decoratedDocs = await mapWithConcurrencyLimit(result.data, maxHookConcurrency, (doc) =>
+    svc.decorate(doc, 'list', decorateContext),
+  );
   const data = await svc.decorateAll(decoratedDocs, 'list', decorateContext);
 
   return {

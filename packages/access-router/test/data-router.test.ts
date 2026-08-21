@@ -583,7 +583,7 @@ describe('data router', () => {
     const invalidSort = await request(app)
       .post('/pets/__query')
       .set('user', 'admin')
-      .send({ sort: { name: 1 } })
+      .send({ sort: { sex: 1 } })
       .expect(400)
       .expect('Content-Type', /application\/problem\+json/);
 

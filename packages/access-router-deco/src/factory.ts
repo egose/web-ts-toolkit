@@ -1,4 +1,5 @@
 import express, { Express, NextFunction, Request, Response, Router } from 'express';
+import mongoose from 'mongoose';
 import acl, {
   createAccessRuntime,
   type AccessRuntimeApi,
@@ -143,7 +144,13 @@ const splitModuleOptions = (options: ModuleOptions) => {
 const resolveRouterModelName = (model: RouterModel): string => (typeof model === 'string' ? model : model.modelName);
 
 const registerRouterModel = (runtime: AccessRuntimeApi, model: RouterModel) => {
-  if (typeof model !== 'string') runtime.registerModelInstance(model.modelName, model);
+  if (typeof model !== 'string') {
+    runtime.registerModelInstance(model.modelName, model);
+    return;
+  }
+
+  const globalModel = mongoose.models[model] as mongoose.Model<unknown> | undefined;
+  if (globalModel) runtime.registerModelInstance(model, globalModel);
 };
 
 const describeTarget = (target: object, methodName: string) =>

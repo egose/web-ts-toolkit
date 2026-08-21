@@ -4,19 +4,17 @@ import {
   flatten,
   forEach,
   get,
-  intersectionBy,
   isArray,
   isBoolean,
   isFunction,
   isNil,
   isPlainObject,
-  map,
-  pick,
   set,
   uniq,
 } from '@web-ts-toolkit/utils';
 import { getGlobalOption, getModelOption } from '../options';
 import { iterateQuery, setDocValue } from '../helpers';
+import { RequestConcurrencyScheduler } from '../helpers/concurrency';
 import {
   ErrorResult,
   Filter,
@@ -45,6 +43,8 @@ import { resolveRequestComplexity, validateRequestComplexity } from '../request-
 import { getActiveRuntime } from '../runtime-context';
 
 type CrossResourceModelOperation = 'list' | 'read' | 'count';
+type ForeignKeyIndex<TValue> = Map<string, TValue[]>;
+type ForeignKeyCountIndex = Map<string, Set<string>>;
 
 class ClientRequestError extends Error {
   readonly result: ErrorResult;
@@ -129,8 +129,12 @@ export class Base<TModel = unknown> {
     return this.req.macl.genIDFilter<TModel>(this.modelName, id);
   }
 
-  public genPopulate(access?: SelectAccess, populate?: Populate | Populate[] | string | null): Promise<Populate[]> {
-    return this.req.macl.genPopulate(this.modelName, access, populate) as Promise<Populate[]>;
+  public genPopulate(
+    access?: SelectAccess,
+    populate?: Populate | Populate[] | string | null,
+    subPaths?: string[],
+  ): Promise<Populate[]> {
+    return this.req.macl.genPopulate(this.modelName, access, populate, subPaths) as Promise<Populate[]>;
   }
 
   public genSelect(
@@ -278,6 +282,56 @@ export class Base<TModel = unknown> {
     };
   }
 
+  private getForeignKeyValues(value: unknown): unknown[] {
+    return flatten(castArray(value));
+  }
+
+  private getForeignKey(value: unknown): string {
+    return String(value);
+  }
+
+  private buildForeignKeyIndex<TValue>(rows: TValue[], foreignField: string): ForeignKeyIndex<TValue> {
+    const index: ForeignKeyIndex<TValue> = new Map();
+
+    for (const row of rows) {
+      for (const value of this.getForeignKeyValues(get(row, foreignField))) {
+        const key = this.getForeignKey(value);
+        const values = index.get(key);
+        if (values) values.push(row);
+        else index.set(key, [row]);
+      }
+    }
+
+    return index;
+  }
+
+  private getIndexedMatches<TValue>(index: ForeignKeyIndex<TValue>, localValue: unknown): TValue[] {
+    const seen = new Set<TValue>();
+    const matches: TValue[] = [];
+
+    for (const value of this.getForeignKeyValues(localValue)) {
+      for (const row of index.get(this.getForeignKey(value)) ?? []) {
+        if (seen.has(row)) continue;
+        seen.add(row);
+        matches.push(row);
+      }
+    }
+
+    return matches;
+  }
+
+  private getIndexedCount(index: ForeignKeyCountIndex, localValue: unknown): number {
+    const ids = new Set<string>();
+
+    for (const value of this.getForeignKeyValues(localValue)) {
+      for (const id of index.get(this.getForeignKey(value)) ?? []) {
+        ids.add(id);
+      }
+    }
+
+    return ids.size;
+  }
+
   protected async includeDocs<TDoc>(docs: TDoc | TDoc[], include: Include | Include[]): Promise<TDoc | TDoc[]> {
     if (!include) return docs;
 
@@ -290,14 +344,45 @@ export class Base<TModel = unknown> {
     for (let x = 0; x < includes.length; x++) {
       const include = includes[x];
 
-      if (include.op === 'count') {
-        docList = await this.includeDocsCount<TDoc>(docList, include);
-      } else {
-        docList = await this.includeDocsList<TDoc>(docList, include);
+      switch (include.op) {
+        case 'count':
+          docList = await this.includeDocsCount<TDoc>(docList, include);
+          break;
+        case 'read':
+          docList = await this.includeDocsRead<TDoc>(docList, include);
+          break;
+        case 'list':
+          docList = await this.includeDocsList<TDoc>(docList, include);
+          break;
       }
     }
 
     return isSingle ? docList[0] : docList;
+  }
+
+  private async includeDocsRead<TDoc>(docs: TDoc[], include: Include): Promise<TDoc[]> {
+    const { model, path, localField, foreignField, filter: _filters, args = {}, options = {} } = include;
+
+    const svc = await this.getAuthorizedTargetService(model, 'read');
+
+    for (let y = 0; y < docs.length; y++) {
+      const doc = docs[y];
+      const localValue = get(doc, localField);
+      const filter = { ...(_filters ?? {}), [foreignField]: { $in: this.getForeignKeyValues(localValue) } };
+      const trustedOptions = {
+        ...(options as Record<string, unknown>),
+        access: 'read',
+        lean: true,
+        includePermissions: false,
+      };
+      const result = await svc.findOne(filter, args as never, trustedOptions as never);
+
+      if (result.success) {
+        setDocValue(doc, path, result.data);
+      }
+    }
+
+    return docs;
   }
 
   private async includeDocsList<TDoc>(docs: TDoc[], include: Include): Promise<TDoc[]> {
@@ -306,8 +391,8 @@ export class Base<TModel = unknown> {
     const svc = await this.getAuthorizedTargetService(model, op);
 
     const includeLocalValues: unknown[] = [];
-    forEach(docs, (doc, i) => {
-      includeLocalValues.push(get(doc, localField));
+    forEach(docs, (doc) => {
+      includeLocalValues.push(...this.getForeignKeyValues(get(doc, localField)));
     });
 
     const filter = { ...(_filters ?? {}), [foreignField]: { $in: flatten(includeLocalValues) } };
@@ -328,12 +413,11 @@ export class Base<TModel = unknown> {
 
     if (!trustedResult.success) return docs;
 
+    const index = this.buildForeignKeyIndex(trustedResult.data, foreignField);
+
     for (let y = 0; y < docs.length; y++) {
       const doc = docs[y];
-      const localValue = get(doc, localField);
-      const filterFn = (row: unknown) =>
-        intersectionBy(castArray(localValue), castArray(get(row, foreignField)), String).length > 0;
-      const matches = trustedResult.data.filter(filterFn);
+      const matches = this.getIndexedMatches(index, get(doc, localField));
       setDocValue(doc, path, op === 'list' ? matches : matches[0]);
     }
 
@@ -341,57 +425,43 @@ export class Base<TModel = unknown> {
   }
 
   private async includeDocsCount<TDoc>(docs: TDoc[], include: Include): Promise<TDoc[]> {
-    const { model, path, localField, foreignField, filter: _filters, args = {}, options = {} } = include;
+    const { model, path, localField, foreignField, filter: _filters } = include;
 
     const svc = await this.getAuthorizedTargetService(model, 'count');
 
-    const includeLocalValues: unknown[] = [];
-    forEach(docs, (doc) => {
-      includeLocalValues.push(get(doc, localField));
-    });
-
-    const filter = { ...(_filters ?? {}), [foreignField]: { $in: flatten(includeLocalValues) } };
-    const authorizedFilter = await svc.genFilter('list', filter);
-    const trustedArgs = {
-      ...(args as Record<string, unknown>),
-      select: [foreignField],
-      overrides: {
-        filter: authorizedFilter,
-      },
-    };
-    const trustedOptions = {
-      ...(options as Record<string, unknown>),
-      lean: true,
-      includePermissions: false,
-      includeCount: false,
-    };
-    const result = await svc.find(filter, trustedArgs as never, trustedOptions as never);
+    const localValues = docs.flatMap((doc) => this.getForeignKeyValues(get(doc, localField)));
+    const result = await svc.countByFieldValues(foreignField, localValues, _filters ?? {}, 'count');
 
     if (!result.success) return docs;
 
     for (let y = 0; y < docs.length; y++) {
       const doc = docs[y];
-      const localValue = get(doc, localField);
-      const filterFn = (row: unknown) =>
-        intersectionBy(castArray(localValue), castArray(get(row, foreignField)), String).length > 0;
-
-      setDocValue(doc, path, result.data.filter(filterFn).length);
+      setDocValue(doc, path, this.getIndexedCount(result.data, get(doc, localField)));
     }
 
     return docs;
   }
 
-  protected async parseClientData<TValue>(filter: TValue): Promise<TValue> {
-    const result = await iterateQuery(filter, async (fo: FilterOperator, val: unknown, key: string) => {
-      switch (fo) {
-        case FilterOperator.SubQuery:
-          return this.handleSubQuery(val as SubQueryEntry, key);
-        case FilterOperator.Date:
-          return this.handleDate(val, key);
-        default:
-          return null;
-      }
-    });
+  protected async parseClientData<TValue>(
+    filter: TValue,
+    scheduler = new RequestConcurrencyScheduler(this.getRequestComplexity().maxBulkConcurrency),
+    scheduled = false,
+  ): Promise<TValue> {
+    const result = await iterateQuery(
+      filter,
+      async (fo: FilterOperator, val: unknown, key: string) => {
+        switch (fo) {
+          case FilterOperator.SubQuery:
+            return this.handleSubQuery(val as SubQueryEntry, key);
+          case FilterOperator.Date:
+            return this.handleDate(val, key);
+          default:
+            return null;
+        }
+      },
+      scheduler,
+      scheduled,
+    );
 
     return result as TValue;
   }

@@ -224,7 +224,7 @@ describe('model router sub-document routes', () => {
         globalPermissions: () => ['isAdmin'],
       });
 
-      const modelRouter = runtime.createRouter(modelName, {
+      const modelRouter = runtime.createRouter(Post, {
         basePath: '/arf12-sub-posts',
         operationAccess: {
           read: true,

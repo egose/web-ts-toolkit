@@ -12,7 +12,7 @@ import {
   isString,
   keys,
 } from '@web-ts-toolkit/utils';
-import { buildRefs, buildSubPaths } from './helpers';
+import { DEFAULT_LIST_HARD_LIMIT, buildRefs, buildSubPaths } from './helpers';
 import type { OpenApiDocumentOptions, OpenApiRouteDescriptor } from './openapi/types';
 import { OpenApiRegistry } from './openapi/registry';
 import type {
@@ -59,6 +59,7 @@ const defaultDataOptions: DataRouterOptions = {
   basePath: null,
   parentPath: '/',
   queryRouteSegment: '__query',
+  listHardLimit: DEFAULT_LIST_HARD_LIMIT,
 };
 
 const normalizeBasePath = (name: string, value: string | null | undefined) => {
@@ -140,24 +141,42 @@ const classifyPermissionSchema = (
   };
 };
 
+const refreshPermissionMetadata = (target: ModelRouterOptions) => {
+  const permissionSchema = (target.permissionSchema ?? {}) as NonNullable<ModelRouterOptions['permissionSchema']>;
+  const { schemaKeys, globalPermissionKeys, modelPermissionKeys } = classifyPermissionSchema(
+    permissionSchema,
+    target.modelPermissionPrefix ?? '',
+  );
+
+  (target as Record<string, unknown>)._permissionSchemaKeys = schemaKeys;
+  (target as Record<string, unknown>)._globalPermissionKeys = globalPermissionKeys;
+  (target as Record<string, unknown>)._modelPermissionKeys = modelPermissionKeys;
+};
+
 export class AccessRuntime {
-  constructor() {
+  private readonly allowGlobalModelLookup: boolean;
+
+  constructor(options: { allowGlobalModelLookup?: boolean } = {}) {
+    this.allowGlobalModelLookup = options.allowGlobalModelLookup ?? false;
     ensureMongooseJsonSchemaInitialized();
   }
 
-  private readonly globalOptions = new OptionsManager<GlobalOptions, GlobalOptions>({
-    requestPermissionField: '_permissions',
-    globalPermissions: () => ({}),
-    requireRegisteredPopulateModels: true,
-    logger: defaultLogger,
-    requestComplexity: defaultRequestComplexity,
-  }).build();
+  private readonly globalOptions = new OptionsManager<GlobalOptions, GlobalOptions>(
+    {
+      requestPermissionField: '_permissions',
+      globalPermissions: () => ({}),
+      requireRegisteredPopulateModels: true,
+      logger: defaultLogger,
+      requestComplexity: defaultRequestComplexity,
+    },
+    { preserveKeys: ['logger'] },
+  ).build();
 
   private readonly defaultModelOptions = new OptionsManager<
     DefaultModelRouterOptions,
     ExtendedDefaultModelRouterOptions
   >({
-    listHardLimit: 1000,
+    listHardLimit: DEFAULT_LIST_HARD_LIMIT,
     documentPermissionField: '_permissions',
     idParam: 'id',
     idField: '_id',
@@ -191,14 +210,20 @@ export class AccessRuntime {
   }
 
   hasModelInstance(modelName: string): boolean {
-    return modelName in this.modelInstances;
+    return modelName in this.modelInstances || (this.allowGlobalModelLookup && modelName in mongoose.models);
   }
 
   getModelInstance(modelName: string): mongoose.Model<unknown> | null {
     const registered = this.modelInstances[modelName];
     if (registered) return registered;
+
+    if (!this.allowGlobalModelLookup) return null;
+
     const global = mongoose.models[modelName] as mongoose.Model<unknown> | undefined;
-    return global ?? null;
+    if (!global) return null;
+
+    this.registerModelInstance(modelName, global);
+    return global;
   }
 
   registerOpenApiRoute(route: OpenApiRouteDescriptor) {
@@ -267,7 +292,13 @@ export class AccessRuntime {
   }
 
   private createModelOptions(modelName: string) {
-    const model = (this.getModelInstance(modelName) ?? mongoose.model(modelName)) as ExtendedModel;
+    const model = this.getModelInstance(modelName) as ExtendedModel | null;
+
+    if (!model) {
+      throw new Error(
+        `Runtime model registry missing model "${modelName}". Pass a mongoose.Model instance to createRouter() or register it with registerModelInstance() before using this isolated runtime.`,
+      );
+    }
 
     const manager = new OptionsManager<ModelRouterOptions, ExtendedModelRouterOptions>({
       ...defaultModelOptions,
@@ -275,16 +306,11 @@ export class AccessRuntime {
     });
 
     manager
-      .onchange('permissionSchema', function (newval, key, target) {
-        const permissionSchema = (newval ?? {}) as NonNullable<ModelRouterOptions['permissionSchema']>;
-        const { schemaKeys, globalPermissionKeys, modelPermissionKeys } = classifyPermissionSchema(
-          permissionSchema,
-          target.modelPermissionPrefix ?? '',
-        );
-
-        (target as Record<string, unknown>)._permissionSchemaKeys = schemaKeys;
-        (target as Record<string, unknown>)._globalPermissionKeys = globalPermissionKeys;
-        (target as Record<string, unknown>)._modelPermissionKeys = modelPermissionKeys;
+      .onchange('permissionSchema', function (_newval, _key, target) {
+        refreshPermissionMetadata(target);
+      })
+      .onchange('modelPermissionPrefix', function (_newval, _key, target) {
+        refreshPermissionMetadata(target);
       })
       .onchange('basePath', function (newval, key, target) {
         (target as Record<string, unknown>)[key] = normalizeBasePath(
@@ -474,4 +500,4 @@ export class AccessRuntime {
   }
 }
 
-export const defaultRuntime = new AccessRuntime();
+export const defaultRuntime = new AccessRuntime({ allowGlobalModelLookup: true });

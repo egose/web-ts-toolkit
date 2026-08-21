@@ -48,9 +48,9 @@ import { createAccessRuntime } from '@web-ts-toolkit/access-router';
 import mongoose from 'mongoose';
 const runtime = createAccessRuntime();
 runtime.setGlobalOptions({ globalPermissions: () => [] });
-runtime.createRouter('User', { basePath: '/users' });
 const UserModel = mongoose.model('User', new mongoose.Schema({ name: String }));
 runtime.registerModelInstance('User', UserModel);
+runtime.createRouter('User', { basePath: '/users' });
 ```
 
 Subpath imports:
@@ -66,6 +66,7 @@ import { parseBody, Codes, MIDDLEWARE } from '@web-ts-toolkit/access-router/adva
 - default export `acl` is preferred for the default-runtime API; named exports are also available
 - `acl.createOpenApiRouter(options)` uses the default runtime; the standalone `createOpenApiRouter(runtime, options)` export requires the runtime as the first argument
 - `createRouter('User', ...)` accepts a Mongoose model name OR a `mongoose.Model` instance — passing the instance registers the model with the runtime and preserves non-default `mongoose.createConnection()` instances
+- isolated runtimes do not silently read process-global `mongoose.models`; register the model first or pass the `mongoose.Model` instance to `runtime.createRouter(...)`
 - `/advanced` does NOT export `acl`, `defaultRuntime`, `createRouter`, or `createAccessRuntime` — those live on the root entry only
 - `createDataRouter(...)` holds data in-memory; use it for lightweight/non-persisted resources
 - `package.json` declares `sideEffects` array listing the bundled runtime entries that run the lazy `mongoose-schema-jsonschema` patch on first runtime construction — bundlers must retain those entries

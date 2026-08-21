@@ -44,14 +44,14 @@ const buildNewRuntimeApp = () => {
 
   schema.plugin(permissionsPlugin, { modelName });
 
-  mongoose.model(modelName, schema);
+  const User = mongoose.model(modelName, schema);
 
   runtime.setGlobalOptions({
     requestPermissionField: '_permissions',
     globalPermissions: (req: express.Request) => (req.headers.user === 'admin' ? ['canNew'] : []),
   });
 
-  const router = runtime.createRouter(modelName, {
+  const router = runtime.createRouter(User, {
     basePath: '/arf12-new-users',
     operationAccess: {
       // Only callers holding the `canNew` permission may reach /new.
@@ -114,14 +114,14 @@ describe('ARF-12 #3 /new denial and sensitive-default removal', () => {
       secret: { type: String, default: 'confidential' },
     });
     schema.plugin(permissionsPlugin, { modelName });
-    mongoose.model(modelName, schema);
+    const User = mongoose.model(modelName, schema);
 
     runtime.setGlobalOptions({
       requestPermissionField: '_permissions',
       globalPermissions: (req: express.Request) => (req.headers.user === 'admin' ? ['canNew'] : []),
     });
 
-    runtime.createRouter(modelName, {
+    runtime.createRouter(User, {
       basePath: '/arf12-new-model-users',
       operationAccess: { new: 'canNew', list: true, read: true },
       permissionSchema: { name: true, status: true, secret: false },

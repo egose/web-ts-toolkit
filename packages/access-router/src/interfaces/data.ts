@@ -1,4 +1,4 @@
-import { Filter, Projection, FindAccess } from './base';
+import { Filter, Projection, FindAccess, Sort } from './base';
 
 export type DataFilter<T = unknown> = Filter<T>;
 
@@ -12,7 +12,7 @@ export interface DataFindOneOptions {
 
 export interface DataFindArgs<T = unknown, TSelect extends Projection | undefined = Projection | undefined> {
   select?: TSelect;
-  sort?: string;
+  sort?: Sort;
   skip?: string | number;
   limit?: string | number;
   page?: string | number;

@@ -7,13 +7,14 @@ import {
   positiveIntegerString,
   projectionSchema,
   rejectKeys,
+  sortSchema,
 } from './common';
 
 export const dataListBodySchema = z
   .object({
     filter: objectOrArraySchema.optional(),
     select: projectionSchema.optional(),
-    sort: z.string().optional(),
+    sort: sortSchema.optional(),
     skip: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),
     limit: z.union([positiveIntegerSchema, positiveIntegerString]).optional(),
     page: z.union([nonNegativeIntegerSchema, nonNegativeIntegerString]).optional(),

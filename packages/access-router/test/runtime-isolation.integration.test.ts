@@ -187,6 +187,39 @@ describe('AR-11 runtime model ownership isolation', () => {
     expect(() => runtime.registerModelInstance(modelName, connA)).not.toThrow();
   });
 
+  it('does not silently acquire a global model from a fresh isolated runtime', () => {
+    const runtime = createAccessRuntime();
+    const modelName = `AclRuntimeGlobalLeakUser${++modelCounter}`;
+    const globalModel = defineUserModel(modelName, mongoose.connection);
+
+    expect(runtime.runtime.hasModelInstance(modelName)).toBe(false);
+    expect(runtime.runtime.getModelInstance(modelName)).toBe(null);
+
+    expect(() => runtime.createRouter(modelName, { basePath: '/global-leak-users' })).toThrow(
+      /Runtime model registry missing model/,
+    );
+
+    expect(runtime.runtime.hasModelInstance(modelName)).toBe(false);
+    expect(runtime.runtime.getModelInstance(modelName)).toBe(null);
+
+    runtime.registerModelInstance(modelName, globalModel);
+    expect(runtime.runtime.hasModelInstance(modelName)).toBe(true);
+    expect(runtime.runtime.getModelInstance(modelName)).toBe(globalModel);
+    expect(() => runtime.createRouter(modelName, { basePath: '/registered-users' })).not.toThrow();
+  });
+
+  it('keeps default-runtime model-name compatibility by adopting the global model instance', () => {
+    const modelName = `AclRuntimeDefaultCompatUser${++modelCounter}`;
+    const globalModel = defineUserModel(modelName, mongoose.connection);
+
+    expect(acl.hasModelInstance(modelName)).toBe(true);
+    expect(acl.getModelInstance(modelName)).toBe(globalModel);
+    expect(acl.hasModelInstance(modelName)).toBe(true);
+
+    expect(() => acl.createRouter(modelName, { basePath: '/default-compat-users' })).not.toThrow();
+    expect(acl.getModelInstance(modelName)).toBe(globalModel);
+  });
+
   it('constructing runtime B cannot alter runtime A behavior', async () => {
     await ensurePrimaryConnection();
     const sharedName = `AclRuntimeGuardUser${++modelCounter}`;

@@ -2,6 +2,54 @@ import { assign, get, set } from '@web-ts-toolkit/utils';
 
 type PropertyPath = string | number | Array<string | number>;
 
+const toPath = (key: PropertyPath): Array<string | number> => {
+  if (Array.isArray(key)) return key;
+  return typeof key === 'string' ? key.split('.') : [key];
+};
+
+const cloneConfigValue = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneConfigValue(item)) as T;
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  if (Object.getPrototypeOf(value) !== Object.prototype) {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([entryKey, entryValue]) => [
+      entryKey,
+      cloneConfigValue(entryValue),
+    ]),
+  ) as T;
+};
+
+const freezeConfigValue = <T>(value: T): T => {
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  if (Object.isFrozen(value)) {
+    return value;
+  }
+
+  if (Array.isArray(value) || Object.getPrototypeOf(value) === Object.prototype) {
+    for (const nestedValue of Object.values(value as Record<string, unknown>)) {
+      freezeConfigValue(nestedValue);
+    }
+
+    return Object.freeze(value);
+  }
+
+  return value;
+};
+
+export const cloneOptionsSnapshot = <T>(value: T): T => freezeConfigValue(cloneConfigValue(value));
+
 export const getNestedOption = <T extends object, K extends keyof T>(
   manager: OptionsManager<object, T>,
   key: K | string,
@@ -29,11 +77,13 @@ export const getNestedOption = <T extends object, K extends keyof T>(
 
 export class OptionsManager<T1 extends object, T2 extends object> {
   private readonly defaultOptions: T1;
+  private readonly preserveKeys: Set<string>;
   private currentOptions: T1;
   private listeners: Record<string, (value: unknown, key: string, target: T1, oldValue: unknown) => void>;
 
-  constructor(defaultOptions: T1) {
+  constructor(defaultOptions: T1, options: { preserveKeys?: string[] } = {}) {
     this.defaultOptions = defaultOptions;
+    this.preserveKeys = new Set(options.preserveKeys ?? []);
     this.listeners = {};
     const _this = this;
 
@@ -58,15 +108,39 @@ export class OptionsManager<T1 extends object, T2 extends object> {
   }
 
   set<K extends keyof T2>(key: K | string, value: T2[K]) {
-    set(this.currentOptions, key as PropertyPath, value);
+    const path = toPath(key as PropertyPath);
+    if (path.length <= 1) {
+      set(this.currentOptions, path, this.preserveKeys.has(String(path[0])) ? value : cloneConfigValue(value));
+      return;
+    }
+
+    const [rootKey, ...nestedPath] = path;
+    const currentRoot = get(this.currentOptions, [rootKey] as PropertyPath, undefined);
+    const nextRoot = cloneConfigValue(currentRoot ?? {});
+    set(nextRoot as object, nestedPath, cloneConfigValue(value));
+    set(this.currentOptions, [rootKey] as PropertyPath, nextRoot);
   }
 
   fetch() {
-    return { ...this.currentOptions };
+    const cloned = cloneConfigValue(this.currentOptions) as Record<string, unknown>;
+    for (const key of this.preserveKeys) {
+      if (key in (this.currentOptions as Record<string, unknown>)) {
+        cloned[key] = (this.currentOptions as Record<string, unknown>)[key];
+      }
+    }
+
+    return freezeConfigValue(cloned) as T1;
   }
 
   assign(options: T1) {
-    assign(this.currentOptions, options);
+    const cloned = cloneConfigValue(options) as Record<string, unknown>;
+    for (const key of this.preserveKeys) {
+      if (key in (options as Record<string, unknown>)) {
+        cloned[key] = (options as Record<string, unknown>)[key];
+      }
+    }
+
+    assign(this.currentOptions, cloned as T1);
   }
 
   onchange<K extends keyof T1>(

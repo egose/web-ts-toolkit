@@ -10,8 +10,11 @@ const resetGlobalOptions = () => {
   setGlobalOptions({
     requestPermissionField: '_permissions',
     globalPermissions: () => [],
+    requestComplexity: {},
   });
 };
+
+const delay = () => new Promise((resolve) => setTimeout(resolve, 1));
 
 afterEach(() => {
   resetGlobalOptions();
@@ -208,5 +211,155 @@ describe('AR-18 optimize data list hot paths', () => {
 
     const descOk = await request(app).post('/sort-auth/__query').send({ sort: '-name', limit: 3 }).expect(200);
     expect((descOk.body.data as Array<{ name: string }>).map((d) => d.name)).toEqual(['N-9', 'N-8', 'N-7']);
+  });
+
+  it('caps data lists at the default hard limit when no request limit is provided (ART-07)', async () => {
+    const dataName = `AclDataDefaultLimit${++modelCounter}`;
+
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => ['isAdmin'],
+    });
+
+    const dataset = Array.from({ length: 10_000 }, (_, i) => ({
+      id: `item-${i + 1}`,
+      rank: i + 1,
+      public: true,
+    }));
+
+    const router = acl.createDataRouter(dataName, {
+      basePath: '/default-data-limit',
+      idField: 'id',
+      operationAccess: { list: true, read: true },
+      data: dataset,
+      permissionSchema: { id: true, rank: true, public: true },
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.use(router.routes);
+
+    const response = await request(app)
+      .post('/default-data-limit/__query')
+      .send({ sort: 'rank', options: { includeCount: true } })
+      .expect(200);
+
+    expect(response.body.data).toHaveLength(1000);
+    expect(response.body.meta).toMatchObject({
+      returnedCount: 1000,
+      totalCount: 10_000,
+      limit: 1000,
+      pageSize: 1000,
+      hasNextPage: true,
+    });
+    expect((response.body.data as Array<{ rank: number }>).at(0)?.rank).toBe(1);
+    expect((response.body.data as Array<{ rank: number }>).at(-1)?.rank).toBe(1000);
+  });
+
+  it('defensively resolves malformed limits without creating unbounded data responses (ART-07)', async () => {
+    const dataName = `AclDataMalformedLimit${++modelCounter}`;
+
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => ['isAdmin'],
+    });
+
+    const dataset = Array.from({ length: 1200 }, (_, i) => ({
+      id: `item-${i + 1}`,
+      rank: i + 1,
+      public: true,
+    }));
+
+    const router = acl.createDataRouter(dataName, {
+      basePath: '/malformed-data-limit',
+      idField: 'id',
+      listHardLimit: Number.NaN,
+      operationAccess: { list: true, read: true },
+      data: dataset,
+      permissionSchema: { id: true, rank: true, public: true },
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.use(router.routes);
+
+    const defaulted = await request(app)
+      .post('/malformed-data-limit/__query')
+      .send({ sort: 'rank', options: { includeCount: true } })
+      .expect(200);
+
+    expect(defaulted.body.data).toHaveLength(1000);
+    expect(defaulted.body.meta.totalCount).toBe(1200);
+    expect(defaulted.body.meta.limit).toBe(1000);
+
+    await request(app)
+      .post('/malformed-data-limit/__query')
+      .send({ limit: 'not-a-number' })
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+  });
+
+  it('bounds per-row data decorate hook concurrency while preserving page output (ART-07)', async () => {
+    const dataName = `AclDataHookConcurrency${++modelCounter}`;
+    let activeDecorate = 0;
+    let peakDecorate = 0;
+    const seenRanks: number[] = [];
+
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => ['isAdmin'],
+      requestComplexity: { maxHookConcurrency: 3 },
+    });
+
+    const dataset = Array.from({ length: 30 }, (_, i) => ({
+      id: `item-${i + 1}`,
+      rank: i + 1,
+      public: true,
+    }));
+
+    const router = acl.createDataRouter(dataName, {
+      basePath: '/bounded-data-hooks',
+      idField: 'id',
+      operationAccess: { list: true, read: true },
+      data: dataset,
+      permissionSchema: { id: true, rank: true, public: true },
+      async decorate(doc) {
+        activeDecorate += 1;
+        peakDecorate = Math.max(peakDecorate, activeDecorate);
+        await delay();
+        activeDecorate -= 1;
+        return { ...doc, decorated: true };
+      },
+    });
+
+    router.decorateAll((docs) => {
+      seenRanks.push(...docs.map((doc) => (doc as { rank: number }).rank));
+      return docs;
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.use(router.routes);
+
+    const response = await request(app)
+      .post('/bounded-data-hooks/__query')
+      .send({ sort: '-rank', skip: 2, limit: 9, options: { includeCount: true } })
+      .expect(200);
+
+    expect(peakDecorate).toBeLessThanOrEqual(3);
+    expect(response.body.data).toHaveLength(9);
+    expect(response.body.meta).toMatchObject({
+      returnedCount: 9,
+      totalCount: 30,
+      skip: 2,
+      limit: 9,
+      page: 1,
+      pageSize: 9,
+    });
+    expect((response.body.data as Array<{ rank: number; decorated: boolean }>).map((doc) => doc.rank)).toEqual([
+      28, 27, 26, 25, 24, 23, 22, 21, 20,
+    ]);
+    expect(response.body.data.every((doc: { decorated?: boolean }) => doc.decorated === true)).toBe(true);
+    expect(seenRanks).toEqual([28, 27, 26, 25, 24, 23, 22, 21, 20]);
   });
 });

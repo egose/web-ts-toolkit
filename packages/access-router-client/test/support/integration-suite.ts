@@ -180,6 +180,8 @@ export function setupIntegrationSuite() {
     await mongoose.connect(mongoServer.getUri(), { dbName: 'access-router-client-test' });
 
     const runtime = createAccessRuntime();
+    runtime.registerModelInstance(USER_MODEL_NAME, UserModel);
+    runtime.registerModelInstance(ORG_MODEL_NAME, OrgModel);
     runtime.setGlobalOptions({
       requestPermissionField: '_permissions',
       globalPermissions: (req) => (req.headers.user === 'admin' ? ['isAdmin'] : []),

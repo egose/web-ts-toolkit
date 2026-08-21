@@ -135,6 +135,11 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
 
     // if not found, try to get the doc with 'list' access
     if (tryList && (!result.success || !result.data)) {
+      const listAllowed = await this.req.macl.isAllowed(this.modelName, 'list');
+      if (!listAllowed) {
+        return { success: false, kind: 'error', code: Codes.Unauthorized, errors: ['Unauthorized'] };
+      }
+
       access = 'list';
 
       result = await this.findById(
@@ -186,6 +191,11 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
 
     // if not found, try to get the doc with 'list' access
     if (tryList && (!result.success || !result.data)) {
+      const listAllowed = await this.req.macl.isAllowed(this.modelName, 'list');
+      if (!listAllowed) {
+        return { success: false, kind: 'error', code: Codes.Unauthorized, errors: ['Unauthorized'] };
+      }
+
       access = 'list';
 
       result = await this.findOne(

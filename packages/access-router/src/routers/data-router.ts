@@ -7,7 +7,7 @@ import { unwrapServiceData } from '../http/response-pipelines/model-response';
 import type { AccessRuntime } from '../runtime';
 import { defaultRuntime } from '../runtime';
 import { handleResultError } from '../helpers';
-import { DataRouterOptions, ExtendedDataRouterOptions, DataRequest, Filter } from '../interfaces';
+import { DataRouterOptions, ExtendedDataRouterOptions, DataRequest, Filter, Sort } from '../interfaces';
 import { DataService } from '../services';
 import { assertMutableRouterOption, assertMutableRouterOptions } from './router-mutation';
 import { formatListResponse, parseBooleanString } from './shared';
@@ -145,7 +145,7 @@ export class DataRouter<TData = unknown> {
 
       const result = await svc.find(
         (filter ?? {}) as Filter<TData>,
-        { select, sort: typeof sort === 'string' ? sort : undefined, skip, limit, page, pageSize },
+        { select, sort: sort as Sort, skip, limit, page, pageSize },
         { includeCount },
       );
 
