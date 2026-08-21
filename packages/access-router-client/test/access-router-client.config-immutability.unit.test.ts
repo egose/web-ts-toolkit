@@ -3,7 +3,10 @@ import { AxiosHeaders, type AxiosRequestConfig } from 'axios';
 
 import { CACHE_HEADER } from '../src/constants';
 import { getWrapContext } from '../src/helpers';
+import { DataService, ModelService } from '../src/services';
+import type { DataDefaults, Defaults } from '../src/interface';
 import { setupIntegrationSuite, type Pet } from './support/integration-suite';
+import type { User } from './support/integration-suite';
 
 const suite = setupIntegrationSuite();
 
@@ -226,7 +229,7 @@ describe('access-router-client configuration immutability (ARC-12)', () => {
       const { services } = suite;
       const callerHeaders = new AxiosHeaders({ user: 'admin' });
 
-      const ok = await services.userService.list(undefined, undefined, {
+      const ok = await services.petService.list(undefined, undefined, {
         headers: callerHeaders as unknown as Record<string, unknown>,
       });
       expect(ok.success).toBe(true);
@@ -235,6 +238,101 @@ describe('access-router-client configuration immutability (ARC-12)', () => {
       // after the read returns.
       expect(callerHeaders.has(CACHE_HEADER)).toBe(false);
       expect(callerHeaders.get('user')).toBe('admin');
+    });
+  });
+
+  describe('direct service constructors snapshot defaults', () => {
+    it('ModelService does not mutate caller defaults or observe later nested mutations', async () => {
+      const defaults: Defaults = {
+        listAdvancedArgs: {
+          select: { name: 1 },
+          populate: [{ path: 'orgs', select: { name: 1 } }],
+        },
+        listAdvancedOptions: { includeCount: true },
+      };
+
+      const initialKeys = Object.keys(defaults).sort();
+      const userService = new ModelService<User>(
+        {
+          axios: suite.adapter.axios,
+          modelName: 'AdapterJsIntegrationUser',
+          basePath: 'users',
+          queryPath: '__query',
+          mutationPath: '__mutation',
+          onSuccess: () => {},
+          onFailure: () => {},
+          throwOnError: false,
+        },
+        defaults,
+      );
+
+      expect(Object.keys(defaults).sort()).toEqual(initialKeys);
+      expect(defaults).toEqual({
+        listAdvancedArgs: {
+          select: { name: 1 },
+          populate: [{ path: 'orgs', select: { name: 1 } }],
+        },
+        listAdvancedOptions: { includeCount: true },
+      });
+
+      (defaults.listAdvancedArgs?.select as Record<string, number>).role = 1;
+      const populate = defaults.listAdvancedArgs?.populate as Array<{ path: string; select: Record<string, number> }>;
+      populate[0].path = 'statusHistory';
+      populate[0].select.extra = 1;
+      defaults.listAdvancedOptions!.includeCount = false;
+
+      const result = await userService.listAdvanced({}, undefined, undefined, { headers: { user: 'admin' } });
+      expect(result.success).toBe(true);
+
+      const request = suite.protocolRequests.at(-1);
+      expect(request?.path).toBe('/api/users/__query');
+      expect(request?.body).toMatchObject({
+        select: { name: 1 },
+        populate: [{ path: 'orgs', select: { name: 1 } }],
+        options: { includeCount: true },
+      });
+    });
+
+    it('DataService does not mutate caller defaults or observe later nested mutations', async () => {
+      const defaults: DataDefaults = {
+        listAdvancedArgs: { select: { name: 1 }, pageSize: 1 },
+        listAdvancedOptions: { includeCount: true },
+      };
+
+      const initialKeys = Object.keys(defaults).sort();
+      const petService = new DataService<Pet>(
+        {
+          axios: suite.adapter.axios,
+          dataName: 'pet-data',
+          basePath: 'pets',
+          queryPath: '__query',
+          onSuccess: () => {},
+          onFailure: () => {},
+          throwOnError: false,
+        },
+        defaults,
+      );
+
+      expect(Object.keys(defaults).sort()).toEqual(initialKeys);
+      expect(defaults).toEqual({
+        listAdvancedArgs: { select: { name: 1 }, pageSize: 1 },
+        listAdvancedOptions: { includeCount: true },
+      });
+
+      (defaults.listAdvancedArgs?.select as Record<string, number>).age = 1;
+      defaults.listAdvancedArgs!.pageSize = 2;
+      defaults.listAdvancedOptions!.includeCount = false;
+
+      const result = await petService.listAdvanced({}, undefined, undefined, { headers: { user: 'admin' } });
+      expect(result.success).toBe(true);
+
+      const request = suite.protocolRequests.at(-1);
+      expect(request?.path).toBe('/api/pets/__query');
+      expect(request?.body).toMatchObject({
+        select: { name: 1 },
+        pageSize: 1,
+        options: { includeCount: true },
+      });
     });
   });
 });

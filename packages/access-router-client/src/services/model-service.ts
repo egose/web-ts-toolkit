@@ -39,7 +39,7 @@ import { Model } from '../model';
 import { Service } from './service';
 import { replaceSubQuery, encodePathSegment } from '../helpers';
 import { cloneConfigWithCacheBypass } from './interceptors';
-import { createResponseHandler, ensureListResultCount, processListResult, setDefaultObjectProp } from './shared';
+import { createResponseHandler, ensureListResultCount, normalizeServiceDefaults, processListResult } from './shared';
 import { makeRequest } from './request';
 import { buildSubDocumentOps } from './sub-ops';
 
@@ -91,10 +91,7 @@ export class ModelService<
     this._modelName = modelName;
     this._queryPath = queryPath;
     this._mutationPath = mutationPath;
-    this._defaults = (defaults ?? {}) as Required<Defaults>;
-    this._handleCallbacks = createResponseHandler(onSuccess, onFailure, throwOnError);
-
-    [
+    this._defaults = normalizeServiceDefaults(defaults, [
       'listArgs',
       'listOptions',
       'listAdvancedArgs',
@@ -111,7 +108,8 @@ export class ModelService<
       'upsertOptions',
       'upsertAdvancedArgs',
       'upsertAdvancedOptions',
-    ].forEach((key) => setDefaultObjectProp(this._defaults, key, {}));
+    ]);
+    this._handleCallbacks = createResponseHandler(onSuccess, onFailure, throwOnError);
   }
 
   // ---------------------------------------------------------------------------

@@ -23,7 +23,7 @@ import {
 
 import { Service } from './service';
 import { replaceSubQuery, encodePathSegment } from '../helpers';
-import { createResponseHandler, ensureListResultCount, processListResult, setDefaultObjectProp } from './shared';
+import { createResponseHandler, ensureListResultCount, normalizeServiceDefaults, processListResult } from './shared';
 import { makeRequest } from './request';
 
 type RequestConfig = AxiosRequestConfig & AdditionalReqConfig;
@@ -59,10 +59,7 @@ export class DataService<T> extends Service {
 
     this._dataName = dataName;
     this._queryPath = queryPath;
-    this._defaults = (defaults ?? {}) as Required<DataDefaults>;
-    this._handleCallbacks = createResponseHandler(onSuccess, onFailure, throwOnError);
-
-    [
+    this._defaults = normalizeServiceDefaults(defaults, [
       'listArgs',
       'listOptions',
       'listAdvancedArgs',
@@ -70,7 +67,8 @@ export class DataService<T> extends Service {
       'readOptions',
       'readAdvancedArgs',
       'readAdvancedOptions',
-    ].forEach((key) => setDefaultObjectProp(this._defaults, key, {}));
+    ]);
+    this._handleCallbacks = createResponseHandler(onSuccess, onFailure, throwOnError);
   }
 
   // ---------------------------------------------------------------------------
