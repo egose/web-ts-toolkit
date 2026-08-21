@@ -25,6 +25,8 @@ export type {
   PdfReaderSourcePolicy,
   PdfSource,
   PdfTextContent,
+  PdfDocumentInitParameters,
+  PdfTypedArray,
   TransformMatrix,
   ViewportScale,
 } from './types';

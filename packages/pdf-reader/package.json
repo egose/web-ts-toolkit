@@ -36,14 +36,14 @@
     "dist"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13.0"
   },
   "peerDependencies": {
-    "pdfjs-dist": "~5.7.284"
+    "pdfjs-dist": "^6.2.108"
   },
   "devDependencies": {
     "@vitest/browser-playwright": "^4.1.10",
-    "pdfjs-dist": "^5.7.284",
+    "pdfjs-dist": "^6.2.108",
     "playwright": "^1.62.1"
   }
 }

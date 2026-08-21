@@ -11,10 +11,12 @@ import type {
   PageImageOutputMode,
   PageImageResult,
   PageResult,
+  PdfDocumentInitParameters,
   PdfReaderOptions,
   PdfReaderState,
   PdfReaderSourceInfo,
   PdfSource,
+  PdfTypedArray,
   ViewportScale,
 } from './types';
 
@@ -51,6 +53,7 @@ export class PDFReader {
   readonly #limits: ResolvedLimits;
   readonly #sourcePolicy: PdfReaderOptions['sourcePolicy'];
   #loadingState?: LoadState;
+  #loadingTask?: PDFDocumentLoadingTask;
   #document?: PDFDocumentProxy;
   #destroyPromise?: Promise<void>;
   readonly #activeRenderTasks = new Set<RenderTask>();
@@ -155,14 +158,15 @@ export class PDFReader {
   public async destroy(): Promise<void> {
     if (this.#destroyPromise) return this.#destroyPromise;
     this.#destroyed = true;
-    const documentProxy = this.#document;
+    const loadingTask = this.#loadingTask;
     const loadingState = this.#loadingState;
+    this.#loadingTask = undefined;
     this.#document = undefined;
     this.#loadingState = undefined;
     this.#destroyPromise = (async () => {
       for (const renderTask of this.#activeRenderTasks) renderTask.cancel();
-      if (documentProxy) {
-        await documentProxy.destroy();
+      if (loadingTask) {
+        await loadingTask.destroy();
         return;
       }
       if (!loadingState) return;
@@ -364,7 +368,7 @@ export class PDFReader {
         if (state.destroyed || this.#destroyed) {
           throw this.#createDestroyedError();
         }
-        const task = getDocument(this.#source);
+        const task = getDocument(this.#toPdfJsSource(this.#source));
         state.task = task;
         const documentProxy = await task.promise;
         if (state.destroyed || state.destroyPromise) {
@@ -372,13 +376,14 @@ export class PDFReader {
           throw this.#createDestroyedError();
         }
         if (documentProxy.numPages > this.#limits.maxDocumentPages) {
-          await documentProxy.destroy();
+          await task.destroy();
           throw new PdfReaderError(
             'PAGE_LIMIT_EXCEEDED',
             `PDF has ${documentProxy.numPages} pages; limit is ${this.#limits.maxDocumentPages}.`,
           );
         }
         this.#throwIfDestroyed();
+        this.#loadingTask = task;
         this.#document = documentProxy;
         this.#lastLoadFailed = false;
         return documentProxy;
@@ -543,6 +548,18 @@ export class PDFReader {
       httpHeaders: headers,
       withCredentials: candidate.withCredentials === true,
     };
+  }
+
+  #toPdfJsSource(source: PdfSource): PdfDocumentInitParameters {
+    if (typeof source === 'string') return { url: source };
+    if (source instanceof URL) return { url: source };
+    if (source instanceof ArrayBuffer || this.#isPdfTypedArray(source) || Array.isArray(source))
+      return { data: source };
+    return source;
+  }
+
+  #isPdfTypedArray(source: PdfSource): source is PdfTypedArray {
+    return ArrayBuffer.isView(source) && !(source instanceof DataView);
   }
 
   #knownByteLength(value: unknown): number | undefined {
