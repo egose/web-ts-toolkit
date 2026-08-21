@@ -114,7 +114,7 @@ export class DataService<T> extends Service {
               },
             }),
           )
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<ListDataResponse<TData>>(res))
           .then((result: ListDataResponse<TData>) => {
             return processListResult<ListDataResponse<TData>, TData>(result, { includeCount, includeExtraHeaders });
           })
@@ -180,7 +180,7 @@ export class DataService<T> extends Service {
             },
             reqConfig,
           )
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(res))
           .then((result: ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>) => {
             return processListResult<
               ListDataResponse<ResolvedSelectedShape<T, TSelect, TData>>,
@@ -230,7 +230,7 @@ export class DataService<T> extends Service {
       () =>
         this._axios
           .get(`${this._basePath}/${encodePathSegment(identifier)}`, reqConfig)
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<DataResponse<TData>>(res))
           .then((result: DataResponse<TData>) => {
             if (result.success) result.data = result.raw;
             return result;
@@ -270,7 +270,7 @@ export class DataService<T> extends Service {
       () =>
         this._axios
           .post(`${this._basePath}/${this._queryPath}/${encodePathSegment(identifier)}`, { select }, reqConfig)
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(res))
           .then((result: DataResponse<ResolvedSelectedShape<T, TSelect, TData>>) => {
             if (result.success) result.data = result.raw;
             return result;
@@ -313,7 +313,7 @@ export class DataService<T> extends Service {
       () =>
         this._axios
           .post(`${this._basePath}/${this._queryPath}/__filter`, { filter: _filter, select }, reqConfig)
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<DataResponse<ResolvedSelectedShape<T, TSelect, TData>>>(res))
           .then((result: DataResponse<ResolvedSelectedShape<T, TSelect, TData>>) => {
             if (result.success) result.data = result.raw;
             return result;

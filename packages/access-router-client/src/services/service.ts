@@ -178,7 +178,10 @@ export class Service {
     this._throwOnError = throwOnError;
   }
 
-  protected handleSuccess(res: AxiosResponse<unknown, unknown>, extra = {}) {
+  protected handleSuccess<T extends Response<unknown, unknown> = Response<unknown>>(
+    res: AxiosResponse<unknown, unknown>,
+    extra = {},
+  ): T {
     return {
       ...finalizeOperationResult({
         success: true,
@@ -187,7 +190,7 @@ export class Service {
         headers: res.headers,
       }),
       ...extra,
-    } as Response<unknown>;
+    } as T;
   }
 
   // See https://axios-http.com/docs/handling-errors

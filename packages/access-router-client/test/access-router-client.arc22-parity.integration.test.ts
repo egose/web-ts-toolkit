@@ -86,11 +86,13 @@ describe('ARC-22 direct vs grouped parity — counts', () => {
   it('count() returns the same numeric value for direct and grouped calls', async () => {
     const headers = { headers: { user: 'admin' } };
 
-    const direct = await services.userService.count(undefined, headers);
-    const grouped = await suite.adapter.group(services.userService.count(undefined, headers));
+    const direct = await services.userService.count(headers);
+    const grouped = await suite.adapter.group(services.userService.count(headers));
 
     expect(direct.success).toBe(true);
     expect(grouped[0].success).toBe(true);
+    expect(suite.protocolRequestHeaders.at(-2)?.user).toBe('admin');
+    expect(suite.protocolRequestHeaders.at(-1)?.user).toBe('admin');
     expect(typeof direct.data).toBe('number');
     expect(typeof grouped[0].data).toBe('number');
     expect(direct.data).toBe(grouped[0].data);
@@ -186,8 +188,9 @@ describe('ARC-22 direct vs grouped parity — Model.save', () => {
     wrappedModel.set('role', 'maintainer');
     expect(wrappedModel.isDirty('role')).toBe(true);
 
-    const saved = await wrappedModel.save(undefined, headers);
+    const saved = await wrappedModel.save(headers);
     expect(saved.success).toBe(true);
+    expect(suite.protocolRequestHeaders.at(-1)?.user).toBe('admin');
     // No second create happened; the server PATCHed the row.
     const reloaded = await services.userService.read(userId, undefined, headers);
     expect(reloaded.success).toBe(true);

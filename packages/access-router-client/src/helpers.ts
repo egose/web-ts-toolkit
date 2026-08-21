@@ -2,10 +2,10 @@ import { AxiosRequestConfig } from 'axios';
 import { isPlainObject, mapValues } from '@web-ts-toolkit/utils';
 import { FilterQuery, WrapOptions } from './types';
 
-export function replaceSubQuery<T>(filter: FilterQuery<T>) {
+export function replaceSubQuery<T>(filter: FilterQuery<T>): unknown {
   if (!isPlainObject(filter)) return filter;
 
-  const ret = mapValues(filter, (val) => {
+  const ret: Record<string, unknown> = mapValues(filter, (val: unknown): unknown => {
     if (isPlainObject(val) && '__op' in val && val.__op && '__query' in val && val.__query) {
       return {
         $$sq: val.__query,
@@ -17,7 +17,7 @@ export function replaceSubQuery<T>(filter: FilterQuery<T>) {
     }
 
     if (Array.isArray(val)) {
-      return val.map((v) => replaceSubQuery(v));
+      return val.map((v): unknown => replaceSubQuery(v));
     }
 
     return val;

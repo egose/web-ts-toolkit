@@ -30,7 +30,7 @@ export interface RootEntry {
   };
   message: string;
   statusCode: number;
-  op?: string;
+  op?: string | null;
 }
 
 const getSubdocumentResultShape = (query: RootQueryMeta): 'list' | 'single' | 'scalar' | undefined => {
@@ -141,7 +141,7 @@ export function finalizeRootEntry(
         const fromExisting = op !== 'new';
         const persistenceId =
           (op === 'read' || op === 'update') && query.target === 'model' && 'id' in query ? query.id : undefined;
-        _data = Model.create(_data, modelService, persistenceId, fromExisting);
+        _data = Model.create(_data as Partial<Document>, modelService, persistenceId, fromExisting);
       }
     }
   }

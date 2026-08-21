@@ -30,6 +30,8 @@ const noopCacheController: CacheController = {
   dispose: () => {},
 };
 
+const noopResponseCallback: ResponseCallback = () => {};
+
 const ROOT_MUTATION_OPS = new Set([
   'create',
   'update',
@@ -325,8 +327,8 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
           basePath,
           queryPath,
           mutationPath,
-          onSuccess: onSuccess ?? onSuccessRoot,
-          onFailure: onFailure ?? onFailureRoot,
+          onSuccess: onSuccess ?? onSuccessRoot ?? noopResponseCallback,
+          onFailure: onFailure ?? onFailureRoot ?? noopResponseCallback,
           throwOnError: throwOnError ?? throwOnErrorRoot ?? false,
         },
         mergeServiceDefaults(adapterModelDefaults, defaults),
@@ -343,8 +345,8 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
           dataName,
           basePath,
           queryPath,
-          onSuccess: onSuccess ?? onSuccessRoot,
-          onFailure: onFailure ?? onFailureRoot,
+          onSuccess: onSuccess ?? onSuccessRoot ?? noopResponseCallback,
+          onFailure: onFailure ?? onFailureRoot ?? noopResponseCallback,
           throwOnError: throwOnError ?? throwOnErrorRoot ?? false,
         },
         mergeServiceDefaults(adapterDataDefaults, defaults),

@@ -139,7 +139,7 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     for (const path of submittedPaths) {
       submittedValues[path] = cloneDeep(getValue(this._data, path));
     }
-    const submittedData = this.prepareData();
+    const submittedData: object = this.prepareData();
 
     // ARC-21: resolve persistence identity OUTSIDE the projected `_data`
     // payload. When `_data._id` is present (the common case — mutation paths
@@ -170,7 +170,7 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
 
     const isCreate = persistenceId == null;
     const result: ModelResponse<T, TData> = isCreate
-      ? await this._service.create<TData>(submittedData, null, reqConfig)
+      ? await this._service.create<TData>(submittedData, undefined, reqConfig)
       : await this._service.update<TData>(String(persistenceId), submittedData, { returningAll: false }, reqConfig);
 
     if (!result.success) {

@@ -1,4 +1,4 @@
-import { AxiosRequestConfig, mergeConfig } from 'axios';
+import { AxiosInstance, AxiosRequestConfig, mergeConfig } from 'axios';
 import {
   FilterQuery,
   Document,
@@ -15,7 +15,7 @@ import type { ModelService } from './model-service';
 type RequestConfig = AxiosRequestConfig & { throwOnError?: boolean };
 
 interface SubOpsContext<S> {
-  axios: ModelService<S>['_axios'];
+  axios: AxiosInstance;
   basePath: string;
   modelName: string;
   queryPath: string;
@@ -46,7 +46,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}`,
               mergeConfig(reqConfig, { params: {} }),
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<SubDocumentListResponse<S>>(res))
             .then((result: SubDocumentListResponse<S>) => {
               const rawArray = toArray<S>(result.raw);
               result.raw = rawArray;
@@ -94,7 +94,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               { filter, select },
               reqConfig,
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<SubDocumentListResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>(res))
             .then((result: SubDocumentListResponse<S, ResolvedSelectedShape<S, TSelect, TData>>) => {
               const rawArray = toArray<ResolvedSelectedShape<S, TSelect, TData>>(result.raw);
               result.raw = rawArray;
@@ -138,7 +138,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}/${encodePathSegment(subId)}`,
               mergeConfig(reqConfig, { params: {} }),
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<SubDocumentResponse<S>>(res))
             .then((result: SubDocumentResponse<S>) => {
               result.data = result.success ? (result.raw as S) : null;
               return result;
@@ -182,7 +182,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               { select, populate },
               reqConfig,
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<SubDocumentResponse<S, ResolvedSelectedShape<S, TSelect, TData>>>(res))
             .then((result: SubDocumentResponse<S, ResolvedSelectedShape<S, TSelect, TData>>) => {
               result.data = result.success ? (result.raw as ResolvedSelectedShape<S, TSelect, TData>) : null;
               return result;
@@ -223,7 +223,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               data,
               mergeConfig(reqConfig, { params: {} }),
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<SubDocumentResponse<S>>(res))
             .then((result: SubDocumentResponse<S>) => {
               result.data = result.success ? (result.raw as S) : null;
               return result;
@@ -262,7 +262,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               data,
               mergeConfig(reqConfig, { params: {} }),
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<SubDocumentListResponse<S>>(res))
             .then((result: SubDocumentListResponse<S>) => {
               const rawArray = toArray<S>(result.raw);
               result.raw = rawArray;
@@ -311,7 +311,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               data,
               mergeConfig(reqConfig, { params: {} }),
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<SubDocumentListResponse<S>>(res))
             .then((result: SubDocumentListResponse<S>) => {
               const rawArray = toArray<S>(result.raw);
               result.raw = rawArray;
@@ -342,7 +342,7 @@ export function buildSubDocumentOps<S>(ctx: SubOpsContext<S>, id: string, sub: s
               `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}/${encodePathSegment(subId)}`,
               reqConfig,
             )
-            .then(handleSuccess)
+            .then((res) => handleSuccess<Response<string>>(res))
             .then((result: Response<string>) => {
               if (result.success) result.data = result.raw;
               return result;

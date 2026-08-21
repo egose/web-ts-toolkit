@@ -143,7 +143,7 @@ export class ModelService<T extends Document> extends Service {
               },
             }),
           )
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<ListModelResponse<T, TData>>(res))
           .then((result: ListModelResponse<T, TData>) => {
             return processListResult<ListModelResponse<T, TData>, TData>(
               result,
@@ -230,7 +230,7 @@ export class ModelService<T extends Document> extends Service {
             },
             reqConfig,
           )
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res))
           .then((result: ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
             return processListResult<
               ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>,
@@ -290,7 +290,7 @@ export class ModelService<T extends Document> extends Service {
       () =>
         this._axios
           .post(this._basePath, data, mergeConfig(reqConfig, { params: { include_permissions: includePermissions } }))
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<ModelResponse<T, TData> | ArrayModelResponse<T, TData>>(res))
           .then((result: ModelResponse<T, TData> | ArrayModelResponse<T, TData>) => {
             // ARC-21: the server echoes `_id` on create; mark the wrapper
             // as a persisted document so a later save() cannot become a
@@ -371,7 +371,7 @@ export class ModelService<T extends Document> extends Service {
             { data, select, populate, tasks, options: { includePermissions, populateAccess } },
             reqConfig,
           )
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<CreateResult>(res))
           .then((result: CreateResult) => {
             // ARC-21: createAdvanced returns the freshly-persisted doc with
             // server-assigned `_id`; mark as existing so a subsequent save()
@@ -425,7 +425,7 @@ export class ModelService<T extends Document> extends Service {
               params: { returning_all: returningAll, include_permissions: includePermissions },
             }),
           )
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<ModelResponse<T, TData>>(res))
           .then((result: ModelResponse<T, TData>) => {
             // ARC-21: upsert resolves to an existing-or-new doc whose `_id`
             // is returned by the server; mark `_fromExisting=true` so a later
@@ -485,7 +485,7 @@ export class ModelService<T extends Document> extends Service {
             },
             reqConfig,
           )
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res))
           .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
             // ARC-21: upsertAdvanced resolves to an existing-or-new doc whose
             // `_id` is returned by the server; mark `_fromExisting=true` so a
@@ -525,7 +525,7 @@ export class ModelService<T extends Document> extends Service {
       () =>
         this._axios
           .delete(`${this._basePath}/${encodePathSegment(identifier)}`, reqConfig)
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<Response<string>>(res))
           .then((result: Response<string>) => {
             if (result.success) result.data = result.raw;
             return result;
@@ -556,7 +556,7 @@ export class ModelService<T extends Document> extends Service {
       () =>
         this._axios
           .get(`${this._basePath}/new`, reqConfig)
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<ModelResponse<T, TData>>(res))
           .then((result: ModelResponse<T, TData>) => {
             if (result.success) {
               delete result.raw._id;
@@ -589,7 +589,7 @@ export class ModelService<T extends Document> extends Service {
       () =>
         this._axios
           .get(`${this._basePath}/distinct/${encodePathSegment(field)}`, reqConfig)
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<Response<string[]>>(res))
           .then((result: Response<string[]>) => {
             if (result.success) result.data = result.raw;
             return result;
@@ -620,7 +620,7 @@ export class ModelService<T extends Document> extends Service {
       () =>
         this._axios
           .post(`${this._basePath}/distinct/${encodePathSegment(field)}`, { filter: conditions }, reqConfig)
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<Response<string[]>>(res))
           .then((result: Response<string[]>) => {
             if (result.success) result.data = result.raw;
             return result;
@@ -652,7 +652,7 @@ export class ModelService<T extends Document> extends Service {
       () =>
         this._axios
           .get(`${this._basePath}/count`, reqConfig)
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<Response<number>>(res))
           .then((result: Response<number>) => {
             if (result.success) result.data = result.raw;
             return result;
@@ -682,7 +682,7 @@ export class ModelService<T extends Document> extends Service {
       () =>
         this._axios
           .post(`${this._basePath}/count`, { filter }, reqConfig)
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<Response<number>>(res))
           .then((result: Response<number>) => {
             if (result.success) result.data = result.raw;
             return result;
@@ -730,7 +730,7 @@ export class ModelService<T extends Document> extends Service {
               params: { include_permissions: includePermissions, try_list: tryList },
             }),
           )
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<ModelResponse<T, TData>>(res))
           .then((result: ModelResponse<T, TData>) => {
             // ARC-21: thread `identifier` as the persistence identity so a
             // read projection that later strips `_id` cannot cause save() to
@@ -802,7 +802,7 @@ export class ModelService<T extends Document> extends Service {
             },
             reqConfig,
           )
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res))
           .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
             // ARC-21: thread `identifier` as the persistence identity so a
             // readAdvanced() with a projection that omits `_id` (e.g.
@@ -882,7 +882,7 @@ export class ModelService<T extends Document> extends Service {
             },
             reqConfig,
           )
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res))
           .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
             // ARC-21: readAdvancedFilter returns an existing doc, but the
             // caller did not pass a single id, so no persistence identity is
@@ -942,7 +942,7 @@ export class ModelService<T extends Document> extends Service {
               params: { returning_all: returningAll, include_permissions: includePermissions },
             }),
           )
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<ModelResponse<T, TData>>(res))
           .then((result: ModelResponse<T, TData>) => {
             // Preserve the route id as a fallback persistence identity when
             // the update projection omits `_id`.
@@ -1003,7 +1003,7 @@ export class ModelService<T extends Document> extends Service {
             },
             reqConfig,
           )
-          .then(this.handleSuccess)
+          .then((res) => this.handleSuccess<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(res))
           .then((result: ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>) => {
             // Preserve the route id as a fallback persistence identity when
             // the advanced update projection omits `_id`.
