@@ -661,7 +661,7 @@ Completion evidence:
 
 ### Task ART-12: Correct The Processor Output Type And Error Documentation
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -700,6 +700,20 @@ Acceptance criteria:
 - Consumers can annotate the intended transformed output usefully.
 - Runtime error tests and declaration JSDoc agree on the thrown error contract.
 - README examples compile against the packed declarations and match runtime values.
+
+Completion evidence:
+
+- Implemented in `packages/access-router/src/processors.ts`: `copyAndDepopulate()` now defaults to conservative `CopyAndDepopulateOutput = Record<string, unknown>` instead of the input object shape, and accepts an explicit output type argument for callers that know the transformed result. Mutable and immutable runtime behavior is unchanged.
+- Corrected processor JSDoc in source and published declarations to document plain `Error` for unsafe paths and missing id fields; no nonexistent `ProcessorPathError` remains in processor docs or generated declarations.
+- Updated installed-consumer docs in `packages/access-router/README.md` and `packages/access-router/llms.txt` to show explicit transformed output typing and the conservative default. `CHANGELOG.md` was not edited per maintainer instruction.
+- Added/updated type and declaration coverage in `packages/access-router/test/strict-consumer-types.test.ts`, `packages/access-router/test/export-contract.test.ts`, and `packages/access-router/test/packed-consumer-compatibility.test.ts`: strict consumers cannot access a depopulated leaf as its old populated object shape without an explicit assertion, consumers can type the transformed output, and `dist/processors.d.ts` plus `dist/processors.d.mts` retain the output type and `@throws Error` JSDoc.
+- Pre-work `git status --short`: clean.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router build`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/processors.test.ts test/processors-path-hardening.test.ts test/export-contract.test.ts test/strict-consumer-types.test.ts test/documentation-examples.test.ts` passed, 5 files and 86 tests.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/packed-consumer-compatibility.test.ts --testNamePattern "supports minimum peers|supports current majors"` passed, 1 file with 4 executed tests and 2 skipped tests.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router typecheck`.
+- Verification passed: `git diff --check`.
+- Verification passed after fixing the documentation snippet and packed-consumer smoke annotations found by an earlier failing run: `pnpm --filter @web-ts-toolkit/access-router test` passed, 41 files and 352 tests.
 
 ## Wave 4: Verification And Test Architecture
 
