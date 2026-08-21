@@ -118,7 +118,7 @@ Root entrypoint (`@web-ts-toolkit/access-router`):
 Subpath entrypoints:
 
 - `@web-ts-toolkit/access-router/advanced` — low-level runtime context, symbols (`MIDDLEWARE`, `PERMISSIONS`, ...), enums (`Codes`, `StatusCodes`), internals (`parseBody`, `parseQuery`, request schemas). Does NOT export `acl`, `defaultRuntime`, or router-creation helpers.
-- `@web-ts-toolkit/access-router/processors` — `copyAndDepopulate` and its `ProcessCopy` / `CopyAndDepopulateOptions` types for transforming populated documents.
+- `@web-ts-toolkit/access-router/processors` — `copyAndDepopulate` and its `ProcessCopy` / `CopyAndDepopulateOptions` / `CopyAndDepopulateOutput` types for transforming populated documents.
 
 ## Default runtime vs. isolated runtime
 
@@ -184,13 +184,22 @@ import { createAccessRuntime, fromZod } from '@web-ts-toolkit/access-router';
 ```ts
 import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';
 
-const { items } = copyAndDepopulate(
+type DepopulatedItems = {
+  items: string[];
+  itemsSnapshot: Array<{ _id: string; name: string }>;
+};
+
+const { items, itemsSnapshot } = copyAndDepopulate<DepopulatedItems>(
   { items: [{ _id: 'a1', name: 'Apple' }] },
   [{ src: 'items', dest: 'itemsSnapshot' }],
   { mutable: false },
 );
 // `items` is now `['a1']`; `itemsSnapshot` holds the original objects.
 ```
+
+Without an explicit output type, `copyAndDepopulate(...)` returns the conservative `CopyAndDepopulateOutput`
+record because runtime `src` and `dest` path strings can replace populated objects with ids and add new fields.
+Unsafe paths or records missing the configured id field throw plain `Error` instances with descriptive messages.
 
 ## Documentation
 

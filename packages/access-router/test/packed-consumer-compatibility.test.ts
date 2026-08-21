@@ -116,11 +116,18 @@ const workspacePackages = [
 const tempRoots: string[] = [];
 
 function run(command: string, args: string[], cwd: string): string {
-  return execFileSync(command, args, {
-    cwd,
-    encoding: 'utf8',
-    stdio: 'pipe',
-  });
+  try {
+    return execFileSync(command, args, {
+      cwd,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+  } catch (err) {
+    const error = err as { stdout?: string; stderr?: string; message?: string };
+    throw new Error(
+      `Command failed: ${command} ${args.join(' ')}\n${error.stdout ?? ''}${error.stderr ?? error.message ?? ''}`,
+    );
+  }
 }
 
 /**
@@ -443,12 +450,14 @@ if (output.items[0] !== 'x') throw new Error('processors subpath failed');
 import { Codes } from '@web-ts-toolkit/access-router/advanced';
 import { copyAndDepopulate, type CopyAndDepopulateOptions, type ProcessCopy } from '@web-ts-toolkit/access-router/processors';
 
+type DepopulatedItems = { items: string[]; snapshot: Array<{ _id: string }> };
+
 const opts: RootRouterOptions = { basePath: '/api', operationAccess: true };
 const condition: GuardModelCondition = { modelName: 'User', id: 'x', condition: 'isAdmin' };
 const op: ProcessCopy = { src: 'items', dest: 'snapshot' };
 const processorOptions: CopyAndDepopulateOptions = { mutable: false };
 const runtime = createAccessRuntime();
-const out = copyAndDepopulate({ items: [{ _id: 'x' }] }, [op], processorOptions);
+const out = copyAndDepopulate({ items: [{ _id: 'x' }] }, [op], processorOptions) as unknown as DepopulatedItems;
 
 void [acl, runtime, opts, condition, Codes, out];
 `,
@@ -460,9 +469,15 @@ void [acl, runtime, opts, condition, Codes, out];
 import { MIDDLEWARE } from '@web-ts-toolkit/access-router/advanced';
 import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';
 
+type DepopulatedItems = { items: string[]; snapshot: Array<{ _id: string }> };
+
 const condition: GuardModelCondition = { modelName: 'User', id: 'x', condition: 'isAdmin' };
 const runtime = createAccessRuntime();
-const out = copyAndDepopulate({ items: [{ _id: 'x' }] }, [{ src: 'items', dest: 'snapshot' }], { mutable: false });
+const out = copyAndDepopulate(
+  { items: [{ _id: 'x' }] },
+  [{ src: 'items', dest: 'snapshot' }],
+  { mutable: false },
+) as unknown as DepopulatedItems;
 
 void [acl, runtime, condition, MIDDLEWARE, out];
 `,
