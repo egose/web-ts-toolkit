@@ -1,8 +1,10 @@
 import mongoose from 'mongoose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ModelRequest } from '../src/interfaces';
-import { Base } from '../src/services/base';
-import { Service } from '../src/services/service';
+import type { ModelRequest } from '../src/interfaces/index.ts';
+import { RequestConcurrencyScheduler } from '../src/helpers/concurrency.ts';
+import { setGlobalOptions } from '../src/options/index.ts';
+import { Base } from '../src/services/base.ts';
+import { Service } from '../src/services/service.ts';
 
 let modelCounter = 0;
 
@@ -10,10 +12,15 @@ class TestBase extends Base {
   include(docs: unknown, include: unknown) {
     return this.includeDocs(docs, include as never);
   }
+
+  parse<T>(value: T, scheduler?: RequestConcurrencyScheduler, scheduled?: boolean) {
+    return this.parseClientData(value, scheduler, scheduled);
+  }
 }
 
 afterEach(() => {
   vi.restoreAllMocks();
+  setGlobalOptions({ requestComplexity: {} });
   mongoose.deleteModel(/AclServiceInternal.*/);
 });
 
@@ -225,5 +232,76 @@ describe('access-router internals', () => {
       { ownerIds: ['u1', 'u2'], posts: [targetRows[0], targetRows[1]] },
       { ownerIds: ['u3'], posts: [targetRows[2]] },
     ]);
+  });
+
+  it('bounds bulk parsing subquery scheduling across items and nested arrays', async () => {
+    setGlobalOptions({ requestComplexity: { maxBulkConcurrency: 3 } });
+    let active = 0;
+    let peak = 0;
+    const calls: number[] = [];
+    const targetService = {
+      _list: vi.fn(async (filter: { order: number }) => {
+        active += 1;
+        peak = Math.max(peak, active);
+        calls.push(filter.order);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        active -= 1;
+        return { success: true, kind: 'list', data: [`owner-${filter.order}`] };
+      }),
+    };
+    const req = {
+      macl: {
+        isAllowed: vi.fn().mockResolvedValue(true),
+        getPublicService: vi.fn().mockReturnValue(targetService),
+      },
+    } as unknown as ModelRequest;
+    const base = new TestBase(req, 'User');
+    const scheduler = new RequestConcurrencyScheduler(3);
+    const input = Array.from({ length: 8 }, (_, order) => ({
+      order,
+      groups: [{ ownerId: { $$sq: { model: 'Post', op: 'list', filter: { order } } } }],
+    }));
+
+    const parsed = await scheduler.map(input, (item) => base.parse(item, scheduler, true));
+
+    expect(peak).toBeLessThanOrEqual(3);
+    expect(calls).toEqual(input.map((item) => item.order));
+    expect(parsed.map((item) => item.groups[0].ownerId)).toEqual(input.map((item) => [`owner-${item.order}`]));
+  });
+
+  it('returns stable indexed bulk parse errors before validation or persistence', async () => {
+    setGlobalOptions({ requestComplexity: { maxBulkConcurrency: 3 } });
+    const modelName = `AclServiceInternal${++modelCounter}`;
+    mongoose.model(modelName, new mongoose.Schema({ ownerId: String }));
+    const req = {
+      macl: {
+        isAllowed: vi.fn(async () => false),
+        getPublicService: vi.fn(),
+        genAllowedFields: vi.fn(),
+        validate: vi.fn(),
+        prepare: vi.fn(),
+      },
+    } as unknown as ModelRequest;
+    const service = new Service(req, modelName);
+    const createSpy = vi.spyOn(
+      (service as never as { model: { create: (items: unknown[]) => Promise<unknown[]> } }).model,
+      'create',
+    );
+
+    const result = await service.create([
+      { ownerId: { $$sq: { model: 'Post', op: 'list', filter: { order: 0 } } } },
+      { ownerId: { $$sq: { model: 'Post', op: 'list', filter: { order: 1 } } } },
+    ]);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors).toEqual([
+        { detail: 'Unauthorized', pointer: '#/0' },
+        { detail: 'Unauthorized', pointer: '#/1' },
+      ]);
+    }
+    expect(req.macl.validate).not.toHaveBeenCalled();
+    expect(req.macl.prepare).not.toHaveBeenCalled();
+    expect(createSpy).not.toHaveBeenCalled();
   });
 });

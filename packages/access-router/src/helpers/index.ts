@@ -5,13 +5,15 @@ export * from './errors';
 export * from './query';
 export * from './sort-policy';
 
-import { forEach, isArray, isEmpty, isObject, isPlainObject, isString, mapValuesAsync } from '@web-ts-toolkit/utils';
+import { forEach, isArray, isEmpty, isObject, isPlainObject, isString } from '@web-ts-toolkit/utils';
 import { isSchema, isReference } from '../lib';
 import { FilterOperator } from '../enums';
+import type { RequestConcurrencyScheduler } from './concurrency';
 
 type SchemaTree = Record<string, unknown>;
 type ReferenceMap = { [key: string]: string | ReferenceMap };
 type QueryHandler = (operator: FilterOperator, value: unknown, key: string) => unknown | Promise<unknown>;
+type QueryScheduler = RequestConcurrencyScheduler;
 
 function recurseObject(obj: unknown): string | ReferenceMap | null {
   if (isSchema(obj)) {
@@ -77,29 +79,45 @@ export function buildSubPaths(schema: unknown): string[] {
   return subPaths;
 }
 
-export async function iterateQuery(query: unknown, handler?: QueryHandler): Promise<unknown> {
+export async function iterateQuery(
+  query: unknown,
+  handler?: QueryHandler,
+  scheduler?: QueryScheduler,
+  scheduled = false,
+): Promise<unknown> {
   if (!isPlainObject(query)) return query;
   if (!handler) return query;
 
   const queryObject = query as Record<string, unknown>;
-  return mapValuesAsync(queryObject, async (val, key) => {
+  const entries = Object.entries(queryObject);
+  const mapEntry = async ([key, val]: [string, unknown]) => {
     if (isPlainObject(val)) {
       const plainValue = val as Record<string, unknown>;
       if (plainValue.$$sq) {
-        return handler(FilterOperator.SubQuery, plainValue.$$sq, key);
+        return scheduled || !scheduler
+          ? handler(FilterOperator.SubQuery, plainValue.$$sq, key)
+          : scheduler.run(() => Promise.resolve(handler(FilterOperator.SubQuery, plainValue.$$sq, key)));
       } else if (plainValue.$$date) {
         return handler(FilterOperator.Date, plainValue.$$date, key);
       } else {
-        return iterateQuery(val, handler);
+        return iterateQuery(val, handler, scheduler, scheduled);
       }
     }
 
     if (isArray(val)) {
-      return Promise.all(val.map((v) => iterateQuery(v, handler)));
+      const items = val as unknown[];
+      if (scheduler && !scheduled) {
+        return scheduler.map(items, (v) => iterateQuery(v, handler, scheduler, true));
+      }
+      return Promise.all(items.map((v) => iterateQuery(v, handler, scheduler, scheduled)));
     }
 
     return val;
-  });
+  };
+  const values =
+    scheduler && !scheduled ? await scheduler.map(entries, mapEntry) : await Promise.all(entries.map(mapEntry));
+
+  return Object.fromEntries(entries.map(([key], index) => [key, values[index]]));
 }
 
 export const createValidator = (fn: (key: string) => boolean) => {

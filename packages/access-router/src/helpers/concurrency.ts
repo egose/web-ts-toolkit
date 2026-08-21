@@ -19,3 +19,23 @@ export const mapWithConcurrencyLimit = async <TInput, TOutput>(
 
   return results;
 };
+
+export class RequestConcurrencyScheduler {
+  readonly limit: number;
+
+  constructor(limit: number) {
+    this.limit = Math.max(1, limit);
+  }
+
+  async map<TInput, TOutput>(
+    items: TInput[],
+    iteratee: (item: TInput, index: number, scheduled: true) => Promise<TOutput>,
+  ) {
+    return mapWithConcurrencyLimit(items, this.limit, (item, index) => iteratee(item, index, true));
+  }
+
+  async run<TOutput>(iteratee: (scheduled: true) => Promise<TOutput>) {
+    const [result] = await this.map([undefined], () => iteratee(true));
+    return result;
+  }
+}

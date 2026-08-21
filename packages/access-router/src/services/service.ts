@@ -29,6 +29,7 @@ import {
   toObject,
   validateSortFields,
 } from '../helpers';
+import { RequestConcurrencyScheduler } from '../helpers/concurrency';
 import {
   Filter,
   Include,
@@ -470,8 +471,35 @@ export class Service<TModel = unknown> extends Base<TModel> {
       };
     }
 
+    const parseErrors: Array<{ index: number; code: ErrorResult['code']; errors: unknown[] }> = [];
+    const parseScheduler = new RequestConcurrencyScheduler(maxBulkConcurrency);
     try {
-      dataArr = await Promise.all(dataArr.map((d) => this.parseClientData(d)));
+      const parsedData = await parseScheduler.map(dataArr, async (d, index) => {
+        try {
+          return await this.parseClientData(d, parseScheduler, true);
+        } catch (error) {
+          const result = this.getClientRequestErrorResult(error);
+          if (!result) throw error;
+          parseErrors.push({
+            index,
+            code: result.code,
+            errors: (result.errors ?? []).map((issue) => this.formatBulkValidationIssue(issue, isArr ? index : null)),
+          });
+          return undefined;
+        }
+      });
+
+      if (parseErrors.length > 0) {
+        const sortedErrors = parseErrors.slice().sort((a, b) => a.index - b.index);
+        return {
+          success: false,
+          kind: 'error',
+          code: sortedErrors[0]?.code ?? Codes.BadRequest,
+          errors: sortedErrors.flatMap((entry) => entry.errors),
+        };
+      }
+
+      dataArr = parsedData as Record<string, unknown>[];
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
       if (result) return result;

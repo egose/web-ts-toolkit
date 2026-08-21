@@ -14,6 +14,7 @@ import {
 } from '@web-ts-toolkit/utils';
 import { getGlobalOption, getModelOption } from '../options';
 import { iterateQuery, setDocValue } from '../helpers';
+import { RequestConcurrencyScheduler } from '../helpers/concurrency';
 import {
   ErrorResult,
   Filter,
@@ -441,17 +442,26 @@ export class Base<TModel = unknown> {
     return docs;
   }
 
-  protected async parseClientData<TValue>(filter: TValue): Promise<TValue> {
-    const result = await iterateQuery(filter, async (fo: FilterOperator, val: unknown, key: string) => {
-      switch (fo) {
-        case FilterOperator.SubQuery:
-          return this.handleSubQuery(val as SubQueryEntry, key);
-        case FilterOperator.Date:
-          return this.handleDate(val, key);
-        default:
-          return null;
-      }
-    });
+  protected async parseClientData<TValue>(
+    filter: TValue,
+    scheduler = new RequestConcurrencyScheduler(this.getRequestComplexity().maxBulkConcurrency),
+    scheduled = false,
+  ): Promise<TValue> {
+    const result = await iterateQuery(
+      filter,
+      async (fo: FilterOperator, val: unknown, key: string) => {
+        switch (fo) {
+          case FilterOperator.SubQuery:
+            return this.handleSubQuery(val as SubQueryEntry, key);
+          case FilterOperator.Date:
+            return this.handleDate(val, key);
+          default:
+            return null;
+        }
+      },
+      scheduler,
+      scheduled,
+    );
 
     return result as TValue;
   }
