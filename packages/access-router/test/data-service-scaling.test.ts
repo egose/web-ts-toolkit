@@ -19,6 +19,8 @@ afterEach(() => {
 
 const RECORD_COUNT = 5000;
 
+const delay = () => new Promise((resolve) => setTimeout(resolve, 1));
+
 type DatasetRecord = {
   id: string;
   name: string;
@@ -42,35 +44,6 @@ const buildDataset = (): DatasetRecord[] =>
     public: i % 3 !== 0,
   }));
 
-const buildRuntimeApp = (dataName: string, dataset: DatasetRecord[], basePath: string) => {
-  setGlobalOptions({
-    requestPermissionField: '_permissions',
-    globalPermissions: () => ['isAdmin'],
-  });
-
-  const router = acl.createDataRouter(dataName, {
-    basePath,
-    idField: 'id',
-    operationAccess: { list: true, read: true },
-    data: dataset,
-    permissionSchema: {
-      id: true,
-      name: true,
-      group: true,
-      tier: true,
-      score: true,
-      flag: true,
-      payload: true,
-      public: true,
-    },
-  });
-
-  const app = express();
-  app.use(express.json());
-  app.use(router.routes);
-  return app;
-};
-
 const complexFilter = {
   $and: [
     { public: true },
@@ -83,64 +56,115 @@ const complexFilter = {
   ],
 };
 
-const failWithCeiling = (label: string, valueMs: number, expectedMs: number) => {
-  if (!(valueMs <= expectedMs)) {
-    throw new Error(
-      `${label} took ${valueMs.toFixed(2)}ms, expected <= ${expectedMs}ms (CI-tolerant ceiling). ` +
-        `The ceiling is set ~3x above a stable local baseline; revisit only if consistently exceeded in CI.`,
-    );
-  }
-};
+const matchingComplexFilter = (doc: DatasetRecord) =>
+  doc.public &&
+  (doc.group === 'A' || doc.group === 'C') &&
+  (doc.tier === 'pro' || doc.tier === 'enterprise') &&
+  doc.score >= 100 &&
+  doc.score <= 900 &&
+  doc.flag &&
+  /Record [1-9]/.test(doc.name) &&
+  doc.payload !== 'payload-1-0';
 
 describe('ARF-15 data-service list scaling', () => {
-  it('the page-sized trim path stays bounded when most of a large dataset matches a complex filter', async () => {
+  it('shapes only returned rows while counting every authorized match for a complex filter', async () => {
     const dataName = `Arf15ScalingPage${++modelCounter}`;
+    let activeFieldChecks = 0;
+    let peakFieldChecks = 0;
+    let fieldCheckCalls = 0;
+    let activeDecorate = 0;
+    let peakDecorate = 0;
+    let decorateCalls = 0;
     const dataset = buildDataset();
-    const app = buildRuntimeApp(dataName, dataset, '/arf15-scaling-page');
+
+    setGlobalOptions({
+      requestPermissionField: '_permissions',
+      globalPermissions: () => ['isAdmin'],
+      requestComplexity: { maxHookConcurrency: 4 },
+    });
+
+    const router = acl.createDataRouter(dataName, {
+      basePath: '/arf15-scaling-page',
+      idField: 'id',
+      operationAccess: { list: true, read: true },
+      data: dataset,
+      permissionSchema: {
+        id: true,
+        name: true,
+        group: true,
+        tier: true,
+        score: true,
+        flag: true,
+        public: true,
+        async payload() {
+          fieldCheckCalls += 1;
+          activeFieldChecks += 1;
+          peakFieldChecks = Math.max(peakFieldChecks, activeFieldChecks);
+          await delay();
+          activeFieldChecks -= 1;
+          return true;
+        },
+      },
+      async decorate(doc) {
+        decorateCalls += 1;
+        activeDecorate += 1;
+        peakDecorate = Math.max(peakDecorate, activeDecorate);
+        await delay();
+        activeDecorate -= 1;
+        return doc;
+      },
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.use(router.routes);
 
     const pageSizes = [10, 50, 100];
-    const trialsPerSize = 3;
+    const expectedTotalCount = dataset.filter(matchingComplexFilter).length;
+
+    expect(expectedTotalCount).toBeGreaterThan(RECORD_COUNT * 0.2);
+    expect(expectedTotalCount).toBeLessThan(RECORD_COUNT);
 
     for (const pageSize of pageSizes) {
-      let lastBody: { data: unknown[]; meta: { returnedCount: number; totalCount: number } } | undefined;
-      let bestMs = Infinity;
+      fieldCheckCalls = 0;
+      peakFieldChecks = 0;
+      activeFieldChecks = 0;
+      decorateCalls = 0;
+      peakDecorate = 0;
+      activeDecorate = 0;
 
-      for (let trial = 0; trial < trialsPerSize; trial++) {
-        const start = performance.now();
-        const response = await request(app)
-          .post('/arf15-scaling-page/__query')
-          .send({
-            filter: complexFilter,
-            limit: pageSize,
-            options: { includeCount: true },
-          })
-          .expect(200);
-        bestMs = Math.min(bestMs, performance.now() - start);
-        lastBody = response.body as typeof lastBody;
-      }
+      const response = await request(app)
+        .post('/arf15-scaling-page/__query')
+        .send({
+          filter: complexFilter,
+          limit: pageSize,
+          options: { includeCount: true },
+        })
+        .expect(200);
 
-      expect(lastBody).toBeDefined();
-      expect(lastBody!.data).toHaveLength(pageSize);
-      expect(lastBody!.meta.returnedCount).toBe(pageSize);
+      const body = response.body as { data: unknown[]; meta: { returnedCount: number; totalCount: number } };
 
-      const matched = lastBody!.meta.totalCount;
-      expect(matched).toBeGreaterThan(RECORD_COUNT * 0.2);
-      expect(matched).toBeLessThan(RECORD_COUNT);
+      expect(body.data).toHaveLength(pageSize);
+      expect(body.meta.returnedCount).toBe(pageSize);
+      expect(body.meta.totalCount).toBe(expectedTotalCount);
 
-      // CI-tolerant ceiling. A representative local baseline on this matrix is ~5-15ms for the
-      // smallest page and scales gently with page size. The ceiling keeps the test stable on a
-      // loaded CI node while still catching a regression that trimmed the whole matching set
-      // (see the comparison case below: a full-match trim pushes these well past 500ms for any
-      // page size).
-      const ceilingByPageSize: Record<number, number> = { 10: 220, 50: 240, 100: 280 };
-      failWithCeiling(`page size ${pageSize}`, bestMs, ceilingByPageSize[pageSize]!);
+      // Two pre-query field-collection passes are expected: select resolution and sort validation.
+      // Every additional dynamic field check comes from trimming exactly the returned page.
+      expect(fieldCheckCalls).toBe(pageSize + 2);
+      expect(fieldCheckCalls).toBeLessThan(expectedTotalCount);
+      expect(decorateCalls).toBe(pageSize);
+      expect(peakFieldChecks).toBeLessThanOrEqual(4);
+      expect(peakDecorate).toBeLessThanOrEqual(4);
     }
   });
 
-  it('page-sized trim beats a counterfactual full-match trim for the same query', async () => {
+  it('the counterfactual full-match trim uses the same filtered match set and exposes cardinality regressions', async () => {
     const dataName = `Arf15ScalingCompare${++modelCounter}`;
     const dataset = buildDataset();
+    const matched = dataset.filter(matchingComplexFilter);
     const basePath = '/arf15-scaling-compare';
+    let fullTrimFieldCheckCalls = 0;
+
     const router = acl.createDataRouter(dataName, {
       basePath,
       idField: 'id',
@@ -153,19 +177,18 @@ describe('ARF-15 data-service list scaling', () => {
         tier: true,
         score: true,
         flag: true,
-        payload: true,
+        async payload() {
+          fullTrimFieldCheckCalls += 1;
+          return true;
+        },
         public: true,
       },
     });
 
-    // Register a diagnostic route directly on the access router (which pipes every route
-    // through the data-core middleware, so `req.dacl.pickAllowedFields` is available) to
-    // simulate what a buggy "trim every matched doc before slicing" path would do. It applies
-    // the same production trim helper (`req.dacl.pickAllowedFields(dataName, doc, 'list')`)
-    // to every document in the configured data set, isolating the trim cardinality from
-    // filter/sort/permission machinery shared by both routes.
+    // Register a diagnostic route directly on the access router so it uses the same data-core
+    // middleware and production trim helper as normal data routes, but intentionally trims the
+    // entire precomputed filtered match set before slicing.
     router.router.post('/__full-trim', async (req, res) => {
-      const matched = dataset;
       const trimmed: unknown[] = [];
       for (const doc of matched) {
         trimmed.push(await req.dacl.pickAllowedFields(dataName, doc, 'list'));
@@ -177,40 +200,27 @@ describe('ARF-15 data-service list scaling', () => {
     app.use(express.json());
     app.use(router.routes);
 
-    await request(app)
+    const warmup = await request(app)
       .post(`${basePath}/__query`)
       .send({ filter: complexFilter, limit: 1, options: { includeCount: true } })
       .expect(200);
 
     const pageSize = 25;
+    fullTrimFieldCheckCalls = 0;
 
-    const timePageSized = async () => {
-      let best = Infinity;
-      for (let i = 0; i < 4; i++) {
-        const start = performance.now();
-        await request(app)
-          .post(`${basePath}/__query`)
-          .send({ filter: complexFilter, limit: pageSize, options: { includeCount: true } })
-          .expect(200);
-        best = Math.min(best, performance.now() - start);
-      }
-      return best;
-    };
+    const pageSized = await request(app)
+      .post(`${basePath}/__query`)
+      .send({ filter: complexFilter, limit: pageSize, options: { includeCount: true } })
+      .expect(200);
 
-    const timeFullMatchTrim = async () => {
-      let best = Infinity;
-      for (let i = 0; i < 2; i++) {
-        const start = performance.now();
-        await request(app).post(`${basePath}/__full-trim`).send({ filter: complexFilter }).expect(200);
-        best = Math.min(best, performance.now() - start);
-      }
-      return best;
-    };
+    fullTrimFieldCheckCalls = 0;
+    const fullTrim = await request(app).post(`${basePath}/__full-trim`).expect(200);
 
-    const pageMs = await timePageSized();
-    const fullMs = await timeFullMatchTrim();
-
-    expect(pageMs).toBeLessThan(600);
-    expect(fullMs).toBeGreaterThan(pageMs);
+    expect(warmup.body.meta.totalCount).toBe(matched.length);
+    expect(pageSized.body.meta.totalCount).toBe(matched.length);
+    expect(pageSized.body.meta.returnedCount).toBe(pageSize);
+    expect(fullTrim.body.trimmedCount).toBe(matched.length);
+    expect(fullTrimFieldCheckCalls).toBe(matched.length);
+    expect(fullTrimFieldCheckCalls).toBeGreaterThan(pageSize);
   });
 });
