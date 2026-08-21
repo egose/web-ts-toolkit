@@ -669,7 +669,7 @@ Completion evidence:
 
 ### Task ARR-H11: Perform Independent Final Integration Review
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -711,6 +711,30 @@ Acceptance criteria:
 - Packed runtime/type consumers pass for all declared module/runtime combinations.
 - `pnpm lint`, `pnpm build`, and serial `pnpm test` pass.
 - `git diff --check` passes and generated artifacts were produced by build commands, not manual edits.
+
+Completion evidence:
+
+- Changed: `packages/access-router-react/src/create-model-hook.ts`, `packages/access-router-react/test/harness.test.tsx`, `packages/access-router-react/test-docs-consumer/examples/query-hooks.tsx`, `packages/access-router-react/test-docs-consumer/examples/mutations.tsx`, `packages/access-router-react/test-docs-consumer/examples/cancellation.tsx`, `packages/access-router-react/test-docs-consumer/examples/concurrent-mutations.tsx`, `packages/access-router-react/test-docs-consumer/examples/website-extras.tsx`, `packages/access-router-react/test-docs-consumer/examples/active-record.tsx`, `packages/access-router-react/test-docs-consumer/examples/projection.tsx`, `packages/access-router-react/test-packed-consumer/consumer/consumer.cjs`, `packages/access-router-react/test-packed-consumer/consumer/hooks-smoke-core.cjs`, `eslint.config.mjs`
+- Reviewed: all prior ARR-H01 through ARR-H10 task entries already carried `completed` status with completion evidence; no stale predecessor `pending`/`in_progress` tasks remained.
+- Found and fixed: the independent review uncovered one remaining P1 regression in `useList().query()` where omitted manual args could keep using stale configured `listParams` after rerender because `baseFetch` captured the old closure. `useList` now re-memoizes `baseFetch` on `listParamsKey`, and a rerender regression proves manual `query()` picks up the latest configured pagination.
+- Hardened integration gates: docs compile fixtures were re-aligned so scaffolded snippets remain verbatim between marker comments, packed-consumer CJS fixtures satisfy lint without changing shipped docs snippets, and `useLatestRef` now refreshes on `useLayoutEffect` rather than mutating refs during render.
+- Result: no unresolved P0/P1 findings remained after the rerender pagination fix. The review noted only non-blocking residual gaps: React 18 installed-consumer type-resolution is still inferred from the shared declaration consumer rather than exercised in a separate installed React 18 type lane, and some success callback/promise types remain broader than the normalized runtime success path.
+- Verified: `pnpm exec vitest run --config vitest.runtime.config.ts test/harness.test.tsx`
+- Result: 1 file, 16 tests passed.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/access-router-react.docs.compile.test.ts`
+- Result: 1 file, 2 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build and all four typecheck categories passed; the React 19 runtime lane ran 15 files / 211 tests, the isolated React 18 runtime lane ran the same 15 files / 211 tests, and the non-runtime exports/packed/docs lane ran 3 files / 18 tests.
+- Verified: `pnpm test:packed-consumer`
+- Result: 2 files, 6 tests passed.
+- Verified: `pnpm lint`
+- Result: passed.
+- Verified: `pnpm build`
+- Result: passed.
+- Verified: `pnpm test`
+- Result: passed serially across the workspace, including the re-verified `@web-ts-toolkit/access-router-react` package lane and the final `apps/react-vite` Vitest lane (2 files / 3 tests).
+- Verified: `git diff --check`
+- Result: passed.
 
 ## Dependencies And Parallelization
 
