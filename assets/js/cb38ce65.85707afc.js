@@ -203,12 +203,12 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "withCredentials: true"
-        }), " is the adapter default; in the browser this\ntransmits cookies + the ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "Authorization"
-        }), " header (see ", (0,jsx_runtime.jsx)(_components.a, {
+        }), " is the adapter default; in the browser this permits\ncookie credentials when CORS and cookie policy allow them. Authorization,\nAPI-key style headers, and Node ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Cookie"
+        }), " headers are explicit Axios config\nvalues; see ", (0,jsx_runtime.jsx)(_components.a, {
           href: "./adapter#cache-controls",
           children: "Cache Controls"
-        }), " for how credentialed cache partitioning mirrors it\non Node). The cache's ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " for credentialed cache partitioning. The cache's ", (0,jsx_runtime.jsx)(_components.code, {
           children: "setTimeout"
         }), "/", (0,jsx_runtime.jsx)(_components.code, {
           children: "clearTimeout"

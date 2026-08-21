@@ -319,6 +319,12 @@ function _createMdxContent(props) {
         children: "www-authenticate"
       }), ") are excluded from cache keys\nregardless of the partition token."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Browser cookie credentials, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "withCredentials"
+      }), ", explicit Authorization/proxy\nauthorization headers, API-key style headers, and Node ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Cookie"
+      }), " headers supplied\non the Axios config are all treated as credentialed for cache partitioning."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Only GET requests using supported JSON or text response modes are eligible.\nStream/blob/array-buffer/document responses, custom request or response\ntransforms, custom parameter serializers, cancellation-sensitive requests, and\nvalues that cannot be serialized stably bypass both storage and in-flight\ndeduplication. Successful POST/PUT/PATCH/DELETE requests invalidate cached\nreads even when made directly through ", (0,jsx_runtime.jsx)(_components.code, {
         children: "adapter.axios"
       }), " without package headers."]
@@ -345,17 +351,13 @@ function _createMdxContent(props) {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "withCredentials: true"
-        }), " (the adapter default) is honored by both Axios's\nbrowser ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "XMLHttpRequest"
-        }), " adapter (sends cookies + ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "Authorization"
-        }), ") and the\nNode HTTP adapter (sends the ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " (the adapter default) permits browser cookie\ncredentials when CORS and cookie policy allow them. Authorization, proxy\nauthorization, API-key style headers, and Node ", (0,jsx_runtime.jsx)(_components.code, {
           children: "Cookie"
-        }), "/", (0,jsx_runtime.jsx)(_components.code, {
-          children: "Authorization"
-        }), " headers you set on\nthe Axios config). The ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " headers are explicit\nAxios config values; ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "withCredentials"
+        }), " does not create them. The\n", (0,jsx_runtime.jsx)(_components.code, {
           children: "cachePartition"
-        }), " policy above applies identically\nto both runtimes — one identity cannot receive another's cached response."]
+        }), " policy above applies identically to both runtimes: one\nidentity cannot receive another's cached response."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["The cache timers use ", (0,jsx_runtime.jsx)(_components.code, {
           children: "setTimeout"
