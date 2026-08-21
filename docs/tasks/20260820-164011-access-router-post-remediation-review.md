@@ -378,7 +378,7 @@ Completion evidence:
 
 ### Task ART-07: Bound Default Data-List Output And Hook Concurrency
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -420,6 +420,19 @@ Acceptance criteria:
 - Omitted and malformed limits cannot create an unbounded response.
 - Instrumented hooks prove peak concurrency stays at or below the configured bound.
 - Ordering, returned count, total count, and page-sized shaping remain correct.
+
+Completion evidence:
+
+- Implemented in `packages/access-router/src/runtime.ts` and `packages/access-router/src/helpers/query.ts`: data routers now default `listHardLimit` to the shared finite default of `1000`, and `genPagination()` defensively falls back to that default when a trusted service call supplies an absent or invalid hard limit.
+- Added `packages/access-router/src/helpers/concurrency.ts` and reused it from `packages/access-router/src/services/service.ts`, `packages/access-router/src/services/data-service.ts`, and `packages/access-router/src/http/response-pipelines/data-response.ts`. Data list trimming and per-row decorate hooks now run through `requestComplexity.maxHookConcurrency` (default `10`) while preserving `totalCount` over the full authorized match set and shaping only returned rows.
+- Documented the data-router default hard limit and hook concurrency option in `packages/access-router/README.md`. `CHANGELOG.md` was not edited for ART-07 per maintainer instruction.
+- Added ART-07 coverage in `packages/access-router/test/data-service-hot-path.test.ts` for a 10,000-row uncapped request returning the default 1,000 rows with full `totalCount`, malformed router/request limits not producing unbounded output, and instrumented decorate hook peak concurrency staying at or below `maxHookConcurrency` while preserving order and page metadata.
+- Pre-work `git status --short`: clean.
+- Verification passed after rebuild: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/data-service-hot-path.test.ts` passed, 1 file and 7 tests.
+- Verification passed after metadata compatibility fix: `pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/data-service-hot-path.test.ts test/data-router.test.ts` passed, 2 files and 29 tests.
+- Verification passed: `git diff --check`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router typecheck`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/access-router test` passed, 40 files and 344 tests.
 
 ### Task ART-08: Bound Bulk Parsing And Nested Subquery Scheduling
 

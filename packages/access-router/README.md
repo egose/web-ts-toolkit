@@ -92,6 +92,12 @@ app.listen(port, () => {
 });
 ```
 
+In-memory data routers default `listHardLimit` to `1000`, matching model routers. A list request without
+`limit`/`pageSize`, or with a malformed limit passed through a trusted service call, is capped at that finite
+default unless the router sets `listHardLimit` explicitly. `meta.totalCount` still reflects the full authorized
+match set when counts are requested; only returned rows are trimmed and decorated. Per-row data trim/decorate
+hooks run with bounded concurrency controlled by `requestComplexity.maxHookConcurrency` (default `10`).
+
 ## Main Exports
 
 Root entrypoint (`@web-ts-toolkit/access-router`):
