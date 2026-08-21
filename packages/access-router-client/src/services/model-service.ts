@@ -550,7 +550,7 @@ export class ModelService<T extends Document> extends Service {
   }
 
   new<TData extends Partial<T> = T>(axiosRequestConfig?: RequestConfig) {
-    const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {});
+    const { throwOnError, ...reqConfig } = cloneConfigWithCacheBypass(axiosRequestConfig ?? {}, false);
 
     return makeRequest<ModelResponse<T, TData>>(
       () =>

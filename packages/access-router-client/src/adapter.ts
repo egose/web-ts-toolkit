@@ -2,7 +2,12 @@ import axios, { mergeConfig, AxiosRequestConfig } from 'axios';
 import { ModelService, DataService } from './services';
 import { DataRequest, ModelRequest, ResponseCallback, Document } from './types';
 import { Defaults, DataDefaults } from './interface';
-import { useCacheInterceptors, type CacheController, type CachePartitioner } from './services/interceptors';
+import {
+  removeCacheInvalidationSignal,
+  useCacheInterceptors,
+  type CacheController,
+  type CachePartitioner,
+} from './services/interceptors';
 import { createWrapHelper } from './services/wrap';
 import { normalizeConfigValue } from './services/cache-utils';
 import { applyGroupCallbacks, finalizeRootEntry, finalizeRootTransportFailure } from './services/shared';
@@ -25,7 +30,19 @@ const noopCacheController: CacheController = {
   dispose: () => {},
 };
 
-const serializeRequestConfig = (config?: AxiosRequestConfig) => JSON.stringify(normalizeConfigValue(config ?? {}));
+const ROOT_MUTATION_OPS = new Set([
+  'create',
+  'update',
+  'upsert',
+  'delete',
+  'subCreate',
+  'subUpdate',
+  'subBulkUpdate',
+  'subDelete',
+]);
+
+const serializeRequestConfig = (config?: AxiosRequestConfig) =>
+  JSON.stringify(normalizeConfigValue(removeCacheInvalidationSignal(config ?? {})));
 
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   value != null && typeof value === 'object' && !Array.isArray(value);
@@ -332,7 +349,8 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
         throw error;
       }
 
-      const result = await instance.post(rootRouterPath, defs, sharedConfig ?? {}).then(
+      const groupConfig = removeCacheInvalidationSignal(sharedConfig ?? {});
+      const result = await instance.post(rootRouterPath, defs, groupConfig).then(
         (res) => {
           const rawEntries = res.data.map(({ result, message, statusCode, op }) => ({
             result,
@@ -340,6 +358,18 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
             statusCode,
             op,
           }));
+
+          if (
+            rawEntries.some(
+              (entry, index) =>
+                ROOT_MUTATION_OPS.has(proms[index].__query.op) &&
+                entry.result?.success === true &&
+                entry.statusCode >= 200 &&
+                entry.statusCode < 300,
+            )
+          ) {
+            cacheController.clear();
+          }
 
           const finalized = rawEntries.map((rawEntry, index) =>
             finalizeRootEntry(proms[index].__query, rawEntry, {}, proms[index].__service),
