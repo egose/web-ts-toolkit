@@ -3,12 +3,13 @@ import Heading from '@theme/Heading';
 import CommunicationSvg from '@site/static/img/communication.svg';
 import PortfolioSvg from '@site/static/img/portfolio.svg';
 import SecuritySvg from '@site/static/img/security.svg';
+import type { ReactElement, ReactNode } from 'react';
 import styles from './styles.module.css';
 
 type FeatureItem = {
   title: string;
   Svg: React.ComponentType<React.ComponentProps<'svg'>>;
-  description: JSX.Element;
+  description: ReactNode;
 };
 
 const FeatureList: FeatureItem[] = [
@@ -45,7 +46,7 @@ function Feature({ title, Svg, description }: FeatureItem) {
   );
 }
 
-export default function HomepageFeatures(): JSX.Element {
+export default function HomepageFeatures(): ReactElement {
   return (
     <section className={styles.features}>
       <div className="container">
