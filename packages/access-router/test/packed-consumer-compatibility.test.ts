@@ -113,6 +113,21 @@ const workspacePackages = [
   { name: '@web-ts-toolkit/access-router', dir: packageRoot },
 ] as const;
 
+const releaseArtifactBinPackages = [
+  {
+    name: '@web-ts-toolkit/access-router-runtime',
+    dir: path.resolve(workspaceRoot, 'packages/access-router-runtime'),
+  },
+  {
+    name: 'create-access-router-mongo-starter',
+    dir: path.resolve(workspaceRoot, 'packages/create-access-router-mongo-starter'),
+  },
+  {
+    name: '@web-ts-toolkit/express-runtime',
+    dir: path.resolve(workspaceRoot, 'packages/express-runtime'),
+  },
+] as const;
+
 const tempRoots: string[] = [];
 
 function run(command: string, args: string[], cwd: string): string {
@@ -128,6 +143,19 @@ function run(command: string, args: string[], cwd: string): string {
       `Command failed: ${command} ${args.join(' ')}\n${error.stdout ?? ''}${error.stderr ?? error.message ?? ''}`,
     );
   }
+}
+
+function hasBuiltBinEntries(packageDir: string): boolean {
+  const manifest = JSON.parse(readFileSync(path.resolve(packageDir, 'package.json'), 'utf8')) as PackageJson;
+  const binEntries = typeof manifest.bin === 'string' ? [manifest.bin] : Object.values(manifest.bin ?? {});
+  return binEntries.every((entry) => existsSync(path.resolve(packageDir, entry)));
+}
+
+function ensureReleaseArtifactBinPackagesBuilt(): void {
+  const missing = releaseArtifactBinPackages.filter((pkg) => !hasBuiltBinEntries(pkg.dir));
+  if (missing.length === 0) return;
+
+  run('pnpm', missing.flatMap((pkg) => ['--filter', pkg.name]).concat(['build']), workspaceRoot);
 }
 
 /**
@@ -562,14 +590,11 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
   // helpers are idempotent and cache their result, so priming here is a no-op
   // for the test bodies.
   beforeAll(() => {
-    // Build every workspace package that `pnpm build-artifact` will scan: it
-    // runs `lstatSync` against each `bin` entry, which must be an existing
-    // regular file. The CLI-only packages
-    // (`@web-ts-toolkit/access-router-runtime`, `create-access-router-mongo-starter`,
-    // `@web-ts-toolkit/express-runtime`) live outside access-router's transitive
-    // build closure, so they need an explicit full-workspace build on a freshly
-    // checked-out runner where their `dist/` is otherwise absent.
-    run('pnpm', ['--recursive', '--if-present', 'build'], workspaceRoot);
+    // `pnpm build-artifact` scans each package `bin` entry. The CLI packages
+    // below live outside access-router's transitive build closure, so build only
+    // missing bin outputs here. A full workspace build inside Vitest would clean
+    // `packages/access-router/dist` while other parallel files copy/read it.
+    ensureReleaseArtifactBinPackagesBuilt();
 
     preparePackedWorkspace();
     prepareReleaseArtifactWorkspace();
