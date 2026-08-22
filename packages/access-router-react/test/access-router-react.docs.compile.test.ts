@@ -149,6 +149,28 @@ function extractScaffoldedBlock(fixtureContent: string, blockId: string): string
     .replace(/\n[ \t]*$/, '');
 }
 
+function stripSharedIndentation(content: string): string {
+  const lines = content.replace(/\r\n/g, '\n').split('\n');
+  const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
+
+  if (nonEmptyLines.length === 0) {
+    return lines.join('\n');
+  }
+
+  const sharedIndent = Math.min(
+    ...nonEmptyLines.map((line) => {
+      const indent = line.match(/^[ \t]*/);
+      return indent?.[0].length ?? 0;
+    }),
+  );
+
+  if (sharedIndent === 0) {
+    return lines.join('\n');
+  }
+
+  return lines.map((line) => line.slice(sharedIndent)).join('\n');
+}
+
 afterAll(() => {
   cleanupTempRoots();
 });
@@ -197,9 +219,10 @@ describe('ARR-10/ARR-11 documentation examples (README + website) compile agains
           );
         } else if (mapped.classification === 'scaffolded') {
           const sourceBlock = actualById.get(mapped.id);
-          expect(extractScaffoldedBlock(fixtureContent, mapped.id), `${mapped.id} scaffolded fixture drifted`).toBe(
-            sourceBlock?.content,
-          );
+          expect(
+            stripSharedIndentation(extractScaffoldedBlock(fixtureContent, mapped.id)),
+            `${mapped.id} scaffolded fixture drifted`,
+          ).toBe(stripSharedIndentation(sourceBlock?.content ?? ''));
         }
       }
     }
