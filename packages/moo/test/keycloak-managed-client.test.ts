@@ -18,7 +18,7 @@ describe('createManagedKeycloakClient', () => {
     await expect(client.core.getAccessToken()).resolves.toBe('access-token');
 
     expect(auth).toHaveBeenCalledOnce();
-    expect(auth).toHaveBeenCalledWith({ clientId: 'user-sync', clientSecret: 'secret' });
+    expect(auth).toHaveBeenCalledWith({ clientId: 'user-sync', clientSecret: 'secret' }); // pragma: allowlist secret
   });
 
   it('shares one authentication attempt across concurrent requests', async () => {
@@ -62,7 +62,7 @@ describe('createManagedKeycloakClient', () => {
     await expect(client.core.getAccessToken()).resolves.toBe('fresh-token');
 
     expect(resolveSecret).toHaveBeenCalledOnce();
-    expect(auth).toHaveBeenCalledWith({ clientId: 'user-sync', clientSecret: 'rotated-secret' });
+    expect(auth).toHaveBeenCalledWith({ clientId: 'user-sync', clientSecret: 'rotated-secret' }); // pragma: allowlist secret
   });
 
   it('allows the next request to retry after authentication fails', async () => {
@@ -87,10 +87,15 @@ describe('createManagedKeycloakClient', () => {
 
   it('validates service-account configuration when the client is created', () => {
     expect(() =>
-      createManagedKeycloakClient({ baseUrl: '', clientId: 'user-sync', clientSecret: 'secret' }),
+      createManagedKeycloakClient({
+        baseUrl: '',
+        clientId: 'user-sync',
+        clientSecret: 'secret', // pragma: allowlist secret
+      }),
     ).toThrow('non-empty baseUrl');
-    expect(() =>
-      createManagedKeycloakClient({ baseUrl: 'https://keycloak.example.com', clientId: '', clientSecret: 'secret' }),
+    expect(
+      () =>
+        createManagedKeycloakClient({ baseUrl: 'https://keycloak.example.com', clientId: '', clientSecret: 'secret' }), // pragma: allowlist secret
     ).toThrow('non-empty clientId');
   });
 });

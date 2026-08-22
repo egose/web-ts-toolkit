@@ -35,10 +35,16 @@ export function createManagedKeycloakClient(options: ManagedKeycloakClientOption
   const baseUrl = requiredString(options.baseUrl, 'baseUrl');
   const authRealm = options.authRealm === undefined ? 'master' : requiredString(options.authRealm, 'authRealm');
   const clientId = requiredString(options.clientId, 'clientId');
-  if (typeof options.clientSecret !== 'string' && typeof options.clientSecret !== 'function') {
+  if (
+    typeof options.clientSecret !== 'string' && // pragma: allowlist secret
+    typeof options.clientSecret !== 'function' // pragma: allowlist secret
+  ) {
     throw new Error('createManagedKeycloakClient requires clientSecret to be a string or function');
   }
-  if (typeof options.clientSecret === 'string' && !options.clientSecret) {
+  if (
+    typeof options.clientSecret === 'string' && // pragma: allowlist secret
+    !options.clientSecret // pragma: allowlist secret
+  ) {
     throw new Error('createManagedKeycloakClient requires a non-empty clientSecret');
   }
 
@@ -48,9 +54,11 @@ export function createManagedKeycloakClient(options: ManagedKeycloakClientOption
 
   const authenticate = () => {
     authentication ??= (async () => {
-      const resolvedSecret =
-        typeof clientSecret === 'function' ? await clientSecret() : clientSecret;
-      if (typeof resolvedSecret !== 'string' || !resolvedSecret) {
+      const resolvedSecret = typeof clientSecret === 'function' ? await clientSecret() : clientSecret; // pragma: allowlist secret
+      if (
+        typeof resolvedSecret !== 'string' || // pragma: allowlist secret
+        !resolvedSecret // pragma: allowlist secret
+      ) {
         throw new Error('createManagedKeycloakClient clientSecret resolver returned an empty secret');
       }
       await client.simpleAuth({ clientId, clientSecret: resolvedSecret });
