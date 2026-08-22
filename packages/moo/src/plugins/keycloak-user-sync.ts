@@ -19,6 +19,12 @@ import {
   uniqueStrings,
 } from './keycloak-user-sync/planner';
 
+export {
+  createManagedKeycloakClient,
+  type ManagedKeycloakClientOptions,
+  type ManagedKeycloakClientSecret,
+} from './keycloak-user-sync/managed-client';
+
 export type KeycloakUserIdentityField = 'providerId' | 'username' | 'email';
 export type KeycloakUserSyncField =
   | 'username'
@@ -63,7 +69,7 @@ export interface KeycloakUserSyncDocument {
 }
 
 export interface KeycloakUserSyncPluginOptions {
-  /** An authenticated client. Authentication and token refresh remain the application's responsibility. */
+  /** A client that can provide admin access tokens. Use createManagedKeycloakClient for lazy service-account authentication. */
   client: KeycloakAdminClientFluent;
   realm: string;
   /**

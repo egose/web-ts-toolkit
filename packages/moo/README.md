@@ -101,16 +101,15 @@ pnpm add @egose/keycloak-fluent
 ```
 
 ```ts
-import KeycloakAdminClientFluent from '@egose/keycloak-fluent';
 import { Schema } from 'mongoose';
-import { keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
+import {
+  createManagedKeycloakClient,
+  keycloakUserSyncPlugin,
+} from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
 
-const keycloak = new KeycloakAdminClientFluent({
+const keycloak = createManagedKeycloakClient({
   baseUrl: process.env.KEYCLOAK_URL,
-  realmName: 'master',
-});
-
-await keycloak.simpleAuth({
+  authRealm: 'master',
   clientId: process.env.KEYCLOAK_CLIENT_ID,
   clientSecret: process.env.KEYCLOAK_CLIENT_SECRET,
 });
@@ -160,6 +159,8 @@ userSchema.plugin(keycloakUserSyncPlugin, {
   },
 });
 ```
+
+`createManagedKeycloakClient` uses a Keycloak service account and authenticates lazily with `client_credentials`. It checks the token before each Keycloak request, shares one authentication attempt across concurrent requests, and acquires a fresh token when the current token is near expiration. It creates no timer, so the same client can be declared outside a serverless handler and reused by warm invocations. Pass an async `clientSecret` function to resolve a rotated secret when authentication is needed. Applications using another grant or their own token lifecycle can instead construct and authenticate `KeycloakAdminClientFluent` directly and pass that client to the plugin.
 
 The plugin:
 

@@ -209,14 +209,15 @@ import { cascadeDeletePlugin } from '@web-ts-toolkit/moo/plugins/cascade-delete'
 
 ### Keycloak user sync
 
-Install `@egose/keycloak-fluent`, authenticate a client, and attach it to the user schema through the direct Keycloak subpath:
+Install `@egose/keycloak-fluent`, create a managed service-account client, and attach it to the user schema through the direct Keycloak subpath:
 
 ```ts
-import KeycloakAdminClientFluent from '@egose/keycloak-fluent';
-import { keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
+import {
+  createManagedKeycloakClient,
+  keycloakUserSyncPlugin,
+} from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
 
-const keycloak = new KeycloakAdminClientFluent({ baseUrl, realmName: 'master' });
-await keycloak.simpleAuth({ clientId, clientSecret });
+const keycloak = createManagedKeycloakClient({ baseUrl, authRealm: 'master', clientId, clientSecret });
 
 userSchema.plugin(keycloakUserSyncPlugin, {
   client: keycloak,
@@ -242,6 +243,8 @@ userSchema.plugin(keycloakUserSyncPlugin, {
   },
 });
 ```
+
+The managed client authenticates lazily with `client_credentials`, checks token expiration when a request arrives, and shares one authentication attempt across concurrent requests. It uses no background timer, which makes it suitable for long-running processes and serverless functions. Declare it outside a serverless handler to let warm invocations reuse the current token. A `clientSecret` resolver can load a rotated secret when authentication is required. Applications using custom grants can construct and authenticate `KeycloakAdminClientFluent` directly instead.
 
 The plugin syncs document saves and document `deleteOne()` calls. It handles changed emails, verification emails, realm-role reconciliation, dynamic user attributes, opt-in password updates, custom field paths, per-field enablement, duplicate-email safety, redacted structured logging, and custom error handling. Email comparison is case-insensitive. Initial linking to an existing Keycloak user with the same email preserves the remote `emailVerified` value and sends no verification email. Persisted local email changes and detected remote email drift reset `emailVerified` and send VERIFY_EMAIL by default; set `sendVerificationEmailOnChange: false` to skip the email action, or `syncFields.emailVerified: false` to disable all email-verification writes. Attribute values are normalized to Keycloak string arrays. Existing unmanaged Keycloak attributes are preserved; set `managedAttributes` for keys the plugin may replace or remove. Password sync is disabled by default; enable `syncFields.password` only for a plaintext pending password value, not a stored hash. Passwords are not sent in create or profile-update payloads; created and existing users are updated through Keycloak's reset-password endpoint using `passwordTemporary`. A newly resolved Keycloak ID is stored before optional password, role, and verification-email work so retries can target the same remote user. The application owns that plaintext field's lifecycle and should keep it short-lived, avoid persistence where possible, and prevent it from entering logs, traces, or error reporters. Error logger metadata and `onError` context include safe fields such as `operation` and `localDocumentId` by default, not the document, email address, password, or payload. Set `includeDocumentInErrorContext: true` only for private error handlers that can receive the full sensitive Mongoose document. Logger and `onError` failures do not replace the original sync error; with `throwOnError: false`, they are swallowed as best-effort observer failures. Query updates and deletes bypass document middleware. Post-save Keycloak errors cannot roll back the MongoDB save, so use an outbox when atomic delivery is required.
 
