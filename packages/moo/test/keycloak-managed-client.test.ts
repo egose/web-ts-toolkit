@@ -86,9 +86,9 @@ describe('createManagedKeycloakClient', () => {
   });
 
   it('validates service-account configuration when the client is created', () => {
-    expect(() =>
-      createManagedKeycloakClient({ baseUrl: '', clientId: 'user-sync', clientSecret: 'secret' }),
-    ).toThrow('non-empty baseUrl');
+    expect(() => createManagedKeycloakClient({ baseUrl: '', clientId: 'user-sync', clientSecret: 'secret' })).toThrow(
+      'non-empty baseUrl',
+    );
     expect(() =>
       createManagedKeycloakClient({ baseUrl: 'https://keycloak.example.com', clientId: '', clientSecret: 'secret' }),
     ).toThrow('non-empty clientId');

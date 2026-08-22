@@ -48,8 +48,7 @@ export function createManagedKeycloakClient(options: ManagedKeycloakClientOption
 
   const authenticate = () => {
     authentication ??= (async () => {
-      const resolvedSecret =
-        typeof clientSecret === 'function' ? await clientSecret() : clientSecret;
+      const resolvedSecret = typeof clientSecret === 'function' ? await clientSecret() : clientSecret;
       if (typeof resolvedSecret !== 'string' || !resolvedSecret) {
         throw new Error('createManagedKeycloakClient clientSecret resolver returned an empty secret');
       }
