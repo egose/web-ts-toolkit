@@ -16,3 +16,4 @@ minimumReleaseAgeExclude:
 - '@repo-toolkit/publish-package@0.13.0'
 - '@repo-toolkit/publish-packages@0.13.0'
 - '@repo-toolkit/release-artifact@0.13.0'
+- '@egose/keycloak-fluent@0.12.0'
