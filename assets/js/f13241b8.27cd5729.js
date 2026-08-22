@@ -173,7 +173,6 @@ function _createMdxContent(props) {
   const _components = {
     a: "a",
     code: "code",
-    em: "em",
     h1: "h1",
     h2: "h2",
     h3: "h3",
@@ -200,7 +199,7 @@ function _createMdxContent(props) {
       }), " model services."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "createModelHooks(modelService)"
+        children: "createModelHooks({ modelService })"
       }), " binds one ", (0,jsx_runtime.jsx)(_components.code, {
         children: "ModelService"
       }), " to eight hooks covering read, list, count, distinct, create, update, upsert, and delete. Each hook instance owns its own local state — there is ", (0,jsx_runtime.jsx)(_components.strong, {
@@ -256,7 +255,11 @@ function _createMdxContent(props) {
         children: "react ^18 || ^19"
       }), " and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "@web-ts-toolkit/access-router-client"
-      }), ". The package's own test suite runs a React 18 verification lane alongside the React 19 primary lane."]
+      }), ". The package's own test suite runs a React 18 verification lane alongside the React 19 primary lane. Published builds target ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ES2022"
+      }), "; direct Node consumers should use Node ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ">=20"
+      }), ", while browser apps can bundle the package with an ES2022-capable toolchain."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "factory",
       children: "Factory"
@@ -519,7 +522,13 @@ function _createMdxContent(props) {
         children: "mutate(...)"
       }), " call returns a promise that resolves the response, or rejects with a ", (0,jsx_runtime.jsx)(_components.code, {
         children: "ServiceError"
-      }), " on failure."]
+      }), " on failure. Mutation input types are inferred from the bound ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelService<T, TCreateInput, TUpdateInput, TUpsertInput>"
+      }), " generics. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "useCreate().mutate(...)"
+      }), " is intentionally single-record-only and rejects array input; call ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "modelService.create([...])"
+      }), " directly when you need bulk create."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "usecreate",
       children: (0,jsx_runtime.jsx)(_components.code, {
@@ -693,10 +702,10 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-tsx",
-        children: "const controller = new AbortController();\nconst result = await query('org_123', { signal: controller.signal });\ncontroller.abort(); // cancels the in-flight manual request\n"
+        children: "const controller = new AbortController();\nconst pending = query('org_123', { signal: controller.signal });\ncontroller.abort(); // cancels the in-flight manual request while it is still pending\n\ntry {\n  await pending;\n} catch (error) {\n  console.error('manual query cancelled', error);\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The hook's internal ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["The hook's ", (0,jsx_runtime.jsx)(_components.code, {
         children: "requestConfig.signal"
       }), " is composed with the per-call ", (0,jsx_runtime.jsx)(_components.code, {
         children: "query()"
@@ -704,7 +713,7 @@ function _createMdxContent(props) {
         children: "options.signal"
       }), " and the hook-owned controller signal, then forwarded to the underlying client request via a fresh shallow copy of ", (0,jsx_runtime.jsx)(_components.code, {
         children: "requestConfig"
-      }), ". Aborting any source cancels the effective request; the caller's ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ". That one effective signal also drives hook-side cancellation classification after resolve/reject. Aborting any source cancels the effective request; the caller's ", (0,jsx_runtime.jsx)(_components.code, {
         children: "requestConfig"
       }), " object, its ", (0,jsx_runtime.jsx)(_components.code, {
         children: "headers"
@@ -773,7 +782,7 @@ function _createMdxContent(props) {
           children: "previousData"
         }), " for ", (0,jsx_runtime.jsx)(_components.code, {
           children: "useList"
-        }), ")."]
+        }), ") and invalidates the current query owner's right to publish settlement. A pre-reset success, failure, rejection, or abort may still finish at the transport layer, but it is stale for hook state and callbacks."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["Mutation ", (0,jsx_runtime.jsx)(_components.code, {
           children: "reset()"
@@ -800,7 +809,11 @@ function _createMdxContent(props) {
         }), " does not implicitly cancel."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["If you need to cancel an in-flight query, drop ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["After query ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "reset()"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "isFetching"
+      }), " reflects authoritative hook activity, not physical transport activity, so it becomes false immediately even if the abandoned request is still finishing underneath. If you need to cancel an in-flight query, drop ", (0,jsx_runtime.jsx)(_components.code, {
         children: "id"
       }), "/", (0,jsx_runtime.jsx)(_components.code, {
         children: "listParams"
@@ -878,7 +891,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-tsx",
-        children: "function Save() {\n  const { mutate, isPending } = useUpdate({ advanced: true, select: ['name'] as const });\n\n  const saveTwice = async () => {\n    const [second] = await Promise.all([mutate('org_1', { name: 'A' }), mutate('org_1', { name: 'B' })]);\n    // `second.data` reflects whoever settled last as the latest-invocation.\n    return second.data;\n  };\n\n  return (\n    <button disabled={isPending} onClick={saveTwice}>\n      Save twice\n    </button>\n  );\n}\n"
+        children: "function Save() {\n  const { mutate, isPending } = useUpdate({ advanced: true, select: ['name'] as const });\n\n  const saveTwice = async () => {\n    const [firstResult, secondResult] = await Promise.all([\n      mutate('org_1', { name: 'A' }),\n      mutate('org_1', { name: 'B' }),\n    ]);\n    // Promise.all preserves invocation order. Hook state still follows the latest invocation.\n    console.log(firstResult.data?.name, secondResult.data?.name);\n    return secondResult.data;\n  };\n\n  return (\n    <button disabled={isPending} onClick={saveTwice}>\n      Save twice\n    </button>\n  );\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "projection-typing",
@@ -1051,13 +1064,13 @@ function _createMdxContent(props) {
         children: "requestKeyFor"
       }), " encounters a value it cannot represent deterministically, it throws a documented ", (0,jsx_runtime.jsx)(_components.code, {
         children: "RequestKeyError"
-      }), " (re-thrown by the hook as an ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ". Query hooks catch that, rethrow a plain ", (0,jsx_runtime.jsx)(_components.code, {
         children: "Error"
-      }), " with ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "cause"
-      }), " set to the original ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " with the original ", (0,jsx_runtime.jsx)(_components.code, {
         children: "RequestKeyError"
-      }), "). The hook's React lifecycle interrupts the render so the auto-effect never runs with an unsound key. The categories are:"]
+      }), " in ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "cause"
+      }), ", and interrupt render before the auto-effect runs with an unsound key. The categories are:"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.strong, {
@@ -1124,6 +1137,14 @@ function _createMdxContent(props) {
       }), " and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "Object.create(null)"
       }), " plain objects are supported."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Request-key work is intentionally bounded. One ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "requestKeyFor(...)"
+      }), " call accepts at most 64 nested array/object levels, 20,000 first-visit nodes, and 200,000 serialized key characters; inputs beyond those limits throw ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "RequestKeyError"
+      }), " instead of overflowing the stack, partially truncating the key, or silently colliding. Keep request-key inputs as plain, stable, reasonably small wire data. Repeated object references may be reused within a single ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "requestKeyFor(...)"
+      }), " call, but there is no global cache retaining caller objects across renders."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "importing-the-helper",
       children: "Importing the helper"
@@ -1138,7 +1159,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { requestKeyFor, RequestKeyError } from '@web-ts-toolkit/access-router-react';\n\nconst key = requestKeyFor({ filter: { status: 'active', since: new Date('2026-01-01') } });\n\ntry {\n  requestKeyFor(someUserSuppliedFilter);\n} catch (e) {\n  if (e instanceof RequestKeyError) {\n    // handle the unsupported value\n  }\n}\n"
+        children: "import { requestKeyFor, RequestKeyError } from '@web-ts-toolkit/access-router-react';\n\nconst key = requestKeyFor({ filter: { status: 'active', since: new Date('2026-01-01') } });\n\ndeclare const someUserSuppliedFilter: unknown;\n\ntry {\n  requestKeyFor(someUserSuppliedFilter);\n} catch (e) {\n  if (e instanceof RequestKeyError) {\n    // handle an unsupported value before passing it to a query hook\n  }\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "active-record-integration",
@@ -1183,19 +1204,17 @@ function _createMdxContent(props) {
           children: "requestConfig"
         }), " object, its ", (0,jsx_runtime.jsx)(_components.code, {
           children: "headers"
-        }), ", and other fields are not mutated. The hook's internal ", (0,jsx_runtime.jsx)(_components.code, {
+        }), ", and other fields are not mutated. ", (0,jsx_runtime.jsx)(_components.code, {
           children: "requestConfig.signal"
         }), " is composed with the caller-supplied ", (0,jsx_runtime.jsx)(_components.code, {
           children: "query()"
         }), " ", (0,jsx_runtime.jsx)(_components.code, {
           children: "options.signal"
-        }), " and the hook-owned controller signal — aborting any source cancels the effective request. There is ", (0,jsx_runtime.jsx)(_components.strong, {
+        }), " and the hook-owned controller signal, and that one effective signal is used for both transport cancellation and hook settlement classification. There is ", (0,jsx_runtime.jsx)(_components.strong, {
           children: "no"
-        }), " way to bypass the hook's abort manager; an inline ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " way to bypass the hook's abort manager. Replacing only ", (0,jsx_runtime.jsx)(_components.code, {
           children: "requestConfig.signal"
-        }), " you pass to a query hook is treated as a structural key input (so changing it triggers a refetch) but is ", (0,jsx_runtime.jsx)(_components.em, {
-          children: "not"
-        }), " forwarded verbatim, because the hook composes its own controller from the same options."]
+        }), " does not trigger an automatic refetch, but the latest signal is used for future query executions."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "related-packages",
