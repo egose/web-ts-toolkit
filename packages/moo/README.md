@@ -157,7 +157,7 @@ userSchema.plugin(keycloakUserSyncPlugin, {
 });
 ```
 
-`createManagedKeycloakClient` uses a Keycloak service account and authenticates lazily with `client_credentials`. It checks the token before each Keycloak request, shares one authentication attempt across concurrent requests, and acquires a fresh token when the current token is near expiration. It creates no timer, so the same client can be declared outside a serverless handler and reused by warm invocations. Pass an async `clientSecret` function to resolve a rotated secret when authentication is needed. Applications using another grant or their own token lifecycle can instead construct and authenticate `KeycloakAdminClientFluent` directly and pass that client to the plugin.
+`createManagedKeycloakClient` is provided by `@egose/keycloak-fluent` and re-exported here for convenience. It authenticates lazily, shares one authentication attempt across concurrent requests, and creates no timer, so the same client can be declared outside a serverless handler and reused by warm invocations. The default mode is `client_credentials`; pass `authMode: 'user_credentials'` with lazy `username` and `password` resolvers when direct user credentials are required. Service accounts remain recommended for background synchronization.
 
 The plugin:
 
