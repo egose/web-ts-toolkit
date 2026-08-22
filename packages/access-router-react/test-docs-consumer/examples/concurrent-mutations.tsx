@@ -24,21 +24,54 @@ const organizationService = adapter.createModelService<Organization>({
 
 const { useUpdate } = createModelHooks({ modelService: organizationService });
 
-// README block #13
-function Save() {
-  const { mutate, isPending } = useUpdate({ advanced: true, select: ['name'] as const });
+{
+  // docs-block-start: packages/access-router-react/README.md#14
+  function Save() {
+    const { mutate, isPending } = useUpdate({ advanced: true, select: ['name'] as const });
 
-  const saveTwice = async () => {
-    const [second] = await Promise.all([mutate('org_1', { name: 'A' }), mutate('org_1', { name: 'B' })]);
-    // `second.data` reflects whoever settled last as the latest-invocation.
-    return second.data;
-  };
+    const saveTwice = async () => {
+      const [firstResult, secondResult] = await Promise.all([
+        mutate('org_1', { name: 'A' }),
+        mutate('org_1', { name: 'B' }),
+      ]);
+      // Promise.all preserves invocation order. Hook state still follows the latest invocation.
+      console.log(firstResult.data?.name, secondResult.data?.name);
+      return secondResult.data;
+    };
 
-  return (
-    <button disabled={isPending} onClick={saveTwice}>
-      Save twice
-    </button>
-  );
+    return (
+      <button disabled={isPending} onClick={saveTwice}>
+        Save twice
+      </button>
+    );
+  }
+  // docs-block-end: packages/access-router-react/README.md#14
+
+  void Save;
 }
 
-void Save;
+{
+  // docs-block-start: website/docs/packages/access-router-react.md#12
+  function Save() {
+    const { mutate, isPending } = useUpdate({ advanced: true, select: ['name'] as const });
+
+    const saveTwice = async () => {
+      const [firstResult, secondResult] = await Promise.all([
+        mutate('org_1', { name: 'A' }),
+        mutate('org_1', { name: 'B' }),
+      ]);
+      // Promise.all preserves invocation order. Hook state still follows the latest invocation.
+      console.log(firstResult.data?.name, secondResult.data?.name);
+      return secondResult.data;
+    };
+
+    return (
+      <button disabled={isPending} onClick={saveTwice}>
+        Save twice
+      </button>
+    );
+  }
+  // docs-block-end: website/docs/packages/access-router-react.md#12
+
+  void Save;
+}

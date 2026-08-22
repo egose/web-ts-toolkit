@@ -7,7 +7,7 @@ sidebar_position: 12
 
 React hooks for `@web-ts-toolkit/access-router-client` model services.
 
-`createModelHooks(modelService)` binds one `ModelService` to eight hooks covering read, list, count, distinct, create, update, upsert, and delete. Each hook instance owns its own local state — there is **no shared cache, no deduplication, no invalidation, and no retry**. Two components calling `useRead({ id: '1' })` against the same `ModelService` issue two independent requests and store two independent copies of the result. If you need cache orchestration, layer these services underneath a query library.
+`createModelHooks({ modelService })` binds one `ModelService` to eight hooks covering read, list, count, distinct, create, update, upsert, and delete. Each hook instance owns its own local state — there is **no shared cache, no deduplication, no invalidation, and no retry**. Two components calling `useRead({ id: '1' })` against the same `ModelService` issue two independent requests and store two independent copies of the result. If you need cache orchestration, layer these services underneath a query library.
 
 ## Installation
 
@@ -15,7 +15,7 @@ React hooks for `@web-ts-toolkit/access-router-client` model services.
 npm install react @web-ts-toolkit/access-router-react @web-ts-toolkit/access-router-client
 ```
 
-Peer dependencies: `react ^18 || ^19` and `@web-ts-toolkit/access-router-client`. The package's own test suite runs a React 18 verification lane alongside the React 19 primary lane.
+Peer dependencies: `react ^18 || ^19` and `@web-ts-toolkit/access-router-client`. The package's own test suite runs a React 18 verification lane alongside the React 19 primary lane. Published builds target `ES2022`; direct Node consumers should use Node `>=20`, while browser apps can bundle the package with an ES2022-capable toolchain.
 
 ## Factory
 
@@ -145,7 +145,7 @@ If `conditions` is empty, the hook falls back to the basic `distinct(...)` route
 
 ## Mutation Hooks
 
-`useCreate`, `useUpdate`, `useUpsert`, and `useDelete` expose `mutate(...)`, `isPending`, `error`, and `reset()`. The first three also expose `data` (the last returned projected model). Each `mutate(...)` call returns a promise that resolves the response, or rejects with a `ServiceError` on failure.
+`useCreate`, `useUpdate`, `useUpsert`, and `useDelete` expose `mutate(...)`, `isPending`, `error`, and `reset()`. The first three also expose `data` (the last returned projected model). Each `mutate(...)` call returns a promise that resolves the response, or rejects with a `ServiceError` on failure. Mutation input types are inferred from the bound `ModelService<T, TCreateInput, TUpdateInput, TUpsertInput>` generics. `useCreate().mutate(...)` is intentionally single-record-only and rejects array input; call `modelService.create([...])` directly when you need bulk create.
 
 ### `useCreate`
 
@@ -209,11 +209,17 @@ A dependency change, `query()`/`refetch()` invocation, or unmount aborts the in-
 
 ```tsx
 const controller = new AbortController();
-const result = await query('org_123', { signal: controller.signal });
-controller.abort(); // cancels the in-flight manual request
+const pending = query('org_123', { signal: controller.signal });
+controller.abort(); // cancels the in-flight manual request while it is still pending
+
+try {
+  await pending;
+} catch (error) {
+  console.error('manual query cancelled', error);
+}
 ```
 
-The hook's internal `requestConfig.signal` is composed with the per-call `query()` `options.signal` and the hook-owned controller signal, then forwarded to the underlying client request via a fresh shallow copy of `requestConfig`. Aborting any source cancels the effective request; the caller's `requestConfig` object, its `headers`, and other fields are not mutated.
+The hook's `requestConfig.signal` is composed with the per-call `query()` `options.signal` and the hook-owned controller signal, then forwarded to the underlying client request via a fresh shallow copy of `requestConfig`. That one effective signal also drives hook-side cancellation classification after resolve/reject. Aborting any source cancels the effective request; the caller's `requestConfig` object, its `headers`, and other fields are not mutated.
 
 ### `previousData` lifecycle (`useList` only)
 
@@ -227,10 +233,10 @@ The hook's internal `requestConfig.signal` is composed with the per-call `query(
 
 `reset()` is a synchronous state-clear, not a cancellation:
 
-- Query `reset()` clears `data`/`error`/`isLoading`/`isFetching` (and `previousData` for `useList`).
+- Query `reset()` clears `data`/`error`/`isLoading`/`isFetching` (and `previousData` for `useList`) and invalidates the current query owner's right to publish settlement. A pre-reset success, failure, rejection, or abort may still finish at the transport layer, but it is stale for hook state and callbacks.
 - Mutation `reset()` clears `data`/`error` and bumps the latest-invocation token. Any already-running mutation loses its claim on the shared `data`/`error` state — when it later settles, its per-invocation `onSuccess`/`onSettled` still fire, but it cannot repopulate the cleared `data`/`error`. `isPending` remains true until the active count reaches zero; `reset` does not implicitly cancel.
 
-If you need to cancel an in-flight query, drop `id`/`listParams` or set `enabled: false` rather than calling `reset`.
+After query `reset()`, `isFetching` reflects authoritative hook activity, not physical transport activity, so it becomes false immediately even if the abandoned request is still finishing underneath. If you need to cancel an in-flight query, drop `id`/`listParams` or set `enabled: false` rather than calling `reset`.
 
 ### `refetch()` and `query()`
 
@@ -249,9 +255,13 @@ function Save() {
   const { mutate, isPending } = useUpdate({ advanced: true, select: ['name'] as const });
 
   const saveTwice = async () => {
-    const [second] = await Promise.all([mutate('org_1', { name: 'A' }), mutate('org_1', { name: 'B' })]);
-    // `second.data` reflects whoever settled last as the latest-invocation.
-    return second.data;
+    const [firstResult, secondResult] = await Promise.all([
+      mutate('org_1', { name: 'A' }),
+      mutate('org_1', { name: 'B' }),
+    ]);
+    // Promise.all preserves invocation order. Hook state still follows the latest invocation.
+    console.log(firstResult.data?.name, secondResult.data?.name);
+    return secondResult.data;
   };
 
   return (
@@ -301,7 +311,7 @@ The query hooks (`useRead`, `useList`, `useCount`, `useDistinct`) build one cano
 
 ### Unsupported values
 
-If `requestKeyFor` encounters a value it cannot represent deterministically, it throws a documented `RequestKeyError` (re-thrown by the hook as an `Error` with `cause` set to the original `RequestKeyError`). The hook's React lifecycle interrupts the render so the auto-effect never runs with an unsound key. The categories are:
+If `requestKeyFor` encounters a value it cannot represent deterministically, it throws a documented `RequestKeyError`. Query hooks catch that, rethrow a plain `Error` with the original `RequestKeyError` in `cause`, and interrupt render before the auto-effect runs with an unsound key. The categories are:
 
 - **`bigint`** — silently losing precision is unsafe; convert to a `number` or `string` before passing to a query hook.
 - **`function`** — callback identity is unstable by design; the request contract requires structural data.
@@ -312,6 +322,8 @@ If `requestKeyFor` encounters a value it cannot represent deterministically, it 
 
 `Date` and `Object.create(null)` plain objects are supported.
 
+Request-key work is intentionally bounded. One `requestKeyFor(...)` call accepts at most 64 nested array/object levels, 20,000 first-visit nodes, and 200,000 serialized key characters; inputs beyond those limits throw `RequestKeyError` instead of overflowing the stack, partially truncating the key, or silently colliding. Keep request-key inputs as plain, stable, reasonably small wire data. Repeated object references may be reused within a single `requestKeyFor(...)` call, but there is no global cache retaining caller objects across renders.
+
 ### Importing the helper
 
 Downstream consumers that want to inspect or build keys themselves can import `requestKeyFor` and `RequestKeyError` directly from `@web-ts-toolkit/access-router-react`:
@@ -321,11 +333,13 @@ import { requestKeyFor, RequestKeyError } from '@web-ts-toolkit/access-router-re
 
 const key = requestKeyFor({ filter: { status: 'active', since: new Date('2026-01-01') } });
 
+declare const someUserSuppliedFilter: unknown;
+
 try {
   requestKeyFor(someUserSuppliedFilter);
 } catch (e) {
   if (e instanceof RequestKeyError) {
-    // handle the unsupported value
+    // handle an unsupported value before passing it to a query hook
   }
 }
 ```
@@ -357,7 +371,7 @@ Use explicit mutation hooks when you want local pending and error state around a
 ## Notes
 
 - These hooks do **not** implement shared caching, deduplication, invalidation, retry, or background revalidation. They are thin stateful wrappers over `ModelService` from `@web-ts-toolkit/access-router-client`. If you need cache orchestration, use these services underneath a query library.
-- `requestConfig` is forwarded to the underlying client request via a fresh shallow copy on every request; the caller's `requestConfig` object, its `headers`, and other fields are not mutated. The hook's internal `requestConfig.signal` is composed with the caller-supplied `query()` `options.signal` and the hook-owned controller signal — aborting any source cancels the effective request. There is **no** way to bypass the hook's abort manager; an inline `requestConfig.signal` you pass to a query hook is treated as a structural key input (so changing it triggers a refetch) but is _not_ forwarded verbatim, because the hook composes its own controller from the same options.
+- `requestConfig` is forwarded to the underlying client request via a fresh shallow copy on every request; the caller's `requestConfig` object, its `headers`, and other fields are not mutated. `requestConfig.signal` is composed with the caller-supplied `query()` `options.signal` and the hook-owned controller signal, and that one effective signal is used for both transport cancellation and hook settlement classification. There is **no** way to bypass the hook's abort manager. Replacing only `requestConfig.signal` does not trigger an automatic refetch, but the latest signal is used for future query executions.
 
 ## Related Packages
 

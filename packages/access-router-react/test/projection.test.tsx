@@ -16,6 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { createModelHooks } from '../src/create-model-hook';
+import type { ProjectedModelResponse } from '../src';
 import type { Document, Model, ModelResponse, ListModelResponse } from '@web-ts-toolkit/access-router-client';
 import { createMockService } from './support';
 
@@ -157,16 +158,16 @@ describe('ARR-09 project-aware result types', () => {
       const { useRead } = createModelHooks({ modelService: mock.service });
       const { result } = renderHook(() => useRead({ id: '1', advanced: true, select: ['name'] as const }));
       await waitFor(() => expect(result.current.data).not.toBeNull());
-      let payload: ModelResponse<TestDoc> | null = null;
+      type QueryResult = ProjectedModelResponse<TestDoc, readonly ['name']>;
+      let payload!: QueryResult;
       await act(async () => {
-        const p = result.current.query('1');
-        payload = (await p) as ModelResponse<TestDoc>;
+        payload = (await result.current.query('1')) as QueryResult;
       });
-      expect(payload?.data?.name).toBe('Test');
+      expect(payload.data?.name).toBe('Test');
 
       // Static: the awaited result under the inferred narrow select has
       // `data.status` typed optional.
-      if (payload && payload.success) {
+      if (payload.success) {
         expectType<string>(payload.data.name);
         // @ts-expect-error query() carries the narrow shape too.
         expectType<string>(payload.data.status);

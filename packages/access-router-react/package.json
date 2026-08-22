@@ -31,19 +31,24 @@
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
-    "test": "pnpm --filter @web-ts-toolkit/access-router-react... build && pnpm typecheck:nodenext-strict && pnpm typecheck:bundler-strict && vitest run --config vitest.config.ts",
-    "test:react18:setup": "node -e \"const fs=require('fs');const dir='/tmp/opencode/react18-deps';if(!fs.existsSync(dir+'/node_modules/react')){fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(dir+'/package.json','{\\\"private\\\":true}');require('child_process').execFileSync('npm',['install','--prefix',dir,'react@18.3.1','react-dom@18.3.1','@testing-library/react@16.3.2'],{stdio:'inherit'});}\"",
-    "test:react18": "pnpm test:react18:setup && vitest run --config vitest.react18.config.ts",
+    "test": "pnpm --filter @web-ts-toolkit/access-router-react... build && pnpm typecheck && pnpm test:react19 && pnpm test:react18 && pnpm test:nonruntime",
+    "typecheck": "pnpm typecheck:source && pnpm typecheck:test && pnpm typecheck:nodenext-strict && pnpm typecheck:bundler-strict",
+    "typecheck:source": "tsc --noEmit -p tsconfig.typecheck.json",
+    "typecheck:test": "tsc --noEmit -p tsconfig.test-typecheck.json",
+    "test:react19": "vitest run --config vitest.runtime.config.ts",
+    "test:react18": "tsx test/run-react18-lane.ts",
+    "test:nonruntime": "vitest run --config vitest.config.ts test/access-router-react.exports.unit.test.ts test/access-router-react.packed-consumer.test.ts test/access-router-react.docs.compile.test.ts",
     "typecheck:nodenext-strict": "tsc --noEmit -p test-decl-consumer/tsconfig-nodenext.json",
     "typecheck:bundler-strict": "tsc --noEmit -p test-decl-consumer/tsconfig-bundler.json",
-    "test:packed-consumer": "vitest run --config vitest.config.ts test/access-router-react.packed-consumer.test.ts test/access-router-react.docs.compile.test.ts"
+    "test:packed-consumer": "vitest run --config vitest.config.ts test/access-router-react.packed-consumer.test.ts test/access-router-react.docs.compile.test.ts",
+    "test:coverage": "pnpm --filter @web-ts-toolkit/access-router-react... build && pnpm typecheck && vitest run --config vitest.config.ts --coverage"
   },
   "files": [
     "README.md",
     "dist"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=20"
   },
   "peerDependencies": {
     "@web-ts-toolkit/access-router-client": "workspace:*",

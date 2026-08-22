@@ -19,7 +19,7 @@ import {
 } from './packed-consumer-harness';
 
 /**
- * ARR-10: Test the packed CJS, ESM, and declaration surface of
+ * ARR-H08: Test the packed CJS, ESM, hook-runtime, and declaration surface of
  * `@web-ts-toolkit/access-router-react`.
  *
  * The repository's existing test suite imports package *source* (`../src`)
@@ -32,17 +32,17 @@ import {
  * release time — to stage and pack the access-router-react package, install
  * the staged tarball plus its internal `@web-ts-toolkit/access-router-client`
  * + `@web-ts-toolkit/utils` dependency closure (and the external React peer
- * deps) in a fresh consumer, then execute CJS `require`, ESM `import`,
- * NodeNext typecheck, and Bundler typecheck with `strict: true` and
- * `skipLibCheck: false`. Manifest and packed-file assertions prove version /
- * license / repository rewriting, `workspace:*` resolution, `sideEffects:
- * false` inclusion, and the deliberate ESM/CJS declaration-condition mapping
- * (so the emitted `.d.mts` is reachable rather than shipped as unreachable
- * dead weight).
+ * deps) in fresh consumers, then execute CJS `require`, ESM `import`, real
+ * packed-hook runtime smoke, NodeNext typecheck, and Bundler typecheck with
+ * `strict: true` and `skipLibCheck: false`. Manifest and packed-file
+ * assertions prove version / license / repository rewriting, `workspace:*`
+ * resolution, `sideEffects: false` inclusion, and the deliberate ESM/CJS
+ * declaration-condition mapping (so the emitted `.d.mts` is reachable rather
+ * than shipped as unreachable dead weight).
  *
- * The install/staging plumbing lives in `./packed-consumer-harness.ts` and
- * is shared with the ARR-10 documentation compile test so the two files do
- * not drift on the staging contract.
+ * The install/staging plumbing lives in `./packed-consumer-harness.ts` and is
+ * shared with the documentation compile test so the two files do not drift on
+ * the staging contract.
  */
 
 const consumerSourceDir = path.resolve(packageRoot, 'test-packed-consumer', 'consumer');
@@ -51,6 +51,7 @@ function copyConsumerSources(consumerDir: string): void {
   for (const file of [
     'consumer.cjs',
     'consumer.mjs',
+    'hooks-smoke-core.cjs',
     'consumer-types.ts',
     'tsconfig-nodenext.json',
     'tsconfig-bundler.json',
@@ -80,7 +81,7 @@ describe('ARR-10 packed-package compatibility using the real release transformat
     expect(packedManifest.version).toBe(testVersion);
     expect(packedManifest.license).toBe(rootPackageJson.license);
     expect(rootPackageJson.engines).toEqual({ node: '>=20' });
-    expect(packedManifest.engines).toEqual({ node: '>=22' });
+    expect(packedManifest.engines).toEqual({ node: '>=20' });
     expect(packedManifest.repository).toEqual({
       ...rootPackageJson.repository,
       directory: 'packages/access-router-react',
@@ -157,7 +158,7 @@ describe('ARR-10 packed-package compatibility using the real release transformat
     expect(report).toHaveLength(1);
     const [entry] = report;
     expect(entry.bundled).toEqual([]);
-    const paths = entry.files.map((f) => f.path).sort();
+    const paths = entry.files.map((f: { path: string }) => f.path).sort();
     // LICENSE + README.md + four dist outputs + package.json. The React
     // package publishes no `llms.txt` (the website docs are the canonical
     // source per ARR-11), so the file set is one fewer than the client.
@@ -177,34 +178,34 @@ describe('ARR-10 packed-package compatibility using the real release transformat
     expect(disallowed).toEqual([]);
   });
 
-  it('installs the staged tarball + internal dependency closure + React peer deps and runs CJS, ESM, NodeNext, and Bundler consumers', () => {
-    const consumerDir = installPackedConsumer();
-    copyConsumerSources(consumerDir);
+  it('installs the staged tarball + dependency closure and runs packed CJS/ESM hook smoke for React 19 and React 18 plus strict type consumers', () => {
+    const react19ConsumerDir = installPackedConsumer({ reactMajor: 19, includeRuntimeDeps: true });
+    copyConsumerSources(react19ConsumerDir);
 
-    // CJS require resolves from the fresh install via the `exports.require`
-    // map — exercises the published `./index.js` entry and its runtime
-    // export surface (matched against the curated runtime contract).
-    run('node', ['consumer.cjs'], consumerDir);
+    // React 19 runtime smoke against the installed artifact.
+    run('node', ['consumer.cjs'], react19ConsumerDir);
+    run('node', ['consumer.mjs'], react19ConsumerDir);
 
-    // ESM import resolves via `exports.import` (`./index.mjs`). `node`
-    // picks `type: "module"` from the consumer package.json so `node
-    // consumer.mjs` runs as native ESM.
-    run('node', ['consumer.mjs'], consumerDir);
+    // Strict NodeNext and Bundler typecheck against the installed package.
+    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext.json'], react19ConsumerDir);
+    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-bundler.json'], react19ConsumerDir);
 
-    // Strict NodeNext typecheck against the installed declarations,
-    // resolved through the export map's per-condition `types.import`
-    // (`./index.d.mts`). `skipLibCheck: false` so the package's own
-    // declaration surface is fully checked.
-    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext.json'], consumerDir);
+    const react18ConsumerDir = installPackedConsumer({ reactMajor: 18, includeRuntimeDeps: true });
+    copyConsumerSources(react18ConsumerDir);
 
-    // Strict Bundler typecheck — same consumer source, Bundler resolution
-    // through the export map's `types` field. `skipLibCheck: false`.
-    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-bundler.json'], consumerDir);
+    // React 18 runs the same packed-hook smoke from its own isolated peer tree.
+    run('node', ['consumer.cjs'], react18ConsumerDir);
+    run('node', ['consumer.mjs'], react18ConsumerDir);
 
     // Sanity: the installed consumer has a real
     // `@web-ts-toolkit/access-router-react` in its node_modules (no workspace
     // path mapping, no source symlink).
-    const installedReactDir = path.resolve(consumerDir, 'node_modules', '@web-ts-toolkit', 'access-router-react');
+    const installedReactDir = path.resolve(
+      react19ConsumerDir,
+      'node_modules',
+      '@web-ts-toolkit',
+      'access-router-react',
+    );
     expect(existsSync(path.resolve(installedReactDir, 'package.json'))).toBe(true);
     const installedManifest = JSON.parse(
       readFileSync(path.resolve(installedReactDir, 'package.json'), 'utf8'),

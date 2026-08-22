@@ -59,7 +59,7 @@ Verified on 2026-08-21:
 
 ### Task ARR-H01: Enforce Three-Source Query Cancellation At One Boundary
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -116,9 +116,19 @@ Acceptance criteria:
 - Original config, headers, and source signals are not mutated.
 - Focused tests and `pnpm --filter @web-ts-toolkit/access-router-react test` pass.
 
+Completion evidence:
+
+- Changed: `packages/access-router-react/src/create-model-hook.ts`, `packages/access-router-react/src/fetch.ts`, `packages/access-router-react/src/types.ts`, `packages/access-router-react/README.md`, `website/docs/packages/access-router-react.md`, `packages/access-router-react/test/query-signal-composition.test.tsx`, `packages/access-router-react/test/fetch.abort-signals.test.ts`
+- Implemented: `useAutoQuery` now composes the hook-owned controller, `requestConfig.signal`, and per-call `QueryCallOptions.signal` into one effective signal used for both transport forwarding and cancellation classification.
+- Implemented: `requestConfig.signal` is excluded from structural request-key generation, so signal-only replacement does not trigger an automatic refetch while future query executions still use the latest signal.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/query-signal-composition.test.tsx test/fetch.abort-signals.test.ts`
+- Result: 2 files, 9 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, strict declaration checks, and 13 Vitest files with 207 tests passed.
+
 ### Task ARR-H02: Make Query Reset Invalidate Pending Settlement
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -165,11 +175,21 @@ Acceptance criteria:
 - Mutation reset behavior remains unchanged.
 - Focused tests and the package test pass.
 
+Completion evidence:
+
+- Changed: `packages/access-router-react/src/create-model-hook.ts`, `packages/access-router-react/README.md`, `website/docs/packages/access-router-react.md`, `packages/access-router-react/test/query-reset.test.tsx`
+- Implemented: query `reset()` now invalidates the current query owner token inside `useAutoQuery` before clearing visible loading/fetching state, so pre-reset settlements become stale for state and callbacks without aborting the underlying transport.
+- Implemented: query reset docs now state that stale pre-reset success/failure/rejection/abort settlements are ignored and that `isFetching` reflects authoritative hook activity after reset rather than physical transport activity.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/query-reset.test.tsx`
+- Result: 1 file, 5 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, NodeNext and Bundler declaration checks, and 14 Vitest files with 212 tests passed.
+
 ## Wave 2: Public Runtime And Type Contracts
 
 ### Task ARR-H03: Honor Configured Pagination In Advanced Manual Lists
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -207,9 +227,18 @@ Acceptance criteria:
 - Basic mode retains its current fallback behavior.
 - A focused regression fails against the current implementation and the package test passes.
 
+Completion evidence:
+
+- Changed: `packages/access-router-react/src/create-model-hook.ts`, `packages/access-router-react/test/harness.test.tsx`
+- Implemented: `useList` now resolves one `effectiveArgs = args ?? listParams` before the basic/advanced branch, so auto-fetch, manual `query()`, and `refetch()` share the same configured-pagination fallback contract.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/harness.test.tsx`
+- Result: 1 file, 15 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, strict NodeNext and Bundler declaration checks, and 14 Vitest files with 213 tests passed.
+
 ### Task ARR-H04: Preserve Mutation Input Types And Resolve Bulk Create
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -255,9 +284,21 @@ Acceptance criteria:
 - Existing mutation concurrency/reset behavior remains green.
 - NodeNext and Bundler declaration consumers and the package test pass.
 
+Completion evidence:
+
+- Changed: `packages/access-router-react/src/types.ts`, `packages/access-router-react/src/create-model-hook.ts`, `packages/access-router-react/README.md`, `website/docs/packages/access-router-react.md`, `packages/access-router-react/test/mutation-inputs.test.tsx`, `packages/access-router-react/test-decl-consumer/decl-consumer.strict.test.ts`, `packages/access-router-react/test-packed-consumer/consumer/consumer-types.ts`
+- Contract: `createModelHooks` now preserves custom create/update/upsert input types from the bound `ModelService`, and `useCreate().mutate(...)` is explicitly single-record-only for both TypeScript and runtime callers.
+- Implemented: `useCreate` rejects array input before calling the client service, so no accepted path can cast `ArrayModelResponse` into the hook's single-model `ProjectedModelResponse` state or callback surface.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/mutation-inputs.test.tsx`
+- Result: 1 file, 2 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, NodeNext and Bundler declaration consumers, and 15 Vitest files with 215 tests passed.
+- Verified: `pnpm test:packed-consumer`
+- Result: 2 files, 6 tests passed.
+
 ### Task ARR-H05: Isolate Callback Observers And Consolidate Mutation Ownership
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -302,11 +343,21 @@ Acceptance criteria:
 - Create/update/upsert/delete use the same mutation observer boundary without repeated wrapper try/catch implementations.
 - Concurrent mutation, resolved-failure, cancellation, and package tests pass.
 
+Completion evidence:
+
+- Changed: `packages/access-router-react/src/create-model-hook.ts`, `packages/access-router-react/test/callback-observers.test.tsx`
+- Implemented: query and mutation observers now run through one isolated ordered dispatcher, so each observer is attempted once even if an earlier callback throws, and callback failures are still reported asynchronously without reclassifying the request result.
+- Implemented: mutation `onError` now lives inside the shared `useMutation` lifecycle, letting create/update/upsert/delete share one mount-gated observer boundary while keeping `useCreate`'s single-record array guard local to that hook.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/callback-observers.test.tsx`
+- Result: 1 file, 3 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, strict NodeNext and Bundler declaration checks, and 16 Vitest files with 218 tests passed.
+
 ## Wave 3: Verification And Compatibility Gates
 
 ### Task ARR-H06: Add Clean Source And Test Typecheck Gates
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -355,9 +406,24 @@ Acceptance criteria:
 - Removing a real public property or introducing an invalid runtime test fixture makes an appropriate typecheck fail.
 - `pnpm --filter @web-ts-toolkit/access-router-react test` passes.
 
+Completion evidence:
+
+- Changed: `packages/access-router-react/package.json`, `packages/access-router-react/tsconfig.json`, `packages/access-router-react/tsconfig.typecheck.json`, `packages/access-router-react/tsconfig.test-typecheck.json`, `packages/access-router-react/tsup.config.ts`, `packages/access-router-react/vitest.config.ts`, `packages/access-router-react/test/access-router-react.exports.unit.test.ts`, `packages/access-router-react/test/access-router-react.docs.compile.test.ts`, `packages/access-router-react/test/access-router-react.packed-consumer.test.ts`, `packages/access-router-react/test/cancellation.test.tsx`, `packages/access-router-react/test/concurrent-mutations.test.tsx`, `packages/access-router-react/test/dependency-policy.test.tsx`, `packages/access-router-react/test/harness.test.tsx`, `packages/access-router-react/test/hooks.test.tsx`, `packages/access-router-react/test/projection.test.tsx`, `packages/access-router-react/test/query-signal-composition.test.tsx`, `packages/access-router-react/test/support/index.ts`
+- Implemented: the package now has separate no-emit source and runtime-test configs that clear inherited workspace source-path aliases, typecheck against ES2022 + DOM/Vitest/Node libs intentionally, and run as `typecheck:source`, `typecheck:test`, `typecheck:nodenext-strict`, and `typecheck:bundler-strict` under the default package `test` gate.
+- Implemented: invalid runtime test probes and fixtures were corrected instead of excluded, including stale `throwOnError` / `UseBaseOptions.enabled` export assertions, missing type-only barrel re-exports, overly broad response fixtures, unsupported ad-hoc filter literals, and stale success payload shapes that only Vitest transpilation had been tolerating.
+- Implemented: the package target used for type/build verification is now aligned at ES2022, and `test:coverage` reports `src/**` V8 coverage with enforced global thresholds.
+- Verified: `pnpm exec tsc --noEmit -p tsconfig.typecheck.json`
+- Result: passed.
+- Verified: `pnpm exec tsc --noEmit -p tsconfig.test-typecheck.json`
+- Result: passed.
+- Verified: `pnpm test:coverage`
+- Result: passed with source coverage `statements 96.8%`, `branches 86.11%`, `functions 96.84%`, `lines 96.81%`; enforced thresholds set to `96/86/96/96`.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, all four typecheck categories, and 16 Vitest files with 218 tests passed.
+
 ### Task ARR-H07: Align Runtime Target, Engines, And React Compatibility Lanes
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -403,9 +469,20 @@ Acceptance criteria:
 - Two concurrent React-matrix setup jobs use distinct directories and clean them afterward.
 - The React 18 lane's test inventory difference is removed or explicitly justified and enforced.
 
+Completion evidence:
+
+- Changed: `packages/access-router-react/package.json`, `packages/access-router-react/vitest.config.ts`, `packages/access-router-react/vitest.runtime.config.ts`, `packages/access-router-react/vitest.runtime-shared.ts`, `packages/access-router-react/vitest.react18.config.ts`, `packages/access-router-react/test/react18-lane.ts`, `packages/access-router-react/test/run-react18-lane.ts`, `packages/access-router-react/test/react18-lane.test.ts`, `packages/access-router-react/test/access-router-react.packed-consumer.test.ts`, `packages/access-router-react/README.md`, `website/docs/packages/access-router-react.md`
+- Contract: `@web-ts-toolkit/access-router-react` now states one ES2022 / Node `>=20` compatibility floor across package metadata, packed-consumer assertions, installed README, and website docs while preserving the `react ^18 || ^19` peer contract.
+- Implemented: the default package `test` gate now requires both runtime lanes sequentially via `test:react19` and `test:react18`, with the React 18 lane sharing the same runtime test inventory as React 19 and non-runtime packed/docs/export checks running separately under `test:nonruntime`.
+- Implemented: `test:react18` now provisions a fresh `mkdtemp` dependency workspace on every run, installs exact `react@18.3.1`, `react-dom@18.3.1`, and `@testing-library/react@16.3.2` versions, validates the installed tree before Vitest starts, supports a caller-provided temp parent via `ACCESS_ROUTER_REACT18_TMPDIR`, and removes the isolated tree in `finally`.
+- Verified: `pnpm exec vitest run --config vitest.runtime.config.ts test/react18-lane.test.ts`
+- Result: 1 file, 3 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build and all four typecheck categories passed; the React 19 runtime lane ran 14 files / 203 tests, the isolated React 18 runtime lane ran the same 14 files / 203 tests, and the non-runtime packed/docs/export lane ran 3 files / 18 tests.
+
 ### Task ARR-H08: Execute Hook Behavior From The Packed Artifact
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -445,11 +522,21 @@ Acceptance criteria:
 - ESM/CJS runtime and NodeNext/Bundler type consumers all pass for the declared compatibility matrix.
 - `npm pack --dry-run --json` includes only intended package files.
 
+Completion evidence:
+
+- Changed: `packages/access-router-react/test/packed-consumer-harness.ts`, `packages/access-router-react/test/access-router-react.packed-consumer.test.ts`, `packages/access-router-react/test-packed-consumer/consumer/consumer.cjs`, `packages/access-router-react/test-packed-consumer/consumer/consumer.mjs`, `packages/access-router-react/test-packed-consumer/consumer/hooks-smoke-core.cjs`
+- Implemented: the packed-consumer harness now provisions isolated React 19 and React 18 consumers with runtime smoke dependencies, while the packed CJS and ESM consumer entries mount `createModelHooks` from the installed tarball and exercise read success, normalized failure, caller cancellation, and create mutation success.
+- Implemented: packed runtime smoke now asserts the resolved package entry stays inside installed `node_modules` rather than source/test paths, so export-map regressions and accidental bundled-React/client-peer breakage fail against the shipped artifact.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/access-router-react.packed-consumer.test.ts`
+- Result: 1 file, 4 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, all four typecheck categories, React 19 runtime lane, isolated React 18 runtime lane, and non-runtime packed/docs/export checks passed; packed-consumer verification now covers React 19 and React 18 installed-tarball hook smoke plus strict NodeNext and Bundler consumers.
+
 ## Wave 4: Documentation And Performance Hardening
 
 ### Task ARR-H09: Correct Documentation And Test Lifecycle Semantics
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -501,9 +588,20 @@ Acceptance criteria:
 - Snippet inventory accounts for every substantive code block and distinguishes exact, scaffolded, and intentionally non-executable examples.
 - Docs tests and the package test pass.
 
+Completion evidence:
+
+- Changed: `packages/access-router-react/README.md`, `website/docs/packages/access-router-react.md`, `packages/access-router-react/src/fetch.ts`, `packages/access-router-react/test/access-router-react.docs.compile.test.ts`, `packages/access-router-react/test/access-router-react.docs-semantic.test.tsx`, `packages/access-router-react/test-docs-consumer/snippets-mapping.md`, `packages/access-router-react/test-docs-consumer/examples/active-record.tsx`, `packages/access-router-react/test-docs-consumer/examples/cancellation.tsx`, `packages/access-router-react/test-docs-consumer/examples/concurrent-mutations.tsx`, `packages/access-router-react/test-docs-consumer/examples/factory-readme.ts`, `packages/access-router-react/test-docs-consumer/examples/factory-website.ts`, `packages/access-router-react/test-docs-consumer/examples/failure.tsx`, `packages/access-router-react/test-docs-consumer/examples/mutations.tsx`, `packages/access-router-react/test-docs-consumer/examples/organization.ts`, `packages/access-router-react/test-docs-consumer/examples/projection.tsx`, `packages/access-router-react/test-docs-consumer/examples/query-hooks.tsx`, `packages/access-router-react/test-docs-consumer/examples/quickstart.tsx`, `packages/access-router-react/test-docs-consumer/examples/request-key.ts`, `packages/access-router-react/test-docs-consumer/examples/website-extras.tsx`, `packages/access-router-react/test-docs-consumer/examples/website-quickstart.tsx`
+- Implemented: installed and website docs now use the correct `createModelHooks({ modelService })` factory shape, describe query failures as promise rejection, show manual-query cancellation while the request is still pending, separate `Promise.all` positional ordering from latest-invocation-wins hook state, correct the `requestKeyFor` helper name, and align request-key failure comments with the actual synchronous render throw contract.
+- Implemented: the docs compile harness now distinguishes `exact`, `scaffolded`, and intentionally non-executable snippets, and scaffolded fixtures must preserve each documented block verbatim between explicit marker comments instead of passing on normalized line inclusion alone.
+- Implemented: new runtime docs-semantics tests prove the cancellation example aborts before awaiting settlement and that overlapping mutation `Promise.all` results stay tied to invocation order even when hook state follows the latest invocation.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/access-router-react.docs.compile.test.ts test/access-router-react.docs-semantic.test.tsx`
+- Result: 2 files, 4 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build and all four typecheck categories passed; the React 19 runtime lane ran 15 files / 205 tests, the isolated React 18 runtime lane ran the same 15 files / 205 tests, and the non-runtime docs/packed/export lane ran 3 files / 18 tests.
+
 ### Task ARR-H10: Bound And Measure Structural Request-Key Work
 
-Status: pending
+Status: completed
 
 Priority: P2 hardening; implementation details may remain P3 until measured
 
@@ -552,11 +650,26 @@ Acceptance criteria:
 - No global strong-reference cache retains request objects.
 - Focused tests and the package test pass.
 
+Completion evidence:
+
+- Changed: `packages/access-router-react/src/fetch.ts`, `packages/access-router-react/test/dependency-policy.test.tsx`, `packages/access-router-react/README.md`, `website/docs/packages/access-router-react.md`, `packages/access-router-react/test-docs-consumer/examples/query-hooks.tsx`, `packages/access-router-react/test-docs-consumer/examples/mutations.tsx`, `packages/access-router-react/test-docs-consumer/examples/concurrent-mutations.tsx`, `packages/access-router-react/test-docs-consumer/examples/active-record.tsx`, `packages/access-router-react/test-docs-consumer/examples/cancellation.tsx`, `packages/access-router-react/test-docs-consumer/examples/projection.tsx`, `packages/access-router-react/test-docs-consumer/examples/website-extras.tsx`
+- Implemented: `requestKeyFor` now enforces deterministic bounds of 64 nested array/object levels, 20,000 first-visit nodes, and 200,000 serialized-key characters; oversized inputs fail closed with actionable `RequestKeyError` messages instead of overflowing the stack, building partial keys, or silently colliding.
+- Implemented: repeated object/array references are memoized only within a single `requestKeyFor(...)` call via a per-call `WeakMap`, reducing repeated-reference traversal work without adding any global strong-reference cache or making later renders ignore caller-object mutation.
+- Implemented: docs now state the supported request-key budget and stability assumptions, and the scaffolded docs fixtures were re-aligned verbatim so the package docs compile gate continues to enforce exact README/website snippets after the request-key documentation change.
+- Benchmarked: `node --input-type=module -e '...'` from `packages/access-router-react` against the pre-change serializer logic and the built `dist/index.mjs` implementation, using 2 warmup runs plus 5 measured runs per case under Node 20-compatible runtime semantics. Output proxy was serialized key length on success, else the thrown error category/message.
+- Benchmark results: `flat-1k` before `0.266ms / 12,781 chars`, after `0.753ms / 12,781 chars`; `flat-10k` before `3.400ms / 147,781 chars`, after `3.126ms / 147,781 chars`; `nested-1k` before `0.312ms / 2,003 chars`, after `0.089ms / RequestKeyError(max depth 64)`; `nested-10k` before `0.995ms / RangeError(Maximum call stack size exceeded)`, after `0.087ms / RequestKeyError(max depth 64)`; `repeated-1k` before `2.174ms / 92,013 chars`, after `0.114ms / 92,013 chars`; `repeated-10k` before `27.848ms / 920,013 chars`, after `0.089ms / RequestKeyError(max serialized key length 200,000)`.
+- Verified: `pnpm exec vitest run --config vitest.runtime.config.ts test/dependency-policy.test.tsx`
+- Result: 1 file, 50 tests passed.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/access-router-react.docs.compile.test.ts`
+- Result: 1 file, 2 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build, all four typecheck categories, React 19 runtime lane, isolated React 18 runtime lane, and non-runtime exports/packed/docs checks passed; totals were 15 runtime files / 210 tests on React 19, the same 15 files / 210 tests on React 18, and 3 non-runtime files / 18 tests.
+
 ## Wave 5: Independent Integration
 
 ### Task ARR-H11: Perform Independent Final Integration Review
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -599,6 +712,30 @@ Acceptance criteria:
 - `pnpm lint`, `pnpm build`, and serial `pnpm test` pass.
 - `git diff --check` passes and generated artifacts were produced by build commands, not manual edits.
 
+Completion evidence:
+
+- Changed: `packages/access-router-react/src/create-model-hook.ts`, `packages/access-router-react/test/harness.test.tsx`, `packages/access-router-react/test-docs-consumer/examples/query-hooks.tsx`, `packages/access-router-react/test-docs-consumer/examples/mutations.tsx`, `packages/access-router-react/test-docs-consumer/examples/cancellation.tsx`, `packages/access-router-react/test-docs-consumer/examples/concurrent-mutations.tsx`, `packages/access-router-react/test-docs-consumer/examples/website-extras.tsx`, `packages/access-router-react/test-docs-consumer/examples/active-record.tsx`, `packages/access-router-react/test-docs-consumer/examples/projection.tsx`, `packages/access-router-react/test-packed-consumer/consumer/consumer.cjs`, `packages/access-router-react/test-packed-consumer/consumer/hooks-smoke-core.cjs`, `eslint.config.mjs`
+- Reviewed: all prior ARR-H01 through ARR-H10 task entries already carried `completed` status with completion evidence; no stale predecessor `pending`/`in_progress` tasks remained.
+- Found and fixed: the independent review uncovered one remaining P1 regression in `useList().query()` where omitted manual args could keep using stale configured `listParams` after rerender because `baseFetch` captured the old closure. `useList` now re-memoizes `baseFetch` on `listParamsKey`, and a rerender regression proves manual `query()` picks up the latest configured pagination.
+- Hardened integration gates: docs compile fixtures were re-aligned so scaffolded snippets remain verbatim between marker comments, packed-consumer CJS fixtures satisfy lint without changing shipped docs snippets, and `useLatestRef` now refreshes on `useLayoutEffect` rather than mutating refs during render.
+- Result: no unresolved P0/P1 findings remained after the rerender pagination fix. The review noted only non-blocking residual gaps: React 18 installed-consumer type-resolution is still inferred from the shared declaration consumer rather than exercised in a separate installed React 18 type lane, and some success callback/promise types remain broader than the normalized runtime success path.
+- Verified: `pnpm exec vitest run --config vitest.runtime.config.ts test/harness.test.tsx`
+- Result: 1 file, 16 tests passed.
+- Verified: `pnpm exec vitest run --config vitest.config.ts test/access-router-react.docs.compile.test.ts`
+- Result: 1 file, 2 tests passed.
+- Verified: `pnpm --filter @web-ts-toolkit/access-router-react test`
+- Result: package build and all four typecheck categories passed; the React 19 runtime lane ran 15 files / 211 tests, the isolated React 18 runtime lane ran the same 15 files / 211 tests, and the non-runtime exports/packed/docs lane ran 3 files / 18 tests.
+- Verified: `pnpm test:packed-consumer`
+- Result: 2 files, 6 tests passed.
+- Verified: `pnpm lint`
+- Result: passed.
+- Verified: `pnpm build`
+- Result: passed.
+- Verified: `pnpm test`
+- Result: passed serially across the workspace, including the re-verified `@web-ts-toolkit/access-router-react` package lane and the final `apps/react-vite` Vitest lane (2 files / 3 tests).
+- Verified: `git diff --check`
+- Result: passed.
+
 ## Dependencies And Parallelization
 
 Recommended allocation:
@@ -625,12 +762,12 @@ Shared hotspots:
 
 ## Deferred Decisions Requiring Maintainer Input
 
-1. Bulk create contract: should `useCreate().mutate` support array input with an explicit array-aware result surface, or remain single-record-only and reject arrays? ARR-H04 cannot finalize public types until this is decided. Recommended default: keep the existing hook single-record-only and reject arrays; add a separate bulk API only when a concrete consumer requires it.
+1. Bulk create contract: resolved by ARR-H04 for the current public API. `useCreate().mutate` remains single-record-only and rejects array input; add a separate bulk hook/result surface only when a concrete consumer requires it.
 2. Runtime floor: should this package align with the workspace's Node `>=20`, raise its JS target to ES2022, or preserve ES2020/browser compatibility by avoiding the `Error` cause constructor overload? ARR-H06 and ARR-H07 require one explicit compatibility contract. Recommended default: match the client package's ES2022 target and workspace Node `>=20`, then verify browser bundling separately.
 3. Request-key budget: maximum depth/node/output limits are externally observable. ARR-H10 must present benchmark evidence and a proposed budget before enforcing one. Until decided, the unbounded render-work risk remains.
 4. Observer exceptions: should all callbacks be attempted independently when an earlier callback throws? Recommended default: yes, because the documented contract calls them observers; report each error asynchronously without skipping `onSettled`.
 
-Only decisions 1 and 2 block their respective public-contract implementations. Other tasks may proceed.
+Only decision 2 blocks its remaining public-contract implementations. Other tasks may proceed.
 
 ## Definition Of Done
 

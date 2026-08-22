@@ -4,6 +4,8 @@ import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync
 import os from 'node:os';
 import path from 'node:path';
 
+import { react18PackageVersions } from './react18-lane';
+
 /**
  * ARR-10 shared packed-tarball harness for
  * `@web-ts-toolkit/access-router-react`.
@@ -108,6 +110,14 @@ export const nodeTypesVersion = rootPackageJson.devDependencies['@types/node'];
 export const reactVersion = reactPackageManifest.devDependencies.react;
 export const reactDomVersion = reactPackageManifest.devDependencies['react-dom'];
 export const typesReactVersion = reactPackageManifest.devDependencies['@types/react'];
+export const testingLibraryReactVersion = reactPackageManifest.devDependencies['@testing-library/react'];
+export const jsdomVersion = reactPackageManifest.devDependencies.jsdom;
+
+export const react19PackageVersions = {
+  react: reactVersion,
+  'react-dom': reactDomVersion,
+  '@testing-library/react': testingLibraryReactVersion,
+} as const;
 
 export const reactPackage = { name: '@web-ts-toolkit/access-router-react', dir: packageRoot };
 export const internalDependencyPackages = [
@@ -116,6 +126,11 @@ export const internalDependencyPackages = [
 ] as const;
 
 export const workspacePackages = [reactPackage, ...internalDependencyPackages] as const;
+
+type PackedConsumerOptions = {
+  reactMajor?: 18 | 19;
+  includeRuntimeDeps?: boolean;
+};
 
 const tempRoots: string[] = [];
 
@@ -314,10 +329,13 @@ export function preparePackedWorkspace(): PackedWorkspace {
  * peer deps (`react`, `react-dom`) resolve from the npm registry exactly how
  * an external consumer resolves them. Returns the consumer directory.
  */
-export function installPackedConsumer(): string {
+export function installPackedConsumer(options: PackedConsumerOptions = {}): string {
   const packed = preparePackedWorkspace();
   const consumerDir = trackTempRoot(mkdtempSync(path.join(os.tmpdir(), 'access-router-react-consumer-')));
   seedToolVersions(consumerDir);
+  const reactMajor = options.reactMajor ?? 19;
+  const includeRuntimeDeps = options.includeRuntimeDeps ?? false;
+  const runtimeDeps = reactMajor === 18 ? react18PackageVersions : react19PackageVersions;
 
   // Pin every internal workspace package to the prepared local source via a
   // `pnpm-workspace.yaml` override so pnpm resolves the local closure rather
@@ -338,8 +356,14 @@ export function installPackedConsumer(): string {
         type: 'module',
         dependencies: {
           ...internalDeps,
-          react: reactVersion,
-          'react-dom': reactDomVersion,
+          react: runtimeDeps.react,
+          'react-dom': runtimeDeps['react-dom'],
+          ...(includeRuntimeDeps
+            ? {
+                '@testing-library/react': runtimeDeps['@testing-library/react'],
+                jsdom: jsdomVersion,
+              }
+            : {}),
         },
         devDependencies: {
           typescript: typescriptVersion,

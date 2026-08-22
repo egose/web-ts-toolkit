@@ -2,7 +2,7 @@
 
 React hooks for `@web-ts-toolkit/access-router-client` model services.
 
-`createModelHooks(modelService)` binds one `ModelService` to eight hooks covering read, list, count, distinct, create, update, upsert, and delete. Each hook instance owns its own local state — there is **no shared cache, no deduplication, no invalidation, and no retry**. Two components calling `useRead({ id: '1' })` against the same `ModelService` issue two independent requests and store two independent copies of the result. If you need cache orchestration, layer these services underneath a query library.
+`createModelHooks({ modelService })` binds one `ModelService` to eight hooks covering read, list, count, distinct, create, update, upsert, and delete. Each hook instance owns its own local state — there is **no shared cache, no deduplication, no invalidation, and no retry**. Two components calling `useRead({ id: '1' })` against the same `ModelService` issue two independent requests and store two independent copies of the result. If you need cache orchestration, layer these services underneath a query library.
 
 ## Installation
 
@@ -14,6 +14,8 @@ Peer dependencies:
 
 - `react ^18 || ^19` — verified by a React 18 lane in this package's own test suite (React 19 remains the primary lane)
 - `@web-ts-toolkit/access-router-client`
+
+Published builds target `ES2022`. Direct Node consumers should use Node `>=20`; browser apps can bundle the package as long as their toolchain supports ES2022 output.
 
 ## Factory
 
@@ -97,7 +99,7 @@ const { data, isLoading, isFetching, error, query, refetch, reset } = useRead({
 - `id` controls auto-fetching. Set `enabled: false` (or remove `id`) to disable.
 - `advanced: true` switches to `readAdvanced(...)`, which forwards `select`, `populate`, `sort`, `include`, and `tasks`.
 - `onSuccess`, `onError`, and `onSettled` are invocation observers and are **not** part of the effect dependency key; re-rendering a parent with a fresh inline arrow every render does not refetch (see Dependency-Key Policy below).
-- `query(id, { signal })` re-runs the read imperatively; `refetch()` re-runs with the current options. Both return a promise that resolves the `ServiceError` on failure.
+- `query(id, { signal })` re-runs the read imperatively; `refetch()` re-runs with the current options. Both return a promise that resolves with the response or rejects with a `ServiceError` on failure.
 
 ### `useList`
 
@@ -140,7 +142,7 @@ If `conditions` is empty or omitted, the hook falls back to the basic `distinct(
 
 ## Mutation Hooks
 
-`useCreate`, `useUpdate`, `useUpsert`, and `useDelete` expose `mutate(...)`, `isPending`, `error`, and `reset()`. The first three also expose `data` (the last returned projected model). Each `mutate(...)` call returns a promise that resolves the response, or rejects with a `ServiceError` on failure.
+`useCreate`, `useUpdate`, `useUpsert`, and `useDelete` expose `mutate(...)`, `isPending`, `error`, and `reset()`. The first three also expose `data` (the last returned projected model). Each `mutate(...)` call returns a promise that resolves the response, or rejects with a `ServiceError` on failure. Mutation input types are inferred from the bound `ModelService<T, TCreateInput, TUpdateInput, TUpsertInput>` generics. `useCreate().mutate(...)` is intentionally single-record-only and rejects array input; call `modelService.create([...])` directly when you need bulk create.
 
 ### `useCreate`
 
@@ -229,12 +231,18 @@ function FailureExample() {
 
 A dependency change, `query()`/`refetch()` invocation, or unmount aborts the in-flight request and replaces it. Cancellation is authoritative: an aborted request never writes `error`, never fires `onError` or `onSettled`, and converges `isLoading`/`isFetching`/`isPending` to false. The hooks decide cancellation on `signal.aborted` rather than `instanceof DOMException`, so axios `CanceledError`, `Error('Canceled')` with `code: 'ERR_CANCELED'`, or any other transport-specific cancellation shape is handled uniformly.
 
-For manual `query()` calls, pass `{ signal }` to compose a caller signal with the hook's internal controller. Aborting either source cancels the effective request.
+For manual `query()` calls, pass `{ signal }` to compose a caller signal with the hook's `requestConfig.signal` and internal controller. Aborting any source cancels the effective request.
 
 ```tsx
 const controller = new AbortController();
-const result = await query('org_123', { signal: controller.signal });
-controller.abort(); // cancels the in-flight manual request
+const pending = query('org_123', { signal: controller.signal });
+controller.abort(); // cancels the in-flight manual request while it is still pending
+
+try {
+  await pending;
+} catch (error) {
+  console.error('manual query cancelled', error);
+}
 ```
 
 ### `previousData` lifecycle (`useList` only)
@@ -249,10 +257,10 @@ controller.abort(); // cancels the in-flight manual request
 
 `reset()` is a synchronous state-clear, not a cancellation:
 
-- Query `reset()` clears `data`/`error`/`isLoading`/`isFetching` (and `previousData` for `useList`).
+- Query `reset()` clears `data`/`error`/`isLoading`/`isFetching` (and `previousData` for `useList`) and invalidates the current query owner's right to publish settlement. A pre-reset success, failure, rejection, or abort may still finish at the transport layer, but it is stale for hook state and callbacks.
 - Mutation `reset()` clears `data`/`error` and bumps the latest-invocation token. Any already-running mutation loses its claim on the shared `data`/`error` state — when it later settles, its per-invocation `onSuccess`/`onSettled` still fire, but it cannot repopulate the cleared `data`/`error`. `isPending` remains true until the active count reaches zero; `reset` does not implicitly cancel.
 
-If you need to cancel an in-flight query, drop `id`/`listParams` or set `enabled: false` rather than calling `reset`.
+After query `reset()`, `isFetching` reflects authoritative hook activity, not physical transport activity, so it becomes false immediately even if the abandoned request is still finishing underneath. If you need to cancel an in-flight query, drop `id`/`listParams` or set `enabled: false` rather than calling `reset`.
 
 ### `refetch()` and `query()`
 
@@ -271,9 +279,13 @@ function Save() {
   const { mutate, isPending } = useUpdate({ advanced: true, select: ['name'] as const });
 
   const saveTwice = async () => {
-    const [second] = await Promise.all([mutate('org_1', { name: 'A' }), mutate('org_1', { name: 'B' })]);
-    // `second.data` reflects whoever settled last as the latest-invocation.
-    return second.data;
+    const [firstResult, secondResult] = await Promise.all([
+      mutate('org_1', { name: 'A' }),
+      mutate('org_1', { name: 'B' }),
+    ]);
+    // Promise.all preserves invocation order. Hook state still follows the latest invocation.
+    console.log(firstResult.data?.name, secondResult.data?.name);
+    return secondResult.data;
   };
 
   return (
@@ -316,12 +328,16 @@ A literal `select` requires `advanced: true` to actually reach the server's narr
 
 ## Dependency-Key Policy
 
-The query hooks build one structural key from every request-affecting option and use that key as the React effect dependency. Inline array/object literals at the call site are safe: two `select: ['name']` arrays written at every render produce the same key, so they do not trigger an extra refetch. `Date` compares by instant (`d:<.getTime()>`) and never collides with an ISO-string filter that happens to look like the date. `requireKeyFor` throws a documented `RequestKeyError` (re-thrown by the hook as an `Error` with `cause`) for values it cannot represent deterministically: `bigint`, `function`, `symbol` (and symbol-keyed properties), cycles, accessor properties, and built-in instances such as `RegExp`, `Map`, `Set`, `URL`, `Error`, or non-`Object.prototype` class instances. `Date` and `Object.create(null)` are supported. You can import the helper to construct or validate keys yourself:
+The query hooks build one structural key from every request-affecting option and use that key as the React effect dependency. Inline array/object literals at the call site are safe: two `select: ['name']` arrays written at every render produce the same key, so they do not trigger an extra refetch. `Date` compares by instant (`d:<.getTime()>`) and never collides with an ISO-string filter that happens to look like the date. `requestKeyFor` throws a documented `RequestKeyError`; query hooks catch that, rethrow a plain `Error` with the original `RequestKeyError` in `cause`, and interrupt render before any auto-fetch effect runs. Unsupported values include `bigint`, `function`, `symbol` (and symbol-keyed properties), cycles, accessor properties, and built-in instances such as `RegExp`, `Map`, `Set`, `URL`, `Error`, or non-`Object.prototype` class instances. `Date` and `Object.create(null)` are supported.
+
+Request-key work is intentionally bounded. One `requestKeyFor(...)` call accepts at most 64 nested array/object levels, 20,000 first-visit nodes, and 200,000 serialized key characters; inputs beyond those limits throw `RequestKeyError` instead of overflowing the stack, partially truncating the key, or silently colliding. Keep request-key inputs as plain, stable, reasonably small wire data. Repeated object references may be reused within a single `requestKeyFor(...)` call, but there is no global cache retaining caller objects across renders. You can import the helper to construct or validate keys yourself:
 
 ```ts
 import { requestKeyFor, RequestKeyError } from '@web-ts-toolkit/access-router-react';
 
 const key = requestKeyFor({ filter: { status: 'active', since: new Date('2026-01-01') } });
+
+declare const someUserSuppliedFilter: unknown;
 
 try {
   requestKeyFor(someUserSuppliedFilter);
@@ -344,7 +360,7 @@ try {
 ## Notes
 
 - These hooks do not implement shared caching, deduplication, invalidation, retry, or background revalidation. They are thin stateful wrappers over `ModelService` from `@web-ts-toolkit/access-router-client`. If you need cache orchestration, use these services underneath a query library.
-- `requestConfig` is forwarded to the underlying client request via a fresh shallow copy on every request; the caller's `requestConfig` object, its `headers`, and other fields are not mutated. The hook's internal `requestConfig.signal` is composed with the caller-supplied `query()` `options.signal` and the hook-owned controller signal — aborting any source cancels the effective request.
+- `requestConfig` is forwarded to the underlying client request via a fresh shallow copy on every request; the caller's `requestConfig` object, its `headers`, and other fields are not mutated. `requestConfig.signal` is composed with the caller-supplied `query()` `options.signal` and the hook-owned controller signal, and that one effective signal is used for both transport cancellation and hook settlement classification. Replacing only `requestConfig.signal` does not trigger an automatic refetch.
 
 ## Documentation
 

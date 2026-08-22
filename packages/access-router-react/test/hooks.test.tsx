@@ -22,6 +22,7 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import { createModelHooks } from '../src/create-model-hook';
 import type {
   Document,
+  FilterQuery,
   Model,
   ModelService,
   ModelResponse,
@@ -58,9 +59,9 @@ function createMockService(): {
   listResult: ListModelResponse<TestDoc>;
   readResult: ModelResponse<TestDoc>;
   createResult: ModelResponse<TestDoc>;
-  deleteResult: ModelResponse<string>;
-  countResult: ModelResponse<number>;
-  distinctResult: ModelResponse<string[]>;
+  deleteResult: Response<string>;
+  countResult: Response<number>;
+  distinctResult: Response<string[]>;
   mock: MockService<TestDoc>;
 } {
   const listResult: ListModelResponse<TestDoc> = {
@@ -88,7 +89,7 @@ function createMockService(): {
     status: 201,
     headers: {},
   };
-  const deleteResult: ModelResponse<string> = {
+  const deleteResult: Response<string> = {
     success: true,
     raw: '1',
     data: '1',
@@ -96,7 +97,7 @@ function createMockService(): {
     status: 200,
     headers: {},
   };
-  const countResult: ModelResponse<number> = {
+  const countResult: Response<number> = {
     success: true,
     raw: 5,
     data: 5,
@@ -104,7 +105,7 @@ function createMockService(): {
     status: 200,
     headers: {},
   };
-  const distinctResult: ModelResponse<string[]> = {
+  const distinctResult: Response<string[]> = {
     success: true,
     raw: ['active', 'pending'],
     data: ['active', 'pending'],
@@ -827,7 +828,7 @@ describe('createModelHooks', () => {
     it('uses distinctAdvanced when conditions are provided', async () => {
       const { service } = createMockService();
       const { useDistinct } = createModelHooks({ modelService: service });
-      renderHook(() => useDistinct({ field: 'status', conditions: { org: '1' } }));
+      renderHook(() => useDistinct({ field: 'status', conditions: { org: '1' } as unknown as FilterQuery<TestDoc> }));
       await waitFor(() => {
         expect(service.distinctAdvanced).toHaveBeenCalledWith('status', { org: '1' }, expect.any(Object));
       });

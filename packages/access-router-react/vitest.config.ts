@@ -1,9 +1,23 @@
 import { defineConfig } from 'vitest/config';
 
+import { fixtureOnlyExcludes } from './vitest.runtime-shared';
+
 export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary'],
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.d.ts'],
+      thresholds: {
+        statements: 96,
+        branches: 86,
+        functions: 96,
+        lines: 96,
+      },
+    },
     // Exclude the strict declaration-consumer fixtures from vitest's
     // runtime — they are TYPE-ONLY compile-time suites validated by
     // `pnpm typecheck:nodenext-strict` / `pnpm typecheck:bundler-strict`
@@ -20,12 +34,6 @@ export default defineConfig({
     //    `.tsx` inside `examples/` are compiled via `tsc --noEmit` against
     //    the installed consumer declarations, not via vitest runtime; the
     //    inventory file (`snippets-mapping.md`) is parse-only.
-    exclude: [
-      '**/node_modules/**',
-      '**/dist/**',
-      'test-decl-consumer/**',
-      'test-packed-consumer/**',
-      'test-docs-consumer/**',
-    ],
+    exclude: fixtureOnlyExcludes,
   },
 });

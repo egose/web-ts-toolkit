@@ -24,19 +24,47 @@ const organizationService = adapter.createModelService<Organization>({
 
 const { useRead } = createModelHooks({ modelService: organizationService });
 
-function CancellationExample() {
+function ReadmeCancellationExample() {
   const { query } = useRead({ id: 'org_123', advanced: true });
 
   async function run() {
-    // README block #12
+    // docs-block-start: packages/access-router-react/README.md#13
     const controller = new AbortController();
-    const result = await query('org_123', { signal: controller.signal });
-    controller.abort(); // cancels the in-flight manual request
-    return result;
+    const pending = query('org_123', { signal: controller.signal });
+    controller.abort(); // cancels the in-flight manual request while it is still pending
+
+    try {
+      await pending;
+    } catch (error) {
+      console.error('manual query cancelled', error);
+    }
+    // docs-block-end: packages/access-router-react/README.md#13
   }
 
   void run;
   return null;
 }
 
-void CancellationExample;
+function WebsiteCancellationExample() {
+  const { query } = useRead({ id: 'org_123', advanced: true });
+
+  async function run() {
+    // docs-block-start: website/docs/packages/access-router-react.md#11
+    const controller = new AbortController();
+    const pending = query('org_123', { signal: controller.signal });
+    controller.abort(); // cancels the in-flight manual request while it is still pending
+
+    try {
+      await pending;
+    } catch (error) {
+      console.error('manual query cancelled', error);
+    }
+    // docs-block-end: website/docs/packages/access-router-react.md#11
+  }
+
+  void run;
+  return null;
+}
+
+void ReadmeCancellationExample;
+void WebsiteCancellationExample;

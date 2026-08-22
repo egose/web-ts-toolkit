@@ -1,6 +1,7 @@
 import type {
   Document,
   Model,
+  ModelMutationInput,
   ServiceError,
   FilterQuery,
   Projection,
@@ -35,12 +36,9 @@ export interface RequestConfig {
 
 /**
  * Optional per-call overrides for imperative `query()` invocations
- * (Task ARR-05). The `signal` field is composed with the hook's internal
- * controller signal — aborting either source cancels the effective
- * request. Manual `query()` paths honor the caller signal even when the
- * hook's own internal controller is not strictly required for the
- * request (e.g. a one-shot manual read where the caller is the sole
- * cancellation source).
+ * (Task ARR-H01). The `signal` field is composed with the hook-owned
+ * controller signal and the current hook-options `requestConfig.signal`.
+ * Aborting any source cancels the effective request.
  */
 export interface QueryCallOptions {
   signal?: AbortSignal;
@@ -144,6 +142,8 @@ export interface UseBaseOptions {
   requestConfig?: RequestConfig;
 }
 
+type SingleMutationInput<TInput extends object> = TInput extends readonly unknown[] ? never : TInput;
+
 // ── Read ──
 
 export interface UseReadQueryOptions<
@@ -188,11 +188,8 @@ export interface UseReadQueryResult<T extends Document, TSelect extends Projecti
   /**
    * Re-run the read for `id` via the unified query lifecycle. Accepts an
    * optional per-call {@link QueryCallOptions} whose `signal` is composed
-   * with the hook's internal controller signal — aborting either source
-   * cancels the request (Task ARR-05 req 4). Per-call `query()` does NOT
-   * reuse the caller's hook-options `requestConfig.signal`; tests that
-   * need a caller signal on the manual path must pass it via the options
-   * argument so the composition boundary is explicit.
+   * with the hook-owned controller signal and the current hook-options
+   * `requestConfig.signal` — aborting any source cancels the request.
    */
   query: (id: string, options?: QueryCallOptions) => Promise<ProjectedModelResponse<T, TSelect>>;
   refetch: () => Promise<ProjectedModelResponse<T, TSelect>>;
@@ -243,8 +240,8 @@ export interface UseListQueryResult<T extends Document, TSelect extends Projecti
    * Re-run the list for `args` (or the configured `listParams`) via the
    * unified query lifecycle. Accepts an optional per-call
    * {@link QueryCallOptions} whose `signal` is composed with the hook's
-   * internal controller signal — aborting either source cancels the
-   * request (Task ARR-05 req 4).
+   * controller signal and the current hook-options `requestConfig.signal`
+   * — aborting any source cancels the request.
    */
   query: (args?: ListArgs, options?: QueryCallOptions) => Promise<ProjectedListModelResponse<T, TSelect>>;
   refetch: () => Promise<ProjectedListModelResponse<T, TSelect>>;
@@ -276,11 +273,15 @@ export interface UseCreateMutateOptions<
   onSettled?: (result: ProjectedModelResponse<T, TSelect> | null, error: ServiceError | null) => void;
 }
 
-export interface UseCreateMutateResult<T extends Document, TSelect extends Projection = Projection> {
+export interface UseCreateMutateResult<
+  T extends Document,
+  TSelect extends Projection = Projection,
+  TCreateInput extends object = ModelMutationInput<T>,
+> {
   data: ProjectedShape<T, TSelect> | null;
   isPending: boolean;
   error: ServiceError | null;
-  mutate: (data: object) => Promise<ProjectedModelResponse<T, TSelect>>;
+  mutate: (data: SingleMutationInput<TCreateInput>) => Promise<ProjectedModelResponse<T, TSelect>>;
   reset: () => void;
 }
 
@@ -305,11 +306,15 @@ export interface UseUpdateMutateOptions<
   onSettled?: (result: ProjectedModelResponse<T, TSelect> | null, error: ServiceError | null) => void;
 }
 
-export interface UseUpdateMutateResult<T extends Document, TSelect extends Projection = Projection> {
+export interface UseUpdateMutateResult<
+  T extends Document,
+  TSelect extends Projection = Projection,
+  TUpdateInput extends object = ModelMutationInput<T>,
+> {
   data: ProjectedShape<T, TSelect> | null;
   isPending: boolean;
   error: ServiceError | null;
-  mutate: (id: string, data: object) => Promise<ProjectedModelResponse<T, TSelect>>;
+  mutate: (id: string, data: TUpdateInput) => Promise<ProjectedModelResponse<T, TSelect>>;
   reset: () => void;
 }
 
@@ -334,11 +339,15 @@ export interface UseUpsertMutateOptions<
   onSettled?: (result: ProjectedModelResponse<T, TSelect> | null, error: ServiceError | null) => void;
 }
 
-export interface UseUpsertMutateResult<T extends Document, TSelect extends Projection = Projection> {
+export interface UseUpsertMutateResult<
+  T extends Document,
+  TSelect extends Projection = Projection,
+  TUpsertInput extends object = ModelMutationInput<T>,
+> {
   data: ProjectedShape<T, TSelect> | null;
   isPending: boolean;
   error: ServiceError | null;
-  mutate: (data: object) => Promise<ProjectedModelResponse<T, TSelect>>;
+  mutate: (data: TUpsertInput) => Promise<ProjectedModelResponse<T, TSelect>>;
   reset: () => void;
 }
 

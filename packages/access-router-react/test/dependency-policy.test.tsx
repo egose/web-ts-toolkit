@@ -53,7 +53,13 @@ import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { createModelHooks } from '../src/create-model-hook';
 import { requestKeyFor, RequestKeyError } from '../src/fetch';
-import type { Document, ListModelResponse, Model, ModelResponse } from '@web-ts-toolkit/access-router-client';
+import type {
+  Document,
+  FilterQuery,
+  ListModelResponse,
+  Model,
+  ModelResponse,
+} from '@web-ts-toolkit/access-router-client';
 import { createMockService, flushMicrotasks } from './support';
 
 interface TestDoc extends Document {
@@ -94,6 +100,30 @@ function makeSeed(): ReturnType<typeof createMockService<TestDoc>>['seed'] {
       status: 200,
       headers: {},
     },
+  };
+}
+
+function makeNestedArray(depth: number): unknown {
+  let value: unknown = 0;
+  for (let i = 0; i < depth; i++) {
+    value = [value];
+  }
+  return value;
+}
+
+function makeLargeArray(length: number): number[] {
+  return Array.from({ length }, (_, index) => index);
+}
+
+function makeRepeatedReferenceInput(length: number): { filters: Array<Record<string, unknown>> } {
+  const shared = {
+    status: 'active',
+    sort: ['name', 'status'],
+    include: { owner: true, team: true },
+  };
+
+  return {
+    filters: Array.from({ length }, () => shared),
   };
 }
 
@@ -230,6 +260,30 @@ describe('ARR-06: requestKeyFor canonical behavior', () => {
     o2.y = 2;
     o2.x = 1;
     expect(requestKeyFor(o)).toBe(requestKeyFor(o2));
+  });
+
+  it('reuses repeated references within one call without changing structural equality', () => {
+    expect(requestKeyFor(makeRepeatedReferenceInput(2))).toBe(
+      requestKeyFor({
+        filters: [
+          { status: 'active', sort: ['name', 'status'], include: { owner: true, team: true } },
+          { status: 'active', sort: ['name', 'status'], include: { owner: true, team: true } },
+        ],
+      }),
+    );
+  });
+
+  it('deeply nested input fails with RequestKeyError before native stack overflow', () => {
+    expect(() => requestKeyFor(makeNestedArray(65))).toThrow(/maximum depth of 64 nested arrays\/objects/);
+  });
+
+  it('oversized flat input fails with RequestKeyError at the traversal-node budget', () => {
+    expect(() => requestKeyFor(makeLargeArray(20_001))).toThrow(/maximum traversal budget of 20000 nodes/);
+  });
+
+  it('oversized serialized output fails closed instead of producing a truncated or colliding key', () => {
+    expect(() => requestKeyFor('a'.repeat(200_000))).toThrow(/maximum serialized key length of 200000 characters/);
+    expect(() => requestKeyFor('b'.repeat(200_000))).toThrow(/maximum serialized key length of 200000 characters/);
   });
 });
 
@@ -439,6 +493,20 @@ describe('ARR-06: hook dependency-key policy', () => {
       expect(caught).not.toBeInstanceOf(RequestKeyError);
     });
 
+    it('useRead wraps request-key depth-limit failures in the documented Error surface', () => {
+      const mock = createMockService<TestDoc>(makeSeed());
+      const { useRead } = createModelHooks({ modelService: mock.service });
+
+      const requestConfig = { nested: makeNestedArray(65) } as unknown as {
+        headers?: Record<string, string>;
+        signal?: AbortSignal;
+      };
+
+      expect(() => renderHook(() => useRead({ id: '1', requestConfig }))).toThrow(
+        /useRead:.*maximum depth of 64 nested arrays\/objects/,
+      );
+    });
+
     it('useRead structural key for `sort` (advanced read) survives identity churn when `sort` is null across rerenders', async () => {
       const mock = createMockService<TestDoc>(makeSeed());
       const { useRead } = createModelHooks({ modelService: mock.service });
@@ -553,7 +621,8 @@ describe('ARR-06: hook dependency-key policy', () => {
       const d2 = new Date('2026-02-01T00:00:00.000Z');
 
       const { rerender } = renderHook(
-        ({ since }: { since: Date }) => useList({ advanced: true, filter: { since } as unknown as { since: Date } }),
+        ({ since }: { since: Date }) =>
+          useList({ advanced: true, filter: { since } as unknown as FilterQuery<TestDoc> }),
         { initialProps: { since: d1 } },
       );
 
@@ -638,7 +707,8 @@ describe('ARR-06: hook dependency-key policy', () => {
       const d2 = new Date('2026-02-01T00:00:00.000Z');
 
       const { rerender } = renderHook(
-        ({ since }: { since: Date }) => useCount({ advanced: true, filter: { since } as unknown as { since: Date } }),
+        ({ since }: { since: Date }) =>
+          useCount({ advanced: true, filter: { since } as unknown as FilterQuery<TestDoc> }),
         { initialProps: { since: d1 } },
       );
 
@@ -659,7 +729,8 @@ describe('ARR-06: hook dependency-key policy', () => {
       const { useDistinct } = createModelHooks({ modelService: mock.service });
 
       const { rerender } = renderHook(
-        ({ _tick }: { _tick: number }) => useDistinct({ field: 'status', conditions: { org: '1' } }),
+        ({ _tick }: { _tick: number }) =>
+          useDistinct({ field: 'status', conditions: { org: '1' } as unknown as FilterQuery<TestDoc> }),
         { initialProps: { _tick: 0 } },
       );
 
@@ -677,7 +748,8 @@ describe('ARR-06: hook dependency-key policy', () => {
       const { useDistinct } = createModelHooks({ modelService: mock.service });
 
       const { rerender } = renderHook(
-        ({ org }: { org: string }) => useDistinct({ field: 'status', conditions: { org } }),
+        ({ org }: { org: string }) =>
+          useDistinct({ field: 'status', conditions: { org } as unknown as FilterQuery<TestDoc> }),
         { initialProps: { org: 'a' } },
       );
 

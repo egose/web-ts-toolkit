@@ -4,75 +4,96 @@ export function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'AbortError';
 }
 
+type RequestConfigLike = { signal?: AbortSignal; [key: string]: unknown };
+
 /**
- * Compose caller `callerSignal` with the hook-owned `internalSignal` so
- * that aborting EITHER source aborts the resulting signal (Task ARR-05).
+ * Compose the hook-owned controller signal with any caller-provided query
+ * signals so aborting ANY source aborts the resulting signal (Task ARR-H01).
  *
- * - If `callerSignal` is missing, the hook-owned `internalSignal` is the
- *   effective signal (no extra controller or listeners are allocated).
- *   `release` is a no-op in this case.
- * - If `callerSignal` is already aborted, return it directly: the request
- *   must observe an already-aborted state synchronously. `release` is a
- *   no-op (no listeners were attached to a settled signal).
- * - Otherwise allocate a fresh `AbortController`, listen to BOTH source
- *   signals, abort the composed controller with the reason of whichever
- *   source aborts first, and release both listeners immediately afterward.
+ * - If a source is already aborted, return the first aborted source in
+ *   argument order so the request observes its aborted state synchronously.
+ * - If only one unique, non-aborted source exists, reuse it directly.
+ * - Otherwise allocate a fresh `AbortController`, listen to every unique
+ *   source signal, abort the composed controller with the reason of the
+ *   first source that aborts, and release all listeners immediately.
  *
  * The returned object owns a single composition controller for the lifetime
  * of one request invocation. Callers MUST invoke `release()` once after
- * the request settles to detach listeners from a long-lived caller signal
+ * the request settles to detach listeners from any long-lived source signal
  * — even when neither source aborted. The `release` is idempotent and
  * safe to call multiple times; a focused resource-cleanup test guards
  * that repeated requests do not accumulate `addEventListener` listeners
- * on a long-lived caller signal (ARR-05 acceptance criterion).
+ * on long-lived source signals (ARR-H01 acceptance criterion).
  *
  * The returned `AbortSignal` is what the hook forwards to the underlying
- * `ModelService` request. The service observes a single signal whose
- * `aborted` state is the union of the two cancellation sources; an
- * application-level caller abort and a hook-level cleanup/replace abort
- * are indistinguishable to the transport.
+ * `ModelService` request and what the hook uses as the authoritative
+ * cancellation source after resolve/reject.
  */
 export function composeAbortSignals(
-  callerSignal: AbortSignal | undefined,
   internalSignal: AbortSignal,
+  ...otherSignals: (AbortSignal | undefined)[]
 ): { signal: AbortSignal; release: () => void } {
-  if (!callerSignal) {
-    return { signal: internalSignal, release: () => {} };
+  const uniqueSignals: AbortSignal[] = [];
+
+  for (const signal of [internalSignal, ...otherSignals]) {
+    if (!signal || uniqueSignals.includes(signal)) {
+      continue;
+    }
+    if (signal.aborted) {
+      return { signal, release: () => {} };
+    }
+    uniqueSignals.push(signal);
   }
-  if (callerSignal.aborted) {
-    return { signal: callerSignal, release: () => {} };
-  }
-  if (internalSignal.aborted) {
-    return { signal: internalSignal, release: () => {} };
-  }
-  // If the two are the same signal there is nothing to compose: either
-  // source firing is the union already, so avoid the extra controller and
-  // listener allocation.
-  if (callerSignal === internalSignal) {
-    return { signal: internalSignal, release: () => {} };
+
+  if (uniqueSignals.length === 1) {
+    return { signal: uniqueSignals[0], release: () => {} };
   }
 
   const composed = new AbortController();
-  const detach = () => {
-    callerSignal.removeEventListener('abort', onCallerAbort);
-    internalSignal.removeEventListener('abort', onInternalAbort);
+  let released = false;
+  const listeners = new Map<AbortSignal, () => void>();
+
+  const release = () => {
+    if (released) {
+      return;
+    }
+    released = true;
+    for (const [signal, onAbort] of listeners) {
+      signal.removeEventListener('abort', onAbort);
+    }
+    listeners.clear();
   };
+
   const settle = (source: AbortSignal) => {
-    composed.abort(source.reason);
-    // Detach listeners from both sources immediately so the signals can
-    // be gc'd and no listener leaks across requests.
-    detach();
+    if (!composed.signal.aborted) {
+      composed.abort(source.reason);
+    }
+    release();
   };
-  const onCallerAbort = () => settle(callerSignal);
-  const onInternalAbort = () => settle(internalSignal);
-  callerSignal.addEventListener('abort', onCallerAbort, { once: true });
-  internalSignal.addEventListener('abort', onInternalAbort, { once: true });
+
+  for (const signal of uniqueSignals) {
+    const onAbort = () => settle(signal);
+    listeners.set(signal, onAbort);
+    signal.addEventListener('abort', onAbort, { once: true });
+  }
+
   return {
     signal: composed.signal,
-    // Idempotent: detach is safe to call even after the listeners already
-    // fired and detached on abort.
-    release: detach,
+    release,
   };
+}
+
+/**
+ * `requestConfig.signal` controls request lifetime but is not part of the
+ * structural request identity. Excluding it from the request key avoids an
+ * automatic refetch when only the signal instance changes.
+ */
+export function requestConfigKeyInput(requestConfig: RequestConfigLike | undefined): RequestConfigLike | undefined {
+  if (!requestConfig) {
+    return undefined;
+  }
+  const { signal: _signal, ...rest } = requestConfig;
+  return Object.keys(rest).length === 0 ? undefined : rest;
 }
 
 /**
@@ -90,9 +111,9 @@ export function composeAbortSignals(
  * config are overwritten by the composed signal intentionally.
  */
 export function mergeRequestConfig(
-  requestConfig: { signal?: AbortSignal; [key: string]: unknown } | undefined,
+  requestConfig: RequestConfigLike | undefined,
   signal: AbortSignal | undefined,
-): { signal?: AbortSignal; [key: string]: unknown } {
+): RequestConfigLike {
   // Only overwrite the caller-supplied `signal` field when a composed
   // signal is actually present (Task ARR-05). When `signal === undefined`
   // the caller did not provide one AND the hook could not build one (a
@@ -205,13 +226,12 @@ export function stableStringify(value: unknown): string {
  *     a future consumer cannot quietly rely on the current
  *     (unspecified) `toString()` shape.
  *
- * The thrown error is a recoverable programming error: the hook surface
- * catches `RequestKeyError` from the dependency-key construction path so
- * a user-supplied filter with an unsupported value surfaces as a hook
- * `error` (the relevant query's `onError` fires once with the
- * `RequestKeyError`-as-`ServiceError` payload) rather than crashing the
- * render. The throw is the documented contract; testing covers each
- * category directly.
+ * The thrown error is a recoverable programming error: query hooks catch
+ * `RequestKeyError` while building their structural dependency key,
+ * rethrow a plain `Error` with the original `RequestKeyError` in
+ * `cause`, and interrupt render before any auto-fetch effect runs. The
+ * throw is the documented contract; testing covers each category
+ * directly.
  */
 export class RequestKeyError extends Error {
   constructor(message: string) {
@@ -220,11 +240,21 @@ export class RequestKeyError extends Error {
   }
 }
 
+const REQUEST_KEY_MAX_DEPTH = 64;
+const REQUEST_KEY_MAX_NODES = 20_000;
+const REQUEST_KEY_MAX_OUTPUT_LENGTH = 200_000;
+
 interface RequestKeyContext {
   // Set of objects currently on the recursion stack, for cycle
   // detection. A `WeakSet` is sufficient because only reference-equal
   // objects can participate in a cycle.
   stack: WeakSet<object>;
+  // Per-call reuse of repeated object/array references. This is scoped
+  // to one `requestKeyFor(...)` invocation only: it reduces repeated
+  // traversal work without retaining caller objects across renders.
+  cache: WeakMap<object, string>;
+  nodesVisited: number;
+  outputLength: number;
 }
 
 /**
@@ -252,6 +282,9 @@ interface RequestKeyContext {
  *     properties) map to `{<key(sorted)!:<key(value)>!...}` recursively.
  *     The key list is sorted, so two structurally equivalent objects
  *     produce the same string regardless of insertion order.
+ *   - Traversal is bounded: request keys reject inputs deeper than 64
+ *     nested array/object levels, inputs that require more than 20,000
+ *     first-visit nodes, or outputs longer than 200,000 characters.
  *
  * Unsupported values — `bigint`, `function`, `symbol`, accessor
  * properties, cycles, and non-plain built-in objects (`RegExp`,
@@ -261,23 +294,45 @@ interface RequestKeyContext {
  * `Object.getOwnPropertyDescriptor` is rejected before any access.
  */
 export function requestKeyFor(value: unknown): string {
-  return requestKeyForImpl(value, { stack: new WeakSet() });
+  return requestKeyForImpl(value, { stack: new WeakSet(), cache: new WeakMap(), nodesVisited: 0, outputLength: 0 }, 0);
 }
 
-function requestKeyForImpl(value: unknown, ctx: RequestKeyContext): string {
-  if (value === null) return 'n:';
-  if (value === undefined) return 'u:';
+function requestKeyForImpl(value: unknown, ctx: RequestKeyContext, depth: number): string {
+  if (depth > REQUEST_KEY_MAX_DEPTH) {
+    throw new RequestKeyError(
+      `requestKeyFor: request input exceeds the maximum depth of ${REQUEST_KEY_MAX_DEPTH} nested arrays/objects; flatten or normalize the structure before passing it to a query hook.`,
+    );
+  }
+  if (value === null) {
+    noteRequestKeyNode(ctx);
+    return finalizePrimitiveRequestKey(ctx, 'n:');
+  }
+  if (value === undefined) {
+    noteRequestKeyNode(ctx);
+    return finalizePrimitiveRequestKey(ctx, 'u:');
+  }
+
+  if (typeof value === 'object') {
+    const cached = ctx.cache.get(value as object);
+    if (cached !== undefined) {
+      reserveRequestKeyOutput(ctx, cached.length);
+      return cached;
+    }
+  }
+
+  noteRequestKeyNode(ctx);
+
   const t = typeof value;
   switch (t) {
     case 'boolean':
-      return `b:${value}`;
+      return finalizePrimitiveRequestKey(ctx, `b:${value}`);
     case 'number': {
-      if (Number.isNaN(value)) return 'n:NaN';
-      if (Object.is(value, -0)) return 'n:-0';
-      return `n:${String(value)}`;
+      if (Number.isNaN(value)) return finalizePrimitiveRequestKey(ctx, 'n:NaN');
+      if (Object.is(value, -0)) return finalizePrimitiveRequestKey(ctx, 'n:-0');
+      return finalizePrimitiveRequestKey(ctx, `n:${String(value)}`);
     }
     case 'string':
-      return `s:${JSON.stringify(value)}`;
+      return finalizePrimitiveRequestKey(ctx, `s:${JSON.stringify(value)}`);
     case 'bigint':
       throw new RequestKeyError(
         'requestKeyFor: bigint is not supported in request keys; convert to a number or string before passing to a query hook.',
@@ -295,7 +350,7 @@ function requestKeyForImpl(value: unknown, ctx: RequestKeyContext): string {
       // distinct from any ISO-string filter that happens to look like a
       // date.
       if (value instanceof Date) {
-        return `d:${value.getTime()}`;
+        return finalizePrimitiveRequestKey(ctx, `d:${value.getTime()}`);
       }
       // Reject unsupported built-in instances. `RegExp`, `Map`, `Set`,
       // `URL`, `Error`, and class instances are not part of the
@@ -318,13 +373,19 @@ function requestKeyForImpl(value: unknown, ctx: RequestKeyContext): string {
           throw new RequestKeyError('requestKeyFor: cycle detected in array (request key).');
         }
         ctx.stack.add(value);
+        reserveRequestKeyOutput(ctx, 1);
         let out = '[';
         for (let i = 0; i < value.length; i++) {
-          if (i > 0) out += ',';
-          out += requestKeyForImpl(value[i], ctx);
+          if (i > 0) {
+            reserveRequestKeyOutput(ctx, 1);
+            out += ',';
+          }
+          out += requestKeyForImpl(value[i], ctx, depth + 1);
         }
+        reserveRequestKeyOutput(ctx, 1);
         out += ']';
         ctx.stack.delete(value);
+        ctx.cache.set(value, out);
         return out;
       }
       // Plain object path. Reject objects whose prototype is not
@@ -356,9 +417,13 @@ function requestKeyForImpl(value: unknown, ctx: RequestKeyContext): string {
       // reading them so a getter is never accidentally invoked during
       // dep-key construction.
       const keys = Object.keys(value as object).sort();
+      reserveRequestKeyOutput(ctx, 1);
       let out = '{';
       for (let i = 0; i < keys.length; i++) {
-        if (i > 0) out += ',';
+        if (i > 0) {
+          reserveRequestKeyOutput(ctx, 1);
+          out += ',';
+        }
         const k = keys[i];
         const desc = Object.getOwnPropertyDescriptor(value as object, k);
         if (desc === undefined) {
@@ -371,14 +436,41 @@ function requestKeyForImpl(value: unknown, ctx: RequestKeyContext): string {
             `requestKeyFor: accessor property ${JSON.stringify(k)} is not supported in request keys; getters/setters must not run during dep-key construction.`,
           );
         }
-        out += `${JSON.stringify(k)}:${requestKeyForImpl((desc as { value: unknown }).value, ctx)}`;
+        const keyText = JSON.stringify(k);
+        reserveRequestKeyOutput(ctx, keyText.length + 1);
+        out += `${keyText}:${requestKeyForImpl((desc as { value: unknown }).value, ctx, depth + 1)}`;
       }
+      reserveRequestKeyOutput(ctx, 1);
       out += '}';
       ctx.stack.delete(value as object);
+      ctx.cache.set(value as object, out);
       return out;
     }
     default:
       throw new RequestKeyError(`requestKeyFor: unsupported value of type ${t}.`);
+  }
+}
+
+function noteRequestKeyNode(ctx: RequestKeyContext): void {
+  ctx.nodesVisited += 1;
+  if (ctx.nodesVisited > REQUEST_KEY_MAX_NODES) {
+    throw new RequestKeyError(
+      `requestKeyFor: request input exceeds the maximum traversal budget of ${REQUEST_KEY_MAX_NODES} nodes; reduce the filter, params, or requestConfig shape before passing it to a query hook.`,
+    );
+  }
+}
+
+function finalizePrimitiveRequestKey(ctx: RequestKeyContext, key: string): string {
+  reserveRequestKeyOutput(ctx, key.length);
+  return key;
+}
+
+function reserveRequestKeyOutput(ctx: RequestKeyContext, length: number): void {
+  ctx.outputLength += length;
+  if (ctx.outputLength > REQUEST_KEY_MAX_OUTPUT_LENGTH) {
+    throw new RequestKeyError(
+      `requestKeyFor: request input exceeds the maximum serialized key length of ${REQUEST_KEY_MAX_OUTPUT_LENGTH} characters; reduce repeated or oversized request data before passing it to a query hook.`,
+    );
   }
 }
 

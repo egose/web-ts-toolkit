@@ -40,7 +40,7 @@ const docsExamplesDir = path.resolve(packageRoot, 'test-docs-consumer', 'example
 const docsTsconfigDir = path.resolve(packageRoot, 'test-docs-consumer');
 const snippetsMappingPath = path.resolve(docsTsconfigDir, 'snippets-mapping.md');
 
-type BlockClassification = 'exact' | 'derived' | 'partial' | 'negative';
+type BlockClassification = 'exact' | 'scaffolded' | 'partial' | 'negative';
 
 type DocumentedBlock = {
   id: string;
@@ -108,8 +108,8 @@ function readMappedBlocks(): MappedBlock[] {
 
   return inventory[1]
     .split('\n')
-    .filter((line) => line.trim() && !line.startsWith('#'))
-    .map((line) => {
+    .filter((line: string) => line.trim() && !line.startsWith('#'))
+    .map((line: string) => {
       const [source, ordinalText, hash, classificationText, fixtureText, ...extra] = line.split('\t');
       const classification = classificationText as BlockClassification;
       const ordinal = Number(ordinalText);
@@ -118,7 +118,7 @@ function readMappedBlocks(): MappedBlock[] {
         !source ||
         !Number.isInteger(ordinal) ||
         !/^[a-f0-9]{64}$/.test(hash ?? '') ||
-        !['exact', 'derived', 'partial', 'negative'].includes(classification) ||
+        !['exact', 'scaffolded', 'partial', 'negative'].includes(classification) ||
         !fixtureText
       ) {
         throw new Error(`Invalid docs-block-map row: ${line}`);
@@ -132,26 +132,43 @@ function readMappedBlocks(): MappedBlock[] {
     });
 }
 
-function executableSourceFragments(content: string): string[] {
-  const withoutComments = content.replace(/\/\/.*$/gm, '');
-  const importFragments = [
-    ...withoutComments.matchAll(/import\s+(?:type\s+)?{([\s\S]*?)}\s+from\s+(['"][^'"]+['"]);?/g),
-  ].flatMap(([, names, moduleName]) => [
-    ...names
-      .split(',')
-      .map((name) => name.trim().split(/\s+as\s+/)[0])
-      .filter(Boolean),
-    moduleName,
-  ]);
-  const body = withoutComments.replace(/import\s+(?:type\s+)?{[\s\S]*?}\s+from\s+(['"][^'"]+['"]);?/g, '');
+function extractScaffoldedBlock(fixtureContent: string, blockId: string): string {
+  const normalized = fixtureContent.replace(/\r\n/g, '\n');
+  const startMarker = `// docs-block-start: ${blockId}`;
+  const endMarker = `// docs-block-end: ${blockId}`;
+  const startIndex = normalized.indexOf(startMarker);
+  const endIndex = normalized.indexOf(endMarker);
 
-  return [
-    ...importFragments.map((fragment) => fragment.replace(/\s+/g, '')),
-    ...body
-      .split('\n')
-      .map((line) => line.replace(/\s+/g, ''))
-      .filter((line) => line.length > 1 && line !== '{' && line !== '}' && line !== ');' && line !== '};'),
-  ];
+  if (startIndex === -1 || endIndex === -1 || endIndex <= startIndex) {
+    throw new Error(`Missing scaffold markers for ${blockId}`);
+  }
+
+  return normalized
+    .slice(startIndex + startMarker.length, endIndex)
+    .replace(/^\n/, '')
+    .replace(/\n[ \t]*$/, '');
+}
+
+function stripSharedIndentation(content: string): string {
+  const lines = content.replace(/\r\n/g, '\n').split('\n');
+  const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
+
+  if (nonEmptyLines.length === 0) {
+    return lines.join('\n');
+  }
+
+  const sharedIndent = Math.min(
+    ...nonEmptyLines.map((line) => {
+      const indent = line.match(/^[ \t]*/);
+      return indent?.[0].length ?? 0;
+    }),
+  );
+
+  if (sharedIndent === 0) {
+    return lines.join('\n');
+  }
+
+  return lines.map((line) => line.slice(sharedIndent)).join('\n');
 }
 
 afterAll(() => {
@@ -161,7 +178,7 @@ afterAll(() => {
 describe('ARR-10/ARR-11 documentation examples (README + website) compile against the packed artifact', () => {
   it('maps every actual TypeScript documentation block in the README and website docs to a fixture or an explicit partial/negative classification', () => {
     expect(existsSync(docsExamplesDir)).toBe(true);
-    const fixtures = readdirSync(docsExamplesDir).filter((f) => /\.(ts|tsx)$/.test(f));
+    const fixtures = readdirSync(docsExamplesDir).filter((f: string) => /\.(ts|tsx)$/.test(f));
     expect(fixtures.length).toBeGreaterThan(0);
     expect(existsSync(snippetsMappingPath)).toBe(true);
 
@@ -189,7 +206,7 @@ describe('ARR-10/ARR-11 documentation examples (README + website) compile agains
 
     const actualById = new Map(actualBlocks.map((block) => [block.id, block]));
     for (const mapped of mappedBlocks) {
-      if (mapped.classification === 'exact' || mapped.classification === 'derived') {
+      if (mapped.classification === 'exact' || mapped.classification === 'scaffolded') {
         expect(mapped.fixture, `${mapped.id} must name its compiled fixture`).toBeDefined();
       }
       if (mapped.fixture) {
@@ -200,13 +217,12 @@ describe('ARR-10/ARR-11 documentation examples (README + website) compile agains
           expect(fixtureContent.trim(), `${mapped.id} exact fixture drifted`).toBe(
             actualById.get(mapped.id)?.content.trim(),
           );
-        } else if (mapped.classification === 'derived') {
+        } else if (mapped.classification === 'scaffolded') {
           const sourceBlock = actualById.get(mapped.id);
-          const fixtureWithoutWhitespace = fixtureContent.replace(/\/\/.*$/gm, '').replace(/\s+/g, '');
-          const missingLines = executableSourceFragments(sourceBlock?.content ?? '').filter(
-            (line) => !fixtureWithoutWhitespace.includes(line),
-          );
-          expect(missingLines, `${mapped.id} has executable lines absent from ${mapped.fixture}`).toEqual([]);
+          expect(
+            stripSharedIndentation(extractScaffoldedBlock(fixtureContent, mapped.id)),
+            `${mapped.id} scaffolded fixture drifted`,
+          ).toBe(stripSharedIndentation(sourceBlock?.content ?? ''));
         }
       }
     }

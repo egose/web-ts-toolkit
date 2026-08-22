@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 /**
  * ARR-11: website quick-start + useCreate/useDistinct/website Listing
  * examples (#2 OrganizationList block, #6 useDistinct, #7 useCreate with plain
@@ -65,7 +66,7 @@ const {
 void adapter;
 void sharedAdapter;
 
-// website block #2 — full OrganizationList example
+// docs-block-start: website/docs/packages/access-router-react.md#2
 function OrganizationList() {
   const { data, isLoading, error } = useList({
     listParams: { pageSize: 20 },
@@ -82,39 +83,38 @@ function OrganizationList() {
     </ul>
   );
 }
+// docs-block-end: website/docs/packages/access-router-react.md#2
 
 void OrganizationList;
 void useRead;
 void useUpdate;
 void useDelete;
 
-// website block #7 — useCreate (plain array select)
-function CreateExample() {
+async function CreateExample() {
+  // docs-block-start: website/docs/packages/access-router-react.md#7
   const { data, isPending, error, mutate, reset } = useCreate({
     advanced: true,
     select: ['_id', 'name'],
   });
 
-  async function run() {
-    await mutate({ name: 'Northwind Labs' });
-  }
+  await mutate({ name: 'Northwind Labs' });
+  // docs-block-end: website/docs/packages/access-router-react.md#7
 
   void data;
   void isPending;
   void error;
   void reset;
-  void run;
-  return null;
 }
 
 void CreateExample;
 
-// website block #6 — useDistinct (plain)
 function DistinctExample() {
+  // docs-block-start: website/docs/packages/access-router-react.md#6
   const { data, isLoading, error, query, refetch, reset } = useDistinct({
     field: 'status',
     conditions: { organizationId: 'org_123' },
   });
+  // docs-block-end: website/docs/packages/access-router-react.md#6
 
   void data;
   void isLoading;

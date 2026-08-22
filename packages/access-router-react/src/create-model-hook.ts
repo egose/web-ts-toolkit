@@ -44,6 +44,7 @@ import {
   useMountRef,
   composeAbortSignals,
   mergeRequestConfig,
+  requestConfigKeyInput,
 } from './fetch';
 
 // ── Internal helpers ──
@@ -55,6 +56,46 @@ import {
  * preserved by leaving the success branch unchanged.
  */
 type SuccessResultPayload<T1, T2, TError> = Extract<Response<T1, T2, TError>, { success: true }>;
+
+type ServiceDocument<TService extends ModelService<Document, object, object, object>> =
+  TService extends ModelService<infer TDocument, object, object, object> ? TDocument : never;
+
+type ServiceCreateInput<TService extends ModelService<Document, object, object, object>> =
+  TService extends ModelService<Document, infer TInput, object, object> ? TInput : never;
+
+type ServiceUpdateInput<TService extends ModelService<Document, object, object, object>> =
+  TService extends ModelService<Document, object, infer TInput, object> ? TInput : never;
+
+type ServiceUpsertInput<TService extends ModelService<Document, object, object, object>> =
+  TService extends ModelService<Document, object, object, infer TInput> ? TInput : never;
+
+type SingleCreateInput<TInput extends object> = TInput extends readonly unknown[] ? never : TInput;
+
+type CreateModelHooksResult<
+  T extends Document,
+  TCreateInput extends object,
+  TUpdateInput extends object,
+  TUpsertInput extends object,
+> = {
+  useRead: <TSelect extends Projection = Projection>(
+    options?: UseReadQueryOptions<T, TSelect>,
+  ) => UseReadQueryResult<T, TSelect>;
+  useList: <TSelect extends Projection = Projection>(
+    options?: UseListQueryOptions<T, TSelect>,
+  ) => UseListQueryResult<T, TSelect>;
+  useCreate: <TSelect extends Projection = Projection>(
+    options?: UseCreateMutateOptions<T, TSelect>,
+  ) => UseCreateMutateResult<T, TSelect, SingleCreateInput<TCreateInput>>;
+  useUpdate: <TSelect extends Projection = Projection>(
+    options?: UseUpdateMutateOptions<T, TSelect>,
+  ) => UseUpdateMutateResult<T, TSelect, TUpdateInput>;
+  useUpsert: <TSelect extends Projection = Projection>(
+    options?: UseUpsertMutateOptions<T, TSelect>,
+  ) => UseUpsertMutateResult<T, TSelect, TUpsertInput>;
+  useDelete: (options?: UseDeleteMutateOptions) => UseDeleteMutateResult;
+  useCount: (options?: UseCountQueryOptions<T>) => UseCountQueryResult;
+  useDistinct: (options: UseDistinctQueryOptions<T>) => UseDistinctQueryResult;
+};
 
 /**
  * Single typed normalization boundary for every query and mutation
@@ -124,6 +165,30 @@ function useEventCallback<A extends unknown[], R>(cb: ((...args: A) => R) | unde
   return invoker;
 }
 
+function useLatestRef<T>(value: T) {
+  const ref = useRef(value);
+  useLayoutEffect(() => {
+    ref.current = value;
+  }, [value]);
+  return ref;
+}
+
+function reportObserverError(error: unknown) {
+  queueMicrotask(() => {
+    throw error;
+  });
+}
+
+function runObserverSequence(invocations: Array<() => void>) {
+  for (const invoke of invocations) {
+    try {
+      invoke();
+    } catch (error) {
+      reportObserverError(error);
+    }
+  }
+}
+
 interface AutoQueryConfig<R> {
   /**
    * Builds the request promise for a query invocation. The hook calls it
@@ -137,6 +202,7 @@ interface AutoQueryConfig<R> {
   applyResult: (res: R) => void;
   shouldFetch: boolean;
   deps: unknown[];
+  getRequestSignal?: () => AbortSignal | undefined;
   onSuccess?: (result: R) => void;
   onError?: (error: ServiceError) => void;
   onSettled?: (result: R | null, error: ServiceError | null) => void;
@@ -208,19 +274,20 @@ interface AutoQueryConfig<R> {
  *   never reaches `error` or `onError` because the catch path branches on
  *   `signal.aborted`, not on `instanceof DOMException`.
  *
- * Callback observers (ARR-03 requirement 5 + deferred decision 1):
- *   `onSuccess`/`onError`/`onSettled` are invoked inside a try/catch. A
- *   thrown callback is rethrown asynchronously via `queueMicrotask` so it
- *   surfaces as an uncaught microtask error without converting a successful
- *   request into a request failure or mutating hook-level `error`. The
- *   promise returned by `query()`/`refetch()` resolves/rejects based on
- *   the request, not on whether a callback threw.
+ * Callback observers (ARR-H05):
+ *   `onSuccess`/`onError`/`onSettled` are isolated observers attempted in
+ *   deterministic order. A thrown callback is rethrown asynchronously via
+ *   `queueMicrotask` so it surfaces as an uncaught microtask error without
+ *   converting a successful request into a request failure or mutating
+ *   hook-level `error`. The promise returned by `query()`/`refetch()`
+ *   resolves/rejects based on the request, not on whether a callback threw.
  */
 function useAutoQuery<R>({
   doFetch,
   applyResult,
   shouldFetch,
   deps,
+  getRequestSignal,
   onSuccess,
   onError,
   onSettled,
@@ -255,26 +322,27 @@ function useAutoQuery<R>({
   // data/error through to the hook surface.
   const ownerIdRef = useRef(0);
 
+  const createAbortScope = useCallback(
+    (callerSignal?: AbortSignal) => {
+      const controller = new AbortController();
+      manager.replace(controller);
+      const composed = composeAbortSignals(controller.signal, getRequestSignal?.(), callerSignal);
+      return {
+        controller,
+        effectiveSignal: composed.signal,
+        release: composed.release,
+      };
+    },
+    [manager, getRequestSignal],
+  );
+
   const fireCallbacksSafely = useCallback(
     (settle: { result: R } | { error: ServiceError }) => {
-      try {
-        if ('result' in settle) {
-          onSuccess?.(settle.result);
-          onSettled?.(settle.result, null);
-        } else {
-          onError?.(settle.error);
-          onSettled?.(null, settle.error);
-        }
-      } catch (cbErr) {
-        // Callbacks are observers. A thrown callback does not convert a
-        // successful request into a request failure or mutate hook-level
-        // `error`. Re-throw asynchronously so the exception still surfaces
-        // (it becomes an uncaught microtask error) without affecting the
-        // returned promise settlement.
-        queueMicrotask(() => {
-          throw cbErr;
-        });
+      if ('result' in settle) {
+        runObserverSequence([() => onSuccess?.(settle.result), () => onSettled?.(settle.result, null)]);
+        return;
       }
+      runObserverSequence([() => onError?.(settle.error), () => onSettled?.(null, settle.error)]);
     },
     [onSuccess, onError, onSettled],
   );
@@ -300,19 +368,22 @@ function useAutoQuery<R>({
    *      invocation is responsible for converging loading/fetching.
    */
   const runWithCallbacks = useCallback(
-    async (controller: AbortController, doFetchOverride: (signal?: AbortSignal) => Promise<R>): Promise<R> => {
-      const signal = controller.signal;
+    async (
+      abortScope: { controller: AbortController; effectiveSignal: AbortSignal; release: () => void },
+      doFetchOverride: (signal?: AbortSignal) => Promise<R>,
+    ): Promise<R> => {
+      const { effectiveSignal, release } = abortScope;
       const myId = ++ownerIdRef.current;
       setIsFetching(true);
       setError(null);
       if (!hasDataRef.current) setIsLoading(true);
       try {
-        const res = await doFetchOverride(signal);
+        const res = await doFetchOverride(effectiveSignal);
         if (myId !== ownerIdRef.current) {
           // A newer query owns state. Leave loading/fetching/error to it.
           return res;
         }
-        if (signal.aborted) {
+        if (effectiveSignal.aborted) {
           // Abort is authoritative for cancellation. If the hook is still
           // mounted, converge loading/fetching flags. No `error`, no
           // callbacks: cancellation is not a request error (ARR-04 req 3,
@@ -339,7 +410,7 @@ function useAutoQuery<R>({
           // Replaced: the newer invocation owns error/loading/fetching.
           throw err;
         }
-        if (signal.aborted) {
+        if (effectiveSignal.aborted) {
           // Abort is authoritative even when the transport throws a
           // non-DOM cancellation object (e.g. axios `CanceledError`,
           // `Error('Canceled')` with `code: 'ERR_CANCELED'`, or any other
@@ -367,6 +438,8 @@ function useAutoQuery<R>({
         // terminal path, mirroring the `applyResult` clear on success.
         onFailed?.();
         throw err;
+      } finally {
+        release();
       }
     },
     [applyResult, fireCallbacksSafely, mountRef, onFailed, onAborted],
@@ -381,6 +454,7 @@ function useAutoQuery<R>({
       // request settles only after the transport observes the abort
       // (ARR-04 req 2). `setState(false)` is idempotent; the writes are
       // coalesced into the current render batch.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(false);
       setIsFetching(false);
       // ARR-08 req 1: ancillary state captured at a prior request start
@@ -391,14 +465,13 @@ function useAutoQuery<R>({
       return;
     }
     setIsLoading(!hasDataRef.current);
-    const controller = new AbortController();
-    manager.replace(controller);
+    const abortScope = createAbortScope();
 
     // `runWithCallbacks` handles `setError`, `setIsLoading`,
     // `setIsFetching`, and all callbacks internally; the trailing `.catch`
     // only suppresses the unhandled-promise-rejection warning so the
     // rejection does not bubble past the effect.
-    runWithCallbacks(controller, doFetch).catch(() => {
+    runWithCallbacks(abortScope, doFetch).catch(() => {
       /* handled inside runWithCallbacks; suppress unhandled rejection */
     });
 
@@ -408,7 +481,7 @@ function useAutoQuery<R>({
       // aborted branch (or be replaced by a newer invocation which owns
       // them). We do NOT mutate `mountRef.current` here; `useMountRef`'s
       // own `[]` cleanup is the sole owner of that flag.
-      controller.abort();
+      abortScope.controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
@@ -428,36 +501,20 @@ function useAutoQuery<R>({
    * `query()` without `await`; an awaiter's `await` still throws
    * because `await` observes the returned promise's settled state.
    *
-   * Caller cancellation (ARR-05 req 4): if `callerSignal` is supplied,
-   * it is composed with the hook's internal controller signal so
-   * aborting either source cancels the effective request. The internal
-   * controller is still created and `manager.replace`'d so subsequent
-   * dependency changes / `refetch()` / `query()` invocations replace the
-   * in-flight request the same way they would without a caller signal —
-   * manual query callers do not lose hook-owned cancellation by
-   * passing their own signal.
+   * Query cancellation is centralized here: every invocation composes the
+   * hook-owned controller, the current `requestConfig.signal`, and any
+   * per-call `QueryCallOptions.signal` into one effective signal.
    */
   const query = useCallback(
     (doFetchOverride: (signal?: AbortSignal) => Promise<R>, callerSignal?: AbortSignal): Promise<R> => {
-      const controller = new AbortController();
-      manager.replace(controller);
-      // Compose caller + hook signals (ARR-05 req 4). The composition
-      // helper returns a control object whose `release()` MUST be invoked
-      // once the request settles to detach listeners from a long-lived
-      // caller signal; the `.finally` below guarantees release on success,
-      // failure, and abort paths. When `callerSignal` is missing the
-      // composition is a no-op and `release()` is a safe no-op too.
-      const composed = callerSignal
-        ? composeAbortSignals(callerSignal, controller.signal)
-        : { signal: controller.signal, release: () => {} };
-      const effectiveSignal = composed.signal;
-      const p = runWithCallbacks(controller, () => doFetchOverride(effectiveSignal));
-      p.finally(() => composed.release()).catch(() => {
+      const abortScope = createAbortScope(callerSignal);
+      const p = runWithCallbacks(abortScope, doFetchOverride);
+      p.catch(() => {
         /* handled inside runWithCallbacks; suppress unhandled rejection */
       });
       return p;
     },
-    [runWithCallbacks, manager],
+    [createAbortScope, runWithCallbacks],
   );
 
   /**
@@ -469,20 +526,24 @@ function useAutoQuery<R>({
    * leaking an unhandled rejection.
    */
   const refetch = useCallback((): Promise<R> => {
-    const controller = new AbortController();
-    manager.replace(controller);
-    const p = runWithCallbacks(controller, doFetch);
+    const abortScope = createAbortScope();
+    const p = runWithCallbacks(abortScope, doFetch);
     p.catch(() => {
       /* handled inside runWithCallbacks; suppress unhandled rejection */
     });
     return p;
-  }, [runWithCallbacks, manager, doFetch]);
+  }, [createAbortScope, runWithCallbacks, doFetch]);
 
   const resetError = useCallback(() => {
     setError(null);
   }, []);
 
   const resetLoading = useCallback(() => {
+    // Query reset is an authoritative state clear, not transport
+    // cancellation. Bump the owner token so any already-running request
+    // loses its right to publish state or callbacks when it later settles,
+    // then converge the exposed hook activity flags immediately.
+    ownerIdRef.current += 1;
     setIsLoading(false);
     setIsFetching(false);
     hasDataRef.current = false;
@@ -601,13 +662,17 @@ function useAutoQuery<R>({
 function useMutation<A extends unknown[], R, D>(
   execute: (...args: A) => Promise<R>,
   applyData: (result: R) => D,
-  options?: { onSuccess?: (result: R) => void; onSettled?: (result: R | null, error: ServiceError | null) => void },
+  options?: {
+    onSuccess?: (result: R) => void;
+    onError?: (error: ServiceError) => void;
+    onSettled?: (result: R | null, error: ServiceError | null) => void;
+  },
 ) {
   const [data, setData] = useState<D | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<ServiceError | null>(null);
   const mountRef = useMountRef();
-  const { onSuccess, onSettled } = options ?? {};
+  const { onSuccess, onError, onSettled } = options ?? {};
   // `activeCountRef` tracks how many invocations of `executeMutate` are
   // in flight at once. `setIsPending(false)` only fires when the count
   // transitions back to zero, so overlapping mutations keep `isPending`
@@ -645,20 +710,10 @@ function useMutation<A extends unknown[], R, D>(
         const result = await execute(...args);
         if (mountRef.current) {
           // Per-invocation observers always fire, regardless of
-          // latest-invocation claim (Task ARR-07 req 3). A thrown
-          // callback is rethrown asynchronously so it surfaces
-          // without converting a successful request into a request
-          // failure or mutating hook-level `error` — the same
-          // observer-isolation contract `useAutoQuery.fireCallbacksSafely`
-          // applies (deferred decision 1).
-          try {
-            onSuccess?.(result);
-            onSettled?.(result, null);
-          } catch (cbErr) {
-            queueMicrotask(() => {
-              throw cbErr;
-            });
-          }
+          // latest-invocation claim (Task ARR-07 req 3). Observer
+          // failures are reported asynchronously without changing the
+          // request result or skipping later observers.
+          runObserverSequence([() => onSuccess?.(result), () => onSettled?.(result, null)]);
           // Latest-invocation-wins for the state write (Task ARR-07
           // req 2). `myId === latestIdRef.current` is the gate: a
           // stale invocation that settled after a newer one started
@@ -674,21 +729,10 @@ function useMutation<A extends unknown[], R, D>(
       } catch (err) {
         const svcErr = err as ServiceError;
         if (mountRef.current) {
-          // Per-invocation observer (Task ARR-07 req 3). `onError`
-          // is NOT in `useMutation`'s options on purpose: the
-          // wrapper at the hook factory (`useCreate.mutate`,
-          // `useUpdate.mutate`, ...) owns `onError` so it fires
-          // exactly once even when `executeMutate` rethrows for the
-          // consumer `await` (ARR-02's contract). `onSettled` lives
-          // here as the invocation-specific observer alongside
-          // `onSuccess`.
-          try {
-            onSettled?.(null, svcErr);
-          } catch (cbErr) {
-            queueMicrotask(() => {
-              throw cbErr;
-            });
-          }
+          // Per-invocation observers fire from the shared mutation
+          // lifecycle too, so create/update/upsert/delete share the same
+          // ordering, mount gate, and isolation boundary.
+          runObserverSequence([() => onError?.(svcErr), () => onSettled?.(null, svcErr)]);
           if (myId === latestIdRef.current) {
             setError(svcErr);
           }
@@ -707,7 +751,7 @@ function useMutation<A extends unknown[], R, D>(
         }
       }
     },
-    [execute, applyData, mountRef, onSuccess, onSettled],
+    [execute, applyData, mountRef, onSuccess, onError, onSettled],
   );
 
   /**
@@ -748,7 +792,20 @@ function useMutation<A extends unknown[], R, D>(
  * @example
  * const { useList, useCreate } = createModelHooks({ modelService });
  */
-export function createModelHooks<T extends Document>(config: { modelService: ModelService<T> }) {
+export function createModelHooks<TService extends ModelService<Document, object, object, object>>(config: {
+  modelService: TService;
+}): CreateModelHooksResult<
+  ServiceDocument<TService>,
+  ServiceCreateInput<TService>,
+  ServiceUpdateInput<TService>,
+  ServiceUpsertInput<TService>
+>;
+export function createModelHooks<
+  T extends Document,
+  TCreateInput extends object,
+  TUpdateInput extends object,
+  TUpsertInput extends object,
+>(config: { modelService: ModelService<T, TCreateInput, TUpdateInput, TUpsertInput> }) {
   const { modelService } = config;
 
   // ── Query hooks ──
@@ -801,6 +858,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     type ResM = ProjectedModelResponse<T, TSelect>;
     type DataShape = ProjectedShape<T, TSelect>;
     const [data, setData] = useState<DataShape | null>(initialData as DataShape | null);
+    const requestConfigRef = useLatestRef(requestConfig);
 
     const applyResult = useCallback((res: ResM) => {
       setData(res.data as DataShape);
@@ -832,7 +890,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
         tasks,
         basicOptions,
         advancedOptions,
-        requestConfig,
+        requestConfig: requestConfigKeyInput(requestConfig),
       });
     } catch (e) {
       if (e instanceof RequestKeyError) {
@@ -858,7 +916,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
         // of `requestConfig` so the caller's config object, its headers,
         // and any other fields retain identity/content and are not
         // mutated.
-        const forwardedConfig = mergeRequestConfig(requestConfig, signal);
+        const forwardedConfig = mergeRequestConfig(requestConfigRef.current, signal);
         if (advanced) {
           const raw = (await modelService
             .readAdvanced(
@@ -911,6 +969,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     const onSuccessStable = useEventCallback<[ResM], void>(onSuccess);
     const onErrorStable = useEventCallback<[ServiceError], void>(onError);
     const onSettledStable = useEventCallback<[ResM | null, ServiceError | null], void>(onSettled);
+    const getRequestSignal = useCallback(() => requestConfigRef.current?.signal, [requestConfigRef]);
 
     const {
       isLoading,
@@ -925,6 +984,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       applyResult,
       shouldFetch,
       deps: [id, enabled, advanced, requestKey],
+      getRequestSignal,
       onSuccess: onSuccessStable,
       onError: onErrorStable,
       onSettled: onSettledStable,
@@ -983,6 +1043,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     type ResL = ProjectedListModelResponse<T, TSelect>;
     type DataArray = ProjectedShapeArray<T, TSelect>;
     const [data, setData] = useState<DataArray>((initialData as DataArray | undefined) ?? []);
+    const requestConfigRef = useLatestRef(requestConfig);
     const [previousData, setPreviousData] = useState<DataArray | undefined>(undefined);
     const [totalCount, setTotalCount] = useState(0);
     const latestDataRef = useRef(data);
@@ -1059,7 +1120,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
         tasks,
         basicOptions,
         advancedOptions,
-        requestConfig,
+        requestConfig: requestConfigKeyInput(requestConfig),
       });
     } catch (e) {
       if (e instanceof RequestKeyError) {
@@ -1090,12 +1151,13 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
         // `baseFetch` forwards the signal via a fresh shallow copy so
         // the caller's `requestConfig`, headers, and other fields are
         // not mutated.
-        const forwardedConfig = mergeRequestConfig(requestConfig, signal);
+        const forwardedConfig = mergeRequestConfig(requestConfigRef.current, signal);
+        const effectiveArgs = args ?? listParams;
         if (advanced) {
           const raw = (await modelService
             .listAdvanced(
               (filter ?? {}) as FilterQuery<T>,
-              { sort, select, populate, include, tasks, ...args } as ListAdvancedArgs<Projection>,
+              { sort, select, populate, include, tasks, ...effectiveArgs } as ListAdvancedArgs<Projection>,
               advancedOptions,
               forwardedConfig,
             )
@@ -1103,9 +1165,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
           assertSuccess(raw);
           return raw;
         }
-        const raw = (await modelService
-          .list(args ?? listParams, basicOptions, forwardedConfig)
-          .exec()) as unknown as ResL;
+        const raw = (await modelService.list(effectiveArgs, basicOptions, forwardedConfig).exec()) as unknown as ResL;
         assertSuccess(raw);
         return raw;
       },
@@ -1126,7 +1186,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       // cannot see that derivation, so the missing-deps warning is
       // silenced here intentionally.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [modelService, advanced, filterKey, sortKey, requestKey, keepPreviousData, latestDataRef],
+      [modelService, advanced, listParamsKey, filterKey, sortKey, requestKey, keepPreviousData, latestDataRef],
     );
 
     // `listParams` is captured by the closure but only its structural
@@ -1146,6 +1206,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     const onSuccessStable = useEventCallback<[ResL], void>(onSuccess);
     const onErrorStable = useEventCallback<[ServiceError], void>(onError);
     const onSettledStable = useEventCallback<[ResL | null, ServiceError | null], void>(onSettled);
+    const getRequestSignal = useCallback(() => requestConfigRef.current?.signal, [requestConfigRef]);
 
     const {
       isLoading,
@@ -1160,6 +1221,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       applyResult,
       shouldFetch,
       deps: [listParamsKey, filterKey, advanced, enabled, sortKey, requestKey],
+      getRequestSignal,
       onSuccess: onSuccessStable,
       onError: onErrorStable,
       onSettled: onSettledStable,
@@ -1209,7 +1271,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
 
   function useCreate<TSelect extends Projection = Projection>(
     options: UseCreateMutateOptions<T, TSelect> = {},
-  ): UseCreateMutateResult<T, TSelect> {
+  ): UseCreateMutateResult<T, TSelect, SingleCreateInput<TCreateInput>> {
     const {
       advanced,
       select,
@@ -1222,16 +1284,16 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       onError,
       onSettled,
     } = options;
-    const mountRef = useMountRef();
     // ARR-09: same projection threading rationale as `useRead`. `ResM`
     // is the projected `ModelResponse<T, S>` (or full `ModelResponse<T>`
     // when no literal `select` was supplied); `DataShape` is the
     // projected single-model shape used for hook-level `data` state.
+    type CreateInput = SingleCreateInput<TCreateInput>;
     type ResM = ProjectedModelResponse<T, TSelect>;
     type DataShape = ProjectedShape<T, TSelect>;
 
     const execute = useCallback(
-      async (createData: object): Promise<ResM> => {
+      async (createData: CreateInput): Promise<ResM> => {
         let res: ResM;
         if (advanced) {
           res = (await modelService
@@ -1255,7 +1317,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       // documented pattern for `createModelHooks`. The same pattern
       // is used in `useRead.useList.useCount.useDistinct` query hooks.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig, mountRef],
+      [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig],
     );
 
     // ARR-07: `data` is owned by `useMutation` so the
@@ -1277,40 +1339,30 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       error,
       executeMutate,
       reset: resetMutation,
-    } = useMutation<[object], ResM, DataShape>(
-      execute as (...args: [object]) => Promise<ResM>,
+    } = useMutation<[CreateInput], ResM, DataShape>(
+      execute as (...args: [CreateInput]) => Promise<ResM>,
       (res: ResM) => res.data as DataShape,
-      { onSuccess, onSettled },
+      { onSuccess, onError, onSettled },
     );
 
     const mutate = useCallback(
-      async (createData: object): Promise<ResM> => {
-        try {
-          return await executeMutate(createData);
-        } catch (err) {
-          // `onError` is the only mutation callback not owned by
-          // `useMutation.executeMutate`'s mountRef gate (ARR-02 placed it
-          // here so it fires exactly once even when `executeMutate` rethrows
-          // for the consumer `await`). ARR-04 req 4: after unmount the
-          // mutation must not call any callback, so gate the wrapper's
-          // `onError` on `mountRef.current` too.
-          if (mountRef.current) onError?.(err as ServiceError);
-          throw err;
+      async (createData: CreateInput): Promise<ResM> => {
+        if (Array.isArray(createData)) {
+          throw new TypeError(
+            'useCreate.mutate is single-record-only. Array input is not supported by the hook; call modelService.create(...) directly for bulk create.',
+          );
         }
+        return executeMutate(createData);
       },
-      [executeMutate, onError, mountRef],
+      [executeMutate],
     );
 
-    const reset = useCallback(() => {
-      resetMutation();
-    }, [resetMutation]);
-
-    return { data, isPending, error, mutate, reset };
+    return { data, isPending, error, mutate, reset: resetMutation };
   }
 
   function useUpdate<TSelect extends Projection = Projection>(
     options: UseUpdateMutateOptions<T, TSelect> = {},
-  ): UseUpdateMutateResult<T, TSelect> {
+  ): UseUpdateMutateResult<T, TSelect, TUpdateInput> {
     const {
       advanced,
       select,
@@ -1323,13 +1375,13 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       onError,
       onSettled,
     } = options;
-    const mountRef = useMountRef();
     // ARR-09: see `useCreate`.
+    type UpdateInput = TUpdateInput;
     type ResM = ProjectedModelResponse<T, TSelect>;
     type DataShape = ProjectedShape<T, TSelect>;
 
     const execute = useCallback(
-      async (updateId: string, updateData: object): Promise<ResM> => {
+      async (updateId: string, updateData: UpdateInput): Promise<ResM> => {
         let res: ResM;
         if (advanced) {
           res = (await modelService
@@ -1356,7 +1408,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       // documented pattern for `createModelHooks`. The same pattern
       // is used in `useRead.useList.useCount.useDistinct` query hooks.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig, mountRef],
+      [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig],
     );
 
     // ARR-07: see `useCreate` — `data` is owned by `useMutation` so
@@ -1369,36 +1421,18 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       error,
       executeMutate,
       reset: resetMutation,
-    } = useMutation<[string, object], ResM, DataShape>(
-      execute as (...args: [string, object]) => Promise<ResM>,
+    } = useMutation<[string, UpdateInput], ResM, DataShape>(
+      execute as (...args: [string, UpdateInput]) => Promise<ResM>,
       (res: ResM) => res.data as DataShape,
-      { onSuccess, onSettled },
+      { onSuccess, onError, onSettled },
     );
 
-    const mutate = useCallback(
-      async (updateId: string, updateData: object): Promise<ResM> => {
-        try {
-          return await executeMutate(updateId, updateData);
-        } catch (err) {
-          // See useCreate.mutate: ARR-04 req 4 gates the wrapper's
-          // `onError` on `mountRef.current`.
-          if (mountRef.current) onError?.(err as ServiceError);
-          throw err;
-        }
-      },
-      [executeMutate, onError, mountRef],
-    );
-
-    const reset = useCallback(() => {
-      resetMutation();
-    }, [resetMutation]);
-
-    return { data, isPending, error, mutate, reset };
+    return { data, isPending, error, mutate: executeMutate, reset: resetMutation };
   }
 
   function useUpsert<TSelect extends Projection = Projection>(
     options: UseUpsertMutateOptions<T, TSelect> = {},
-  ): UseUpsertMutateResult<T, TSelect> {
+  ): UseUpsertMutateResult<T, TSelect, TUpsertInput> {
     const {
       advanced,
       select,
@@ -1411,13 +1445,13 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       onError,
       onSettled,
     } = options;
-    const mountRef = useMountRef();
     // ARR-09: see `useCreate`.
+    type UpsertInput = TUpsertInput;
     type ResM = ProjectedModelResponse<T, TSelect>;
     type DataShape = ProjectedShape<T, TSelect>;
 
     const execute = useCallback(
-      async (upsertData: object): Promise<ResM> => {
+      async (upsertData: UpsertInput): Promise<ResM> => {
         let res: ResM;
         if (advanced) {
           res = (await modelService
@@ -1441,7 +1475,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       // documented pattern for `createModelHooks`. The same pattern
       // is used in `useRead.useList.useCount.useDistinct` query hooks.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig, mountRef],
+      [modelService, advanced, select, populate, tasks, basicOptions, advancedOptions, requestConfig],
     );
 
     // ARR-07: see `useCreate` — `data` is owned by `useMutation` so
@@ -1454,42 +1488,17 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       error,
       executeMutate,
       reset: resetMutation,
-    } = useMutation<[object], ResM, DataShape>(
-      execute as (...args: [object]) => Promise<ResM>,
+    } = useMutation<[UpsertInput], ResM, DataShape>(
+      execute as (...args: [UpsertInput]) => Promise<ResM>,
       (res: ResM) => res.data as DataShape,
-      { onSuccess, onSettled },
+      { onSuccess, onError, onSettled },
     );
 
-    const mutate = useCallback(
-      async (upsertData: object): Promise<ResM> => {
-        try {
-          return await executeMutate(upsertData);
-        } catch (err) {
-          // See useCreate.mutate: ARR-04 req 4 gates the wrapper's
-          // `onError` on `mountRef.current`.
-          if (mountRef.current) onError?.(err as ServiceError);
-          throw err;
-        }
-      },
-      [executeMutate, onError, mountRef],
-    );
-
-    const reset = useCallback(() => {
-      resetMutation();
-    }, [resetMutation]);
-
-    return { data, isPending, error, mutate, reset };
+    return { data, isPending, error, mutate: executeMutate, reset: resetMutation };
   }
 
   function useDelete(options: UseDeleteMutateOptions = {}): UseDeleteMutateResult {
     const { requestConfig, onSuccess, onError, onSettled } = options;
-    // `useDelete` has no hook-level `data` state (delete returns a string
-    // the consumer can read off the resolved mutation), but it still
-    // needs `mountRef` to gate the `mutate` wrapper's `onError` after
-    // unmount (ARR-04 req 4) so the public `onError` callback is not
-    // invoked for a mutation that settles post-unmount.
-    const mountRef = useMountRef();
-
     const execute = useCallback(
       async (deleteId: string): Promise<Response<string>> => {
         const res = (await modelService.delete(deleteId, requestConfig).exec()) as unknown as Response<string>;
@@ -1516,28 +1525,10 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     } = useMutation<[string], Response<string>, null>(
       execute as (...args: [string]) => Promise<Response<string>>,
       () => null,
-      { onSuccess, onSettled },
+      { onSuccess, onError, onSettled },
     );
 
-    const mutate = useCallback(
-      async (deleteId: string): Promise<Response<string>> => {
-        try {
-          return await executeMutate(deleteId);
-        } catch (err) {
-          // See useCreate.mutate: ARR-04 req 4 gates the wrapper's
-          // `onError` on `mountRef.current`.
-          if (mountRef.current) onError?.(err as ServiceError);
-          throw err;
-        }
-      },
-      [executeMutate, onError, mountRef],
-    );
-
-    const reset = useCallback(() => {
-      resetMutation();
-    }, [resetMutation]);
-
-    return { isPending, error, mutate, reset };
+    return { isPending, error, mutate: executeMutate, reset: resetMutation };
   }
 
   // ── Count ──
@@ -1545,6 +1536,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
   function useCount(options: UseCountQueryOptions<T> = {}): UseCountQueryResult {
     const { advanced, filter, enabled = true, requestConfig, onSuccess, onError, onSettled } = options;
     const [data, setData] = useState<number | null>(null);
+    const requestConfigRef = useLatestRef(requestConfig);
 
     const applyResult = useCallback((res: Response<number>) => {
       setData(res.data as number);
@@ -1557,7 +1549,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     let requestKey: string;
     try {
       filterKey = requestKeyFor(filter);
-      requestKey = requestKeyFor(requestConfig);
+      requestKey = requestKeyFor(requestConfigKeyInput(requestConfig));
     } catch (e) {
       if (e instanceof RequestKeyError) {
         throw new Error(`useCount: ${e.message}`, { cause: e });
@@ -1571,7 +1563,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
         // ARR-05). Composition lives in `useAutoQuery`'s entry points;
         // `doFetch` forwards the signal via a fresh shallow copy so the
         // caller's `requestConfig` and headers retain identity/content.
-        const forwardedConfig = mergeRequestConfig(requestConfig, signal);
+        const forwardedConfig = mergeRequestConfig(requestConfigRef.current, signal);
         if (advanced) {
           // ARC-21: countAdvanced no longer accepts the obsolete `access`
           // second argument (the server's `countBodySchema` rejects it).
@@ -1597,6 +1589,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     const onSuccessStable = useEventCallback<[Response<number>], void>(onSuccess);
     const onErrorStable = useEventCallback<[ServiceError], void>(onError);
     const onSettledStable = useEventCallback<[Response<number> | null, ServiceError | null], void>(onSettled);
+    const getRequestSignal = useCallback(() => requestConfigRef.current?.signal, [requestConfigRef]);
 
     const {
       isLoading,
@@ -1611,6 +1604,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       applyResult,
       shouldFetch: enabled,
       deps: [enabled, advanced, filterKey, requestKey],
+      getRequestSignal,
       onSuccess: onSuccessStable,
       onError: onErrorStable,
       onSettled: onSettledStable,
@@ -1640,6 +1634,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
   function useDistinct(options: UseDistinctQueryOptions<T>): UseDistinctQueryResult {
     const { field, conditions, enabled = true, requestConfig, onSuccess, onError, onSettled } = options;
     const [data, setData] = useState<string[] | null>(null);
+    const requestConfigRef = useLatestRef(requestConfig);
 
     const applyResult = useCallback((res: Response<string[]>) => {
       setData(res.data as string[]);
@@ -1650,7 +1645,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     let requestKey: string;
     try {
       conditionsKey = requestKeyFor(conditions);
-      requestKey = requestKeyFor(requestConfig);
+      requestKey = requestKeyFor(requestConfigKeyInput(requestConfig));
     } catch (e) {
       if (e instanceof RequestKeyError) {
         throw new Error(`useDistinct: ${e.message}`, { cause: e });
@@ -1664,7 +1659,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
         // ARR-05). Composition lives in `useAutoQuery`'s entry points;
         // `doFetch` forwards the signal via a fresh shallow copy so the
         // caller's `requestConfig` and headers retain identity/content.
-        const forwardedConfig = mergeRequestConfig(requestConfig, signal);
+        const forwardedConfig = mergeRequestConfig(requestConfigRef.current, signal);
         if (conditions && Object.keys(conditions).length > 0) {
           const raw = (await modelService
             .distinctAdvanced(field, conditions as FilterQuery<T>, forwardedConfig)
@@ -1688,6 +1683,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
     const onSuccessStable = useEventCallback<[Response<string[]>], void>(onSuccess);
     const onErrorStable = useEventCallback<[ServiceError], void>(onError);
     const onSettledStable = useEventCallback<[Response<string[]> | null, ServiceError | null], void>(onSettled);
+    const getRequestSignal = useCallback(() => requestConfigRef.current?.signal, [requestConfigRef]);
 
     const {
       isLoading,
@@ -1702,6 +1698,7 @@ export function createModelHooks<T extends Document>(config: { modelService: Mod
       applyResult,
       shouldFetch: enabled,
       deps: [enabled, field, conditionsKey, requestKey],
+      getRequestSignal,
       onSuccess: onSuccessStable,
       onError: onErrorStable,
       onSettled: onSettledStable,

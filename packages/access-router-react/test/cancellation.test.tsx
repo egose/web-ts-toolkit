@@ -159,12 +159,12 @@ describe('ARR-04: cancellation and stale query settlement race-safety', () => {
 
       const refs: { current: ReturnType<typeof useRead> }[] = [];
       const { rerender } = renderHook(
-        ({ id }: { id?: string }) => {
+        ({ id }: { id: string | undefined }) => {
           const r = useRead({ id });
           refs.push({ current: r });
           return r;
         },
-        { initialProps: { id: '1' } },
+        { initialProps: { id: '1' as string | undefined } },
       );
 
       await waitFor(() => expect(mock.spies.read).toHaveBeenCalledTimes(1));
@@ -359,16 +359,16 @@ describe('ARR-04: cancellation and stale query settlement race-safety', () => {
       // its data nor fires `onSuccess`.
       mock.planDeferred('read', {
         success: true,
-        raw: { _id: 'a', name: 'Older' },
-        data: { _id: 'a', name: 'Older' } as Model<TestDoc> & TestDoc,
+        raw: { _id: 'a', name: 'Older', status: 'active' },
+        data: { _id: 'a', name: 'Older', status: 'active' } as Model<TestDoc> & TestDoc,
         message: 'ok',
         status: 200,
         headers: {},
       });
       mock.planDeferred('read', {
         success: true,
-        raw: { _id: 'b', name: 'Newer' },
-        data: { _id: 'b', name: 'Newer' } as Model<TestDoc> & TestDoc,
+        raw: { _id: 'b', name: 'Newer', status: 'active' },
+        data: { _id: 'b', name: 'Newer', status: 'active' } as Model<TestDoc> & TestDoc,
         message: 'ok',
         status: 200,
         headers: {},
@@ -403,10 +403,10 @@ describe('ARR-04: cancellation and stale query settlement race-safety', () => {
         newer!.controller.resolve();
       });
       await waitFor(() => {
-        expect(refs[refs.length - 1].current.data).toEqual({ _id: 'b', name: 'Newer' });
+        expect(refs[refs.length - 1].current.data).toEqual({ _id: 'b', name: 'Newer', status: 'active' });
       });
       expect(onSuccess).toHaveBeenCalledTimes(1);
-      expect(onSuccess.mock.calls[0][0].data).toEqual({ _id: 'b', name: 'Newer' });
+      expect(onSuccess.mock.calls[0][0].data).toEqual({ _id: 'b', name: 'Newer', status: 'active' });
 
       onSuccess.mockClear();
       onError.mockClear();
@@ -421,7 +421,7 @@ describe('ARR-04: cancellation and stale query settlement race-safety', () => {
       await flushMicrotasks();
 
       const settled = refs[refs.length - 1].current;
-      expect(settled.data).toEqual({ _id: 'b', name: 'Newer' });
+      expect(settled.data).toEqual({ _id: 'b', name: 'Newer', status: 'active' });
       expect(settled.error).toBeNull();
       expect(onSuccess).not.toHaveBeenCalled();
       expect(onError).not.toHaveBeenCalled();
@@ -447,8 +447,8 @@ describe('ARR-04: cancellation and stale query settlement race-safety', () => {
       });
       mock.planDeferred('read', {
         success: true,
-        raw: { _id: 'b', name: 'Newer' },
-        data: { _id: 'b', name: 'Newer' } as Model<TestDoc> & TestDoc,
+        raw: { _id: 'b', name: 'Newer', status: 'active' },
+        data: { _id: 'b', name: 'Newer', status: 'active' } as Model<TestDoc> & TestDoc,
         message: 'ok',
         status: 200,
         headers: {},
@@ -479,7 +479,7 @@ describe('ARR-04: cancellation and stale query settlement race-safety', () => {
         newer!.controller.resolve();
       });
       await waitFor(() => {
-        expect(refs[refs.length - 1].current.data).toEqual({ _id: 'b', name: 'Newer' });
+        expect(refs[refs.length - 1].current.data).toEqual({ _id: 'b', name: 'Newer', status: 'active' });
       });
       expect(onSuccess).toHaveBeenCalledTimes(1);
       expect(refs[refs.length - 1].current.error).toBeNull();
@@ -498,7 +498,7 @@ describe('ARR-04: cancellation and stale query settlement race-safety', () => {
       await flushMicrotasks();
 
       const settled = refs[refs.length - 1].current;
-      expect(settled.data).toEqual({ _id: 'b', name: 'Newer' });
+      expect(settled.data).toEqual({ _id: 'b', name: 'Newer', status: 'active' });
       expect(settled.error).toBeNull();
       expect(onSuccess).not.toHaveBeenCalled();
       expect(onError).not.toHaveBeenCalled();
@@ -582,16 +582,16 @@ describe('ARR-04: cancellation and stale query settlement race-safety', () => {
       // microtask does NOT touch state once replaced.
       mock.planDeferred('read', {
         success: true,
-        raw: { _id: 'strict1', name: 'StrictModeFirst' },
-        data: { _id: 'strict1', name: 'StrictModeFirst' } as Model<TestDoc> & TestDoc,
+        raw: { _id: 'strict1', name: 'StrictModeFirst', status: 'active' },
+        data: { _id: 'strict1', name: 'StrictModeFirst', status: 'active' } as Model<TestDoc> & TestDoc,
         message: 'ok',
         status: 200,
         headers: {},
       });
       mock.planDeferred('read', {
         success: true,
-        raw: { _id: 'strict2', name: 'StrictModeSecond' },
-        data: { _id: 'strict2', name: 'StrictModeSecond' } as Model<TestDoc> & TestDoc,
+        raw: { _id: 'strict2', name: 'StrictModeSecond', status: 'active' },
+        data: { _id: 'strict2', name: 'StrictModeSecond', status: 'active' } as Model<TestDoc> & TestDoc,
         message: 'ok',
         status: 200,
         headers: {},
@@ -637,12 +637,14 @@ describe('ARR-04: cancellation and stale query settlement race-safety', () => {
         expect(refs[refs.length - 1].current.data).toEqual({
           _id: 'strict2',
           name: 'StrictModeSecond',
+          status: 'active',
         });
       });
       expect(onSuccess).toHaveBeenCalledTimes(1);
       expect(onSuccess.mock.calls[0][0].data).toEqual({
         _id: 'strict2',
         name: 'StrictModeSecond',
+        status: 'active',
       });
       expect(refs[refs.length - 1].current.error).toBeNull();
       expect(refs[refs.length - 1].current.isLoading).toBe(false);

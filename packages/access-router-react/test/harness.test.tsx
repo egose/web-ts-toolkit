@@ -24,7 +24,14 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { createModelHooks } from '../src/create-model-hook';
-import type { Document, ListModelResponse, Model, ModelResponse, Response } from '@web-ts-toolkit/access-router-client';
+import type {
+  Document,
+  FilterQuery,
+  ListModelResponse,
+  Model,
+  ModelResponse,
+  Response,
+} from '@web-ts-toolkit/access-router-client';
 import { createMockService, makeFailureResult, makeServiceError, flushMicrotasks } from './support';
 
 interface TestDoc extends Document {
@@ -131,16 +138,16 @@ describe('ARR-01 harness', () => {
       // Pre-arm two consecutive read() calls as deferred.
       mock.planDeferred('read', {
         success: true,
-        raw: { _id: '1', name: 'Older' },
-        data: { _id: '1', name: 'Older' } as Model<TestDoc> & TestDoc,
+        raw: { _id: '1', name: 'Older', status: 'active' },
+        data: { _id: '1', name: 'Older', status: 'active' } as Model<TestDoc> & TestDoc,
         message: 'ok',
         status: 200,
         headers: {},
       });
       mock.planDeferred('read', {
         success: true,
-        raw: { _id: '7b', name: 'Newer' },
-        data: { _id: '7b', name: 'Newer' } as Model<TestDoc> & TestDoc,
+        raw: { _id: '7b', name: 'Newer', status: 'active' },
+        data: { _id: '7b', name: 'Newer', status: 'active' } as Model<TestDoc> & TestDoc,
         message: 'ok',
         status: 200,
         headers: {},
@@ -184,7 +191,7 @@ describe('ARR-01 harness', () => {
         secondControlled!.controller.resolve();
       });
       await waitFor(() => {
-        expect(lastSample().data).toEqual({ _id: '7b', name: 'Newer' });
+        expect(lastSample().data).toEqual({ _id: '7b', name: 'Newer', status: 'active' });
       });
 
       // Release the OLDER request after. The implementation's reaction
@@ -423,6 +430,78 @@ describe('ARR-01 harness', () => {
       });
     });
 
+    it('advanced manual query() falls back to configured listParams and preserves explicit overrides', async () => {
+      const mock = createMockService<TestDoc>(makeSeed());
+      const { useList } = createModelHooks({ modelService: mock.service });
+      const listParams = { page: 3, pageSize: 20 };
+
+      const { result } = renderHook(() =>
+        useList({
+          advanced: true,
+          enabled: false,
+          listParams,
+          filter: { status: 'active' },
+          sort: [['name', 'asc']],
+        }),
+      );
+
+      await act(async () => {
+        await result.current.query();
+      });
+
+      expect(mock.spies.listAdvanced).toHaveBeenCalledTimes(1);
+      expect(mock.spies.listAdvanced.mock.calls[0]?.[1]).toMatchObject({
+        page: 3,
+        pageSize: 20,
+        sort: [['name', 'asc']],
+      });
+
+      await act(async () => {
+        await result.current.query({ page: 1, pageSize: 5 });
+      });
+
+      expect(mock.spies.listAdvanced).toHaveBeenCalledTimes(2);
+      expect(mock.spies.listAdvanced.mock.calls[1]?.[1]).toMatchObject({
+        page: 1,
+        pageSize: 5,
+        sort: [['name', 'asc']],
+      });
+    });
+
+    it('manual query() uses the latest configured listParams after rerender', async () => {
+      const mock = createMockService<TestDoc>(makeSeed());
+      const { useList } = createModelHooks({ modelService: mock.service });
+
+      const { result, rerender } = renderHook(
+        ({ listParams }: { listParams: { page: number; pageSize: number } }) =>
+          useList({
+            advanced: true,
+            enabled: false,
+            listParams,
+            filter: { status: 'active' },
+            sort: [['name', 'asc']],
+          }),
+        {
+          initialProps: {
+            listParams: { page: 3, pageSize: 20 },
+          },
+        },
+      );
+
+      rerender({ listParams: { page: 4, pageSize: 25 } });
+
+      await act(async () => {
+        await result.current.query();
+      });
+
+      expect(mock.spies.listAdvanced).toHaveBeenCalledTimes(1);
+      expect(mock.spies.listAdvanced.mock.calls[0]?.[1]).toMatchObject({
+        page: 4,
+        pageSize: 25,
+        sort: [['name', 'asc']],
+      });
+    });
+
     it('count() forwards exactly the request config', async () => {
       const mock = createMockService<TestDoc>(makeSeed());
       const { useCount } = createModelHooks({ modelService: mock.service });
@@ -460,7 +539,7 @@ describe('ARR-01 harness', () => {
     it('distinctAdvanced() forwards exact field, conditions, and request config', async () => {
       const mock = createMockService<TestDoc>(makeSeed());
       const { useDistinct } = createModelHooks({ modelService: mock.service });
-      const conditions = { org: '1' };
+      const conditions = { org: '1' } as unknown as FilterQuery<TestDoc>;
       const requestConfig = { headers: { 'X-Trace': 'g' } };
       renderHook(() => useDistinct({ field: 'status', conditions, requestConfig }));
       await waitFor(() => expect(mock.spies.distinctAdvanced).toHaveBeenCalledTimes(1));
