@@ -11,6 +11,7 @@ describe('@web-ts-toolkit/moo package entrypoints', () => {
     expect(root).not.toHaveProperty('keycloakUserSyncPlugin');
     expect(plugins).not.toHaveProperty('keycloakUserSyncPlugin');
     expect(keycloak).toHaveProperty('keycloakUserSyncPlugin');
+    expect(keycloak).toHaveProperty('createManagedKeycloakClient');
   });
 
   it('keeps Keycloak user sync on the direct subpath only for CJS imports', () => {
@@ -22,5 +23,6 @@ describe('@web-ts-toolkit/moo package entrypoints', () => {
     expect(root).not.toHaveProperty('keycloakUserSyncPlugin');
     expect(plugins).not.toHaveProperty('keycloakUserSyncPlugin');
     expect(keycloak).toHaveProperty('keycloakUserSyncPlugin');
+    expect(keycloak).toHaveProperty('createManagedKeycloakClient');
   });
 });

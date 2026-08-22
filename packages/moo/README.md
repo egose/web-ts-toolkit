@@ -101,16 +101,12 @@ pnpm add @egose/keycloak-fluent
 ```
 
 ```ts
-import KeycloakAdminClientFluent from '@egose/keycloak-fluent';
 import { Schema } from 'mongoose';
-import { keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
+import { createManagedKeycloakClient, keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
 
-const keycloak = new KeycloakAdminClientFluent({
+const keycloak = createManagedKeycloakClient({
   baseUrl: process.env.KEYCLOAK_URL,
-  realmName: 'master',
-});
-
-await keycloak.simpleAuth({
+  authRealm: 'master',
   clientId: process.env.KEYCLOAK_CLIENT_ID,
   clientSecret: process.env.KEYCLOAK_CLIENT_SECRET,
 });
@@ -160,6 +156,8 @@ userSchema.plugin(keycloakUserSyncPlugin, {
   },
 });
 ```
+
+`createManagedKeycloakClient` is provided by `@egose/keycloak-fluent` and re-exported here for convenience. It authenticates lazily, shares one authentication attempt across concurrent requests, and creates no timer, so the same client can be declared outside a serverless handler and reused by warm invocations. The default mode is `client_credentials`; pass `authMode: 'user_credentials'` with lazy `username` and `password` resolvers when direct user credentials are required. Service accounts remain recommended for background synchronization.
 
 The plugin:
 

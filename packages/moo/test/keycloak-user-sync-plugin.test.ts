@@ -289,13 +289,13 @@ describe('keycloakUserSyncPlugin', () => {
     );
   });
 
-  it('resets created-user passwords through the core endpoint with the temporary policy', async () => {
+  it('delegates created-user password provisioning to the fluent user create path with the temporary policy', async () => {
     const UserModel = createUserModel(keycloak, { syncFields: { password: true }, passwordTemporary: true });
 
     await UserModel.create({ username: 'alice', email: 'alice@example.com', password: 'initial-secret' }); // pragma: allowlist secret
 
     expect(keycloak.users[0]).not.toHaveProperty('password');
-    expect(keycloak.callsFor('user.create')[0]?.args[1]).not.toHaveProperty('password');
+    expect(keycloak.callsFor('user.create')[0]?.args[1]).toMatchObject({ passwordTemporary: true });
     expect(keycloak.coreUsers.resetPassword).toHaveBeenCalledWith({
       realm: 'test',
       id: 'user-1',
@@ -312,7 +312,7 @@ describe('keycloakUserSyncPlugin', () => {
 
     await UserModel.create({ username: 'alice', email: 'alice@example.com', password: 'initial-secret' }); // pragma: allowlist secret
 
-    expect(keycloak.callsFor('user.create')[0]?.args[1]).not.toHaveProperty('password');
+    expect(keycloak.callsFor('user.create')[0]?.args[1]).toMatchObject({ passwordTemporary: false });
     expect(keycloak.coreUsers.resetPassword).toHaveBeenCalledWith({
       realm: 'test',
       id: 'user-1',
@@ -404,6 +404,7 @@ describe('keycloakUserSyncPlugin', () => {
     expect(callCounts()).toEqual({
       'realm.get': 1,
       'user.get': 1,
+      'realm.searchUsers': 1,
       'core.users.find': 1,
       'user.create': 1,
       'user.create.after': 1,
@@ -415,9 +416,11 @@ describe('keycloakUserSyncPlugin', () => {
     expect(callCounts()).toEqual({
       'realm.get': 1,
       'user.get': 1,
+      'realm.searchUsers': 1,
       'core.users.find': 1,
       'user.create': 1,
       'user.create.after': 1,
+      'user.reconcileRealmRoles': 1,
       'role.ensure': 1,
       'role.get': 1,
       'core.users.listRealmRoleMappings': 1,
@@ -434,10 +437,12 @@ describe('keycloakUserSyncPlugin', () => {
     expect(callCounts()).toEqual({
       'realm.get': 1,
       'user.get': 1,
+      'realm.searchUsers': 1,
       'core.users.find': 1,
       'user.create': 1,
       'user.create.after': 1,
-      'role.ensure': 3,
+      'user.reconcileRealmRoles': 1,
+      'role.ensure': 2,
       'role.get': 3,
       'core.users.listRealmRoleMappings': 1,
       'core.users.addRealmRoleMappings': 1,
@@ -461,7 +466,8 @@ describe('keycloakUserSyncPlugin', () => {
 
     expect(callCounts()).toEqual({
       'realm.get': 1,
-      'user.getById': 1,
+      'user.getById': 2,
+      'user.update': 1,
       'core.users.update': 1,
     });
 
@@ -471,7 +477,8 @@ describe('keycloakUserSyncPlugin', () => {
 
     expect(callCounts()).toEqual({
       'realm.get': 1,
-      'user.getById': 1,
+      'user.getById': 2,
+      'user.update': 1,
       'core.users.update': 1,
     });
   });
@@ -732,7 +739,7 @@ describe('keycloakUserSyncPlugin', () => {
 
     await expect(
       UserModel.create({ username: 'alice', email: 'alice@example.com', roles: ['missing'] }),
-    ).rejects.toThrow('Keycloak realm role "missing" was not found');
+    ).rejects.toThrow('Role "missing" not found in realm "test"');
     expect(keycloak.callsFor('role.ensure')).toHaveLength(0);
   });
 
@@ -838,7 +845,7 @@ describe('keycloakUserSyncPlugin', () => {
     });
 
     expect(keycloak.callsFor('core.users.find')).toHaveLength(1);
-    expect(keycloak.callsFor('user.getById')).toHaveLength(1);
+    expect(keycloak.callsFor('user.getById')).toHaveLength(2);
     expect(keycloak.users[0].attributes).toEqual({ external: ['keep-me'], tenantId: ['tenant-2'] });
   });
 

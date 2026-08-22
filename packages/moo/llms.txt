@@ -64,10 +64,19 @@ userSchema.plugin(newDocumentPlugin, {
 Keycloak user-sync plugin:
 
 ```ts
-import { keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
+import {
+  createManagedKeycloakClient,
+  keycloakUserSyncPlugin,
+} from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
+
+const keycloak = createManagedKeycloakClient({
+  baseUrl: process.env.KEYCLOAK_URL!,
+  clientId: process.env.KEYCLOAK_CLIENT_ID!,
+  clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
+});
 
 userSchema.plugin(keycloakUserSyncPlugin, {
-  client: authenticatedKeycloakFluentClient,
+  client: keycloak,
   realm: 'application',
   identifyBy: ['providerId', 'username', 'email'],
   managedRoles: ['admin', 'editor', 'viewer'],
@@ -91,6 +100,7 @@ userSchema.plugin(keycloakUserSyncPlugin, {
 - optional peer dependency: `@egose/keycloak-fluent ^0.7` only for `@web-ts-toolkit/moo/plugins/keycloak-user-sync`
 - root entrypoint exports schema helpers, `isObjectId`, and non-Keycloak plugins; dedicated plugin subpaths are also available
 - Keycloak user sync is not re-exported from root or `@web-ts-toolkit/moo/plugins`; import it from the direct subpath
+- `createManagedKeycloakClient` lazily uses `client_credentials`, renews on demand without timers, and deduplicates concurrent authentication; construct a client directly for custom grants
 - `isObjectId(...)` is a strict guard: it rejects strings that `ObjectId.isValid` accepts but that don't round-trip back to the same string
 - `uniqueNullableString`/`uniqueEmptiableString` return partial-index field definitions, not full schemas
 - new-document plugin runs its callback only after the first successful `save()` of a newly inserted document
@@ -112,7 +122,7 @@ userSchema.plugin(keycloakUserSyncPlugin, {
 - `@web-ts-toolkit/moo/plugins/cascade-delete` — `cascadeDeletePlugin`
 - `@web-ts-toolkit/moo/plugins/model-function` — `modelFunctionPlugin`
 - `@web-ts-toolkit/moo/plugins/new-document` — `newDocumentPlugin`
-- `@web-ts-toolkit/moo/plugins/keycloak-user-sync` — `keycloakUserSyncPlugin`
+- `@web-ts-toolkit/moo/plugins/keycloak-user-sync` — `createManagedKeycloakClient`, `keycloakUserSyncPlugin`
 
 ## Pointers
 
