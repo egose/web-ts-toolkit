@@ -212,10 +212,7 @@ import { cascadeDeletePlugin } from '@web-ts-toolkit/moo/plugins/cascade-delete'
 Install `@egose/keycloak-fluent`, create a managed service-account client, and attach it to the user schema through the direct Keycloak subpath:
 
 ```ts
-import {
-  createManagedKeycloakClient,
-  keycloakUserSyncPlugin,
-} from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
+import { createManagedKeycloakClient, keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
 
 const keycloak = createManagedKeycloakClient({ baseUrl, authRealm: 'master', clientId, clientSecret });
 

@@ -102,10 +102,7 @@ pnpm add @egose/keycloak-fluent
 
 ```ts
 import { Schema } from 'mongoose';
-import {
-  createManagedKeycloakClient,
-  keycloakUserSyncPlugin,
-} from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
+import { createManagedKeycloakClient, keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';
 
 const keycloak = createManagedKeycloakClient({
   baseUrl: process.env.KEYCLOAK_URL,
