@@ -371,12 +371,20 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Install ", (0,jsx_runtime.jsx)(_components.code, {
         children: "@egose/keycloak-fluent"
-      }), ", authenticate a client, and attach it to the user schema through the direct Keycloak subpath:"]
+      }), ", create a managed service-account client, and attach it to the user schema through the direct Keycloak subpath:"]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import KeycloakAdminClientFluent from '@egose/keycloak-fluent';\nimport { keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';\n\nconst keycloak = new KeycloakAdminClientFluent({ baseUrl, realmName: 'master' });\nawait keycloak.simpleAuth({ clientId, clientSecret });\n\nuserSchema.plugin(keycloakUserSyncPlugin, {\n  client: keycloak,\n  realm: 'application',\n  identifyBy: ['providerId', 'username', 'email'],\n  managedRoles: ['admin', 'editor', 'viewer'],\n  managedAttributes: ['tenantId', 'plan'],\n  paths: { password: 'pendingPassword' }, // pragma: allowlist secret\n  syncFields: { email: true, firstName: true, lastName: true, roles: true, attributes: true, password: true },\n  passwordTemporary: true,\n  mapPassword(document) {\n    return document.get('pendingPassword') as string | undefined;\n  },\n  attributePaths: ['tenantId', 'subscription.plan'],\n  mapAttributes(document) {\n    return {\n      tenantId: document.get('tenantId'),\n      plan: document.get('subscription.plan'),\n    };\n  },\n  onError(error, context) {\n    reportKeycloakSyncError(error, context);\n  },\n});\n"
+        children: "import { createManagedKeycloakClient, keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';\n\nconst keycloak = createManagedKeycloakClient({ baseUrl, authRealm: 'master', clientId, clientSecret });\n\nuserSchema.plugin(keycloakUserSyncPlugin, {\n  client: keycloak,\n  realm: 'application',\n  identifyBy: ['providerId', 'username', 'email'],\n  managedRoles: ['admin', 'editor', 'viewer'],\n  managedAttributes: ['tenantId', 'plan'],\n  paths: { password: 'pendingPassword' }, // pragma: allowlist secret\n  syncFields: { email: true, firstName: true, lastName: true, roles: true, attributes: true, password: true },\n  passwordTemporary: true,\n  mapPassword(document) {\n    return document.get('pendingPassword') as string | undefined;\n  },\n  attributePaths: ['tenantId', 'subscription.plan'],\n  mapAttributes(document) {\n    return {\n      tenantId: document.get('tenantId'),\n      plan: document.get('subscription.plan'),\n    };\n  },\n  onError(error, context) {\n    reportKeycloakSyncError(error, context);\n  },\n});\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The managed client authenticates lazily with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "client_credentials"
+      }), ", checks token expiration when a request arrives, and shares one authentication attempt across concurrent requests. It uses no background timer, which makes it suitable for long-running processes and serverless functions. Declare it outside a serverless handler to let warm invocations reuse the current token. A ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "clientSecret"
+      }), " resolver can load a rotated secret when authentication is required. Applications using custom grants can construct and authenticate ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "KeycloakAdminClientFluent"
+      }), " directly instead."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The plugin syncs document saves and document ", (0,jsx_runtime.jsx)(_components.code, {
         children: "deleteOne()"
