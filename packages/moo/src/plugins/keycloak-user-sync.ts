@@ -1,7 +1,10 @@
-import type KeycloakAdminClientFluent from '@egose/keycloak-fluent';
+import KeycloakAdminClientFluent, {
+  createManagedKeycloakClient,
+  type ManagedKeycloakClientOptions,
+  type ManagedKeycloakCredential,
+} from '@egose/keycloak-fluent';
 import type { ClientSession, Schema } from 'mongoose';
 
-import { createKeycloakUserSyncAdapter, type KeycloakRealmRole, type KeycloakUser } from './keycloak-user-sync/adapter';
 import {
   assertSafeAttributeKey,
   buildProfilePayload,
@@ -14,16 +17,23 @@ import {
   normalizeEmail,
   planChangedFields,
   planEmailVerification,
-  planRoleDiff,
   stringValue,
   uniqueStrings,
 } from './keycloak-user-sync/planner';
 
-export {
-  createManagedKeycloakClient,
-  type ManagedKeycloakClientOptions,
-  type ManagedKeycloakClientSecret,
-} from './keycloak-user-sync/managed-client';
+export { createManagedKeycloakClient, type ManagedKeycloakClientOptions };
+export type ManagedKeycloakClientSecret = ManagedKeycloakCredential;
+
+type KeycloakUser = {
+  id?: string;
+  username?: string;
+  email?: string;
+  emailVerified?: boolean;
+  firstName?: string;
+  lastName?: string;
+  enabled?: boolean;
+  attributes?: Record<string, string[]>;
+};
 
 export type KeycloakUserIdentityField = 'providerId' | 'username' | 'email';
 export type KeycloakUserSyncField =
@@ -69,7 +79,7 @@ export interface KeycloakUserSyncDocument {
 }
 
 export interface KeycloakUserSyncPluginOptions {
-  /** A client that can provide admin access tokens. Use createManagedKeycloakClient for lazy service-account authentication. */
+  /** A client that can provide admin access tokens. Use createManagedKeycloakClient for lazy managed authentication. */
   client: KeycloakAdminClientFluent;
   realm: string;
   /**
@@ -378,7 +388,7 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
   const paths = options.paths;
   const syncFields = options.syncFields;
   const identities = options.identifyBy;
-  const adapter = createKeycloakUserSyncAdapter(options.client, options.realm);
+  const realmHandle = options.client.realm(options.realm);
   const trackedPaths = buildTrackedPaths(options);
 
   const buildSafeErrorContext = (operation: KeycloakUserSyncErrorContext['operation'], document: PluginDocument) => ({
@@ -421,7 +431,7 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
     document: PluginDocument,
     previous?: Record<string, unknown> | null,
   ): Promise<{ user: KeycloakUser | null; duplicateEmailsAllowed: boolean }> => {
-    const realm = await adapter.getRealm();
+    const realm = await realmHandle.get();
     if (!realm) throw new Error(`Keycloak realm "${options.realm}" was not found`);
 
     const duplicateEmailsAllowed = realm.duplicateEmailsAllowed === true;
@@ -431,7 +441,7 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
 
     const getCompleteUserById = async (user: KeycloakUser) => {
       if (!user.id) return user;
-      return (await adapter.getUserById(user.username ?? user.id, user.id)) ?? user;
+      return (await realmHandle.userById(user.id).get()) ?? user;
     };
 
     for (const identity of orderedIdentities) {
@@ -440,7 +450,7 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
           readDocumentValue(document, 'providerId'),
           getPreviousValue(previous, 'providerId'),
         ])) {
-          const user = await adapter.getUserById(getUsername(document) ?? providerId, providerId);
+          const user = await realmHandle.userById(providerId).get();
           if (user) return { user, duplicateEmailsAllowed };
         }
       }
@@ -450,7 +460,7 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
           readDocumentValue(document, 'username'),
           getPreviousValue(previous, 'username'),
         ])) {
-          const user = await adapter.getUserByUsername(username);
+          const user = await realmHandle.user(username).get();
           if (user) return { user, duplicateEmailsAllowed };
         }
       }
@@ -460,9 +470,9 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
           readDocumentValue(document, 'email'),
           getPreviousValue(previous, 'email'),
         ])) {
-          const matches = (await adapter.findUsersByEmail(email)).filter(
-            (user) => normalizeEmail(user.email) === normalizeEmail(email),
-          );
+          const matches = (
+            await realmHandle.searchUsers(email, { attribute: 'email', exact: true, first: 0, max: 2 })
+          ).filter((user) => normalizeEmail(user.email) === normalizeEmail(email));
 
           if (matches.length > 1) {
             throw new Error('Cannot identify a unique Keycloak user for the configured email identity');
@@ -476,20 +486,20 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
   };
 
   const resolveCreatedUser = async (document: PluginDocument, username: string) => {
-    const userByUsername = await adapter.getUserByUsername(username);
+    const userByUsername = await realmHandle.user(username).get();
     if (userByUsername) return userByUsername;
 
     const email = stringValue(readDocumentValue(document, 'email'));
     if (!email) return null;
 
-    const matches = (await adapter.findUsersByEmail(email)).filter(
-      (user) => normalizeEmail(user.email) === normalizeEmail(email),
-    );
+    const matches = (
+      await realmHandle.searchUsers(email, { attribute: 'email', exact: true, first: 0, max: 2 })
+    ).filter((user) => normalizeEmail(user.email) === normalizeEmail(email));
 
     if (matches.length > 1) throw new Error('Cannot identify a unique Keycloak user for the configured email identity');
     const match = matches[0];
     if (!match?.id) return match ?? null;
-    return (await adapter.getUserById(match.username ?? match.id, match.id)) ?? match;
+    return (await realmHandle.userById(match.id).get()) ?? match;
   };
 
   const syncRoles = async (user: KeycloakUser, document: PluginDocument) => {
@@ -501,28 +511,13 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
     if (desiredNames.length > maxRolesPerSync) {
       throw new Error(`keycloakUserSyncPlugin supports at most ${maxRolesPerSync} desired roles per sync operation`);
     }
+    if (desiredNames.length === 0 && !options.managedRoles) return;
 
-    const managedNames = options.managedRoles ? new Set(options.managedRoles) : null;
-    const effectiveDesiredNames = managedNames ? desiredNames.filter((name) => managedNames.has(name)) : desiredNames;
-    if (effectiveDesiredNames.length === 0 && !managedNames) return;
-    const desiredRoles: KeycloakRealmRole[] = [];
-
-    for (const roleName of effectiveDesiredNames) {
-      if (options.ensureRoles !== false) await adapter.ensureRole(roleName);
-      const role = await adapter.getRole(roleName);
-      if (!role?.id) throw new Error(`Keycloak realm role "${roleName}" was not found`);
-      desiredRoles.push(role);
-    }
-
-    const assignedRoles = await adapter.listRealmRoleMappings(user.id);
-    const { toAdd, toRemove } = planRoleDiff(desiredNames, assignedRoles, desiredRoles, options.managedRoles);
-
-    if (toAdd.length) {
-      await adapter.addRealmRoleMappings(user.id, toAdd);
-    }
-    if (toRemove.length) {
-      await adapter.delRealmRoleMappings(user.id, toRemove);
-    }
+    await realmHandle.userById(user.id).reconcileRealmRoles(desiredNames, {
+      ensureMissing: options.ensureRoles !== false,
+      managedRoleNames: options.managedRoles,
+      maxRoles: maxRolesPerSync,
+    });
   };
 
   const persistProviderId = async (document: PluginDocument, providerId: string) => {
@@ -556,14 +551,21 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
       if (!username) throw new Error('Cannot create a Keycloak user without a username or email');
       payload.attributes = mergeAttributes(null, document, options);
       try {
-        user = (await adapter.createUser(username, payload)) ?? null;
+        user =
+          (await realmHandle.user(username).create({
+            ...payload,
+            ...(desiredPassword && {
+              password: desiredPassword,
+              passwordTemporary: options.passwordTemporary ?? false,
+            }),
+          })) ?? null;
+        created = true;
       } catch (error) {
         if (identities.length === 0) throw error;
         const recoveredUser = await resolveCreatedUser(document, username);
         if (!recoveredUser) throw error;
         user = recoveredUser;
       }
-      created = true;
     }
 
     if (!user?.id) throw new Error('Keycloak did not return a user ID');
@@ -589,25 +591,27 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
       }
       if (shouldSyncAttributes) payload.attributes = mergeAttributes(user, document, options);
       if (Object.keys(payload).length > 0) {
-        await adapter.updateUser(userId, payload);
+        await realmHandle.userById(userId).update(payload);
         user = { ...user, ...payload };
       }
     }
 
-    if ((created || state.passwordChanged) && desiredPassword) {
-      await adapter.resetPassword(userId, desiredPassword, options.passwordTemporary ?? false);
+    if (!created && state.passwordChanged && desiredPassword) {
+      await realmHandle
+        .userById(userId)
+        .resetPassword(desiredPassword, { temporary: options.passwordTemporary ?? false });
     }
 
     if (created || state.changedFields.has('roles')) await syncRoles(user, document);
 
     if (emailVerificationPlan.changed && options.sendVerificationEmailOnChange !== false) {
-      await adapter.sendVerifyEmail(userId);
+      await realmHandle.userById(userId).sendVerifyEmail();
     }
   };
 
   const deleteDocument = async (document: PluginDocument) => {
     const { user } = await resolveUser(document);
-    if (user?.id) await adapter.deleteUser(user.id);
+    if (user?.id) await realmHandle.userById(user.id).delete();
   };
 
   schema.pre('save', async function keycloakUserSyncPreSave(this: PluginDocument) {
