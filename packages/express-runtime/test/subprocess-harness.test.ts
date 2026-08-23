@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { runSubprocess, cleanupTrackedChildren } from './support/subprocess';
 import { createTempDir } from './support/tmp';
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 describe('subprocess harness — deterministic exit, stderr, timeout, no hanging handles', () => {
@@ -79,5 +79,28 @@ describe('subprocess harness — deterministic exit, stderr, timeout, no hanging
     // After cleanup, dir should not exist
     const { existsSync } = await import('node:fs');
     expect(existsSync(dir)).toBe(false);
+  });
+
+  it('exits nonzero for invalid numeric CLI input before env loading or app import', async () => {
+    const { dir, cleanup } = createTempDir('wtt-invalid-cli-');
+    tempDirs.push(dir);
+    const marker = join(dir, 'loaded.txt');
+    writeFileSync(
+      join(dir, 'app.mjs'),
+      `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, 'loaded');\nexport default {};\n`,
+    );
+    const cliPath = new URL('../dist/cli.js', import.meta.url).pathname;
+
+    const result = await runSubprocess(
+      process.execPath,
+      [cliPath, 'dev', './app.mjs', '--env', './missing.env', '--shutdown-timeout=NaN'],
+      { cwd: dir, timeoutMs: 3000 },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('Invalid --shutdown-timeout');
+    expect(result.stderr).not.toContain('Env file not found');
+    expect(existsSync(marker)).toBe(false);
+    cleanup();
   });
 });

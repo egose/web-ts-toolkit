@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import http from 'node:http';
+import express from 'express';
 import request from 'supertest';
 import { createExpressApp, createServerlessHandler } from '../src/index';
 import { createServerlessAdapterApp } from '../src/cli-utils';
@@ -82,18 +83,93 @@ describe('adapter e2e — real createServerlessHandler through local adapter', (
     expect(res2.body).toEqual({ hello: 'adapter' });
   });
 
-  it('preserves query and headers through adapter (real handler) — notes ERT-07 contract gap', async () => {
+  it('routes query strings through an AWS REST v1-shaped event without putting query in path', async () => {
     const app = createExpressApp();
-    // Use a route without query-string dependence for ERT-01; ERT-07 will fix proper qs split.
-    app.get('/qs', (req, res) => res.json({ url: req.url, headers: req.headers['x-test'] }));
+    app.get('/x', (req, res) => res.json({ path: req.path, query: req.query, headers: req.headers['x-test'] }));
     const handler = createServerlessHandler(app);
     const adapterApp = createServerlessAdapterApp(handler);
 
-    const res = await request(adapterApp).get('/qs').set('x-test', 'yes');
+    const res = await request(adapterApp).get('/x?a=1&a=2&empty=').set('x-test', 'yes');
     expect(res.status).toBe(200);
+    expect(res.body.path).toBe('/x');
+    expect(res.body.query).toEqual({ a: ['1', '2'], empty: '' });
     expect(res.body.headers).toBe('yes');
-    // Query-string handling is currently buggy (path includes qs); ERT-07 will assert correct split.
-    // For now verify the adapter does not hang and routes without qs.
+  });
+
+  it('round-trips encoded query edge cases according to the AWS REST v1 local contract', async () => {
+    const app = createExpressApp();
+    app.get('/edge', (req, res) => res.json(req.query));
+    const handler = createServerlessHandler(app);
+    const adapterApp = createServerlessAdapterApp(handler);
+
+    const res = await request(adapterApp).get(
+      '/edge?plus=a+b&space=a%20b&encodedDelimiter=a%26b%3Dc&unicode=%E2%9C%93&already=%2526',
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      plus: 'a+b',
+      space: 'a b',
+      encodedDelimiter: 'a&b=c',
+      unicode: '✓',
+      already: '%26',
+    });
+  });
+
+  it('delivers multiple Set-Cookie values from multiValueHeaders to the local client', async () => {
+    const app = createExpressApp();
+    app.get('/cookies', (_req, res) => {
+      res.setHeader('Set-Cookie', ['a=1; Path=/', 'b=2; Path=/']);
+      res.send('ok');
+    });
+    const handler = createServerlessHandler(app);
+    const adapterApp = createServerlessAdapterApp(handler);
+
+    const res = await request(adapterApp).get('/cookies');
+    expect(res.status).toBe(200);
+    expect(res.headers['set-cookie']).toEqual(['a=1; Path=/', 'b=2; Path=/']);
+  });
+
+  it('round-trips ordinary text request bodies and binary responses', async () => {
+    const app = createExpressApp();
+    app.post('/text', express.text({ type: '*/*' }), (req, res) => res.type('text/plain').send(req.body));
+    app.get('/binary', (_req, res) => res.type('application/octet-stream').send(Buffer.from([0, 255, 1, 2])));
+    const handler = createServerlessHandler(app, { serverlessOptions: { binary: ['application/octet-stream'] } });
+    const adapterApp = createServerlessAdapterApp(handler);
+
+    const text = await request(adapterApp).post('/text').type('text/plain').send('hello + world');
+    expect(text.status).toBe(200);
+    expect(text.text).toBe('hello + world');
+
+    const binary = await request(adapterApp)
+      .get('/binary')
+      .buffer(true)
+      .parse((res, callback) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => callback(null, Buffer.concat(chunks)));
+      });
+    expect(binary.status).toBe(200);
+    expect(binary.body).toEqual(Buffer.from([0, 255, 1, 2]));
+  });
+
+  it('returns 500 for invalid handler results before sending partial response data', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const invalidResults = [
+      { statusCode: 99, headers: { 'x-before': 'no' }, body: 'no' },
+      { statusCode: 200, headers: { 'x-before': ['no'] }, body: 'no' },
+      { statusCode: 200, isBase64Encoded: true, body: 'not base64!' },
+      null,
+    ];
+
+    for (const invalidResult of invalidResults) {
+      const adapterApp = createServerlessAdapterApp(vi.fn().mockResolvedValue(invalidResult));
+      const res = await request(adapterApp).get('/invalid');
+      expect(res.status).toBe(500);
+      expect(res.text).toBe('Internal server error');
+      expect(res.headers['x-before']).toBeUndefined();
+    }
+
+    errorSpy.mockRestore();
   });
 
   it('handles 500 from handler without hanging (error path)', async () => {
@@ -108,6 +184,40 @@ describe('adapter e2e — real createServerlessHandler through local adapter', (
     // Serverless-http will return 500 via Express error handling; adapter should forward.
     // Even if not, we verify adapter doesn't hang and responds deterministically.
     expect([500, 200]).toContain(res.status);
+  });
+
+  it('keeps Express parser limits, hook conversion thresholds, and adapter rejection limits distinct', async () => {
+    const parserLimitedApp = createExpressApp({
+      json: { limit: 4 },
+      errorHandler: (err, _req, res, _next) => {
+        const status =
+          typeof (err as { status?: unknown }).status === 'number' ? (err as { status: number }).status : 500;
+        res.status(status).json({ source: 'express', status });
+      },
+    });
+    parserLimitedApp.post('/json', (req, res) => res.json({ body: req.body }));
+    const parserLimitedHandler = createServerlessHandler(parserLimitedApp, { maxBodyBytes: 1024 });
+    const parserLimitedAdapter = createServerlessAdapterApp(parserLimitedHandler, { maxBodyBytes: 1024 });
+
+    const parserLimit = await request(parserLimitedAdapter).post('/json').type('json').send({ hello: 'world' });
+    expect(parserLimit.status).toBe(413);
+    expect(parserLimit.body).toEqual({ source: 'express', status: 413 });
+
+    const conversionLimitedApp = createExpressApp();
+    conversionLimitedApp.post('/text', (req, res) => res.json({ isBuffer: Buffer.isBuffer(req.body) }));
+    const conversionLimitedHandler = createServerlessHandler(conversionLimitedApp, { maxBodyBytes: 4 });
+    const conversionLimitedAdapter = createServerlessAdapterApp(conversionLimitedHandler, { maxBodyBytes: 1024 });
+
+    const conversionLimit = await request(conversionLimitedAdapter).post('/text').type('text').send('12345');
+    expect(conversionLimit.status).toBe(200);
+    expect(conversionLimit.body).toEqual({ isBuffer: true });
+
+    const rejectedByAdapter = await request(createServerlessAdapterApp(conversionLimitedHandler, { maxBodyBytes: 4 }))
+      .post('/text')
+      .type('text')
+      .send('12345');
+    expect(rejectedByAdapter.status).toBe(413);
+    expect(rejectedByAdapter.text).toBe('Payload Too Large');
   });
 
   it('uses waitForListening helper for deterministic adapter server startup — no sleep', async () => {

@@ -79,6 +79,14 @@ describe('parseArgs — dispatch', () => {
     expect(parseArgs(['-V'])).toBeNull();
     spy.mockRestore();
   });
+
+  it('does not treat help or version after -- as global options', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const result = parseArgs(['dev', '--', '--help']);
+    expect(result?.subcommand === 'dev' && result.dev.appPath).toBe('--help');
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -138,9 +146,46 @@ describe('parseArgs — dev', () => {
     expect(result?.subcommand === 'dev' && result.dev.options.shutdownTimeout).toBe(2000);
   });
 
-  it('skips a -- delimiter', () => {
+  it('terminates option parsing at --', () => {
     const result = parseArgs(['dev', '--', './app.js']);
     expect(result?.subcommand === 'dev' && result.dev.appPath).toBe('./app.js');
+  });
+
+  it('treats leading-dash paths after -- as positional', () => {
+    const result = parseArgs(['dev', '--', '--app.js']);
+    expect(result?.subcommand === 'dev' && result.dev.appPath).toBe('--app.js');
+  });
+
+  it('rejects invalid --port values with flag-specific messages', () => {
+    for (const value of ['NaN', 'Infinity', '-1', '1.5', '  ', '03000', '1e3']) {
+      expect(() => parseArgs(['dev', './app.js', '--port', value])).toThrow('Invalid --port');
+      expect(() => parseArgs(['dev', './app.js', `--port=${value}`])).toThrow('Invalid --port');
+    }
+    expect(() => parseArgs(['dev', './app.js', '--port='])).toThrow('Missing value for argument: --port');
+  });
+
+  it('accepts --port boundary values', () => {
+    const low = parseArgs(['dev', './app.js', '--port=0']);
+    expect(low?.subcommand === 'dev' && low.dev.options.port).toBe(0);
+    const high = parseArgs(['dev', './app.js', '--port', '65535']);
+    expect(high?.subcommand === 'dev' && high.dev.options.port).toBe(65535);
+  });
+
+  it('rejects invalid --shutdown-timeout values with flag-specific messages', () => {
+    for (const value of ['NaN', 'Infinity', '-1', '1.5', '  ']) {
+      expect(() => parseArgs(['dev', './app.js', '--shutdown-timeout', value])).toThrow('Invalid --shutdown-timeout');
+      expect(() => parseArgs(['dev', './app.js', `--shutdown-timeout=${value}`])).toThrow('Invalid --shutdown-timeout');
+    }
+    expect(() => parseArgs(['dev', './app.js', '--shutdown-timeout='])).toThrow(
+      'Missing value for argument: --shutdown-timeout',
+    );
+  });
+
+  it('accepts --shutdown-timeout boundary values', () => {
+    const zero = parseArgs(['dev', './app.js', '--shutdown-timeout=0']);
+    expect(zero?.subcommand === 'dev' && zero.dev.options.shutdownTimeout).toBe(0);
+    const max = parseArgs(['dev', './app.js', `--shutdown-timeout=${Number.MAX_SAFE_INTEGER}`]);
+    expect(max?.subcommand === 'dev' && max.dev.options.shutdownTimeout).toBe(Number.MAX_SAFE_INTEGER);
   });
 
   it('throws on unknown argument', () => {
@@ -240,6 +285,23 @@ describe('parseArgs — dev', () => {
   it('parses --delay=', () => {
     const result = parseArgs(['dev', './app.js', '--watch', './src', '--delay=200']);
     expect(result?.subcommand === 'dev' && result.dev.watchDelay).toBe(200);
+  });
+
+  it('rejects invalid --delay values with flag-specific messages', () => {
+    for (const value of ['NaN', 'Infinity', '-1', '1.5', '  ']) {
+      expect(() => parseArgs(['dev', './app.js', '--watch', './src', '--delay', value])).toThrow('Invalid --delay');
+      expect(() => parseArgs(['dev', './app.js', '--watch', './src', `--delay=${value}`])).toThrow('Invalid --delay');
+    }
+    expect(() => parseArgs(['dev', './app.js', '--watch', './src', '--delay='])).toThrow(
+      'Missing value for argument: --delay',
+    );
+  });
+
+  it('accepts --delay boundary values', () => {
+    const zero = parseArgs(['dev', './app.js', '--watch', './src', '--delay=0']);
+    expect(zero?.subcommand === 'dev' && zero.dev.watchDelay).toBe(0);
+    const max = parseArgs(['dev', './app.js', '--watch', './src', `--delay=${Number.MAX_SAFE_INTEGER}`]);
+    expect(max?.subcommand === 'dev' && max.dev.watchDelay).toBe(Number.MAX_SAFE_INTEGER);
   });
 
   it('defaults watchDelay to 500', () => {
@@ -379,6 +441,17 @@ describe('parseArgs — build', () => {
 
   it('throws on duplicate positional argument', () => {
     expect(() => parseArgs(['build', './a.ts', './b.ts'])).toThrow('Unexpected positional argument');
+  });
+
+  it('treats leading-dash paths after -- as positional', () => {
+    const result = parseArgs(['build', '--', '--app.ts']);
+    expect(result?.subcommand === 'build' && result.build.appPath).toBe('--app.ts');
+  });
+
+  it('rejects empty equal-form build option values', () => {
+    expect(() => parseArgs(['build', './src/app.ts', '--init='])).toThrow('Missing value for argument: --init');
+    expect(() => parseArgs(['build', './src/app.ts', '--out-dir='])).toThrow('Missing value for argument: --out-dir');
+    expect(() => parseArgs(['build', './src/app.ts', '--external='])).toThrow('Missing value for argument: --external');
   });
 });
 
@@ -662,22 +735,52 @@ describe('parseArgs — start-serverless', () => {
 // ---------------------------------------------------------------------------
 
 describe('toServerlessEvent', () => {
-  it('builds an event with method, path, headers, and body', () => {
+  it('builds an AWS REST API v1 event with method, path, headers, and base64 body', () => {
     const event = toServerlessEvent(
       'POST',
-      '/api/echo',
-      { 'content-type': 'application/json' },
+      '/api/echo?a=1&a=2&empty=',
+      { 'content-type': 'application/json', 'x-repeat': ['one', 'two'] },
       Buffer.from('{"hi":1}'),
     );
     expect(event.httpMethod).toBe('POST');
     expect(event.path).toBe('/api/echo');
-    expect(event.headers).toEqual({ 'content-type': 'application/json' });
-    expect(event.body).toEqual(Buffer.from('{"hi":1}'));
+    expect(event.headers).toEqual({ 'content-type': 'application/json', 'x-repeat': 'one, two' });
+    expect(event.multiValueHeaders).toEqual({ 'content-type': ['application/json'], 'x-repeat': ['one', 'two'] });
+    expect(event.queryStringParameters).toEqual({ a: '2', empty: '' });
+    expect(event.multiValueQueryStringParameters).toEqual({ a: ['1', '2'], empty: [''] });
+    expect(event.body).toBe(Buffer.from('{"hi":1}').toString('base64'));
+    expect(event.isBase64Encoded).toBe(true);
+    expect(event.requestContext).toEqual({ identity: { sourceIp: '' } });
   });
 
-  it('returns undefined body for empty buffers', () => {
+  it('uses an empty non-base64 string body for empty buffers', () => {
     const event = toServerlessEvent('GET', '/api/ping', {}, Buffer.alloc(0));
-    expect(event.body).toBeUndefined();
+    expect(event.body).toBe('');
+    expect(event.isBase64Encoded).toBe(false);
+  });
+
+  it('decodes query components once without treating plus as space', () => {
+    const event = toServerlessEvent(
+      'GET',
+      '/edge?plus=a+b&space=a%20b&encodedDelimiter=a%26b%3Dc&unicode=%E2%9C%93&already=%2526',
+      {},
+      Buffer.alloc(0),
+    );
+    expect(event.path).toBe('/edge');
+    expect(event.queryStringParameters).toEqual({
+      plus: 'a+b',
+      space: 'a b',
+      encodedDelimiter: 'a&b=c',
+      unicode: '✓',
+      already: '%26',
+    });
+    expect(event.multiValueQueryStringParameters).toEqual({
+      plus: ['a+b'],
+      space: ['a b'],
+      encodedDelimiter: ['a&b=c'],
+      unicode: ['✓'],
+      already: ['%26'],
+    });
   });
 });
 
@@ -709,10 +812,10 @@ describe('applyServerlessResult', () => {
     expect(res.text).toBe('ok');
   });
 
-  it('handles null/undefined result as 200 empty', async () => {
+  it('defaults an empty object result to 200 empty', async () => {
     const app = express();
     app.get('/test', (_req, res) => {
-      applyServerlessResult(null, res);
+      applyServerlessResult({}, res);
     });
 
     const res = await request(app).get('/test');
@@ -731,10 +834,10 @@ describe('applyServerlessResult', () => {
     expect(res.text).toBe('hello world');
   });
 
-  it('joins array header values', async () => {
+  it('joins multi-value header values', async () => {
     const app = express();
     app.get('/test', (_req, res) => {
-      applyServerlessResult({ headers: { 'x-custom': ['a=1', 'b=2'] }, body: '' }, res);
+      applyServerlessResult({ multiValueHeaders: { 'x-custom': ['a=1', 'b=2'] }, body: '' }, res);
     });
 
     const res = await request(app).get('/test');
@@ -744,11 +847,52 @@ describe('applyServerlessResult', () => {
   it('preserves multiple Set-Cookie headers', async () => {
     const app = express();
     app.get('/test', (_req, res) => {
-      applyServerlessResult({ headers: { 'set-cookie': ['a=1; Path=/', 'b=2; Path=/'] }, body: '' }, res);
+      applyServerlessResult({ multiValueHeaders: { 'set-cookie': ['a=1; Path=/', 'b=2; Path=/'] }, body: '' }, res);
     });
 
     const res = await request(app).get('/test');
     expect(res.headers['set-cookie']).toEqual(['a=1; Path=/', 'b=2; Path=/']);
+  });
+
+  it('lets multiValueHeaders win over headers on collision', async () => {
+    const app = express();
+    app.get('/test', (_req, res) => {
+      applyServerlessResult(
+        { headers: { 'x-custom': 'single' }, multiValueHeaders: { 'x-custom': ['multi'] }, body: '' },
+        res,
+      );
+    });
+
+    const res = await request(app).get('/test');
+    expect(res.headers['x-custom']).toBe('multi');
+  });
+
+  it('throws before writing when the result contract is invalid', () => {
+    const app = express();
+    app.get('/test', (_req, res) => {
+      expect(() => applyServerlessResult({ statusCode: 99, headers: { 'x-before': 'no' }, body: 'no' }, res)).toThrow(
+        'Invalid serverless result statusCode',
+      );
+      expect(res.headersSent).toBe(false);
+      res.status(500).end('safe');
+    });
+
+    return request(app)
+      .get('/test')
+      .expect(500, 'safe')
+      .expect((res) => {
+        expect(res.headers['x-before']).toBeUndefined();
+      });
+  });
+
+  it('rejects invalid header values and base64 bodies', () => {
+    expect(() => applyServerlessResult({ headers: { 'x-bad': ['a', 'b'] }, body: '' }, express.response)).toThrow(
+      'Invalid serverless result headers.x-bad',
+    );
+    expect(() => applyServerlessResult({ isBase64Encoded: true, body: 'not base64!' }, express.response)).toThrow(
+      'not valid standard base64',
+    );
+    expect(() => applyServerlessResult(null, express.response)).toThrow('Invalid serverless result');
   });
 });
 
@@ -776,7 +920,7 @@ describe('createServerlessAdapterApp', () => {
     expect(event.path).toBe('/api/ping');
   });
 
-  it('passes the request body as a Buffer to the handler', async () => {
+  it('passes the request body as a base64 AWS v1 event string to the handler', async () => {
     const handler = vi.fn().mockResolvedValue({
       statusCode: 200,
       headers: { 'content-type': 'application/json' },
@@ -790,7 +934,8 @@ describe('createServerlessAdapterApp', () => {
 
     const [[event]] = handler.mock.calls as [[Record<string, unknown>]];
     expect(event.httpMethod).toBe('POST');
-    expect(Buffer.isBuffer(event.body)).toBe(true);
+    expect(event.body).toBe(Buffer.from('{"hello":"world"}').toString('base64'));
+    expect(event.isBase64Encoded).toBe(true);
   });
 
   it('returns 500 if the handler throws', async () => {

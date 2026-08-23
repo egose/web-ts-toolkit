@@ -45,10 +45,12 @@ describe('adapter body limit — bounded memory and 413', () => {
     expect(validateMaxBodyBytes(0)).toBe(0);
     expect(validateMaxBodyBytes(1)).toBe(1);
     expect(validateMaxBodyBytes(1048576)).toBe(1048576);
+    expect(validateMaxBodyBytes(Number.MAX_SAFE_INTEGER)).toBe(Number.MAX_SAFE_INTEGER);
     expect(() => validateMaxBodyBytes(-1)).toThrow('Invalid --max-body-bytes');
     expect(() => validateMaxBodyBytes(1.5)).toThrow('Invalid --max-body-bytes');
     expect(() => validateMaxBodyBytes(NaN)).toThrow('Invalid --max-body-bytes');
     expect(() => validateMaxBodyBytes(Infinity)).toThrow('Invalid --max-body-bytes');
+    expect(() => validateMaxBodyBytes(Number.MAX_SAFE_INTEGER + 1)).toThrow('Invalid --max-body-bytes');
     expect(() => validateMaxBodyBytes('100' as unknown as number)).toThrow('Invalid --max-body-bytes');
   });
 
@@ -59,8 +61,10 @@ describe('adapter body limit — bounded memory and 413', () => {
     expect(r2?.subcommand === 'start-serverless' && r2.startServerless.maxBodyBytes).toBe(200);
     const r3 = parseArgs(['start-serverless', './h.js', '--max-body-bytes', '0']);
     expect(r3?.subcommand === 'start-serverless' && r3.startServerless.maxBodyBytes).toBe(0);
-    const r4 = parseArgs(['start-serverless', './h.js']);
-    expect(r4?.subcommand === 'start-serverless' && r4.startServerless.maxBodyBytes).toBeUndefined();
+    const r4 = parseArgs(['start-serverless', './h.js', `--max-body-bytes=${Number.MAX_SAFE_INTEGER}`]);
+    expect(r4?.subcommand === 'start-serverless' && r4.startServerless.maxBodyBytes).toBe(Number.MAX_SAFE_INTEGER);
+    const r5 = parseArgs(['start-serverless', './h.js']);
+    expect(r5?.subcommand === 'start-serverless' && r5.startServerless.maxBodyBytes).toBeUndefined();
   });
 
   it('CLI rejects invalid --max-body-bytes before loading handler', () => {
@@ -75,9 +79,15 @@ describe('adapter body limit — bounded memory and 413', () => {
     );
     expect(() => parseArgs(['start-serverless', './h.js', '--max-body-bytes='])).toThrow('Missing value');
     expect(() => parseArgs(['start-serverless', './h.js', '--max-body-bytes', ''])).toThrow();
+    expect(() => parseArgs(['start-serverless', './h.js', '--max-body-bytes', '  '])).toThrow(
+      'Invalid --max-body-bytes',
+    );
     expect(() => parseArgs(['start-serverless', './h.js', '--max-body-bytes', 'Infinity'])).toThrow(
       'Invalid --max-body-bytes',
     );
+    expect(() =>
+      parseArgs(['start-serverless', './h.js', '--max-body-bytes', String(Number.MAX_SAFE_INTEGER + 1)]),
+    ).toThrow('Invalid --max-body-bytes');
   });
 
   it('createServerlessAdapterApp throws on invalid maxBodyBytes', () => {
