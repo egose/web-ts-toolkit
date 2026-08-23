@@ -117,6 +117,10 @@ const toc = [{
   "id": "web-ts-toolkitexpress-runtimecli",
   "level": 2
 }, {
+  "value": "Public API Ownership",
+  "id": "public-api-ownership",
+  "level": 2
+}, {
   "value": "When To Use It",
   "id": "when-to-use-it",
   "level": 2
@@ -132,6 +136,7 @@ function _createMdxContent(props) {
     ol: "ol",
     p: "p",
     pre: "pre",
+    strong: "strong",
     table: "table",
     tbody: "tbody",
     td: "td",
@@ -159,8 +164,10 @@ function _createMdxContent(props) {
         children: ["run locally with ", (0,jsx_runtime.jsx)(_components.code, {
           children: "http.createServer(...)"
         })]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "be wrapped as a platform-agnostic serverless handler"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["be wrapped as a ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "serverless-http"
+        }), " serverless handler"]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "be built and started through a shared CLI instead of hand-written runtime glue"
       }), "\n"]
@@ -174,7 +181,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @web-ts-toolkit/express-runtime express\n"
+            children: "npm install @web-ts-toolkit/express-runtime express\nnpm install --save-dev @types/express @types/node\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -183,7 +190,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @web-ts-toolkit/express-runtime express\n"
+            children: "yarn add @web-ts-toolkit/express-runtime express\nyarn add --dev @types/express @types/node\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -192,7 +199,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @web-ts-toolkit/express-runtime express\n"
+            children: "pnpm add @web-ts-toolkit/express-runtime express\npnpm add --save-dev @types/express @types/node\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -201,14 +208,20 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @web-ts-toolkit/express-runtime express\n"
+            children: "bun add @web-ts-toolkit/express-runtime express\nbun add --dev @types/express @types/node\n"
           })
         })
       })]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Peer dependency: ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Peer dependencies: ", (0,jsx_runtime.jsx)(_components.code, {
         children: "express >= 5"
-      })]
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@types/express"
+      }), ". The type peer is declared\nbecause the public declarations expose Express request, response, router, and app\ntypes. TypeScript Node projects should also have Node types available."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The installed ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "wtt-express-runtime --version"
+      }), " command reports the version from\nthe installed package manifest, so release-staged packages print the published\npackage version."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "what-it-exposes",
       children: "What It Exposes"
@@ -323,7 +336,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-bash",
-        children: "npx tsx ./node_modules/@web-ts-toolkit/express-runtime/dist/cli.js dev ./src/app.ts --env .env\n"
+        children: "npx tsx ./node_modules/@web-ts-toolkit/express-runtime/cli.js dev ./src/app.ts --env .env\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "dev-with-env-preload-and-watch",
@@ -331,10 +344,14 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-bash",
-        children: "npx tsx ./node_modules/@web-ts-toolkit/express-runtime/dist/cli.js dev ./src/app.ts \\\n  --env .env \\\n  --require tsconfig-paths/register \\\n  --watch ./src,./shared \\\n  --ext ts,json\n"
+        children: "npx tsx ./node_modules/@web-ts-toolkit/express-runtime/cli.js dev ./src/app.ts \\\n  --env .env \\\n  --require tsconfig-paths/register \\\n  --watch ./src,./shared \\\n  --ext ts,json\n"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Use this when your app module is TypeScript, depends on path aliases, or should restart on source changes."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use this when your app module is TypeScript, depends on path aliases, or should restart on source changes. Watch mode validates all watch paths before opening watchers, forks one child running the same CLI without watch flags, and serializes file changes into one restart at a time. The child receives ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "SIGTERM"
+      }), ", is escalated to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "SIGKILL"
+      }), " after 5 seconds if it does not exit, and is respawned after the debounce delay. Watcher errors, child spawn errors, unexpected child exits, and failed child termination produce one diagnostic and exit nonzero; shutdown closes owned watchers and signal handlers and cannot respawn after shutdown begins."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "build-a-local-runtime-bundle",
       children: "Build a local runtime bundle"
@@ -374,6 +391,57 @@ function _createMdxContent(props) {
         className: "language-bash",
         children: "npx wtt-express-runtime start-serverless ./netlify/functions/handler.js --port 9000 --env .env\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Override the adapter body limit (default 1 MiB, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "0"
+      }), " = empty bodies only):"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-bash",
+        children: "npx wtt-express-runtime start-serverless ./netlify/functions/handler.js --max-body-bytes 2097152\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The adapter bounds memory per request to the configured limit plus at most one chunk; declared ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Content-Length"
+      }), " exceeding the limit is rejected with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "413"
+      }), " before buffering, and oversized chunked bodies are drained after the limit without invoking the handler."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The local ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "start-serverless"
+      }), " adapter emulates exactly one provider shape: ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "AWS API Gateway REST API v1 / Lambda proxy integration"
+      }), ". It emits pathname-only ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "path"
+      }), ", single-value and multi-value header maps, single-value and multi-value query maps, string ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "body"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "isBase64Encoded"
+      }), ", and only the minimal ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "requestContext.identity.sourceIp"
+      }), " field required by ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "serverless-http"
+      }), ". It does not emulate Netlify, Vercel, HTTP API v2, ALB, cookies arrays, authorizers, stage variables, full request context, or a trusted source IP."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Query keys and values are decoded once from percent-encoding. Duplicate keys are preserved in ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "multiValueQueryStringParameters"
+      }), ", empty values remain ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "''"
+      }), ", literal ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "+"
+      }), " signs remain ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "+"
+      }), ", and encoded delimiters such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "%26"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "%3D"
+      }), " become part of the value rather than splitting the query. Non-empty request bodies are base64-encoded to preserve arbitrary bytes. Handler results are validated before any response data is written; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "multiValueHeaders"
+      }), " wins over ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "headers"
+      }), " on collisions, preserving repeated ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Set-Cookie"
+      }), " values."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "command-summary",
       children: "Command summary"
@@ -445,7 +513,7 @@ function _createMdxContent(props) {
           children: "--watch <paths>"
         }), " restarts the ", (0,jsx_runtime.jsx)(_components.code, {
           children: "dev"
-        }), " command on file changes"]
+        }), " command on file changes with one supervised child process"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "--out-dir <path>"
@@ -456,7 +524,27 @@ function _createMdxContent(props) {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "--external <pkg>"
         }), " keeps dependencies external during bundling"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "--max-body-bytes <bytes>"
+        }), " bounds adapter request bodies for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "start-serverless"
+        }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "1048576"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "0"
+        }), " allows empty bodies only)"]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--"
+      }), " to stop option parsing when a module path starts with a dash, for\nexample ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "wtt-express-runtime dev -- --app.js"
+      }), ". Numeric values are validated\nbefore env files, preload modules, app modules, watchers, or servers are opened:\nports must be canonical decimal integers in ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "0..65535"
+      }), " or nonnumeric named-pipe\npaths, and timeout, delay, and body-limit values must be finite integers in\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "0..9007199254740991"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "createexpressappoptions",
       children: (0,jsx_runtime.jsx)(_components.code, {
@@ -572,6 +660,28 @@ function _createMdxContent(props) {
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "preMiddleware"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "middleware"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "postMiddleware"
+      }), " accept both\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "RequestHandler"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ErrorRequestHandler"
+      }), " entries, matching Express ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "app.use()"
+      }), "\nsemantics. Error handlers in those arrays are slot-dependent and only catch\nerrors from middleware/routes registered before that slot. Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "errorHandler"
+      }), " for\nthe final app-wide error handler, or add routes in ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "finalize(app)"
+      }), " so the\nfactory-owned final error handling can observe them. When ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "errorHandler"
+      }), " is\nomitted, unhandled errors that reach the factory-owned pipeline are logged\nthrough ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "logger.error('Unhandled Express error:', err)"
+      }), " before delegating to\nExpress' default final handler."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "RouterMount"
       }), " accepts:"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
@@ -602,8 +712,14 @@ function _createMdxContent(props) {
       children: (0,jsx_runtime.jsx)(_components.code, {
         children: "createServerlessHandler(app, options?)"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Wraps an Express app into a platform-agnostic serverless handler."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Wraps an Express app into a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "serverless-http"
+      }), " handler. Configure provider-specific deployment behavior through ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "serverlessOptions"
+      }), "; the local ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "start-serverless"
+      }), " adapter emulates AWS API Gateway REST API v1 / Lambda proxy only."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Notable behavior:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
@@ -612,13 +728,35 @@ function _createMdxContent(props) {
           children: "init()"
         }), " runs once per cold start and is memoized"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["rejected ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ["synchronous ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "init()"
+        }), " throws and rejected ", (0,jsx_runtime.jsx)(_components.code, {
           children: "init()"
         }), " results are also memoized until you call ", (0,jsx_runtime.jsx)(_components.code, {
           children: "handler.reset()"
-        })]
+        }), " after settlement"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "handler.reset()"
+        }), " is ignored while initialization is pending, so concurrent invocations cannot start multiple initializations"]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "the default request hook decodes buffered JSON and text bodies before Express sees them"
+        children: "serverless-http 4 replays supported event bodies through the Express request stream, so the default request hook leaves JSON Buffers for Express to parse once"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["the default request hook parses JSON only for exact ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "application/json"
+        }), " and structured ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "application/*+json"
+        }), " media types on non-stream hook inputs; ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "application/jsonp"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "application/json-evil"
+        }), " are not JSON"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "maxBodyBytes"
+        }), " on ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "createServerlessHandler()"
+        }), " is only the default hook's conversion threshold, not an end-to-end request rejection limit"]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Important options:"
@@ -629,11 +767,11 @@ function _createMdxContent(props) {
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "request"
+          children: "request(req, event, context)"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "response"
+          children: "response(res, event, context)"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
@@ -648,6 +786,40 @@ function _createMdxContent(props) {
           children: "logger"
         })
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The default request hook handles ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Content-Type"
+      }), " parameters separately from the\nmedia type and matches media types case-insensitively. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "application/json; charset=utf-8"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "application/vnd.api+json"
+      }), " use JSON behavior;\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "application/jsonp"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "application/json-evil"
+      }), " do not. Malformed JSON is left\nfor Express/parser error handling and is not logged as an internal serverless\nhook failure."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use Express parser limits (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "json.limit"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "urlencoded.limit"
+      }), ") or platform limits\nfor request rejection. The local ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "start-serverless"
+      }), " adapter has its own enforced\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--max-body-bytes"
+      }), " limit that returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "413"
+      }), " before invoking the handler."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Hook types are generic over provider event and context:\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ServerlessRequestHook<TEvent, TContext>"
+      }), " and\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ServerlessResponseHook<TEvent, TContext>"
+      }), ". They match serverless-http 4's\nruntime calls: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "(request, event, context)"
+      }), " before Express and\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "(response, event, context)"
+      }), " after Express."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Netlify-style example:"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
@@ -663,16 +835,42 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Starts the app with friendly local-server behavior:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "TCP port or named-pipe binding"
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["TCP port or named-pipe binding (port ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "0"
+        }), " logs the actual bound port)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["awaitable ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ready"
+        }), " promise that resolves on listening and rejects on init/listen failure"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["explicit lifecycle state machine: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "initializing"
+        }), " → ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "listening"
+        }), " → ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "stopping"
+        }), " → ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "stopped"
+        }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "initializing"
+        }), " → ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "failed"
+        })]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["graceful ", (0,jsx_runtime.jsx)(_components.code, {
           children: "SIGINT"
         }), " and ", (0,jsx_runtime.jsx)(_components.code, {
           children: "SIGTERM"
-        }), " shutdown by default"]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "configurable shutdown timeout for draining in-flight requests"
+        }), " shutdown by default (single-flight, owned handlers only)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["deterministic shutdown order: stop accepting → drain (up to ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "shutdownTimeout"
+        }), ") → ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "onShutdown"
+        }), " (covers draining only; ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "onShutdown"
+        }), " errors are logged)"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["optional ", (0,jsx_runtime.jsx)(_components.code, {
           children: "init"
@@ -685,12 +883,26 @@ function _createMdxContent(props) {
         }), " hooks"]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Example with shutdown hooks:"
+      children: "Example with readiness and shutdown hooks:"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "async function connectDatabase(): Promise<void> {}\nasync function disconnectDatabase(): Promise<void> {}\n\nconst server = startLocalServer(app, {\n  port: 8080,\n  init: async () => {\n    await connectDatabase();\n  },\n  onShutdown: async () => {\n    await disconnectDatabase();\n  },\n  onListening: () => {\n    console.log('server is ready');\n  },\n});\n\nawait server.shutdown();\n"
+        children: "async function connectDatabase(): Promise<void> {}\nasync function disconnectDatabase(): Promise<void> {}\n\nconst local = startLocalServer(app, {\n  port: 8080,\n  init: async () => {\n    await connectDatabase();\n  },\n  onShutdown: async () => {\n    await disconnectDatabase();\n  },\n  onListening: () => {\n    console.log('server is ready');\n  },\n});\n\ntry {\n  await local.ready;\n  console.log('listening on', (local.server.address() as { port: number }).port);\n} catch (err) {\n  console.error('failed to start', err);\n}\n\nawait local.shutdown();\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "shutdown()"
+      }), " is memoized — concurrent calls and signals share one operation — and a shutdown requested during a pending ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "init"
+      }), " prevents the later ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "listen"
+      }), " (leaving ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "server.listening === false"
+      }), " and rejecting ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ready"
+      }), "). If the server was never started or was closed externally, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "shutdown()"
+      }), " resolves deterministically."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "web-ts-toolkitexpress-runtimecli",
       children: (0,jsx_runtime.jsx)(_components.code, {
@@ -732,6 +944,37 @@ function _createMdxContent(props) {
       children: ["This is the same public subpath ", (0,jsx_runtime.jsx)(_components.code, {
         children: "@web-ts-toolkit/access-router-runtime"
       }), " builds on for its own config-driven CLI."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "public-api-ownership",
+      children: "Public API Ownership"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The root package's supported consumer API is ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createExpressApp"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createServerlessHandler"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "startLocalServer"
+      }), ", and their option/result types.\nRoot extension seams kept public for wrappers and advanced integrations are\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "defaultRequestHook"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "normalizePort"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "parsePortValue"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "validateFiniteInteger"
+      }), ",\nand the re-exported Express/serverless-http types."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/cli"
+      }), " subpath is a supported programmatic facade. Stable consumer APIs are\nthe command parsers/runners and command argument types. The lower-level env,\npreload, module-loading, build-entry, watch, build, and local serverless adapter\nhelpers are intentional extension seams for CLI wrappers such as\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/access-router-runtime"
+      }), "; their exact names are locked by tests so\naccidental additions or removals are reviewed explicitly."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Build tooling remains in this package for now. The measured package payload is\nabout 68 KiB compressed / 313 KiB unpacked, and a root CommonJS import does not\nload ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "tsup"
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "esbuild"
+      }), ". A separate build-CLI package can be considered later if\ninstall-size policy changes, but it is not necessary for runtime imports today."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "when-to-use-it",
       children: "When To Use It"
