@@ -1,11 +1,15 @@
 import { startLocalServer, type Express } from './index';
 import {
   CLI_VERSION,
+  DEFAULT_ADAPTER_MAX_BODY_BYTES,
+  TEMP_BUILD_ENTRY_FILENAME,
+  TEMP_SERVERLESS_ENTRY_FILENAME,
   applyServerlessResult,
   buildChildArgs,
   buildRuntime,
   buildServerless,
   buildBundleFromEntryContent,
+  collectBody,
   createServerlessAdapterApp,
   extractExport,
   generateRuntimeEntry,
@@ -23,6 +27,9 @@ import {
   resolveExport,
   runWithWatch,
   toServerlessEvent,
+  validateMaxBodyBytes,
+  validateOutDirForClean,
+  type ApiGatewayRestEvent,
   type BuildArgs,
   type BuildEntryContentArgs,
   type DevArgs,
@@ -30,9 +37,11 @@ import {
   type ParsedArgs,
   type RuntimeModuleInit,
   type ServerlessResult,
+  type ServerlessAdapterOptions,
   type StartArgs,
   type StartServerlessArgs,
   type Subcommand,
+  type WatchSupervisorController,
 } from './cli-utils';
 
 export type RuntimeCliCommand = Exclude<ParsedArgs, null>;
@@ -40,12 +49,13 @@ export type RuntimeCliCommand = Exclude<ParsedArgs, null>;
 export interface DevCommandRunner<TLoaded> {
   load: (appPath: string) => Promise<TLoaded> | TLoaded;
   start: (loaded: TLoaded, options: DevArgs['options'] & { exitAfterShutdown: true }) => void;
-  watch?: (args: DevArgs) => void;
+  watch?: (args: DevArgs) => void | WatchSupervisorController;
 }
 
 export interface BuildEntryCommandOptions {
   generateEntry: (appPath: string, initPath?: string) => string;
-  tempEntryFilename: string;
+  /** @deprecated staging is now uniquely created; this is ignored if provided */
+  tempEntryFilename?: string;
   allowInit?: boolean;
   initErrorMessage?: string;
 }
@@ -78,10 +88,12 @@ export async function runBuildEntryCommand(args: BuildArgs, options: BuildEntryC
   if (options.allowInit === false && args.initPath) {
     throw new Error(options.initErrorMessage ?? 'This build command manages init automatically. Remove --init.');
   }
+  // Validate outDir with input awareness before staging, so we fail before touching filesystem
+  const { validateOutDirForClean } = await import('./cli-utils');
+  validateOutDirForClean(args.outDir, args.clean, args.appPath, args.initPath);
 
   await buildBundleFromEntryContent({
     entryContent: options.generateEntry(args.appPath, args.initPath),
-    tempEntryFilename: options.tempEntryFilename,
     tsconfigPath: args.tsconfigPath,
     outDir: args.outDir,
     outName: args.outName,
@@ -131,7 +143,7 @@ export async function runCliCommand(parsedArgs: RuntimeCliCommand): Promise<void
     }
     await preloadModules(startServerless.require);
     const handler = await loadHandler(startServerless.handlerPath);
-    const app = createServerlessAdapterApp(handler);
+    const app = createServerlessAdapterApp(handler, { maxBodyBytes: startServerless.maxBodyBytes });
     startLocalServer(app, { ...startServerless.options, exitAfterShutdown: true });
     return;
   }
@@ -141,11 +153,15 @@ export async function runCliCommand(parsedArgs: RuntimeCliCommand): Promise<void
 
 export {
   CLI_VERSION,
+  DEFAULT_ADAPTER_MAX_BODY_BYTES,
+  TEMP_BUILD_ENTRY_FILENAME,
+  TEMP_SERVERLESS_ENTRY_FILENAME,
   applyServerlessResult,
   buildChildArgs,
   buildRuntime,
   buildServerless,
   buildBundleFromEntryContent,
+  collectBody,
   createServerlessAdapterApp,
   extractExport,
   generateRuntimeEntry,
@@ -163,15 +179,19 @@ export {
   resolveExport,
   runWithWatch,
   toServerlessEvent,
+  validateMaxBodyBytes,
+  validateOutDirForClean,
 };
 
 export type {
+  ApiGatewayRestEvent,
   BuildArgs,
   BuildEntryContentArgs,
   DevArgs,
   GenericHandler,
   ParsedArgs,
   RuntimeModuleInit,
+  ServerlessAdapterOptions,
   ServerlessResult,
   StartArgs,
   StartServerlessArgs,

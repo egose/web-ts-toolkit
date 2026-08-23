@@ -49,7 +49,6 @@ async function runConfigAwareCommand(invocation: NonNullable<ReturnType<typeof r
   if (parsedArgs.subcommand === 'build') {
     await runBuildEntryCommand(parsedArgs.build, {
       generateEntry: (configPath) => generateRuntimeEntryFromConfig(configPath, parsedArgs.build.tsconfigPath),
-      tempEntryFilename: '.access-router-runtime-build-entry.ts',
       allowInit: false,
       initErrorMessage: 'build manages the init hook automatically. Remove --init.',
     });
@@ -60,7 +59,6 @@ async function runConfigAwareCommand(invocation: NonNullable<ReturnType<typeof r
     await runBuildEntryCommand(parsedArgs.buildServerless, {
       generateEntry: (configPath) =>
         generateServerlessEntryFromConfig(configPath, parsedArgs.buildServerless.tsconfigPath),
-      tempEntryFilename: '.access-router-runtime-build-serverless-entry.ts',
       allowInit: false,
       initErrorMessage: 'build-serverless manages the init hook automatically. Remove --init.',
     });

@@ -1,26 +1,110 @@
 import { pathToFileURL } from 'node:url';
-import { resolve as pathResolve, extname } from 'node:path';
-import { writeFileSync, rmSync, readFileSync, existsSync, watch } from 'node:fs';
+import {
+  dirname,
+  resolve as pathResolve,
+  extname,
+  join as pathJoin,
+  normalize as pathNormalize,
+  parse as pathParse,
+  sep as pathSep,
+} from 'node:path';
+import {
+  writeFileSync,
+  rmSync,
+  readFileSync,
+  existsSync,
+  realpathSync,
+  watch,
+  mkdtempSync,
+  lstatSync,
+  chmodSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { fork, type ChildProcess } from 'node:child_process';
+import { validateHeaderName, validateHeaderValue } from 'node:http';
 import type { Express, Request, Response } from 'express';
 import { createExpressApp, type LocalServerOptions } from './index';
+import { MAX_INTEGER_OPTION_VALUE, parsePortValue, validateFiniteInteger } from './numeric-validation';
+
+function readPackageVersion(candidatePath: string): string | undefined {
+  try {
+    const manifest = JSON.parse(readFileSync(candidatePath, 'utf8')) as { version?: unknown };
+    return typeof manifest.version === 'string' && manifest.version.length > 0 ? manifest.version : undefined;
+  } catch (_error) {
+    void _error;
+    return undefined;
+  }
+}
+
+export function resolveCliVersion(executablePath = process.argv[1]): string {
+  let resolvedExecutable: string | undefined;
+  try {
+    resolvedExecutable = executablePath ? realpathSync(executablePath) : undefined;
+  } catch (_error) {
+    void _error;
+  }
+  const executableDir = resolvedExecutable ? dirname(resolvedExecutable) : undefined;
+  const candidates = executableDir
+    ? [pathJoin(executableDir, 'package.json'), pathJoin(executableDir, '..', 'package.json')]
+    : [];
+  for (const candidate of candidates) {
+    const version = readPackageVersion(candidate);
+    if (version) return version;
+  }
+  return '0.0.0-dev';
+}
+
+export const CLI_VERSION = resolveCliVersion();
 
 /**
- * Version placeholder rewritten at publish time by `@repo-toolkit/publish-package`.
- */
-export const CLI_VERSION = '0.0.0-PLACEHOLDER';
-
-/**
- * Read the next argv value after a flag, throwing if it is missing or looks
- * like another flag.
+ * Read the next argv value after a flag, throwing if it is missing, empty, or
+ * looks like another flag.
  */
 export function readValue(argv: string[], index: number, name: string): string {
   const value = argv[index + 1];
-  if (value === undefined || value.startsWith('--')) {
+  if (value === undefined || value === '' || value.startsWith('--')) {
     throw new Error(`Missing value for argument: ${name}`);
   }
   return value;
+}
+
+function readInlineValue(arg: string, prefix: string, name: string): string {
+  const value = arg.slice(prefix.length);
+  if (value === '') {
+    throw new Error(`Missing value for argument: ${name}`);
+  }
+  return value;
+}
+
+function parseIntegerFlag(raw: string, name: string, min = 0, max = MAX_INTEGER_OPTION_VALUE): number {
+  if (!/^(0|[1-9]\d*)$/.test(raw)) {
+    throw new Error(`Invalid ${name}: ${raw}. Must be a finite integer in ${min}..${max}.`);
+  }
+  return validateFiniteInteger(Number(raw), { name, min, max });
+}
+
+function parsePortFlag(raw: string, name = '--port'): number | string {
+  try {
+    return parsePortValue(raw, name);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith(`Invalid ${name}:`)) {
+      throw error;
+    }
+    throw new Error(`Invalid ${name}: ${raw}. Must be a port number in 0..65535 or a named pipe path.`, {
+      cause: error,
+    });
+  }
+}
+
+function parseCsvFlagValue(raw: string, name: string): string[] {
+  const values = raw
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (values.length === 0) {
+    throw new Error(`Missing value for argument: ${name}`);
+  }
+  return values;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,7 +144,6 @@ export interface BuildArgs {
 
 export interface BuildEntryContentArgs {
   entryContent: string;
-  tempEntryFilename: string;
   tsconfigPath?: string;
   outDir: string;
   outName: string;
@@ -82,6 +165,8 @@ export interface StartArgs {
 export interface StartServerlessArgs {
   handlerPath: string;
   options: Omit<LocalServerOptions, 'init' | 'onShutdown'>;
+  /** Maximum bytes to buffer for request bodies via the local adapter. Default: 1048576. */
+  maxBodyBytes?: number;
   /** Modules to preload before loading the handler (repeatable `--require`). */
   require: string[];
   /** Env files to load before loading the handler (repeatable `--env`). */
@@ -161,6 +246,7 @@ Start-serverless options:
   --host <hostname>             Hostname to bind (default: process.env.HOST or 0.0.0.0)
   --no-signals                  Disable SIGINT/SIGTERM handler registration
   --shutdown-timeout <ms>       Max ms to wait for in-flight requests (default: 5000)
+  --max-body-bytes <bytes>      Max request body bytes for adapter (default: 1048576; 0 disallows bodies)
   --require <module>            Module(s) to preload before handler load (repeatable)
   --env <path>                  Env file(s) to load (repeatable; existing env vars are not overridden)
 
@@ -182,17 +268,22 @@ Examples:
 Notes:
   - In dev mode, the CLI evaluates arbitrary code from <app-module> in the current process.
   - TypeScript app modules in dev mode require a TS loader. Run via tsx:
-      npx tsx ./node_modules/@web-ts-toolkit/express-runtime/dist/cli.js dev ./src/app.ts
+      npx tsx ./node_modules/@web-ts-toolkit/express-runtime/cli.js dev ./src/app.ts
     Or use --require with a TS-aware loader module.
   - --env files are parsed as KEY=VALUE; existing process.env entries are never overridden.
     For advanced dotenv features (multiline, expansion), --require dotenv/config instead.
-  - --watch forks a child process running the same CLI without --watch. On file change,
-    the child is killed (SIGTERM) and respawned after the debounce delay.
+  - --watch forks one child process running the same CLI without --watch. File changes
+    are serialized into one restart at a time: SIGTERM, SIGKILL after 5000 ms if needed,
+    then respawn after the debounce delay. Shutdown closes owned watchers and signal handlers.
   - In build/build-serverless mode, express is always external. Add more externals with --external.
   - In start mode, the bundled app file must default-export an Express app (or export it as "app").
     If the bundle exports "init", it runs before the server starts listening.
   - In start-serverless mode, the bundled handler file must be a JS/CJS module whose
     "handler" export (or default export) is a function: (event, context) => Promise<result>.
+  - The start-serverless adapter buffers at most --max-body-bytes per request (default 1 MiB, 0 = empty bodies only);
+    larger declared Content-Length or chunked bodies receive 413 without invoking the handler.
+  - Use -- before a positional path that starts with a dash, e.g. dev -- --app.js.
+  - Numeric flag values are validated before env/preload/app loading, watching, or binding.
   - Init logic for dev mode (DB connections, etc.): add at the top level of your app module.
 `);
 }
@@ -219,12 +310,20 @@ const DEFAULT_WATCH_EXTENSIONS = ['ts', 'js', 'mjs', 'cjs', 'json'];
 const DEFAULT_WATCH_DELAY = 500;
 
 function parseRepeatable(argv: string[], index: number, arg: string, list: string[]): number {
-  const value = readValue(argv, index, arg);
-  for (const part of value.split(',')) {
-    const trimmed = part.trim();
-    if (trimmed) list.push(trimmed);
-  }
+  list.push(...parseCsvFlagValue(readValue(argv, index, arg), arg));
   return index + 1;
+}
+
+function addPositional(arg: string, current: string | undefined, label: string): string {
+  if (current) {
+    throw new Error(`Unexpected positional argument: ${arg}. ${label} already set to ${current}`);
+  }
+  return arg;
+}
+
+function optionArgs(argv: string[]): string[] {
+  const terminator = argv.indexOf('--');
+  return terminator === -1 ? argv : argv.slice(0, terminator);
 }
 
 function parseDevArgs(argv: string[]): DevArgs {
@@ -241,7 +340,10 @@ function parseDevArgs(argv: string[]): DevArgs {
     const arg = argv[index];
 
     if (arg === '--') {
-      continue;
+      for (const positional of argv.slice(index + 1)) {
+        appPath = addPositional(positional, appPath, 'App module');
+      }
+      break;
     }
 
     if (isHelp(arg) || isVersion(arg)) {
@@ -249,16 +351,12 @@ function parseDevArgs(argv: string[]): DevArgs {
     }
 
     if (arg === '--port') {
-      const port = readValue(argv, index, arg);
-      const portNum = Number(port);
-      options.port = Number.isNaN(portNum) ? port : portNum;
+      options.port = parsePortFlag(readValue(argv, index, arg));
       index += 1;
       continue;
     }
     if (arg.startsWith('--port=')) {
-      const port = arg.slice('--port='.length);
-      const portNum = Number(port);
-      options.port = Number.isNaN(portNum) ? port : portNum;
+      options.port = parsePortFlag(readInlineValue(arg, '--port=', '--port'));
       continue;
     }
 
@@ -268,7 +366,7 @@ function parseDevArgs(argv: string[]): DevArgs {
       continue;
     }
     if (arg.startsWith('--host=')) {
-      options.host = arg.slice('--host='.length);
+      options.host = readInlineValue(arg, '--host=', '--host');
       continue;
     }
 
@@ -278,12 +376,15 @@ function parseDevArgs(argv: string[]): DevArgs {
     }
 
     if (arg === '--shutdown-timeout') {
-      options.shutdownTimeout = Number(readValue(argv, index, arg));
+      options.shutdownTimeout = parseIntegerFlag(readValue(argv, index, arg), '--shutdown-timeout');
       index += 1;
       continue;
     }
     if (arg.startsWith('--shutdown-timeout=')) {
-      options.shutdownTimeout = Number(arg.slice('--shutdown-timeout='.length));
+      options.shutdownTimeout = parseIntegerFlag(
+        readInlineValue(arg, '--shutdown-timeout=', '--shutdown-timeout'),
+        '--shutdown-timeout',
+      );
       continue;
     }
 
@@ -292,10 +393,7 @@ function parseDevArgs(argv: string[]): DevArgs {
       continue;
     }
     if (arg.startsWith('--require=')) {
-      for (const part of arg.slice('--require='.length).split(',')) {
-        const trimmed = part.trim();
-        if (trimmed) requireModules.push(trimmed);
-      }
+      requireModules.push(...parseCsvFlagValue(readInlineValue(arg, '--require=', '--require'), '--require'));
       continue;
     }
 
@@ -304,10 +402,7 @@ function parseDevArgs(argv: string[]): DevArgs {
       continue;
     }
     if (arg.startsWith('--env=')) {
-      for (const part of arg.slice('--env='.length).split(',')) {
-        const trimmed = part.trim();
-        if (trimmed) envFiles.push(trimmed);
-      }
+      envFiles.push(...parseCsvFlagValue(readInlineValue(arg, '--env=', '--env'), '--env'));
       continue;
     }
 
@@ -317,7 +412,7 @@ function parseDevArgs(argv: string[]): DevArgs {
       continue;
     }
     if (arg.startsWith('--tsconfig=')) {
-      tsconfigPath = arg.slice('--tsconfig='.length);
+      tsconfigPath = readInlineValue(arg, '--tsconfig=', '--tsconfig');
       continue;
     }
 
@@ -326,10 +421,7 @@ function parseDevArgs(argv: string[]): DevArgs {
       continue;
     }
     if (arg.startsWith('--watch=')) {
-      for (const part of arg.slice('--watch='.length).split(',')) {
-        const trimmed = part.trim();
-        if (trimmed) watchPaths.push(trimmed);
-      }
+      watchPaths.push(...parseCsvFlagValue(readInlineValue(arg, '--watch=', '--watch'), '--watch'));
       continue;
     }
 
@@ -340,28 +432,22 @@ function parseDevArgs(argv: string[]): DevArgs {
     }
     if (arg.startsWith('--ext=')) {
       watchExt = [];
-      for (const part of arg.slice('--ext='.length).split(',')) {
-        const trimmed = part.trim();
-        if (trimmed) watchExt.push(trimmed);
-      }
+      watchExt.push(...parseCsvFlagValue(readInlineValue(arg, '--ext=', '--ext'), '--ext'));
       continue;
     }
 
     if (arg === '--delay') {
-      watchDelay = Number(readValue(argv, index, arg));
+      watchDelay = parseIntegerFlag(readValue(argv, index, arg), '--delay');
       index += 1;
       continue;
     }
     if (arg.startsWith('--delay=')) {
-      watchDelay = Number(arg.slice('--delay='.length));
+      watchDelay = parseIntegerFlag(readInlineValue(arg, '--delay=', '--delay'), '--delay');
       continue;
     }
 
     if (!arg.startsWith('--')) {
-      if (appPath) {
-        throw new Error(`Unexpected positional argument: ${arg}. App module already set to ${appPath}`);
-      }
-      appPath = arg;
+      appPath = addPositional(arg, appPath, 'App module');
       continue;
     }
 
@@ -388,7 +474,7 @@ function parseDevArgs(argv: string[]): DevArgs {
 function parseStartLikeArgs(argv: string[], subcommandName: 'start' | 'start-serverless'): DevArgs {
   // start/start-serverless share the same option set as dev (port, host,
   // signals, etc.) but reject watch-mode flags.
-  for (const arg of argv) {
+  for (const arg of optionArgs(argv)) {
     if (
       arg === '--watch' ||
       arg.startsWith('--watch=') ||
@@ -417,10 +503,35 @@ function parseStartArgs(argv: string[]): StartArgs {
 }
 
 function parseStartServerlessArgs(argv: string[]): StartServerlessArgs {
-  const result = parseStartLikeArgs(argv, 'start-serverless');
+  let maxBodyBytes: number | undefined;
+  const filtered: string[] = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--') {
+      filtered.push(...argv.slice(i));
+      break;
+    }
+    if (arg === '--max-body-bytes') {
+      maxBodyBytes = parseIntegerFlag(readValue(argv, i, arg), '--max-body-bytes');
+      validateMaxBodyBytes(maxBodyBytes);
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--max-body-bytes=')) {
+      maxBodyBytes = parseIntegerFlag(
+        readInlineValue(arg, '--max-body-bytes=', '--max-body-bytes'),
+        '--max-body-bytes',
+      );
+      validateMaxBodyBytes(maxBodyBytes);
+      continue;
+    }
+    filtered.push(arg);
+  }
+  const result = parseStartLikeArgs(filtered, 'start-serverless');
   return {
     handlerPath: result.appPath,
     options: result.options,
+    maxBodyBytes,
     require: result.require,
     env: result.env,
   };
@@ -444,7 +555,10 @@ function parseBuildArgs(argv: string[], outNameDefault: string): BuildArgs {
     const arg = argv[index];
 
     if (arg === '--') {
-      continue;
+      for (const positional of argv.slice(index + 1)) {
+        appPath = addPositional(positional, appPath, 'App module');
+      }
+      break;
     }
 
     if (isHelp(arg) || isVersion(arg)) {
@@ -457,7 +571,7 @@ function parseBuildArgs(argv: string[], outNameDefault: string): BuildArgs {
       continue;
     }
     if (arg.startsWith('--init=')) {
-      result.initPath = arg.slice('--init='.length);
+      result.initPath = readInlineValue(arg, '--init=', '--init');
       continue;
     }
 
@@ -467,7 +581,7 @@ function parseBuildArgs(argv: string[], outNameDefault: string): BuildArgs {
       continue;
     }
     if (arg.startsWith('--tsconfig=')) {
-      result.tsconfigPath = arg.slice('--tsconfig='.length);
+      result.tsconfigPath = readInlineValue(arg, '--tsconfig=', '--tsconfig');
       continue;
     }
 
@@ -477,7 +591,7 @@ function parseBuildArgs(argv: string[], outNameDefault: string): BuildArgs {
       continue;
     }
     if (arg.startsWith('--out-dir=')) {
-      result.outDir = arg.slice('--out-dir='.length);
+      result.outDir = readInlineValue(arg, '--out-dir=', '--out-dir');
       continue;
     }
 
@@ -487,7 +601,7 @@ function parseBuildArgs(argv: string[], outNameDefault: string): BuildArgs {
       continue;
     }
     if (arg.startsWith('--out-name=')) {
-      result.outName = arg.slice('--out-name='.length);
+      result.outName = readInlineValue(arg, '--out-name=', '--out-name');
       continue;
     }
 
@@ -501,7 +615,7 @@ function parseBuildArgs(argv: string[], outNameDefault: string): BuildArgs {
       continue;
     }
     if (arg.startsWith('--format=')) {
-      const fmt = arg.slice('--format='.length);
+      const fmt = readInlineValue(arg, '--format=', '--format');
       if (fmt !== 'cjs' && fmt !== 'esm') {
         throw new Error(`Invalid --format: ${fmt}. Must be 'cjs' or 'esm'.`);
       }
@@ -515,7 +629,7 @@ function parseBuildArgs(argv: string[], outNameDefault: string): BuildArgs {
       continue;
     }
     if (arg.startsWith('--target=')) {
-      result.target = arg.slice('--target='.length);
+      result.target = readInlineValue(arg, '--target=', '--target');
       continue;
     }
 
@@ -525,7 +639,7 @@ function parseBuildArgs(argv: string[], outNameDefault: string): BuildArgs {
       continue;
     }
     if (arg.startsWith('--external=')) {
-      external.push(arg.slice('--external='.length));
+      external.push(readInlineValue(arg, '--external=', '--external'));
       continue;
     }
 
@@ -535,10 +649,7 @@ function parseBuildArgs(argv: string[], outNameDefault: string): BuildArgs {
     }
 
     if (!arg.startsWith('--')) {
-      if (appPath) {
-        throw new Error(`Unexpected positional argument: ${arg}. App module already set to ${appPath}`);
-      }
-      appPath = arg;
+      appPath = addPositional(arg, appPath, 'App module');
       continue;
     }
 
@@ -568,12 +679,13 @@ export function parseArgs(argv: string[]): ParsedArgs {
     return null;
   }
 
-  // Global flags take precedence regardless of position
-  if (argv.some((a) => isHelp(a))) {
+  // Global flags take precedence before standard `--` option termination.
+  const globalArgs = optionArgs(argv);
+  if (globalArgs.some((a) => isHelp(a))) {
     printHelp();
     return null;
   }
-  if (argv.some((a) => isVersion(a))) {
+  if (globalArgs.some((a) => isVersion(a))) {
     console.log(CLI_VERSION);
     return null;
   }
@@ -665,7 +777,8 @@ export async function loadApp(appPath: string): Promise<Express> {
  * Parse env file content as KEY=VALUE lines. Supports `export` prefix,
  * single/double-quoted values, and `#` comments. Returns parsed entries.
  *
- * Exported for direct unit testing.
+ * Public helper for packages that reuse the CLI's env-file parsing without
+ * shelling out to the binary.
  */
 export function parseEnvFile(content: string): Record<string, string> {
   const result: Record<string, string> = {};
@@ -696,7 +809,8 @@ export function parseEnvFile(content: string): Record<string, string> {
  * **not** overridden (consistent with dotenv's default behavior). Missing
  * files throw with a friendly message.
  *
- * Exported for direct unit testing.
+ * Public helper for programmatic CLI integrations. Mutates `process.env` by
+ * design and never overwrites existing environment variables.
  */
 export function loadEnvFiles(paths: string[]): void {
   for (const p of paths) {
@@ -723,7 +837,8 @@ const moduleRequire: NodeRequire = createRequire(
  * loading the app module. Each module is `require()`-ed, running its
  * side effects (registering hooks, loading configs, etc.).
  *
- * Exported for direct unit testing.
+ * Public helper for programmatic CLI integrations that need the same preload
+ * behavior as the binary before loading an app or handler module.
  */
 export async function preloadModules(modules: string[]): Promise<void> {
   for (const mod of modules) {
@@ -732,14 +847,306 @@ export async function preloadModules(modules: string[]): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Watch mode (dev only)
+// Watch mode (dev only) — injectable seams for deterministic tests
 // ---------------------------------------------------------------------------
+
+/**
+ * Dependencies for watch supervision, injectable for tests.
+ * Not part of the documented public API; exposed for deterministic testing
+ * without expanding the supported consumer contract.
+ */
+export interface WatchSupervisorDeps {
+  fork?: typeof fork;
+  watch?: typeof watch;
+  existsSync?: typeof existsSync;
+  logger?: Pick<Console, 'error'>;
+  killTimeoutMs?: number;
+  setTimeout?: typeof setTimeout;
+  clearTimeout?: typeof clearTimeout;
+  exit?: (code: number) => void;
+  installSignalHandlers?: boolean;
+}
+
+/**
+ * Controller returned by the injectable supervisor factory.
+ * Allows tests to observe and deterministically shut down watchers/children.
+ */
+export interface WatchSupervisorController {
+  /** Stop watching and terminate child, idempotent. */
+  shutdown: () => Promise<void>;
+  /** Currently tracked child, if any. */
+  getChild: () => ChildProcess | null;
+  /** Active watchers (FSWatcher handles). */
+  getWatchers: () => ReturnType<typeof watch>[];
+  /** Whether shutdown has been initiated. */
+  isShuttingDown: () => boolean;
+}
+
+export const DEFAULT_WATCH_KILL_TIMEOUT_MS = 5_000;
+
+type WatcherHandle = ReturnType<typeof watch>;
+type TimerHandle = ReturnType<typeof setTimeout>;
+
+function toDiagnosticMessage(prefix: string, error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return `${prefix}: ${message}`;
+}
+
+/**
+ * Create a watch supervisor with injectable dependencies.
+ * This is the test-observable seam; production `runWithWatch` delegates here
+ * with real `fork`/`watch`.
+ */
+export function createWatchSupervisor(args: DevArgs, deps: WatchSupervisorDeps = {}): WatchSupervisorController {
+  const forkImpl = deps.fork ?? fork;
+  const watchImpl = deps.watch ?? watch;
+  const existsSyncImpl = deps.existsSync ?? existsSync;
+  const logger = deps.logger ?? console;
+  const setTimeoutImpl = deps.setTimeout ?? setTimeout;
+  const clearTimeoutImpl = deps.clearTimeout ?? clearTimeout;
+  const killTimeoutMs = deps.killTimeoutMs ?? DEFAULT_WATCH_KILL_TIMEOUT_MS;
+
+  const cliPath = process.argv[1];
+  const childArgv = buildChildArgs(args);
+  let child: ChildProcess | null = null;
+  let restartTimer: TimerHandle | null = null;
+  let killTimer: TimerHandle | null = null;
+  let isShuttingDown = false;
+  let shutdownPromise: Promise<void> | null = null;
+  let restartInFlight: Promise<void> | null = null;
+  let terminatingChild: ChildProcess | null = null;
+  let failureHandled = false;
+  const restartDelay = args.watchDelay;
+  const watchers: WatcherHandle[] = [];
+
+  const clearRestartTimer = (): void => {
+    if (restartTimer) {
+      clearTimeoutImpl(restartTimer);
+      restartTimer = null;
+    }
+  };
+
+  const clearKillTimer = (): void => {
+    if (killTimer) {
+      clearTimeoutImpl(killTimer);
+      killTimer = null;
+    }
+  };
+
+  const closeWatchers = (): void => {
+    for (const watcher of watchers.splice(0)) {
+      try {
+        watcher.close();
+      } catch (_error) {
+        void _error;
+      }
+    }
+  };
+
+  const completeWithExit = async (code: number): Promise<void> => {
+    await shutdown();
+    deps.exit?.(code);
+  };
+
+  const fail = (message: string, code = 1): void => {
+    if (failureHandled) return;
+    failureHandled = true;
+    logger.error(message);
+    void completeWithExit(code).catch(() => {
+      deps.exit?.(code);
+    });
+  };
+
+  const spawnChild = (): void => {
+    if (isShuttingDown) return;
+
+    let nextChild: ChildProcess;
+    try {
+      nextChild = forkImpl(cliPath, childArgv, { stdio: 'inherit' });
+    } catch (error) {
+      fail(toDiagnosticMessage('Watch child failed to spawn', error));
+      return;
+    }
+
+    child = nextChild;
+    nextChild.once('error', (error) => {
+      if (child === nextChild) {
+        child = null;
+      }
+      fail(toDiagnosticMessage('Watch child process error', error));
+    });
+    nextChild.once('exit', (code, signal) => {
+      if (child === nextChild) {
+        child = null;
+      }
+      if (terminatingChild === nextChild || isShuttingDown || failureHandled) {
+        return;
+      }
+      const exitCode = typeof code === 'number' && code > 0 ? code : 1;
+      fail(`Watch child exited unexpectedly${signal ? ` from ${signal}` : ` with code ${String(code)}`}`, exitCode);
+    });
+  };
+
+  const killChild = async (target = child): Promise<void> => {
+    if (!target || !target.pid) {
+      if (target && child === target) child = null;
+      return;
+    }
+
+    terminatingChild = target;
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const settle = (error?: Error): void => {
+        if (settled) return;
+        settled = true;
+        clearKillTimer();
+        target.removeListener('exit', onExit);
+        target.removeListener('error', onError);
+        if (child === target) child = null;
+        if (terminatingChild === target) terminatingChild = null;
+        if (error) reject(error);
+        else resolve();
+      };
+      const onExit = (): void => settle();
+      const onError = (error: Error): void => settle(error);
+
+      target.once('exit', onExit);
+      target.once('error', onError);
+
+      try {
+        const signaled = target.kill('SIGTERM');
+        if (!signaled) {
+          throw new Error('child.kill("SIGTERM") returned false');
+        }
+      } catch (error) {
+        settle(error instanceof Error ? error : new Error(String(error)));
+        return;
+      }
+
+      if (!settled) {
+        killTimer = setTimeoutImpl(() => {
+          try {
+            const signaled = target.kill('SIGKILL');
+            if (!signaled) {
+              settle(new Error('child.kill("SIGKILL") returned false'));
+            }
+          } catch (error) {
+            settle(error instanceof Error ? error : new Error(String(error)));
+          }
+        }, killTimeoutMs);
+      }
+    });
+  };
+
+  const restart = async (): Promise<void> => {
+    if (isShuttingDown) return;
+    if (restartInFlight) {
+      await restartInFlight;
+      return;
+    }
+
+    restartInFlight = (async () => {
+      if (isShuttingDown) return;
+      await killChild();
+      if (isShuttingDown) return;
+      spawnChild();
+    })();
+
+    try {
+      await restartInFlight;
+    } finally {
+      restartInFlight = null;
+    }
+  };
+
+  const debouncedRestart = (): void => {
+    if (isShuttingDown) return;
+    clearRestartTimer();
+    restartTimer = setTimeoutImpl(() => {
+      restartTimer = null;
+      void restart().catch((error) => {
+        fail(toDiagnosticMessage('Watch restart failed', error));
+      });
+    }, restartDelay);
+  };
+
+  // Validate all paths before opening any watcher (prevents leaking watchers on partial failure)
+  for (const watchPath of args.watch) {
+    const absPath = pathResolve(process.cwd(), watchPath);
+    if (!existsSyncImpl(absPath)) {
+      throw new Error(`Watch path not found: ${watchPath}`);
+    }
+  }
+
+  const shutdown = async (): Promise<void> => {
+    if (shutdownPromise) return shutdownPromise;
+    isShuttingDown = true;
+    clearRestartTimer();
+    closeWatchers();
+    shutdownPromise = (async () => {
+      const activeRestart = restartInFlight;
+      if (activeRestart) {
+        await activeRestart.catch(() => undefined);
+      }
+      const activeChild = child;
+      if (activeChild) {
+        await killChild(activeChild).catch((error) => {
+          if (!failureHandled) {
+            fail(toDiagnosticMessage('Watch child termination failed', error));
+          }
+        });
+      }
+    })();
+    return shutdownPromise;
+  };
+
+  try {
+    // Open watchers after validation; roll back every opened watcher on setup failure.
+    for (const watchPath of args.watch) {
+      const absPath = pathResolve(process.cwd(), watchPath);
+      const watcher = watchImpl(absPath, { recursive: true }, (_eventType, filename) => {
+        if (isShuttingDown) return;
+        if (!filename) return;
+        const ext = extname(filename as string)
+          .slice(1)
+          .toLowerCase();
+        if (args.watchExt.includes(ext)) {
+          debouncedRestart();
+        }
+      });
+      (watcher as unknown as { on?: (event: 'error', listener: (error: Error) => void) => void }).on?.(
+        'error',
+        (error) => {
+          fail(toDiagnosticMessage('Watch path runtime error', error));
+        },
+      );
+      watchers.push(watcher);
+    }
+
+    spawnChild();
+  } catch (error) {
+    clearRestartTimer();
+    closeWatchers();
+    if (child) {
+      void killChild(child).catch(() => undefined);
+    }
+    throw error;
+  }
+
+  return {
+    shutdown,
+    getChild: () => child,
+    getWatchers: () => [...watchers],
+    isShuttingDown: () => isShuttingDown,
+  };
+}
 
 /**
  * Reconstruct the argv for the child process, stripping --watch/--ext/--delay
  * flags (the child runs without watch mode).
  *
- * Exported for direct unit testing.
+ * Public helper for CLI wrappers that supervise watch mode themselves and need
+ * the same child argv reconstruction as `runWithWatch`.
  */
 export function buildChildArgs(args: DevArgs): string[] {
   const result: string[] = ['dev', args.appPath];
@@ -757,89 +1164,63 @@ export function buildChildArgs(args: DevArgs): string[] {
 /**
  * Run the CLI in watch mode. Forks a child process running the same CLI
  * without --watch, watches the specified paths for file changes, and
- * restarts the child (SIGTERM → respawn) on changes matching the given
- * extensions. Uses Node 20+'s `fs.watch` with `{ recursive: true }`.
+ * restarts the child (SIGTERM, then SIGKILL after 5 seconds) on changes
+ * matching the given extensions. Uses Node 20+'s `fs.watch` with
+ * `{ recursive: true }`.
+ *
+ * Production entry point that delegates to `createWatchSupervisor` with real
+ * dependencies and installs signal handlers that exit the process.
  */
-export function runWithWatch(args: DevArgs): void {
-  const cliPath = process.argv[1];
-  const childArgv = buildChildArgs(args);
-  let child: ChildProcess | null = null;
-  let restartTimer: ReturnType<typeof setTimeout> | null = null;
-  let isShuttingDown = false;
-  const restartDelay = args.watchDelay;
-
-  const spawnChild = (): void => {
-    child = fork(cliPath, childArgv, { stdio: 'inherit' });
-    child.on('exit', (code) => {
-      child = null;
-      if (!isShuttingDown && code !== null && code !== 0) {
-        // On crash, keep the watcher running so the next file change respawns.
-      }
-    });
-  };
-
-  const killChild = (): Promise<void> => {
-    return new Promise((resolve) => {
-      if (!child || !child.pid) {
-        resolve();
-        return;
-      }
-      child.once('exit', () => resolve());
-      child.kill('SIGTERM');
-    });
-  };
-
-  const restart = async (): Promise<void> => {
-    await killChild();
-    spawnChild();
-  };
-
-  const debouncedRestart = (): void => {
-    if (restartTimer) clearTimeout(restartTimer);
-    restartTimer = setTimeout(() => {
-      restartTimer = null;
-      void restart();
-    }, restartDelay);
-  };
-
-  // Start watching
-  for (const watchPath of args.watch) {
-    const absPath = pathResolve(process.cwd(), watchPath);
-    if (!existsSync(absPath)) {
-      throw new Error(`Watch path not found: ${watchPath}`);
+export function runWithWatch(args: DevArgs, deps: WatchSupervisorDeps = {}): WatchSupervisorController {
+  const usingInjectedDeps = Object.keys(deps).length > 0;
+  const installSignalHandlers = deps.installSignalHandlers ?? !usingInjectedDeps;
+  const exitImpl = deps.exit ?? (usingInjectedDeps ? undefined : (code: number) => process.exit(code));
+  const controller = createWatchSupervisor(args, {
+    ...deps,
+    exit: exitImpl,
+  });
+  let shutdownStarted = false;
+  const ownedHandlers: Array<[NodeJS.Signals, () => void]> = [];
+  const removeOwnedHandlers = (): void => {
+    for (const [signal, handler] of ownedHandlers.splice(0)) {
+      process.removeListener(signal, handler);
     }
-    watch(absPath, { recursive: true }, (_eventType, filename) => {
-      if (!filename) return;
-      const ext = extname(filename).slice(1).toLowerCase();
-      if (args.watchExt.includes(ext)) {
-        debouncedRestart();
-      }
-    });
+  };
+  const shutdown = async (): Promise<void> => {
+    removeOwnedHandlers();
+    await controller.shutdown();
+  };
+  const wrappedController: WatchSupervisorController = {
+    shutdown,
+    getChild: controller.getChild,
+    getWatchers: controller.getWatchers,
+    isShuttingDown: controller.isShuttingDown,
+  };
+
+  // In injected test mode, caller manages shutdown unless it explicitly opts in
+  // to signal handlers. In production, exit after child terminates.
+  if (installSignalHandlers) {
+    const shutdownAndExit = (): void => {
+      if (shutdownStarted) return;
+      shutdownStarted = true;
+      void shutdown().then(() => exitImpl?.(0));
+    };
+    ownedHandlers.push(['SIGINT', shutdownAndExit], ['SIGTERM', shutdownAndExit]);
+    process.on('SIGINT', shutdownAndExit);
+    process.on('SIGTERM', shutdownAndExit);
   }
 
-  // Forward parent signals to child, then exit
-  const shutdown = (): void => {
-    isShuttingDown = true;
-    if (restartTimer) clearTimeout(restartTimer);
-    if (child && child.pid) {
-      child.once('exit', () => process.exit(0));
-      child.kill('SIGTERM');
-    } else {
-      process.exit(0);
-    }
-  };
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
-
-  spawnChild();
+  return wrappedController;
 }
 
 // ---------------------------------------------------------------------------
 // build / build-serverless
 // ---------------------------------------------------------------------------
 
-const TEMP_BUILD_ENTRY_FILENAME = '.express-runtime-build-entry.ts';
-const TEMP_SERVERLESS_ENTRY_FILENAME = '.express-runtime-build-serverless-entry.ts';
+/** Legacy fixed staging filenames — no longer written, but retained for regression tests that verify they are not overwritten. */
+export const TEMP_BUILD_ENTRY_FILENAME = '.express-runtime-build-entry.ts';
+export const TEMP_SERVERLESS_ENTRY_FILENAME = '.express-runtime-build-serverless-entry.ts';
+const STAGING_DIR_PREFIX = '.wtt-build-';
 
 export type RuntimeModuleInit = () => Promise<void> | void;
 
@@ -847,7 +1228,7 @@ export type RuntimeModuleInit = () => Promise<void> | void;
  * Generate the temporary entry file content that wires the user's app and
  * optional init hook into a serverless handler.
  *
- * Exported for direct unit testing.
+ * Public build-entry generator used by programmatic CLI integrations.
  */
 export function generateServerlessEntry(appPath: string, initPath?: string): string {
   const absAppPath = pathResolve(process.cwd(), appPath);
@@ -874,7 +1255,7 @@ export function generateServerlessEntry(appPath: string, initPath?: string): str
  * Generate the temporary entry file content that wires the user's app and
  * optional init hook into a local runtime bundle.
  *
- * Exported for direct unit testing.
+ * Public build-entry generator used by programmatic CLI integrations.
  */
 export function generateRuntimeEntry(appPath: string, initPath?: string): string {
   const absAppPath = pathResolve(process.cwd(), appPath);
@@ -894,11 +1275,131 @@ export function generateRuntimeEntry(appPath: string, initPath?: string): string
   return lines.join('\n') + '\n';
 }
 
+/**
+ * Validate that `outDir` is safe to clean before invoking tsup.
+ * Prevents destructive `clean: true` combinations:
+ *  - filesystem root
+ *  - project cwd itself (repository root)
+ *  - symlinked output directories
+ *  - output that contains input files (appPath/initPath)
+ *
+ * Public safety check for programmatic build integrations before invoking
+ * `buildBundleFromEntryContent()` with `clean: true`.
+ */
+export function validateOutDirForClean(outDir: string, clean: boolean, appPath?: string, initPath?: string): void {
+  if (!clean) return;
+  const cwd = process.cwd();
+  const outAbs = pathResolve(cwd, outDir);
+  const normalized = pathNormalize(outAbs);
+  const root = pathParse(normalized).root;
+  if (normalized === root) {
+    throw new Error(`Refusing to clean filesystem root: ${outDir} resolves to ${normalized}`);
+  }
+  if (normalized === pathNormalize(cwd)) {
+    throw new Error(`Refusing to clean project directory: ${outDir} resolves to cwd ${cwd}`);
+  }
+  // Forbid cleaning an ancestor of cwd (e.g. outDir = ".." cleaning parent)
+  if (cwd !== root && (cwd === normalized || cwd.startsWith(normalized + pathSep))) {
+    throw new Error(
+      `Refusing to clean ancestor of project directory: ${outDir} resolves to ${normalized} which contains cwd ${cwd}`,
+    );
+  }
+  // Symlinked output directory
+  try {
+    if (existsSync(outAbs)) {
+      const st = lstatSync(outAbs);
+      if (st.isSymbolicLink()) {
+        throw new Error(`Refusing to clean symlinked outDir: ${outDir} resolves to symlink ${outAbs}`);
+      }
+      // Also check realpath differs dangerously (e.g. symlink inside)
+      // We already rejected direct symlink; realpath check for nested symlink is best-effort
+    }
+  } catch (e) {
+    if ((e as Error).message.startsWith('Refusing to clean')) throw e;
+    // otherwise ignore lstat errors (file may not exist yet)
+  }
+  // Input overlap: appPath or initPath inside outDir
+  const checkOverlap = (inputPath: string | undefined, label: string) => {
+    if (!inputPath) return;
+    const inputAbs = pathResolve(cwd, inputPath);
+    const inputNorm = pathNormalize(inputAbs);
+    if (inputNorm === normalized) {
+      throw new Error(`Refusing to clean outDir that is the same as ${label}: ${outDir} == ${inputPath}`);
+    }
+    if (inputNorm.startsWith(normalized + pathSep)) {
+      throw new Error(`Refusing to clean outDir that contains ${label}: ${outDir} contains ${inputPath}`);
+    }
+  };
+  checkOverlap(appPath, 'appPath');
+  checkOverlap(initPath, 'initPath');
+}
+
+function createUniqueStagingDir(): string {
+  const cwd = process.cwd();
+  const prefix = pathJoin(cwd, STAGING_DIR_PREFIX);
+  const dir = mkdtempSync(prefix);
+  // Ensure private permissions and not a symlink
+  try {
+    const st = lstatSync(dir);
+    if (st.isSymbolicLink()) {
+      rmSync(dir, { recursive: true, force: true });
+      throw new Error(`Staging directory is a symlink: ${dir}`);
+    }
+  } catch (e) {
+    if ((e as Error).message.includes('Staging directory is a symlink')) throw e;
+    // lstat failure is unexpected but rethrow
+    throw e;
+  }
+  try {
+    chmodSync(dir, 0o700);
+  } catch {
+    // best effort on non-POSIX
+  }
+  return dir;
+}
+
+function writeStagingEntry(dir: string, content: string): string {
+  const entryPath = pathJoin(dir, 'entry.ts');
+  // Defensive: ensure entryPath is not a symlink and doesn't exist
+  try {
+    if (existsSync(entryPath)) {
+      const st = lstatSync(entryPath);
+      if (st.isSymbolicLink()) {
+        throw new Error(`Refusing to overwrite symlink at staging path: ${entryPath}`);
+      }
+      throw new Error(`Staging file already exists: ${entryPath}`);
+    }
+  } catch (e) {
+    if (
+      (e as Error).message.startsWith('Refusing to') ||
+      (e as Error).message.startsWith('Staging file already exists')
+    )
+      throw e;
+    // existsSync false or lstat failure for non-existent is fine
+  }
+  // Exclusive creation (wx), private perms 0600
+  writeFileSync(entryPath, content, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+  // Verify not symlink after write
+  try {
+    const st = lstatSync(entryPath);
+    if (st.isSymbolicLink()) {
+      rmSync(entryPath, { force: true });
+      throw new Error(`Staging file is a symlink after write: ${entryPath}`);
+    }
+  } catch (e) {
+    if ((e as Error).message.includes('Staging file is a symlink')) throw e;
+  }
+  return entryPath;
+}
+
 export async function buildBundleFromEntryContent(args: BuildEntryContentArgs): Promise<void> {
+  // Validate outDir early when clean is true; without appPath we only check root/cwd/symlink
+  validateOutDirForClean(args.outDir, args.clean);
   const tsupModule: typeof import('tsup') = await import('tsup');
   const { build } = tsupModule;
-  const tempEntryPath = pathResolve(process.cwd(), args.tempEntryFilename);
-  writeFileSync(tempEntryPath, args.entryContent, 'utf8');
+  const stagingDir = createUniqueStagingDir();
+  const tempEntryPath = writeStagingEntry(stagingDir, args.entryContent);
+  const absOutDir = pathResolve(process.cwd(), args.outDir);
 
   try {
     await build({
@@ -907,15 +1408,15 @@ export async function buildBundleFromEntryContent(args: BuildEntryContentArgs): 
       tsconfig: args.tsconfigPath,
       format: [args.format],
       target: args.target,
-      outDir: args.outDir,
+      outDir: absOutDir,
       clean: args.clean,
-      external: ['express', ...args.external],
+      external: ['express', '@web-ts-toolkit/express-runtime', ...args.external],
       sourcemap: false,
       dts: false,
       splitting: false,
     });
   } finally {
-    rmSync(tempEntryPath, { force: true });
+    rmSync(stagingDir, { recursive: true, force: true });
   }
 }
 
@@ -927,7 +1428,6 @@ export async function buildRuntime(args: BuildArgs): Promise<void> {
   const { runBuildEntryCommand } = await import('./cli-api');
   await runBuildEntryCommand(args, {
     generateEntry: generateRuntimeEntry,
-    tempEntryFilename: TEMP_BUILD_ENTRY_FILENAME,
   });
 }
 
@@ -943,7 +1443,6 @@ export async function buildServerless(args: BuildArgs): Promise<void> {
   const { runBuildEntryCommand } = await import('./cli-api');
   await runBuildEntryCommand(args, {
     generateEntry: generateServerlessEntry,
-    tempEntryFilename: TEMP_SERVERLESS_ENTRY_FILENAME,
   });
 }
 
@@ -957,85 +1456,416 @@ export async function buildServerless(args: BuildArgs): Promise<void> {
  */
 export type GenericHandler = (event: unknown, context: unknown) => Promise<unknown>;
 
+/** AWS API Gateway REST API v1 / Lambda proxy event shape emitted by the local adapter. */
+export interface ApiGatewayRestEvent {
+  httpMethod: string;
+  path: string;
+  headers: Record<string, string>;
+  multiValueHeaders: Record<string, string[]>;
+  queryStringParameters: Record<string, string> | null;
+  multiValueQueryStringParameters: Record<string, string[]> | null;
+  body: string;
+  isBase64Encoded: boolean;
+  requestContext: {
+    identity: {
+      sourceIp: string;
+    };
+  };
+}
+
 /**
- * The result shape returned by `serverless-http` (and the `build` output).
+ * AWS API Gateway REST API v1 / Lambda proxy result shape returned by `serverless-http`.
  */
 export interface ServerlessResult {
   statusCode?: number;
-  headers?: Record<string, string | string[] | undefined>;
+  headers?: Record<string, string | undefined>;
+  multiValueHeaders?: Record<string, string[] | undefined>;
   body?: string;
   isBase64Encoded?: boolean;
 }
 
+export const DEFAULT_ADAPTER_MAX_BODY_BYTES = 1024 * 1024; // 1 MiB conservative default
+
+export interface ServerlessAdapterOptions {
+  /**
+   * Maximum bytes to buffer for a single request body.
+   * Default: 1048576 (1 MiB). Must be a finite non-negative integer.
+   * When `0`, no body is allowed — any non-empty body receives `413`.
+   * The adapter never retains more than this limit plus at most one incoming chunk.
+   */
+  maxBodyBytes?: number;
+}
+
 /**
- * Read the raw request body into a Buffer. Since `createExpressApp` is called
- * with `json: false, urlencoded: false` in the adapter, no body parser has
- * consumed the stream yet.
+ * Validate `maxBodyBytes` — finite non-negative integer. Zero means no body allowed (empty bodies only).
+ * Public validator shared by CLI parsing and programmatic adapter callers.
  */
-function collectBody(req: Request): Promise<Buffer> {
+export function validateMaxBodyBytes(value: unknown): number {
+  try {
+    return validateFiniteInteger(value, { name: '--max-body-bytes', min: 0, max: MAX_INTEGER_OPTION_VALUE });
+  } catch (_error) {
+    void _error;
+    throw new Error(
+      `Invalid --max-body-bytes: ${String(value)}. Must be a finite integer in 0..${MAX_INTEGER_OPTION_VALUE}. Use 0 to disallow bodies (empty bodies only).`,
+      { cause: _error },
+    );
+  }
+}
+
+/**
+ * Read the raw request body into a Buffer with bounded memory.
+ * Since `createExpressApp` is called with `json: false, urlencoded: false` in the adapter,
+ * no body parser has consumed the stream yet. Rejects oversized declared or incremental
+ * bodies with a `LIMIT_EXCEEDED` error (413), stops retaining chunks after the limit,
+ * removes owned listeners, and drains the request.
+ * Distinguishes client aborts (`CLIENT_ABORT`) and stream errors from oversize.
+ */
+export function collectBody(req: Request, maxBytes: number): Promise<Buffer> {
+  validateMaxBodyBytes(maxBytes);
   return new Promise((resolve, reject) => {
+    const rawLength = req.headers['content-length'] as string | string[] | undefined;
+    if (rawLength !== undefined) {
+      const raw = Array.isArray(rawLength) ? rawLength[0] : rawLength;
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed) && Number.isInteger(parsed) && parsed >= 0) {
+        if (parsed > maxBytes) {
+          try {
+            (req as unknown as { resume?: () => void }).resume?.();
+          } catch (_e) {
+            void _e;
+          }
+          const err: Error & { code?: string; statusCode?: number } = new Error(
+            `Request body too large: Content-Length ${parsed} exceeds limit ${maxBytes}`,
+          );
+          err.code = 'LIMIT_EXCEEDED';
+          err.statusCode = 413;
+          reject(err);
+          return;
+        }
+      }
+    }
+
     const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
+    let total = 0;
+    let finished = false;
+
+    const cleanup = (): void => {
+      req.removeListener('data', onData);
+      req.removeListener('end', onEnd);
+      req.removeListener('error', onError);
+      req.removeListener('close', onClose);
+      try {
+        (req as unknown as { removeListener?: (...args: unknown[]) => void }).removeListener?.(
+          'aborted' as unknown as string,
+          onClose as unknown as (...args: unknown[]) => void,
+        );
+      } catch (_e) {
+        void _e;
+      }
+    };
+
+    const fail = (err: Error & { code?: string; statusCode?: number }): void => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      if (err.code === 'LIMIT_EXCEEDED') {
+        try {
+          (req as unknown as { resume?: () => void }).resume?.();
+        } catch (_e) {
+          void _e;
+        }
+      }
+      reject(err);
+    };
+
+    const onData = (chunk: Buffer): void => {
+      if (finished) return;
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as unknown as string);
+      total += buf.length;
+      if (total > maxBytes) {
+        const err: Error & { code?: string; statusCode?: number } = new Error(
+          `Request body too large: received ${total} bytes exceeds limit ${maxBytes}`,
+        );
+        err.code = 'LIMIT_EXCEEDED';
+        err.statusCode = 413;
+        fail(err);
+        return;
+      }
+      chunks.push(buf);
+    };
+
+    const onEnd = (): void => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      try {
+        resolve(Buffer.concat(chunks, total));
+      } catch (e) {
+        fail(e as Error);
+      }
+    };
+
+    const onError = (err: Error): void => {
+      const e = err as Error & { code?: string };
+      if (!e.code) e.code = 'STREAM_ERROR';
+      fail(e);
+    };
+
+    const onClose = (): void => {
+      if (finished) return;
+      const e: Error & { code?: string } = new Error('Request aborted by client');
+      e.code = 'CLIENT_ABORT';
+      fail(e);
+    };
+
+    req.on('data', onData);
+    req.on('end', onEnd);
+    req.on('error', onError);
+    req.on('close', onClose);
+    try {
+      (req as unknown as { on?: (...args: unknown[]) => void }).on?.('aborted', onClose);
+    } catch (_e) {
+      void _e;
+    }
   });
 }
 
 /**
- * Build a serverless event from HTTP request components.
+ * Build an AWS API Gateway REST API v1 / Lambda proxy event from HTTP request components.
  *
- * Exported for direct unit testing.
+ * Public helper for adapters that need the same AWS REST API v1 event shape as
+ * the `start-serverless` command.
  */
 export function toServerlessEvent(
   method: string,
   url: string,
   headers: Record<string, string | string[] | undefined>,
   body: Buffer,
-): Record<string, unknown> {
+): ApiGatewayRestEvent {
+  const parsedUrl = new URL(url, 'http://localhost');
+  const { queryStringParameters, multiValueQueryStringParameters } = parseAwsRestQuery(parsedUrl.search);
+  const { singleValueHeaders, multiValueHeaders } = normalizeAwsRestHeaders(headers);
+
   return {
     httpMethod: method,
-    path: url,
-    headers: headers as Record<string, string>,
-    body: body.length > 0 ? body : undefined,
+    path: parsedUrl.pathname,
+    headers: singleValueHeaders,
+    multiValueHeaders,
+    queryStringParameters,
+    multiValueQueryStringParameters,
+    body: body.length > 0 ? body.toString('base64') : '',
+    isBase64Encoded: body.length > 0,
+    requestContext: {
+      identity: {
+        // Minimal field required by serverless-http's AWS v1 request adapter.
+        sourceIp: '',
+      },
+    },
   };
+}
+
+function parseAwsRestQuery(
+  search: string,
+): Pick<ApiGatewayRestEvent, 'queryStringParameters' | 'multiValueQueryStringParameters'> {
+  if (search === '' || search === '?') {
+    return { queryStringParameters: null, multiValueQueryStringParameters: null };
+  }
+
+  const single: Record<string, string> = {};
+  const multi: Record<string, string[]> = {};
+  const query = search.startsWith('?') ? search.slice(1) : search;
+  for (const pair of query.split('&')) {
+    if (pair === '') continue;
+    const separator = pair.indexOf('=');
+    const rawKey = separator === -1 ? pair : pair.slice(0, separator);
+    const rawValue = separator === -1 ? '' : pair.slice(separator + 1);
+    const key = decodeQueryComponent(rawKey);
+    const value = decodeQueryComponent(rawValue);
+    single[key] = value;
+    (multi[key] ??= []).push(value);
+  }
+
+  return {
+    queryStringParameters: Object.keys(single).length > 0 ? single : null,
+    multiValueQueryStringParameters: Object.keys(multi).length > 0 ? multi : null,
+  };
+}
+
+function decodeQueryComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch (_error) {
+    void _error;
+    return value;
+  }
+}
+
+function normalizeAwsRestHeaders(headers: Record<string, string | string[] | undefined>): {
+  singleValueHeaders: Record<string, string>;
+  multiValueHeaders: Record<string, string[]>;
+} {
+  const singleValueHeaders: Record<string, string> = {};
+  const multiValueHeaders: Record<string, string[]> = {};
+
+  for (const [key, value] of Object.entries(headers)) {
+    if (value === undefined) continue;
+    const values = Array.isArray(value) ? value.map(String) : [String(value)];
+    multiValueHeaders[key] = values;
+    singleValueHeaders[key] = values.join(', ');
+  }
+
+  return { singleValueHeaders, multiValueHeaders };
 }
 
 /**
  * Write a serverless handler result to an Express response.
+ * Validates the complete AWS API Gateway REST API v1 / Lambda proxy result before writing anything.
+ * `multiValueHeaders` wins over `headers` when the same header appears in both maps.
  *
- * Exported for direct unit testing.
+ * Public helper for adapters that need the same AWS REST API v1 result-to-HTTP
+ * translation as the `start-serverless` command.
  */
 export function applyServerlessResult(result: unknown, res: Response): void {
-  if (result === null || result === undefined) {
-    res.status(200).end();
-    return;
+  const response = validateServerlessResult(result);
+
+  res.status(response.statusCode);
+
+  for (const [key, value] of Object.entries(response.headers)) {
+    res.setHeader(key, value);
   }
-
-  const r = result as ServerlessResult;
-
-  if (typeof r.statusCode === 'number') {
-    res.status(r.statusCode);
-  }
-
-  if (r.headers && typeof r.headers === 'object') {
-    for (const [key, value] of Object.entries(r.headers)) {
-      if (value !== undefined) {
-        if (Array.isArray(value) && key.toLowerCase() === 'set-cookie') {
-          res.setHeader(key, value);
-        } else {
-          res.setHeader(key, Array.isArray(value) ? value.join(',') : value);
-        }
-      }
+  for (const [key, values] of Object.entries(response.multiValueHeaders)) {
+    if (key.toLowerCase() === 'set-cookie') {
+      res.setHeader(key, values);
+    } else {
+      res.setHeader(key, values.join(','));
     }
   }
 
-  if (r.isBase64Encoded && typeof r.body === 'string') {
-    res.end(Buffer.from(r.body, 'base64'));
-  } else if (typeof r.body === 'string') {
-    res.end(r.body);
+  if (response.isBase64Encoded) {
+    res.end(response.decodedBody);
   } else {
-    res.end();
+    res.end(response.body);
   }
+}
+
+interface ValidatedServerlessResult {
+  statusCode: number;
+  headers: Record<string, string>;
+  multiValueHeaders: Record<string, string[]>;
+  body: string;
+  decodedBody?: Buffer;
+  isBase64Encoded: boolean;
+}
+
+function validateServerlessResult(result: unknown): ValidatedServerlessResult {
+  if (!isPlainRecord(result)) {
+    throw new Error(
+      'Invalid serverless result: expected an object with an optional statusCode, headers, multiValueHeaders, body, and isBase64Encoded.',
+    );
+  }
+
+  const rawStatus = result.statusCode;
+  if (
+    rawStatus !== undefined &&
+    (typeof rawStatus !== 'number' || !Number.isInteger(rawStatus) || rawStatus < 100 || rawStatus > 599)
+  ) {
+    throw new Error(`Invalid serverless result statusCode: ${String(rawStatus)}. Expected an integer in 100..599.`);
+  }
+
+  const rawIsBase64Encoded = result.isBase64Encoded;
+  if (rawIsBase64Encoded !== undefined && typeof rawIsBase64Encoded !== 'boolean') {
+    throw new Error('Invalid serverless result isBase64Encoded: expected a boolean when provided.');
+  }
+
+  const rawBody = result.body;
+  if (rawBody !== undefined && typeof rawBody !== 'string') {
+    throw new Error(`Invalid serverless result body: expected a string when provided, received ${typeof rawBody}.`);
+  }
+
+  const headers = validateSingleValueHeaders(result.headers, 'headers');
+  const multiValueHeaders = validateMultiValueHeaders(result.multiValueHeaders, 'multiValueHeaders');
+  const multiHeaderKeys = new Set(Object.keys(multiValueHeaders).map((key) => key.toLowerCase()));
+  for (const key of Object.keys(headers)) {
+    if (multiHeaderKeys.has(key.toLowerCase())) {
+      delete headers[key];
+    }
+  }
+
+  const isBase64Encoded = rawIsBase64Encoded ?? false;
+  const body = rawBody ?? '';
+  let decodedBody: Buffer | undefined;
+  if (isBase64Encoded) {
+    if (!isValidBase64(body)) {
+      throw new Error('Invalid serverless result body: isBase64Encoded is true but body is not valid standard base64.');
+    }
+    decodedBody = Buffer.from(body, 'base64');
+  }
+
+  return {
+    statusCode: rawStatus ?? 200,
+    headers,
+    multiValueHeaders,
+    body,
+    decodedBody,
+    isBase64Encoded,
+  };
+}
+
+function validateSingleValueHeaders(value: unknown, name: string): Record<string, string> {
+  if (value === undefined) return {};
+  if (!isPlainRecord(value)) {
+    throw new Error(`Invalid serverless result ${name}: expected an object of string header values.`);
+  }
+
+  const headers: Record<string, string> = {};
+  for (const [key, headerValue] of Object.entries(value)) {
+    if (headerValue === undefined) continue;
+    if (typeof headerValue !== 'string') {
+      throw new Error(`Invalid serverless result ${name}.${key}: expected a string header value.`);
+    }
+    validateServerlessHeader(key, headerValue, `${name}.${key}`);
+    headers[key] = headerValue;
+  }
+  return headers;
+}
+
+function validateMultiValueHeaders(value: unknown, name: string): Record<string, string[]> {
+  if (value === undefined) return {};
+  if (!isPlainRecord(value)) {
+    throw new Error(`Invalid serverless result ${name}: expected an object of string-array header values.`);
+  }
+
+  const headers: Record<string, string[]> = {};
+  for (const [key, headerValue] of Object.entries(value)) {
+    if (headerValue === undefined) continue;
+    if (!Array.isArray(headerValue) || headerValue.some((entry) => typeof entry !== 'string')) {
+      throw new Error(`Invalid serverless result ${name}.${key}: expected an array of string header values.`);
+    }
+    for (const entry of headerValue) {
+      validateServerlessHeader(key, entry, `${name}.${key}`);
+    }
+    headers[key] = headerValue;
+  }
+  return headers;
+}
+
+function validateServerlessHeader(key: string, value: string, label: string): void {
+  try {
+    validateHeaderName(key);
+    validateHeaderValue(key, value);
+  } catch (error) {
+    throw new Error(`Invalid serverless result header ${label}: ${(error as Error).message}`, { cause: error });
+  }
+}
+
+function isValidBase64(value: string): boolean {
+  if (value === '') return true;
+  if (value.length % 4 !== 0) return false;
+  return /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value);
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -1046,8 +1876,13 @@ export function applyServerlessResult(result: unknown, res: Response): void {
  * Express body parsers are disabled; the raw request body is read directly
  * from the stream and passed as a Buffer (so the serverless handler's request
  * hook — including the #305 workaround — works identically to production).
+ * Bodies exceeding `maxBodyBytes` (default 1 MiB, 0 = empty bodies only) receive
+ * `413 Payload Too Large` without invoking the handler; the request is drained
+ * and retained memory is bounded to the limit plus at most one chunk.
  */
-export function createServerlessAdapterApp(handler: GenericHandler): Express {
+export function createServerlessAdapterApp(handler: GenericHandler, options: ServerlessAdapterOptions = {}): Express {
+  const maxBytes = options.maxBodyBytes ?? DEFAULT_ADAPTER_MAX_BODY_BYTES;
+  validateMaxBodyBytes(maxBytes);
   return createExpressApp({
     json: false,
     urlencoded: false,
@@ -1055,10 +1890,53 @@ export function createServerlessAdapterApp(handler: GenericHandler): Express {
       // Use middleware (not app.all) to catch all routes — Express 5's
       // path-to-regexp rejects the '*' wildcard.
       app.use(async (req: Request, res: Response) => {
-        const body = await collectBody(req);
-        const event = toServerlessEvent(req.method, req.url, req.headers, body);
-        const result = await handler(event, {});
-        applyServerlessResult(result, res);
+        let body: Buffer;
+        try {
+          body = await collectBody(req, maxBytes);
+        } catch (err: unknown) {
+          const e = err as Error & { code?: string; statusCode?: number };
+          if (e?.code === 'LIMIT_EXCEEDED' || e?.statusCode === 413) {
+            if (!res.headersSent && !res.writableEnded) {
+              res.status(413).end('Payload Too Large');
+            } else {
+              try {
+                res.end();
+              } catch (_e) {
+                void _e;
+              }
+            }
+            return;
+          }
+          if (e?.code === 'CLIENT_ABORT') {
+            return;
+          }
+          console.error('Serverless adapter error:', e);
+          if (!res.headersSent && !res.writableEnded) {
+            res.status(500).end('Internal server error');
+          } else {
+            try {
+              res.end();
+            } catch (_e) {
+              void _e;
+            }
+          }
+          return;
+        }
+        let result: unknown;
+        try {
+          const event = toServerlessEvent(req.method, req.url, req.headers, body);
+          result = await handler(event, {});
+        } catch (e) {
+          console.error('Serverless adapter error:', e);
+          if (!res.headersSent && !res.writableEnded) res.status(500).end('Internal server error');
+          return;
+        }
+        try {
+          applyServerlessResult(result, res);
+        } catch (e) {
+          console.error('Invalid serverless handler result:', e);
+          if (!res.headersSent && !res.writableEnded) res.status(500).end('Internal server error');
+        }
       });
     },
     errorHandler: (error: unknown, _req: Request, res: Response, _next: unknown) => {

@@ -22,13 +22,21 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.ts",
+        "default": "./dist/index.d.ts"
+      },
       "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./cli": {
-      "types": "./dist/cli-api.d.ts",
+      "types": {
+        "import": "./dist/cli-api.d.mts",
+        "require": "./dist/cli-api.d.ts",
+        "default": "./dist/cli-api.d.ts"
+      },
       "import": "./dist/cli-api.mjs",
       "require": "./dist/cli-api.js",
       "default": "./dist/cli-api.js"
@@ -36,7 +44,7 @@
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
-    "test": "pnpm --filter @web-ts-toolkit/express-runtime... build && vitest run --config vitest.config.ts"
+    "test": "pnpm --filter @web-ts-toolkit/express-runtime... build && vitest run --config vitest.config.mts"
   },
   "files": [
     "README.md",
@@ -50,6 +58,7 @@
     "tsup": "^8.5.1"
   },
   "peerDependencies": {
+    "@types/express": "^5.0.0",
     "express": ">=5.0.0"
   },
   "devDependencies": {
