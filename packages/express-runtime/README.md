@@ -207,6 +207,31 @@ npx wtt-express-runtime start-serverless ./dist/handler.js --port 9000 --env .en
 > The adapter passes the raw request body as a Buffer (no body parsing) so the
 > handler's request hook, including the serverless-http #305 workaround, runs
 > identically to production.
+>
+> The adapter bounds request memory: default limit is **1 MiB** (`1048576` bytes).
+> A declared `Content-Length` exceeding the limit is rejected before buffering;
+> chunked bodies are checked incrementally and stop retaining chunks after the
+> limit — the request is drained and a `413 Payload Too Large` is returned without
+> invoking the handler. Client aborts and stream errors release listeners and do
+> not produce an unhandled rejection. Memory retained is at most the limit plus
+> one incoming chunk.
+>
+> Override the limit intentionally:
+>
+> ```sh
+> npx wtt-express-runtime start-serverless ./dist/handler.js --max-body-bytes 2097152
+> ```
+>
+> Programmatic use:
+>
+> ```ts
+> import { createServerlessAdapterApp } from '@web-ts-toolkit/express-runtime/cli';
+> const app = createServerlessAdapterApp(handler, { maxBodyBytes: 2 * 1024 * 1024 });
+> ```
+>
+> `maxBodyBytes` must be a finite non-negative integer. `0` means only empty bodies are allowed
+> (any non-empty body receives `413`). There is no unbounded default — omit the option to use the
+> 1 MiB limit.
 
 ## Module API
 
@@ -390,15 +415,16 @@ Omitting `<command>` defaults to `dev` for backward compatibility.
 
 #### start-serverless options
 
-| Option                    | Description                                                                                  |
-| ------------------------- | -------------------------------------------------------------------------------------------- |
-| `<handler-module>`        | JS/CJS module path exporting `handler` (named or default) — the output of `build-serverless` |
-| `--port <number>`         | Port or named pipe (default: `process.env.PORT` or `8080`)                                   |
-| `--host <hostname>`       | Hostname to bind (default: `process.env.HOST` or `0.0.0.0`)                                  |
-| `--no-signals`            | Disable `SIGINT` / `SIGTERM` handler registration                                            |
-| `--shutdown-timeout <ms>` | Max ms to wait for in-flight requests (default: `5000`)                                      |
-| `--require <module>`      | Module(s) to preload before handler load (repeatable; comma-separated values supported)      |
-| `--env <path>`            | Env file(s) to load before handler load (repeatable; existing env vars are not overridden)   |
+| Option                     | Description                                                                                  |
+| -------------------------- | -------------------------------------------------------------------------------------------- |
+| `<handler-module>`         | JS/CJS module path exporting `handler` (named or default) — the output of `build-serverless` |
+| `--port <number>`          | Port or named pipe (default: `process.env.PORT` or `8080`)                                   |
+| `--host <hostname>`        | Hostname to bind (default: `process.env.HOST` or `0.0.0.0`)                                  |
+| `--no-signals`             | Disable `SIGINT` / `SIGTERM` handler registration                                            |
+| `--shutdown-timeout <ms>`  | Max ms to wait for in-flight requests (default: `5000`)                                      |
+| `--max-body-bytes <bytes>` | Max request body bytes for adapter (default: `1048576`; `0` allows empty bodies only)        |
+| `--require <module>`       | Module(s) to preload before handler load (repeatable; comma-separated values supported)      |
+| `--env <path>`             | Env file(s) to load before handler load (repeatable; existing env vars are not overridden)   |
 
 #### global options
 

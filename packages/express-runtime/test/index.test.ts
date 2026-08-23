@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import {
@@ -10,20 +10,19 @@ import {
   defaultRequestHook,
   type Logger,
 } from '../src/index';
+import { waitForListening, waitForEvent } from './support/events';
+import { createDeferred } from './support/deferred';
+import {
+  captureListenerSnapshot,
+  restoreListenerSnapshot,
+  getListenerCounts,
+  type ListenerSnapshot,
+} from './support/process-listeners';
+import { createRequestBarrier } from './support/server';
 
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
-
-async function waitForListening(server: http.Server): Promise<{ port: number }> {
-  return new Promise((resolve) => {
-    server.on('listening', () => {
-      const addr = server.address();
-      const port = typeof addr === 'object' && addr ? addr.port : 0;
-      resolve({ port });
-    });
-  });
-}
 
 // ---------------------------------------------------------------------------
 // createExpressApp
@@ -370,16 +369,66 @@ describe('normalizePort', () => {
 });
 
 // ---------------------------------------------------------------------------
-// startLocalServer
+// startLocalServer — deterministic lifecycle harness (ERT-01)
 // ---------------------------------------------------------------------------
 
 describe('startLocalServer', () => {
   const servers: http.Server[] = [];
+  let sentinelSIGINT: () => void;
+  let sentinelSIGTERM: () => void;
+  let baselineCounts: Record<string, number>;
+  let baselineSnapshot: ListenerSnapshot;
 
-  afterEach(() => {
+  beforeAll(() => {
+    sentinelSIGINT = () => {};
+    sentinelSIGTERM = () => {};
+    // Tag for debugging
+    Object.defineProperty(sentinelSIGINT, 'name', { value: 'sentinelSIGINT' });
+    Object.defineProperty(sentinelSIGTERM, 'name', { value: 'sentinelSIGTERM' });
+    process.on('SIGINT', sentinelSIGINT);
+    process.on('SIGTERM', sentinelSIGTERM);
+  });
+
+  afterAll(() => {
+    process.removeListener('SIGINT', sentinelSIGINT);
+    process.removeListener('SIGTERM', sentinelSIGTERM);
+  });
+
+  beforeEach(() => {
+    baselineSnapshot = captureListenerSnapshot(['SIGINT', 'SIGTERM']);
+    baselineCounts = getListenerCounts(['SIGINT', 'SIGTERM']);
+  });
+
+  afterEach(async () => {
+    // Deterministically close servers without fixed sleeps; await shutdown.
     for (const server of servers.splice(0)) {
-      server.close();
+      if (server.listening) {
+        await new Promise<void>((resolve) => {
+          server.close(() => resolve());
+          // Ensure we don't hang if close stalls; force after 2s
+          setTimeout(() => {
+            try {
+              server.closeAllConnections?.();
+            } catch (_e) {
+              void _e;
+            }
+            resolve();
+          }, 2000).unref?.();
+        });
+      } else {
+        try {
+          server.close();
+        } catch (_e) {
+          void _e;
+        }
+      }
     }
+    // Restore only listeners added by tests/runtime; sentinel must survive.
+    restoreListenerSnapshot(baselineSnapshot, ['SIGINT', 'SIGTERM']);
+    // Verify sentinel survived and counts returned to baseline
+    expect(process.listeners('SIGINT')).toContain(sentinelSIGINT);
+    expect(process.listeners('SIGTERM')).toContain(sentinelSIGTERM);
+    expect(getListenerCounts(['SIGINT', 'SIGTERM'])).toEqual(baselineCounts);
   });
 
   it('starts an HTTP server that responds via the bound port', async () => {
@@ -448,12 +497,12 @@ describe('startLocalServer', () => {
 
   it('drains in-flight requests during graceful shutdown', async () => {
     const app = createExpressApp();
-    let releaseRequest!: () => void;
-    const releasePromise = new Promise<void>((resolve) => {
-      releaseRequest = resolve;
-    });
+    const barrier = createRequestBarrier();
+    const releaseDeferred = createDeferred<void>();
+
     app.get('/slow', (_req, res) => {
-      releasePromise.then(() => res.json({ drained: true }));
+      barrier.onRequestEntered();
+      releaseDeferred.promise.then(() => res.json({ drained: true }));
     });
 
     const local = startLocalServer(app, { port: 0, host: '127.0.0.1', signals: false });
@@ -462,8 +511,7 @@ describe('startLocalServer', () => {
     const { port } = await waitForListening(local.server);
     const url = `http://127.0.0.1:${port}`;
 
-    // Fire a real HTTP request (supertest defers until awaited, so use http.get
-    // directly so the request is in flight before shutdown is called).
+    // Fire a real HTTP request with http.get so it's in-flight before shutdown.
     const slowRequest = new Promise<{ status: number; body: string }>((resolve, reject) => {
       const req = http.get(`${url}/slow`, (res) => {
         let data = '';
@@ -475,11 +523,11 @@ describe('startLocalServer', () => {
       req.on('error', reject);
     });
 
-    // Allow the request to connect and the handler to hang on releasePromise.
-    await new Promise((r) => setTimeout(r, 100));
+    // Wait deterministically for handler entry instead of fixed sleep.
+    await barrier.waitForEntry();
 
     const shutdownPromise = local.shutdown();
-    releaseRequest();
+    releaseDeferred.resolve();
     const slowRes = await slowRequest;
     await shutdownPromise;
 
@@ -495,15 +543,17 @@ describe('startLocalServer', () => {
     expect(process.listenerCount('SIGINT')).toBe(before);
   });
 
-  it('registers signal listeners by default', () => {
-    const before = process.listenerCount('SIGINT');
+  it('registers signal listeners by default and restores baseline without removeAllListeners', () => {
+    const beforeSIGINT = process.listenerCount('SIGINT');
+    const beforeSIGTERM = process.listenerCount('SIGTERM');
     const app = createExpressApp();
     const local = startLocalServer(app, { port: 0, host: '127.0.0.1' });
     servers.push(local.server);
-    expect(process.listenerCount('SIGINT')).toBeGreaterThan(before);
-    // Restore baseline so subsequent tests are unaffected.
-    process.removeAllListeners('SIGINT');
-    process.removeAllListeners('SIGTERM');
+    expect(process.listenerCount('SIGINT')).toBeGreaterThan(beforeSIGINT);
+    expect(process.listenerCount('SIGTERM')).toBeGreaterThan(beforeSIGTERM);
+    // No removeAllListeners: afterEach will restore via snapshot. Verify sentinel still present now.
+    expect(process.listeners('SIGINT')).toContain(sentinelSIGINT);
+    expect(process.listeners('SIGTERM')).toContain(sentinelSIGTERM);
   });
 
   it('calls process.exit when exitAfterShutdown is true', async () => {
@@ -543,8 +593,9 @@ describe('startLocalServer', () => {
     expect(logs.some((l) => l.includes('Shutting down'))).toBe(true);
   });
 
-  it('surfaces an init rejection via the server error handler', async () => {
-    const onError = vi.fn();
+  it('surfaces an init rejection via the server error handler without sleep', async () => {
+    const errorDeferred = createDeferred<unknown>();
+    const onError = vi.fn((err: unknown) => errorDeferred.resolve(err));
     const app = createExpressApp();
     const init = async (): Promise<void> => {
       throw new Error('init failed');
@@ -552,8 +603,12 @@ describe('startLocalServer', () => {
     const local = startLocalServer(app, { port: 0, host: '127.0.0.1', signals: false, init, onError });
     servers.push(local.server);
 
-    // Wait briefly for the async start to surface the rejection on the server.
-    await new Promise((r) => setTimeout(r, 50));
+    // Wait deterministically for error via deferred, not fixed sleep.
+    const err = await Promise.race([
+      errorDeferred.promise,
+      waitForEvent(local.server, 'error', { timeoutMs: 2000 }).then((args) => args[0]),
+    ]);
     expect(onError).toHaveBeenCalled();
+    expect((err as Error).message).toBe('init failed');
   });
 });

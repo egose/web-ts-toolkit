@@ -1,11 +1,13 @@
 import { startLocalServer, type Express } from './index';
 import {
   CLI_VERSION,
+  DEFAULT_ADAPTER_MAX_BODY_BYTES,
   applyServerlessResult,
   buildChildArgs,
   buildRuntime,
   buildServerless,
   buildBundleFromEntryContent,
+  collectBody,
   createServerlessAdapterApp,
   extractExport,
   generateRuntimeEntry,
@@ -23,6 +25,7 @@ import {
   resolveExport,
   runWithWatch,
   toServerlessEvent,
+  validateMaxBodyBytes,
   type BuildArgs,
   type BuildEntryContentArgs,
   type DevArgs,
@@ -30,6 +33,7 @@ import {
   type ParsedArgs,
   type RuntimeModuleInit,
   type ServerlessResult,
+  type ServerlessAdapterOptions,
   type StartArgs,
   type StartServerlessArgs,
   type Subcommand,
@@ -131,7 +135,7 @@ export async function runCliCommand(parsedArgs: RuntimeCliCommand): Promise<void
     }
     await preloadModules(startServerless.require);
     const handler = await loadHandler(startServerless.handlerPath);
-    const app = createServerlessAdapterApp(handler);
+    const app = createServerlessAdapterApp(handler, { maxBodyBytes: startServerless.maxBodyBytes });
     startLocalServer(app, { ...startServerless.options, exitAfterShutdown: true });
     return;
   }
@@ -141,11 +145,13 @@ export async function runCliCommand(parsedArgs: RuntimeCliCommand): Promise<void
 
 export {
   CLI_VERSION,
+  DEFAULT_ADAPTER_MAX_BODY_BYTES,
   applyServerlessResult,
   buildChildArgs,
   buildRuntime,
   buildServerless,
   buildBundleFromEntryContent,
+  collectBody,
   createServerlessAdapterApp,
   extractExport,
   generateRuntimeEntry,
@@ -163,6 +169,7 @@ export {
   resolveExport,
   runWithWatch,
   toServerlessEvent,
+  validateMaxBodyBytes,
 };
 
 export type {
@@ -172,6 +179,7 @@ export type {
   GenericHandler,
   ParsedArgs,
   RuntimeModuleInit,
+  ServerlessAdapterOptions,
   ServerlessResult,
   StartArgs,
   StartServerlessArgs,

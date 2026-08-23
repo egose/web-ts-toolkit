@@ -82,6 +82,8 @@ export interface StartArgs {
 export interface StartServerlessArgs {
   handlerPath: string;
   options: Omit<LocalServerOptions, 'init' | 'onShutdown'>;
+  /** Maximum bytes to buffer for request bodies via the local adapter. Default: 1048576. */
+  maxBodyBytes?: number;
   /** Modules to preload before loading the handler (repeatable `--require`). */
   require: string[];
   /** Env files to load before loading the handler (repeatable `--env`). */
@@ -161,6 +163,7 @@ Start-serverless options:
   --host <hostname>             Hostname to bind (default: process.env.HOST or 0.0.0.0)
   --no-signals                  Disable SIGINT/SIGTERM handler registration
   --shutdown-timeout <ms>       Max ms to wait for in-flight requests (default: 5000)
+  --max-body-bytes <bytes>      Max request body bytes for adapter (default: 1048576; 0 disallows bodies)
   --require <module>            Module(s) to preload before handler load (repeatable)
   --env <path>                  Env file(s) to load (repeatable; existing env vars are not overridden)
 
@@ -193,6 +196,8 @@ Notes:
     If the bundle exports "init", it runs before the server starts listening.
   - In start-serverless mode, the bundled handler file must be a JS/CJS module whose
     "handler" export (or default export) is a function: (event, context) => Promise<result>.
+  - The start-serverless adapter buffers at most --max-body-bytes per request (default 1 MiB, 0 = empty bodies only);
+    larger declared Content-Length or chunked bodies receive 413 without invoking the handler.
   - Init logic for dev mode (DB connections, etc.): add at the top level of your app module.
 `);
 }
@@ -417,10 +422,34 @@ function parseStartArgs(argv: string[]): StartArgs {
 }
 
 function parseStartServerlessArgs(argv: string[]): StartServerlessArgs {
-  const result = parseStartLikeArgs(argv, 'start-serverless');
+  let maxBodyBytes: number | undefined;
+  const filtered: string[] = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--max-body-bytes') {
+      const raw = readValue(argv, i, arg);
+      if (raw.trim() === '') throw new Error('Missing value for argument: --max-body-bytes');
+      const num = Number(raw);
+      validateMaxBodyBytes(num);
+      maxBodyBytes = num;
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--max-body-bytes=')) {
+      const raw = arg.slice('--max-body-bytes='.length);
+      if (raw.trim() === '') throw new Error('Missing value for argument: --max-body-bytes');
+      const num = Number(raw);
+      validateMaxBodyBytes(num);
+      maxBodyBytes = num;
+      continue;
+    }
+    filtered.push(arg);
+  }
+  const result = parseStartLikeArgs(filtered, 'start-serverless');
   return {
     handlerPath: result.appPath,
     options: result.options,
+    maxBodyBytes,
     require: result.require,
     env: result.env,
   };
@@ -732,8 +761,142 @@ export async function preloadModules(modules: string[]): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Watch mode (dev only)
+// Watch mode (dev only) — injectable seams for deterministic tests
 // ---------------------------------------------------------------------------
+
+/**
+ * Dependencies for watch supervision, injectable for tests.
+ * Not part of the documented public API; exposed for deterministic testing
+ * without expanding the supported consumer contract.
+ */
+export interface WatchSupervisorDeps {
+  fork?: typeof fork;
+  watch?: typeof watch;
+  existsSync?: typeof existsSync;
+}
+
+/**
+ * Controller returned by the injectable supervisor factory.
+ * Allows tests to observe and deterministically shut down watchers/children.
+ */
+export interface WatchSupervisorController {
+  /** Stop watching and terminate child, idempotent. */
+  shutdown: () => Promise<void>;
+  /** Currently tracked child, if any. */
+  getChild: () => ChildProcess | null;
+  /** Active watchers (FSWatcher handles). */
+  getWatchers: () => ReturnType<typeof watch>[];
+  /** Whether shutdown has been initiated. */
+  isShuttingDown: () => boolean;
+}
+
+/**
+ * Create a watch supervisor with injectable dependencies.
+ * This is the test-observable seam; production `runWithWatch` delegates here
+ * with real `fork`/`watch`.
+ */
+export function createWatchSupervisor(args: DevArgs, deps: WatchSupervisorDeps = {}): WatchSupervisorController {
+  const forkImpl = deps.fork ?? fork;
+  const watchImpl = deps.watch ?? watch;
+  const existsSyncImpl = deps.existsSync ?? existsSync;
+
+  const cliPath = process.argv[1];
+  const childArgv = buildChildArgs(args);
+  let child: ChildProcess | null = null;
+  let restartTimer: ReturnType<typeof setTimeout> | null = null;
+  let isShuttingDown = false;
+  const restartDelay = args.watchDelay;
+  const watchers: ReturnType<typeof watch>[] = [];
+
+  const spawnChild = (): void => {
+    if (isShuttingDown) return;
+    child = forkImpl(cliPath, childArgv, { stdio: 'inherit' });
+    child.on('exit', () => {
+      child = null;
+    });
+  };
+
+  const killChild = (): Promise<void> => {
+    return new Promise((resolve) => {
+      if (!child || !child.pid) {
+        resolve();
+        return;
+      }
+      child.once('exit', () => resolve());
+      try {
+        child.kill('SIGTERM');
+      } catch {
+        resolve();
+      }
+    });
+  };
+
+  const restart = async (): Promise<void> => {
+    await killChild();
+    spawnChild();
+  };
+
+  const debouncedRestart = (): void => {
+    if (isShuttingDown) return;
+    if (restartTimer) clearTimeout(restartTimer);
+    restartTimer = setTimeout(() => {
+      restartTimer = null;
+      void restart();
+    }, restartDelay);
+  };
+
+  // Validate all paths before opening any watcher (prevents leaking watchers on partial failure)
+  for (const watchPath of args.watch) {
+    const absPath = pathResolve(process.cwd(), watchPath);
+    if (!existsSyncImpl(absPath)) {
+      throw new Error(`Watch path not found: ${watchPath}`);
+    }
+  }
+
+  // Open watchers after validation
+  for (const watchPath of args.watch) {
+    const absPath = pathResolve(process.cwd(), watchPath);
+    const watcher = watchImpl(absPath, { recursive: true }, (_eventType, filename) => {
+      if (isShuttingDown) return;
+      if (!filename) return;
+      const ext = extname(filename as string)
+        .slice(1)
+        .toLowerCase();
+      if (args.watchExt.includes(ext)) {
+        debouncedRestart();
+      }
+    });
+    watchers.push(watcher);
+  }
+
+  const shutdown = async (): Promise<void> => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    if (restartTimer) {
+      clearTimeout(restartTimer);
+      restartTimer = null;
+    }
+    for (const w of watchers.splice(0)) {
+      try {
+        w.close();
+      } catch (_e) {
+        void _e;
+      }
+    }
+    if (child && child.pid) {
+      await killChild();
+    }
+  };
+
+  spawnChild();
+
+  return {
+    shutdown,
+    getChild: () => child,
+    getWatchers: () => [...watchers],
+    isShuttingDown: () => isShuttingDown,
+  };
+}
 
 /**
  * Reconstruct the argv for the child process, stripping --watch/--ext/--delay
@@ -759,79 +922,32 @@ export function buildChildArgs(args: DevArgs): string[] {
  * without --watch, watches the specified paths for file changes, and
  * restarts the child (SIGTERM → respawn) on changes matching the given
  * extensions. Uses Node 20+'s `fs.watch` with `{ recursive: true }`.
+ *
+ * Production entry point that delegates to `createWatchSupervisor` with real
+ * dependencies and installs signal handlers that exit the process.
  */
-export function runWithWatch(args: DevArgs): void {
-  const cliPath = process.argv[1];
-  const childArgv = buildChildArgs(args);
-  let child: ChildProcess | null = null;
-  let restartTimer: ReturnType<typeof setTimeout> | null = null;
-  let isShuttingDown = false;
-  const restartDelay = args.watchDelay;
+export function runWithWatch(args: DevArgs, deps: WatchSupervisorDeps = {}): void {
+  const controller = createWatchSupervisor(args, deps);
+  const isTestMode = Object.keys(deps).length > 0;
 
-  const spawnChild = (): void => {
-    child = fork(cliPath, childArgv, { stdio: 'inherit' });
-    child.on('exit', (code) => {
-      child = null;
-      if (!isShuttingDown && code !== null && code !== 0) {
-        // On crash, keep the watcher running so the next file change respawns.
+  // In test mode, caller manages shutdown via controller.shutdown(); don't install
+  // process-exit handlers. In production, exit after child terminates.
+  if (!isTestMode) {
+    const shutdownAndExit = (): void => {
+      void controller.shutdown().then(() => process.exit(0));
+      // If child still alive, ensure SIGTERM was sent (controller already did)
+      const child = controller.getChild();
+      if (child && child.pid) {
+        // controller.shutdown already kills child; just ensure exit after
+        child.once('exit', () => process.exit(0));
+      } else {
+        // No child, exit immediately after watchers closed
+        // controller.shutdown already closed watchers
       }
-    });
-  };
-
-  const killChild = (): Promise<void> => {
-    return new Promise((resolve) => {
-      if (!child || !child.pid) {
-        resolve();
-        return;
-      }
-      child.once('exit', () => resolve());
-      child.kill('SIGTERM');
-    });
-  };
-
-  const restart = async (): Promise<void> => {
-    await killChild();
-    spawnChild();
-  };
-
-  const debouncedRestart = (): void => {
-    if (restartTimer) clearTimeout(restartTimer);
-    restartTimer = setTimeout(() => {
-      restartTimer = null;
-      void restart();
-    }, restartDelay);
-  };
-
-  // Start watching
-  for (const watchPath of args.watch) {
-    const absPath = pathResolve(process.cwd(), watchPath);
-    if (!existsSync(absPath)) {
-      throw new Error(`Watch path not found: ${watchPath}`);
-    }
-    watch(absPath, { recursive: true }, (_eventType, filename) => {
-      if (!filename) return;
-      const ext = extname(filename).slice(1).toLowerCase();
-      if (args.watchExt.includes(ext)) {
-        debouncedRestart();
-      }
-    });
+    };
+    process.on('SIGINT', shutdownAndExit);
+    process.on('SIGTERM', shutdownAndExit);
   }
-
-  // Forward parent signals to child, then exit
-  const shutdown = (): void => {
-    isShuttingDown = true;
-    if (restartTimer) clearTimeout(restartTimer);
-    if (child && child.pid) {
-      child.once('exit', () => process.exit(0));
-      child.kill('SIGTERM');
-    } else {
-      process.exit(0);
-    }
-  };
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
-
-  spawnChild();
 }
 
 // ---------------------------------------------------------------------------
@@ -967,17 +1083,146 @@ export interface ServerlessResult {
   isBase64Encoded?: boolean;
 }
 
+export const DEFAULT_ADAPTER_MAX_BODY_BYTES = 1024 * 1024; // 1 MiB conservative default
+
+export interface ServerlessAdapterOptions {
+  /**
+   * Maximum bytes to buffer for a single request body.
+   * Default: 1048576 (1 MiB). Must be a finite non-negative integer.
+   * When `0`, no body is allowed — any non-empty body receives `413`.
+   * The adapter never retains more than this limit plus at most one incoming chunk.
+   */
+  maxBodyBytes?: number;
+}
+
 /**
- * Read the raw request body into a Buffer. Since `createExpressApp` is called
- * with `json: false, urlencoded: false` in the adapter, no body parser has
- * consumed the stream yet.
+ * Validate `maxBodyBytes` — finite non-negative integer. Zero means no body allowed (empty bodies only).
+ * Exported for direct unit testing and CLI validation.
  */
-function collectBody(req: Request): Promise<Buffer> {
+export function validateMaxBodyBytes(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
+    throw new Error(
+      `Invalid --max-body-bytes: ${String(value)}. Must be a finite non-negative integer. Use 0 to disallow bodies (empty bodies only).`,
+    );
+  }
+  return value;
+}
+
+/**
+ * Read the raw request body into a Buffer with bounded memory.
+ * Since `createExpressApp` is called with `json: false, urlencoded: false` in the adapter,
+ * no body parser has consumed the stream yet. Rejects oversized declared or incremental
+ * bodies with a `LIMIT_EXCEEDED` error (413), stops retaining chunks after the limit,
+ * removes owned listeners, and drains the request.
+ * Distinguishes client aborts (`CLIENT_ABORT`) and stream errors from oversize.
+ */
+export function collectBody(req: Request, maxBytes: number): Promise<Buffer> {
+  validateMaxBodyBytes(maxBytes);
   return new Promise((resolve, reject) => {
+    const rawLength = req.headers['content-length'] as string | string[] | undefined;
+    if (rawLength !== undefined) {
+      const raw = Array.isArray(rawLength) ? rawLength[0] : rawLength;
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed) && Number.isInteger(parsed) && parsed >= 0) {
+        if (parsed > maxBytes) {
+          try {
+            (req as unknown as { resume?: () => void }).resume?.();
+          } catch (_e) {
+            void _e;
+          }
+          const err: Error & { code?: string; statusCode?: number } = new Error(
+            `Request body too large: Content-Length ${parsed} exceeds limit ${maxBytes}`,
+          );
+          err.code = 'LIMIT_EXCEEDED';
+          err.statusCode = 413;
+          reject(err);
+          return;
+        }
+      }
+    }
+
     const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
+    let total = 0;
+    let finished = false;
+
+    const cleanup = (): void => {
+      req.removeListener('data', onData);
+      req.removeListener('end', onEnd);
+      req.removeListener('error', onError);
+      req.removeListener('close', onClose);
+      try {
+        (req as unknown as { removeListener?: (...args: unknown[]) => void }).removeListener?.(
+          'aborted' as unknown as string,
+          onClose as unknown as (...args: unknown[]) => void,
+        );
+      } catch (_e) {
+        void _e;
+      }
+    };
+
+    const fail = (err: Error & { code?: string; statusCode?: number }): void => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      if (err.code === 'LIMIT_EXCEEDED') {
+        try {
+          (req as unknown as { resume?: () => void }).resume?.();
+        } catch (_e) {
+          void _e;
+        }
+      }
+      reject(err);
+    };
+
+    const onData = (chunk: Buffer): void => {
+      if (finished) return;
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as unknown as string);
+      total += buf.length;
+      if (total > maxBytes) {
+        const err: Error & { code?: string; statusCode?: number } = new Error(
+          `Request body too large: received ${total} bytes exceeds limit ${maxBytes}`,
+        );
+        err.code = 'LIMIT_EXCEEDED';
+        err.statusCode = 413;
+        fail(err);
+        return;
+      }
+      chunks.push(buf);
+    };
+
+    const onEnd = (): void => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      try {
+        resolve(Buffer.concat(chunks, total));
+      } catch (e) {
+        fail(e as Error);
+      }
+    };
+
+    const onError = (err: Error): void => {
+      const e = err as Error & { code?: string };
+      if (!e.code) e.code = 'STREAM_ERROR';
+      fail(e);
+    };
+
+    const onClose = (): void => {
+      if (finished) return;
+      const e: Error & { code?: string } = new Error('Request aborted by client');
+      e.code = 'CLIENT_ABORT';
+      fail(e);
+    };
+
+    req.on('data', onData);
+    req.on('end', onEnd);
+    req.on('error', onError);
+    req.on('close', onClose);
+    try {
+      (req as unknown as { on?: (...args: unknown[]) => void }).on?.('aborted', onClose);
+    } catch (_e) {
+      void _e;
+    }
   });
 }
 
@@ -1046,8 +1291,13 @@ export function applyServerlessResult(result: unknown, res: Response): void {
  * Express body parsers are disabled; the raw request body is read directly
  * from the stream and passed as a Buffer (so the serverless handler's request
  * hook — including the #305 workaround — works identically to production).
+ * Bodies exceeding `maxBodyBytes` (default 1 MiB, 0 = empty bodies only) receive
+ * `413 Payload Too Large` without invoking the handler; the request is drained
+ * and retained memory is bounded to the limit plus at most one chunk.
  */
-export function createServerlessAdapterApp(handler: GenericHandler): Express {
+export function createServerlessAdapterApp(handler: GenericHandler, options: ServerlessAdapterOptions = {}): Express {
+  const maxBytes = options.maxBodyBytes ?? DEFAULT_ADAPTER_MAX_BODY_BYTES;
+  validateMaxBodyBytes(maxBytes);
   return createExpressApp({
     json: false,
     urlencoded: false,
@@ -1055,9 +1305,47 @@ export function createServerlessAdapterApp(handler: GenericHandler): Express {
       // Use middleware (not app.all) to catch all routes — Express 5's
       // path-to-regexp rejects the '*' wildcard.
       app.use(async (req: Request, res: Response) => {
-        const body = await collectBody(req);
-        const event = toServerlessEvent(req.method, req.url, req.headers, body);
-        const result = await handler(event, {});
+        let body: Buffer;
+        try {
+          body = await collectBody(req, maxBytes);
+        } catch (err: unknown) {
+          const e = err as Error & { code?: string; statusCode?: number };
+          if (e?.code === 'LIMIT_EXCEEDED' || e?.statusCode === 413) {
+            if (!res.headersSent && !res.writableEnded) {
+              res.status(413).end('Payload Too Large');
+            } else {
+              try {
+                res.end();
+              } catch (_e) {
+                void _e;
+              }
+            }
+            return;
+          }
+          if (e?.code === 'CLIENT_ABORT') {
+            return;
+          }
+          console.error('Serverless adapter error:', e);
+          if (!res.headersSent && !res.writableEnded) {
+            res.status(500).end('Internal server error');
+          } else {
+            try {
+              res.end();
+            } catch (_e) {
+              void _e;
+            }
+          }
+          return;
+        }
+        let result: unknown;
+        try {
+          const event = toServerlessEvent(req.method, req.url, req.headers, body);
+          result = await handler(event, {});
+        } catch (e) {
+          console.error('Serverless adapter error:', e);
+          if (!res.headersSent && !res.writableEnded) res.status(500).end('Internal server error');
+          return;
+        }
         applyServerlessResult(result, res);
       });
     },

@@ -182,6 +182,14 @@ npx wtt-express-runtime build-serverless ./src/app.ts --out-dir netlify/function
 npx wtt-express-runtime start-serverless ./netlify/functions/handler.js --port 9000 --env .env
 ```
 
+Override the adapter body limit (default 1 MiB, `0` = empty bodies only):
+
+```bash
+npx wtt-express-runtime start-serverless ./netlify/functions/handler.js --max-body-bytes 2097152
+```
+
+The adapter bounds memory per request to the configured limit plus at most one chunk; declared `Content-Length` exceeding the limit is rejected with `413` before buffering, and oversized chunked bodies are drained after the limit without invoking the handler.
+
 ### Command summary
 
 | Command            | Purpose                                                   |
@@ -199,6 +207,7 @@ Common options worth knowing:
 - `--watch <paths>` restarts the `dev` command on file changes
 - `--out-dir <path>` and `--out-name <name>` control build output paths
 - `--external <pkg>` keeps dependencies external during bundling
+- `--max-body-bytes <bytes>` bounds adapter request bodies for `start-serverless` (default `1048576`, `0` allows empty bodies only)
 
 ## `createExpressApp(options?)`
 
