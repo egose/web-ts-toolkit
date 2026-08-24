@@ -6,7 +6,14 @@ import { getTransformedUnitBounds } from './geometry';
 import type { ExtractedImage, PdfReaderLogger, TransformMatrix } from './types';
 
 const identityTransform: TransformMatrix = [1, 0, 0, 1, 0, 0];
-const propagatedErrorCodes = new Set(['ABORTED', 'DESTROYED', 'IMAGE_LIMIT_EXCEEDED']);
+const propagatedErrorCodes = new Set([
+  'ABORTED',
+  'DESTROYED',
+  'IMAGE_LIMIT_EXCEEDED',
+  'IMAGE_COUNT_LIMIT_EXCEEDED',
+  'IMAGE_TOTAL_PIXELS_LIMIT_EXCEEDED',
+  'OPERATOR_LIMIT_EXCEEDED',
+]);
 
 interface PdfImageObject {
   width?: unknown;
@@ -20,14 +27,30 @@ interface ExtractEmbeddedImagesOptions {
   signal?: AbortSignal;
   createCanvas: () => HTMLCanvasElement;
   maxPixels: number;
+  maxImages: number;
+  maxTotalPixels: number;
+  maxOperators: number;
   logger?: PdfReaderLogger;
   throwIfAborted(signal?: AbortSignal): void;
   throwIfDestroyed(): void;
 }
 
+interface ImageDimensions {
+  width: number;
+  height: number;
+  pixels: number;
+}
+
 interface ResolvedPaintedImage {
   image: PdfImageObject;
   label: string;
+  reference?: string;
+}
+
+interface EncodedImage {
+  dataUrl: string;
+  dimensions: ImageDimensions;
+  size: number;
 }
 
 export async function extractEmbeddedImages(
@@ -36,82 +59,116 @@ export async function extractEmbeddedImages(
   options: ExtractEmbeddedImagesOptions,
 ): Promise<ExtractedImage[]> {
   const operators = await page.getOperatorList();
+  enforceOperatorLimit(operators.fnArray.length, options.maxOperators);
   const images: ExtractedImage[] = [];
   const stack: TransformMatrix[] = [];
   let transform: TransformMatrix = identityTransform;
+  let totalPixels = 0;
+  const encodedXObjects = new Map<string, EncodedImage>();
 
-  for (let index = 0; index < operators.fnArray.length; index += 1) {
-    options.throwIfDestroyed();
-    options.throwIfAborted(options.signal);
+  try {
+    for (let index = 0; index < operators.fnArray.length; index += 1) {
+      options.throwIfDestroyed();
+      options.throwIfAborted(options.signal);
 
-    const operation = operators.fnArray[index];
-    if (operation === OPS.save) {
-      stack.push([...transform]);
-      continue;
-    }
-    if (operation === OPS.restore || operation === OPS.paintFormXObjectEnd) {
-      transform = stack.pop() ?? identityTransform;
-      continue;
-    }
-    if (operation === OPS.transform) {
-      const next = readTransformArgs(operators.argsArray[index]);
-      if (next) transform = Util.transform(transform, next) as unknown as TransformMatrix;
-      continue;
-    }
-    if (operation === OPS.paintFormXObjectBegin) {
-      stack.push([...transform]);
-      const next = readTransformMatrix(operators.argsArray[index]?.[0]);
-      if (next) transform = Util.transform(transform, next) as unknown as TransformMatrix;
-      continue;
-    }
-    if (operation === OPS.paintImageMaskXObject) {
-      warn(options.logger, 'Skipped embedded image operator paintImageMaskXObject: image masks are not supported.');
-      continue;
-    }
-
-    if (
-      operation !== OPS.paintXObject &&
-      operation !== OPS.paintImageXObject &&
-      operation !== OPS.paintInlineImageXObject
-    ) {
-      continue;
-    }
-
-    try {
-      const paintedImage = await resolvePaintedImage(page, operation, operators.argsArray[index], index);
-      if (!paintedImage) continue;
-      const dataUrl = imageToDataUrl(paintedImage.image, options);
-      if (!dataUrl) {
-        warn(
-          options.logger,
-          `Skipped embedded image ${paintedImage.label}: unsupported PDF.js image shape or data layout.`,
-        );
+      const operation = operators.fnArray[index];
+      if (operation === OPS.save) {
+        stack.push([...transform]);
+        continue;
+      }
+      if (operation === OPS.restore || operation === OPS.paintFormXObjectEnd) {
+        transform = stack.pop() ?? identityTransform;
+        continue;
+      }
+      if (operation === OPS.transform) {
+        const next = readTransformArgs(operators.argsArray[index]);
+        if (next) transform = Util.transform(transform, next) as unknown as TransformMatrix;
+        continue;
+      }
+      if (operation === OPS.paintFormXObjectBegin) {
+        stack.push([...transform]);
+        const next = readTransformMatrix(operators.argsArray[index]?.[0]);
+        if (next) transform = Util.transform(transform, next) as unknown as TransformMatrix;
+        continue;
+      }
+      if (operation === OPS.paintImageMaskXObject) {
+        warn(options.logger, 'Skipped embedded image operator paintImageMaskXObject: image masks are not supported.');
         continue;
       }
 
-      const bounds = getTransformedUnitBounds(transform);
-      images.push({
-        dataUrl,
-        x: bounds.left,
-        y: bounds.top,
-        width: bounds.width,
-        height: bounds.height,
-        size: imageByteLength(paintedImage.image),
-        mimeType: 'image/png',
-        pageWidth: viewport.width / viewport.scale,
-        pageHeight: viewport.height / viewport.scale,
-        transform: [...transform],
-      });
-    } catch (error) {
-      options.throwIfDestroyed();
-      options.throwIfAborted(options.signal);
-      if (shouldPropagateEmbeddedImageError(error)) throw error;
-      const label = readOperationLabel(operation, operators.argsArray[index], index);
-      warn(options.logger, `Failed to extract embedded image ${label}.`, error);
+      if (
+        operation !== OPS.paintXObject &&
+        operation !== OPS.paintImageXObject &&
+        operation !== OPS.paintInlineImageXObject
+      ) {
+        continue;
+      }
+
+      try {
+        const args = operators.argsArray[index];
+        const reference = operation === OPS.paintInlineImageXObject ? undefined : readImageReference(args);
+        let encoded = reference ? encodedXObjects.get(reference) : undefined;
+        if (encoded) {
+          enforceNextImageLimits(images.length, totalPixels, encoded.dimensions.pixels, options);
+        } else {
+          const paintedImage = await resolvePaintedImage(page, operation, args, index);
+          options.throwIfDestroyed();
+          options.throwIfAborted(options.signal);
+          if (!paintedImage) continue;
+
+          const dimensions = readImageDimensions(paintedImage.image, options.maxPixels);
+          if (!dimensions || !isSupportedImageSource(paintedImage.image)) {
+            warn(
+              options.logger,
+              `Skipped embedded image ${paintedImage.label}: unsupported PDF.js image shape or data layout.`,
+            );
+            continue;
+          }
+          enforceNextImageLimits(images.length, totalPixels, dimensions.pixels, options);
+          const dataUrl = imageToDataUrl(paintedImage.image, dimensions, options);
+          if (!dataUrl) {
+            warn(
+              options.logger,
+              `Skipped embedded image ${paintedImage.label}: unsupported PDF.js image shape or data layout.`,
+            );
+            continue;
+          }
+          encoded = { dataUrl, dimensions, size: imageByteLength(paintedImage.image) };
+          if (paintedImage.reference) encodedXObjects.set(paintedImage.reference, encoded);
+        }
+        totalPixels += encoded.dimensions.pixels;
+
+        const bounds = getTransformedUnitBounds(transform);
+        images.push({
+          dataUrl: encoded.dataUrl,
+          x: bounds.left,
+          y: bounds.top,
+          width: bounds.width,
+          height: bounds.height,
+          size: encoded.size,
+          mimeType: 'image/png',
+          pageWidth: viewport.width / viewport.scale,
+          pageHeight: viewport.height / viewport.scale,
+          transform: [...transform],
+        });
+      } catch (error) {
+        options.throwIfDestroyed();
+        options.throwIfAborted(options.signal);
+        if (shouldPropagateEmbeddedImageError(error)) throw error;
+        const label = readOperationLabel(operation, operators.argsArray[index], index);
+        warn(options.logger, `Failed to extract embedded image ${label}.`, error);
+      }
     }
+  } finally {
+    encodedXObjects.clear();
   }
 
   return images;
+}
+
+function readImageReference(args: unknown): string | undefined {
+  const reference = Array.isArray(args) ? args[0] : undefined;
+  return typeof reference === 'string' ? reference : undefined;
 }
 
 async function resolvePaintedImage(
@@ -126,25 +183,18 @@ async function resolvePaintedImage(
     return { image: inlineImage as PdfImageObject, label: `inline@${index}` };
   }
 
-  const reference = Array.isArray(args) ? args[0] : undefined;
-  if (typeof reference !== 'string') return undefined;
+  const reference = readImageReference(args);
+  if (!reference) return undefined;
   const image = (await page.objs.get(reference)) as PdfImageObject;
-  return { image, label: reference };
+  return { image, label: reference, reference };
 }
 
-function imageToDataUrl(image: PdfImageObject, options: ExtractEmbeddedImagesOptions): string | undefined {
-  const width = image.width;
-  const height = image.height;
-  if (
-    !Number.isSafeInteger(width) ||
-    !Number.isSafeInteger(height) ||
-    (width as number) <= 0 ||
-    (height as number) <= 0
-  ) {
-    return undefined;
-  }
-
-  const canvas = allocateCanvas(width as number, height as number, options.maxPixels, options.createCanvas);
+function imageToDataUrl(
+  image: PdfImageObject,
+  dimensions: ImageDimensions,
+  options: ExtractEmbeddedImagesOptions,
+): string | undefined {
+  const canvas = allocateCanvas(dimensions.width, dimensions.height, options.maxPixels, options.createCanvas);
   try {
     const context = canvas.getContext('2d');
     if (!context) return undefined;
@@ -156,9 +206,9 @@ function imageToDataUrl(image: PdfImageObject, options: ExtractEmbeddedImagesOpt
 
     if (!ArrayBuffer.isView(image.data)) return undefined;
     const source = new Uint8ClampedArray(image.data.buffer, image.data.byteOffset, image.data.byteLength);
-    const rgba = toRgba(source, width as number, height as number);
+    const rgba = toRgba(source, dimensions);
     if (!rgba) return undefined;
-    const pixels = context.createImageData(width as number, height as number);
+    const pixels = context.createImageData(dimensions.width, dimensions.height);
     pixels.data.set(rgba);
     context.putImageData(pixels, 0, 0);
     return canvas.toDataURL('image/png');
@@ -167,14 +217,18 @@ function imageToDataUrl(image: PdfImageObject, options: ExtractEmbeddedImagesOpt
   }
 }
 
-function toRgba(data: Uint8ClampedArray, width: number, height: number): Uint8ClampedArray | undefined {
-  const pixels = width * height;
-  if (data.length === pixels * 4) return data;
-  if (data.length !== pixels && data.length !== pixels * 3) return undefined;
+function toRgba(data: Uint8ClampedArray, dimensions: ImageDimensions): Uint8ClampedArray | undefined {
+  const rgbaLength = multiplySafe(dimensions.pixels, 4);
+  const rgbLength = multiplySafe(dimensions.pixels, 3);
+  if (rgbaLength === undefined || rgbLength === undefined) {
+    throw new PdfReaderError('IMAGE_LIMIT_EXCEEDED', 'embedded image has unsafe decoded pixel dimensions.');
+  }
+  if (data.length === rgbaLength) return data;
+  if (data.length !== dimensions.pixels && data.length !== rgbLength) return undefined;
 
-  const channels = data.length / pixels;
-  const rgba = new Uint8ClampedArray(pixels * 4);
-  for (let pixel = 0; pixel < pixels; pixel += 1) {
+  const channels = data.length / dimensions.pixels;
+  const rgba = new Uint8ClampedArray(rgbaLength);
+  for (let pixel = 0; pixel < dimensions.pixels; pixel += 1) {
     const input = pixel * channels;
     const output = pixel * 4;
     rgba[output] = data[input];
@@ -185,6 +239,59 @@ function toRgba(data: Uint8ClampedArray, width: number, height: number): Uint8Cl
   return rgba;
 }
 
+function enforceOperatorLimit(count: number, limit: number): void {
+  if (!Number.isSafeInteger(count) || count > limit) {
+    throw new PdfReaderError('OPERATOR_LIMIT_EXCEEDED', `PDF page has ${count} operators; limit is ${limit}.`);
+  }
+}
+
+function enforceNextImageLimits(
+  currentImageCount: number,
+  currentTotalPixels: number,
+  nextPixels: number,
+  options: ExtractEmbeddedImagesOptions,
+): void {
+  const nextImageCount = currentImageCount + 1;
+  if (!Number.isSafeInteger(nextImageCount) || nextImageCount > options.maxImages) {
+    throw new PdfReaderError(
+      'IMAGE_COUNT_LIMIT_EXCEEDED',
+      `PDF page has more than ${options.maxImages} extractable embedded images.`,
+    );
+  }
+
+  const nextTotalPixels = currentTotalPixels + nextPixels;
+  if (!Number.isSafeInteger(nextTotalPixels) || nextTotalPixels > options.maxTotalPixels) {
+    throw new PdfReaderError(
+      'IMAGE_TOTAL_PIXELS_LIMIT_EXCEEDED',
+      `PDF page embedded images require more than ${options.maxTotalPixels} decoded pixels.`,
+    );
+  }
+}
+
+function readImageDimensions(image: PdfImageObject, limit: number): ImageDimensions | undefined {
+  const { width, height } = image;
+  if (width === undefined || height === undefined) return undefined;
+  if (typeof width !== 'number' || typeof height !== 'number') return undefined;
+
+  const pixelWidth = Math.ceil(width);
+  const pixelHeight = Math.ceil(height);
+  const pixels = multiplySafe(pixelWidth, pixelHeight);
+  if (pixelWidth <= 0 || pixelHeight <= 0 || pixels === undefined || pixels > limit) {
+    throw new PdfReaderError('IMAGE_LIMIT_EXCEEDED', `embedded image requires ${pixels} pixels; limit is ${limit}.`);
+  }
+  return { width: pixelWidth, height: pixelHeight, pixels };
+}
+
+function isSupportedImageSource(image: PdfImageObject): boolean {
+  return (typeof ImageBitmap !== 'undefined' && image.bitmap instanceof ImageBitmap) || ArrayBuffer.isView(image.data);
+}
+
+function multiplySafe(left: number, right: number): number | undefined {
+  if (!Number.isSafeInteger(left) || !Number.isSafeInteger(right)) return undefined;
+  const product = left * right;
+  return Number.isSafeInteger(product) ? product : undefined;
+}
+
 function allocateCanvas(
   width: number,
   height: number,
@@ -193,8 +300,8 @@ function allocateCanvas(
 ): HTMLCanvasElement {
   const pixelWidth = Math.ceil(width);
   const pixelHeight = Math.ceil(height);
-  const pixels = pixelWidth * pixelHeight;
-  if (!Number.isSafeInteger(pixels) || pixels > limit) {
+  const pixels = multiplySafe(pixelWidth, pixelHeight);
+  if (pixels === undefined || pixels > limit) {
     throw new PdfReaderError('IMAGE_LIMIT_EXCEEDED', `embedded image requires ${pixels} pixels; limit is ${limit}.`);
   }
   const canvas = createCanvas();

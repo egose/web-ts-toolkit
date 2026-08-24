@@ -3,7 +3,7 @@ import PDFReaderDefault from '@web-ts-toolkit/pdf-reader';
 // @ts-expect-error Deep imports are intentionally unsupported.
 import { PDFReader as DeepReader } from '@web-ts-toolkit/pdf-reader/PDFReader';
 
-import { GlobalWorkerOptions, type PDFDocumentProxy } from 'pdfjs-dist';
+import { GlobalWorkerOptions, type PDFDocumentProxy, type PDFWorker } from 'pdfjs-dist';
 
 import {
   PDFReader,
@@ -14,6 +14,8 @@ import {
   type ConvertOptions,
   type DataUrlPageImage,
   type ExtractedImage,
+  type LoadedPdfDocument,
+  type LoadedPdfPage,
   type PageImageResult,
   type PageResult,
   type PdfReaderOptions,
@@ -32,6 +34,7 @@ const workerUrl = new URL('./pdf.worker.min.mjs', import.meta.url).toString();
 configurePdfWorker(workerUrl);
 
 const source: PdfSource = { data: new Uint8Array([0x25, 0x50, 0x44, 0x46]) };
+const isolatedWorkerSource: PdfSource = { data: new Uint8Array([0x25, 0x50, 0x44, 0x46]), worker: {} as PDFWorker };
 const urlSourceOptions: PdfUrlSourceOptions = { withCredentials: false };
 const urlSource: PdfUrlSource = pdfUrlSource('https://example.com/document.pdf', urlSourceOptions);
 const options: PdfReaderOptions = {
@@ -65,7 +68,9 @@ const state: PdfReaderState = reader.state;
 
 expectTypeAssignableTo<typeof PDFReader>(PDFReader);
 expectTypeAssignableTo<PdfSource>(urlSource);
+expectTypeAssignableTo<PdfSource>(isolatedWorkerSource);
 expectTypeAssignableTo<Promise<PDFDocumentProxy>>(loadResult);
+expectTypeAssignableTo<Promise<LoadedPdfDocument>>(loadResult);
 expectTypeAssignableTo<AsyncGenerator<PageResult>>(pages);
 expectTypeAssignableTo<Promise<PageResult[]>>(converted);
 expectTypeAssignableTo<PdfTextContent | undefined>(publicText);
@@ -74,6 +79,7 @@ expectTypeAssignableTo<PdfReaderState>(state);
 expectTypeAssignableTo<number>(image.width);
 expectTypeAssignableTo<string>(GlobalWorkerOptions.workerSrc);
 expectTypeAssignableTo<AbortSignal>(convertOptions.signal as AbortSignal);
+expectTypeAssignableTo<LoadedPdfPage>({} as LoadedPdfPage);
 
 if (page.pageImage?.kind === 'blob') {
   expectTypeAssignableTo<BlobPageImage>(page.pageImage);

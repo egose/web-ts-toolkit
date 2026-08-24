@@ -26,9 +26,9 @@
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
-    "benchmark": "pnpm --filter @web-ts-toolkit/pdf-reader build && vitest run --config vitest.benchmark.config.ts",
-    "test": "pnpm --filter @web-ts-toolkit/pdf-reader... build && vitest run --config ../../vitest.config.ts && pnpm test:browser",
-    "test:browser": "pnpm --filter @web-ts-toolkit/pdf-reader build && vitest run --config vitest.browser.config.ts",
+    "benchmark": "pnpm --filter @web-ts-toolkit/pdf-reader build && vitest run --config vitest.benchmark.config.mts",
+    "test": "pnpm --filter @web-ts-toolkit/pdf-reader... build && vitest run --config vitest.config.mts && pnpm test:browser",
+    "test:browser": "pnpm --filter @web-ts-toolkit/pdf-reader build && vitest run --config vitest.browser.config.mts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "files": [
@@ -39,11 +39,11 @@
     "node": ">=22.13.0"
   },
   "peerDependencies": {
-    "pdfjs-dist": "^6.2.108"
+    "pdfjs-dist": "~6.2.108"
   },
   "devDependencies": {
     "@vitest/browser-playwright": "^4.1.10",
-    "pdfjs-dist": "^6.2.108",
+    "pdfjs-dist": "~6.2.108",
     "playwright": "^1.62.1"
   }
 }
