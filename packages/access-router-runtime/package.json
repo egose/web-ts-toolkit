@@ -22,16 +22,20 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.ts",
+        "default": "./dist/index.d.ts"
+      },
       "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./tsconfig.json": "./tsconfig.package.json"
+    "./tsconfig.json": "./dist/tsconfig.json"
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
-    "test": "pnpm --filter @web-ts-toolkit/access-router-runtime... build && vitest run --config vitest.config.ts"
+    "test": "pnpm --filter @web-ts-toolkit/access-router-runtime... build && vitest run --config vitest.config.mts"
   },
   "files": [
     "README.md",
@@ -48,7 +52,7 @@
   },
   "peerDependencies": {
     "express": ">=5.0.0",
-    "mongoose": ">=8.0.0"
+    "mongoose": ">=8.0.0 <10"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

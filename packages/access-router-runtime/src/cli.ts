@@ -3,46 +3,25 @@ import {
   runBuildEntryCommand,
   runDevCommand,
   runCliCommand as runExpressRuntimeCliCommand,
+  type RuntimeCliCommand,
 } from '@web-ts-toolkit/express-runtime/cli';
-import { createAccessRouterRuntime, loadAccessRouterRuntime, loadAccessRouterRuntimeConfigSync } from './index';
+import { loadAccessRouterRuntime } from './index';
 import {
-  applyConfigDevDefaults,
-  buildConfigAwareDevArgv,
-  CLI_VERSION,
   generateRuntimeEntryFromConfig,
   generateServerlessEntryFromConfig,
+  getCliVersion,
+  normalizeAccessRouterRuntimeArgv,
   printHelp,
-  readTsconfigPath,
-  resolveCliInvocation,
 } from './cli-utils';
 
-async function runConfigAwareCommand(invocation: NonNullable<ReturnType<typeof resolveCliInvocation>>): Promise<void> {
-  const tsconfigPath = invocation.configAware ? readTsconfigPath(invocation.passthroughArgs) : undefined;
-  const config =
-    invocation.subcommand === 'dev'
-      ? loadAccessRouterRuntimeConfigSync(invocation.targetPath, { tsconfigPath })
-      : undefined;
-  const parsedArgs = parseExpressRuntimeArgs(
-    invocation.subcommand === 'dev' && config
-      ? buildConfigAwareDevArgv(invocation.targetPath, invocation.passthroughArgs, config)
-      : [invocation.subcommand, invocation.targetPath, ...invocation.passthroughArgs],
-  );
-  if (!parsedArgs) {
-    return;
-  }
-
+async function runConfigAwareCommand(parsedArgs: RuntimeCliCommand): Promise<void> {
   if (parsedArgs.subcommand === 'dev') {
-    await runDevCommand(
-      config ? applyConfigDevDefaults(parsedArgs.dev, config, invocation.passthroughArgs) : parsedArgs.dev,
-      {
-        load: config
-          ? () => createAccessRouterRuntime(config)
-          : (configPath) => loadAccessRouterRuntime(configPath, { tsconfigPath }),
-        start: (runtime, options) => {
-          runtime.startLocalServer(options);
-        },
+    await runDevCommand(parsedArgs.dev, {
+      load: (configPath) => loadAccessRouterRuntime(configPath, { tsconfigPath: parsedArgs.dev.tsconfigPath }),
+      start: (runtime, options) => {
+        return runtime.startLocalServer(options);
       },
-    );
+    });
     return;
   }
 
@@ -68,32 +47,36 @@ async function runConfigAwareCommand(invocation: NonNullable<ReturnType<typeof r
   throw new Error(`Unexpected config-aware subcommand: ${parsedArgs.subcommand}`);
 }
 
+function optionArgs(argv: string[]): string[] {
+  const terminator = argv.indexOf('--');
+  return terminator === -1 ? argv : argv.slice(0, terminator);
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
+  const globalArgs = optionArgs(argv);
 
-  if (argv.includes('-V') || argv.includes('--version')) {
-    console.log(CLI_VERSION);
+  if (globalArgs.includes('-V') || globalArgs.includes('--version')) {
+    console.log(getCliVersion());
     return;
   }
 
-  if (argv.length === 0 || argv.includes('-h') || argv.includes('--help')) {
+  if (argv.length === 0 || globalArgs.includes('-h') || globalArgs.includes('--help')) {
     printHelp();
     return;
   }
 
-  const invocation = resolveCliInvocation(argv);
-  if (!invocation) {
-    printHelp();
-    return;
-  }
-
-  if (invocation.configAware) {
-    await runConfigAwareCommand(invocation);
-    return;
-  }
-
-  const parsedArgs = parseExpressRuntimeArgs(argv);
+  const parsedArgs = parseExpressRuntimeArgs(normalizeAccessRouterRuntimeArgv(argv));
   if (!parsedArgs) {
+    return;
+  }
+
+  if (
+    parsedArgs.subcommand === 'dev' ||
+    parsedArgs.subcommand === 'build' ||
+    parsedArgs.subcommand === 'build-serverless'
+  ) {
+    await runConfigAwareCommand(parsedArgs);
     return;
   }
 
