@@ -15,7 +15,13 @@ const compiledTemplates = new Map<string, Handlebars.TemplateDelegate<Record<str
 
 /**
  * Compile a Handlebars template string with the given data.
- * `noEscape: true` is set because messages are rendered as plain text.
+ * `noEscape: true` is set because rendered message values are plain text, not
+ * HTML. Templates are trusted application code. Any HTML renderer must escape
+ * the returned strings before insertion into markup.
+ *
+ * The process-local cache is intentionally finite-static: template strings are
+ * expected to come from registered application templates, not caller-generated
+ * dynamic input. Do not pass unbounded per-request template strings here.
  */
 function compile(template: string, data: Record<string, unknown>): string {
   let compiled = compiledTemplates.get(template);
@@ -88,7 +94,7 @@ export function isActionAllowed(
   const isSender = action.sender && message.isSender(user);
   if (!isReceiver && !isSender) return false;
   if (action.permission && !(options.permissions || {})[action.permission]) return false;
-  if (action.condition && !action.condition(message)) return false;
+  if (action.condition && !action.condition(message as IMessage)) return false;
   return true;
 }
 

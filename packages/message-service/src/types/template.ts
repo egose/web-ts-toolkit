@@ -38,6 +38,13 @@ export interface PrepareResult {
 export interface ActionContext {
   message: IMessage | IMessageArchive;
   user: MessageUser;
+  /**
+   * Stable, persisted idempotency key for this action attempt. Handlers that
+   * call external systems must pass this key to those systems or otherwise
+   * deduplicate by it; the service cannot make arbitrary external side effects
+   * exactly-once.
+   */
+  actionAttemptId?: string;
   getModel: (name: string) => mongoose.Model<unknown>;
   expireSession?: (sessionId: string) => Promise<void>;
   refundPayment?: (sessionId: string) => Promise<void>;

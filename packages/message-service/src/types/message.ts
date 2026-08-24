@@ -25,6 +25,10 @@ export type MessageType = 'notification' | 'request' | 'reminder' | 'approval' |
 
 export type UserId = mongoose.Types.ObjectId | string;
 
+export type ActionLifecycleState = 'active' | 'processing' | 'retryable';
+
+export type ActionNotificationState = 'none' | 'pending' | 'sent' | 'failed';
+
 /**
  * Minimal user shape accepted by MessageService methods.
  * `displayName` is optional but templates that interpolate `{{displayName}}`
@@ -37,9 +41,12 @@ export interface MessageUser {
   displayName?: string;
 }
 
-export interface IMessageMethods {
+export interface IMessageRelationshipMethods {
   isSender(user: MessageUser): boolean;
   isReceiver(user: MessageUser): boolean;
+}
+
+export interface IMessageMethods extends IMessageRelationshipMethods {
   archive(actionCd: string, archivedBy: UserId, registry: TemplateRegistry): Promise<void>;
 }
 
@@ -65,7 +72,15 @@ export interface IBaseMessage {
   payload: Record<string, unknown>;
   display: Record<string, unknown>;
   clientRequestId: string | null;
+  clientRequestOwnerId: string | null;
   clientRequestItemIndex: number | null;
+  actionState: ActionLifecycleState;
+  actionCd: string | null;
+  actionAttemptId: string | null;
+  actionClaimedBy: string | null;
+  actionClaimedAt: Date | null;
+  actionLeaseExpiresAt: Date | null;
+  actionFailureMessage: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -80,10 +95,14 @@ export type IMessage = mongoose.Document<unknown, MongooseQueryHelpers, IMessage
 // Message Archive Document
 // ---------------------------------------------------------------------------
 
-export type IMessageArchive = mongoose.Document<unknown, MongooseQueryHelpers, IMessageMethods> &
+export type IMessageArchive = mongoose.Document<unknown, MongooseQueryHelpers, IMessageRelationshipMethods> &
   IBaseMessage & {
     actionCd: string;
     archivedBy: UserId;
     archivedAt: Date;
+    actionAttemptId: string | null;
+    actionNotificationState: ActionNotificationState;
+    actionNotificationError: string | null;
+    actionNotificationAttemptedAt: Date | null;
     __v?: number;
-  } & IMessageMethods;
+  } & IMessageRelationshipMethods;

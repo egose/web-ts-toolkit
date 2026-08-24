@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { TemplateRegistry, defaultRegistry, includesAction } from '../src/template-registry';
+import {
+  TemplateRegistry,
+  TemplateRegistryValidationError,
+  defaultRegistry,
+  includesAction,
+} from '../src/template-registry';
 import { interpolateTemplate, filterActions, isActionAllowed } from '../src/template-engine';
 import type { MessageTemplate } from '../src/types/template';
 
@@ -78,7 +83,9 @@ describe('TemplateRegistry', () => {
 
   it('should register and find a template', () => {
     registry.register(testTemplate);
-    expect(registry.find('test-request')).toBe(testTemplate);
+    const registered = registry.find('test-request');
+    expect(registered).not.toBe(testTemplate);
+    expect(registered?.templateCd).toBe(testTemplate.templateCd);
   });
 
   it('should return undefined for unknown template', () => {
@@ -98,7 +105,7 @@ describe('TemplateRegistry', () => {
 
   it('should return all templates', () => {
     registry.register(testTemplate);
-    expect(registry.getAll()).toEqual([testTemplate]);
+    expect(registry.getAll()).toEqual([registry.find('test-request')]);
   });
 
   it('should unregister a template', () => {
@@ -124,6 +131,105 @@ describe('TemplateRegistry', () => {
     const updated = { ...testTemplate, description: 'updated' };
     registry.register(updated);
     expect(registry.find('test-request')?.description).toBe('updated');
+  });
+
+  it('should reject duplicate action codes deterministically', () => {
+    expect(() =>
+      registry.register({
+        ...testTemplate,
+        actions: [
+          testTemplate.actions[0],
+          {
+            ...testTemplate.actions[1],
+            actionCd: testTemplate.actions[0].actionCd,
+          },
+        ],
+      }),
+    ).toThrow(new TemplateRegistryValidationError('template "test-request" has duplicate actionCd "approved"'));
+  });
+
+  it('should reject ambiguous default actions per usertype deterministically', () => {
+    expect(() =>
+      registry.register({
+        ...testTemplate,
+        actions: [
+          testTemplate.actions[0],
+          {
+            ...testTemplate.actions[1],
+            isDefault: true,
+          },
+        ],
+      }),
+    ).toThrow(
+      new TemplateRegistryValidationError(
+        'template "test-request" has multiple default receiver actions: "approved" and "rejected"',
+      ),
+    );
+  });
+
+  it('should reject actions that are unavailable to both sender and receiver', () => {
+    expect(() =>
+      registry.register({
+        ...testTemplate,
+        actions: [
+          {
+            ...testTemplate.actions[0],
+            sender: false,
+            receiver: false,
+          },
+        ],
+      }),
+    ).toThrow(
+      new TemplateRegistryValidationError(
+        'template "test-request" action "approved" must be available to sender or receiver',
+      ),
+    );
+  });
+
+  it('should freeze registered action-critical structure without changing function identity', async () => {
+    const runHandler = async () => 'ok';
+    const condition = () => true;
+    const template: MessageTemplate = {
+      ...testTemplate,
+      senderContent: { ...testTemplate.senderContent },
+      actions: [
+        {
+          ...testTemplate.actions[0],
+          condition,
+          runHandler,
+        },
+      ],
+    };
+
+    registry.register(template);
+    template.actions[0].receiver = false;
+    template.actions[0].runHandler = async () => 'changed';
+    template.actions.push({
+      ...testTemplate.actions[1],
+      actionCd: 'late-added',
+    });
+    template.senderContent.title = 'mutated';
+
+    const registered = registry.find('test-request')!;
+    expect(registered.actions.map((action) => action.actionCd)).toEqual(['approved']);
+    expect(registered.actions[0].receiver).toBe(true);
+    expect(registered.actions[0].condition).toBe(condition);
+    expect(registered.actions[0].runHandler).toBe(runHandler);
+    await expect(registered.actions[0].runHandler({} as never)).resolves.toBe('ok');
+    expect(registered.senderContent.title).toBe('Test Request');
+    expect(Object.isFrozen(registered)).toBe(true);
+    expect(Object.isFrozen(registered.actions)).toBe(true);
+    expect(Object.isFrozen(registered.actions[0])).toBe(true);
+  });
+
+  it('should not allow mutation through returned registry references', () => {
+    registry.register(testTemplate);
+    const registered = registry.find('test-request')!;
+
+    expect(() => {
+      registered.actions[0].receiver = false;
+    }).toThrow(TypeError);
+    expect(registry.find('test-request')?.actions[0].receiver).toBe(true);
   });
 });
 
@@ -260,6 +366,100 @@ describe('interpolateTemplate', () => {
       message: { isPaid: true },
     });
     expect(withPayment!.actions.map((a) => a.actionCd)).toContain('conditional');
+  });
+
+  it('should render interpolated markup as plain text without HTML sanitization or escaping', () => {
+    const template: MessageTemplate = {
+      ...testTemplate,
+      senderContent: {
+        title: '{{markup}}',
+        long: 'Body {{{markup}}}',
+        short: '{{markup}}',
+      },
+    };
+
+    const markup = '<img src=x onerror=alert(1)> & "quoted"';
+    const result = interpolateTemplate(template, { markup }, 'sender');
+
+    expect(result.senderContent.title).toBe(markup);
+    expect(result.senderContent.long).toBe(`Body ${markup}`);
+  });
+
+  it('should not resolve prototype-like property paths from hostile data', () => {
+    const template: MessageTemplate = {
+      ...testTemplate,
+      senderContent: {
+        title: '{{__proto__.polluted}}|{{constructor.name}}',
+        long: '{{toString}}',
+        short: '{{prototype.value}}',
+      },
+    };
+
+    const result = interpolateTemplate(template, {}, 'sender');
+
+    expect(result.senderContent.title).toBe('|');
+    expect(result.senderContent.long).toBe('');
+    expect(result.senderContent.short).toBe('');
+  });
+
+  it('should throw deterministically for malformed templates', () => {
+    const template: MessageTemplate = {
+      ...testTemplate,
+      senderContent: {
+        title: 'Broken {{name',
+        long: 'unused',
+        short: 'unused',
+      },
+    };
+
+    expect(() => interpolateTemplate(template, { name: 'Widget' }, 'sender')).toThrow(/Parse error|Expecting/);
+  });
+
+  it('should render missing nested values as empty strings', () => {
+    const template: MessageTemplate = {
+      ...testTemplate,
+      senderContent: {
+        title: '{{missing.value}}',
+        long: '{{present.missing.value}}',
+        short: 'before {{missing}} after',
+      },
+    };
+
+    const result = interpolateTemplate(template, { present: {} }, 'sender');
+
+    expect(result.senderContent).toEqual({
+      title: '',
+      long: '',
+      short: 'before  after',
+    });
+  });
+
+  it('should use Handlebars string coercion for non-string values', () => {
+    const template: MessageTemplate = {
+      ...testTemplate,
+      senderContent: {
+        title: '{{count}}|{{enabled}}|{{objectValue}}',
+        long: '{{arrayValue}}',
+        short: '{{nullValue}}|{{undefinedValue}}',
+      },
+    };
+
+    const result = interpolateTemplate(
+      template,
+      {
+        arrayValue: ['a', 'b'],
+        count: 3,
+        enabled: true,
+        nullValue: null,
+        objectValue: { a: 1 },
+        undefinedValue: undefined,
+      },
+      'sender',
+    );
+
+    expect(result.senderContent.title).toBe('3|true|[object Object]');
+    expect(result.senderContent.long).toBe('a,b');
+    expect(result.senderContent.short).toBe('|');
   });
 });
 

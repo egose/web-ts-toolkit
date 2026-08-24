@@ -3,7 +3,7 @@
   "description": "Template-driven messaging core for Mongoose + Express applications",
   "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/message-service",
   "version": "0.0.0-PLACEHOLDER",
-  "license": "PLACEHOLDER",
+  "license": "Apache-2.0",
   "repository": "PLACEHOLDER",
   "keywords": [
     "mongoose",
@@ -18,7 +18,11 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.ts",
+        "default": "./dist/index.d.ts"
+      },
       "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
