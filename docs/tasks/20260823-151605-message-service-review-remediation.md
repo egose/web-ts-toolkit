@@ -62,7 +62,7 @@ Confirmed on 2026-08-23 before this task file was created:
 
 ### Task MSG-01: Add Real MongoDB And Packed-Consumer Test Harnesses
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -108,11 +108,18 @@ Acceptance criteria:
 - Strict NodeNext and Bundler consumers compile against emitted declarations.
 - `pnpm --filter @web-ts-toolkit/message-service test` passes.
 
+Completion evidence:
+
+- Added isolated MongoDB replica-set fixtures, connection-local models, per-test registries/databases, and reusable deferred barriers under `packages/message-service/test/support/`.
+- Added real MongoDB tests proving role-array `$in` visibility, hydrated `isSender`/`isReceiver`, MongoDB-enforced unique/partial indexes, and independent reservation/first-item/action/archive pause points.
+- Added release-transformed packed-consumer tests proving package-name ESM/CJS runtime loading, strict NodeNext ESM/CommonJS compilation, and strict Bundler declaration compilation with `skipLibCheck: false`.
+- Verification: `pnpm --filter @web-ts-toolkit/message-service test` passed with 6 test files and 84 tests.
+
 ## Wave 1: Idempotency And Creation Integrity
 
 ### Task MSG-02: Scope Idempotency To The Request Owner And Template
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -161,9 +168,17 @@ Acceptance criteria:
 - A failing-before integration regression covers cross-user and cross-template reuse.
 - Package tests pass.
 
+Completion evidence:
+
+- Scoped idempotent creation to the trimmed, case-preserved `clientRequestId`, requester identity (`String(user._id)`), and `templateCd` in service reservation acquisition, duplicate lookup, completion, release, and persisted message writes.
+- Added `clientRequestOwnerId` fields and compound scoped indexes to `Message` and `MessageRequest` schemas; removed the old message-level global `clientRequestId` index from schema declarations.
+- Added service/route validation for non-string, empty, whitespace-only, and oversized `clientRequestId` values, plus docs defining trim and case-sensitive behavior.
+- Added MongoDB integration regressions proving cross-user and cross-template `clientRequestId` reuse creates separate batches, and same-owner same-template replay is preserved.
+- Verification: `pnpm --filter @web-ts-toolkit/message-service test` passed with 6 files and 92 tests; `pnpm exec eslint "packages/message-service/**/*.{ts,js}"` passed; `git diff --check` passed.
+
 ### Task MSG-03: Make Batch Reservations Complete, Recoverable, And Bounded
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -210,9 +225,18 @@ Acceptance criteria:
 - Empty-result replay remains supported and distinguishable from corruption.
 - Real MongoDB concurrency tests and package tests pass.
 
+Completion evidence:
+
+- Added explicit reservation states `pending`, `completed`, and `failed`, plus lease ownership/expiry and completion/failure timestamps to `MessageRequest`.
+- Changed idempotent replay to require a `completed` reservation with exactly the expected distinct `clientRequestItemIndex` values; completed zero-item reservations still replay as `[]`, while missing/extra item states raise `ClientRequestInconsistentStateError`.
+- Persisted idempotent batches and the reservation completion transition in one MongoDB session transaction, with `MessageTransactionRequiredError` for deployments without transaction support and documented replica-set/sharded-cluster requirements.
+- Added bounded duplicate waiting and stale lease takeover via configurable `clientRequestLeaseMs`, `clientRequestWaitMs`, `clientRequestPollMs`, and `clientRequestDelay` options; live reservations raise retryable `ClientRequestPendingError`, and failed reservations replay as `ClientRequestFailedError`.
+- Added focused MongoDB integration coverage for uncommitted batch invisibility, bounded live-reservation waits, rollback on second-item failure, stale lease single-winner reclaim, completed-with-missing-index corruption, completed zero-item replay, and transaction-backed batch completion.
+- Verification: `pnpm --filter @web-ts-toolkit/message-service test` passed with 6 files and 102 tests; `pnpm exec eslint "packages/message-service/**/*.{ts,js}"` passed; `git diff --check` passed.
+
 ### Task MSG-04: Compensate Payment Sessions When Message Creation Fails
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -256,11 +280,19 @@ Acceptance criteria:
 - Regression tests cover `null`, thrown, persistence-failure, batch-failure, and compensation-failure branches.
 - Package tests pass.
 
+Completion evidence:
+
+- Added payment compensation to message creation: newly created uncommitted sessions are expired when single-message persistence or idempotent batch transaction persistence fails, including transaction-support failures.
+- Added observable cleanup failure contract through `onPaymentCompensationFailure`, exported `PaymentCompensationFailureEvent`, and exported `PaymentSessionCompensationError` while preserving bound `expireSession`/`refundPayment` methods and existing payer selection.
+- Documented provider idempotency and compensation failure semantics in `PaymentProvider`, README, and DESIGN notes.
+- Added focused regressions for payment-session `null`, provider throw, persistence failure, real MongoDB later-batch-item failure, compensation failure, and committed duplicate replay without additional session creation.
+- Verification: `pnpm --filter @web-ts-toolkit/message-service test` passed with 6 files and 107 tests; `pnpm exec eslint "packages/message-service/**/*.{ts,js}"` passed; `git diff --check` passed.
+
 ## Wave 2: HTTP And Action Security
 
 ### Task MSG-05: Require Authentication And Remove Mutating GET Routes
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -306,9 +338,17 @@ Acceptance criteria:
 - README and route JSDoc no longer advertise mutating GET.
 - Route and package tests pass.
 
+Completion evidence:
+
+- Route handlers now require a resolved user with a non-empty `_id` before extracting permissions/identity or invoking service/model/template/payment/action paths.
+- Removed GET action execution; `POST /:id/action/:actionCd` is the only registered action mutation route and route docs/README document it as POST-only.
+- Added route-level validation for `templateCd`, `actionCd`, message `id`, `usertype`, JSON body shape, and `clientRequestId`; route lookup CastErrors now map to controlled 400 responses.
+- Added route tests proving unauthenticated create/actions/action requests return 401 with no service/model side effects, malformed/overlong route values are rejected before lookups, custom extractors still drive successful service argument mapping, and GET action requests do not execute handlers.
+- Verification: `pnpm --filter @web-ts-toolkit/message-service test` passed with 6 files and 116 tests; `pnpm exec eslint "packages/message-service/**/*.{ts,js}"` passed; `git diff --check` passed.
+
 ### Task MSG-06: Add A Durable, Concurrency-Safe Action Lifecycle
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -356,11 +396,21 @@ Acceptance criteria:
 - Real MongoDB concurrency tests prove claim and transaction behavior.
 - Package tests pass.
 
+Completion evidence:
+
+- Added active action lifecycle fields (`active`, `processing`, `retryable`) and archive notification/attempt fields, including a unique active `actionAttemptId` index and archive notification state fields.
+- Moved action execution to a durable service lifecycle: service-level permission/sender/receiver/condition checks remain before handler execution; the active message is atomically claimed with `findOneAndUpdate`; handlers receive stable `ctx.actionAttemptId`; same/different concurrent actions cannot both win while a live claim exists.
+- Replaced post-handler document `archive()` usage with service-owned archive insertion plus active deletion in one MongoDB session transaction. Transaction rollback leaves no archive-only or duplicate active/archive success state.
+- Added post-commit sender notification semantics: archives persist notification intent/state, notification failure updates archive state to `failed`, service throws `ActionNotificationPendingError`, and retries against the archived message do not rerun the handler.
+- Added service and route errors/mappings: `ActionConflictError` -> 409, `MessageArchivedError` -> 410, `ActionNotificationPendingError` -> 202, and `ActionRetryableError` -> 409.
+- Added focused real MongoDB tests for competing action claims across different actions, archive/delete transaction rollback, notification failure recovery without handler rerun, and updated barrier support for action claim/archive commit points.
+- Verification: `pnpm --filter @web-ts-toolkit/message-service test` passed with 6 files and 124 tests; `pnpm exec eslint "packages/message-service/**/*.{ts,js}"` passed; `git diff --check` passed.
+
 ## Wave 3: Encapsulation, Types, And Side Effects
 
 ### Task MSG-07: Unify Mongoose Connection And Model Ownership
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -406,9 +456,18 @@ Acceptance criteria:
 - Generated declarations expose accurate schema/document methods.
 - Package tests pass.
 
+Completion evidence:
+
+- Added service-level configurable `modelNames` plus `connection` support and a role-based model resolver used by creation, lookup, reservation, action, archive, notification, and transaction paths; `findMessage()` now uses the configured archive model.
+- Changed document-originated schema archive/email behavior to resolve sibling models from the hydrated document's owning connection instead of global Mongoose, with connection-aware registration checks for configured user models.
+- Added `MessageModelResolutionError` for clear selected role/model/source failures and exported it with the new model-name options.
+- Improved schema factory/document method typings so active documents expose `archive()` and archive documents expose only relationship methods.
+- Added MongoDB integration coverage proving custom connection-local active/archive/request names work without global registry access, document-connection email lookup works without global registry access, and missing archive models report the configured role/name/connection.
+- Verification: `pnpm --filter @web-ts-toolkit/message-service test` passed with 6 files and 127 tests; `pnpm exec eslint "packages/message-service/**/*.{ts,js}"` passed; `git diff --check` passed.
+
 ### Task MSG-08: Close Fail-Open Service Authorization And Type Gaps
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -458,9 +517,18 @@ Acceptance criteria:
 - `UserId` is importable from the package root if used publicly.
 - Runtime, declaration, route, and package tests pass.
 
+Completion evidence:
+
+- Normal `MessageService.getActions()` now requires a valid user identity before sender/receiver authorization; route calls still provide the authenticated user, and invalid service users map to authentication failure at the route boundary.
+- `handleAction()` validates the acting user, rejects mismatched direct-service `templateCd` values before handler lookup, and resolves handlers from the message's own `templateCd`.
+- `getActions()` returns no executable actions for archived messages while preserving read-only/admin and notification behavior.
+- Relationship methods no longer stringify null or empty parties into comparable sentinel IDs; null/empty message parties do not match users such as `_id: 'null'`.
+- Public types keep active-only `archive()` off `IMessageArchive`, export `UserId` from the package root, and packed strict consumers assert active/archive method separation plus canonical type imports.
+- Verification: `pnpm --filter @web-ts-toolkit/message-service test` passed with 6 files and 132 tests; `pnpm exec eslint "packages/message-service/**/*.{ts,js}"` passed; `git diff --check` passed.
+
 ### Task MSG-09: Make Email Delivery Post-Commit And Observable
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -504,11 +572,21 @@ Acceptance criteria:
 - Updating an existing message follows an explicit tested resend policy.
 - Real MongoDB hook/outbox tests and package tests pass.
 
+Completion evidence:
+
+- Replaced external pre-save email delivery with best-effort post-save delivery for newly created, non-transactional messages only; session-bound writes are skipped so external email is not sent before a surrounding MongoDB transaction commits.
+- Added observable `onEmailDeliveryFailure` events for recipient lookup and notifier failures, exported the event/stage types, and preserved committed message saves when delivery or observation fails.
+- Normalized configured exclusions and rendered-title matching with the same trim + lowercase comparison while passing a trimmed, case-preserved title to the notifier.
+- Defined and tested the update policy: existing message saves do not resend email.
+- Added focused real MongoDB tests for rollback/no email, committed send, observable lookup/notifier failures, exclusion normalization, update no-resend policy, and connection-local recipient resolution.
+- Documented best-effort email semantics, absence of a durable outbox/retry worker, transaction skip behavior, observability hook, exclusion normalization, and no-resend update policy in `packages/message-service/README.md` and `packages/message-service/DESIGN.md`.
+- Verification: `pnpm --filter @web-ts-toolkit/message-service test` passed with 6 files and 137 tests; `pnpm exec eslint "packages/message-service/**/*.{ts,js}"` passed; `git diff --check` passed.
+
 ## Wave 4: Query, Template, And Package Health
 
 ### Task MSG-10: Validate Pagination And Index Visibility Queries
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -553,9 +631,20 @@ Acceptance criteria:
 - Existing list/count behavior remains compatible unless a documented contract change is approved.
 - Package tests pass.
 
+Completion evidence:
+
+- Added `InvalidPaginationValueError` and constructor validation requiring finite integer `defaultListLimit`/`maxListLimit`, `maxListLimit >= 1`, and `defaultListLimit <= maxListLimit`.
+- Defined request pagination behavior: `limit`/`skip` must be finite integers; fractional, `NaN`, and infinite values are rejected; `limit <= 0` normalizes to 1; high limits clamp to `maxListLimit`; negative `skip` normalizes to 0.
+- Changed list ordering to `{ createdAt: -1, _id: -1 }` and added deterministic equal-timestamp MongoDB pagination coverage.
+- Replaced the timestamp-only active-message index with branch-aligned visibility indexes `{ fromUser: 1, createdAt: -1, _id: -1 }`, `{ toUser: 1, createdAt: -1, _id: -1 }`, and `{ toRoles: 1, createdAt: -1, _id: -1 }`; schema tests assert these declarations.
+- Added real MongoDB list/count/visibility tests proving sender, direct-recipient, and role visibility without duplicate results, plus explain assertions that representative branch sort queries use the expected compound indexes and avoid `COLLSCAN`.
+- Representative explain evidence from a 30-document MongoDB replica-set fixture comparing old `{ createdAt: 1 }` indexing to the new branch indexes for `.sort({ createdAt: -1, _id: -1 }).limit(5)`: `fromUser` before `SORT,COLLSCAN`, 0 keys/30 docs examined; after `IXSCAN` on `fromUser_1_createdAt_-1__id_-1`, 5 keys/5 docs examined. `toUser` before `SORT,COLLSCAN`, 0 keys/30 docs examined; after `IXSCAN` on `toUser_1_createdAt_-1__id_-1`, 5 keys/5 docs examined. `toRoles` before `SORT,COLLSCAN`, 0 keys/30 docs examined; after `IXSCAN` on `toRoles_1_createdAt_-1__id_-1`, 5 keys/5 docs examined.
+- Documented offset pagination cost, request bounds, and cursor-pagination guidance in `packages/message-service/README.md` and `packages/message-service/DESIGN.md`.
+- Verification: `pnpm --filter @web-ts-toolkit/message-service test` passed with 6 files and 144 tests; `pnpm exec eslint "packages/message-service/**/*.{ts,js}"` passed; `git diff --check` passed.
+
 ### Task MSG-11: Harden Template And Registry Resource Boundaries
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -599,9 +688,17 @@ Acceptance criteria:
 - Cache policy is either bounded with evidence or deliberately documented as appropriate only for a finite static template set.
 - Package tests pass.
 
+Completion evidence:
+
+- Documented templates as trusted application code, rendered values as plain text requiring output-boundary HTML escaping, and the finite-static compiled-template cache policy in README, DESIGN notes, and template-engine JSDoc.
+- Added deterministic registry validation for duplicate action codes, actions unavailable to both sender and receiver, and multiple default actions for the same usertype.
+- Changed the registry to store frozen shallow snapshots of content/action-critical structure while preserving function identity for `prepareMessage`, conditions, handlers, and notification callbacks.
+- Added hostile interpolation and registry hardening tests covering markup output, prototype-like property paths, malformed templates, nested missing values, non-string values, duplicate/ambiguous action metadata, and post-registration mutation attempts.
+- Verification: `pnpm --filter @web-ts-toolkit/message-service test` passed with 6 files and 154 tests; `pnpm exec eslint "packages/message-service/**/*.{ts,js}"` passed; `git diff --check` passed.
+
 ### Task MSG-12: Repair Installed Package And Documentation Contracts
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -651,11 +748,19 @@ Acceptance criteria:
 - The tarball contains only intentional files and transformed metadata contains no `PLACEHOLDER` or `workspace:` values.
 - Native ESM, CommonJS, NodeNext, Bundler, and package tests pass.
 
+Completion evidence:
+
+- Corrected the installed package export map to provide condition-specific declarations via `types.import` (`index.d.mts`) and `types.require` (`index.d.ts`) after release-path rewriting, and set package metadata license to Apache-2.0.
+- Added a small runtime contract that shares `defaultRegistry` through `globalThis` across mixed ESM/CommonJS loads and brands exported errors so cross-format `instanceof` checks work for service and registry errors.
+- Updated the README quick start to be compileable, mount `router.original`, and show real authentication rejection before the message router; documented package-root exports, ESM/CJS singleton behavior, final idempotency/lease/failure/transaction semantics, POST-only action mutation, provider compensation, exported errors, and route status mappings. DESIGN already describes the archive as audit/history rather than event sourcing.
+- Extended packed-consumer coverage to compile the exact README quick start against an installed tarball, exercise auth rejection plus an authenticated route through the packed package, assert ESM/CJS singleton and error identity behavior, verify conditional export metadata, check documented runtime exports, and compile strict NodeNext/Bundler declaration consumers with `skipLibCheck: false`.
+- Verification: `pnpm --filter @web-ts-toolkit/message-service test` passed with 6 files and 156 tests; `pnpm exec eslint "packages/message-service/**/*.{ts,js}"` passed; `git diff --check` passed.
+
 ## Wave 5: Independent Integration Review
 
 ### Task MSG-13: Perform Independent Security And Lifecycle Review
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -700,6 +805,22 @@ Acceptance criteria:
 - `pnpm --filter @web-ts-toolkit/message-service test` passes.
 - `pnpm lint`, `pnpm build`, and `pnpm test` pass, or exact unrelated/pre-existing blockers are recorded.
 - `git diff --check` passes and generated files were not manually edited.
+
+Completion evidence:
+
+- Re-read MSG-01 through MSG-12 findings, requirements, acceptance criteria, and completion evidence; reviewed the message-service runtime (`MessageService`, route factory, schemas, template registry/engine), public types/barrel, README/DESIGN contracts, package metadata, and packed-consumer coverage against those criteria.
+- Found one blocking public-contract mismatch during review: README documented `createMessageRoutes({ onPaymentCompensationFailure })`, but `MessageRoutesOptions` did not expose or forward the hook. Fixed narrowly in `packages/message-service/src/route-factory.ts` and added focused route coverage in `packages/message-service/test/route-factory.test.ts`; no CHANGELOG edit and no broad implementation changes.
+- Verified targeted package behavior and release-like packed checks exposed by the package suite: `pnpm --filter @web-ts-toolkit/message-service test` passed with 6 files and 157 tests, including real MongoDB coverage and packed ESM/CJS/NodeNext/Bundler/README consumer checks.
+- Verified workspace lint/build/test serially: `pnpm lint` passed; `pnpm build` passed with only existing Vite/chunk-size warnings; first `pnpm test` attempt was terminated by the 600000 ms tool timeout while building `@web-ts-toolkit/access-router-runtime`, then retry with a larger timeout completed successfully. The successful retry included `@web-ts-toolkit/message-service` passing with 6 files and 157 tests and the remaining workspace package suites passing; access-router-react React 18 negative-path tests emitted expected jsdom uncaught-error logs while their test files still passed.
+- Verified whitespace and patch hygiene: `git diff --check` passed. Generated `dist/` files were rebuilt by package/workspace commands, not edited manually.
+
+Residual risk notes:
+
+- Tenant/application namespace is not implemented in idempotency scope. Current accepted scope is trimmed `clientRequestId`, requester identity, and `templateCd`; hosts needing tenant isolation must add an explicit future contract and must not infer tenant from roles, headers, or recipients.
+- External side effects remain at-least-once under the documented provider assumptions. Action handlers, payment providers, and notification senders must deduplicate using durable attempt/session identifiers; the service does not provide exactly-once external effects.
+- Email delivery remains best-effort post-save for non-transactional creates only. There is no durable email outbox/retry worker in this package; hosts requiring reliable transactional email must provide one.
+- Offset pagination remains compatible but can be expensive at large `skip` values. The service bounds limits and documents cursor-pagination guidance; it does not add a cursor API in this remediation.
+- Template rendering assumes trusted application templates and plain-text output. HTML escaping and dynamic-template cache bounds remain host responsibilities at the output/template-management boundary.
 
 ## Dependency And Parallelization Guidance
 
