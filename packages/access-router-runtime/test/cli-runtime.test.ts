@@ -296,7 +296,8 @@ describe('access-router-runtime CLI subprocess behavior', () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.timedOut).toBe(false);
-    expect(result.stderr).toContain('Server selection timed out');
+    expect(result.stderr).toContain('MongooseServerSelectionError');
+    expect(result.stderr).toMatch(/Server selection timed out|ECONNREFUSED/);
     expect(result.stdout).not.toContain('Server running');
   });
 
