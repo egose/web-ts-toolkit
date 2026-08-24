@@ -73,7 +73,7 @@ Observed on 2026-08-23 before this follow-up was created:
 
 ### Task PDFR2-01: Snapshot And Await The Effective Source Policy Input
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -121,9 +121,17 @@ Acceptance criteria:
 - Existing password, CMap, font, WASM, data, and caller-created-worker pass-through tests remain valid.
 - `pnpm --filter @web-ts-toolkit/pdf-reader typecheck` and `pnpm --filter @web-ts-toolkit/pdf-reader test` pass.
 
+Completion evidence:
+
+- Changed files: `packages/pdf-reader/src/PDFReader.ts`, `packages/pdf-reader/src/types.ts`, `packages/pdf-reader/test/PDFReader.test.ts`, `packages/pdf-reader/README.md`, `docs/tasks/20260823-152535-pdf-reader-health-review-remediation.md`.
+- Implemented one pre-policy effective source snapshot that is used for policy metadata and `getDocument()`, with immutable shallow `rawSource` policy exposure, URL normalization, top-level getter/mutation protection, non-plain header detection, safe string-only header diagnostics, and `Promise.resolve(...)` assimilation for promise-like policy results.
+- Added regression coverage for pending custom thenables, rejected thenables, non-`Promise` promise-like policy objects, changing URL/credential getters, source mutation during deferred approval, and non-plain header objects rejected before PDF.js work.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader typecheck` passed.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader test` passed: Node/Vitest files `3 passed`, `36 passed`; browser file `1 passed`, `13 passed`. The existing Vite native config-loader warnings were emitted for `../../vitest.config.ts` and `vitest.browser.config.ts`.
+
 ### Task PDFR2-02: Own Failed Loads And Destruction-Aware Waits
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -175,11 +183,20 @@ Acceptance criteria:
 - Lifecycle tests fail on the pre-fix implementation and pass after the change.
 - `pnpm --filter @web-ts-toolkit/pdf-reader typecheck` and `pnpm --filter @web-ts-toolkit/pdf-reader test` pass.
 
+Completion evidence:
+
+- Changed files: `packages/pdf-reader/src/PDFReader.ts`, `packages/pdf-reader/test/PDFReader.test.ts`, `packages/pdf-reader/README.md`, `docs/tasks/20260823-152535-pdf-reader-health-review-remediation.md`.
+- Implemented a reader-owned destruction signal used by load waiters, source-policy waits, PDF.js task waits, render waits, and Blob encoding waits. Failed loading tasks now have one idempotent `destroy()` path before retry or reference drop, while original PDF.js/page-limit errors are preserved when cleanup rejects.
+- Added focused regressions for failed-task cleanup plus retry, cleanup rejection preserving PDF.js/page-limit errors, destroy during asynchronous source-policy approval with late rejection, destroy during delayed Blob encoding with late callback, and destroy during a never-settling render.
+- Documented that `destroy()` waits for PDF.js loading/document destruction, while active `pages()`/`convert()` promises perform their own page and canvas cleanup as they settle.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader typecheck` passed.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader test` passed: Node/Vitest files `3 passed`, `40 passed`; browser file `1 passed`, `13 passed`. The existing Vite native config-loader warnings were emitted for `../../vitest.config.ts` and `vitest.browser.config.ts`.
+
 ## Wave 2: Aggregate Resource Bounds And Reader Concurrency
 
 ### Task PDFR2-03: Bound Per-Page Text And Operator-Derived Work
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -230,9 +247,20 @@ Acceptance criteria:
 - Defaults, configuration, enforcement timing, and PDF.js allocation limitations agree across types, README, website docs, and emitted declarations.
 - Focused tests, browser tests, typecheck, and the package test command pass.
 
+Completion evidence:
+
+- Changed files: `packages/pdf-reader/src/errors.ts`, `packages/pdf-reader/src/types.ts`, `packages/pdf-reader/src/PDFReader.ts`, `packages/pdf-reader/src/embeddedImages.ts`, `packages/pdf-reader/test/PDFReader.test.ts`, `packages/pdf-reader/README.md`, `website/docs/packages/pdf-reader.md`, `docs/tasks/20260823-152535-pdf-reader-health-review-remediation.md`.
+- Added finite default and configurable limits for per-page text items, per-page text string code units, per-page operator count, extracted embedded-image count, and per-page aggregate decoded embedded-image pixels. Existing per-image and page-canvas pixel limits remain distinct.
+- Added stable `PdfReaderError` codes: `TEXT_LIMIT_EXCEEDED`, `OPERATOR_LIMIT_EXCEEDED`, `IMAGE_COUNT_LIMIT_EXCEEDED`, and `IMAGE_TOTAL_PIXELS_LIMIT_EXCEEDED`. `IMAGE_LIMIT_EXCEEDED` remains the one-embedded-image pixel/dimension failure code.
+- Enforced text limits after `getTextContent()` returns and before retaining the page text result. Enforced operator limits after `getOperatorList()` returns and before traversal or image-object resolution. Enforced image count and aggregate decoded pixels before allocating or encoding the next extracted image, with safe-integer dimension arithmetic and fail-closed handling for unsafe numeric image dimensions.
+- Documented that text/operator checks bound package-owned processing after PDF.js has already constructed those structures, and that exact aggregate encoded embedded-image data-url bytes cannot be precomputed before browser canvas encoding; decoded-pixel limits are the documented output boundary.
+- Added focused regressions for exact-boundary and one-over-boundary text limits, operator limits, extracted-image count limits, repeated-image aggregate decoded-pixel limits, unsafe image dimensions, pre-allocation/no-extra-encoding behavior, abort before next extracted-image allocation, and page cleanup on resource-limit failures.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader typecheck` passed.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader test` passed: package build succeeded and regenerated ignored `dist/index.mjs` and `dist/index.d.mts` outputs, Node/Vitest files `3 passed`, `46 passed`; browser file `1 passed`, `13 passed`. The existing Vite native config-loader warnings were emitted for `../../vitest.config.ts` and `vitest.browser.config.ts`.
+
 ### Task PDFR2-04: Enforce One Page Operation Per Reader
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -279,11 +307,21 @@ Acceptance criteria:
 - The benchmark's serial resource claim and runtime behavior describe the same scope.
 - Package, browser, declaration-consumer, and packed-consumer checks pass.
 
+Completion evidence:
+
+- Changed files: `packages/pdf-reader/src/PDFReader.ts`, `packages/pdf-reader/src/errors.ts`, `packages/pdf-reader/test/PDFReader.test.ts`, `packages/pdf-reader/README.md`, `website/docs/packages/pdf-reader.md`, `docs/tasks/20260823-152535-pdf-reader-health-review-remediation.md`.
+- Added one reader-level page-operation owner acquired when an async `pages()` generator starts execution, not when the iterator object is created. `convert()` continues to delegate to `pages()` and does not acquire a second lock.
+- Added stable conflict code `OPERATION_IN_PROGRESS`; overlapping `pages()`/`convert()` calls now fail fast before a second `getPage()` call or canvas allocation. Normal exhaustion, early iterator return, caller-thrown loop errors, option validation failure, pre-work abort, page failure, abort, and destroy paths release ownership through the generator `finally` path.
+- Added focused regressions for overlapping conversion rejection before extra page/canvas ownership, lazy iterator ownership acquisition, sequential reuse, and ownership release after validation errors, aborts, early iterator return, and caller-thrown loop errors.
+- Updated package README and website docs to state the reader-level serial page-operation guarantee, `OPERATION_IN_PROGRESS`, lazy iterator acquisition, and newly rejected overlap; `CHANGELOG.md` was not edited.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader typecheck` passed.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader test` passed: package build succeeded, Node/Vitest files `3 passed`, `49 passed`; browser file `1 passed`, `13 passed`. The existing Vite native config-loader warnings were emitted for `../../vitest.config.ts` and `vitest.browser.config.ts`.
+
 ## Wave 3: Compatibility And Performance Health
 
 ### Task PDFR2-05: Align The PDF.js Peer Compatibility Contract
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -329,9 +367,19 @@ Acceptance criteria:
 - Real-browser rendering and embedded-image fixtures pass for the supported compatibility boundary.
 - `npm pack --dry-run --json` and the package test command pass.
 
+Completion evidence:
+
+- Changed files: `packages/pdf-reader/package.json`, `pnpm-lock.yaml`, `packages/pdf-reader/test/packed-consumer.test.ts`, `packages/pdf-reader/README.md`, `website/docs/packages/pdf-reader.md`, `docs/tasks/20260823-152535-pdf-reader-health-review-remediation.md`.
+- Compatibility-policy decision: no recorded evidence was found for admitting every future `pdfjs-dist` `6.x` minor under `^6.2.108`; prior evidence only documented the old `~5.7.284` minor, and current package/browser coverage exercises installed `6.2.108`. The peer and dev dependency were narrowed to `~6.2.108` so the admitted range matches the tested minor.
+- Packed-consumer coverage now asserts the published peer dependency is `~6.2.108`, and the fresh consumer install uses the package devDependency peer specifier while bundling the PDF.js worker URL import path.
+- README and website docs now state the single supported PDF.js policy as `~6.2.108`, explain that future `6.x` minors require a reproducible browser compatibility matrix, and record PDFR2-05 release-note evidence outside `CHANGELOG.md`. `CHANGELOG.md` was intentionally not edited per maintainer instruction.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader typecheck` passed.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader test` passed: package build succeeded, Node/Vitest files `3 passed`, `49 passed`; browser file `1 passed`, `13 passed`. The existing Vite native config-loader warnings were emitted for `../../vitest.config.ts` and `vitest.browser.config.ts`.
+- Verification: `npm pack --dry-run --json` from `packages/pdf-reader` passed and listed only `README.md`, `dist/index.d.mts`, `dist/index.mjs`, and `package.json` with no bundled dependencies.
+
 ### Task PDFR2-06: Measure And Reduce Repeated Embedded-Image Encoding
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -376,11 +424,25 @@ Acceptance criteria:
 - No speculative public output mode is added without measured benefit and migration documentation.
 - Benchmark, package, and browser tests pass.
 
+Completion evidence:
+
+- Changed files for PDFR2-06: `packages/pdf-reader/src/embeddedImages.ts`, `packages/pdf-reader/test/PDFReader.test.ts`, `packages/pdf-reader/test/pdf-reader.browser.ts`, `packages/pdf-reader/benchmark/pdf-reader.benchmark.browser.ts`, `packages/pdf-reader/README.md`, `packages/pdf-reader/benchmark/README.md`, `website/docs/packages/pdf-reader.md`, `docs/tasks/20260823-152535-pdf-reader-health-review-remediation.md`.
+- Implementation: added a private per-page encoded-payload cache keyed only by PDF.js string image XObject references. Cached entries contain only the PNG data URL, dimensions, and byte size, not the PDF.js image object or `ImageBitmap`. Inline images continue to encode independently and are not cached by synthetic keys. The cache is local to `extractEmbeddedImages(...)` and is cleared in `finally` when extraction settles.
+- Limit/cancellation behavior: operator, per-image pixel, image-count, and aggregate decoded-pixel limits remain enforced before the next uncached image canvas allocation or PNG data-url encode. Repeated cached placements still count against `maxEmbeddedImages` and `maxEmbeddedImagePixelsTotal`. Abort/destroy checks remain before each operator and after asynchronous PDF.js object resolution.
+- Deterministic test evidence: `packages/pdf-reader/test/PDFReader.test.ts` now asserts two placements of the same image XObject produce two distinct transform/coordinate results while calling `page.objs.get`, `putImageData`, and `canvas.toDataURL('image/png')` once. It also asserts repeated inline image paints call `toDataURL` twice, proving inline images are not cached by synthetic keys.
+- Browser fixture evidence: `packages/pdf-reader/test/pdf-reader.browser.ts` keeps the existing inline, repeated, transformed, RGBA, bitmap-backed, and form-nested fixture assertions, and now counts `toDataURL` calls. The two-page fixture still returns `6` images on page 1 and `1` on page 2 while requiring `4` embedded-image encodes total: page 1 uses one inline encode plus two unique XObject encodes for six placements, and page 2 uses one page-local form-nested XObject encode.
+- Measurement/decision: the PDFR2-06 benchmark keeps embedded-image output as data URLs and does not add a public Blob mode. Local targeted browser benchmark command `pnpm --filter @web-ts-toolkit/pdf-reader exec vitest run --config vitest.benchmark.config.ts -t PDFR2-06 --reporter verbose` passed and logged `PDFR2-06 embedded-image benchmark summary {"browser":{"userAgent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36","hardwareConcurrency":32,"deviceMemory":32},"fixture":"embedded-images.pdf page 1","operatorCounts":{"inlineCount":1,"xobjectPaintCount":5,"uniqueXobjectCount":2},"wallTimeMs":3.1,"imageCount":6,"encodeCount":3,"retainedOutputBytes":876,"longTasks":{"supported":true,"count":0,"totalDurationMs":0,"maxDurationMs":0}}`. The pre-change implementation had no cache lookup and called `imageToDataUrl(...)` for every successful paint, so this deterministic fixture would have encoded all `6` page-1 placements; after the change it encodes only the `1` inline image plus `2` unique XObjects.
+- Benchmark verification gap resolution: the existing PDFR-07 bounded-concurrency benchmark was updated to model intentional overlap with two separate `PDFReader` instances instead of overlapping `convert(...)` calls on one reader. This preserves PDFR2-04 runtime behavior (`OPERATION_IN_PROGRESS` for same-reader overlap) while keeping the benchmark's external-scheduler measurement meaningful.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader benchmark` passed after the benchmark adjustment: package build succeeded; benchmark file `1 passed`; tests `2 passed`. The existing Vite native config-loader warning was emitted for `vitest.benchmark.config.ts`.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader typecheck` passed after the benchmark adjustment.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader test` passed after the benchmark adjustment: package build succeeded, Node/Vitest files `3 passed`, `51 passed`; browser file `1 passed`, `13 passed`. The existing Vite native config-loader warnings were emitted for `../../vitest.config.ts` and `vitest.browser.config.ts`.
+- Residual risks: the cache only deduplicates repeated string image XObject references within one page extraction and does not deduplicate inline images, cross-page references, or unsupported PDF.js image layouts. Synchronous `canvas.toDataURL(...)` remains non-interruptible once started; cancellation is still observed between image operations, not inside an active browser encode.
+
 ## Wave 4: Encapsulation, Documentation, And Test Health
 
 ### Task PDFR2-07: Clarify Borrowed Proxies And Global Worker Ownership
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -430,9 +492,25 @@ Acceptance criteria:
 - No unsupported deep import or default export is introduced.
 - Declaration-consumer, packed-consumer, typecheck, and package tests pass.
 
+Completion evidence:
+
+- Changed files for PDFR2-07: `packages/pdf-reader/src/types.ts`, `packages/pdf-reader/src/PDFReader.ts`, `packages/pdf-reader/src/worker.ts`, `packages/pdf-reader/test/PDFReader.test.ts`, `packages/pdf-reader/test-decl-consumer/decl-consumer.mts`, `packages/pdf-reader/README.md`, `website/docs/packages/pdf-reader.md`, `docs/tasks/20260823-152535-pdf-reader-health-review-remediation.md`.
+- Documented `load()` as returning a borrowed reader-owned `PDFDocumentProxy` in source JSDoc, emitted declarations, README, and website docs. Callers may inspect metadata and use supported PDF.js read methods, but `document.destroy()` is unsupported while the reader owns lifecycle teardown; callers must use `reader.destroy()`.
+- Added a focused regression for an externally destroyed borrowed proxy. The test characterizes the residual risk: the reader cannot reliably detect external `PDFDocumentProxy.destroy()`, so `reader.state` can still report `loaded` until a later PDF.js method fails with the underlying PDF.js error.
+- Future-major option recorded: replace `load()`'s borrowed proxy return with `void`, reader metadata, or a package-owned facade in a major release. No breaking `load()` return change was made in PDFR2-07.
+- Audited exported aliases and retained `LoadedPdfPage` as an intentional PDF.js interoperability alias for adjacent consumer code; package `pages()` still returns `PageResult`, not raw page proxies. Declaration-consumer coverage now imports `LoadedPdfDocument` and `LoadedPdfPage` from the package root.
+- Corrected `canvasFactory` JSDoc to require fresh DOM `HTMLCanvasElement` creation, matching the current return type and browser runtime behavior.
+- Made `configurePdfWorker(...)` JSDoc and README/website docs explicit that it mutates PDF.js application-global worker state and can collide with other PDF.js consumers in the same realm. Documented the per-source caller-created PDF.js `PDFWorker` path through `DocumentInitParameters.worker` for isolation.
+- Verified high-value JSDoc survives in generated `packages/pdf-reader/dist/index.d.mts`: borrowed `load()` proxy ownership, `LoadedPdfPage` interoperability purpose, DOM canvas factory, and application-global worker configuration all appear in the emitted declaration file.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader typecheck` passed.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader build` passed and regenerated `dist/index.mjs` and `dist/index.d.mts`.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader exec vitest run --config ../../vitest.config.ts test/decl-consumer.test.ts test/packed-consumer.test.ts` passed: `2 passed`, `4 passed`. The existing Vite native config-loader warning was emitted for `../../vitest.config.ts`.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader test` passed: package builds succeeded, Node/Vitest files `3 passed`, `52 passed`; browser file `1 passed`, `13 passed`. The existing Vite native config-loader warnings were emitted for `../../vitest.config.ts` and `vitest.browser.config.ts`.
+- Residual risks: external `PDFDocumentProxy.destroy()` remains unsupported and cannot be made authoritative without a different public ownership boundary; future major versions should consider returning `void`, stable metadata, or a package-owned facade from `load()` instead of the raw borrowed proxy.
+
 ### Task PDFR2-08: Make Browser Coverage Deterministic And State Its Support Boundary
 
-Status: pending
+Status: completed
 
 Priority: P3
 
@@ -443,7 +521,7 @@ Dependencies: PDFR2-02, PDFR2-05
 Primary ownership:
 
 - `packages/pdf-reader/test/pdf-reader.browser.ts`
-- `packages/pdf-reader/vitest.browser.config.ts`
+- `packages/pdf-reader/vitest.browser.config.mts`
 - package-local test scripts and dev dependencies
 - browser support documentation
 
@@ -454,7 +532,7 @@ The real-browser cancellation case sleeps for 5 ms and assumes rendering has sta
 References:
 
 - `packages/pdf-reader/test/pdf-reader.browser.ts:410-443`
-- `packages/pdf-reader/vitest.browser.config.ts:31-55`
+- `packages/pdf-reader/vitest.browser.config.mts:31-62`
 - `packages/pdf-reader/package.json:27-47`
 - `packages/pdf-reader/README.md:5-13`
 
@@ -473,6 +551,18 @@ Acceptance criteria:
 - Package documentation states the tested browser support boundary accurately.
 - Browser tests pass without the native-config-loader warning, or a concrete dependency/config blocker is documented with owner and trigger.
 - `pnpm --filter @web-ts-toolkit/pdf-reader test` passes serially.
+
+Completion evidence:
+
+- Changed files for PDFR2-08: `packages/pdf-reader/test/pdf-reader.browser.ts`, `packages/pdf-reader/vitest.config.mts`, `packages/pdf-reader/vitest.browser.config.mts`, `packages/pdf-reader/vitest.benchmark.config.mts`, `packages/pdf-reader/package.json`, `packages/pdf-reader/README.md`, `docs/tasks/20260823-152535-pdf-reader-health-review-remediation.md`. Removed `packages/pdf-reader/vitest.browser.config.ts` and `packages/pdf-reader/vitest.benchmark.config.ts`.
+- Replaced the fixed `setTimeout(5)` browser abort timing with a deterministic canvas integration hook. The test still uses real PDF.js, a real PDF.js worker, and real browser `HTMLCanvasElement`/2D context methods; it resolves only after PDF.js invokes an actual 2D render operation, aborts from that render-start observation, asserts `ABORTED`, asserts no page result was yielded, and asserts page-image encoding did not complete.
+- Browser support boundary decision: automated package compatibility is currently Headless Chromium only. Firefox/WebKit are not claimed until their Playwright browsers are added to `vitest.browser.config.mts` and pass the same real-browser fixture suite in CI.
+- Vite native config-loader warning resolution: package-owned Vitest configs now use ESM `.mts` files. The package `test` script uses `vitest.config.mts` instead of the repo-root `../../vitest.config.ts`, `test:browser` uses `vitest.browser.config.mts`, and `benchmark` uses `vitest.benchmark.config.mts`; no suppression was added. Browser files remain serial with `fileParallelism: false` because PDF.js worker configuration is global.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader typecheck` passed.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader test:browser` passed: package build succeeded; browser file `1 passed`, `13 passed`; no Vite native config-loader warning was emitted.
+- Verification: three sequential focused runs of `pnpm --filter @web-ts-toolkit/pdf-reader exec vitest run --config vitest.browser.config.mts -t "cancels an active render"` passed: each run reported browser file `1 passed` with `1 passed | 12 skipped`; no elapsed-time sleep is used by the cancellation test.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader test` passed serially: package builds succeeded; Node/Vitest files `3 passed`, `52 passed`; browser file `1 passed`, `13 passed`; no Vite native config-loader warning was emitted.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader benchmark` passed after the benchmark config rename: package build succeeded; benchmark file `1 passed`, tests `2 passed`; no Vite native config-loader warning was emitted.
 
 ## Dependency And Parallelization Guidance
 
@@ -523,7 +613,7 @@ No maintainer decision blocks PDFR2-01 through PDFR2-05 from implementing the sm
 
 ### Task PDFR2-09: Audit The Combined Security And Resource Contract
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -573,6 +663,22 @@ Acceptance criteria:
 - `pnpm lint`, `pnpm build`, and the full serialized `pnpm test` pass, or an unrelated blocker is captured with command output and ownership.
 - Source, emitted declarations, manifest, package README, website docs, changelog, and runtime behavior agree.
 - Deferred P2/P3 work has explicit residual risk and a reconsideration trigger.
+
+Completion evidence:
+
+- Independent review outcome: no unresolved P0/P1 finding remains in the current `packages/pdf-reader` source, emitted declarations, package metadata, README, website docs, browser config, benchmark, declaration-consumer coverage, or packed-consumer coverage. `CHANGELOG.md` was intentionally not reviewed as an agreement target beyond confirming this task did not edit it, per the user instruction not to edit `CHANGELOG.md` under any circumstances.
+- Source/runtime audit: `PDFReader` now snapshots effective top-level PDF.js loading parameters before policy approval, assimilates `PromiseLike` policy results with `Promise.resolve(...)`, reports non-null header containers as header-bearing, starts `getDocument(...)` only after policy approval, owns failed loading-task teardown before retry, normalizes destroy races to `DESTROYED`, rejects overlapping reader page operations with `OPERATION_IN_PROGRESS`, and releases page/canvas ownership through one generator `finally` path. `extractEmbeddedImages(...)` enforces operator/image-count/aggregate-pixel limits before traversal/allocation of the next image, propagates abort/destroy/resource-limit errors, caches only repeated string image XObject encodes per page, and clears that cache in `finally`.
+- Declarations/package audit: `dist/index.d.mts` includes the public JSDoc for borrowed `load()` proxy ownership, `LoadedPdfPage` interoperability purpose, DOM `canvasFactory`, and application-global `configurePdfWorker(...)`; it exposes PDF.js public proxy/interoperability types but no internal image-object shapes. Package exports remain package-root ESM named exports only, with no default export or supported deep import. `dist/index.mjs` contains no Vite `?url` worker import or bundled worker path and mutates `GlobalWorkerOptions` only inside `configurePdfWorker(...)`.
+- Documentation/manifest audit: `package.json`, `pnpm-lock.yaml`, packed-consumer assertions, README, and website docs consistently state `pdfjs-dist` `~6.2.108` as the supported peer minor and Headless Chromium as the current automated browser boundary. README and website docs agree with runtime behavior for source-policy snapshots, lifecycle/borrowed proxy ownership, resource limits, serial per-reader page operations, worker ownership, embedded-image caching, and unsupported embedded-image layouts. Release-note evidence is in the README, website docs, and this task record instead of `CHANGELOG.md` per maintainer/user instruction.
+- Test coverage audit: focused Node tests cover custom thenables, non-native promise-like policy results, rejected policy details being redacted, mutable getters/source mutation, non-plain headers, failed-task cleanup/retry, destroy during policy/render/Blob encoding, late callbacks/rejections, abort/deadline listener cleanup, early iterator return, caller-thrown loop errors, operation overlap, exact-boundary and one-over text/operator/image-count/aggregate-pixel limits, unsafe image dimensions, borrowed proxy external-destroy residual behavior, worker reconfiguration, declaration consumers, and packed consumers. Browser tests use built `dist/index.mjs`, real PDF.js worker/canvas behavior, malformed/encrypted fixtures, deterministic render-start cancellation, embedded-image fixture compatibility, and per-page XObject encode-count assertions. Benchmark coverage records PDFR2-06 extraction encode count and keeps the public API unchanged.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader typecheck` passed.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader test` passed: package builds succeeded, Node/Vitest files `3 passed`, `52 passed`; Headless Chromium browser file `1 passed`, `13 passed`. No Vite native config-loader warning was emitted by the package-owned `.mts` configs.
+- Verification: `pnpm --filter @web-ts-toolkit/pdf-reader benchmark` passed: package build succeeded; benchmark file `1 passed`, tests `2 passed`.
+- Verification: `npm pack --dry-run --json` from `packages/pdf-reader` passed and listed only `README.md`, `dist/index.d.mts`, `dist/index.mjs`, and `package.json`, with `entryCount: 4` and no bundled dependencies.
+- Verification: `pnpm lint` passed.
+- Verification: `pnpm build` passed. It emitted an unrelated existing Vite native config-loader warning for `apps/react-vite/vite.config.ts` using `__dirname`; no `pdf-reader` build warning or failure occurred.
+- Workspace test verification: first `pnpm test` attempt exceeded the 600-second tool timeout during unrelated `@web-ts-toolkit/access-router-runtime` dependency build and was rerun with a larger timeout. The rerun reached and passed `@web-ts-toolkit/pdf-reader` (`3` Node files/`52` tests plus `1` browser file/`13` tests), then failed later in unrelated `@web-ts-toolkit/express-oidc-vault-redis-store`: `test/index.test.ts` case `keeps bounded revocation command behavior for a 10,000-session index` timed out at Vitest's 20,000 ms test timeout. Ownership is outside `packages/pdf-reader`; no PDFR2 source, declaration, package, browser, or packed-consumer failure was observed.
+- Deferred maintainer-owned P2/P3 items: `load()` borrowed-proxy return remains a future-major API decision because changing it would break consumers; trigger is the next major-version API planning cycle or consumer evidence that the raw proxy causes production lifecycle defects; residual risk is unsupported external `PDFDocumentProxy.destroy()` can leave `reader.state` stale until a later PDF.js call fails. Embedded-image Blob/binary output remains deferred because PDFR2-06 measurements did not justify a public output-mode change; trigger is representative browser evidence that data URLs are an unacceptable bottleneck under documented memory/latency budgets; residual risk is synchronous `toDataURL(...)` remains non-interruptible during an active encode. Firefox/WebKit automation remains deferred because the package currently claims only Chromium-tested compatibility; trigger is adding those Playwright browsers to CI and passing the same fixture suite; residual risk is unclaimed engines may expose PDF.js/canvas differences. Remote-source default-deny remains a future breaking-release policy decision because current behavior permits remote URLs unless a `sourcePolicy` is supplied; trigger is breaking-release planning or consumer/security evidence requiring fail-closed remote defaults; residual risk is applications without `sourcePolicy` still allow remote PDF loading. Page-concurrency API expansion remains deferred because available benchmark data lacks a browser memory/backpressure budget; trigger is an approved device/browser budget and slow-consumer measurements; residual risk is serial per-reader processing trades throughput for bounded ownership.
 
 ## Definition Of Done
 

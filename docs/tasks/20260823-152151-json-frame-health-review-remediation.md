@@ -72,7 +72,7 @@ Confirmed on 2026-08-23 before this file was created:
 
 ### Task JFH-01: Resolve Integer-Like Object-Key Row Ordering
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -119,9 +119,16 @@ Acceptance criteria:
 - No proposed fix relies on replacing `Object.keys()` with another ordinary-object enumeration API.
 - `pnpm --filter @web-ts-toolkit/json-frame test` passes.
 
+Completion evidence:
+
+- Changed: `packages/json-frame/test/fixtures/generate.py`, `packages/json-frame/test/fixtures/generated/nonAscendingIntegerIndex-index.json`, `packages/json-frame/test/fixtures/generated/nonAscendingIntegerIndex-columns.json`, `packages/json-frame/test/fixtures/generated/nonAscendingIntegerIndex-split.json`, `packages/json-frame/test/fixtures/generated/nonAscendingIntegerIndex-table.json`, `packages/json-frame/test/fixtures/manifest.json`, `packages/json-frame/test/fixtures/README.md`, `packages/json-frame/test/parse/parse.test.ts`, `packages/json-frame/README.md`, `packages/json-frame/src/api.ts`, `packages/json-frame/src/types.ts`
+- Verified: `python3 generate.py` from `packages/json-frame/test/fixtures`; `pnpm --filter @web-ts-toolkit/json-frame test`
+- Result: pandas fixture generation added `nonAscendingIntegerIndex-{index,columns,split,table}` with textual object-key order `"10"` then `"2"`; parser tests cover raw JSON strings and already-parsed objects for `index`/`columns`, and `split`/`table` controls preserve `[10, 2]`; focused package suite passed with 7 test files and 107 tests. Public README/JSDoc now clarify that object-key orients follow JavaScript property enumeration for integer-like keys and recommend `split`/`table` when exact row order matters; the test build regenerated and verified matching `dist/index.d.ts` and `dist/index.d.mts` declarations. Release-note-equivalent external behavior clarification is recorded in this completion evidence; `CHANGELOG.md` was not edited.
+- Follow-up: JFH-02 remains pending for byte-preserving fixture generation; current JFH-01 intentionally kept the existing generator strategy and restored unrelated fixture rewrites.
+
 ### Task JFH-02: Preserve Raw Pandas Fixture Bytes
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -162,11 +169,18 @@ Acceptance criteria:
 - Serialization-sensitive fixtures are parsed by the package and preserve the expected JSON values.
 - No Python parse/reserialize step sits between pandas and committed fixture bytes.
 
+Completion evidence:
+
+- Changed: `packages/json-frame/test/fixtures/generate.py`, `packages/json-frame/test/fixtures/README.md`, `packages/json-frame/test/fixtures/manifest.json`, `packages/json-frame/test/fixtures/generated/**`, `packages/json-frame/test/parse/parse.test.ts`
+- Verified: `python3 generate.py` from `packages/json-frame/test/fixtures`; `shopt -s globstar && sha256sum packages/json-frame/test/fixtures/generated/**/*.json > /tmp/opencode/json-frame-fixtures.before && python3 packages/json-frame/test/fixtures/generate.py && sha256sum packages/json-frame/test/fixtures/generated/**/*.json > /tmp/opencode/json-frame-fixtures.after && diff -u /tmp/opencode/json-frame-fixtures.before /tmp/opencode/json-frame-fixtures.after`; `pnpm --filter @web-ts-toolkit/json-frame test`
+- Result: generator now writes direct `DataFrame.to_json(**args)` output bytes plus one documented final newline, keeps `json.loads()` as a semantic sanity check only, and self-checks generated fixture bytes against direct pandas returns in the pinned `python 3.14.6`/`pandas 3.0.3` environment. Added `serializationSensitive-records.json` and `serializationSensitive-index.json` for non-ASCII text, escaped quote/backslash/control characters, exponent and configured-precision floats, and pandas-preserved negative-zero object keys; parse tests cover the expected JSON values. Fixture generation and the byte-stability hash check passed with the known pandas `epoch` deprecation warning for existing datetime fixtures. Package test passed with 7 files and 109 tests, including typecheck/build and the known repository Vite config warning.
+- Follow-up: none
+
 ## Wave 2: Resource Safety And Export Invariants
 
 ### Task JFH-03: Bound JSON Traversal And Error Diagnostics
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -215,9 +229,16 @@ Acceptance criteria:
 - Existing paths and scalar diagnostics remain useful.
 - Focused tests and `pnpm --filter @web-ts-toolkit/json-frame test` pass.
 
+Completion evidence:
+
+- Changed: `packages/json-frame/src/json.ts`, `packages/json-frame/src/errors.ts`, `packages/json-frame/src/parse/parse.ts`, `packages/json-frame/src/export/payload.ts`, `packages/json-frame/src/index.ts`, `packages/json-frame/src/types.ts`, `packages/json-frame/src/api.ts`, `packages/json-frame/README.md`, `packages/json-frame/test/parse/parse.test.ts`, `packages/json-frame/test/export/export.test.ts`, `packages/json-frame/test/options-and-errors.test.ts`, `packages/json-frame/test/api.test.ts`
+- Verified: `pnpm --filter @web-ts-toolkit/json-frame test`
+- Result: package traversal now uses an iterative JSON-compatible clone/validation boundary with `JSON_FRAME_MAX_DEPTH = 1000`; root containers start at depth `0`, containers at depth `1000` are accepted, and containers at depth `1001` fail as `JsonFrameValidationError` with a path. Table Schema metadata cloning and `toTable()`/`toJSONString('table')` use the same traversal/depth policy. Error `value` diagnostics retain scalar JSON values directly and replace arrays, objects, functions, symbols, bigints, undefined values, and cyclic containers with frozen bounded summaries. Focused regressions cover deep programmatic/string cells, deep table metadata export, cycle/sparse/malformed-row/autodetection diagnostics, immutable summaries, and public README/JSDoc/type exports. Package test passed with 7 files and 113 tests, including build, declarations, and the known repository Vite config warning.
+- Follow-up: none
+
 ### Task JFH-04: Enforce Table Primary-Key Uniqueness
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -263,11 +284,18 @@ Acceptance criteria:
 - Unique source indexes still round-trip through pandas table input/output.
 - Focused tests and `pnpm --filter @web-ts-toolkit/json-frame test` pass.
 
+Completion evidence:
+
+- Changed: `packages/json-frame/src/parse/parse.ts`, `packages/json-frame/src/export/payload.ts`, `packages/json-frame/src/types.ts`, `packages/json-frame/README.md`, `packages/json-frame/test/parse/parse.test.ts`, `packages/json-frame/test/export/export.test.ts`
+- Verified: `pnpm --filter @web-ts-toolkit/json-frame test`; `node --input-type=module -e "import { fromOrient } from './packages/json-frame/dist/index.mjs'; const frame = fromOrient({ columns: ['city'], index: ['r0', 'r1'], data: [['NYC'], ['LA']] }, { orient: 'split' }); process.stdout.write(JSON.stringify(frame.toTable()));" | python3 -c "import io, sys; import pandas as pd; payload = sys.stdin.read(); frame = pd.read_json(io.StringIO(payload), orient='table'); assert list(frame.index) == ['r0', 'r1']; assert list(frame['city']) == ['NYC', 'LA']; print(f'pandas {pd.__version__} read_json orient=table passed')"`
+- Result: parser rejects duplicate table primary-key values with `JsonFrameValidationError` containing `orient: 'table'`, duplicate scalar `value`, primary-key `column`, and later `row`; `toTable()` rejects duplicate source index labels before returning a table payload; duplicate split indexes remain usable for non-table exports; numeric `1` and string `'1'` remain distinct table primary-key labels while object-key exporters still reject their stringification collision; package suite passed with 7 test files and 116 tests; pandas 3.0.3 read-back of an emitted unique table passed.
+- Follow-up: none
+
 ## Wave 3: Public API Safety And Type Reuse
 
 ### Task JFH-05: Make Exported Payloads And Domain Rows Valid Inputs
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -317,9 +345,16 @@ Acceptance criteria:
 - Emitted `.d.ts` and `.d.mts` expose the same API and contain no `any` introduced by this task.
 - `pnpm --filter @web-ts-toolkit/json-frame test` and `pnpm --filter @web-ts-toolkit/json-frame test:packed-consumer` pass.
 
+Completion evidence:
+
+- Changed: `packages/json-frame/src/types.ts`, `packages/json-frame/src/api.ts`, `packages/json-frame/src/index.ts`, `packages/json-frame/src/frame/DataFrame.ts`, `packages/json-frame/README.md`, `packages/json-frame/test-decl-consumer/decl-consumer.strict.mts`, `packages/json-frame/test-decl-consumer/decl-consumer.strict.cts`, `packages/json-frame/test-decl-consumer/decl-consumer.browser.ts`, `packages/json-frame/test/packed-consumer.test.ts`, `packages/json-frame/dist/index.d.ts`, `packages/json-frame/dist/index.d.mts`, `packages/json-frame/dist/index.js`, `packages/json-frame/dist/index.mjs`
+- Verified: `pnpm --filter @web-ts-toolkit/json-frame typecheck`; `pnpm --filter @web-ts-toolkit/json-frame test`; `pnpm --filter @web-ts-toolkit/json-frame test:packed-consumer`
+- Result: added emitted orient-specific `fromOrient()` overloads for `SplitPayload` and `TablePayload`, made those payloads JSON-object-compatible, and replaced the public row `Record<string, JsonValue>` constraint with a recursive `JsonCompatibleRow` mapped constraint so ordinary interface row models compile while known `function`, `symbol`, `bigint`, `Date`, and `undefined` row properties remain rejected. Table Schema arbitrary metadata now uses `JsonValue` rather than `JsonValue | undefined`, and declaration consumers reject explicit undefined metadata. Strict NodeNext, Bundler, CJS, browser, packed-consumer, and README example checks cover interface rows and split/table payload round trips. Focused package suite passed with 7 test files and 116 tests; packed-consumer suite passed with 1 file and 3 tests. The only emitted declaration text matching `any` is the existing Table Schema string literal `'any'`, not a TypeScript `any`.
+- Follow-up: none
+
 ### Task JFH-06: Validate Transform Arguments At Runtime
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -360,11 +395,18 @@ Acceptance criteria:
 - Valid rename behavior and collision handling remain unchanged.
 - Focused tests and `pnpm --filter @web-ts-toolkit/json-frame test` pass.
 
+Completion evidence:
+
+- Changed: `packages/json-frame/src/frame/DataFrame.ts`, `packages/json-frame/test/frame/DataFrame.test.ts`, `packages/json-frame/README.md`
+- Verified: `pnpm --filter @web-ts-toolkit/json-frame test`
+- Result: `rename()` now rejects null, arrays, and non-object mappings before reading from them; validates only applied own-key mapping values as strings before collision detection and schema rebuilding; preserves documented ignoring of unknown keys; and reports invalid applied values with `JsonFrameValidationError` path/column/value diagnostics using the bounded error policy. Focused frame tests cover null-prototype mappings, `__proto__`/`constructor`/`prototype` column renames via own keys, invalid number/null/object/undefined/array mapping values, unchanged source frames after failed transforms, existing collision behavior, and structured callable checks for `filter()`/`sort()`. Package suite passed with 7 test files and 118 tests, including build and declaration checks plus the known repository Vite config warning.
+- Follow-up: none
+
 ## Wave 4: Measured Performance And Metadata Integrity
 
 ### Task JFH-07: Remove Whole-Frame Copies From Row Access And Rebuilds
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -407,9 +449,16 @@ Acceptance criteria:
 - All transform alignment, schema, immutability, packing, and exporter tests remain green.
 - `pnpm --filter @web-ts-toolkit/json-frame test` passes.
 
+Completion evidence:
+
+- Changed: `packages/json-frame/src/frame/column.ts`, `packages/json-frame/src/frame/DataFrame.ts`, `packages/json-frame/test/frame/DataFrame.test.ts`, `packages/json-frame/test/benchmark/jfh-07.benchmark.test.ts`, `packages/json-frame/package.json`, `docs/tasks/20260823-152151-json-frame-health-review-remediation.md`
+- Verified: before-change public baseline with `node --expose-gc --input-type=module -e "..."` against current `packages/json-frame/dist/index.mjs`; `pnpm --filter @web-ts-toolkit/json-frame bench:jfh-07`; `pnpm --filter @web-ts-toolkit/json-frame test`
+- Result: added internal column operation counters and a reproducible `bench:jfh-07` Vitest harness covering tall/wide packed/unpacked frames for `row`, `rows`, `filter`, `sort`, and `select`. Before-change public baseline showed packed single-row access paying full typed-column conversion cost, e.g. `tall-packed row` 17.625 ms for 20,000x8 and `wide-packed row` 9.113 ms for 1,000x200; transforms also paid materialization plus rebuild work, e.g. `tall-packed filter` 156.175 ms and `wide-packed sort` 75.476 ms. After-change counter evidence from `bench:jfh-07` showed every measured operation at `materializeColumnCalls: 0` and `materializedCells: 0`; `row` performed only one scalar read per column (`8` reads for tall cases, `128` for wide cases), while `filter`/`sort` rebuilt selected positions directly from stored columns with expected `rebuiltCells` counts and no second source-column materialization. `DataFrame.row()` and `rows()` now read scalar values from stored columns; `filter()`, `sort()`, `select()`, `rename()`, and `resetIndex()` rebuild from stored columns; logical column types are preserved through rebuilds while nullable is recomputed from selected values, preserving existing repacking thresholds. Focused regression tests cover scalar row access, no materialization during filter/sort rebuilds, nullable recomputation after filtering, transform alignment, schema metadata, immutability, and packing. Package suite passed with 8 test files and 121 tests, including build and declaration checks plus the known repository Vite config warning.
+- Follow-up: none
+
 ### Task JFH-08: Validate Explicit Logical Types Against Cells
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -452,11 +501,18 @@ Acceptance criteria:
 - Incompatible values either fail at the documented boundary or are clearly documented as caller responsibility under `D2`.
 - Focused tests and `pnpm --filter @web-ts-toolkit/json-frame test` pass.
 
+Completion evidence:
+
+- Changed: `packages/json-frame/src/frame/column.ts`, `packages/json-frame/src/export/payload.ts`, `packages/json-frame/src/types.ts`, `packages/json-frame/src/api.ts`, `packages/json-frame/README.md`, `packages/json-frame/test/frame/column.test.ts`, `packages/json-frame/test/export/export.test.ts`, `docs/tasks/20260823-152151-json-frame-health-review-remediation.md`
+- Verified: `python3 - <<'PY' ... PY` pandas read-back probes for emitted Table Schema datetime payloads; `pnpm --filter @web-ts-toolkit/json-frame test`
+- Result: D2 used the recommended strict policy for explicit non-table `columnTypes`: `integer`, `float`, `string`, and `boolean` validate actual non-null cells; `datetime` accepts pandas-style timezone-naive ISO date/datetime strings and rejects numeric epochs; `categorical` accepts non-null scalar JSON values and generated table fields use `type: 'any'` with `extDtype: 'category'`; `mixed` and `unknown` remain permissive for JSON-compatible cells. The shared validator reports `JsonFrameValidationError` with `orient`, `path`, `row`, `column`, and bounded `value` diagnostics before packing and before generated table export; values are never coerced. Pandas 3.0.3 evidence: a numeric epoch cell under Table Schema `datetime` read back as `datetime64[ns]` value `1970-01-01 00:28:24.067200`, showing unit ambiguity; timezone-naive ISO strings such as `2024-01-01T00:00:00.000`, `2024-01-01 00:00:00`, and `2024-01-01` read back successfully as `datetime64[ns]`; `2024-01-01T00:00:00.000Z` failed without `tz` metadata and succeeded only when the field included `tz: 'UTC'`. Focused tests now cover compatible, nullable, and incompatible representative cells for every `ColumnType`, no-coercion table output for datetime/categorical, and generated-export validation of corrupted state. Package suite passed with 8 test files and 132 tests, rebuilding generated runtime and declaration outputs and reporting the known repository Vite config warning.
+- Follow-up: none
+
 ## Wave 5: Published Contract And Integration
 
 ### Task JFH-09: Align JSDoc, README, Homepage, And Immutability Claims
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -505,9 +561,16 @@ Acceptance criteria:
 - The package homepage resolves to maintained documentation present in the repository or another verified target.
 - Packed README examples and all declaration-consumer checks pass.
 
+Completion evidence:
+
+- Changed: `packages/json-frame/src/api.ts`, `packages/json-frame/src/types.ts`, `packages/json-frame/README.md`, `packages/json-frame/test-decl-consumer/decl-consumer.strict.mts`, `packages/json-frame/test/packed-consumer.test.ts`, `packages/json-frame/dist/index.d.ts`, `packages/json-frame/dist/index.d.mts`, `website/docs/packages/index.md`, `website/docs/packages/json-frame.md`, `docs/tasks/20260823-152151-json-frame-health-review-remediation.md`
+- Verified: `pnpm --filter @web-ts-toolkit/json-frame test`; `pnpm --filter @web-ts-toolkit/json-frame test:packed-consumer`; `npm pack --dry-run --json` from `packages/json-frame`; declaration grep for `non-empty \`values\` arrays`, `nested JSON`, and `Table Schema format version`in both`dist/index.d.ts`and`dist/index.d.mts`
+- Result: source JSDoc and emitted declarations now state that non-empty `values` arrays can be auto-detected but still require `options.columns`, while empty `values` input requires explicit `orient: 'values'` plus `columns`. README and DataFrame JSDoc now describe the structural/shallow immutability contract: frame-owned arrays, records, maps, and exporter containers are protected or fresh, but nested JSON object/array cell values returned from rows or exporters may retain identity and remain caller-mutable. README and declaration/packed examples use `schema.pandas_version: '1.4.0'` and explain it as the pandas-emitted Table Schema format version, not the installed pandas package version. Added `website/docs/packages/json-frame.md` and linked it from the website package index so the existing package homepage has a maintained repository page. Packed consumer tests now assert high-value JSDoc survives in both declaration formats and continue compiling README examples against packed declarations. Package suite passed with 8 test files and 132 tests; packed-consumer suite passed with 1 file and 3 tests; direct dry-run packing listed only README, dist files, and package.json.
+- Follow-up: none
+
 ### Task JFH-10: Perform Independent Integration And Artifact Review
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -563,6 +626,13 @@ Verification:
 8. `pnpm lint`
 9. `pnpm build`
 10. `pnpm test`
+
+Completion evidence:
+
+- Changed: `packages/json-frame/src/parse/parse.ts`, `docs/tasks/20260823-152151-json-frame-health-review-remediation.md`
+- Verified: `pnpm install --frozen-lockfile`; `pnpm --filter @web-ts-toolkit/json-frame build`; `pnpm --filter @web-ts-toolkit/json-frame test`; `pnpm --filter @web-ts-toolkit/json-frame test:packed-consumer`; `npm pack --dry-run --json` from `packages/json-frame`; `shopt -s globstar && sha256sum packages/json-frame/test/fixtures/generated/**/*.json > /tmp/opencode/json-frame-fixtures.before && python3 packages/json-frame/test/fixtures/generate.py && sha256sum packages/json-frame/test/fixtures/generated/**/*.json > /tmp/opencode/json-frame-fixtures.after && diff -u /tmp/opencode/json-frame-fixtures.before /tmp/opencode/json-frame-fixtures.after`; ESM runtime probe for `JSON_FRAME_MAX_DEPTH` boundary and duplicate table export rejection; CJS runtime probe against `dist/index.js`; pandas 3.0.3 table read-back probe for emitted unique table plus package-side duplicate export rejection; `pnpm lint`; `pnpm build`; `pnpm test`
+- Result: independent review found direct completion evidence for each non-deferred JFH-01 through JFH-09 acceptance criterion in this task file and matching package tests/docs/artifacts. The only small issue found was an unused `JsonObject` type import in `src/parse/parse.ts`; removed it and reran `pnpm lint` plus the json-frame package suite successfully. Package build regenerated CJS, ESM, `.d.ts`, and `.d.mts`; package tests passed with 8 files and 132 tests; packed-consumer tests passed with 1 file and 3 tests. Dry-run pack listed only `README.md`, `dist/index.d.mts`, `dist/index.d.ts`, `dist/index.js`, `dist/index.mjs`, and `package.json` with no bundled/runtime dependencies. Fixture regeneration was byte-stable against direct pandas output, with the known pandas `epoch` deprecation warning. Independent runtime probes confirmed supported-depth nested input does not escape as native stack overflow, one level beyond the documented limit fails as `JsonFrameValidationError`, duplicate source indexes fail before table export can claim `primaryKey`, and CJS runtime import works. Emitted unique table payloads read back through pandas 3.0.3; duplicate table export is rejected by the package before pandas interop. Full repository `pnpm lint`, `pnpm build`, and serialized `pnpm test` passed; the first build/test attempts were terminated only by shorter tool timeouts and passed when rerun with longer timeouts. Known Vite native-loader warnings remain non-failing and unrelated.
+- Follow-up: none
 
 ## Dependencies And Parallelization
 

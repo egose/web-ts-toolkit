@@ -948,7 +948,7 @@ Completion evidence:
 
 ### Task OIDC-12: Bring README And Website Docs Into Contract Parity
 
-Status: complete
+Status: completed
 
 Priority: P2
 

@@ -54,7 +54,7 @@ Confirmed on 2026-08-23 before this task file was created:
 
 ### Task MRX-01: Build Deterministic Adapter, Concurrency, And Packed-Consumer Harnesses
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -99,11 +99,22 @@ Acceptance criteria:
 - Packed CJS and ESM smoke tests execute from a clean temporary installation, not source aliases.
 - `pnpm --filter @web-ts-toolkit/mongoose-rxdb test` passes.
 
+Completion evidence:
+
+- Added internal async barrier/deferred helpers, temp/subprocess cleanup helpers, and a typed fake persistence adapter under `packages/mongoose-rxdb/test/support/`.
+- Added focused fake-adapter, concurrent mutation barrier, collection initialization pending/success/reject, and deterministic storage-loader tests under `packages/mongoose-rxdb/test/`.
+- Added strict installed-consumer declaration fixtures under `packages/mongoose-rxdb/test-decl-consumer/` for NodeNext and Bundler, including `.mts` and `.cts` entrypoints with `skipLibCheck: false`.
+- Added a packed-consumer harness that stages release-like tarballs through the repository publish manifest rewrite path, installs into clean temporary consumers, and executes root and `./storage` named/default imports in CJS and ESM.
+- Added the internal `src/storage/loader.ts` seam used by `createSqliteDatabase()` to select memory, Premium, native trial, npm SQLite, no-backend, and backend-open-failure paths deterministically in tests.
+- Added a rejection handler to the collection readiness side-effect promise so controlled collection-initialization rejection tests do not produce unhandled rejections.
+- Verification passed: `pnpm --filter @web-ts-toolkit/mongoose-rxdb test`.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/tsconfig.json`.
+
 ## Wave 2: Immediate Data Safety
 
 ### Task MRX-02: Make Filter Sanitization Fail Closed And Bound Regex Risk
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -147,9 +158,19 @@ Acceptance criteria:
 - A subprocess timeout regression covers a known pathological regex without hanging the main test runner.
 - `pnpm --filter @web-ts-toolkit/mongoose-rxdb test` passes.
 
+Completion evidence:
+
+- Added package-owned `QueryFilterError` and fail-closed recursive filter normalization in `packages/mongoose-rxdb/src/query-compiler.ts`.
+- Invalid top-level operators, unsupported field operators, malformed logical operands, dangerous keys, excessive nesting, and excessive logical width now reject instead of producing `{}` or a broader selector.
+- Normalized filters/selectors use null-prototype objects and literal nested objects are cloned after dangerous-key validation.
+- Regex filters now use a documented bounded policy: 128-character pattern budget, allowed flags `i`, `m`, `s`, `u`, JS syntax validation, and rejection of duplicate/invalid flags plus known high-risk shapes including nested quantified groups.
+- Added focused MRX-02 regressions in `packages/mongoose-rxdb/test/sanitize-filter-security.test.ts`, including destructive `deleteMany(sanitizeFilter(payload))` and `updateMany(sanitizeFilter(payload), ...)` unchanged-document checks for every rejected payload, direct `translateFilter`/query-bypass adapter-call checks, depth/width checks, regex checks, and a subprocess timeout guard for `^(a+)+$`.
+- Updated `packages/mongoose-rxdb/README.md` and `website/docs/packages/mongoose-rxdb.md` with caller-invoked sanitization, fail-closed destructive-operation behavior, and regex policy.
+- Verification passed: `pnpm --filter @web-ts-toolkit/mongoose-rxdb test`.
+
 ### Task MRX-03: Make Storage Selection Explicit And Persistence Fail Closed
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -195,9 +216,24 @@ Acceptance criteria:
 - Clean npm and pnpm packed installations resolve each declared optional backend when present and fail predictably when absent.
 - `package.json`, declarations, README, and website agree on dependencies, Node support, backend order, and path semantics.
 
+Completion evidence:
+
+- Changed SQLite selection to try Premium, trial native, and trial npm as openable tiers; persistent requests now reject with `SqliteStorageError` when no SQLite backend can be opened.
+- Added explicit `{ allowMemoryFallback: true }` memory fallback and exposed `sqliteBackend` plus `sqliteStorageInfo` on databases returned by `createSqliteDatabase()`.
+- Preserved backend-specific load/open failures through `SqliteStorageError.causes` and successful `sqliteStorageInfo.fallbackCauses`.
+- Documented `filePath` semantics: exact `sqliteDatabasePath` for Premium and `databaseNamePrefix` for RxDB trial backends; no rename was needed.
+- Aligned package peer metadata so `rxdb` and `rxjs` are required bounded peers, while `rxdb-premium` and `sqlite3` are optional bounded peers; added workspace build-policy metadata for optional native `sqlite3`.
+- Removed non-Node and older-Node sqlite3 claims from package and website docs; documented Node 22+ support and the fail-closed fallback break without editing `CHANGELOG.md`.
+- Added deterministic storage-loader regressions for default fail-closed behavior, explicit memory fallback, fallback cause preservation, backend annotation, and trial path-prefix arguments.
+- Updated the SQLite smoke to assert selected backend/path metadata and, when a real SQLite backend is available, verify file creation and persistence after a second-process reopen.
+- Added packed-manifest peer metadata assertions and a clean npm packed-install runtime import smoke alongside the existing pnpm packed-consumer checks.
+- Verification passed: `pnpm exec vitest run --config ../../vitest.config.ts test/storage-loader.test.ts test/_sqlite-smoke.test.ts test/packed-consumer.test.ts`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/mongoose-rxdb test`.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/tsconfig.json`.
+
 ### Task MRX-04: Serialize Connection And Collection Lifecycles
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -241,11 +277,24 @@ Acceptance criteria:
 - Reconnect is either rejected or closes and invalidates previous state under a tested contract.
 - `connect('...')` is a compile-time error after removal or a clear runtime error if retained temporarily.
 
+Completion evidence:
+
+- Added explicit `Connection.state` values (`disconnected`, `connecting`, `connected`, `closing`, `failed`) with single-flight connect/disconnect behavior in `packages/mongoose-rxdb/src/model.ts`.
+- Removed the public TypeScript string overload from `Connection#connect` and root `connect`; retained a runtime guard that rejects strings before any storage factory is created.
+- Added a connection-owned collection registry keyed by normalized lower-case collection name with one initialization promise, one adapter, and a stable schema fingerprint.
+- Equivalent same-collection schemas now share one `addCollections()` call and adapter; incompatible same-name or case-only collection collisions reject deterministically before storage is touched.
+- Collection initialization failures clear the failed model from `Connection.models`; internally derived readiness promises are catch-handled to avoid unhandled rejections.
+- `disconnect()` invalidates pending collections and existing model adapters, clears model registrations, and rejects later use of stale model objects. Reconnect while already connected is rejected; reconnect after disconnect requires fresh model compilation.
+- Documented the lifecycle/reconnect/string-connection contract and the model overwrite/no schema-migration limitation in the package README and website docs.
+- Added focused lifecycle regressions in `packages/mongoose-rxdb/test/collection-init-harness.test.ts`, plus strict declaration consumer negative checks for unsupported connection strings.
+- Verification passed: `pnpm --filter @web-ts-toolkit/mongoose-rxdb test`.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/tsconfig.json`.
+
 ## Wave 3: Write Correctness And Concurrency
 
 ### Task MRX-05: Centralize Schema-Aware Write Normalization
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -290,9 +339,21 @@ Acceptance criteria:
 - A JSON update containing `__proto__`, `prototype`, or `constructor` cannot alter any object prototype.
 - All write entrypoints use the shared normalization pipeline in adapter-spy tests.
 
+Completion evidence:
+
+- Added `WriteNormalizationError`, schema-aware `documentToStorage()` / `storageToDocument()` conversion, normalized update plans, storage update application, ISO-string date serialization, dotted-path access, and dangerous/protected-path rejection in `packages/mongoose-rxdb/src/converter.ts`.
+- Routed document save, create/insertMany through save, query operator updates, replacement-style updates, and supported `findOneAndUpdate(..., { upsert: true })` through the shared normalization/conversion pipeline.
+- Query hydration and `findById()` now hydrate storage values through `storageToDocument()`, including Date restoration and RxDB metadata stripping.
+- Validation for saves and `runValidators` query updates now evaluates normalized storage-shaped values before adapter mutation.
+- Added focused fake-adapter MRX-05 regressions in `packages/mongoose-rxdb/test/write-normalization.test.ts` for storage type parity, dotted paths, invalid operands, protected paths, dangerous segments, upsert normalization, and pre-mutation validation.
+- Extended the SQLite smoke reopen contract to verify persisted dates hydrate back to identical `Date` values when a SQLite backend is available.
+- Documented ISO date storage, shared write normalization, dotted-path behavior, and rejected write paths/operators in the package README and website docs.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/tsconfig.json`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/mongoose-rxdb test`.
+
 ### Task MRX-06: Make Query Mutations Atomic, Bounded, And Truthful
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -335,9 +396,22 @@ Acceptance criteria:
 - `deleteOne()` performs no full-result scan or redundant ID lookup.
 - Adapter-spy tests demonstrate bounded calls for one-document operations and documented calls for many-document operations.
 
+Completion evidence:
+
+- Added adapter-owned operation methods in `packages/mongoose-rxdb/src/rx-adapter.ts` for `updateOne`, `updateMany`, `findOneAndUpdate`, `deleteOne`, `deleteMany`, and `findOneAndDelete`, with update-plan callbacks executed inside `incrementalModify()` so RxDB retries recompute from the current document.
+- Query update/delete execution in `packages/mongoose-rxdb/src/query.ts` now delegates to operation-specific adapter methods, constrains one-document mutations before materializing full results, avoids redundant ID lookups, and returns bounded `matchedCount`, `modifiedCount`, and `deletedCount` values.
+- No-op updates compare normalized storage records and report `modifiedCount: 0`; adapter-level mutation sanitization preserves the primary key and strips RxDB metadata even when callers bypass query normalization helpers.
+- Defined multi-document mutation semantics as ordered and non-transactional: earlier successes remain persisted and a `MutationPartialFailureError` reports counts completed before the first failure.
+- Extended fake-adapter spy tests in `packages/mongoose-rxdb/test/adapter-harness.test.ts` for bounded one-document calls, no-op counts, bypass metadata protection, and ordered partial failure behavior.
+- Added real storage concurrency coverage in `packages/mongoose-rxdb/test/mutation-atomicity.test.ts`: 50 concurrent increments under memory storage, concurrent disjoint-field preservation, and the same 50-increment contract under SQLite when a supported backend is available.
+- Verification passed: `pnpm exec vitest run --config ../../vitest.config.ts test/adapter-harness.test.ts test/write-normalization.test.ts test/mutation-atomicity.test.ts`.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/tsconfig.json`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/mongoose-rxdb test`.
+- Verification passed on repeated concurrency-focused run: `pnpm exec vitest run --config ../../vitest.config.ts test/mutation-atomicity.test.ts`.
+
 ### Task MRX-07: Implement Mutation Options And Upsert Semantics
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -381,11 +455,23 @@ Acceptance criteria:
 - Unsupported option combinations fail before adapter execution.
 - Existing and new mutation-option tests cannot pass when options are discarded.
 
+Completion evidence:
+
+- Added immutable `QueryOperationDescriptor` transfer from model methods into `Query`, with centralized runtime validation for supported per-operation mutation options and package-owned `MutationOptionError` for ignored/unsupported combinations.
+- `runValidators` now flows through public model update methods and validates the final normalized storage value before persistence for `updateOne`, `updateMany`, and `findOneAndUpdate` matches.
+- Implemented `returnDocument` precedence over `new` for `findOneAndUpdate`; `returnDocument: 'before'` returns the previous document, while `returnDocument: 'after'` and `new: true` return the updated or inserted document.
+- Implemented supported upserts for `updateOne` and `findOneAndUpdate`: inserts are built from eligible equality filter fields plus normalized update values, generate `_id` when needed, cast to storage, validate as new records, and apply defaults only when `setDefaultsOnInsert: true` is paired with `upsert: true`.
+- Added `packages/mongoose-rxdb/test/mutation-options.test.ts` covering option-transfer regressions, invalid validated updates leaving storage unchanged, documented non-validating behavior, upsert construction/default policy, before/after result behavior, and unsupported option rejection before adapter calls.
+- Updated `packages/mongoose-rxdb/src/types.ts`, package README, and website docs with narrowed mutation-option declarations and behavior. `CHANGELOG.md` was not edited.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/tsconfig.json`.
+- Verification passed: `pnpm exec vitest run --config ../../vitest.config.ts test/mutation-options.test.ts`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/mongoose-rxdb test`.
+
 ## Wave 4: Document, Query, And Middleware Semantics
 
 ### Task MRX-08: Make Document Snapshots And Nested Dirty Tracking Reliable
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -426,9 +512,20 @@ Acceptance criteria:
 - Failed saves retain accurate modified paths for retry.
 - Snapshot behavior is deterministic for dates, arrays, nested objects, and supported mixed values.
 
+Completion evidence:
+
+- Added deep document snapshots and structural diffing in `packages/mongoose-rxdb/src/document.ts`; document saves now detect mutable array/object/subdocument/date changes, skip unchanged or reverted loaded documents, and refresh snapshots only after successful persistence.
+- Cloned constructor input, setter input, and `toObject()` / `toJSON()` output for arrays, plain objects, nested subdocuments, mixed JSON-like values, and dates.
+- Reconciled `markModified(path)` with snapshot comparisons so unchanged explicitly marked paths do not force adapter mutation, while changed mixed values persist normally.
+- Added focused MRX-08 regressions in `packages/mongoose-rxdb/test/document-snapshot-dirty.test.ts` for structural mutation persistence, boundary cloning, no-op/reverted saves, failed-save retry state, and explicit `markModified()` behavior.
+- Documented the snapshot and dirty-tracking contract in `packages/mongoose-rxdb/README.md` and `website/docs/packages/mongoose-rxdb.md`.
+- Verification passed: `pnpm exec vitest run --config ../../vitest.config.ts test/document-snapshot-dirty.test.ts`.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/tsconfig.json`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/mongoose-rxdb test`.
+
 ### Task MRX-09: Unify Recursive Validation And Middleware Ordering
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -473,9 +570,21 @@ Acceptance criteria:
 - Middleware completion cannot hang or settle twice under mixed callback/promise usage.
 - `validateBeforeSave` has observable tested behavior if retained.
 
+Completion evidence:
+
+- Added recursive validation in `packages/mongoose-rxdb/src/document.ts` for nested schemas, arrays of subdocuments, and primitive array item validators, with aggregate package-owned `ValidationError.errors` keyed by full logical paths.
+- Conditional `required` and custom validators now run with the documented owning document or plain subdocument context.
+- `Document#validate()` now runs validate middleware; `Document#save()` honors `validateBeforeSave` and routes validation failures through save error middleware exactly once.
+- Fixed middleware callback argument order, promise/callback mixed completion, query context (`this` is the `Query` instance), explicit `{ errorHandler: true }` error middleware, and pre-hook error handling.
+- Retained and implemented the public hook names covered by MRX-09, including model `insertMany`, hydration `init`, and document `deleteOne`; narrowed schema hook TypeScript declarations to the retained hook-name union.
+- Added MRX-09 validation and middleware matrix coverage in `packages/mongoose-rxdb/test/validation-middleware.test.ts`.
+- Updated `packages/mongoose-rxdb/README.md` and `website/docs/packages/mongoose-rxdb.md` with the supported compatibility scope, context rules, callback argument order, error middleware registration, and `validateBeforeSave` behavior.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/tsconfig.json`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/mongoose-rxdb test`.
+
 ### Task MRX-10: Correct Query Pagination, Projection, Lean, And Execution State
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -521,11 +630,26 @@ Acceptance criteria:
 - A mutation query cannot execute twice through any combination of `exec()`, `await`, `then`, `catch`, and `finally`.
 - Mutating caller input or clone state cannot alter another query's execution.
 
+Completion evidence:
+
+- Added bounded read option normalization and package-owned `QueryOptionError` in `packages/mongoose-rxdb/src/query-compiler.ts`; `limit` and `skip` now require non-negative safe integers.
+- Fixed adapter read pagination in `packages/mongoose-rxdb/src/rx-adapter.ts` and the fake adapter so skip is applied before limit, and `findOne()` follows the documented skip-then-one policy.
+- Added normalized inclusion/exclusion projection support, including string syntax and `_id` overrides, with mixed-mode rejection and projection applied before query hydration.
+- Lean reads now return normalized plain records directly without constructing `Document` instances or running `init` hooks, and projected-out fields are not recreated by schema defaults during hydration.
+- Added adapter `count()` capability and query count execution that uses one native adapter count call, ignores sort, and counts the paginated match window after skip/limit.
+- Added package-owned `QueryExecutionError` with Mongoose-compatible `name: 'MongooseError'`; repeated query execution through `exec()`, `await`/`then`, `catch`, or `finally` now rejects instead of replaying writes.
+- Deep-copied filters, options, updates, builder arrays/projections, and clone state; query execution now snapshots state before middleware so later mutation cannot alter that execution.
+- Added focused MRX-10 regressions in `packages/mongoose-rxdb/test/query-read-semantics.test.ts` for pagination, projections, lean no-hydration behavior, native count semantics, repeated execution rejection, caller input mutation, clone isolation, and middleware snapshot isolation.
+- Updated `packages/mongoose-rxdb/README.md` and `website/docs/packages/mongoose-rxdb.md` with read pagination, projection, lean, count, and single-use query semantics.
+- Verification passed: `pnpm exec vitest run --config ../../vitest.config.ts test/query-read-semantics.test.ts`.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/tsconfig.json`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/mongoose-rxdb test`.
+
 ## Wave 5: Architecture, Types, And Published Contract
 
 ### Task MRX-11: Establish A Metadata-Free Persistence Port And Efficient Bulk Paths
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -571,9 +695,22 @@ Acceptance criteria:
 - Real memory and SQLite adapters pass the same contract suite.
 - Bulk partial failures return documented record-level outcomes without silently losing successes.
 
+Completion evidence:
+
+- Added a metadata-free persistence port in `packages/mongoose-rxdb/src/rx-adapter.ts` using `PersistenceRecord` values that contain domain fields plus `_id`, with adapter boundary stripping for `_rev`, `_meta`, `_attachments`, and `_deleted`.
+- Added adapter bulk insertion contracts (`BulkInsertResult`, `BulkWritePartialFailureError`, ordered/unordered `BulkInsertOptions`) and implemented fake and real adapter `insertMany()` support; count remains a native adapter path.
+- Routed `Model.create()` and `Model.insertMany()` through one insertion helper in `packages/mongoose-rxdb/src/model.ts`; `create()` preserves per-document save middleware, while `insertMany()` uses the bulk persistence path and reports partial failures.
+- Kept collection readiness behind the typed internal model runtime via `resolveCollection()` and removed `collectionReady` access from query/document runtime and lifecycle tests.
+- Kept the fake adapter free of RxDB imports while satisfying the persistence port, with bounded count/bulk insertion call-count coverage for 1, 100, and 1,000 records.
+- Added real adapter contract coverage for memory storage and SQLite when a supported backend is available in `packages/mongoose-rxdb/test/adapter-contract.test.ts`.
+- Updated package and website documentation for metadata-free adapter records and ordered/unordered bulk insertion semantics.
+- Verification passed: `pnpm exec vitest run --config ../../vitest.config.ts test/adapter-harness.test.ts test/adapter-contract.test.ts`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/mongoose-rxdb test`.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/tsconfig.json`.
+
 ### Task MRX-12: Reconcile Schema Features And Freeze Compiled Structure
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -621,9 +758,21 @@ Acceptance criteria:
 - Duplicate values for a retained `unique` option are rejected safely under concurrent insertion, or `unique` is no longer claimed.
 - Timestamp, getter/setter, immutable, alias, and version-key behavior is either implemented end to end or explicitly removed.
 
+Completion evidence:
+
+- Added canonical compiled schema metadata in `packages/mongoose-rxdb/src/schema.ts`; `Schema.toJSONSchema()` and `convertToRxJsonSchema()` now consume the same compiled representation for properties, required paths, and index hints.
+- `Connection#model()` now compiles models against an isolated schema snapshot, marks the original schema structurally locked, rejects post-compilation `Schema.add()`, and prevents later direct original-schema path mutations from affecting model casting, validation, or RxDB schema generation.
+- Deepened `Schema#clone()` semantics for mutable paths, options, hooks, virtuals, child schemas, and query helpers.
+- Narrowed schema option declarations to implemented behavior and added `SchemaConfigurationError` for unsupported schema/path options. Removed inert timestamp, version-key, getter/setter, alias, select, ref, auto, sparse, expires, and unique claims from package and website docs; `unique` is no longer accepted or claimed, and `index: true` is documented only as a storage-dependent lookup hint.
+- Added focused MRX-12 coverage in `packages/mongoose-rxdb/test/schema-behavior.test.ts` for canonical public/RxDB schema output, model snapshot isolation, clone independence, accepted option behavior, and early unsupported-option failures.
+- Updated `packages/mongoose-rxdb/README.md`, `website/docs/packages/mongoose-rxdb.md`, and schema option types in `packages/mongoose-rxdb/src/types.ts`. `CHANGELOG.md` was not edited.
+- Verification passed: `pnpm exec vitest run --config ../../vitest.config.ts test/schema-behavior.test.ts`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/mongoose-rxdb test`.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/tsconfig.json`.
+
 ### Task MRX-13: Make The Public Type Surface Strict And Awaitable
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -672,9 +821,26 @@ Acceptance criteria:
 - The example app removes its manual copies of core model methods and its broad model cast.
 - Emitted declarations pass with `skipLibCheck: false` in `.ts`, `.mts`, and `.cts` consumers.
 
+Completion evidence:
+
+- Added strict public document/model/query type aliases in `packages/mongoose-rxdb/src/types.ts`, including `RawDocument`, `HydratedDocument`, `LeanResult`, `UpdateResult`, `DeleteResult`, strict `FilterQuery`, explicit `LooseFilterQuery`, and field-kind-aware `UpdateQuery` operators without RxDB metadata fields.
+- Threaded schema-driven method/static/virtual typing through `Schema`, `Connection#model()`, root `model()`, and `Model` so compiled models infer hydrated document fields, instance methods, virtuals, statics, lean records, and mutation/count result types without broad consumer casts.
+- Made `Query<ResultType>` implement `PromiseLike<ResultType>` with generic `then`, typed `catch`, and typed `finally`; `lean(true)` now changes query result types to plain `LeanResult<T>` records.
+- Replaced async `validateSync()` with a synchronous validation path returning `ValidationError | undefined`; async validators produce a synchronous validation error and middleware remains on async `validate()`.
+- Updated `apps/mongoose-rxdb-example/src/index.ts` to remove the manual model-method copies and broad compiled-model cast, using `HydratedDocument` plus schema-based model inference instead.
+- Extended strict declaration consumer fixtures under `packages/mongoose-rxdb/test-decl-consumer/` for NodeNext and Bundler `.ts`, `.mts`, and `.cts` entrypoints with positive create/find/await/lean/mutation/method/static coverage and negative misspelled-field/operator/update/connection-string checks.
+- Updated `packages/mongoose-rxdb/README.md` and `website/docs/packages/mongoose-rxdb.md` with the strict TypeScript strategy, schema/model flow, lean/hydrated/query result behavior, strict filters, `LooseFilterQuery`, update operator typing, and `validateSync()` semantics.
+- Verification passed: `pnpm exec vitest run --config ../../vitest.config.ts test/validation-middleware.test.ts`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/mongoose-rxdb test`.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/tsconfig.json`.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/test-decl-consumer/tsconfig-nodenext.json`.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/test-decl-consumer/tsconfig-bundler.json`.
+- Verification passed: `pnpm --filter mongoose-rxdb-example typecheck`.
+- Verification passed: `pnpm --filter mongoose-rxdb-example build`.
+
 ### Task MRX-14: Align Package Metadata, Entrypoints, README, And Compatibility Matrix
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -723,11 +889,25 @@ Acceptance criteria:
 - README quickstart compiles verbatim from the packed package and names the canonical import style, peers, Node support, storage policy, and custom-factory plugin requirement.
 - Editor-visible declarations retain high-value JSDoc and expose no accidental internal readiness or RxDB metadata types.
 
+Completion evidence:
+
+- Chose and documented the minimal safe mixed-module contract: named imports are canonical, default exports are redundant compatibility conveniences, and mixed ESM/CJS consumers get independent class identities plus independent `defaultConnection` singletons rather than a shared cross-format singleton.
+- Added packed-consumer regression coverage for the mixed ESM/CJS identity contract and for the README quickstart compiling and executing from the staged tarball.
+- Aligned root and `./storage` export maps with condition-specific declaration files: ESM resolves `.d.mts`, CommonJS resolves `.d.ts`, and both emitted variants are asserted in the packed tarball.
+- Removed the unused `@web-ts-toolkit/utils` runtime dependency and narrowed the packed-consumer staging harness so the release-staged manifest has no unused internal dependency, `workspace:*`, or placeholder values.
+- Kept RxDB/RxJS peer ranges pinned to the tested majors (`rxdb >=17.4.0 <18`, `rxjs >=7.8.0 <8`) and documented the compatibility matrix/evidence for the single claimed RxDB/RxJS major pair.
+- Updated the package README and website docs with canonical named imports, module identity, peer/Node support, storage fail-closed policy, custom RxDB factory plugin requirement, and a strict copy-pasteable quickstart.
+- Added concise JSDoc to `Schema`, `Document`, `Model`, `Connection`, `Query`, and `sanitizeFilter`; verified the comments survive in generated `.d.ts` and `.d.mts` declarations.
+- Verification passed: `pnpm exec vitest run --config ../../vitest.config.ts test/packed-consumer.test.ts`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/mongoose-rxdb test`.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/tsconfig.json`.
+- Verification passed: `npm pack --dry-run --json` from `packages/mongoose-rxdb` included README, package.json, CJS/ESM runtime files, and both `.d.ts`/`.d.mts` declaration variants.
+
 ## Wave 6: Independent Integration Review
 
 ### Task MRX-15: Perform Final Security, Correctness, Performance, And Package Review
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -771,6 +951,32 @@ Acceptance criteria:
 - Concurrent writes and collection lifecycle operations complete without lost updates, unhandled rejections, stale adapters, or leaked resources.
 - Public types, runtime behavior, README, website, and packed artifact agree.
 - Required targeted, package, root, consumer, and artifact commands pass serially, or an external blocker is documented with exact output and owner.
+
+Completion evidence:
+
+- Independently reviewed MRX-01 through MRX-14 completion evidence plus `packages/mongoose-rxdb` source, tests, strict declaration consumers, generated declarations, package README, website docs, example app, packed-consumer harness, and release-staged manifest assertions.
+- Confirmed filter normalization rejects unsupported top-level/field operators, malformed logical operands, dangerous object keys, excessive depth/width, and unsafe regex before adapter execution; added a final fail-closed regression so `sanitizeFilter(null)` cannot become a destructive match-all selector.
+- Confirmed update/write paths route through schema-aware normalization, reject dangerous/protected paths and RxDB metadata writes, strip adapter metadata, validate normalized storage values where documented, and preserve prototype safety.
+- Confirmed default persistent SQLite requests fail closed unless Premium, trial native, or trial npm SQLite opens; volatile fallback remains explicit through `allowMemoryFallback: true` and selected backend metadata is observable.
+- Confirmed connection and collection lifecycle ownership uses single-flight connect/disconnect and per-collection readiness; stale model adapters are invalidated after disconnect/overwrite/reconnect and pending initialization rejection is handled.
+- Confirmed public runtime exports, condition-specific declarations, README, website docs, example app, npm dry-run packed contents, and release-staged manifest behavior agree on root/storage entrypoints, peers, Node support, canonical named imports, mixed-module identity, and storage policy.
+- Fixed example-app drift where its `sanitizeFilter` demo still described unsupported field operators as literal-wrapped instead of fail-closed rejected.
+- Fixed root lint coverage for intentional CommonJS declaration-consumer fixtures by adding file-local `@typescript-eslint/no-require-imports` exceptions.
+- Verification passed: `pnpm exec vitest run --config ../../vitest.config.ts test/sanitize-filter-security.test.ts`.
+- Verification passed: `pnpm --filter @web-ts-toolkit/mongoose-rxdb test` (15 files, 119 tests).
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/tsconfig.json`.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/test-decl-consumer/tsconfig-nodenext.json`.
+- Verification passed: `pnpm exec tsc --noEmit -p packages/mongoose-rxdb/test-decl-consumer/tsconfig-bundler.json`.
+- Verification passed: `pnpm exec vitest run --config ../../vitest.config.ts test/packed-consumer.test.ts`.
+- Verification passed: `npm pack --dry-run --json` from `packages/mongoose-rxdb` included README, package.json, CJS/ESM runtime files, and `.d.ts`/`.d.mts` declaration variants.
+- Verification passed twice for concurrency/lifecycle focus: `pnpm exec vitest run --config ../../vitest.config.ts test/mutation-atomicity.test.ts test/collection-init-harness.test.ts`.
+- Verification passed: `pnpm --filter mongoose-rxdb-example typecheck`.
+- Verification passed: `pnpm --filter mongoose-rxdb-example build`.
+- Verification passed: `pnpm lint`.
+- Verification passed: `pnpm build`.
+- Verification passed: `pnpm test` on retry with a longer timeout. An earlier run hit the 600s tool timeout while entering `@web-ts-toolkit/access-router-runtime`; a direct `pnpm --filter @web-ts-toolkit/access-router-runtime test` run passed, and the longer full-root retry completed successfully. The full-root test output includes expected React 18 negative-path console errors from `packages/access-router-react/test/dependency-policy.test.tsx`, but the command exited successfully.
+- Verification passed: `pnpm build-artifact -- --version 0.99.0-mrx15`.
+- Verification passed: `pnpm verify-artifact -- --version 0.99.0-mrx15`.
 
 ## Dependency And Parallelization Guidance
 
