@@ -4,6 +4,7 @@ import {
   ExportKeyCollisionError,
   JsonFrameParseError,
   JsonFrameValidationError,
+  JSON_FRAME_MAX_DEPTH,
   UnsupportedFeatureError,
   type ColumnInfo,
   type ColumnType,
@@ -12,6 +13,7 @@ import {
   type ResolvedOrient,
   type SplitPayload,
   type TablePayload,
+  type JsonFrameDiagnosticValue,
 } from '@web-ts-toolkit/json-frame';
 import { JsonFrameOptionError } from '../src/errors';
 import { DEFAULT_PACK_THRESHOLD, normalizeFromOrientOptions } from '../src/options';
@@ -22,6 +24,7 @@ describe('public types', () => {
     type ParseOptions = FromOrientOptions;
     type DetectedOrient = Orient;
     type ConcreteOrient = ResolvedOrient;
+    type DiagnosticValue = JsonFrameDiagnosticValue;
 
     expectTypeOf<LogicalTypes>().toEqualTypeOf<
       'integer' | 'float' | 'string' | 'boolean' | 'datetime' | 'categorical' | 'mixed' | 'unknown'
@@ -31,6 +34,8 @@ describe('public types', () => {
     expectTypeOf<SplitPayload['data'][number]>().toEqualTypeOf<readonly unknown[]>();
     expectTypeOf<TablePayload['data'][number]>().toExtend<Record<string, unknown>>();
     expectTypeOf<ColumnInfo>().toEqualTypeOf<{ readonly type: ColumnType; readonly nullable: boolean }>();
+    expectTypeOf<DiagnosticValue>().toExtend<unknown>();
+    expect(JSON_FRAME_MAX_DEPTH).toBe(1000);
   });
 });
 
@@ -79,7 +84,7 @@ describe('structured errors', () => {
   });
 
   it('stores actionable validation context without retaining the whole payload by convention', () => {
-    const offendingValue = Symbol('invalid-json-value');
+    const offendingValue = { nested: ['invalid-json-value'] };
     const error = new JsonFrameValidationError('Row contains a non-JSON value.', {
       orient: 'records',
       path: '$[2].city',
@@ -94,8 +99,16 @@ describe('structured errors', () => {
       path: '$[2].city',
       row: 2,
       column: 'city',
-      value: offendingValue,
+      value: {
+        kind: 'object',
+        keyCount: 1,
+        keys: ['nested'],
+        truncated: false,
+      },
     });
+    expect(error.value).not.toBe(offendingValue);
+    expect(Object.isFrozen(error.value)).toBe(true);
+    expect(JSON.stringify(error)).toContain('nested');
   });
 
   it('uses resolved orient candidates for ambiguity errors', () => {
@@ -127,8 +140,9 @@ describe('structured errors', () => {
       feature: 'multi-index',
       orient: 'table',
       path: '$.schema.primaryKey',
-      value: ['a', 'b'],
+      value: { kind: 'array', length: 2 },
     });
+    expect(Object.isFrozen(unsupported.value)).toBe(true);
     expect(collision).toMatchObject({
       name: 'ExportKeyCollisionError',
       orient: 'index',

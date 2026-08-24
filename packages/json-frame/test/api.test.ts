@@ -68,6 +68,7 @@ describe('fromOrient', () => {
     expect(Object.keys(publicApi).sort()).toEqual([
       'AmbiguousOrientError',
       'ExportKeyCollisionError',
+      'JSON_FRAME_MAX_DEPTH',
       'JsonFrameError',
       'JsonFrameOptionError',
       'JsonFrameParseError',

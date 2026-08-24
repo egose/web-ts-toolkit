@@ -1,0 +1,9 @@
+[
+  { "text": "café", "small": 0.00000000000123, "large": 1.23e20, "precision": 1.123456789012345 },
+  {
+    "text": "quote \" slash \\ newline\n tab\t nul\u0000",
+    "small": 0.0,
+    "large": 9007199254740991.0,
+    "precision": 1.123456789012346
+  }
+]

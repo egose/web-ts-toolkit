@@ -1,0 +1,8 @@
+{
+  "columns": ["v", "n"],
+  "index": [10, 2],
+  "data": [
+    ["first", 100],
+    ["second", 200]
+  ]
+}

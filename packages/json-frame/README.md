@@ -2,7 +2,7 @@
 
 Normalize pandas `DataFrame.to_json()` payloads into one immutable, column-major `DataFrame` API for TypeScript.
 
-`@web-ts-toolkit/json-frame` accepts a JSON string or parsed JSON value, ingests all six pandas DataFrame JSON orients, keeps row order and supported index labels intact, and exports back to every supported orient without adding runtime dependencies.
+`@web-ts-toolkit/json-frame` accepts a JSON string or parsed JSON value, ingests all six pandas DataFrame JSON orients, and exports back to every supported orient without adding runtime dependencies. `split` and `table` preserve source row order exactly; object-key orients use JavaScript property enumeration order, so integer-like keys can be reordered.
 
 ## Installation
 
@@ -18,15 +18,17 @@ import { fromOrient } from '@web-ts-toolkit/json-frame';
 
 The package exports named values and types from the package root. There is no default export and no supported deep import path.
 
+`JSON_FRAME_MAX_DEPTH` is `1000`. JSON arrays and objects are counted from the parsed root at depth `0`; an array or object reached at depth `1000` is accepted, and one reached at depth `1001` fails with `JsonFrameValidationError` before package traversal can exhaust the JavaScript stack.
+
 ## Quick Start
 
 ```ts
 import { fromOrient } from '@web-ts-toolkit/json-frame';
 
-type WeatherRow = {
+interface WeatherRow {
   city: string;
   temp: number;
-};
+}
 
 const frame = fromOrient<WeatherRow>('[{"city":"Paris","temp":21},{"city":"Rome","temp":30}]');
 const hottest = frame.sort((left, right) => right.temp - left.temp).row(0);
@@ -41,6 +43,8 @@ void [hottest, split];
 - a parsed JSON value with the same shape
 
 The returned `DataFrame` is immutable. `filter`, `sort`, `select`, `rename`, and `resetIndex` all return new frames.
+
+The `TRow` generic is a compile-time row model only. It improves `row()`, `rows()`, `filter()`, and `sort()` types for JSON-compatible domain interfaces, but it does not validate an application schema at runtime; payload validation follows the selected orient contract.
 
 ## Supported Orients
 
@@ -88,22 +92,29 @@ const tablePayload = {
       { name: 'temp', type: 'integer' },
     ],
     primaryKey: ['row_id'],
-    pandas_version: '3.0.3',
+    pandas_version: '1.4.0',
   },
   data: [{ row_id: 'row_1', city: 'Paris', temp: 21 }],
 } satisfies TablePayload;
 
 const tableFrame = fromOrient(tablePayload, { orient: 'table' });
 
-void [recordsFrame, indexFrame, columnsFrame, valuesFrame, splitFrame, tableFrame];
+const splitRoundTrip = fromOrient(splitFrame.toSplit(), { orient: 'split' });
+const tableRoundTrip = fromOrient(tableFrame.toTable(), { orient: 'table' });
+
+void [recordsFrame, indexFrame, columnsFrame, valuesFrame, splitFrame, tableFrame, splitRoundTrip, tableRoundTrip];
 ```
 
 Orient notes:
 
 - `records` and `values` do not carry source index labels. They receive a synthetic numeric index `0..n-1`.
 - `index`, `columns`, `split`, and `table` preserve supported source index labels.
-- `values` always requires `options.columns`, including empty input.
+- `index` and `columns` derive row order from JavaScript object property enumeration. Integer-like keys such as `"10"` and `"2"` enumerate in numeric order after `JSON.parse()` or when supplied as parsed objects, even if the JSON text listed `"10"` first.
+- Use `split` or `table` when exact row order matters for integer-like index labels.
+- Non-empty `values` arrays are auto-detected, but `values` always requires `options.columns` because the payload carries no column labels.
+- Empty `values` input requires both `orient: 'values'` and `columns`.
 - `index` and `columns` are distinct supported payloads, but auto-detection cannot safely distinguish them from nested-object structure alone.
+- In Table Schema payloads, `schema.pandas_version` is the Table Schema format version emitted by pandas, commonly `"1.4.0"`; it is not the installed pandas package version.
 
 ## Auto Detection And Options
 
@@ -126,7 +137,7 @@ Pass an explicit orient for:
 
 Other `fromOrient` options:
 
-- `columns`: required for `orient: 'values'`
+- `columns`: required whenever the payload is `values`, including non-empty `values` arrays detected by `auto`
 - `columnTypes`: explicit logical types for non-table inputs
 - `packThreshold`: minimum length for internal numeric typed-array packing; `0` disables packing
 
@@ -189,11 +200,11 @@ Exporters:
 ```ts
 import { fromOrient } from '@web-ts-toolkit/json-frame';
 
-type WeatherRow = {
+interface WeatherRow {
   city: string;
   temp: number | null;
   coastal: boolean;
-};
+}
 
 const frame = fromOrient<WeatherRow>(
   [
@@ -231,7 +242,25 @@ Transform behavior:
 - filtering and sorting preserve index labels
 - `resetIndex()` is the only transform that replaces the current index with `0..n-1`
 - `rename` ignores keys that are not current columns and rejects duplicate results
-- exporters always return fresh JSON-compatible containers
+- exporters return fresh top-level JSON-compatible arrays/records for the exported orient
+
+Structural immutability is shallow. Frame-owned arrays, row records, exporter containers, table schema records, and internal maps are protected from direct mutation or are freshly allocated. Nested JSON object or array cell values are not deep-frozen or deep-cloned on every read/export; if caller code mutates one of those nested values after obtaining it from `row()`, `rows()`, or an exporter, another read of the same cell may observe that mutation.
+
+```ts
+import { fromOrient } from '@web-ts-toolkit/json-frame';
+
+const frame = fromOrient([{ city: 'Paris', details: { tags: ['capital'] } }], { orient: 'records' });
+const exported = frame.toRecords();
+const details = exported[0]!.details as { tags: string[] };
+
+details.tags.push('visited');
+
+const reread = frame.row(0).details as { tags: readonly string[] };
+
+void reread.tags;
+```
+
+Treat nested object/array cells as caller-owned mutable JSON values. Clone them at your application boundary if you need deep immutability.
 
 ## Logical Types And Packing
 
@@ -250,10 +279,16 @@ Supported logical types:
 
 Type rules:
 
-- Table Schema metadata is authoritative when `orient: 'table'` is used.
+- Table Schema metadata is preserved when `orient: 'table'` is used; pandas-authored field metadata remains caller/pandas responsibility.
 - Other orients infer the narrowest logical type by scanning the full column.
+- `options.columnTypes` supplies explicit logical types for non-table inputs. Declared types are validated against every non-null cell before packing; incompatible cells fail with `JsonFrameValidationError` carrying `path`, `row`, `column`, and `value` diagnostics.
+- Explicit `integer`, `float`, `string`, and `boolean` require matching JSON scalar cells. `float` accepts integer JSON numbers because Table Schema `number` accepts both integer and fractional JSON numbers.
+- Explicit `datetime` accepts pandas-style timezone-naive ISO date/datetime strings such as `2024-01-02T03:04:05.000`, `2024-01-02 03:04:05`, or `2024-01-02`. Numeric epoch cells are rejected because generated Table Schema has no unit metadata and pandas reads numeric `datetime` cells as nanoseconds.
+- Explicit `categorical` accepts non-null scalar JSON cells (`string`, `number`, or `boolean`) and generated table output emits `type: 'any'` with `extDtype: 'category'` unless source Table Schema field metadata is being preserved.
+- Explicit `mixed` and `unknown` accept any JSON-compatible cell value.
 - `null` marks a column as nullable without forcing an otherwise numeric column to become `mixed`.
-- ISO-looking strings are preserved as strings unless table metadata or explicit `columnTypes` says otherwise.
+- ISO-looking strings are preserved as strings unless table metadata or compatible explicit `columnTypes` says otherwise.
+- Values are never coerced to satisfy logical type metadata.
 
 Packing rules:
 
@@ -266,12 +301,16 @@ Packing rules:
 
 Round trips are semantic rather than byte-for-byte.
 
-- column order, row order, and cell JSON values are preserved
-- label-bearing orients preserve supported source index labels
+- column order and cell JSON values are preserved
+- `split` and `table` preserve row order exactly
+- `index` and `columns` row order follows JavaScript property enumeration for object keys; use `split` or `table` when exact order matters for integer-like labels
+- label-bearing orients preserve supported source index labels, subject to object-key stringification for `index`/`columns`
 - `records` and `values` use a synthetic numeric index because the wire format does not carry labels
 - `toRecords()` and `toValues()` never invent an `_index` column
 - `toIndex()` and `toColumns()` stringify index labels as JSON object keys and throw if distinct labels would collide after stringification
-- `toTable()` emits valid Table Schema and omits a synthetic index from table output
+- `toTable()` emits valid Table Schema, omits a synthetic index from table output, and rejects duplicate source index labels because emitted table primary keys must be unique
+- table primary-key equality uses JavaScript `Map`/SameValueZero semantics for supported string and finite-number labels, so numeric `1` and string `'1'` are distinct table labels even though object-key exporters reject them as stringification collisions
+- Table Schema metadata is cloned under the same `JSON_FRAME_MAX_DEPTH` policy used while parsing. `toTable()` and `toJSONString('table')` report over-depth metadata as `JsonFrameValidationError`.
 
 ## Errors
 
@@ -279,10 +318,30 @@ Structured runtime errors are exported from the package root.
 
 - `JsonFrameParseError`: invalid JSON string input; original `SyntaxError` is available as `cause`
 - `JsonFrameOptionError`: invalid options such as bad `packThreshold` or missing `columns` for `values`
-- `JsonFrameValidationError`: payload shape or JSON-value validation failure
+- `JsonFrameValidationError`: payload shape, transform argument, or JSON-value validation failure
 - `AmbiguousOrientError`: `auto` mode cannot distinguish between multiple valid orients
 - `UnsupportedFeatureError`: supported contract deliberately excludes the requested pandas feature
 - `ExportKeyCollisionError`: object-key exporters would collapse distinct index labels to the same JSON key
+
+`JsonFrameError` instances expose `orient`, `path`, `row`, `column`, and `value` when relevant. Scalar JSON diagnostic values (`string`, finite or non-finite `number`, `boolean`, `null`) are retained directly. Arrays, objects, functions, symbols, bigints, undefined values, and cyclic containers are replaced with small frozen summaries, so retaining an error does not retain caller-owned payloads and `JSON.stringify(error)` does not invoke user serialization hooks.
+
+Diagnostic summary shapes are:
+
+```ts
+type JsonFrameDiagnosticValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { readonly kind: 'array'; readonly length: number }
+  | {
+      readonly kind: 'object';
+      readonly keyCount: number;
+      readonly keys: readonly string[];
+      readonly truncated: boolean;
+    }
+  | { readonly kind: 'undefined' | 'symbol' | 'bigint' | 'function' };
+```
 
 ## Unsupported Pandas Features In The Initial Release
 
