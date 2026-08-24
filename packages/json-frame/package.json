@@ -31,6 +31,7 @@
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",
+    "bench:jfh-07": "vitest run --config ../../vitest.config.ts test/benchmark/jfh-07.benchmark.test.ts",
     "test": "pnpm typecheck && vitest run --config ../../vitest.config.ts",
     "typecheck": "pnpm --filter @web-ts-toolkit/json-frame... build && pnpm typecheck:source && pnpm typecheck:nodenext-strict && pnpm typecheck:bundler-strict && pnpm typecheck:bundler-browser",
     "typecheck:source": "tsc --noEmit -p tsconfig.json",

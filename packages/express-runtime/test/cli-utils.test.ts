@@ -242,6 +242,12 @@ describe('parseArgs — dev', () => {
     expect(result?.subcommand === 'dev' && result.dev.tsconfigPath).toBe('./tsconfig.runtime.json');
   });
 
+  it('rejects conflicting repeated --tsconfig values', () => {
+    expect(() => parseArgs(['dev', './app.js', '--tsconfig', './a.json', '--tsconfig=./b.json'])).toThrow(
+      'Conflicting --tsconfig values',
+    );
+  });
+
   it('parses --watch', () => {
     const result = parseArgs(['dev', './app.js', '--watch', './src']);
     expect(result?.subcommand === 'dev' && result.dev.watch).toEqual(['./src']);
@@ -363,6 +369,12 @@ describe('parseArgs — build', () => {
   it('parses --tsconfig=', () => {
     const result = parseArgs(['build', './src/app.ts', '--tsconfig=./tsconfig.runtime.json']);
     expect(result?.subcommand === 'build' && result.build.tsconfigPath).toBe('./tsconfig.runtime.json');
+  });
+
+  it('rejects conflicting repeated --tsconfig values', () => {
+    expect(() => parseArgs(['build', './src/app.ts', '--tsconfig', './a.json', '--tsconfig=./b.json'])).toThrow(
+      'Conflicting --tsconfig values',
+    );
   });
 
   it('parses --out-dir', () => {

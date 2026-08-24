@@ -11,6 +11,9 @@ import {
   resolveSiteTarget,
   setSiteEnvVar,
   verifySiteEnvVar,
+  getClient,
+  _resetClient,
+  MAX_SITE_LIST_PAGES,
   type NetlifyApiClient,
 } from '../scripts/netlify-api';
 
@@ -174,6 +177,40 @@ describe('fetchSiteByName', () => {
     const result = await fetchSiteByName(AUTH_TOKEN, 'my-site', client);
     expect(result).toBeNull();
   });
+
+  it('stops at the bounded pagination limit', async () => {
+    const listSites = vi.fn(async () =>
+      Array.from({ length: 100 }, (_, index) => ({ id: `s${index}`, name: `other-${index}` })),
+    );
+    await expect(fetchSiteByName(AUTH_TOKEN, 'my-site', makeMockClient({ listSites }))).rejects.toThrow(
+      `exceeded ${MAX_SITE_LIST_PAGES} pages`,
+    );
+    expect(listSites).toHaveBeenCalledTimes(MAX_SITE_LIST_PAGES);
+  });
+});
+
+describe('getClient', () => {
+  beforeEach(_resetClient);
+  afterEach(_resetClient);
+
+  it('reuses a client only for the same auth token', async () => {
+    const factory = vi.fn(async (token: string) => makeMockClient({ getSite: async () => ({ id: token }) }));
+    const first = await getClient('token-one', factory);
+    expect(await getClient('token-one', factory)).toBe(first);
+    const second = await getClient('token-two', factory);
+    expect(second).not.toBe(first);
+    expect(factory.mock.calls.map(([token]) => token)).toEqual(['token-one', 'token-two']);
+  });
+
+  it('does not retain a rejected client construction', async () => {
+    const factory = vi
+      .fn<(token: string) => Promise<NetlifyApiClient>>()
+      .mockRejectedValueOnce(new Error('load failed'))
+      .mockResolvedValueOnce(makeMockClient());
+    await expect(getClient('retry-token', factory)).rejects.toThrow('load failed');
+    await expect(getClient('retry-token', factory)).resolves.toBeDefined();
+    expect(factory).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('resolveSiteId', () => {
@@ -292,18 +329,55 @@ describe('setSiteEnvVar', () => {
       getEnvVars: async () => [],
       createEnvVars: async () => ({}),
     });
-    await setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', {}, client);
+    await setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', { sensitive: true }, client);
     expect(client.createEnvVars).toHaveBeenCalledTimes(1);
     expect(client.setEnvVarValue).not.toHaveBeenCalled();
+    expect(client.createEnvVars).toHaveBeenCalledWith({
+      account_id: 'acc-1',
+      site_id: 'site-1',
+      body: [
+        {
+          key: 'MONGODB_URI',
+          is_secret: true,
+          values: [{ context: 'all', value: 'mongodb://localhost' }],
+        },
+      ],
+    });
+  });
+
+  it('creates public API configuration as non-secret', async () => {
+    const client = makeMockClient({
+      getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
+      getEnvVars: async () => [],
+    });
+    await setSiteEnvVar(AUTH_TOKEN, 'site-1', 'API_BASE_URL', '/.netlify/functions/main', { sensitive: false }, client);
+    expect(client.createEnvVars).toHaveBeenCalledWith({
+      account_id: 'acc-1',
+      site_id: 'site-1',
+      body: [
+        {
+          key: 'API_BASE_URL',
+          is_secret: false,
+          values: [{ context: 'all', value: '/.netlify/functions/main' }],
+        },
+      ],
+    });
   });
 
   it('updates an existing env var via setEnvVarValue', async () => {
     const client = makeMockClient({
       getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
-      getEnvVars: async () => [{ key: 'MONGODB_URI' }],
+      getEnvVars: async () => [{ key: 'MONGODB_URI', is_secret: true, scopes: ['functions'] }],
       setEnvVarValue: async () => ({}),
     });
-    await setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', {}, client);
+    await setSiteEnvVar(
+      AUTH_TOKEN,
+      'site-1',
+      'MONGODB_URI',
+      'mongodb://localhost',
+      { paidTier: true, sensitive: true },
+      client,
+    );
     expect(client.setEnvVarValue).toHaveBeenCalledTimes(1);
     expect(client.createEnvVars).not.toHaveBeenCalled();
   });
@@ -319,7 +393,7 @@ describe('setSiteEnvVar', () => {
       'site-1',
       'MONGODB_URI',
       'mongodb://localhost',
-      { context: 'branch:staging' },
+      { context: 'branch:staging', sensitive: true },
       client,
     );
     const call = (client.createEnvVars as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -336,9 +410,17 @@ describe('setSiteEnvVar', () => {
       getEnvVars: async () => [],
       createEnvVars: async () => ({}),
     });
-    await setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', { paidTier: true }, client);
+    await setSiteEnvVar(
+      AUTH_TOKEN,
+      'site-1',
+      'MONGODB_URI',
+      'mongodb://localhost',
+      { paidTier: true, sensitive: true },
+      client,
+    );
     const call = (client.createEnvVars as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.body[0].scopes).toEqual(['functions']);
+    expect(call.body[0].is_secret).toBe(true);
   });
 
   it('omits scopes on free tier to avoid 403 from granular-scope gating', async () => {
@@ -347,10 +429,11 @@ describe('setSiteEnvVar', () => {
       getEnvVars: async () => [],
       createEnvVars: async () => ({}),
     });
-    await setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', {}, client);
+    await setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', { sensitive: true }, client);
     const call = (client.createEnvVars as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.body[0].scopes).toBeUndefined();
     expect(call.body[0].key).toBe('MONGODB_URI');
+    expect(call.body[0].is_secret).toBe(true);
     expect(call.body[0].values[0]).toEqual({ context: 'all', value: 'mongodb://localhost' });
   });
 
@@ -362,9 +445,9 @@ describe('setSiteEnvVar', () => {
         throw httpError(403, 'Forbidden');
       },
     });
-    await expect(setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', {}, client)).rejects.toThrow(
-      /HTTP 403 Forbidden/,
-    );
+    await expect(
+      setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', { sensitive: true }, client),
+    ).rejects.toThrow(/HTTP 403 Forbidden/);
   });
 
   it('bails with a clear message on 401 while listing env vars', async () => {
@@ -374,9 +457,79 @@ describe('setSiteEnvVar', () => {
         throw httpError(401, 'Access Denied');
       },
     });
-    await expect(setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', {}, client)).rejects.toThrow(
-      'Netlify auth token is invalid or expired. The API responded with 401 Access Denied.',
+    await expect(
+      setSiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', 'mongodb://localhost', { sensitive: true }, client),
+    ).rejects.toThrow('Netlify auth token is invalid or expired. The API responded with 401 Access Denied.');
+  });
+
+  it('reconciles existing paid-tier scope and sensitivity with an exact replace-all payload', async () => {
+    const client = makeMockClient({
+      getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
+      getEnvVars: async () => [
+        {
+          key: 'MONGODB_URI',
+          is_secret: false,
+          scopes: ['builds', 'functions'],
+          values: [
+            { id: 'value-1', context: 'production', value: 'old-production' },
+            { id: 'value-2', context: 'deploy-preview', value: 'keep-preview' },
+          ],
+        },
+      ],
+    });
+
+    await setSiteEnvVar(
+      AUTH_TOKEN,
+      'site-1',
+      'MONGODB_URI',
+      'new-production',
+      { paidTier: true, context: 'production', sensitive: true },
+      client,
     );
+
+    expect(client.setEnvVarValue).not.toHaveBeenCalled();
+    expect(client.updateEnvVar).toHaveBeenCalledWith({
+      account_id: 'acc-1',
+      key: 'MONGODB_URI',
+      site_id: 'site-1',
+      body: {
+        key: 'MONGODB_URI',
+        scopes: ['functions'],
+        is_secret: true,
+        values: [
+          { context: 'deploy-preview', value: 'keep-preview' },
+          { context: 'production', value: 'new-production' },
+        ],
+      },
+    });
+  });
+
+  it('fails with precise migration guidance when hidden values prevent safe metadata reconciliation', async () => {
+    const client = makeMockClient({
+      getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
+      getEnvVars: async () => [
+        {
+          key: 'MONGODB_URI',
+          is_secret: true,
+          scopes: ['builds', 'functions'],
+          values: [{ context: 'production' }],
+        },
+      ],
+    });
+
+    await expect(
+      setSiteEnvVar(
+        AUTH_TOKEN,
+        'site-1',
+        'MONGODB_URI',
+        'new-production',
+        { paidTier: true, context: 'production', sensitive: true },
+        client,
+      ),
+    ).rejects.toThrow(
+      'preserve every context value, set MONGODB_URI to secret with Functions scope only, then rerun this deploy',
+    );
+    expect(client.updateEnvVar).not.toHaveBeenCalled();
   });
 });
 
@@ -389,13 +542,26 @@ describe('verifySiteEnvVar', () => {
     vi.restoreAllMocks();
   });
 
-  it('returns present when the key is found', async () => {
+  it('verifies context, scope, and sensitivity from API metadata', async () => {
     const client = makeMockClient({
       getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
-      getEnvVars: async () => [{ key: 'MONGODB_URI' }, { key: 'OTHER' }],
+      getEnvVars: async () => [
+        {
+          key: 'MONGODB_URI',
+          is_secret: true,
+          scopes: ['functions'],
+          values: [{ context: 'branch', context_parameter: 'staging' }],
+        },
+      ],
     });
-    const result = await verifySiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', {}, client);
-    expect(result).toBe('present');
+    const result = await verifySiteEnvVar(
+      AUTH_TOKEN,
+      'site-1',
+      'MONGODB_URI',
+      { context: 'branch:staging', paidTier: true, sensitive: true },
+      client,
+    );
+    expect(result).toEqual({ status: 'verified' });
   });
 
   it('returns missing when the key is not found', async () => {
@@ -403,8 +569,39 @@ describe('verifySiteEnvVar', () => {
       getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
       getEnvVars: async () => [{ key: 'OTHER' }],
     });
-    const result = await verifySiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', {}, client);
-    expect(result).toBe('missing');
+    const result = await verifySiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', { sensitive: true }, client);
+    expect(result).toEqual({ status: 'missing' });
+  });
+
+  it('does not infer configuration from key presence when metadata is unavailable', async () => {
+    const client = makeMockClient({
+      getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
+      getEnvVars: async () => [{ key: 'MONGODB_URI' }],
+    });
+    const result = await verifySiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', { sensitive: true }, client);
+    expect(result).toEqual({ status: 'unknown', unavailable: ['context', 'sensitivity', 'scope'] });
+  });
+
+  it('reports metadata mismatches instead of key-only success', async () => {
+    const client = makeMockClient({
+      getSite: async () => ({ id: 'site-1', account_id: 'acc-1' }),
+      getEnvVars: async () => [
+        {
+          key: 'MONGODB_URI',
+          is_secret: false,
+          scopes: ['builds', 'functions'],
+          values: [{ context: 'deploy-preview' }],
+        },
+      ],
+    });
+    const result = await verifySiteEnvVar(
+      AUTH_TOKEN,
+      'site-1',
+      'MONGODB_URI',
+      { context: 'production', paidTier: true, sensitive: true },
+      client,
+    );
+    expect(result).toEqual({ status: 'mismatch', mismatches: ['context', 'sensitivity', 'scope'] });
   });
 
   it('returns unknown on error', async () => {
@@ -414,7 +611,7 @@ describe('verifySiteEnvVar', () => {
         throw new Error('network');
       },
     });
-    const result = await verifySiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', {}, client);
-    expect(result).toBe('unknown');
+    const result = await verifySiteEnvVar(AUTH_TOKEN, 'site-1', 'MONGODB_URI', { sensitive: true }, client);
+    expect(result).toEqual({ status: 'unknown', unavailable: ['context', 'scope', 'sensitivity'] });
   });
 });

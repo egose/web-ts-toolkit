@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { JsonFrameValidationError } from '../../src/errors';
-import { createFrameState } from '../../src/frame/column';
+import { createFrameState, getColumnOperationCounters, resetColumnOperationCounters } from '../../src/frame/column';
 import { createDataFrame as createInternalDataFrame, getDataFrameState } from '../../src/frame/DataFrame';
 import { normalizeFromOrientOptions } from '../../src/options';
 import { parseInput } from '../../src/parse';
@@ -9,6 +9,18 @@ const buildDataFrame = (input: string | unknown, options: Parameters<typeof norm
   const normalized = normalizeFromOrientOptions(options);
   const parsed = parseInput(input, normalized);
   return createInternalDataFrame(createFrameState(parsed, normalized), normalized.packThreshold);
+};
+
+const expectValidationError = (run: () => void): JsonFrameValidationError => {
+  let thrown: unknown;
+  try {
+    run();
+  } catch (error) {
+    thrown = error;
+  }
+
+  expect(thrown).toBeInstanceOf(JsonFrameValidationError);
+  return thrown as JsonFrameValidationError;
 };
 
 describe('DataFrame', () => {
@@ -106,6 +118,66 @@ describe('DataFrame', () => {
     expect(filtered.rows()).toEqual([{ count: 2 }, { count: 3 }]);
   });
 
+  it('reads a single row through scalar stored-column access without materializing full columns', () => {
+    const rowCount = 1000;
+    const columns = ['a', 'b', 'c', 'd'];
+    const frame = buildDataFrame(
+      Array.from({ length: rowCount }, (_, row) => columns.map((_, column) => row * columns.length + column)),
+      { orient: 'values', columns, packThreshold: 1 },
+    );
+
+    resetColumnOperationCounters();
+    expect(frame.row(0)).toEqual({ a: 0, b: 1, c: 2, d: 3 });
+
+    expect(getColumnOperationCounters()).toMatchObject({
+      materializeColumnCalls: 0,
+      materializedCells: 0,
+      scalarReads: columns.length,
+      rebuiltCells: 0,
+    });
+  });
+
+  it('rebuilds filter and sort from stored columns without a second full materialization', () => {
+    const columns = ['id', 'score', 'maybe'];
+    const frame = buildDataFrame(
+      [
+        [3, 30, null],
+        [1, 10, 1],
+        [2, 20, null],
+        [4, 40, 4],
+      ],
+      { orient: 'values', columns, packThreshold: 1 },
+    );
+
+    resetColumnOperationCounters();
+    const filtered = frame.filter((row) => row.maybe !== null);
+    expect(filtered.rows()).toEqual([
+      { id: 1, score: 10, maybe: 1 },
+      { id: 4, score: 40, maybe: 4 },
+    ]);
+    expect(getColumnOperationCounters()).toMatchObject({
+      materializeColumnCalls: 0,
+      materializedCells: 0,
+      rebuiltCells: 2 * columns.length,
+    });
+    expect(getDataFrameState(filtered).columnInfo.get('maybe')).toEqual({ type: 'integer', nullable: false });
+
+    resetColumnOperationCounters();
+    const sorted = frame.sort((left, right) => Number(left.id) - Number(right.id));
+    expect(sorted.rows()).toEqual([
+      { id: 1, score: 10, maybe: 1 },
+      { id: 2, score: 20, maybe: null },
+      { id: 3, score: 30, maybe: null },
+      { id: 4, score: 40, maybe: 4 },
+    ]);
+    expect(getColumnOperationCounters()).toMatchObject({
+      materializeColumnCalls: 0,
+      materializedCells: 0,
+      rebuiltCells: frame.length * columns.length,
+    });
+    expect(getDataFrameState(sorted).columnInfo.get('maybe')).toEqual({ type: 'integer', nullable: true });
+  });
+
   it('rejects invalid row positions, unknown selections, duplicate selections, and rename collisions', () => {
     const frame = buildDataFrame(
       [
@@ -123,6 +195,76 @@ describe('DataFrame', () => {
     expect(() => frame.rename({ label: 'count' })).toThrowError(JsonFrameValidationError);
   });
 
+  it('validates rename mapping shape and applied values before rebuilding', () => {
+    const frame = buildDataFrame(
+      [
+        [1, 'x'],
+        [2, 'y'],
+      ],
+      { orient: 'values', columns: ['count', 'label'] },
+    );
+    const originalColumns = frame.columns;
+    const originalRows = frame.rows();
+
+    const nullMappingError = expectValidationError(() => {
+      frame.rename(null as unknown as Readonly<Record<string, string>>);
+    });
+    expect(nullMappingError).toMatchObject({ path: '$.mapping', value: null });
+
+    const arrayMappingError = expectValidationError(() => {
+      frame.rename([] as unknown as Readonly<Record<string, string>>);
+    });
+    expect(arrayMappingError.path).toBe('$.mapping');
+    expect(arrayMappingError.value).toMatchObject({ kind: 'array', length: 0 });
+
+    for (const value of [1, null, { nested: true }, undefined, ['name']] as const) {
+      const mapping = Object.create(null) as Record<string, unknown>;
+      mapping.count = value;
+      mapping.unknown = 1;
+
+      const error = expectValidationError(() => {
+        frame.rename(mapping as Readonly<Record<string, string>>);
+      });
+
+      expect(error.path).toBe('$.mapping["count"]');
+      expect(error.column).toBe('count');
+      if (value === null || typeof value === 'number') {
+        expect(error.value).toBe(value);
+      } else if (value === undefined) {
+        expect(error.value).toMatchObject({ kind: 'undefined' });
+      } else if (Array.isArray(value)) {
+        expect(error.value).toMatchObject({ kind: 'array', length: 1 });
+      } else {
+        expect(error.value).toMatchObject({ kind: 'object', keyCount: 1 });
+      }
+      expect(frame.columns).toEqual(originalColumns);
+      expect(frame.rows()).toEqual(originalRows);
+    }
+
+    expect(frame.rename({ unknown: 1 } as unknown as Readonly<Record<string, string>>).columns).toEqual(
+      originalColumns,
+    );
+  });
+
+  it('validates filter and sort callbacks before materializing transforms', () => {
+    const frame = buildDataFrame([[1], [2]], { orient: 'values', columns: ['count'] });
+    const originalRows = frame.rows();
+
+    const filterError = expectValidationError(() => {
+      frame.filter(null as unknown as Parameters<typeof frame.filter>[0]);
+    });
+    expect(filterError).toMatchObject({ path: '$.predicate', value: null });
+
+    const sortError = expectValidationError(() => {
+      frame.sort({ compare: true } as unknown as Parameters<typeof frame.sort>[0]);
+    });
+    expect(sortError.path).toBe('$.compare');
+    expect(sortError.value).toMatchObject({ kind: 'object', keyCount: 1 });
+    expect(Object.isFrozen(sortError.value)).toBe(true);
+
+    expect(frame.rows()).toEqual(originalRows);
+  });
+
   it('treats prototype-sensitive labels as ordinary columns through access and transforms', () => {
     const frame = buildDataFrame(
       [
@@ -135,21 +277,26 @@ describe('DataFrame', () => {
       },
     );
 
+    const mapping = Object.create(null) as Record<string, string>;
+    mapping.__proto__ = 'protoValue';
+    mapping.constructor = 'kind';
+    mapping.prototype = 'type';
+
     const row = frame.row(0) as Record<string, unknown>;
-    const transformed = frame.select('constructor', '__proto__').rename({ constructor: 'kind' });
+    const transformed = frame.rename(mapping);
     const transformedRows = transformed.rows() as Array<Record<string, unknown>>;
 
     expect(row.__proto__).toBe(1);
     expect(row.constructor).toBe(2);
     expect(row.prototype).toBe(3);
-    expect(transformed.columns).toEqual(['kind', '__proto__']);
+    expect(transformed.columns).toEqual(['protoValue', 'kind', 'type']);
     expect(transformedRows.map((entry) => Object.keys(entry))).toEqual([
-      ['kind', '__proto__'],
-      ['kind', '__proto__'],
+      ['protoValue', 'kind', 'type'],
+      ['protoValue', 'kind', 'type'],
     ]);
-    expect(transformedRows.map((entry) => [entry.kind, entry.__proto__])).toEqual([
-      [2, 1],
-      [5, 4],
+    expect(transformedRows.map((entry) => [entry.protoValue, entry.kind, entry.type])).toEqual([
+      [1, 2, 3],
+      [4, 5, 6],
     ]);
     expect(Object.getPrototypeOf(transformed.row(0))).toBeNull();
   });

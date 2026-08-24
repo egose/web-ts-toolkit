@@ -411,9 +411,9 @@ export interface LocalServer {
    * Trigger graceful shutdown. Stops accepting new connections first, drains
    * in-flight requests up to `shutdownTimeout`, then runs `onShutdown`.
    * `shutdownTimeout` covers only request draining; `onShutdown` errors are
-   * logged and do not reject. Memoized so concurrent calls/signals execute
-   * at most once. If `exitAfterShutdown` is `true`, the process exits before
-   * the promise resolves.
+   * logged and reject. Memoized so concurrent calls/signals execute at most
+   * once. If `exitAfterShutdown` is `true`, the process exits before the
+   * promise resolves.
    */
   shutdown: () => Promise<void>;
   /**
@@ -678,13 +678,24 @@ export function startLocalServer(app: Express, options: LocalServerOptions = {})
     });
 
     // Drain complete — now run application cleanup under documented policy:
-    // shutdownTimeout covers only draining; onShutdown errors are logged and do not reject shutdown.
+    // shutdownTimeout covers only draining; cleanup failure is reported and
+    // propagates unless the CLI-owned process exit path handles it here.
+    let shutdownError: unknown;
     try {
       if (options.onShutdown) {
         await options.onShutdown();
       }
     } catch (err) {
       logger.error('onShutdown hook failed:', err);
+      shutdownError = err;
+    }
+
+    if (shutdownError) {
+      state = 'failed';
+      if (options.exitAfterShutdown) {
+        process.exit(1);
+      }
+      throw shutdownError;
     }
 
     state = 'stopped';
@@ -707,7 +718,7 @@ export function startLocalServer(app: Express, options: LocalServerOptions = {})
         : (options.signals as ReadonlyArray<NodeJS.Signals>);
     for (const sig of list) {
       const handler = () => {
-        void shutdown();
+        void shutdown().catch(() => {});
       };
       ownedSignalHandlers.set(sig, handler);
       process.once(sig as string, handler);

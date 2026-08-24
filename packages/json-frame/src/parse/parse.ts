@@ -5,11 +5,11 @@ import {
   JsonFrameValidationError,
   UnsupportedFeatureError,
 } from '../errors';
+import { cloneJsonCompatible } from '../json';
 import type { NormalizedFromOrientOptions } from '../options';
 import type {
   IndexKind,
   IndexLabel,
-  JsonObject,
   JsonValue,
   ResolvedOrient,
   TableSchema,
@@ -51,6 +51,26 @@ const assertSupportedIndexLabel = (value: JsonValue, orient: ResolvedOrient, pat
     path,
     value,
   });
+};
+
+const assertUniqueTablePrimaryKeyLabel = (
+  seen: Map<IndexLabel, number>,
+  label: IndexLabel,
+  row: number,
+  column: string,
+  path: string,
+): void => {
+  if (seen.has(label)) {
+    throw new JsonFrameValidationError('Table primary-key values must be unique.', {
+      orient: 'table',
+      path,
+      row,
+      column,
+      value: label,
+    });
+  }
+
+  seen.set(label, row);
 };
 
 const assertUniqueStringColumns = (
@@ -132,71 +152,6 @@ const finalizeFrame = ({
     ...(tableSchema === undefined ? {} : { tableSchema }),
     ...(tableIndexField === undefined ? {} : { tableIndexField }),
   };
-};
-
-const validateJsonCompatible = (value: unknown, path = '$', stack = new Set<object>()): JsonValue => {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
-    return value;
-  }
-
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) {
-      throw new JsonFrameValidationError('Numbers must be finite JSON values.', { path, value });
-    }
-
-    return value;
-  }
-
-  if (
-    typeof value === 'undefined' ||
-    typeof value === 'function' ||
-    typeof value === 'symbol' ||
-    typeof value === 'bigint'
-  ) {
-    throw new JsonFrameValidationError('Input must contain only JSON-compatible values.', { path, value });
-  }
-
-  if (Array.isArray(value)) {
-    if (stack.has(value)) {
-      throw new JsonFrameValidationError('Input contains a cyclic array.', { path, value });
-    }
-
-    stack.add(value);
-    const normalized: JsonValue[] = [];
-
-    for (let index = 0; index < value.length; index += 1) {
-      if (!(index in value)) {
-        stack.delete(value);
-        throw new JsonFrameValidationError('Sparse arrays are not valid JSON input.', {
-          path: appendIndexPath(path, index),
-          value,
-        });
-      }
-
-      normalized.push(validateJsonCompatible(value[index], appendIndexPath(path, index), stack));
-    }
-
-    stack.delete(value);
-    return normalized;
-  }
-
-  if (!isPlainObject(value)) {
-    throw new JsonFrameValidationError('Input objects must be plain JSON objects or arrays.', { path, value });
-  }
-
-  if (stack.has(value)) {
-    throw new JsonFrameValidationError('Input contains a cyclic object.', { path, value });
-  }
-
-  stack.add(value);
-  const normalized: Record<string, JsonValue> = Object.create(null) as Record<string, JsonValue>;
-
-  for (const [key, entryValue] of Object.entries(value)) {
-    normalized[key] = validateJsonCompatible(entryValue, appendPropertyPath(path, key), stack);
-  }
-
-  stack.delete(value);
-  return normalized as JsonObject;
 };
 
 export const detectOrient = (value: JsonValue): ResolvedOrient => {
@@ -777,6 +732,7 @@ const parseTable = (value: JsonValue, orient: 'table'): ParsedFrame => {
   const fieldNames = new Set(schema.fields.map((field) => field.name));
   const index: IndexLabel[] = [];
   const indexKind: IndexKind = primaryKey === undefined ? 'synthetic' : 'source';
+  const seenPrimaryKeyLabels = new Map<IndexLabel, number>();
 
   for (let rowIndex = 0; rowIndex < value.data.length; rowIndex += 1) {
     const row = value.data[rowIndex];
@@ -813,9 +769,10 @@ const parseTable = (value: JsonValue, orient: 'table'): ParsedFrame => {
         value: row,
       });
     } else {
-      index.push(
-        assertSupportedIndexLabel(row[primaryKey] as JsonValue, orient, appendPropertyPath(rowPath, primaryKey)),
-      );
+      const primaryKeyPath = appendPropertyPath(rowPath, primaryKey);
+      const indexLabel = assertSupportedIndexLabel(row[primaryKey] as JsonValue, orient, primaryKeyPath);
+      assertUniqueTablePrimaryKeyLabel(seenPrimaryKeyLabels, indexLabel, rowIndex, primaryKey, primaryKeyPath);
+      index.push(indexLabel);
     }
 
     for (const column of columns) {
@@ -851,7 +808,7 @@ export const parseInput = (input: string | unknown, options: NormalizedFromOrien
     }
   })();
 
-  const jsonValue = validateJsonCompatible(parsedValue);
+  const jsonValue = cloneJsonCompatible(parsedValue);
   const orient = options.orient === 'auto' ? detectOrient(jsonValue) : options.orient;
 
   switch (orient) {

@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
  *
  * Built CommonJS runs know their own file path via `__filename`; local `tsx`
  * execution falls back to the invoked script path, resolving symlinks so npm/
- * pnpm bin shims still point back at the package's real `dist/cli.js`.
+ * pnpm bin shims still point back at the package's real `dist/bin/cli.js`.
  */
 export function resolveCliScriptPath(
   currentFilePath: string | undefined,

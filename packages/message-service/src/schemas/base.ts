@@ -41,5 +41,13 @@ export const BaseMessageFields: Record<string, mongoose.SchemaTypeOptions<unknow
   payload: { type: mongoose.Schema.Types.Mixed, default: {} },
   display: { type: mongoose.Schema.Types.Mixed, default: {} },
   clientRequestId: { type: String, default: null },
+  clientRequestOwnerId: { type: String, default: null },
   clientRequestItemIndex: { type: Number, default: null },
+  actionState: { type: String, enum: ['active', 'processing', 'retryable'], default: 'active' },
+  actionCd: { type: String, default: null },
+  actionAttemptId: { type: String, default: null },
+  actionClaimedBy: { type: String, default: null },
+  actionClaimedAt: { type: Date, default: null },
+  actionLeaseExpiresAt: { type: Date, default: null },
+  actionFailureMessage: { type: String, default: null },
 };

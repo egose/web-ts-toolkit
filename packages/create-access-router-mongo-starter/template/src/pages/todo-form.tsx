@@ -1,6 +1,5 @@
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { Button } from '@egose/shadcn-theme/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@egose/shadcn-theme/components/ui/card';
 import { Checkbox } from '@egose/shadcn-theme/components/ui/checkbox';
@@ -13,39 +12,48 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@egose/shadcn-theme/components/ui/select';
-import type { Category } from '../types';
+import { todoFormSchema } from '../shared/entity-schemas';
+import type { Category, TodoFormInput } from '../types';
 
-const todoSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  categoryId: z.string().optional(),
-  completed: z.boolean(),
-});
-
-export type TodoFormValues = z.infer<typeof todoSchema>;
+export type TodoFormValues = TodoFormInput;
 
 interface TodoFormProps {
   categories: Category[];
+  disabled?: boolean;
   initialValues?: Partial<TodoFormValues> & { _id?: string };
   submitLabel: string;
-  onSubmit: (values: TodoFormValues) => void;
+  onSubmit: (values: TodoFormValues) => Promise<boolean>;
   onCancel?: () => void;
 }
 
 const formFieldClass = 'grid gap-2';
 const errorTextClass = 'text-sm text-red-500';
+const descriptionTextClass = 'text-sm text-muted-foreground';
 
 const NONE_CATEGORY = '__none__';
+const titleDescriptionId = 'todo-title-description';
+const titleErrorId = 'todo-title-error';
+const categoryDescriptionId = 'todo-category-description';
 
-export function TodoForm({ categories, initialValues, submitLabel, onSubmit, onCancel }: TodoFormProps) {
+export function TodoForm({
+  categories,
+  disabled = false,
+  initialValues,
+  submitLabel,
+  onSubmit,
+  onCancel,
+}: TodoFormProps) {
   const {
     register,
     handleSubmit,
     control,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<TodoFormValues>({
-    resolver: zodResolver(todoSchema),
+    resolver: zodResolver(todoFormSchema),
     defaultValues: { title: '', categoryId: '', completed: false, ...initialValues },
   });
+  const titleRegistration = register('title');
 
   return (
     <Card>
@@ -53,11 +61,32 @@ export function TodoForm({ categories, initialValues, submitLabel, onSubmit, onC
         <CardTitle>{initialValues?._id ? 'Edit todo' : 'New todo'}</CardTitle>
       </CardHeader>
       <CardContent>
-        <form className="grid gap-4" onSubmit={handleSubmit(onSubmit)}>
+        <form
+          className="grid gap-4"
+          onSubmit={handleSubmit(async (values) => {
+            const completed = await onSubmit(values);
+            if (completed && !initialValues?._id) reset();
+          })}
+        >
           <div className={formFieldClass}>
             <Label htmlFor="title">Title</Label>
-            <Input id="title" placeholder="What needs to be done?" {...register('title')} />
-            {errors.title && <span className={errorTextClass}>{errors.title.message}</span>}
+            <Input
+              id="title"
+              placeholder="What needs to be done?"
+              disabled={disabled}
+              aria-describedby={errors.title ? `${titleDescriptionId} ${titleErrorId}` : titleDescriptionId}
+              aria-invalid={errors.title ? 'true' : 'false'}
+              autoFocus={Boolean(initialValues?._id)}
+              {...titleRegistration}
+            />
+            <span id={titleDescriptionId} className={descriptionTextClass}>
+              Enter 1 to 200 characters.
+            </span>
+            {errors.title && (
+              <span id={titleErrorId} className={errorTextClass}>
+                {errors.title.message}
+              </span>
+            )}
           </div>
 
           <div className={formFieldClass}>
@@ -67,16 +96,17 @@ export function TodoForm({ categories, initialValues, submitLabel, onSubmit, onC
               name="categoryId"
               render={({ field }) => (
                 <Select
+                  disabled={disabled}
                   value={field.value ?? NONE_CATEGORY}
                   onValueChange={(v) => field.onChange(v === NONE_CATEGORY ? '' : v)}
                 >
-                  <SelectTrigger id="categoryId">
+                  <SelectTrigger id="categoryId" aria-describedby={categoryDescriptionId}>
                     <SelectValue placeholder="None" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NONE_CATEGORY}>None</SelectItem>
                     {categories.map((category) => (
-                      <SelectItem key={category._id} value={category._id as string}>
+                      <SelectItem key={category._id} value={category._id}>
                         {category.name}
                       </SelectItem>
                     ))}
@@ -84,6 +114,9 @@ export function TodoForm({ categories, initialValues, submitLabel, onSubmit, onC
                 </Select>
               )}
             />
+            <span id={categoryDescriptionId} className={descriptionTextClass}>
+              Optional category for grouping this todo.
+            </span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -94,6 +127,7 @@ export function TodoForm({ categories, initialValues, submitLabel, onSubmit, onC
                 <Checkbox
                   id="completed"
                   checked={field.value}
+                  disabled={disabled}
                   onCheckedChange={(checked) => field.onChange(checked === true)}
                 />
               )}
@@ -102,11 +136,11 @@ export function TodoForm({ categories, initialValues, submitLabel, onSubmit, onC
           </div>
 
           <div className="flex items-center gap-2">
-            <Button type="submit" variant="primary" disabled={isSubmitting}>
+            <Button type="submit" variant="primary" disabled={disabled || isSubmitting}>
               {submitLabel}
             </Button>
             {onCancel && (
-              <Button type="button" variant="secondary" onClick={onCancel}>
+              <Button type="button" variant="secondary" disabled={disabled} onClick={onCancel}>
                 Cancel
               </Button>
             )}

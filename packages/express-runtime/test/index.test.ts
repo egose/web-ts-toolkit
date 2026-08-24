@@ -775,6 +775,28 @@ describe('startLocalServer', () => {
     expect(onShutdown).toHaveBeenCalledOnce();
   });
 
+  it('awaits, logs, and rejects onShutdown failures for programmatic shutdown', async () => {
+    const logs: string[] = [];
+    const logger: Logger = {
+      log: (...args) => logs.push(args.join(' ')),
+      error: (...args) => logs.push(args.map(String).join(' ')),
+    };
+    const failure = new Error('cleanup failed');
+    const app = createExpressApp();
+    const onShutdown = vi.fn(async () => {
+      throw failure;
+    });
+
+    const local = startLocalServer(app, { port: 0, host: '127.0.0.1', signals: false, onShutdown, logger });
+    servers.push(local.server);
+
+    await waitForListening(local.server);
+    await expect(local.shutdown()).rejects.toBe(failure);
+
+    expect(onShutdown).toHaveBeenCalledOnce();
+    expect(logs.some((line) => line.includes('onShutdown hook failed:'))).toBe(true);
+  });
+
   it('drains in-flight requests during graceful shutdown', async () => {
     const app = createExpressApp();
     const barrier = createRequestBarrier();

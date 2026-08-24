@@ -3,11 +3,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ExportKeyCollisionError, JsonFrameValidationError } from '../../src/errors';
-import { createFrameState } from '../../src/frame/column';
+import { createFrameState, createFrameStateFromData, type FrameState } from '../../src/frame/column';
 import { createDataFrame as createInternalDataFrame, DataFrame, getDataFrameState } from '../../src/frame/DataFrame';
+import { JSON_FRAME_MAX_DEPTH } from '../../src/json';
 import { normalizeFromOrientOptions } from '../../src/options';
 import { parseInput } from '../../src/parse';
-import type { ResolvedOrient, ToTableOptions } from '../../src/types';
+import type { JsonValue, ResolvedOrient, TableSchema, ToTableOptions } from '../../src/types';
 
 const fixtureDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../fixtures/generated');
 
@@ -48,6 +49,14 @@ const reimportExport = (frame: DataFrame, orient: ResolvedOrient, options?: ToTa
 
 const syntheticIndex = (length: number) => Array.from({ length }, (_, index) => index);
 const stringifiedIndex = (index: readonly (string | number)[]) => index.map((label) => String(label));
+const nestedArrays = (depth: number, leaf: JsonValue = 'leaf'): JsonValue => {
+  let value = leaf;
+  for (let index = 0; index < depth; index += 1) {
+    value = [value];
+  }
+
+  return value;
+};
 
 describe('DataFrame exporters', () => {
   const sixOrientFixtures = [
@@ -160,6 +169,52 @@ describe('DataFrame exporters', () => {
       index: [1, '1'],
       data: [[10], [20]],
     });
+    expect(frame.toTable()).toEqual({
+      schema: {
+        fields: [
+          { name: 'index', type: 'any' },
+          { name: 'value', type: 'integer' },
+        ],
+        primaryKey: ['index'],
+      },
+      data: [
+        { index: 1, value: 10 },
+        { index: '1', value: 20 },
+      ],
+    });
+  });
+
+  it('preserves duplicate indexes for non-table orients and rejects them at table export', () => {
+    const frame = buildDataFrame(
+      {
+        columns: ['city'],
+        index: ['same', 'same'],
+        data: [['NYC'], ['LA']],
+      },
+      { orient: 'split' },
+    );
+
+    expect(frame.rows()).toEqual([{ city: 'NYC' }, { city: 'LA' }]);
+    expect(frame.toSplit()).toEqual({
+      columns: ['city'],
+      index: ['same', 'same'],
+      data: [['NYC'], ['LA']],
+    });
+
+    try {
+      frame.toTable();
+      throw new Error('expected duplicate index labels to throw');
+    } catch (error) {
+      const validationError = error as JsonFrameValidationError;
+      expect(validationError).toMatchObject({
+        name: 'JsonFrameValidationError',
+        orient: 'table',
+        path: '$.data[1]["index"]',
+        row: 1,
+        column: 'index',
+        value: 'same',
+      });
+    }
   });
 
   it('reconstructs table schema, preserves metadata, and supports indexField overrides on collision', () => {
@@ -227,6 +282,62 @@ describe('DataFrame exporters', () => {
     });
   });
 
+  it('emits explicit datetime and categorical types without coercing cell values', () => {
+    const frame = buildDataFrame(
+      [
+        { ts: '2024-01-02T03:04:05.000', grade: 1, active: true },
+        { ts: null, grade: 'b', active: false },
+      ],
+      {
+        orient: 'records',
+        columnTypes: { ts: 'datetime', grade: 'categorical', active: 'boolean' },
+      },
+    );
+
+    expect(frame.toRecords()).toEqual([
+      { ts: '2024-01-02T03:04:05.000', grade: 1, active: true },
+      { ts: null, grade: 'b', active: false },
+    ]);
+    expect(frame.toTable()).toEqual({
+      schema: {
+        fields: [
+          { name: 'ts', type: 'datetime' },
+          { name: 'grade', type: 'any', extDtype: 'category' },
+          { name: 'active', type: 'boolean' },
+        ],
+      },
+      data: [
+        { ts: '2024-01-02T03:04:05.000', grade: 1, active: true },
+        { ts: null, grade: 'b', active: false },
+      ],
+    });
+  });
+
+  it('validates generated table schema compatibility before exporting corrupted frame state', () => {
+    const corruptedState: FrameState = {
+      columns: ['value'],
+      index: [0],
+      indexKind: 'synthetic',
+      data: new Map([['value', [1]]]),
+      columnInfo: new Map([['value', { type: 'string', nullable: false }]]),
+    };
+    const frame = createInternalDataFrame(corruptedState, 0);
+
+    try {
+      frame.toTable();
+      throw new Error('expected generated table schema validation to throw');
+    } catch (error) {
+      expect(error).toMatchObject({
+        name: 'JsonFrameValidationError',
+        orient: 'table',
+        path: '$.data[0]["value"]',
+        row: 0,
+        column: 'value',
+        value: 1,
+      });
+    }
+  });
+
   it('preserves table field metadata by field name when the primary-key field is not first', () => {
     const frame = buildDataFrame(
       {
@@ -262,6 +373,52 @@ describe('DataFrame exporters', () => {
         { row_name: 'r1', city: 'LA', temp: 80 },
       ],
     });
+  });
+
+  it('applies the JSON depth policy to table metadata, toTable(), and toJSONString("table")', () => {
+    const accepted = buildDataFrame(
+      {
+        schema: {
+          fields: [{ name: 'value', type: 'any' }],
+          custom: nestedArrays(JSON_FRAME_MAX_DEPTH - 1),
+        },
+        data: [{ value: 1 }],
+      },
+      { orient: 'table' },
+    );
+
+    expect(() => accepted.toTable()).not.toThrow();
+    expect(() => accepted.toJSONString('table')).not.toThrow();
+
+    const rejectedSchema = {
+      fields: [{ name: 'value', type: 'any' }],
+      custom: nestedArrays(JSON_FRAME_MAX_DEPTH + 2),
+    } as TableSchema;
+    const rejected = createInternalDataFrame(
+      createFrameStateFromData(
+        {
+          columns: ['value'],
+          index: ['r0'],
+          indexKind: 'source',
+          data: new Map([['value', [1]]]),
+          tableSchema: rejectedSchema,
+        },
+        normalizeFromOrientOptions({ orient: 'table' }),
+      ),
+      0,
+    );
+
+    for (const action of [() => rejected.toTable(), () => rejected.toJSONString('table')]) {
+      try {
+        action();
+        throw new Error('expected table export to throw');
+      } catch (error) {
+        expect(error).toMatchObject({ name: 'JsonFrameValidationError' });
+        expect(error).not.toBeInstanceOf(RangeError);
+        expect((error as JsonFrameValidationError).path?.startsWith('$.schema["custom"]')).toBe(true);
+        expect((error as JsonFrameValidationError).value).toMatchObject({ kind: 'array' });
+      }
+    }
   });
 
   it('exports identical payloads from packed and unpacked storage', () => {

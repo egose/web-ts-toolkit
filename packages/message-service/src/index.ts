@@ -11,7 +11,10 @@ export type {
   IMessage,
   IMessageArchive,
   IMessageMethods,
+  ActionLifecycleState,
+  ActionNotificationState,
   MessageType,
+  UserId,
   MessageUser,
 } from './types/message';
 
@@ -39,7 +42,12 @@ export {
   BaseMessageFields,
 } from './schemas/base';
 export { MessageSchema, buildMessageSchema } from './schemas/message';
-export type { EmailNotifier, MessageSchemaConfig } from './schemas/message';
+export type {
+  EmailDeliveryFailureEvent,
+  EmailDeliveryFailureStage,
+  EmailNotifier,
+  MessageSchemaConfig,
+} from './schemas/message';
 export { MessageArchiveSchema, buildMessageArchiveSchema } from './schemas/message-archive';
 export { MessageRequestSchema, buildMessageRequestSchema } from './schemas/message-request';
 
@@ -47,7 +55,12 @@ export { MessageRequestSchema, buildMessageRequestSchema } from './schemas/messa
 export { interpolateTemplate, filterActions, isActionAllowed } from './template-engine';
 
 // --- Template Registry ---
-export { TemplateRegistry, defaultRegistry, includesAction } from './template-registry';
+export {
+  TemplateRegistry,
+  TemplateRegistryValidationError,
+  defaultRegistry,
+  includesAction,
+} from './template-registry';
 
 // --- Providers ---
 export { NoopEmailProvider } from './providers/email';
@@ -57,14 +70,31 @@ export type { PaymentProvider } from './providers/payment';
 
 // --- Message Service ---
 export { MessageService } from './message-service';
-export type { MessageServiceOptions } from './message-service';
+export type {
+  MessageServiceModelNames,
+  MessageServiceOptions,
+  PaymentCompensationFailureEvent,
+} from './message-service';
 export {
   GENERIC_NOTIFICATION_TEMPLATE_CD,
+  ActionTemplateMismatchError,
+  ActionConflictError,
+  ActionNotificationPendingError,
+  InvalidMessageUserError,
   MessageArchivedError,
   MessageNotFoundError,
   TemplateNotFoundError,
   ActionNotFoundError,
   ActionNotAllowedError,
+  ActionRetryableError,
+  InvalidClientRequestIdError,
+  InvalidPaginationValueError,
+  ClientRequestPendingError,
+  ClientRequestFailedError,
+  ClientRequestInconsistentStateError,
+  MessageTransactionRequiredError,
+  MessageModelResolutionError,
+  PaymentSessionCompensationError,
 } from './message-service';
 
 // --- Route Factory ---

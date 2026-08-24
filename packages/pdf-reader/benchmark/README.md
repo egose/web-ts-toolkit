@@ -1,17 +1,19 @@
 # `packages/pdf-reader/benchmark/`
 
-Real-browser benchmark tooling for task PDFR-07 in `docs/tasks/20260818-233158-pdf-reader-hardening-follow-up.md`.
+Real-browser benchmark tooling for pdf-reader remediation tasks, including page-level concurrency task PDFR-07 and embedded-image encoding task PDFR2-06.
 
 ## Purpose
 
-This directory measures whether page-level concurrency is worth adding to `@web-ts-toolkit/pdf-reader`.
+This directory measures whether page-level concurrency or embedded-image output-mode changes are worth adding to `@web-ts-toolkit/pdf-reader`.
 
 The benchmark intentionally compares:
 
 - the current package behavior: serial streaming through `reader.pages()`
-- one candidate bounded strategy: an external scheduler that runs per-page `reader.convert({ pageRange })` work with a hard concurrency limit of `2` while preserving output order
+- one candidate bounded strategy: an external scheduler that runs per-page `convert({ pageRange })` work across two separate `PDFReader` instances while preserving output order
 
-The candidate lives only in benchmark code. PDFR-07 must not add a speculative public API unless the measurements justify it.
+The candidate lives only in benchmark code. It uses separate readers because one `PDFReader` intentionally rejects overlapping `pages()` or `convert()` operations with `OPERATION_IN_PROGRESS`. PDFR-07 must not add a speculative public API unless the measurements justify it.
+
+The PDFR2-06 embedded-image case measures a deterministic fixture page with one inline image, five image XObject paints, and two unique image XObject references. The shipped API still returns embedded-image data URLs; repeated XObject paints are expected to encode once per unique XObject per page.
 
 ## Fixtures
 

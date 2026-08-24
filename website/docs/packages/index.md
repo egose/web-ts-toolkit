@@ -22,6 +22,7 @@ This site is the primary documentation home for the current `web-ts-toolkit` wor
 - [`@web-ts-toolkit/express-oidc-vault-mongodb-store`](./express-oidc-vault-mongodb-store): MongoDB-backed store provider for `express-oidc-vault`.
 - [`@web-ts-toolkit/express-response-handler`](./express-response-handler): return-value response handling for Express routes.
 - [`@web-ts-toolkit/http-errors`](./http-errors): typed HTTP error classes and structured error payload helpers.
+- [`@web-ts-toolkit/json-frame`](./json-frame): pandas-compatible tabular JSON normalization and export with a small immutable DataFrame API.
 - [`@web-ts-toolkit/message-service`](./message-service): template-driven messaging service with Mongoose schemas, route factory, and provider hooks.
 - [`@web-ts-toolkit/mongoose-rxdb`](./mongoose-rxdb): Mongoose-shaped Schema/Document/Query/Model/middleware proxy persisted locally via RxDB (SQLite).
 - [`@web-ts-toolkit/moo`](./moo): Mongoose helpers for schema fields, ObjectId checks, and document plugins.

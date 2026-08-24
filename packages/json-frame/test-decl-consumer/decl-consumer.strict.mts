@@ -7,12 +7,13 @@ import {
   type JsonValue,
   type SplitPayload,
   type TablePayload,
+  type TableSchema,
 } from '@web-ts-toolkit/json-frame';
 
-type WeatherRow = {
+interface WeatherRow {
   city: string;
   temp: number | null;
-};
+}
 
 function expectType<T>(_value: T): void {
   void _value;
@@ -72,7 +73,7 @@ const tableFrame = fromOrient<WeatherRow>(
         { name: 'temp', type: 'integer' },
       ],
       primaryKey: ['row_id'],
-      pandas_version: '3.0.3',
+      pandas_version: '1.4.0',
     },
     data: [{ row_id: 'r1', city: 'Paris', temp: 21 }],
   },
@@ -81,9 +82,62 @@ const tableFrame = fromOrient<WeatherRow>(
 
 const splitPayload: SplitPayload = splitFrame.toSplit();
 const tablePayload: TablePayload = tableFrame.toTable();
+const splitRoundTrip = fromOrient<WeatherRow>(splitPayload, { orient: 'split' });
+const tableRoundTrip = fromOrient<WeatherRow>(tablePayload, { orient: 'table' });
 const recordsJson: string = recordsFrame.toJSONString('records');
 
-void [valuesFrame, indexFrame, columnsFrame, splitPayload, tablePayload, recordsJson, columnsFrame.columns];
+expectType<DataFrame<WeatherRow>>(splitRoundTrip);
+expectType<DataFrame<WeatherRow>>(tableRoundTrip);
+
+interface FunctionRow {
+  city: string;
+  compute: () => number;
+}
+
+interface SymbolRow {
+  city: string;
+  token: symbol;
+}
+
+interface BigIntRow {
+  city: string;
+  count: bigint;
+}
+
+interface DateRow {
+  city: string;
+  observedAt: Date;
+}
+
+interface UndefinedRow {
+  city: string;
+  temp: number | undefined;
+}
+
+// @ts-expect-error known function properties are not JSON-compatible row values
+fromOrient<FunctionRow>('[{"city":"Paris"}]');
+// @ts-expect-error known symbol properties are not JSON-compatible row values
+fromOrient<SymbolRow>('[{"city":"Paris"}]');
+// @ts-expect-error known bigint properties are not JSON-compatible row values
+fromOrient<BigIntRow>('[{"city":"Paris"}]');
+// @ts-expect-error Date instances are not JSON-compatible row values
+fromOrient<DateRow>('[{"city":"Paris"}]');
+// @ts-expect-error explicit undefined is not a JSON-compatible row value
+fromOrient<UndefinedRow>('[{"city":"Paris"}]');
+
+// @ts-expect-error arbitrary Table Schema metadata cannot be explicitly undefined
+const invalidSchemaMetadata = { fields: [], custom: undefined } satisfies TableSchema;
+
+void [
+  valuesFrame,
+  indexFrame,
+  columnsFrame,
+  splitPayload,
+  tablePayload,
+  recordsJson,
+  columnsFrame.columns,
+  invalidSchemaMetadata,
+];
 
 try {
   fromOrient({ r1: { city: 'Paris', temp: 21 } });

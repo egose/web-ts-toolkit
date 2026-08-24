@@ -12,27 +12,30 @@ import { playwright } from '@vitest/browser-playwright';
  *
  * PDF.js worker + canvas + page rendering only behave like production when
  * executed inside a real browser process, so we keep this runner strictly
- * separate from the Node `../../vitest.config.ts` config and invoke it from a
- * dedicated `test:browser` package script (see `package.json`). The two
- * suites execute serially during `pnpm --filter @web-ts-toolkit/pdf-reader
- * test` to satisfy the AGENTS.md race rule about not running `tsup`
- * concurrently across packages.
+ * separate from the Node `vitest.config.mts` config and invoke it from a
+ * dedicated `test:browser` package script (see `package.json`). The two suites
+ * execute serially during `pnpm --filter @web-ts-toolkit/pdf-reader test` to
+ * satisfy the AGENTS.md race rule about not running `tsup` concurrently across
+ * packages.
  *
  * System requirements:
  * - `@vitest/browser-playwright` must be installed in the package (it is, as
- *   a devDependency). Vitest uses Playwright's installed browser binaries;
+ *   a devDependency). Vitest uses Playwright's installed Chromium binary;
  *   `npx playwright install chromium` (or `pnpm --filter
  *   @web-ts-toolkit/pdf-reader exec playwright install chromium`) downloads
  *   Headless Chromium into `~/.cache/ms-playwright/` on first run.
  * - The tests load the *built* ESM bundle from `dist/index.mjs` so they
  *   exercise what an installed browser consumer connects to, not the
  *   TypeScript source.
+ *
+ * Keep `fileParallelism: false`: PDF.js worker configuration is process-global
+ * state in the browser realm and must not be mutated concurrently by files.
  */
 export default defineConfig({
   test: {
     // Browser tests. Vitest's `browser` mode transfers test files into the
-    // real chromium process; `jsdom` is NOT used and is intentionally
-    // absent from this config.
+    // real chromium process; `jsdom` is NOT used and is intentionally absent
+    // from this config.
     browser: {
       enabled: true,
       headless: true,
@@ -45,8 +48,8 @@ export default defineConfig({
     },
     // Run only the browser integration suite. The file uses the
     // `*.browser.ts` suffix (mirroring `@web-ts-toolkit/access-router-client`
-    // uses `access-router-client.browser-smoke.ts`) so the root Node
-    // `vitest.config.ts` default `*.test.ts` glob does not also try to load
+    // uses `access-router-client.browser-smoke.ts`) so the Node
+    // `vitest.config.mts` default `*.test.ts` glob does not also try to load
     // this file in Node, where `pdfjs-dist` cannot resolve `DOMMatrix`.
     include: ['test/**/*.browser.ts'],
     // Serialise browser cases so global PDF.js worker configuration cannot

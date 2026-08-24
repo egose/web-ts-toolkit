@@ -23,13 +23,18 @@ describe('TodoForm', () => {
     const onSubmit = vi.fn();
 
     render(<TodoForm categories={[]} submitLabel="Add todo" onSubmit={onSubmit} />);
+    const title = screen.getByLabelText(/title/i);
+
+    expect(title).toHaveAccessibleDescription('Enter 1 to 200 characters.');
+    expect(title).toHaveAttribute('aria-invalid', 'false');
 
     fireEvent.click(screen.getByRole('button', { name: /add todo/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/title is required/i)).toBeInTheDocument();
+      expect(title).toHaveAccessibleDescription(/enter 1 to 200 characters.*title is required/i);
     });
 
+    expect(title).toHaveAttribute('aria-invalid', 'true');
     expect(onSubmit).not.toHaveBeenCalled();
   });
 });

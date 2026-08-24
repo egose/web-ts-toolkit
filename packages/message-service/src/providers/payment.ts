@@ -6,6 +6,14 @@ import type { UserId } from '../types/message';
  * Host apps implement this to handle payment sessions for messages
  * that require payment (e.g. Stripe, Adyen, Paddle).
  *
+ * Message creation may create external sessions before MongoDB commit. If the
+ * message write or idempotent batch transaction fails, `MessageService` calls
+ * `expireSession()` for every newly created uncommitted session. Providers must
+ * make expiration idempotent because callers may retry cleanup after ambiguous
+ * network or provider failures. If expiration itself fails, message creation
+ * fails with `PaymentSessionCompensationError` and the optional service hook is
+ * invoked for observability.
+ *
  * `priceArgs` is intentionally a free-form `Record<string, unknown>` so
  * providers can accept their own metadata (currency, line items, etc.).
  * Templates should document what they pass.
@@ -19,14 +27,14 @@ export interface PaymentProvider {
   createSession(user: UserId, code: string, priceArgs?: Record<string, unknown>): Promise<string | null>;
 
   /**
-   * Expire a session that was never completed.
-   * Should be idempotent.
+   * Expire a session that was never committed to a usable message.
+   * Must be idempotent.
    */
   expireSession(sessionId: string): Promise<void>;
 
   /**
    * Refund a completed payment.
-   * Should be idempotent.
+   * Must be idempotent.
    */
   refundPayment(sessionId: string): Promise<void>;
 }

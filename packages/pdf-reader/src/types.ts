@@ -47,10 +47,20 @@ export interface PdfReaderLimits {
   maxSourceBytes?: number;
   /** Maximum number of document pages accepted after loading. Defaults to 1,000. */
   maxDocumentPages?: number;
+  /** Maximum PDF.js text items retained for one page. Defaults to 50,000. */
+  maxTextItems?: number;
+  /** Maximum string code units retained across one page's text items. Defaults to 5,000,000. */
+  maxTextCodeUnits?: number;
+  /** Maximum PDF.js operators traversed for embedded-image extraction on one page. Defaults to 100,000. */
+  maxOperatorCount?: number;
   /** Maximum pixels allocated for one rendered page. Defaults to 40 megapixels. */
   maxCanvasPixels?: number;
   /** Maximum pixels allocated while copying one embedded image. Defaults to 25 megapixels. */
   maxEmbeddedImagePixels?: number;
+  /** Maximum extracted embedded images returned for one page. Defaults to 1,000. */
+  maxEmbeddedImages?: number;
+  /** Maximum decoded embedded-image pixels copied across one page. Defaults to 100 megapixels. */
+  maxEmbeddedImagePixelsTotal?: number;
 }
 
 export interface PdfReaderLogger {
@@ -58,8 +68,8 @@ export interface PdfReaderLogger {
 }
 
 export interface PdfReaderSourceInfo {
-  /** The original source value that will be passed to PDF.js if policy allows it. */
-  rawSource: PdfSource;
+  /** Immutable shallow snapshot that will be passed to PDF.js if policy allows it. */
+  rawSource: Readonly<PdfDocumentInitParameters>;
   /** Broad source shape so callers can distinguish direct bytes from URL-based inputs. */
   kind: 'bytes' | 'url' | 'document-init-parameters';
   /** Normalized URL string when one is present on the source. */
@@ -74,10 +84,10 @@ export interface PdfReaderSourceInfo {
   withCredentials: boolean;
 }
 
-export type PdfReaderSourcePolicy = (source: PdfReaderSourceInfo) => void | Promise<void>;
+export type PdfReaderSourcePolicy = (source: PdfReaderSourceInfo) => void | PromiseLike<void>;
 
 export interface PdfReaderOptions {
-  /** Canvas boundary injectable for tests or non-DOM canvas implementations. */
+  /** Creates a fresh DOM `HTMLCanvasElement` for each package-owned page or embedded-image render. */
   canvasFactory?: () => HTMLCanvasElement;
   /** Optional warning sink. The package never writes directly to the console. */
   logger?: PdfReaderLogger;
@@ -150,5 +160,20 @@ export interface PageResult {
   images: ExtractedImage[];
 }
 
+/**
+ * Borrowed PDF.js document proxy returned by `PDFReader.load()`.
+ *
+ * The reader owns lifecycle teardown. Callers may inspect metadata and call
+ * supported PDF.js read methods, but must not call `destroy()` on this proxy
+ * while the `PDFReader` owns it. Use `PDFReader.destroy()` instead.
+ */
 export type LoadedPdfDocument = PDFDocumentProxy;
+
+/**
+ * PDF.js page proxy alias for consumers interoperating with PDF.js APIs.
+ *
+ * `PDFReader.pages()` returns package `PageResult` objects, not raw page
+ * proxies. This alias is exported so applications can type adjacent PDF.js
+ * integration code without relying on unsupported package deep imports.
+ */
 export type LoadedPdfPage = PDFPageProxy;

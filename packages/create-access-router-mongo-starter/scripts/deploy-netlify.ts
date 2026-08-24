@@ -22,23 +22,28 @@
  * Sandbox mode (`--ephemeral` or `--sandbox-dir <path>`) builds into a
  * self-contained deploy directory instead of the project root, so no
  * `dist/`, `netlify/`, `.netlify/`, or `netlify.toml` are written to the repo.
- * Ephemeral sandboxes live under `/tmp/opencode` and are removed on success
+ * Ephemeral sandboxes live under the platform temporary directory and are removed on success
  * unless `--keep-sandbox` is passed.
  */
 import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, resolve } from 'node:path';
-import { cancel, confirm, intro, isCancel, outro, password, select, text } from '@clack/prompts';
+import { cancel, confirm, intro, isCancel, password, select, text } from '@clack/prompts';
+import { parse as parseToml, stringify as stringifyToml, type TomlTable } from 'smol-toml';
 import { readRequiredOptionValue } from '../src/shared/arg-parser';
 import {
   bail,
   buildArtifacts,
   cleanupSandbox,
   collectSecrets,
+  createChildEnvironment,
+  inspectArtifacts,
   keepSandboxOnFailure,
   projectRootOf,
+  redactCommand,
   resolvePaths,
   runCapture,
   SHARED_DEFAULTS,
+  validateSharedDeployOptions,
   BailError,
   type DeployPaths,
   type SharedDeployOptions,
@@ -71,9 +76,34 @@ interface NetlifyDeployResult {
   links?: NetlifyDeployResultLinks;
 }
 
-interface NetlifyCli {
+export interface NetlifyCli {
   command: string;
   argsPrefix: string[];
+}
+
+export interface NetlifyDeployServices {
+  parentEnv: NodeJS.ProcessEnv;
+  buildArtifacts: typeof buildArtifacts;
+  inspectArtifacts: typeof inspectArtifacts;
+  createSite: typeof createSite;
+  fetchSiteByName: typeof fetchSiteByName;
+  resolveSiteId: typeof resolveSiteId;
+  resolveSiteTarget: typeof resolveSiteTarget;
+  setSiteEnvVar: typeof setSiteEnvVar;
+  verifySiteEnvVar: typeof verifySiteEnvVar;
+  runCapture(
+    cli: NetlifyCli,
+    args: string[],
+    env: NodeJS.ProcessEnv,
+    dryRun: boolean,
+    cwd: string,
+    secrets?: string[],
+  ): string;
+  resolveCli(): NetlifyCli;
+  checkBuildTools(options: NetlifyOptions): void;
+  ensureLinkedSite(stateFile: string, siteId: string, dryRun: boolean): void;
+  ensureNetlifyToml(options: NetlifyOptions, paths: DeployPaths): void;
+  log(message?: string): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,10 +118,14 @@ export function resolveDeployContext(options: Pick<NetlifyOptions, 'prod' | 'con
   return options.prod ? 'production' : (options.context ?? 'deploy-preview');
 }
 
-export function planRuntimeSiteEnvVars(apiBaseUrl: string, mongodbUri?: string): Array<{ key: string; value: string }> {
-  const envVars = [{ key: 'API_BASE_URL', value: apiBaseUrl }];
-  if (mongodbUri) envVars.push({ key: 'MONGODB_URI', value: mongodbUri });
-  return envVars;
+export function planRuntimeSiteEnvVars(
+  apiBaseUrl: string,
+  mongodbUri: string,
+): Array<{ key: string; value: string; sensitive: boolean }> {
+  return [
+    { key: 'API_BASE_URL', value: apiBaseUrl, sensitive: false },
+    { key: 'MONGODB_URI', value: mongodbUri, sensitive: true },
+  ];
 }
 
 function resolveNetlifyCli(): NetlifyCli {
@@ -155,15 +189,36 @@ export interface LinkedSite {
   siteName?: string;
 }
 
-export function readLinkedSite(stateFile: string): LinkedSite | null {
+const MANAGED_TOML_HEADER =
+  '# Managed by create-access-router-mongo-starter-deploy-netlify. Do not add user configuration to this file.';
+
+function readLinkedSiteState(stateFile: string): { linked: LinkedSite; data: Record<string, unknown> } | null {
   if (!existsSync(stateFile)) return null;
+  let data: unknown;
   try {
-    const data = JSON.parse(readFileSync(stateFile, 'utf8')) as LinkedSite;
-    if (data.siteId || data.siteName) return data;
-  } catch {
-    /* ignore malformed state */
+    data = JSON.parse(readFileSync(stateFile, 'utf8'));
+  } catch (error) {
+    bail(`Cannot read malformed Netlify link state at ${stateFile}: ${(error as Error).message}`);
   }
-  return null;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    bail(`Invalid Netlify link state at ${stateFile}: expected a JSON object.`);
+  }
+  const record = data as Record<string, unknown>;
+  if (record.siteId !== undefined && typeof record.siteId !== 'string') {
+    bail(`Invalid Netlify link state at ${stateFile}: "siteId" must be a string.`);
+  }
+  if (record.siteName !== undefined && typeof record.siteName !== 'string') {
+    bail(`Invalid Netlify link state at ${stateFile}: "siteName" must be a string.`);
+  }
+  const linked = { siteId: record.siteId as string | undefined, siteName: record.siteName as string | undefined };
+  if (!linked.siteId && !linked.siteName) {
+    bail(`Invalid Netlify link state at ${stateFile}: expected a non-empty "siteId" or "siteName".`);
+  }
+  return { linked, data: record };
+}
+
+export function readLinkedSite(stateFile: string): LinkedSite | null {
+  return readLinkedSiteState(stateFile)?.linked ?? null;
 }
 
 /**
@@ -175,8 +230,9 @@ export function readLinkedSite(stateFile: string): LinkedSite | null {
  * CLI subprocess is needed and nothing in the real project root is mutated
  * when running from a sandbox/ephemeral dir.
  */
-function ensureLinkedSite(stateFile: string, siteId: string, dryRun: boolean): void {
-  const linked = readLinkedSite(stateFile);
+export function ensureLinkedSite(stateFile: string, siteId: string, dryRun: boolean): void {
+  const existing = readLinkedSiteState(stateFile);
+  const linked = existing?.linked;
   if (linked?.siteId === siteId) {
     console.log(`• Site link already present at ${stateFile}`);
     return;
@@ -185,52 +241,137 @@ function ensureLinkedSite(stateFile: string, siteId: string, dryRun: boolean): v
   console.log(`\n• Linking deploy directory to site "${siteId}" …`);
   if (!dryRun) {
     mkdirSync(resolve(stateFile, '..'), { recursive: true });
-    writeFileSync(stateFile, JSON.stringify({ siteId }, null, 2) + '\n');
+    writeFileSync(stateFile, JSON.stringify({ ...existing?.data, siteId }, null, 2) + '\n');
   }
   console.log(`  OK — ${stateFile} now points at site ${siteId}.`);
 }
 
-function ensureNetlifyToml(options: NetlifyOptions, paths: DeployPaths): void {
+function netlifyConfig(options: NetlifyOptions): TomlTable {
+  const directFunctionPath = defaultApiBaseUrl(options.functionsName);
+  const apiBaseUrl = options.apiBaseUrl ?? directFunctionPath;
+  const redirects: TomlTable[] = [];
+  if (apiBaseUrl !== directFunctionPath) {
+    redirects.push({
+      from: `${apiBaseUrl}/*`,
+      to: `${directFunctionPath}/:splat`,
+      status: 200,
+    });
+  }
+  redirects.push({ from: '/*', to: '/index.html', status: 200 });
+  return {
+    build: { base: '', publish: options.distDir },
+    functions: { directory: options.functionsDir, node_bundler: 'esbuild' },
+    redirects,
+  };
+}
+
+export function serializeNetlifyToml(options: NetlifyOptions): string {
+  return `${MANAGED_TOML_HEADER}\n${stringifyToml(netlifyConfig(options))}`;
+}
+
+function isTable(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function sameRequiredNetlifyConfig(actual: TomlTable, expected: TomlTable): boolean {
+  if (!isTable(actual.build) || !isTable(expected.build)) return false;
+  if (!isTable(actual.functions) || !isTable(expected.functions)) return false;
+  const actualRedirects = actual.redirects;
+  const expectedRedirects = expected.redirects;
+  if (!Array.isArray(actualRedirects) || !Array.isArray(expectedRedirects)) return false;
+  const redirectsMatch =
+    actualRedirects.length === expectedRedirects.length &&
+    actualRedirects.every((redirect, index) => {
+      const expectedRedirect = expectedRedirects[index];
+      return (
+        isTable(redirect) &&
+        isTable(expectedRedirect) &&
+        redirect.from === expectedRedirect.from &&
+        redirect.to === expectedRedirect.to &&
+        redirect.status === expectedRedirect.status
+      );
+    });
+  return (
+    actual.build.base === expected.build.base &&
+    actual.build.publish === expected.build.publish &&
+    actual.functions.directory === expected.functions.directory &&
+    actual.functions.node_bundler === expected.functions.node_bundler &&
+    redirectsMatch
+  );
+}
+
+function hasExactlyKeys(value: Record<string, unknown>, keys: string[]): boolean {
+  const actual = Object.keys(value).sort();
+  return (
+    actual.length === keys.length &&
+    keys
+      .slice()
+      .sort()
+      .every((key, index) => actual[index] === key)
+  );
+}
+
+function isUnmodifiedManagedConfig(actual: TomlTable): boolean {
+  const redirects = actual.redirects;
+  return (
+    hasExactlyKeys(actual, ['build', 'functions', 'redirects']) &&
+    isTable(actual.build) &&
+    hasExactlyKeys(actual.build, ['base', 'publish']) &&
+    isTable(actual.functions) &&
+    hasExactlyKeys(actual.functions, ['directory', 'node_bundler']) &&
+    Array.isArray(redirects) &&
+    redirects.length >= 1 &&
+    redirects.length <= 2 &&
+    redirects.every((redirect) => isTable(redirect) && hasExactlyKeys(redirect, ['from', 'status', 'to']))
+  );
+}
+
+export function ensureNetlifyToml(options: NetlifyOptions, paths: DeployPaths): void {
   const tomlPath = resolve(paths.deployDir, 'netlify.toml');
-  if (existsSync(tomlPath)) {
-    console.log(`• netlify.toml already present at ${tomlPath}`);
-    return;
+  const expected = netlifyConfig(options);
+  const existed = existsSync(tomlPath);
+  if (existed) {
+    const source = readFileSync(tomlPath, 'utf8');
+    let actual: TomlTable;
+    try {
+      actual = parseToml(source);
+    } catch (error) {
+      bail(`Cannot use malformed Netlify configuration at ${tomlPath}: ${(error as Error).message}`);
+    }
+    if (sameRequiredNetlifyConfig(actual, expected)) {
+      console.log(`• Existing netlify.toml matches the requested deploy configuration at ${tomlPath}`);
+      return;
+    }
+    if (!source.startsWith(`${MANAGED_TOML_HEADER}\n`) || !isUnmodifiedManagedConfig(actual)) {
+      bail(
+        `Existing user-owned Netlify configuration at ${tomlPath} conflicts with the requested build, functions, ` +
+          'or SPA redirect settings. It was not changed; reconcile those settings explicitly and rerun.',
+      );
+    }
   }
 
-  const body = `# Generated by create-access-router-mongo-starter-deploy-netlify. Edit freely.
-[build]
-  base = ""
-  publish = "${options.distDir}"
-
-[functions]
-  directory = "${options.functionsDir}"
-  node_bundler = "esbuild"
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-`;
+  const body = serializeNetlifyToml(options);
 
   if (!options.dryRun) {
     mkdirSync(paths.deployDir, { recursive: true });
     writeFileSync(tomlPath, body);
   }
 
-  console.log(`• Created ${tomlPath}`);
+  console.log(`• ${existed ? 'Updated managed' : 'Created'} ${tomlPath}`);
 }
 
 // ---------------------------------------------------------------------------
 // Options
 // ---------------------------------------------------------------------------
 
-interface NetlifyOptions extends SharedDeployOptions {
+export interface NetlifyOptions extends SharedDeployOptions {
   interactive: boolean;
   authToken: string | undefined;
   site: string | undefined;
   siteName: string | undefined;
   team: string | undefined;
   prod: boolean;
+  publicDemoAcknowledged: boolean;
   paidTier: boolean;
   message: string | undefined;
   alias: string | undefined;
@@ -238,7 +379,22 @@ interface NetlifyOptions extends SharedDeployOptions {
   branch: string | undefined;
 }
 
-const HELP = `access-router-mongo-starter Netlify deploy
+export type NetlifyCollectionResult =
+  | { kind: 'help' }
+  | { kind: 'cancel' }
+  | { kind: 'options'; options: NetlifyOptions };
+
+export interface NetlifyPromptServices {
+  intro(message: string): void;
+  cancel(message: string): void;
+  select(options: Parameters<typeof select>[0]): ReturnType<typeof select>;
+  confirm(options: Parameters<typeof confirm>[0]): ReturnType<typeof confirm>;
+  text(options: Parameters<typeof text>[0]): ReturnType<typeof text>;
+  password(options: Parameters<typeof password>[0]): ReturnType<typeof password>;
+  isCancel(value: unknown): boolean;
+}
+
+export const HELP = `access-router-mongo-starter Netlify deploy
 
 Usage: create-access-router-mongo-starter-deploy-netlify [options]
 
@@ -256,6 +412,10 @@ Options:
       --team <slug>           Team slug if a new site gets created
                               (--site-name). (env: NETLIFY_TEAM_SLUG)
   -p, --prod                  Deploy to production (default: draft/preview)
+      --acknowledge-public-demo
+                              Required with --prod. Confirms that this starter
+                              exposes anonymous public create/update/delete
+                              routes and that host abuse controls are your responsibility.
       --paid-tier             Use paid-tier Netlify env scoping
                                (--scope functions) when setting and
                                verifying site env vars. Default: free-tier-
@@ -277,18 +437,20 @@ Options:
                                 Ignored when --prod is set; production deploys
                                 always use context "production".
                                 Overridden by --branch.
-      --api-base-url <url>    VITE_API_BASE_URL for the frontend build and
-                               API_BASE_URL for the serverless function
+      --api-base-url <path>   Path-only API_BASE_URL for the frontend build,
+                               redirects, and serverless function
                                (default: "/.netlify/functions/<functions-name>")
-      --mongodb-uri <uri>     MONGODB_URI for the serverless function
-                              (env: MONGODB_URI). Required for production
-                              deploys (the runtime's DB config has no fallback).
-      --dist-dir <path>       Frontend publish dir (default: "dist")
-      --functions-dir <path>  Serverless output dir (default: "netlify/functions")
+      --mongodb-uri <uri>     Required MONGODB_URI for the serverless function
+                               (prefer env: MONGODB_URI). Required for every
+                               deploy because all artifacts include the backend.
+      --dist-dir <path>       Frontend publish dir (default: "dist"); must be a
+                               contained relative path in sandbox modes
+      --functions-dir <path>  Serverless output dir (default: "netlify/functions");
+                               must be a contained relative path in sandbox modes
       --functions-name <name> Serverless function name (default: "main")
   -m, --message <msg>         Deploy log message
       --no-build              Skip the build steps; deploy existing artifacts
-      --ephemeral             Build into a temp dir under /tmp/opencode and
+      --ephemeral             Build in a platform temporary directory and
                               remove it on success (keep with --keep-sandbox)
       --sandbox-dir <path>   Build into the given directory (persistent)
       --keep-sandbox          With --ephemeral, keep the sandbox after deploy
@@ -296,7 +458,7 @@ Options:
   -h, --help                 Show this help
 `;
 
-function parseArgs(argv: string[]): NetlifyOptions {
+export function collectCliOptions(argv: string[]): NetlifyCollectionResult {
   const o: NetlifyOptions = {
     ...SHARED_DEFAULTS,
     projectRoot: process.cwd(),
@@ -306,6 +468,7 @@ function parseArgs(argv: string[]): NetlifyOptions {
     siteName: process.env.NETLIFY_SITE_NAME,
     team: process.env.NETLIFY_TEAM_SLUG,
     prod: false,
+    publicDemoAcknowledged: false,
     paidTier: false,
     message: undefined,
     alias: undefined,
@@ -349,6 +512,9 @@ function parseArgs(argv: string[]): NetlifyOptions {
         break;
       case '--paid-tier':
         o.paidTier = true;
+        break;
+      case '--acknowledge-public-demo':
+        o.publicDemoAcknowledged = true;
         break;
       case '--alias':
         o.alias = readRequiredOptionValue(argv, i, a);
@@ -406,18 +572,13 @@ function parseArgs(argv: string[]): NetlifyOptions {
         break;
       case '-h':
       case '--help':
-        process.stdout.write(HELP);
-        process.exit(0);
-        break;
+        return { kind: 'help' };
       default:
         throw new Error(`Unknown option: ${a}\n\n${HELP}`);
     }
   }
 
-  applyBranchOverride(o);
-  o.context = resolveDeployContext(o);
-
-  return o;
+  return { kind: 'options', options: o };
 }
 
 /**
@@ -432,16 +593,86 @@ export function applyBranchOverride(o: Pick<NetlifyOptions, 'branch' | 'alias' |
   o.context = `branch:${o.branch}`;
 }
 
+function validateIdentifier(option: string, value: string | undefined): string | undefined {
+  const normalized = value?.trim() || undefined;
+  if (normalized && validateSiteName(normalized)) {
+    bail(
+      `${option} must contain only lowercase letters, digits, and hyphens, start with a letter or digit, and be at most 63 characters.`,
+    );
+  }
+  return normalized;
+}
+
+export function validateNetlifyOptions(options: NetlifyOptions): NetlifyOptions {
+  const normalized: NetlifyOptions = {
+    ...options,
+    authToken: options.authToken?.trim() || undefined,
+    site: options.site?.trim() || undefined,
+    siteName: options.siteName?.trim() || undefined,
+    team: options.team?.trim() || undefined,
+    message: options.message,
+    alias: options.alias?.trim() || undefined,
+    context: options.context?.trim() || undefined,
+    branch: options.branch?.trim() || undefined,
+  };
+
+  applyBranchOverride(normalized);
+  normalized.context = resolveDeployContext(normalized);
+  if (!normalized.apiBaseUrlExplicit) normalized.apiBaseUrl = defaultApiBaseUrl(normalized.functionsName.trim());
+  Object.assign(normalized, validateSharedDeployOptions(normalized));
+
+  if (!normalized.authToken) bail('Netlify auth token is required (use -t / --auth-token or NETLIFY_AUTH_TOKEN).');
+  if (normalized.site && normalized.siteName) bail('--site and --site-name are mutually exclusive.');
+  normalized.site = validateIdentifier('--site', normalized.site);
+  normalized.siteName = validateIdentifier('--site-name', normalized.siteName);
+  normalized.team = validateIdentifier('--team', normalized.team);
+  normalized.alias = validateIdentifier('--alias', normalized.alias);
+  normalized.branch = validateIdentifier('--branch', normalized.branch);
+  if (!normalized.context || !/^[a-z][a-z0-9-]*(?::[a-z0-9][a-z0-9-]{0,62})?$/u.test(normalized.context)) {
+    bail('--context must be a lowercase Netlify context name, optionally followed by a valid :branch-name.');
+  }
+  if (normalized.prod && (normalized.alias || normalized.branch)) {
+    bail(
+      '--prod cannot be combined with --alias or --branch. ' +
+        'Use --alias/--branch for draft/preview deploys or --prod for production.',
+    );
+  }
+  if (normalized.prod && !normalized.publicDemoAcknowledged) {
+    bail(
+      'Production deploy blocked: this public-demo starter allows anyone to create, update, and delete data. ' +
+        'Review the warning and host abuse controls, then pass --acknowledge-public-demo.',
+    );
+  }
+  return normalized;
+}
+
+function checkBuildTools(options: NetlifyOptions): void {
+  if (options.noBuild || options.dryRun) return;
+  for (const command of ['vite', 'wtt-access-router-runtime']) {
+    if (!lookupInPath(command)) bail(`Could not find \`${command}\` on PATH. Install dependencies before deploying.`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Interactive prompts
 // ---------------------------------------------------------------------------
 
-async function prompt(options: NetlifyOptions): Promise<NetlifyOptions> {
+const DEFAULT_PROMPT_SERVICES: NetlifyPromptServices = { intro, cancel, select, confirm, text, password, isCancel };
+
+export async function collectInteractiveOptions(
+  initialOptions: NetlifyOptions,
+  prompts: NetlifyPromptServices = DEFAULT_PROMPT_SERVICES,
+): Promise<NetlifyCollectionResult> {
+  const options = { ...initialOptions };
   const projectRoot = projectRootOf(options);
-  intro('access-router-mongo-starter → Netlify deploy');
+  prompts.intro('access-router-mongo-starter → Netlify deploy');
+  const cancelled = (): NetlifyCollectionResult => {
+    prompts.cancel('Cancelled');
+    return { kind: 'cancel' };
+  };
 
   if (!options.sandboxDir && !options.ephemeral) {
-    const sandboxChoice = await select({
+    const sandboxChoice = await prompts.select({
       message: 'Build target',
       options: [
         { value: 'repo', label: `Repo (${projectRoot})` },
@@ -450,131 +681,100 @@ async function prompt(options: NetlifyOptions): Promise<NetlifyOptions> {
       ],
       initialValue: 'repo',
     });
-    if (isCancel(sandboxChoice)) {
-      cancel('Cancelled');
-      process.exit(0);
+    if (prompts.isCancel(sandboxChoice)) {
+      return cancelled();
     } else if (sandboxChoice === 'sandbox') {
-      const v = await text({
+      const v = await prompts.text({
         message: 'Sandbox directory path',
         validate: (s) => (s && s.trim() ? undefined : 'Required'),
       });
-      if (isCancel(v)) {
-        cancel('Cancelled');
-        process.exit(0);
+      if (prompts.isCancel(v)) {
+        return cancelled();
       } else options.sandboxDir = (v as string).trim();
     } else if (sandboxChoice === 'ephemeral') {
       options.ephemeral = true;
-      const keep = await confirm({
+      const keep = await prompts.confirm({
         message: 'Keep the ephemeral sandbox after deploy?',
         initialValue: options.keepSandbox,
       });
-      if (isCancel(keep)) {
-        cancel('Cancelled');
-        process.exit(0);
+      if (prompts.isCancel(keep)) {
+        return cancelled();
       } else options.keepSandbox = keep === true;
     }
   }
 
   if (!options.authToken) {
-    const v = await password({
+    const v = await prompts.password({
       message: 'Netlify auth token',
       validate: (s) => (s && s.trim() ? undefined : 'Required'),
     });
-    if (isCancel(v)) {
-      cancel('Cancelled');
-      process.exit(0);
+    if (prompts.isCancel(v)) {
+      return cancelled();
     } else options.authToken = String(v).trim();
   }
 
   if (!options.site && !options.siteName) {
-    let teamAsked = false;
-    let attempt = 0;
-    while (true) {
-      attempt++;
-      const v = await text({
-        message: attempt > 1 ? 'Try a different Netlify site name' : 'Netlify site name',
-        placeholder: 'lowercase letters, digits, hyphens',
-        validate: validateSiteName,
+    const v = await prompts.text({
+      message: 'Netlify site name',
+      placeholder: 'lowercase letters, digits, hyphens',
+      validate: validateSiteName,
+    });
+    if (prompts.isCancel(v)) return cancelled();
+    options.siteName = String(v).trim();
+    if (!options.team) {
+      const team = await prompts.text({
+        message: 'Team slug for the new site',
+        defaultValue: '',
+        placeholder: 'optional — uses your default team if blank',
       });
-      if (isCancel(v)) {
-        cancel('Cancelled');
-        process.exit(0);
-      }
-      const name = (v as string).trim();
-
-      // 1. Try to create the site. Success = name was available.
-      if (!options.team && !teamAsked) {
-        const team = await text({
-          message: 'Team slug for the new site',
-          defaultValue: '',
-          placeholder: 'optional — uses your default team if blank',
-        });
-        if (isCancel(team)) {
-          cancel('Cancelled');
-          process.exit(0);
-        }
-        options.team = (team as string).trim() || undefined;
-        teamAsked = true;
-      }
-      console.log(`\n  Trying to create "${name}"…`);
-      const created = await createSite(options.authToken, name, options.team);
-      if (created) {
-        if (!created.id) bail('Unexpected: created site has no id from Netlify.');
-        console.log(`  ✓ Created new site "${name}" (${created.id}).`);
-        options.site = created.id;
-        break;
-      }
-
-      // 2. 422 — name is globally taken. Check if it's in the caller's account.
-      console.log(`  Name is taken. Checking if it belongs to you…`);
-      const existing = await fetchSiteByName(options.authToken, name);
-      if (existing?.id) {
-        console.log(`  ✓ Found in your account — deploying to existing site (${existing.id}).`);
-        options.site = existing.id;
-        break;
-      }
-
-      // 3. Taken by another user — re-prompt.
-      console.log(`  ✗ "${name}.netlify.app" is already taken by another user. Try a different name.`);
+      if (prompts.isCancel(team)) return cancelled();
+      options.team = (team as string).trim() || undefined;
     }
   } else if (options.siteName && !options.team) {
-    const v = await text({
+    const v = await prompts.text({
       message: 'Team slug (used only if a new site gets created)',
       defaultValue: '',
       placeholder: 'optional — uses your default team if blank',
     });
-    if (isCancel(v)) {
-      cancel('Cancelled');
-      process.exit(0);
+    if (prompts.isCancel(v)) {
+      return cancelled();
     } else options.team = (v as string).trim() || undefined;
   }
 
-  const prod = await confirm({
+  const prod = await prompts.confirm({
     message: 'Deploy to production?',
     initialValue: options.prod,
   });
-  if (isCancel(prod)) {
-    cancel('Cancelled');
-    process.exit(0);
+  if (prompts.isCancel(prod)) {
+    return cancelled();
   } else options.prod = prod === true;
 
+  if (options.prod && !options.publicDemoAcknowledged) {
+    const acknowledged = await prompts.confirm({
+      message:
+        'PUBLIC DEMO WARNING: anyone on the Internet can create, edit, and delete all Todo and Category data. ' +
+        'Have you accepted this risk and configured appropriate Netlify abuse controls?',
+      initialValue: false,
+    });
+    if (prompts.isCancel(acknowledged) || acknowledged !== true) return cancelled();
+    options.publicDemoAcknowledged = true;
+  }
+
   if (!options.prod && !options.branch && !options.alias) {
-    const wantAlias = await confirm({
+    const wantAlias = await prompts.confirm({
       message: 'Create a named draft deploy (--alias)?',
       initialValue: false,
     });
-    if (isCancel(wantAlias)) {
-      cancel('Cancelled');
-      process.exit(0);
+    if (prompts.isCancel(wantAlias)) {
+      return cancelled();
     } else if (wantAlias) {
-      const v = await text({
+      const v = await prompts.text({
         message: 'Alias name (creates https://<alias>--<site>.netlify.app)',
         placeholder: 'staging, review-pr-42, …',
         validate: (s) => (s && s.trim() ? undefined : 'Required'),
       });
-      if (isCancel(v)) {
-        cancel('Cancelled');
-        process.exit(0);
+      if (prompts.isCancel(v)) {
+        return cancelled();
       } else options.alias = (v as string).trim();
     }
   }
@@ -582,215 +782,238 @@ async function prompt(options: NetlifyOptions): Promise<NetlifyOptions> {
   options.context = resolveDeployContext(options);
 
   if (!options.mongodbUri) {
-    const v = await password({
-      message: options.prod
-        ? 'MONGODB_URI for the serverless function (required for production)'
-        : 'MONGODB_URI for the serverless function (leave empty to skip env var setup)',
+    const v = await prompts.password({
+      message: 'MONGODB_URI for the serverless function (required for every deploy)',
       mask: '•',
-      validate: (s) => (options.prod && !(s && s.trim()) ? 'Required for production deploys' : undefined),
+      validate: (s) => (s && s.trim() ? undefined : 'Required for every deploy'),
     });
-    if (isCancel(v)) {
-      cancel('Cancelled');
-      process.exit(0);
+    if (prompts.isCancel(v)) {
+      return cancelled();
     } else options.mongodbUri = (v as string).trim() || undefined;
   }
 
-  const build = await confirm({
+  const build = await prompts.confirm({
     message: 'Run the build steps before deploying?',
     initialValue: !options.noBuild,
   });
-  if (isCancel(build)) {
-    cancel('Cancelled');
-    process.exit(0);
+  if (prompts.isCancel(build)) {
+    return cancelled();
   } else options.noBuild = build !== true;
 
-  return options;
+  return { kind: 'options', options };
 }
 
 // ---------------------------------------------------------------------------
 // Deploy
 // ---------------------------------------------------------------------------
 
-async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<void> {
+const DEFAULT_DEPLOY_SERVICES: NetlifyDeployServices = {
+  parentEnv: process.env,
+  buildArtifacts,
+  inspectArtifacts,
+  createSite,
+  fetchSiteByName,
+  resolveSiteId,
+  resolveSiteTarget,
+  setSiteEnvVar,
+  verifySiteEnvVar,
+  runCapture: runCaptureNetlify,
+  resolveCli: resolveNetlifyCli,
+  checkBuildTools,
+  ensureLinkedSite,
+  ensureNetlifyToml,
+  log: (message = '') => console.log(message),
+};
+
+export interface RemoteMutationRecord {
+  operation: string;
+  status: 'completed' | 'completion-unknown';
+}
+
+export interface DeploymentReport {
+  remoteMutations: RemoteMutationRecord[];
+}
+
+export class DeployFailure extends Error {
+  readonly report: DeploymentReport;
+
+  constructor(error: unknown, report: DeploymentReport) {
+    super(error instanceof Error ? error.message : String(error));
+    this.name = 'DeployFailure';
+    this.stack = error instanceof Error ? error.stack : this.stack;
+    this.report = report;
+  }
+}
+
+export async function runDeploy(
+  options: NetlifyOptions,
+  paths: DeployPaths,
+  overrides: Partial<NetlifyDeployServices> = {},
+): Promise<DeploymentReport> {
+  options = validateNetlifyOptions(options);
+  const services = { ...DEFAULT_DEPLOY_SERVICES, ...overrides };
   const stateFile = resolve(paths.deployDir, '.netlify/state.json');
+  const report: DeploymentReport = { remoteMutations: [] };
+  const pendingMutation = (operation: string): RemoteMutationRecord => {
+    const mutation: RemoteMutationRecord = { operation, status: 'completion-unknown' };
+    report.remoteMutations.push(mutation);
+    return mutation;
+  };
 
-  if (paths.isEphemeral || options.sandboxDir) {
-    console.log(`\n• Sandbox: ${paths.deployDir}${paths.isEphemeral ? ' (ephemeral)' : ''}`);
-  } else {
-    console.log(`\n• Building into project: ${paths.deployDir}`);
-  }
-
-  let siteRef: string | undefined;
-
-  // In sandbox/ephemeral mode the deploy directory doesn't have a
-  // `.netlify/state.json`, so fall back to the project root's link if one
-  // exists there.
-  const linked = readLinkedSite(stateFile) ?? readLinkedSite(resolve(projectRootOf(options), '.netlify', 'state.json'));
-
-  if (options.site) {
-    siteRef = options.site;
-    console.log(`• Site: ${siteRef}`);
-  } else if (options.siteName) {
-    if (options.dryRun) {
-      console.log(`\n• [--dry-run] Skipping site lookup/create for "${options.siteName}".`);
-      siteRef = options.siteName;
+  try {
+    if (paths.isEphemeral || options.sandboxDir) {
+      services.log(`\n• Sandbox: ${paths.deployDir}${paths.isEphemeral ? ' (ephemeral)' : ''}`);
     } else {
-      console.log(`\n• Looking up site "${options.siteName}" on Netlify…`);
-      const resolved = await resolveSiteTarget(options.authToken!, options.siteName, options.team);
-      if (!resolved) {
-        bail(
-          `Site name "${options.siteName}" is already taken by another user. ` +
-            `Pass a different --site-name (or use --site <existing-id>).`,
-        );
-      }
-      siteRef = resolved.siteId;
-      console.log(
-        `• ${resolved.created ? `Created new site "${options.siteName}"` : `Found existing site "${options.siteName}"`} → ${siteRef}`,
-      );
+      services.log(`\n• Building into project: ${paths.deployDir}`);
     }
-  } else if (linked) {
-    siteRef = linked.siteName ?? linked.siteId;
-    console.log(`• Site: ${siteRef} (linked via ${stateFile})`);
-  } else {
-    bail(
-      'No deploy target specified. Pass --site <name-or-id> to look up / deploy, ' +
-        'or --site-name <name> to create or reuse a site by name. Add -i for interactive prompts.',
-    );
-  }
 
-  if (!options.apiBaseUrlExplicit) {
-    options.apiBaseUrl = defaultApiBaseUrl(options.functionsName);
-    console.log(
-      `• VITE_API_BASE_URL: ${options.apiBaseUrl} (derived from --functions-name "${options.functionsName}")`,
-    );
-  } else {
-    console.log(`• VITE_API_BASE_URL: ${options.apiBaseUrl} (overridden)`);
-  }
-
-  const envContextLabel = options.context ?? 'all contexts';
-  const scopeLabel = envScopeLabel(options);
-
-  console.log(
-    `• API_BASE_URL: ${options.apiBaseUrl} (will be set on site env, scope=${scopeLabel}, context=${envContextLabel})`,
-  );
-
-  if (options.mongodbUri) {
-    console.log(`• MONGODB_URI: provided (will be set on site env, scope=${scopeLabel}, context=${envContextLabel})`);
-  } else if (options.prod) {
-    bail('--mongodb-uri is required for production deploys (the runtime DB config has no fallback).');
-  } else {
-    console.log(
-      '• MONGODB_URI: not provided, so env var setup will be skipped. ' +
-        'Pass --mongodb-uri or export MONGODB_URI if you want this script to write it to Netlify.',
-    );
-  }
-
-  if (!options.dryRun && siteRef) {
-    console.log(`\n• Validating site "${siteRef}" with Netlify API…`);
-    const resolvedSiteId = await resolveSiteId(options.authToken!, siteRef);
-    if (!resolvedSiteId) {
+    const linked =
+      readLinkedSite(stateFile) ?? readLinkedSite(resolve(projectRootOf(options), '.netlify', 'state.json'));
+    if (!options.site && !options.siteName && !linked) {
       bail(
-        `Site "${siteRef}" was not found or is not accessible with the provided auth token. ` +
-          `Check --site/--site-name or delete ${stateFile} to start fresh. ` +
-          `(The Netlify CLI itself reports this as "Project not found. Please rerun netlify link".)`,
+        'No deploy target specified. Pass --site <name-or-id> to look up / deploy, ' +
+          'or --site-name <name> to create or reuse a site by name. Add -i for interactive prompts.',
       );
     }
-    if (resolvedSiteId !== siteRef) {
-      console.log(`  Resolved site id: ${resolvedSiteId}`);
-    }
-    siteRef = resolvedSiteId;
-    console.log('  OK — site is accessible.');
-  }
 
-  // --- Shared build ---
-  const prepared = buildArtifacts(options, paths);
+    services.log(
+      `• Frontend API_BASE_URL: ${options.apiBaseUrl} (${options.apiBaseUrlExplicit ? 'overridden' : `derived from --functions-name "${options.functionsName}"`})`,
+    );
+    const envContextLabel = options.context ?? 'all contexts';
+    const scopeLabel = envScopeLabel(options);
+    services.log(
+      `• API_BASE_URL: ${options.apiBaseUrl} (will be set on site env, scope=${scopeLabel}, context=${envContextLabel})`,
+    );
+    services.log(`• MONGODB_URI: provided (will be set on site env, scope=${scopeLabel}, context=${envContextLabel})`);
+    services.log(
+      '• PUBLIC DEMO WARNING: anonymous users can create, update, and delete all application data. ' +
+        'Configure host rate limits, traffic controls, monitoring, and spend alerts before sharing this deploy.',
+    );
 
-  // --- Netlify-specific deploy ---
-  ensureNetlifyToml(options, paths);
-  const cli = resolveNetlifyCli();
-  const secrets = collectSecrets(options.authToken, options.mongodbUri);
+    // Preflight and local phases complete before any site or environment mutation.
+    const cli = services.resolveCli();
+    services.checkBuildTools(options);
+    if (options.noBuild) services.inspectArtifacts(options, paths);
+    else services.buildArtifacts(options, paths);
+    services.ensureNetlifyToml(options, paths);
 
-  // Ensure the active deploy directory is linked to the resolved site before
-  // running `netlify deploy`, which may fall back to `.netlify/state.json`.
-  // We write the file directly — no CLI subprocess needed.
-  if (!options.dryRun && siteRef) {
-    ensureLinkedSite(stateFile, siteRef, options.dryRun);
-  }
-
-  // Set runtime env vars *before* deploying so the serverless function has
-  // them available as soon as the deploy goes live.
-  if (!options.dryRun && siteRef) {
-    for (const envVar of planRuntimeSiteEnvVars(options.apiBaseUrl!, options.mongodbUri)) {
-      console.log(`\n─ Setting ${envVar.key} on the site (scope=${scopeLabel}, context=${envContextLabel}) ─`);
-      await setSiteEnvVar(options.authToken!, siteRef, envVar.key, envVar.value, {
-        paidTier: options.paidTier,
-        context: options.context,
-      });
-      console.log('  OK — runtime function env updated.');
-
-      console.log(`\n─ Verifying ${envVar.key} on the site (scope=${scopeLabel}, context=${envContextLabel}) ─`);
-      const presence = await verifySiteEnvVar(options.authToken!, siteRef, envVar.key, {
-        context: options.context,
-        paidTier: options.paidTier,
-      });
-
-      if (presence === 'present') {
-        console.log(`  OK — ${envVar.key} is present on the target site/context.`);
-      } else if (presence === 'missing') {
-        bail(
-          `Env var setup completed, but ${envVar.key} was not found afterward. ` +
-            'Check the site, scope, and context being targeted.',
-        );
+    let siteRef = options.site ?? linked?.siteId ?? linked?.siteName;
+    if (options.siteName) {
+      if (options.dryRun) {
+        services.log(`\n• [--dry-run] Skipping site lookup/create for "${options.siteName}".`);
+        siteRef = options.siteName;
       } else {
-        console.log(`  Warning — could not verify ${envVar.key} presence from Netlify API.`);
+        services.log(`\n• Looking up or creating site "${options.siteName}" on Netlify…`);
+        const siteMutation = pendingMutation(`site creation for "${options.siteName}"`);
+        const resolved = await services.resolveSiteTarget(options.authToken!, options.siteName, options.team);
+        if (!resolved) {
+          report.remoteMutations.pop();
+          bail(
+            `Site name "${options.siteName}" is already taken by another user. ` +
+              `Pass a different --site-name (or use --site <existing-id>).`,
+          );
+        }
+        if (resolved.created) siteMutation.status = 'completed';
+        else report.remoteMutations.pop();
+        siteRef = resolved.siteId;
+        services.log(
+          `• ${resolved.created ? `Created new site "${options.siteName}"` : `Found existing site "${options.siteName}"`} → ${siteRef}`,
+        );
+      }
+    } else if (siteRef) {
+      services.log(`• Site: ${siteRef}${!options.site && linked ? ` (linked via ${stateFile})` : ''}`);
+    }
+
+    if (!options.dryRun && siteRef) {
+      services.log(`\n• Validating site "${siteRef}" with Netlify API…`);
+      const resolvedSiteId = await services.resolveSiteId(options.authToken!, siteRef);
+      if (!resolvedSiteId) {
+        bail(
+          `Site "${siteRef}" was not found or is not accessible with the provided auth token. ` +
+            `Check --site/--site-name or delete ${stateFile} to start fresh. ` +
+            `(The Netlify CLI itself reports this as "Project not found. Please rerun netlify link".)`,
+        );
+      }
+      siteRef = resolvedSiteId;
+      services.log('  OK — site is accessible.');
+    }
+
+    const secrets = collectSecrets(options.authToken, options.mongodbUri);
+    if (!options.dryRun && siteRef) services.ensureLinkedSite(stateFile, siteRef, options.dryRun);
+
+    if (!options.dryRun && siteRef) {
+      for (const envVar of planRuntimeSiteEnvVars(options.apiBaseUrl!, options.mongodbUri!)) {
+        services.log(`\n─ Setting ${envVar.key} on the site (scope=${scopeLabel}, context=${envContextLabel}) ─`);
+        const envMutation = pendingMutation(`environment variable ${envVar.key} on site ${siteRef}`);
+        await services.setSiteEnvVar(options.authToken!, siteRef, envVar.key, envVar.value, {
+          paidTier: options.paidTier,
+          context: options.context,
+          sensitive: envVar.sensitive,
+        });
+        envMutation.status = 'completed';
+        services.log('  OK — runtime function env updated.');
+
+        services.log(`\n─ Verifying ${envVar.key} on the site (scope=${scopeLabel}, context=${envContextLabel}) ─`);
+        const presence = await services.verifySiteEnvVar(options.authToken!, siteRef, envVar.key, {
+          context: options.context,
+          paidTier: options.paidTier,
+          sensitive: envVar.sensitive,
+        });
+
+        if (presence.status === 'verified') {
+          services.log(`  OK — ${envVar.key} context, scope, and sensitivity match the deployment plan.`);
+        } else if (presence.status === 'missing') {
+          bail(
+            `Env var setup completed, but ${envVar.key} was not found afterward. ` +
+              'Check the site, scope, and context being targeted.',
+          );
+        } else if (presence.status === 'mismatch') {
+          bail(
+            `Env var setup completed, but ${envVar.key} has mismatched ${presence.mismatches.join(', ')} metadata. ` +
+              'Check the site environment configuration before deploying.',
+          );
+        } else {
+          services.log(
+            `  Warning — Netlify did not provide enough evidence to verify ${envVar.key} ` +
+              `${presence.unavailable.join(', ')} metadata for the requested deployment.`,
+          );
+        }
       }
     }
-  }
 
-  const deployArgs: string[] = [
-    '--no-build',
-    '--dir',
-    paths.distAbs,
-    '--functions',
-    paths.functionsAbs,
-    '--auth',
-    options.authToken!,
-  ];
-  if (siteRef) deployArgs.push('--site', siteRef);
-  if (options.prod) deployArgs.push('--prod');
+    const deployArgs: string[] = ['--no-build', '--dir', paths.distAbs, '--functions', paths.functionsAbs];
+    if (siteRef) deployArgs.push('--site', siteRef);
+    if (options.prod) deployArgs.push('--prod');
+    if (options.alias) deployArgs.push('--alias', options.alias);
+    if (options.message) deployArgs.push('--message', options.message);
+    deployArgs.push('--json');
 
-  // --branch flag has been renamed to --alias
-  if (options.alias) deployArgs.push('--alias', options.alias);
-  // --context flag is only available when using the --build flag
-  // if (options.context) deployArgs.push('--context', options.context);
-  if (options.message) deployArgs.push('--message', options.message);
+    services.log('\n─ Deploying to Netlify ─');
+    const deployMutation = options.dryRun ? undefined : pendingMutation(`deploy to site ${siteRef}`);
+    const stdout = services.runCapture(
+      cli,
+      ['deploy', ...deployArgs],
+      createChildEnvironment(services.parentEnv, { NETLIFY_AUTH_TOKEN: options.authToken }),
+      options.dryRun,
+      paths.deployDir,
+      secrets,
+    );
+    if (deployMutation) deployMutation.status = 'completed';
 
-  // Use --json so we can capture the deploy URL from stdout.
-  // stderr is inherited so live deploy progress remains visible.
-  deployArgs.push('--json');
-
-  console.log('\n─ Deploying to Netlify ─');
-  // See https://cli.netlify.com/commands/deploy/
-  const stdout = runCaptureNetlify(
-    cli,
-    ['deploy', ...deployArgs],
-    prepared.buildEnv,
-    options.dryRun,
-    paths.deployDir,
-    secrets,
-  );
-
-  if (!options.dryRun && stdout) {
-    try {
-      const deploy = JSON.parse(stdout) as NetlifyDeployResult;
-      const url = options.alias ? deploy.deploy_url : (deploy.url ?? deploy.deploy_url ?? deploy.ssl_url);
-      if (url) console.log(`\n🌐 Deploy URL: ${url}`);
-      const logsUrl = deploy.logs ?? deploy.links?.logs;
-      if (logsUrl) console.log(`📋 Logs:       ${logsUrl}`);
-    } catch {
-      // If JSON parsing fails, the user still saw the deploy output on stderr.
-      console.log('\n(Could not parse deploy JSON output from Netlify CLI.)');
+    if (!options.dryRun && stdout) {
+      try {
+        const deploy = JSON.parse(stdout) as NetlifyDeployResult;
+        const url = options.alias ? deploy.deploy_url : (deploy.url ?? deploy.deploy_url ?? deploy.ssl_url);
+        if (url) services.log(`\nDeploy URL: ${url}`);
+        const logsUrl = deploy.logs ?? deploy.links?.logs;
+        if (logsUrl) services.log(`Logs:       ${logsUrl}`);
+      } catch {
+        services.log('\n(Could not parse deploy JSON output from Netlify CLI.)');
+      }
     }
+    return report;
+  } catch (error) {
+    throw new DeployFailure(error, report);
   }
 }
 
@@ -798,45 +1021,84 @@ async function runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<v
 // Main
 // ---------------------------------------------------------------------------
 
-async function main() {
-  let options = parseArgs(process.argv.slice(2));
-  if (options.interactive) {
-    intro('access-router-mongo-starter → Netlify deploy');
-    options = await prompt(options);
-    outro('Starting deploy');
-  }
+export interface NetlifyCliServices {
+  collectInteractive(options: NetlifyOptions): Promise<NetlifyCollectionResult>;
+  resolvePaths(options: SharedDeployOptions): DeployPaths;
+  runDeploy(options: NetlifyOptions, paths: DeployPaths): Promise<DeploymentReport>;
+  cleanupSandbox(paths: DeployPaths, keepSandbox: boolean, dryRun: boolean): void;
+  keepSandboxOnFailure(paths: DeployPaths): void;
+  log(message?: string): void;
+  error(value: unknown): void;
+}
 
-  applyBranchOverride(options);
-  options.context = resolveDeployContext(options);
+const DEFAULT_CLI_SERVICES: NetlifyCliServices = {
+  collectInteractive: collectInteractiveOptions,
+  resolvePaths,
+  runDeploy,
+  cleanupSandbox,
+  keepSandboxOnFailure,
+  log: (message = '') => console.log(message),
+  error: (value) => console.error(value),
+};
 
-  if (!options.authToken) bail('Netlify auth token is required (use -t / --auth-token or NETLIFY_AUTH_TOKEN).');
-
-  if (options.prod && (options.alias || options.branch)) {
-    bail(
-      '--prod cannot be combined with --alias or --branch. ' +
-        'Use --alias/--branch for draft/preview deploys or --prod for production.',
-    );
-  }
-
-  const paths = resolvePaths(options);
-  let deployed = false;
+export async function runNetlifyCli(argv: string[], overrides: Partial<NetlifyCliServices> = {}): Promise<number> {
+  const services = { ...DEFAULT_CLI_SERVICES, ...overrides };
+  let options: NetlifyOptions | undefined;
+  let paths: DeployPaths | undefined;
 
   try {
-    await runDeploy(options, paths);
-    deployed = true;
+    let collected = collectCliOptions(argv);
+    if (collected.kind === 'help') {
+      services.log(HELP);
+      return 0;
+    }
+    if (collected.kind === 'cancel') return 0;
+    options = collected.options;
+    if (options.interactive) {
+      collected = await services.collectInteractive(options);
+      if (collected.kind === 'help') {
+        services.log(HELP);
+        return 0;
+      }
+      if (collected.kind === 'cancel') return 0;
+      options = collected.options;
+      services.log('Starting deploy');
+    }
+
+    options = validateNetlifyOptions(options);
+    paths = services.resolvePaths(options);
+    await services.runDeploy(options, paths);
+    services.cleanupSandbox(paths, options.keepSandbox, options.dryRun);
+    services.log('\n✓ Deploy finished.');
+    return 0;
   } catch (err) {
-    if (err instanceof BailError) console.error(`\n✖ ${err.message}`);
-    else console.error(err instanceof Error ? (err.stack ?? err.message) : err);
+    const failure =
+      err instanceof BailError || err instanceof DeployFailure
+        ? `\n✖ ${err.message}`
+        : err instanceof Error
+          ? (err.stack ?? err.message)
+          : String(err);
+    services.error(redactCommand(failure, collectSecrets(options?.authToken, options?.mongodbUri)));
 
-    keepSandboxOnFailure(paths);
-    process.exit(1);
+    if (err instanceof DeployFailure && err.report.remoteMutations.length > 0) {
+      services.error('\nRemote state may remain; automatic rollback was not attempted:');
+      for (const mutation of err.report.remoteMutations) {
+        services.error(`  - ${mutation.status}: ${mutation.operation}`);
+      }
+    }
+
+    if (paths) services.keepSandboxOnFailure(paths);
+    return 1;
   }
-
-  if (deployed) cleanupSandbox(paths, options.keepSandbox, options.dryRun);
-
-  console.log('\n✓ Deploy finished.');
 }
 
 if (typeof require !== 'undefined' && require.main === module) {
-  void main();
+  runNetlifyCli(process.argv.slice(2))
+    .then((exitCode) => {
+      process.exitCode = exitCode;
+    })
+    .catch((error: unknown) => {
+      console.error(error instanceof Error ? `\n✖ ${error.message}` : error);
+      process.exitCode = 1;
+    });
 }

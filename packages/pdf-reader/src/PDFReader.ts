@@ -16,14 +16,20 @@ import type {
   PdfReaderState,
   PdfReaderSourceInfo,
   PdfSource,
+  PdfTextContent,
   PdfTypedArray,
   ViewportScale,
 } from './types';
 
 const defaultLimits = {
   maxDocumentPages: 1_000,
+  maxTextItems: 50_000,
+  maxTextCodeUnits: 5_000_000,
+  maxOperatorCount: 100_000,
   maxCanvasPixels: 40_000_000,
   maxEmbeddedImagePixels: 25_000_000,
+  maxEmbeddedImages: 1_000,
+  maxEmbeddedImagePixelsTotal: 100_000_000,
 } as const;
 
 interface LoadState {
@@ -41,9 +47,26 @@ interface ResolvedLoadOptions {
 interface ResolvedLimits {
   maxSourceBytes?: number;
   maxDocumentPages: number;
+  maxTextItems: number;
+  maxTextCodeUnits: number;
+  maxOperatorCount: number;
   maxCanvasPixels: number;
   maxEmbeddedImagePixels: number;
+  maxEmbeddedImages: number;
+  maxEmbeddedImagePixelsTotal: number;
 }
+
+interface SourceSnapshot {
+  pdfJsSource: Readonly<PdfDocumentInitParameters>;
+  info: PdfReaderSourceInfo;
+}
+
+interface HeaderInspection {
+  hasHttpHeaders: boolean;
+  httpHeaders?: Readonly<Record<string, string>>;
+}
+
+type SourceKind = PdfReaderSourceInfo['kind'];
 
 /** Browser PDF reader with bounded canvas allocation and deterministic cleanup. */
 export class PDFReader {
@@ -56,7 +79,9 @@ export class PDFReader {
   #loadingTask?: PDFDocumentLoadingTask;
   #document?: PDFDocumentProxy;
   #destroyPromise?: Promise<void>;
+  readonly #destroyController = new AbortController();
   readonly #activeRenderTasks = new Set<RenderTask>();
+  #activePageOperation = false;
   #activePageWorkCount = 0;
   #destroyed = false;
   #lastLoadFailed = false;
@@ -77,14 +102,21 @@ export class PDFReader {
   /** Current lifecycle state for load, iteration/rendering, retry, and teardown boundaries. */
   public get state(): PdfReaderState {
     if (this.#destroyed) return 'destroyed';
-    if (this.#activePageWorkCount > 0) return 'iterating';
+    if (this.#activePageOperation || this.#activePageWorkCount > 0) return 'iterating';
     if (this.#document) return 'loaded';
     if (this.#loadingState) return 'loading';
     if (this.#lastLoadFailed) return 'failed';
     return 'new';
   }
 
-  /** Loads once and returns the underlying PDF.js document proxy. */
+  /**
+   * Loads once and returns the borrowed PDF.js document proxy.
+   *
+   * The returned proxy remains owned by this reader. Callers may inspect it and
+   * use supported PDF.js read methods, but must not call `destroy()` on the
+   * proxy while the reader owns lifecycle teardown. Call `reader.destroy()` to
+   * release document and worker resources.
+   */
   public load(signal?: AbortSignal): Promise<PDFDocumentProxy>;
   public load(options?: LoadOptions): Promise<PDFDocumentProxy>;
   public load(options?: AbortSignal | LoadOptions): Promise<PDFDocumentProxy> {
@@ -112,38 +144,44 @@ export class PDFReader {
 
   /** Streams page results so callers do not need to retain the entire document conversion in memory. */
   public async *pages(options: ConvertOptions = {}): AsyncGenerator<PageResult> {
-    this.#throwIfDestroyed();
-    const documentProxy = this.#document;
-    if (!documentProxy) {
-      throw new PdfReaderError('DOCUMENT_NOT_LOADED', 'Document not loaded. Call load() first.');
-    }
-    const resolved = resolveConvertOptions(options);
-    const [start, end] = resolvePageNumbers(resolved.pageRange, documentProxy.numPages);
-    if (start > documentProxy.numPages) {
-      throw new PdfReaderError('INVALID_OPTION', `pageRange starts after the last page (${documentProxy.numPages}).`);
-    }
-
-    for (let pageNumber = start; pageNumber <= Math.min(end, documentProxy.numPages); pageNumber += 1) {
-      this.#throwIfDestroyed();
-      this.#throwIfAborted(resolved.signal);
-      let page: PDFPageProxy | undefined;
-      let ownsActivePageWork = false;
-      try {
-        this.#activePageWorkCount += 1;
-        ownsActivePageWork = true;
-        page = await documentProxy.getPage(pageNumber);
-        const result = await this.#processPage(page, pageNumber, documentProxy.numPages, resolved);
-        page.cleanup();
-        page = undefined;
-        this.#activePageWorkCount -= 1;
-        ownsActivePageWork = false;
-        yield result;
-      } catch (error) {
-        this.#rethrowLifecycleError(error, resolved.signal);
-      } finally {
-        if (ownsActivePageWork) this.#activePageWorkCount -= 1;
-        page?.cleanup();
+    let ownsPageOperation = false;
+    try {
+      this.#acquirePageOperation();
+      ownsPageOperation = true;
+      const documentProxy = this.#document;
+      if (!documentProxy) {
+        throw new PdfReaderError('DOCUMENT_NOT_LOADED', 'Document not loaded. Call load() first.');
       }
+      const resolved = resolveConvertOptions(options);
+      const [start, end] = resolvePageNumbers(resolved.pageRange, documentProxy.numPages);
+      if (start > documentProxy.numPages) {
+        throw new PdfReaderError('INVALID_OPTION', `pageRange starts after the last page (${documentProxy.numPages}).`);
+      }
+
+      for (let pageNumber = start; pageNumber <= Math.min(end, documentProxy.numPages); pageNumber += 1) {
+        this.#throwIfDestroyed();
+        this.#throwIfAborted(resolved.signal);
+        let page: PDFPageProxy | undefined;
+        let ownsActivePageWork = false;
+        try {
+          this.#activePageWorkCount += 1;
+          ownsActivePageWork = true;
+          page = await documentProxy.getPage(pageNumber);
+          const result = await this.#processPage(page, pageNumber, documentProxy.numPages, resolved);
+          page.cleanup();
+          page = undefined;
+          this.#activePageWorkCount -= 1;
+          ownsActivePageWork = false;
+          yield result;
+        } catch (error) {
+          this.#rethrowLifecycleError(error, resolved.signal);
+        } finally {
+          if (ownsActivePageWork) this.#activePageWorkCount -= 1;
+          page?.cleanup();
+        }
+      }
+    } finally {
+      if (ownsPageOperation) this.#releasePageOperation();
     }
   }
 
@@ -158,6 +196,7 @@ export class PDFReader {
   public async destroy(): Promise<void> {
     if (this.#destroyPromise) return this.#destroyPromise;
     this.#destroyed = true;
+    this.#destroyController.abort();
     const loadingTask = this.#loadingTask;
     const loadingState = this.#loadingState;
     this.#loadingTask = undefined;
@@ -171,8 +210,7 @@ export class PDFReader {
       }
       if (!loadingState) return;
       loadingState.destroyed = true;
-      loadingState.destroyPromise ??= loadingState.task ? loadingState.task.destroy() : Promise.resolve();
-      await loadingState.destroyPromise;
+      await this.#destroyLoadStateTask(loadingState);
     })();
     await this.#destroyPromise;
   }
@@ -196,7 +234,9 @@ export class PDFReader {
     this.#throwIfDestroyed();
     if (options.includeText) {
       try {
-        result.text = await page.getTextContent();
+        const text = await page.getTextContent();
+        this.#enforceTextLimits(text);
+        result.text = text;
       } catch (error) {
         this.#rethrowLifecycleError(error, options.signal);
       }
@@ -209,6 +249,9 @@ export class PDFReader {
           signal: options.signal,
           createCanvas: this.#createCanvas,
           maxPixels: this.#limits.maxEmbeddedImagePixels,
+          maxImages: this.#limits.maxEmbeddedImages,
+          maxTotalPixels: this.#limits.maxEmbeddedImagePixelsTotal,
+          maxOperators: this.#limits.maxOperatorCount,
           logger: this.#logger,
           throwIfAborted: (signal) => this.#throwIfAborted(signal),
           throwIfDestroyed: () => this.#throwIfDestroyed(),
@@ -240,6 +283,32 @@ export class PDFReader {
       }
     }
     return result;
+  }
+
+  #enforceTextLimits(text: PdfTextContent): void {
+    const items = (text as unknown as { items?: unknown }).items;
+    if (!Array.isArray(items) || !Number.isSafeInteger(items.length)) {
+      throw new PdfReaderError('TEXT_LIMIT_EXCEEDED', 'PDF text content has an unsafe item count.');
+    }
+    if (items.length > this.#limits.maxTextItems) {
+      throw new PdfReaderError(
+        'TEXT_LIMIT_EXCEEDED',
+        `PDF page has ${items.length} text items; limit is ${this.#limits.maxTextItems}.`,
+      );
+    }
+
+    let codeUnits = 0;
+    for (const item of items) {
+      const value = item && typeof item === 'object' ? (item as { str?: unknown }).str : undefined;
+      if (typeof value !== 'string') continue;
+      codeUnits += value.length;
+      if (!Number.isSafeInteger(codeUnits) || codeUnits > this.#limits.maxTextCodeUnits) {
+        throw new PdfReaderError(
+          'TEXT_LIMIT_EXCEEDED',
+          `PDF page text has more than ${this.#limits.maxTextCodeUnits} string code units.`,
+        );
+      }
+    }
   }
 
   async #encodePageImage(
@@ -285,12 +354,17 @@ export class PDFReader {
         'Canvas Blob encoding is not supported by this canvas implementation.',
       );
     }
+    this.#throwIfDestroyed();
     this.#throwIfAborted(signal);
 
     return await new Promise<Blob>((resolve, reject) => {
       let settled = false;
       const onAbort = () => settle(() => reject(this.#createAbortedError()));
-      const cleanup = () => signal?.removeEventListener('abort', onAbort);
+      const onDestroy = () => settle(() => reject(this.#createDestroyedError()));
+      const cleanup = () => {
+        signal?.removeEventListener('abort', onAbort);
+        this.#destroyController.signal.removeEventListener('abort', onDestroy);
+      };
       const settle = (callback: () => void) => {
         if (settled) return;
         settled = true;
@@ -299,6 +373,7 @@ export class PDFReader {
       };
 
       signal?.addEventListener('abort', onAbort, { once: true });
+      this.#destroyController.signal.addEventListener('abort', onDestroy, { once: true });
       try {
         const resolveBlob = (blob: Blob | null) => {
           if (!blob) {
@@ -339,7 +414,7 @@ export class PDFReader {
     this.#activeRenderTasks.add(renderTask);
     signal?.addEventListener('abort', abort, { once: true });
     try {
-      await renderTask.promise;
+      await this.#awaitWithSignal(renderTask.promise, signal);
       this.#throwIfDestroyed();
       this.#throwIfAborted(signal);
     } catch (error) {
@@ -355,6 +430,21 @@ export class PDFReader {
     canvas.height = 0;
   }
 
+  #acquirePageOperation(): void {
+    this.#throwIfDestroyed();
+    if (this.#activePageOperation) {
+      throw new PdfReaderError(
+        'OPERATION_IN_PROGRESS',
+        'Another pages() or convert() operation is already active for this PDFReader.',
+      );
+    }
+    this.#activePageOperation = true;
+  }
+
+  #releasePageOperation(): void {
+    this.#activePageOperation = false;
+  }
+
   #getOrCreateLoadState(): LoadState {
     const existing = this.#loadingState;
     if (existing) return existing;
@@ -363,32 +453,45 @@ export class PDFReader {
     const state = { destroyed: false } as LoadState;
     state.promise = (async () => {
       try {
-        const policyResult = this.#enforceSourcePolicy();
-        if (this.#isPromiseLike(policyResult)) await policyResult;
+        const source = this.#createSourceSnapshot();
+        const policyResult = this.#enforceSourcePolicy(source.info);
+        if (policyResult) await this.#awaitWithDestroy(policyResult);
         if (state.destroyed || this.#destroyed) {
           throw this.#createDestroyedError();
         }
-        const task = getDocument(this.#toPdfJsSource(this.#source));
+        const task = getDocument(source.pdfJsSource);
         state.task = task;
-        const documentProxy = await task.promise;
-        if (state.destroyed || state.destroyPromise) {
-          await state.destroyPromise?.catch(() => undefined);
+        let documentProxy: PDFDocumentProxy;
+        try {
+          documentProxy = await this.#awaitWithDestroy(task.promise);
+        } catch (error) {
+          if (state.destroyed || this.#destroyed) {
+            await state.destroyPromise?.catch(() => undefined);
+            throw this.#createDestroyedError();
+          }
+          await this.#destroyLoadStateTask(state).catch(() => undefined);
+          throw error;
+        }
+        if (state.destroyed) {
+          await this.#destroyLoadStateTask(state).catch(() => undefined);
           throw this.#createDestroyedError();
         }
         if (documentProxy.numPages > this.#limits.maxDocumentPages) {
-          await task.destroy();
-          throw new PdfReaderError(
+          const error = new PdfReaderError(
             'PAGE_LIMIT_EXCEEDED',
             `PDF has ${documentProxy.numPages} pages; limit is ${this.#limits.maxDocumentPages}.`,
           );
+          await this.#destroyLoadStateTask(state).catch(() => undefined);
+          throw error;
         }
         this.#throwIfDestroyed();
+        state.task = undefined;
         this.#loadingTask = task;
         this.#document = documentProxy;
         this.#lastLoadFailed = false;
         return documentProxy;
       } catch (error) {
-        if (state.destroyed || state.destroyPromise || this.#destroyed) {
+        if (state.destroyed || this.#destroyed) {
           await state.destroyPromise?.catch(() => undefined);
           throw this.#createDestroyedError();
         }
@@ -403,15 +506,25 @@ export class PDFReader {
     return state;
   }
 
+  #destroyLoadStateTask(state: LoadState): Promise<void> {
+    if (state.destroyPromise) return state.destroyPromise;
+    const task = state.task;
+    state.task = undefined;
+    state.destroyPromise = task ? Promise.resolve(task.destroy()) : Promise.resolve();
+    return state.destroyPromise;
+  }
+
   async #awaitWithSignal<T>(promise: Promise<T>, signal?: AbortSignal, deadlineMs?: number): Promise<T> {
     this.#throwIfAborted(signal);
-    if (!signal && deadlineMs === undefined) return promise;
+    this.#throwIfDestroyed();
 
     return await new Promise<T>((resolve, reject) => {
       let settled = false;
       const onAbort = () => settle(() => reject(this.#createAbortedError()));
+      const onDestroy = () => settle(() => reject(this.#createDestroyedError()));
       const cleanup = () => {
         signal?.removeEventListener('abort', onAbort);
+        this.#destroyController.signal.removeEventListener('abort', onDestroy);
         if (timer !== undefined) clearTimeout(timer);
       };
       const settle = (callback: () => void) => {
@@ -425,12 +538,34 @@ export class PDFReader {
           ? undefined
           : setTimeout(() => settle(() => reject(this.#createDeadlineExceededError())), deadlineMs);
       signal?.addEventListener('abort', onAbort, { once: true });
+      this.#destroyController.signal.addEventListener('abort', onDestroy, { once: true });
       promise
         .then(
           (value) => settle(() => resolve(value)),
           (error) => settle(() => reject(error)),
         )
         .catch(() => undefined);
+    });
+  }
+
+  async #awaitWithDestroy<T>(promise: PromiseLike<T>): Promise<T> {
+    this.#throwIfDestroyed();
+    return await new Promise<T>((resolve, reject) => {
+      let settled = false;
+      const onDestroy = () => settle(() => reject(this.#createDestroyedError()));
+      const cleanup = () => this.#destroyController.signal.removeEventListener('abort', onDestroy);
+      const settle = (callback: () => void) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        callback();
+      };
+
+      this.#destroyController.signal.addEventListener('abort', onDestroy, { once: true });
+      Promise.resolve(promise).then(
+        (value) => settle(() => resolve(value)),
+        (error) => settle(() => reject(error)),
+      );
     });
   }
 
@@ -477,8 +612,7 @@ export class PDFReader {
     return 'aborted' in value && 'addEventListener' in value && 'removeEventListener' in value;
   }
 
-  #enforceSourcePolicy(): Promise<void> | void {
-    const source = this.#inspectSource(this.#source);
+  #enforceSourcePolicy(source: PdfReaderSourceInfo): Promise<void> | void {
     if (
       source.byteLength !== undefined &&
       this.#limits.maxSourceBytes !== undefined &&
@@ -492,8 +626,8 @@ export class PDFReader {
     if (!this.#sourcePolicy) return;
     try {
       const result = this.#sourcePolicy(source);
-      if (!this.#isPromiseLike(result)) return;
-      return result.catch((error: unknown) => {
+      if (result === undefined) return;
+      return Promise.resolve(result).catch((error: unknown) => {
         if (error instanceof PdfReaderError) throw error;
         throw new PdfReaderError('SOURCE_POLICY_VIOLATION', 'PDF source rejected by sourcePolicy.');
       });
@@ -503,59 +637,58 @@ export class PDFReader {
     }
   }
 
-  #isPromiseLike(value: Promise<void> | void): value is Promise<void> {
-    return value instanceof Promise;
+  #createSourceSnapshot(): SourceSnapshot {
+    const kind = this.#sourceKind(this.#source);
+    const pdfJsSource = this.#toPdfJsSource(this.#source);
+    const info = this.#inspectSource(pdfJsSource, kind);
+    return { pdfJsSource, info };
   }
 
-  #inspectSource(source: PdfSource): PdfReaderSourceInfo {
+  #inspectSource(source: Readonly<PdfDocumentInitParameters>, kind: SourceKind): PdfReaderSourceInfo {
+    const headers = this.#readHttpHeaders(source.httpHeaders);
+    const info = {
+      rawSource: source,
+      kind,
+      url: this.#readUrl(source.url),
+      byteLength: this.#knownByteLength(source.data),
+      hasHttpHeaders: headers.hasHttpHeaders,
+      httpHeaders: headers.httpHeaders,
+      withCredentials: source.withCredentials === true,
+    } satisfies PdfReaderSourceInfo;
+
+    return Object.freeze(info);
+  }
+
+  #sourceKind(source: PdfSource): SourceKind {
+    if (typeof source === 'string') return 'url';
+    if (typeof URL !== 'undefined' && source instanceof URL) return 'url';
+    if (source instanceof ArrayBuffer || this.#isPdfTypedArray(source) || Array.isArray(source)) return 'bytes';
+    return 'document-init-parameters';
+  }
+
+  #toPdfJsSource(source: PdfSource): Readonly<PdfDocumentInitParameters> {
     if (typeof source === 'string') {
-      return {
-        rawSource: source,
-        kind: 'url',
-        url: source,
-        hasHttpHeaders: false,
-        withCredentials: false,
-      };
+      return this.#freezeSource({ url: source });
     }
     if (typeof URL !== 'undefined' && source instanceof URL) {
-      return {
-        rawSource: source,
-        kind: 'url',
-        url: source.toString(),
-        hasHttpHeaders: false,
-        withCredentials: false,
-      };
+      return this.#freezeSource({ url: source.toString() });
     }
-    const byteLength = this.#knownByteLength(source);
-    if (byteLength !== undefined) {
-      return {
-        rawSource: source,
-        kind: 'bytes',
-        byteLength,
-        hasHttpHeaders: false,
-        withCredentials: false,
-      };
+    if (source instanceof ArrayBuffer || this.#isPdfTypedArray(source) || Array.isArray(source)) {
+      return this.#freezeSource({ data: source });
     }
 
-    const candidate = source as Record<string, unknown>;
-    const headers = this.#readHttpHeaders(candidate.httpHeaders);
-    return {
-      rawSource: source,
-      kind: 'document-init-parameters',
-      url: this.#readUrl(candidate.url),
-      byteLength: this.#knownByteLength(candidate.data),
-      hasHttpHeaders: headers !== undefined,
-      httpHeaders: headers,
-      withCredentials: candidate.withCredentials === true,
-    };
+    const snapshot: Record<PropertyKey, unknown> = {};
+    for (const key of Reflect.ownKeys(source)) {
+      const descriptor = Object.getOwnPropertyDescriptor(source, key);
+      if (!descriptor?.enumerable) continue;
+      snapshot[key] = (source as Record<PropertyKey, unknown>)[key];
+    }
+    if (typeof URL !== 'undefined' && snapshot.url instanceof URL) snapshot.url = snapshot.url.toString();
+    return this.#freezeSource(snapshot as PdfDocumentInitParameters);
   }
 
-  #toPdfJsSource(source: PdfSource): PdfDocumentInitParameters {
-    if (typeof source === 'string') return { url: source };
-    if (source instanceof URL) return { url: source };
-    if (source instanceof ArrayBuffer || this.#isPdfTypedArray(source) || Array.isArray(source))
-      return { data: source };
-    return source;
+  #freezeSource(source: PdfDocumentInitParameters): Readonly<PdfDocumentInitParameters> {
+    return Object.freeze(source);
   }
 
   #isPdfTypedArray(source: PdfSource): source is PdfTypedArray {
@@ -575,11 +708,27 @@ export class PDFReader {
     return undefined;
   }
 
-  #readHttpHeaders(value: unknown): Readonly<Record<string, string>> | undefined {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-    const entries = Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string');
-    if (entries.length === 0) return undefined;
-    return Object.freeze(Object.fromEntries(entries));
+  #readHttpHeaders(value: unknown): HeaderInspection {
+    if (!value || typeof value !== 'object') return { hasHttpHeaders: false };
+
+    const entries: [string, string][] = [];
+    try {
+      for (const [name, headerValue] of Object.entries(value)) {
+        if (typeof headerValue === 'string') entries.push([name, headerValue]);
+      }
+      if ('forEach' in value && typeof value.forEach === 'function') {
+        value.forEach((headerValue: unknown, name: unknown) => {
+          if (typeof name === 'string' && typeof headerValue === 'string') entries.push([name, headerValue]);
+        });
+      }
+    } catch {
+      return { hasHttpHeaders: true };
+    }
+
+    return {
+      hasHttpHeaders: true,
+      httpHeaders: entries.length > 0 ? Object.freeze(Object.fromEntries(entries)) : undefined,
+    };
   }
 
   #validateLimits(): void {

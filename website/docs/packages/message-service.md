@@ -60,6 +60,7 @@ Typed errors:
 - `ActionNotAllowedError`
 - `MessageNotFoundError`
 - `MessageArchivedError`
+- `InvalidClientRequestIdError`
 
 ## Quick Start
 
@@ -181,7 +182,7 @@ await fetch('/api/messages/new/welcome', {
 });
 ```
 
-When `clientRequestId` is present and `MessageRequest` is registered, duplicate retries reuse the original in-flight or completed result instead of producing duplicate side effects.
+When `clientRequestId` is present and `MessageRequest` is registered, duplicate retries in the same requester/template scope reuse the original in-flight or completed result instead of producing duplicate side effects.
 
 ## `MessageService`
 
@@ -279,8 +280,13 @@ mongoose.model(MESSAGE_REQUEST_MODEL_NAME, buildMessageRequestSchema());
 Why the third schema matters:
 
 - `clientRequestId` is only safe for concurrent retries when `MessageRequest` is registered
-- the winner reserves the idempotency key before template preparation or payment-session creation runs
-- later duplicate requests return the same outcome instead of causing duplicate side effects
+- the service trims surrounding whitespace, preserves case, and rejects non-string, empty, whitespace-only, or over-128-character IDs
+- the idempotency key is scoped to the trimmed `clientRequestId`, `String(user._id)`, and `templateCd`
+- the winner reserves the scoped idempotency key before template preparation or payment-session creation runs
+- later duplicate requests in the same scope return the same outcome instead of causing duplicate side effects
+- reusing the same ID from another requester or another template creates a separate batch and cannot return the first scope's messages
+
+Migration note: scoped idempotency adds `clientRequestOwnerId` to message and reservation records. Replace any old global unique index on `clientRequestId` with the compound scoped indexes declared by `buildMessageSchema()` and `buildMessageRequestSchema()`.
 
 ### Schema config example
 
@@ -358,6 +364,7 @@ Pass it to `createMessageRoutes({ paymentProvider })` or `new MessageService({ p
 import {
   ActionNotAllowedError,
   ActionNotFoundError,
+  InvalidClientRequestIdError,
   MessageNotFoundError,
   TemplateNotFoundError,
 } from '@web-ts-toolkit/message-service';

@@ -52,7 +52,7 @@ Confirmed on 2026-08-12 against a clean tracked worktree before this task file w
 
 ### Task EJR-01: Snapshot Constructor Middleware Configuration
 
-Status: complete
+Status: completed
 
 Priority: P0
 
@@ -104,7 +104,7 @@ Completion evidence (2026-08-12):
 
 ### Task EJR-02: Encapsulate Method And Endpoint Registries
 
-Status: complete
+Status: completed
 
 Priority: P1
 

@@ -394,22 +394,22 @@ with friendly error handling and graceful shutdown. Returns `{ server, shutdown,
 
 Lifecycle state machine: `initializing` → `listening` → `stopping` → `stopped`, or `initializing` → `failed` on init/listen failure. Shutdown is single-flight and memoized: concurrent `shutdown()` calls and signals share one operation (logs, force-close, `onShutdown`, optional exit run at most once). Signal handlers owned by the instance are removed after shutdown or terminal failure; unrelated listeners are never removed.
 
-Shutdown order and timeout policy: on `shutdown()`, the server first stops accepting new connections (`server.close`), drains in-flight requests up to `shutdownTimeout` (then `closeAllConnections`), and only then runs `onShutdown`. `shutdownTimeout` covers **only** request draining — `onShutdown` runs after draining and its errors are logged (`logger.error`) without rejecting `shutdown()`. If shutdown is requested before the server is listening (e.g. during a pending `init`), the pending `listen` is suppressed, `server.listening` remains `false`, and `ready` rejects. If the server was never started or was closed externally, `shutdown()` resolves deterministically without error.
+Shutdown order and timeout policy: on `shutdown()`, the server first stops accepting new connections (`server.close`), drains in-flight requests up to `shutdownTimeout` (then `closeAllConnections`), and only then runs `onShutdown`. `shutdownTimeout` covers **only** request draining — `onShutdown` runs after draining. If `onShutdown` rejects, the error is logged (`logger.error`) and `shutdown()` rejects for programmatic callers. When `exitAfterShutdown: true`, the failure is reported and the process exits with status `1`; successful CLI-owned shutdown exits with status `0`. If shutdown is requested before the server is listening (e.g. during a pending `init`), the pending `listen` is suppressed, `server.listening` remains `false`, and `ready` rejects. If the server was never started or was closed externally, `shutdown()` resolves deterministically without error.
 
 Port `0` logs the actual bound port (e.g. `Server running at http://127.0.0.1:54321/ (port 54321)`).
 
-| Option              | Type                          | Default                       | Description                                                                               |
-| ------------------- | ----------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------- |
-| `port`              | `number \| string`            | `process.env.PORT ?? 8080`    | Port number or named-pipe path (use `0` for an ephemeral port; actual port is logged)     |
-| `host`              | `string`                      | `process.env.HOST ?? 0.0.0.0` | Hostname (ignored for named pipes)                                                        |
-| `init`              | `() => Promise<void>`         | —                             | Called once before listening; rejection rejects `ready` and skips listening               |
-| `onShutdown`        | `() => Promise<void> \| void` | —                             | Called **after** draining (see shutdown order above)                                      |
-| `onListening`       | `() => void`                  | —                             | Called when listening (after actual-port log)                                             |
-| `onError`           | `(error) => void`             | logs + exits                  | Called on listen errors and init failures (init failures are not `listen` syscall errors) |
-| `signals`           | `boolean \| NodeJS.Signals[]` | `true` (`SIGINT`, `SIGTERM`)  | Signal handlers to register (owned handlers removed on shutdown/terminal failure)         |
-| `shutdownTimeout`   | `number`                      | `5000`                        | Max ms to wait for in-flight requests before force-closing (covers draining only)         |
-| `exitAfterShutdown` | `boolean`                     | `false`                       | Call `process.exit(0)` after shutdown (the CLI sets `true`)                               |
-| `logger`            | `Logger`                      | `console`                     | Logger used internally                                                                    |
+| Option              | Type                          | Default                       | Description                                                                                 |
+| ------------------- | ----------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------- |
+| `port`              | `number \| string`            | `process.env.PORT ?? 8080`    | Port number or named-pipe path (use `0` for an ephemeral port; actual port is logged)       |
+| `host`              | `string`                      | `process.env.HOST ?? 0.0.0.0` | Hostname (ignored for named pipes)                                                          |
+| `init`              | `() => Promise<void>`         | —                             | Called once before listening; rejection rejects `ready` and skips listening                 |
+| `onShutdown`        | `() => Promise<void> \| void` | —                             | Called **after** draining; rejection is logged and fails shutdown                           |
+| `onListening`       | `() => void`                  | —                             | Called when listening (after actual-port log)                                               |
+| `onError`           | `(error) => void`             | logs + exits                  | Called on listen errors and init failures (init failures are not `listen` syscall errors)   |
+| `signals`           | `boolean \| NodeJS.Signals[]` | `true` (`SIGINT`, `SIGTERM`)  | Signal handlers to register (owned handlers removed on shutdown/terminal failure)           |
+| `shutdownTimeout`   | `number`                      | `5000`                        | Max ms to wait for in-flight requests before force-closing (covers draining only)           |
+| `exitAfterShutdown` | `boolean`                     | `false`                       | Call `process.exit(0)` after successful shutdown or `process.exit(1)` after cleanup failure |
+| `logger`            | `Logger`                      | `console`                     | Logger used internally                                                                      |
 
 #### `LocalServer`
 
