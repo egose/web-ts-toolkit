@@ -9,7 +9,7 @@
     "test": "pnpm -r --if-present --workspace-concurrency=1 test",
     "release": "release-it",
     "changelog": "repo-toolkit-changelog",
-    "publish-packages": "repo-toolkit-publish-packages",
+    "publish-packages": "node scripts/publish-packages.mjs",
     "build-artifact": "repo-toolkit-build-artifact --config release-artifact.config.json",
     "verify-artifact": "repo-toolkit-verify-artifact --config release-artifact.config.json"
   },
