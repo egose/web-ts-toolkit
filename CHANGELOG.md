@@ -2,6 +2,7 @@
 
 ### ⚠ BREAKING CHANGES
 
+* **access-router-runtime:** runtime config loading now rejects unsupported export forms, ambiguous model definitions, duplicate model/data names, existing-model `collection`, and invalid `dev.delay` values before runtime assembly.
 * **moo:** Keycloak user sync no longer removes assigned realm roles by default. Role synchronization is additive-only unless `managedRoles` explicitly declares the role names this plugin owns.
 * **moo:** Keycloak user sync now rejects invalid identity/path configuration at schema registration and treats persisted provider IDs as server-controlled.
 * **moo:** Keycloak user sync now rejects session-backed saves/deletes and keeps failed remote deletes retryable under its direct-hook delivery contract.
@@ -10,6 +11,7 @@
 
 ### Bug Fixes
 
+* **access-router-runtime:** normalize config exports through one validation boundary shared by direct loading and generated-entry imports
 * **moo:** define Keycloak profile clearing and preserve unmanaged attributes during user sync
 * **moo:** preserve unmanaged Keycloak realm-role mappings during user sync
 * **moo:** snapshot Keycloak user-sync options and prevent provider-ID mutation from redirecting remote synchronization

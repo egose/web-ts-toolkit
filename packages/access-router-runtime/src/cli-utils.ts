@@ -1,20 +1,38 @@
-import { resolve as pathResolve } from 'node:path';
-import type { BuildArgs, DevArgs } from '@web-ts-toolkit/express-runtime/cli';
-import type { AccessRouterRuntimeConfig } from './index';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, resolve as pathResolve } from 'node:path';
 
 /**
  * Version placeholder rewritten at publish time by `@repo-toolkit/publish-package`.
  */
 export const CLI_VERSION = '0.0.0-PLACEHOLDER';
 
-export type AccessRouterRuntimeSubcommand = 'dev' | 'build' | 'start' | 'build-serverless' | 'start-serverless';
+export function getCliVersion(): string {
+  const candidateDirs = [
+    typeof __dirname === 'string' ? __dirname : undefined,
+    process.argv[1] ? dirname(pathResolve(process.argv[1])) : undefined,
+    process.cwd(),
+  ];
+  const packageJsonPaths = candidateDirs.flatMap((dir) =>
+    dir ? [pathResolve(dir, 'package.json'), pathResolve(dir, '..', 'package.json')] : [],
+  );
 
-export interface ResolvedCliInvocation {
-  subcommand: AccessRouterRuntimeSubcommand;
-  targetPath: string;
-  passthroughArgs: string[];
-  configAware: boolean;
+  for (const packageJsonPath of packageJsonPaths) {
+    if (!existsSync(packageJsonPath)) continue;
+
+    try {
+      const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { version?: unknown };
+      if (typeof packageJson.version === 'string' && packageJson.version) {
+        return packageJson.version;
+      }
+    } catch {
+      // Fall through to the compile-time placeholder if package metadata is unreadable.
+    }
+  }
+
+  return CLI_VERSION;
 }
+
+export type AccessRouterRuntimeSubcommand = 'dev' | 'build' | 'start' | 'build-serverless' | 'start-serverless';
 
 function isSubcommand(value: string): value is AccessRouterRuntimeSubcommand {
   return (
@@ -24,10 +42,6 @@ function isSubcommand(value: string): value is AccessRouterRuntimeSubcommand {
     value === 'build-serverless' ||
     value === 'start-serverless'
   );
-}
-
-function isFlag(value: string): boolean {
-  return value === '-h' || value === '--help' || value === '-V' || value === '--version';
 }
 
 export function printHelp(): void {
@@ -65,168 +79,60 @@ Examples:
   wtt-access-router-runtime start-serverless ./dist/handler.js --port 9000
 
 Notes:
-  - dev, build, and build-serverless expect a config module whose default export is a config object.
+  - dev, build, and build-serverless expect a default config object, sync default factory, or named config object.
   - build and build-serverless manage runtime init automatically; do not pass --init yourself.
   - Remaining flags follow the same semantics as wtt-express-runtime.
   - --tsconfig is respected for config loading and build bundling on config-aware commands.
-  - dev config may set watch defaults via { dev: { watch, ext, delay } }.
-  - Config watch values do not enable watch mode by themselves; pass --watch to use them.
-  - Bare --watch uses config.dev.watch when present, otherwise defaults to .
+  - Watch supervision does not load the access-router-runtime config in the parent process.
+  - Pass --watch <paths>, --ext, and --delay explicitly for watch supervision; bare --watch defaults to .
 `);
 }
 
-function hasFlag(argv: string[], flag: '--watch' | '--ext' | '--delay'): boolean {
-  return argv.some((arg) => arg === flag || arg.startsWith(`${flag}=`));
-}
-
-export function readTsconfigPath(argv: string[]): string | undefined {
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-
-    if (arg === '--tsconfig') {
-      const value = argv[index + 1];
-      if (value === undefined || value.startsWith('--')) {
-        throw new Error('Missing value for argument: --tsconfig');
-      }
-      return value;
-    }
-
-    if (arg.startsWith('--tsconfig=')) {
-      return arg.slice('--tsconfig='.length);
-    }
-  }
-
-  return undefined;
-}
-
-function normalizeStringList(value: ReadonlyArray<string> | undefined, field: 'watch' | 'ext'): string[] | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string')) {
-    throw new Error(`Config field "dev.${field}" must be an array of strings.`);
-  }
-
-  return [...value];
-}
-
-function normalizeDelay(value: number | undefined): number | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (typeof value !== 'number' || Number.isNaN(value) || value < 0) {
-    throw new Error('Config field "dev.delay" must be a non-negative number.');
-  }
-
-  return value;
-}
-
-function readDevConfig(config: AccessRouterRuntimeConfig): { watch?: string[]; ext?: string[]; delay?: number } {
-  return {
-    watch: normalizeStringList(config.dev?.watch, 'watch'),
-    ext: normalizeStringList(config.dev?.ext, 'ext'),
-    delay: normalizeDelay(config.dev?.delay),
-  };
-}
-
-export function buildConfigAwareDevArgv(
-  configPath: string,
-  passthroughArgs: string[],
-  config: AccessRouterRuntimeConfig,
-): string[] {
-  const argv = [...passthroughArgs];
-  const devConfig = readDevConfig(config);
-  const defaultWatch = devConfig.watch && devConfig.watch.length > 0 ? devConfig.watch : ['.'];
-
-  for (let index = 0; index < argv.length; index += 1) {
-    if (argv[index] !== '--watch') {
-      continue;
-    }
-
-    const nextArg = argv[index + 1];
-    if (nextArg !== undefined && !nextArg.startsWith('--')) {
-      continue;
-    }
-
-    argv[index] = `--watch=${defaultWatch.join(',')}`;
-  }
-
-  return ['dev', configPath, ...argv];
-}
-
-export function applyConfigDevDefaults(
-  args: DevArgs,
-  config: AccessRouterRuntimeConfig,
-  passthroughArgs: string[],
-): DevArgs {
-  const devConfig = readDevConfig(config);
-
-  return {
-    ...args,
-    watchExt: !hasFlag(passthroughArgs, '--ext') && devConfig.ext ? devConfig.ext : args.watchExt,
-    watchDelay:
-      !hasFlag(passthroughArgs, '--delay') && devConfig.delay !== undefined ? devConfig.delay : args.watchDelay,
-  };
-}
-
-export function resolveCliInvocation(argv: string[]): ResolvedCliInvocation | null {
-  if (argv.length === 0 || argv.every(isFlag)) {
-    return null;
-  }
-
-  const [firstArg, ...restArgs] = argv;
+export function normalizeAccessRouterRuntimeArgv(argv: string[]): string[] {
+  const normalized = [...argv];
+  const firstArg = normalized[0];
   const subcommand = isSubcommand(firstArg) ? firstArg : 'dev';
-  const targetPath = isSubcommand(firstArg) ? restArgs[0] : firstArg;
-  const passthroughArgs = isSubcommand(firstArg) ? restArgs.slice(1) : restArgs;
-
-  if (!targetPath || isFlag(targetPath)) {
-    throw new Error(
-      `Missing required ${subcommand === 'start-serverless' ? 'handler module' : 'config or app module'} path.`,
-    );
+  if (subcommand !== 'dev') {
+    return normalized;
   }
 
-  return {
-    subcommand,
-    targetPath,
-    passthroughArgs,
-    configAware: subcommand === 'dev' || subcommand === 'build' || subcommand === 'build-serverless',
-  };
-}
+  const startIndex = isSubcommand(firstArg) ? 1 : 0;
+  for (let index = startIndex; index < normalized.length; index += 1) {
+    const arg = normalized[index];
+    if (arg === '--') {
+      break;
+    }
+    if (arg !== '--watch') {
+      continue;
+    }
 
-export function assertNoManualInit(subcommand: 'build' | 'build-serverless', args: BuildArgs): void {
-  if (args.initPath) {
-    throw new Error(`${subcommand} manages the init hook automatically. Remove --init.`);
+    const nextArg = normalized[index + 1];
+    if (nextArg === undefined || nextArg.startsWith('--')) {
+      normalized[index] = '--watch=.';
+    }
   }
+
+  return normalized;
 }
 
 export function generateRuntimeEntryFromConfig(configPath: string, tsconfigPath?: string): string {
   const absoluteConfigPath = pathResolve(process.cwd(), configPath);
-  const absoluteTsconfigPath = tsconfigPath ? pathResolve(process.cwd(), tsconfigPath) : undefined;
-  const configLoadArgs = absoluteTsconfigPath
-    ? `${JSON.stringify(absoluteConfigPath)}, { tsconfigPath: ${JSON.stringify(absoluteTsconfigPath)} }`
-    : JSON.stringify(absoluteConfigPath);
+  void tsconfigPath;
 
   return [
     '// Auto-generated by @web-ts-toolkit/access-router-runtime CLI - do not edit.',
-    `import { createAccessRouterRuntime, loadAccessRouterRuntimeConfigSync } from '@web-ts-toolkit/access-router-runtime';`,
-    `const config = loadAccessRouterRuntimeConfigSync(${configLoadArgs});`,
+    `import * as configModule from ${JSON.stringify(absoluteConfigPath)};`,
+    `import { createAccessRouterRuntime, normalizeAccessRouterRuntimeConfigExport } from '@web-ts-toolkit/access-router-runtime';`,
+    `const config = normalizeAccessRouterRuntimeConfigExport(configModule, ${JSON.stringify(configPath)});`,
     'const runtimeBundle = createAccessRouterRuntime(config);',
-    'let signalsRegistered = false;',
-    'function registerSignals() {',
-    '  if (signalsRegistered) return;',
-    '  signalsRegistered = true;',
-    '  const shutdown = () => { void runtimeBundle.shutdown(); };',
-    "  process.once('SIGINT', shutdown);",
-    "  process.once('SIGTERM', shutdown);",
-    '}',
-    'registerSignals();',
     'const app = runtimeBundle.app;',
     'export default app;',
     'export { app };',
     'export async function init() {',
     '  await runtimeBundle.init();',
+    '}',
+    'export async function shutdown() {',
+    '  await runtimeBundle.shutdown();',
     '}',
     '',
   ].join('\n');
@@ -234,15 +140,13 @@ export function generateRuntimeEntryFromConfig(configPath: string, tsconfigPath?
 
 export function generateServerlessEntryFromConfig(configPath: string, tsconfigPath?: string): string {
   const absoluteConfigPath = pathResolve(process.cwd(), configPath);
-  const absoluteTsconfigPath = tsconfigPath ? pathResolve(process.cwd(), tsconfigPath) : undefined;
-  const configLoadArgs = absoluteTsconfigPath
-    ? `${JSON.stringify(absoluteConfigPath)}, { tsconfigPath: ${JSON.stringify(absoluteTsconfigPath)} }`
-    : JSON.stringify(absoluteConfigPath);
+  void tsconfigPath;
 
   return [
     '// Auto-generated by @web-ts-toolkit/access-router-runtime CLI - do not edit.',
-    `import { createAccessRouterRuntimeServerlessHandler, loadAccessRouterRuntimeConfigSync } from '@web-ts-toolkit/access-router-runtime';`,
-    `const config = loadAccessRouterRuntimeConfigSync(${configLoadArgs});`,
+    `import * as configModule from ${JSON.stringify(absoluteConfigPath)};`,
+    `import { createAccessRouterRuntimeServerlessHandler, normalizeAccessRouterRuntimeConfigExport } from '@web-ts-toolkit/access-router-runtime';`,
+    `const config = normalizeAccessRouterRuntimeConfigExport(configModule, ${JSON.stringify(configPath)});`,
     'export const handler = createAccessRouterRuntimeServerlessHandler(config);',
     '',
   ].join('\n');
