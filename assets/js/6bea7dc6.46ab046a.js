@@ -868,9 +868,9 @@ function _createMdxContent(props) {
           children: "shutdownTimeout"
         }), ") → ", (0,jsx_runtime.jsx)(_components.code, {
           children: "onShutdown"
-        }), " (covers draining only; ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " (the timeout covers draining only; ", (0,jsx_runtime.jsx)(_components.code, {
           children: "onShutdown"
-        }), " errors are logged)"]
+        }), " errors are logged and fail shutdown)"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["optional ", (0,jsx_runtime.jsx)(_components.code, {
           children: "init"
@@ -900,7 +900,17 @@ function _createMdxContent(props) {
         children: "server.listening === false"
       }), " and rejecting ", (0,jsx_runtime.jsx)(_components.code, {
         children: "ready"
-      }), "). If the server was never started or was closed externally, ", (0,jsx_runtime.jsx)(_components.code, {
+      }), "). If ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onShutdown"
+      }), " rejects, the error is logged and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "shutdown()"
+      }), " rejects for programmatic callers. When the CLI sets ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "exitAfterShutdown: true"
+      }), ", successful shutdown exits ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "0"
+      }), "; cleanup failure is reported to stderr and exits ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "1"
+      }), ". If the server was never started or was closed externally, ", (0,jsx_runtime.jsx)(_components.code, {
         children: "shutdown()"
       }), " resolves deterministically."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {

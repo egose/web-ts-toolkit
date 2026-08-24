@@ -179,6 +179,13 @@ function _createMdxContent(props) {
         }), ": typed HTTP error classes and structured error payload helpers."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./json-frame",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/json-frame"
+          })
+        }), ": pandas-compatible tabular JSON normalization and export with a small immutable DataFrame API."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
           href: "./message-service",
           children: (0,jsx_runtime.jsx)(_components.code, {
             children: "@web-ts-toolkit/message-service"

@@ -18,7 +18,7 @@ __webpack_require__.d(__webpack_exports__, {
 });
 
 ;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-create-access-router-mongo-starter-md-6bc.json
-const site_docs_packages_create_access_router_mongo_starter_md_6bc_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/create-access-router-mongo-starter","title":"create-access-router-mongo-starter","description":"Starter CLI for scaffolding a MongoDB-backed access-router + React application.","source":"@site/docs/packages/create-access-router-mongo-starter.md","sourceDirName":"packages","slug":"/packages/create-access-router-mongo-starter","permalink":"/docs/packages/create-access-router-mongo-starter","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":19,"frontMatter":{"sidebar_label":"Create Access Router Starter","sidebar_position":19},"sidebar":"packagesSidebar","previous":{"title":"PDF Reader","permalink":"/docs/packages/pdf-reader"}}');
+const site_docs_packages_create_access_router_mongo_starter_md_6bc_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/create-access-router-mongo-starter","title":"create-access-router-mongo-starter","description":"Starter CLI for scaffolding a MongoDB-backed access-router + React application.","source":"@site/docs/packages/create-access-router-mongo-starter.md","sourceDirName":"packages","slug":"/packages/create-access-router-mongo-starter","permalink":"/docs/packages/create-access-router-mongo-starter","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":19,"frontMatter":{"sidebar_label":"Create Access Router Starter","sidebar_position":19},"sidebar":"packagesSidebar","previous":{"title":"PDF Reader","permalink":"/docs/packages/pdf-reader"},"next":{"title":"JSON Frame","permalink":"/docs/packages/json-frame"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.8/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1987);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.18_react@19.2.8/node_modules/@mdx-js/react/lib/index.js
@@ -87,6 +87,10 @@ const toc = [{
   "id": "netlify-cli-prerequisite",
   "level": 3
 }, {
+  "value": "Credential and child-process boundary",
+  "id": "credential-and-child-process-boundary",
+  "level": 3
+}, {
   "value": "When To Use It",
   "id": "when-to-use-it",
   "level": 2
@@ -98,6 +102,7 @@ const toc = [{
 function _createMdxContent(props) {
   const _components = {
     a: "a",
+    blockquote: "blockquote",
     code: "code",
     h1: "h1",
     h2: "h2",
@@ -130,6 +135,14 @@ function _createMdxContent(props) {
       children: ["Starter CLI for scaffolding a MongoDB-backed ", (0,jsx_runtime.jsx)(_components.code, {
         children: "access-router"
       }), " + React application."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.blockquote, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.p, {
+        children: [(0,jsx_runtime.jsx)(_components.strong, {
+          children: "Public demo boundary:"
+        }), " generated apps intentionally allow anonymous Todo\nand Category reads and writes. They are not production-safe authentication\nskeletons. Production Netlify deploys require\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "--acknowledge-public-demo"
+        }), "; this acknowledgement is a warning gate, not an\nabuse control. Configure host rate limits/WAF and bot controls, function and\nspend limits, monitoring/alerts, and MongoDB resource limits before sharing a\ndemo publicly."]
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Unlike the library packages in this workspace, this one is a create-style CLI. It copies a bundled template into a target directory, rewrites app placeholders, and prints the next steps for local development and deployment."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
@@ -223,7 +236,7 @@ function _createMdxContent(props) {
               children: "--name <name>"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Package and app name"
+            children: "Lowercase npm package name (scopes allowed)"
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
@@ -231,7 +244,7 @@ function _createMdxContent(props) {
               children: "--title <title>"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Display title"
+            children: "Free-form display title"
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
@@ -281,18 +294,12 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.ol, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "Copies the bundled starter template into the target directory."
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["Rewrites ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "{{APP_NAME}}"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "{{APP_TITLE}}"
-        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "{{DB_NAME}}"
-        }), " placeholders."]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Rewrites an explicit operational-file manifest with JSON, TypeScript/JSX,\nHTML, Markdown, and URI-aware serialization; all other files are copied as\nbytes."
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "Leaves you with a ready-to-install app skeleton for local development."
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "Prints next steps, including deployment helpers."
+        children: "Prints next steps, including the exact pinned dev install needed for deployment helpers."
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The published package stages the template into ", (0,jsx_runtime.jsx)(_components.code, {
@@ -303,9 +310,23 @@ function _createMdxContent(props) {
         children: "node_modules"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "dist"
-      }), ", lockfiles, and ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
         children: ".env"
-      }), " files from the source template."]
+      }), " files. It preserves a release-generated ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pnpm-lock.yaml"
+      }), " synchronized with the staged manifest, including the direct ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/access-router-runtime"
+      }), " dependency."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Generated projects declare Node ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ">=22.12.0"
+      }), " and pnpm ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "11.18.0"
+      }), ". Install with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pnpm install --frozen-lockfile"
+      }), "; this detects manifest/lock drift instead of silently resolving a different dependency set. The source template has no committed lockfile because its internal dependency versions are placeholders; release staging stamps the release version and generates the lockfile included in the package."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Package names must satisfy npm's lowercase scoped or unscoped naming contract\nand be at most 214 characters. Database names must be 1-63 UTF-8 bytes and\nexclude MongoDB's forbidden punctuation, spaces, and control characters. A\nscoped package defaults to its unscoped segment for the database name, with\ndots changed to hyphens. Unicode display titles are supported and escaped for\neach output syntax. The CLI rejects unresolved release versions and operational\ntokens before replacing the destination; literal examples in maintainer docs\nare intentionally preserved."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "starter-shape",
       children: "Starter Shape"
@@ -323,6 +344,26 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "deployment-oriented helper flows for shared and Netlify packaging"
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The generated backend shares browser-safe Zod entity schemas between request\nDTOs, form validation, and authoritative server validation. String inputs are\ntrimmed and bounded, colors require six-digit hex notation, and IDs require the\nMongoDB ObjectId shape before model operations run. The basic route surface\nincludes ordinary CRUD only: root batches are not mounted and advanced\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "__mutation"
+      }), " writes are blocked with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "404"
+      }), ". The generated README explains that\nadvanced opt-in requires the same entity schemas on every write path plus\nexplicit bulk and concurrency bounds; public root writes must not be enabled\nwith an unconditional guard."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Ordinary lists are capped at 100 records and use deterministic default sorts.\nAdvanced lists accept only documented exact-match filters backed by Category,\nTodo category, and Todo completion indexes; caller-provided sorts are rejected.\nCategory names are trim-normalized and exact case-sensitive unique. Todo writes\nrequire the referenced Category to exist, and deleting a referenced Category\nreturns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "409"
+      }), ". Transaction-scoped category locks preserve that policy under\nracing requests, so the MongoDB service must support transactions through a\nreplica set or sharded deployment."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The generated runtime requires a valid nonblank ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MONGODB_URI"
+      }), " before local\nlisten or serverless handling. Its access-router response boundary maps request\nvalidation and Mongoose cast/validation failures to stable ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "400"
+      }), " responses,\nduplicate-key conflicts to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "409"
+      }), ", and unknown failures to a generic ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "500"
+      }), "\nwithout exposing persistence details. Server diagnostics are structured and\nexclude credentials, rejected request bodies, and stack traces."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["This package is a good fit when you want a copyable baseline instead of manually wiring ", (0,jsx_runtime.jsx)(_components.code, {
         children: "access-router"
@@ -347,8 +388,10 @@ function _createMdxContent(props) {
         className: "language-bash",
         children: "npx create-access-router-mongo-starter ./apps/acme-admin --name acme-admin --db-name acme_admin\n"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Then move into the generated app, install dependencies, configure environment variables, and start local development using the generated package scripts."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Then move into the generated app, run ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pnpm install --frozen-lockfile"
+      }), ", configure environment variables, and start local development using the generated package scripts."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["If you want the CLI to prompt for any missing values instead of passing everything on the command line, use ", (0,jsx_runtime.jsx)(_components.code, {
         children: "-i"
@@ -371,7 +414,7 @@ function _createMdxContent(props) {
         })
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Those are mainly for the generated starter's deployment flow rather than day-one scaffolding, but they are packaged so the released starter can reuse them without depending on this repo's source tree."
+      children: "Those are mainly for the generated starter's deployment flow rather than day-one scaffolding, but they are packaged so a generated app can install the exact generator version as a dev dependency and run the same released deploy helpers."
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "netlify-cli-prerequisite",
       children: "Netlify CLI prerequisite"
@@ -400,6 +443,54 @@ function _createMdxContent(props) {
       }), " before running the deploy bin. The deploy helper bails with a clear error if ", (0,jsx_runtime.jsx)(_components.code, {
         children: "netlify"
       }), " is missing."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "credential-and-child-process-boundary",
+      children: "Credential and child-process boundary"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Set ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "NETLIFY_AUTH_TOKEN"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MONGODB_URI"
+      }), " through a secure prompt or CI secret\nmanager, then invoke the deploy helper without credential arguments:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-bash",
+        children: "pnpm add -D create-access-router-mongo-starter@<generator-version> netlify-cli\n\nexport NETLIFY_AUTH_TOKEN\nexport MONGODB_URI\npnpm exec create-access-router-mongo-starter-deploy-netlify --site <name-or-id> --prod --paid-tier --acknowledge-public-demo\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The Netlify CLI receives authentication through ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "NETLIFY_AUTH_TOKEN"
+      }), ", never an\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--auth"
+      }), " argument. The frontend build and deploy process receive no Mongo URI;\nonly the backend build receives ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MONGODB_URI"
+      }), ". Each child starts from a small\nallowlist of platform essentials (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "PATH"
+      }), ", Windows system paths, home/temp\npaths, locale/timezone, terminal/color, and CI indicators), not the complete\nparent environment."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "API_BASE_URL"
+      }), " is one path-only prefix shared by the frontend, Vite proxy,\nbackend routes, Netlify redirects, and serverless runtime. It must begin with\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/"
+      }), "; schemes, authorities, queries, fragments, backslashes, empty segments, and\ndot segments are rejected. Deploys provide the selected value directly to the\nVite process, so it takes precedence over a conflicting project ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".env"
+      }), " file.\nGenerated local scripts bind the frontend to port 3000, backend to 8000, and\nserverless emulator to 9000; they do not expose ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "PORT"
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "HOST"
+      }), " environment\noverrides."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "MONGODB_URI"
+      }), " is required for preview, branch, and production deploys because\nthe generated artifact always contains the serverless backend."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The helper classifies ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MONGODB_URI"
+      }), " as secret and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "API_BASE_URL"
+      }), " as non-secret.\nFree-tier writes use Netlify's all-scope default because granular scopes are a\npaid feature. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--paid-tier"
+      }), " narrows variables to Functions scope. Existing\nreadable context values and metadata are reconciled together. If Netlify hides\nvalues required by its replace-all update endpoint, the command stops and\nprovides precise UI migration instructions rather than risking context-value\nloss or leaving broad metadata silently."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "when-to-use-it",
       children: "When To Use It"

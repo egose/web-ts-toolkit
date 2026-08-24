@@ -49,12 +49,24 @@ const toc = [{
   "id": "installation",
   "level": 2
 }, {
+  "value": "Imports And Module Identity",
+  "id": "imports-and-module-identity",
+  "level": 2
+}, {
+  "value": "Compatibility Matrix",
+  "id": "compatibility-matrix",
+  "level": 2
+}, {
   "value": "What It Exposes",
   "id": "what-it-exposes",
   "level": 2
 }, {
   "value": "Quick Start",
   "id": "quick-start",
+  "level": 2
+}, {
+  "value": "TypeScript",
+  "id": "typescript",
   "level": 2
 }, {
   "value": "Schema",
@@ -230,39 +242,146 @@ function _createMdxContent(props) {
         })
       })]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["If ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "node:sqlite"
+      }), " is unavailable in your Node runtime and you want the RxDB trial SQLite backend,\ninstall npm ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sqlite3"
+      }), " as an optional fallback:"]
+    }), "\n", (0,jsx_runtime.jsxs)(Tabs/* default */.A, {
+      groupId: "npm2yarn",
+      children: [(0,jsx_runtime.jsx)(TabItem/* default */.A, {
+        value: "npm",
+        children: (0,jsx_runtime.jsx)(_components.pre, {
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            className: "language-bash",
+            children: "npm install sqlite3\n"
+          })
+        })
+      }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
+        value: "yarn",
+        label: "Yarn",
+        children: (0,jsx_runtime.jsx)(_components.pre, {
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            className: "language-bash",
+            children: "yarn add sqlite3\n"
+          })
+        })
+      }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
+        value: "pnpm",
+        label: "pnpm",
+        children: (0,jsx_runtime.jsx)(_components.pre, {
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            className: "language-bash",
+            children: "pnpm add sqlite3\n"
+          })
+        })
+      }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
+        value: "bun",
+        label: "Bun",
+        children: (0,jsx_runtime.jsx)(_components.pre, {
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            className: "language-bash",
+            children: "bun add sqlite3\n"
+          })
+        })
+      })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["No ", (0,jsx_runtime.jsx)(_components.code, {
         children: "sqlite3"
       }), " install is required on Node 22+: the built-in ", (0,jsx_runtime.jsx)(_components.code, {
         children: "node:sqlite"
       }), " module is\nauto-detected and used by the free ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "trial"
-      }), " SQLite storage (it writes a real file but\nis capped at ~500 docs/collection, has no indexes, and prints a warning each load).\nFor older Node / non-Node runtimes, install npm ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " SQLite storage (it writes a real file but\nis capped at ~500 docs/collection, has no indexes, and prints a warning each load).\nThis package supports Node 22+. ", (0,jsx_runtime.jsx)(_components.code, {
         children: "sqlite3"
-      }), " and it will be picked up\ninstead. For real production SQLite, install ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " is only a Node fallback for runtimes where\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "node:sqlite"
+      }), " cannot be opened; non-Node runtimes must provide their own RxDB factory.\nFor real production SQLite, install ", (0,jsx_runtime.jsx)(_components.code, {
         children: "rxdb-premium"
       }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Peer dependencies:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "rxdb >= 16"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "rxjs >= 7"
-        })
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "rxdb >=17.4.0 <18"
+        }), " (required)"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "rxdb-premium"
+          children: "rxjs >=7.8.0 <8"
+        }), " (required)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "rxdb-premium >=17.4.0 <18"
         }), " (optional — only for the production-grade SQLite storage)"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "sqlite3"
-        }), " (optional — only for the trial SQLite path on runtimes without ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sqlite3 >=5 <6"
+        }), " (optional — only for the trial SQLite path in Node runtimes without ", (0,jsx_runtime.jsx)(_components.code, {
           children: "node:sqlite"
         }), ")"]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "imports-and-module-identity",
+      children: "Imports And Module Identity"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Use named imports as the canonical style:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { Connection, Schema } from '@web-ts-toolkit/mongoose-rxdb';\nimport { createMemoryDatabase } from '@web-ts-toolkit/mongoose-rxdb/storage';\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Default exports are retained only as redundant compatibility conveniences. Prefer named imports in new\ncode because they make the public API clearer to TypeScript, editors, and bundlers."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The package publishes separate ESM and CommonJS builds. If one process loads both formats, each format\nhas its own ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Schema"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Connection"
+      }), " class identity and its own ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "defaultConnection"
+      }), "; there is no supported\ncross-format singleton. Pick one module format per application graph, and pass explicit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Connection"
+      }), "\ninstances across boundaries when integration code might mix ESM and CommonJS."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "compatibility-matrix",
+      children: "Compatibility Matrix"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "Runtime"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "RxDB"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "RxJS"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Evidence"
+          })]
+        })
+      }), (0,jsx_runtime.jsx)(_components.tbody, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: "Node 22+"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: ">=17.4.0 <18"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: ">=7.8.0 <8"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Package tests, strict NodeNext/Bundler declaration consumers, packed pnpm/npm runtime imports, and packed README quickstart run against the workspace dev dependencies (", (0,jsx_runtime.jsx)(_components.code, {
+              children: "rxdb ^17.4.0"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "rxjs ^7.8.2"
+            }), ")."]
+          })]
+        })
+      })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Future RxDB or RxJS majors are intentionally outside the peer range until they have the same package,\ndeclaration, and packed-consumer coverage."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "what-it-exposes",
       children: "What It Exposes"
@@ -467,7 +586,7 @@ function _createMdxContent(props) {
         children: ["\n", (0,jsx_runtime.jsxs)(_components.p, {
           children: [(0,jsx_runtime.jsx)(_components.code, {
             children: "createSqliteDatabase(opts?)"
-          }), " — local SQLite. Resolution order is automatic:"]
+          }), " — local SQLite. Resolution order is automatic, but a\nrequested SQLite database fails closed when no backend can be opened:"]
         }), "\n", (0,jsx_runtime.jsxs)(_components.ol, {
           children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
             children: [(0,jsx_runtime.jsx)(_components.code, {
@@ -482,18 +601,38 @@ function _createMdxContent(props) {
               children: "getRxStorageSQLiteTrial"
             }), " driven by Node 22+'s built-in ", (0,jsx_runtime.jsx)(_components.code, {
               children: "node:sqlite"
-            }), " — writes a real file at ", (0,jsx_runtime.jsx)(_components.code, {
+            }), " — persists to files derived from ", (0,jsx_runtime.jsx)(_components.code, {
               children: "opts.filePath"
             }), ", prints a warning each load, capped at ~500 docs/collection, no indexes."]
           }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
             children: ["Same trial with npm ", (0,jsx_runtime.jsx)(_components.code, {
               children: "sqlite3"
-            }), " (older Node / non-Node runtimes), if installed."]
+            }), " in Node, if installed."]
           }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
             children: ["In-memory ", (0,jsx_runtime.jsx)(_components.code, {
               children: "getRxStorageMemory"
-            }), " as a last resort (logged to stderr) so consumer code never crashes when no SQLite backend is available."]
+            }), " only when you pass ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "allowMemoryFallback: true"
+            }), "."]
           }), "\n"]
+        }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+          children: ["This is a breaking safety change from older releases: ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "createSqliteDatabase({ filePath })"
+          }), "\nno longer silently creates volatile memory storage when SQLite is unavailable. It rejects with\n", (0,jsx_runtime.jsx)(_components.code, {
+            children: "SqliteStorageError"
+          }), ", whose ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "causes"
+          }), " array preserves backend-specific load/open failures.\n", (0,jsx_runtime.jsx)(_components.code, {
+            children: "filePath"
+          }), " is exact for Premium (", (0,jsx_runtime.jsx)(_components.code, {
+            children: "sqliteDatabasePath"
+          }), ") and a ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "databaseNamePrefix"
+          }), " for trial\nbackends. The returned database exposes ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "sqliteBackend"
+          }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "sqliteStorageInfo"
+          }), "."]
         }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
           children: ["On success a one-line ", (0,jsx_runtime.jsx)(_components.code, {
             children: "[mongoose-rxdb] createSqliteDatabase: using <backend> SQLite at <path>"
@@ -508,8 +647,99 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { Schema, Connection } from '@web-ts-toolkit/mongoose-rxdb';\nimport { createSqliteDatabase } from '@web-ts-toolkit/mongoose-rxdb/storage';\n\nconst conn = new Connection();\nawait conn.connect(() => createSqliteDatabase({ filePath: './app.db' }));\n\nconst userSchema = new Schema(\n  {\n    name: { type: String, required: true },\n    age: { type: Number, default: 0, min: 0, max: 150 },\n    role: { type: String, enum: ['admin', 'user'], default: 'user' },\n    tags: [String],\n  },\n  { timestamps: true },\n);\n\nuserSchema.pre('save', function (next) {\n  console.log('about to save', this.name);\n  next();\n});\n\nuserSchema.virtual('isAdmin').get(function () {\n  return this.role === 'admin';\n});\n\nconst User = conn.model('User', userSchema);\n\nconst ada = await User.create({ name: 'Ada', age: 36, role: 'admin' });\nconsole.log(ada.isAdmin); // true\n\nconst admins = await User.find().where('role').equals('admin').sort({ age: 1 }).exec();\nawait User.updateOne({ name: 'Ada' }, { $inc: { age: 1 } });\nawait User.deleteOne({ name: 'Ada' });\n\nawait conn.disconnect();\n"
+        children: "import { Connection, Schema, type HookNext, type HydratedDocument } from '@web-ts-toolkit/mongoose-rxdb';\nimport { createMemoryDatabase } from '@web-ts-toolkit/mongoose-rxdb/storage';\n\ninterface User {\n  name: string;\n  age: number;\n  role: 'admin' | 'user';\n  tags: string[];\n}\n\ninterface UserMethods {\n  addTag(tag: string): string[];\n}\n\ninterface UserVirtuals {\n  isAdmin: boolean;\n}\n\ntype UserDocument = HydratedDocument<User, UserMethods, UserVirtuals>;\n\nconst conn = new Connection();\nawait conn.connect(() => createMemoryDatabase({ name: 'quickstart' }));\n\nconst userSchema = new Schema<User, UserMethods, {}, UserVirtuals>({\n  name: { type: String, required: true },\n  age: { type: Number, default: 0, min: 0, max: 150 },\n  role: { type: String, enum: ['admin', 'user'], default: 'user' },\n  tags: [String],\n});\n\nuserSchema.pre('save', function (this: UserDocument, next: HookNext) {\n  console.log('about to save', this.name);\n  next();\n});\n\nuserSchema.virtual('isAdmin').get(function (this: UserDocument) {\n  return this.role === 'admin';\n});\n\nuserSchema.method('addTag', function (this: UserDocument, tag: string) {\n  this.tags.push(tag);\n  return this.tags;\n});\n\nconst User = conn.model('User', userSchema);\n\nconst ada = await User.create({ name: 'Ada', age: 36, role: 'admin', tags: [] });\nconsole.log(ada.isAdmin); // true\nada.addTag('math');\n\nconst admins = await User.find({ role: 'admin' }).sort({ age: 1 });\nawait User.updateOne({ name: 'Ada' }, { $inc: { age: 1 } });\nawait User.deleteOne({ name: 'Ada' });\nconsole.log(admins.map((user) => user.name));\n\nawait conn.disconnect();\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["For durable local storage, replace the memory factory with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createSqliteDatabase({ filePath: './app.db' })"
+      }), ".\nThat request fails closed unless Premium, Node 22 ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "node:sqlite"
+      }), ", or npm ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sqlite3"
+      }), " can be opened; pass\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "allowMemoryFallback: true"
+      }), " only when volatile storage is acceptable. Custom RxDB factories must register\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "RxDBQueryBuilderPlugin"
+      }), " before creating the database because query sorting and limiting rely on it."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "typescript",
+      children: "TypeScript"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Schema<RawDoc, Methods, Statics, Virtuals>"
+      }), " as the source of truth. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Connection#model()"
+      }), " infers the model from that schema, including raw fields, instance methods, statics, and virtuals, so strict consumers do not need broad casts."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "RawDocument<T>"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "LeanResult<T>"
+        }), " expose only domain fields plus ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "_id"
+        }), "; RxDB metadata fields (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "_rev"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "_meta"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "_attachments"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "_deleted"
+        }), ") are not public result types."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Hydrated operations return ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "HydratedDocument<T, Methods, Virtuals>"
+        }), ", which combines ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Document<T>"
+        }), ", raw fields, methods, and virtual properties."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "Query<Result>"
+        }), " implements ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "PromiseLike<Result>"
+        }), ", so ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "await User.find()"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "await User.findOne()"
+        }), " preserve exact result types. ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".catch()"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".finally()"
+        }), " return typed promises."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: ".lean(true)"
+        }), " changes query results to ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "LeanResult<T>"
+        }), " records without document methods."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "FilterQuery<T>"
+        }), " rejects misspelled fields and incompatible operators. Use ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "LooseFilterQuery<T>"
+        }), " only as an explicit untrusted-input boundary before ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sanitizeFilter()"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "UpdateQuery<T>"
+        }), " is field-kind aware: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$inc"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$mul"
+        }), " require numeric fields, array operators require array fields and element values, and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "_id"
+        }), "/RxDB metadata are excluded from updates."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "validateSync()"
+        }), " is synchronous and returns ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ValidationError | undefined"
+        }), "; use async ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "validate()"
+        }), " when middleware or async validators must run."]
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "schema",
       children: "Schema"
@@ -577,25 +807,59 @@ function _createMdxContent(props) {
         }), " — a function or ", (0,jsx_runtime.jsx)(_components.code, {
           children: "{ validator, message }"
         })]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "get"
-        }), " / ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "set"
-        }), " — field-level getters/setters"]
-      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: [(0,jsx_runtime.jsx)(_components.code, {
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
           children: "immutable"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        })
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "index"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "unique"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "alias"
-        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "ref"
-        })]
+        }), " — a storage-dependent lookup hint, not a uniqueness guarantee"]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Supported schema-level options are ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "collection"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "validateBeforeSave"
+      }), ". Unsupported\nMongoose options fail early with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "SchemaConfigurationError"
+      }), " instead of being ignored, including\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "timestamps"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "versionKey"
+      }), ", path ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "get"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "alias"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "select"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ref"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "auto"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sparse"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "expires"
+      }), ",\nand ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "unique"
+      }), ". ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "unique"
+      }), " is not a backend-safe constraint in this package; use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "index: true"
+      }), " only as a\nlookup hint and enforce uniqueness in a layer that can provide an atomic guarantee."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Schema structure is compiled into a model snapshot. After ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "connection.model(name, schema)"
+      }), " returns,\nstructural ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "schema.add()"
+      }), " calls are rejected, and direct mutations to the original schema's path maps\ncannot change that model's casting, validation, public JSON Schema, or RxDB schema. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "schema.clone()"
+      }), "\ncreates an independent editable copy, including independent paths, child schemas, hooks, virtuals,\noptions, and query helpers."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Helpers:"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
@@ -661,6 +925,28 @@ function _createMdxContent(props) {
           children: "virtuals"
         }), " as getter/setter properties"]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Loaded documents keep a deep snapshot of the last persisted state. Top-level assignment marks paths\nexplicitly, and supported mutable values are also detected by structural diffing when ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "save()"
+      }), " runs:\narrays, plain objects, nested subdocuments, JSON-like mixed values, and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Date"
+      }), " instances. Mutating\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "doc.tags"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "doc.profile.score"
+      }), ", or a date instance on the document can therefore persist without an\nexplicit setter call."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Constructor input and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "toObject()"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "toJSON()"
+      }), " results are cloned at the boundary. Mutating an input\nobject or a plain object returned by ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "toObject()"
+      }), " cannot mutate the live document or mark it dirty."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "markModified(path)"
+      }), " is reconciled with the snapshot. It remains useful for supported mixed values, but\nunchanged and reverted paths are treated as clean. Saving an unchanged loaded document skips adapter\nmutation. The snapshot is refreshed only after successful persistence; failed saves keep their modified\npaths for retry."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "query",
       children: "Query"
@@ -738,27 +1024,245 @@ function _createMdxContent(props) {
         children: "$set"
       }), "."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["All current write routes (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "create"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "insertMany"
+      }), ", document ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "save"
+      }), ", update operators,\nreplacement-style updates, and supported ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "updateOne(..., { upsert: true })"
+      }), " /\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "findOneAndUpdate(..., { upsert: true })"
+      }), ") use the same schema-aware normalization pipeline before\npersistence. Values are cast by their declared schema path, and validation sees the normalized value\nthat will be written."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The persistence adapter boundary exposes only domain fields plus the logical ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), " primary key. RxDB\nrevision metadata (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_rev"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_meta"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_attachments"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_deleted"
+      }), ") is stripped before records reach public\ndocuments, lean results, update callbacks, or the fake test adapter."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "QueryOptions"
-      }), ": ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "sort"
+        children: "Model.create()"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Model.insertMany()"
+      }), " share one insertion pipeline. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "create()"
+      }), " keeps per-document\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "save"
+      }), " middleware and inserts one document at a time. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "insertMany()"
+      }), " runs ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "insertMany"
+      }), " middleware and\nuses the adapter bulk-insert path. It is ordered by default: records before the first storage failure\nremain inserted and a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "BulkWritePartialFailureError"
+      }), " reports ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "insertedCount"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "limit"
+        children: "insertedIds"
+      }), ", inserted\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "records"
+      }), ", and record-level ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "errors"
+      }), ". Pass ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ ordered: false }"
+      }), " to attempt every input record and receive\nthe same partial-failure shape for all failed indexes."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Dates are stored as ISO-8601 strings (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Date#toISOString()"
+      }), ") in memory and SQLite-backed storage, then\nhydrated back to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Date"
+      }), " instances when documents are read. Dotted update paths such as\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "profile.score"
+      }), " update nested objects structurally; literal top-level dotted keys are not written.\nDangerous path segments (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "__proto__"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "skip"
+        children: "prototype"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "projection"
-      }), " (object or space-separated string), ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "lean"
+        children: "constructor"
+      }), "), unknown update operators,\nincompatible arithmetic or array operators, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), ", immutable paths, and RxDB metadata (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_rev"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_meta"
       }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
-        children: "upsert"
+        children: "_attachments"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_deleted"
+      }), ") are rejected before mutation."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Mutation options are intentionally narrower than full Mongoose and unsupported options throw\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MutationOptionError"
+      }), " instead of being ignored:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "updateOne"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sort"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "upsert"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "runValidators"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "setDefaultsOnInsert"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "updateMany"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sort"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "runValidators"
+        }), "; multi-upsert is not supported."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "deleteOne"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sort"
+        }), " only. ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "deleteMany"
+        }), " accepts no options."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "findOneAndUpdate"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sort"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "upsert"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "new"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "returnDocument"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "runValidators"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "setDefaultsOnInsert"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "lean"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "findOneAndDelete"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sort"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "lean"
+        }), "."]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "runValidators: true"
+      }), " validates the final normalized storage value before persistence for existing\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "updateOne"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "updateMany"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "findOneAndUpdate"
+      }), " matches. With validation disabled, compatible casted\nupdates can persist values that violate schema validators. Upsert inserts are always validated because\nthey create a new record."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["For ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "findOneAndUpdate"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "returnDocument"
+      }), " takes precedence over ", (0,jsx_runtime.jsx)(_components.code, {
         children: "new"
-      }), " (a.k.a. ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " when both are present:\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "returnDocument: 'before'"
+      }), " returns the previous document, while ", (0,jsx_runtime.jsx)(_components.code, {
         children: "returnDocument: 'after'"
-      }), "), ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "runValidators"
+      }), " and\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "new: true"
+      }), " return the updated or inserted document. The default is the before document; an upsert that\nreturns before yields ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
       }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Upsert inserts are built from eligible top-level equality filter fields (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "field: value"
+      }), " and\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "field: { $eq: value }"
+      }), ") plus the normalized update. Operator predicates such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$gt"
+      }), " are not copied\ninto the inserted record. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), " is generated when the equality filter does not provide one.\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "setDefaultsOnInsert"
+      }), " applies schema defaults only when it is exactly ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "true"
+      }), ", and it is rejected unless\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "upsert: true"
+      }), " is also set."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Read query semantics are intentionally defined for the supported subset:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "limit()"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "skip()"
+        }), " must be non-negative safe integers."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Results are sorted first, then ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "skip()"
+        }), " is applied before ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "limit()"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "findOne()"
+        }), " follows the same ordering and skip policy, then returns at most one document after the skipped window."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "select()"
+        }), " supports inclusion, exclusion, string projections, and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "_id"
+        }), " overrides. Mixed inclusion/exclusion projections are rejected except for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "_id"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Projection is applied before hydration; defaults do not recreate projected-out fields."
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "lean()"
+        }), " returns normalized plain records directly and does not construct ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Document"
+        }), " instances or run ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "init"
+        }), " hooks."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "countDocuments()"
+        }), " uses the adapter count path, ignores ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sort()"
+        }), ", and honors ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "skip()"
+        }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "limit()"
+        }), " by counting the paginated match window."]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Query instances are single-use like Mongoose queries. The first execution through ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "exec()"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "await"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".then()"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".catch()"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".finally()"
+      }), " owns the query; a second execution attempt rejects with the\npackage-owned ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MongooseError"
+      }), " (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "QueryExecutionError"
+      }), "). Clone before executing when you need another\nvariant. Filters, options, and updates are deep-copied at construction and clone time, and execution uses\na snapshot taken before query middleware runs."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "middleware",
       children: "Middleware"
@@ -805,6 +1309,96 @@ function _createMdxContent(props) {
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "init"
       }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Retained middleware behavior is intentionally narrower than full Mongoose:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Document hooks (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "validate"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "save"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "remove"
+        }), ", document ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "deleteOne"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "init"
+        }), ") run with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "this"
+        }), " set to the document."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Query hooks run with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "this"
+        }), " set to the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Query"
+        }), " instance; inspect state with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "getFilter()"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "getOptions()"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "getUpdate()"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "insertMany"
+        }), " hooks run with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "this"
+        }), " set to the model. Promise-style ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "pre('insertMany', function (docs) {})"
+        }), " receives the input docs; callback-style receives ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "(next, docs)"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Post success hooks receive ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "(result)"
+        }), " or callback-style ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "(result, next)"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Error post hooks must be registered with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ errorHandler: true }"
+        }), " and receive ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "(err)"
+        }), " or callback-style ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "(err, next)"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Callback-style middleware that also returns a promise settles once; whichever callback or promise settles first wins."
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "The TypeScript hook-name surface is limited to the listed operations; unsupported Mongoose hook names are not claimed."
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Validation recurses through nested ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Schema"
+      }), " paths and arrays of subdocuments. Failures are aggregated\ninto one ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ValidationError"
+      }), " whose ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "errors"
+      }), " map is keyed by full logical paths such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "profile.name"
+      }), " or\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "members.0.role"
+      }), ". Conditional ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "required"
+      }), " functions and custom validators run with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "this"
+      }), " bound to the\nowning document for root paths, or to the plain subdocument object for nested schema paths and\nsubdocument-array items. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "save()"
+      }), " runs ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "validate()"
+      }), " by default; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ validateBeforeSave: false }"
+      }), " skips\nautomatic save validation while leaving explicit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "doc.validate()"
+      }), " unchanged."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "validateSync()"
+      }), " performs schema validation synchronously without middleware. Async custom validators\nproduce a sync ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ValidationError"
+      }), " for that path; call ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "validate()"
+      }), " to run async validators and validation\nmiddleware."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "connection--storage",
       children: "Connection & Storage"
@@ -813,7 +1407,7 @@ function _createMdxContent(props) {
         children: "Connection"
       }), " wraps an RxDB database. Pass any async factory that returns a ", (0,jsx_runtime.jsx)(_components.code, {
         children: "Promise<RxDatabase>"
-      }), ":"]
+      }), ".\nConnection strings are not supported and are rejected before storage creation; a URL is never treated\nas an in-memory request."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
@@ -828,7 +1422,7 @@ function _createMdxContent(props) {
         }), " — fast in-process storage, default for tests"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
-          children: "createSqliteDatabase({ name?, filePath? })"
+          children: "createSqliteDatabase({ name?, filePath?, allowMemoryFallback? })"
         }), " — local SQLite resolved automatically", "\n", (0,jsx_runtime.jsxs)(_components.ol, {
           children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
             children: [(0,jsx_runtime.jsx)(_components.code, {
@@ -839,20 +1433,36 @@ function _createMdxContent(props) {
               children: "getRxStorageSQLiteTrial"
             }), " driven by Node 22+'s built-in ", (0,jsx_runtime.jsx)(_components.code, {
               children: "node:sqlite"
-            }), " (writes a real file at ", (0,jsx_runtime.jsx)(_components.code, {
+            }), " (persists to files derived from ", (0,jsx_runtime.jsx)(_components.code, {
               children: "filePath"
             }), ", but capped at ~500 docs/collection, no indexes, prints a warning each load)"]
           }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
             children: ["Same trial with npm ", (0,jsx_runtime.jsx)(_components.code, {
               children: "sqlite3"
-            }), " (older Node / non-Node runtimes), if installed"]
+            }), " in Node, if installed"]
           }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
             children: ["In-memory ", (0,jsx_runtime.jsx)(_components.code, {
               children: "getRxStorageMemory"
-            }), " as a last resort (logged to stderr) so the call never throws in environments without any SQLite backend"]
+            }), " only when ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "allowMemoryFallback: true"
+            }), " is passed"]
           }), "\n"]
         }), "\n"]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Persistent requests fail closed by default. If no SQLite backend can be opened,\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createSqliteDatabase({ filePath })"
+      }), " rejects with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "SqliteStorageError"
+      }), " and does not create a memory\ndatabase. Inspect ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "error.causes"
+      }), " for backend-specific load/open failures, or inspect\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "db.sqliteStorageInfo"
+      }), " after a successful connection for the selected backend and path semantics.\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "filePath"
+      }), " is exact for Premium and a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "databaseNamePrefix"
+      }), " for RxDB trial backends."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "A shared default connection is also available for simple apps:"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
@@ -860,6 +1470,32 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "import { connect, model, Schema, disconnect } from '@web-ts-toolkit/mongoose-rxdb';\nimport { createSqliteDatabase } from '@web-ts-toolkit/mongoose-rxdb/storage';\n\nawait connect(() => createSqliteDatabase({ filePath: './app.db' }));\nconst User = model('User', new Schema({ name: String }));\nawait disconnect();\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Connection state is explicit: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "disconnected"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "connecting"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "connected"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "closing"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "failed"
+      }), ".\nConcurrent ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "connect()"
+      }), " calls share one in-flight connection attempt, concurrent ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "disconnect()"
+      }), " calls\nshare one close operation, and calling ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "connect()"
+      }), " while already connected rejects. To switch storage,\ncall ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "disconnect()"
+      }), ", then compile fresh models on the reconnected ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Connection"
+      }), "; model objects from the\nprevious connection are invalidated and must not be reused."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Collections are registered by normalized lower-case collection name. Equivalent schemas targeting the\nsame normalized collection share one collection initialization and adapter. Incompatible schemas for\nthe same normalized name, including case-only collection-name collisions, throw before storage is\ntouched. If collection initialization fails, the failed model is removed from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "connection.modelNames()"
+      }), "\nand can be retried with the same model name after fixing the cause."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.h2, {
       id: "security-sanitizefilter",
       children: ["Security: ", (0,jsx_runtime.jsx)(_components.code, {
@@ -870,18 +1506,16 @@ function _createMdxContent(props) {
         children: "$where"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "$func"
-      }), ", ...). Use\n", (0,jsx_runtime.jsx)(_components.code, {
+      }), ", ...). Call\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "sanitizeFilter"
-      }), " to wrap nested operator objects in ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "{ $eq: <value> }"
-      }), " before passing them to a\nquery:"]
+      }), " at the request boundary before passing untrusted filters to model methods. It is\ncaller-invoked, not automatic request parsing. Query execution also validates filters and rejects\nunsupported operators if a caller bypasses sanitization."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { sanitizeFilter } from '@web-ts-toolkit/mongoose-rxdb';\n\nconst safe = sanitizeFilter(req.body.filter);\nawait User.find(safe);\n"
+        children: "import { QueryFilterError, sanitizeFilter } from '@web-ts-toolkit/mongoose-rxdb';\n\ntry {\n  const safe = sanitizeFilter(req.body.filter);\n  await User.deleteMany(safe);\n} catch (error) {\n  if (error instanceof QueryFilterError) {\n    // The rejected filter was not executed, so unrelated documents were not touched.\n  }\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Only the logical operators ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Only object filters using the logical operators ", (0,jsx_runtime.jsx)(_components.code, {
         children: "$and"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "$or"
@@ -909,11 +1543,31 @@ function _createMdxContent(props) {
         children: "$regex"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "$options"
-      }), ") pass\nthrough unchanged. Any other ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "$"
-      }), "-prefixed key is treated as an injection attempt and the whole\nnested object is wrapped as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "{ $eq: <value> }"
-      }), ", so it is matched literally rather than evaluated."]
+      }), ") pass\nthrough. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " and other non-object filters, invalid top-level operators, unsupported field operators, malformed logical arrays,\ndangerous keys (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "__proto__"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "prototype"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "constructor"
+      }), "), excessive nesting, and excessive logical\narray width throw ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "QueryFilterError"
+      }), "; rejected filters are never broadened to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{}"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Regex filters are allowed only under a strict bounded policy before adapter execution: pattern text\nmust be at most 128 characters, flags may only be ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "i"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "m"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "s"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "u"
+      }), ", and duplicate/invalid flags,\nbackreferences, lookaround, repeated wildcard scans, quantified alternation, and nested quantified\ngroups such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "^(a+)+$"
+      }), " are rejected."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "_id",
       children: (0,jsx_runtime.jsx)(_components.code, {
@@ -947,9 +1601,9 @@ function _createMdxContent(props) {
         children: "connection.deleteModel(name)"
       }), " first, or use ", (0,jsx_runtime.jsx)(_components.code, {
         children: "{ overwrite: true }"
-      }), " — note that the underlying RxDB\ncollection's schema is ", (0,jsx_runtime.jsx)(_components.strong, {
+      }), ". This only replaces the model\nregistration. The underlying RxDB collection schema is ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "not"
-      }), " migrated by an overwrite, so prefer distinct collection names when\nthe shape changes."]
+      }), " migrated by delete/overwrite, so use a\ndistinct collection name or perform an explicit migration outside this package before changing\npersisted collection shape."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "how-it-maps-to-rxdb",
       children: "How It Maps to RxDB"

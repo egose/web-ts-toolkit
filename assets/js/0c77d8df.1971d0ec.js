@@ -85,7 +85,15 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The package targets browsers, is published as ESM-only, and treats ", (0,jsx_runtime.jsx)(_components.code, {
         children: "pdfjs-dist"
-      }), " as a peer dependency."]
+      }), " as a peer dependency. The supported PDF.js compatibility contract is the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pdfjs-dist"
+      }), " ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "~6.2.108"
+      }), " peer minor, with package and real-browser fixture coverage run against ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "6.2.108"
+      }), "; future ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "6.x"
+      }), " minors require a reproducible browser compatibility matrix before they are admitted."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "migration",
       children: "Migration"
@@ -130,9 +138,17 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Concurrent ", (0,jsx_runtime.jsx)(_components.code, {
         children: "load()"
-      }), " callers share one PDF.js loading task, but aborting one caller only rejects that caller. Call ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "destroy()"
-      }), " to cancel active renders, tear down a shared in-flight load, and permanently close the reader."]
+      }), " callers share one PDF.js loading task, but aborting one caller only rejects that caller. The fulfilled ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "load()"
+      }), " value is a borrowed PDF.js ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "PDFDocumentProxy"
+      }), ": inspect it or use supported PDF.js read methods if needed, but do not call ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "document.destroy()"
+      }), " while the reader owns lifecycle teardown. Call ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "reader.destroy()"
+      }), " to cancel active renders, tear down a shared in-flight load, and permanently close the reader. External proxy destruction is unsupported and can leave ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "reader.state"
+      }), " stale until a later PDF.js method fails."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "load()"
@@ -150,9 +166,15 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "configurePdfWorker(...)"
-      }), " mutates PDF.js worker globals only when you call it, not at module evaluation. Reconfiguring it replaces the previous URL-or-port setting. If you pass an existing ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " mutates PDF.js application-global worker state only when you call it, not at module evaluation. Reconfiguring it replaces the previous URL-or-port setting and can collide with other PDF.js consumers in the same JavaScript realm. If you pass an existing ", (0,jsx_runtime.jsx)(_components.code, {
         children: "Worker"
-      }), ", the caller still owns terminating it."]
+      }), ", the caller still owns terminating it. For per-document isolation, pass a caller-created PDF.js ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "PDFWorker"
+      }), " on the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "PDFReader"
+      }), " source object instead of using the global helper: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "new PDFReader({ data: bytes, worker: new PDFWorker({ name: 'tenant-a' }) })"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "reader.state"
@@ -172,11 +194,29 @@ function _createMdxContent(props) {
         children: "failed"
       }), " reader is retryable: a later ", (0,jsx_runtime.jsx)(_components.code, {
         children: "load()"
-      }), " starts a fresh attempt. The package owns live page proxies, temporary canvases, and the loaded ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " starts a fresh attempt. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "iterating"
+      }), " means one executing ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pages()"
+      }), " iterator or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "convert()"
+      }), " call owns the reader-level page operation. The package owns live page proxies, temporary DOM canvases, and the loaded ", (0,jsx_runtime.jsx)(_components.code, {
         children: "PDFDocumentProxy"
-      }), " only while work is active; returned ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " while work is active; returned ", (0,jsx_runtime.jsx)(_components.code, {
         children: "Blob"
-      }), "s, data URLs, and any caller-created object URLs belong to the caller."]
+      }), "s, data URLs, and any caller-created object URLs belong to the caller. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "LoadedPdfDocument"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "LoadedPdfPage"
+      }), " are intentional PDF.js interoperability aliases; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "load()"
+      }), " returns the document alias, while ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pages()"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "convert()"
+      }), " return package ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "PageResult"
+      }), " objects instead of raw page proxies."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["When ", (0,jsx_runtime.jsx)(_components.code, {
         children: "includePageImage"
@@ -189,6 +229,14 @@ function _createMdxContent(props) {
       }), " convenience path. ", (0,jsx_runtime.jsx)(_components.code, {
         children: "jpegQuality"
       }), " applies only to JPEG output."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Constructor ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "canvasFactory"
+      }), ", when supplied, must create a fresh DOM ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "HTMLCanvasElement"
+      }), " for each package-owned render or embedded-image copy. Non-DOM canvas objects are not part of the documented runtime contract unless they satisfy the browser ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "HTMLCanvasElement"
+      }), " behavior used by PDF.js and this package."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Package-owned lifecycle failures use stable ", (0,jsx_runtime.jsx)(_components.code, {
         children: "PdfReaderError"
@@ -208,17 +256,31 @@ function _createMdxContent(props) {
         children: "limits.maxSourceBytes"
       }), " rejects synchronously knowable in-memory sources before ", (0,jsx_runtime.jsx)(_components.code, {
         children: "getDocument()"
-      }), ". ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ". Finite defaults also cap loaded document pages, retained per-page text item/code-unit counts, per-page operator traversal for embedded-image extraction, rendered page pixels, one embedded image's decoded pixels, extracted embedded-image count, and aggregate decoded embedded-image pixels per page. Text and operator checks run after PDF.js returns those complete structures and before package traversal or result retention; they bound package-owned work, not PDF.js' initial parsing allocation. Embedded-image count and aggregate decoded-pixel checks run before the next extracted-image canvas allocation or PNG data-url encode. Repeated image XObject references reuse one encoded data URL per page after those aggregate placement limits pass; inline images are not cached by synthetic keys. Exact aggregate encoded data-url bytes are not precomputable before browser canvas encoding, so decoded-pixel limits are the documented output boundary."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "sourcePolicy(source)"
       }), " runs before PDF.js network/loading work so applications can reject disallowed URLs, protocols, credentials, or headers while still passing approved PDF.js options through unchanged."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Embedded-image extraction remains opt-in on the package root. The current real-browser fixture suite characterizes inline images, repeated image XObjects, composed transforms, RGBA soft-mask images, and nested form XObjects against the supported ", (0,jsx_runtime.jsx)(_components.code, {
         children: "pdfjs-dist"
       }), " peer minor ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "~5.7.284"
-      }), ". Standalone image-mask operators are skipped with diagnostics instead of aborting the page."]
+        children: "~6.2.108"
+      }), ". Repeated XObject placements share one per-page encoded payload while retaining distinct returned transforms and coordinates. Standalone image-mask operators and unsupported individual image layouts are skipped with diagnostics instead of aborting the page; resource-limit, abort, and destroy errors still propagate."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Page processing remains serial in the public runtime API. PDFR-07 adds a real-browser benchmark under ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["PDFR2-05 release-note evidence is captured in this page, the package README, and the task completion record. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "CHANGELOG.md"
+      }), " was intentionally not edited for that compatibility-policy alignment per maintainer instruction."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Page processing remains serial per reader in the public runtime API. A second overlapping ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pages()"
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "convert()"
+      }), " operation on the same loaded reader fails fast with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OPERATION_IN_PROGRESS"
+      }), " before acquiring another page proxy or canvas; create a separate reader for independent concurrent conversions. Calling ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pages()"
+      }), " only creates an iterator object and does not reserve the reader until the iterator starts executing. PDFR-07 adds a real-browser benchmark under ", (0,jsx_runtime.jsx)(_components.code, {
         children: "packages/pdf-reader/benchmark/"
       }), " that compares the current ", (0,jsx_runtime.jsx)(_components.code, {
         children: "pages()"

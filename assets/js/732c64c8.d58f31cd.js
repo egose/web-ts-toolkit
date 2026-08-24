@@ -308,6 +308,10 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "MessageArchivedError"
         })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "InvalidClientRequestIdError"
+        })
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "quick-start",
@@ -417,7 +421,7 @@ function _createMdxContent(props) {
         children: "clientRequestId"
       }), " is present and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "MessageRequest"
-      }), " is registered, duplicate retries reuse the original in-flight or completed result instead of producing duplicate side effects."]
+      }), " is registered, duplicate retries in the same requester/template scope reuse the original in-flight or completed result instead of producing duplicate side effects."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "messageservice",
       children: (0,jsx_runtime.jsx)(_components.code, {
@@ -530,10 +534,32 @@ function _createMdxContent(props) {
           children: "MessageRequest"
         }), " is registered"]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "the winner reserves the idempotency key before template preparation or payment-session creation runs"
+        children: "the service trims surrounding whitespace, preserves case, and rejects non-string, empty, whitespace-only, or over-128-character IDs"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["the idempotency key is scoped to the trimmed ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "clientRequestId"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "String(user._id)"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "templateCd"
+        })]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "later duplicate requests return the same outcome instead of causing duplicate side effects"
+        children: "the winner reserves the scoped idempotency key before template preparation or payment-session creation runs"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "later duplicate requests in the same scope return the same outcome instead of causing duplicate side effects"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "reusing the same ID from another requester or another template creates a separate batch and cannot return the first scope's messages"
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Migration note: scoped idempotency adds ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "clientRequestOwnerId"
+      }), " to message and reservation records. Replace any old global unique index on ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "clientRequestId"
+      }), " with the compound scoped indexes declared by ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "buildMessageSchema()"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "buildMessageRequestSchema()"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "schema-config-example",
       children: "Schema config example"
@@ -579,7 +605,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import {\n  ActionNotAllowedError,\n  ActionNotFoundError,\n  MessageNotFoundError,\n  TemplateNotFoundError,\n} from '@web-ts-toolkit/message-service';\n"
+        children: "import {\n  ActionNotAllowedError,\n  ActionNotFoundError,\n  InvalidClientRequestIdError,\n  MessageNotFoundError,\n  TemplateNotFoundError,\n} from '@web-ts-toolkit/message-service';\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["These are useful both in route handlers and in direct service usage with ", (0,jsx_runtime.jsx)(_components.code, {
