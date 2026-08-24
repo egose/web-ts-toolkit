@@ -1,4 +1,4 @@
-import { startLocalServer, type Express } from './index';
+import { startLocalServer, type Express, type LocalServer } from './index';
 import {
   CLI_VERSION,
   DEFAULT_ADAPTER_MAX_BODY_BYTES,
@@ -36,6 +36,7 @@ import {
   type GenericHandler,
   type ParsedArgs,
   type RuntimeModuleInit,
+  type RuntimeModuleShutdown,
   type ServerlessResult,
   type ServerlessAdapterOptions,
   type StartArgs,
@@ -48,7 +49,7 @@ export type RuntimeCliCommand = Exclude<ParsedArgs, null>;
 
 export interface DevCommandRunner<TLoaded> {
   load: (appPath: string) => Promise<TLoaded> | TLoaded;
-  start: (loaded: TLoaded, options: DevArgs['options'] & { exitAfterShutdown: true }) => void;
+  start: (loaded: TLoaded, options: DevArgs['options'] & { exitAfterShutdown: true }) => LocalServer | void;
   watch?: (args: DevArgs) => void | WatchSupervisorController;
 }
 
@@ -72,7 +73,8 @@ export async function runDevCommand<TLoaded>(args: DevArgs, runner: DevCommandRu
   await preloadModules(args.require);
 
   const loaded = await runner.load(args.appPath);
-  runner.start(loaded, { ...args.options, exitAfterShutdown: true });
+  const server = runner.start(loaded, { ...args.options, exitAfterShutdown: true });
+  await server?.ready;
 }
 
 export async function runExpressDevCommand(args: DevArgs): Promise<void> {
@@ -117,16 +119,21 @@ export async function runCliCommand(parsedArgs: RuntimeCliCommand): Promise<void
       loadEnvFiles(start.env);
     }
     await preloadModules(start.require);
-    const { app, init } = await loadBuiltApp(start.appPath);
-    startLocalServer(app, {
+    const { app, init, shutdown } = await loadBuiltApp(start.appPath);
+    await startLocalServer(app, {
       ...start.options,
       init: init
         ? async () => {
             await init();
           }
         : undefined,
+      onShutdown: shutdown
+        ? async () => {
+            await shutdown();
+          }
+        : undefined,
       exitAfterShutdown: true,
-    });
+    }).ready;
     return;
   }
 
@@ -144,7 +151,7 @@ export async function runCliCommand(parsedArgs: RuntimeCliCommand): Promise<void
     await preloadModules(startServerless.require);
     const handler = await loadHandler(startServerless.handlerPath);
     const app = createServerlessAdapterApp(handler, { maxBodyBytes: startServerless.maxBodyBytes });
-    startLocalServer(app, { ...startServerless.options, exitAfterShutdown: true });
+    await startLocalServer(app, { ...startServerless.options, exitAfterShutdown: true }).ready;
     return;
   }
 
@@ -191,6 +198,7 @@ export type {
   GenericHandler,
   ParsedArgs,
   RuntimeModuleInit,
+  RuntimeModuleShutdown,
   ServerlessAdapterOptions,
   ServerlessResult,
   StartArgs,
