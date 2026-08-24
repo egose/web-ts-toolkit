@@ -1,5 +1,6 @@
 import { ExportKeyCollisionError, JsonFrameOptionError, JsonFrameValidationError } from '../errors';
-import type { FrameState } from '../frame/column';
+import { validateColumnValuesForType, type FrameState } from '../frame/column';
+import { cloneJsonCompatible } from '../json';
 import type {
   ColumnInfo,
   ColumnsPayload,
@@ -19,28 +20,18 @@ import type {
 
 const createRecord = <T extends object>(): T => Object.create(null) as T;
 
-const cloneJsonValue = (value: JsonValue): JsonValue => {
-  if (Array.isArray(value)) {
-    return value.map((entry) => cloneJsonValue(entry)) as JsonValue;
-  }
+const appendPath = (path: string, key: string): string => `${path}[${JSON.stringify(key)}]`;
 
-  if (value !== null && typeof value === 'object') {
-    const cloned = createRecord<Record<string, JsonValue>>();
-    for (const [key, entryValue] of Object.entries(value)) {
-      cloned[key] = cloneJsonValue(entryValue);
-    }
-
-    return cloned as JsonObject;
-  }
-
-  return value;
-};
-
-const cloneSchemaField = (field: TableSchemaField, name = field.name): TableSchemaField => {
+const cloneSchemaField = (field: TableSchemaField, name = field.name, path = '$.schema.fields[]'): TableSchemaField => {
   const cloned = createRecord<Record<string, JsonValue | undefined>>();
 
   for (const [key, value] of Object.entries(field)) {
-    cloned[key] = key === 'name' ? name : value === undefined ? undefined : cloneJsonValue(value as JsonValue);
+    cloned[key] =
+      key === 'name'
+        ? name
+        : value === undefined
+          ? undefined
+          : cloneJsonCompatible(value, 'table', appendPath(path, key));
   }
 
   return cloned as TableSchemaField;
@@ -59,11 +50,13 @@ const cloneSchema = (
         continue;
       }
 
-      cloned[key] = value === undefined ? undefined : cloneJsonValue(value as JsonValue);
+      cloned[key] = value === undefined ? undefined : cloneJsonCompatible(value, 'table', appendPath('$.schema', key));
     }
   }
 
-  cloned.fields = fields.map((field) => cloneSchemaField(field)) as unknown as JsonValue;
+  cloned.fields = fields.map((field, index) =>
+    cloneSchemaField(field, field.name, `$.schema.fields[${index}]`),
+  ) as unknown as JsonValue;
   if (primaryKey !== undefined) {
     cloned.primaryKey = [...primaryKey] as unknown as JsonValue;
   }
@@ -79,8 +72,9 @@ const mapColumnTypeToSchemaField = (name: string, info: ColumnInfo): TableSchema
       case 'float':
         return 'number';
       case 'string':
-      case 'categorical':
         return 'string';
+      case 'categorical':
+        return 'any';
       case 'boolean':
         return 'boolean';
       case 'datetime':
@@ -186,6 +180,25 @@ const resolveIndexFieldName = (state: FrameState, options?: ToTableOptions): str
   }
 
   return indexField;
+};
+
+const assertUniqueTableIndexLabels = (index: readonly IndexLabel[], indexField: string): void => {
+  const seen = new Map<IndexLabel, number>();
+
+  for (let rowIndex = 0; rowIndex < index.length; rowIndex += 1) {
+    const label = index[rowIndex]!;
+    if (seen.has(label)) {
+      throw new JsonFrameValidationError('Cannot export duplicate index labels as a table primary key.', {
+        orient: 'table',
+        path: `$.data[${rowIndex}][${JSON.stringify(indexField)}]`,
+        row: rowIndex,
+        column: indexField,
+        value: label,
+      });
+    }
+
+    seen.set(label, rowIndex);
+  }
 };
 
 const resolveIndexKeys = (state: FrameState, orient: 'index' | 'columns'): readonly string[] => {
@@ -297,6 +310,10 @@ export const exportTable = (
   options?: ToTableOptions,
 ): TablePayload => {
   const indexField = resolveIndexFieldName(state, options);
+  if (indexField !== undefined) {
+    assertUniqueTableIndexLabels(state.index, indexField);
+  }
+
   const indexTemplate = getIndexFieldTemplate(state);
   const dataTemplates = getDataFieldTemplates(state);
   const fields: TableSchemaField[] = [];
@@ -305,17 +322,28 @@ export const exportTable = (
     fields.push(
       indexTemplate === undefined
         ? ({ name: indexField, type: inferIndexFieldType(state.index) } as TableSchemaField)
-        : cloneSchemaField(indexTemplate, indexField),
+        : cloneSchemaField(indexTemplate, indexField, '$.schema.fields[0]'),
     );
   }
 
   for (let columnIndex = 0; columnIndex < state.columns.length; columnIndex += 1) {
     const column = state.columns[columnIndex]!;
     const template = dataTemplates[columnIndex];
+    if (template === undefined) {
+      validateColumnValuesForType({
+        column,
+        columnIndex,
+        values: materialized.get(column) ?? [],
+        type: columnInfo.get(column)!.type,
+        orient: 'table',
+        index: state.index,
+      });
+    }
+
     fields.push(
       template === undefined
         ? mapColumnTypeToSchemaField(column, columnInfo.get(column)!)
-        : cloneSchemaField(template, column),
+        : cloneSchemaField(template, column, `$.schema.fields[${fields.length}]`),
     );
   }
 

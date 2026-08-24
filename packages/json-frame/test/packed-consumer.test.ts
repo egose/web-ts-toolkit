@@ -269,7 +269,7 @@ const tableFrame = fromOrient(
         { name: 'temp', type: 'integer' },
       ],
       primaryKey: ['row_id'],
-      pandas_version: '3.0.3',
+      pandas_version: '1.4.0',
     },
     data: [{ row_id: 'r1', city: 'Paris', temp: 21 }],
   },
@@ -300,14 +300,21 @@ if (!sawAmbiguity) throw new Error('expected columns payload to require explicit
   fromOrient,
   type DataFrame,
   type JsonValue,
+  type SplitPayload,
   type TablePayload,
 } from '@web-ts-toolkit/json-frame';
 
-type WeatherRow = { city: string; temp: number | null };
+interface WeatherRow {
+  city: string;
+  temp: number | null;
+}
 
 const records = fromOrient<WeatherRow>('[{"city":"Paris","temp":21},{"city":"Berlin","temp":null}]');
 const typedFrame: DataFrame<WeatherRow> = records;
+const exportedSplit: SplitPayload = records.toSplit();
 const exportedTable: TablePayload = records.toTable();
+const splitRoundTrip = fromOrient<WeatherRow>(exportedSplit, { orient: 'split' });
+const tableRoundTrip = fromOrient<WeatherRow>(exportedTable, { orient: 'table' });
 const exportedJson: string = records.toJSONString('split');
 const value: JsonValue = JSON.parse(exportedJson) as JsonValue;
 
@@ -320,7 +327,7 @@ try {
   }
 }
 
-void [typedFrame, exportedTable, value, records.resetIndex()];
+void [typedFrame, exportedSplit, exportedTable, splitRoundTrip, tableRoundTrip, value, records.resetIndex()];
 `,
   );
 
@@ -331,15 +338,29 @@ void [typedFrame, exportedTable, value, records.resetIndex()];
 const jsonFrame: typeof import('@web-ts-toolkit/json-frame') = require('@web-ts-toolkit/json-frame');
 const frame = jsonFrame.fromOrient<Record<string, JsonValue>>('[{"city":"Paris"}]');
 const typed: DataFrame<Record<string, JsonValue>> = frame;
-void [typed, jsonFrame.JsonFrameOptionError, frame.toRecords()];
+interface WeatherRow {
+  city: string;
+  temp: number | null;
+}
+
+const weather = jsonFrame.fromOrient<WeatherRow>('[{"city":"Paris","temp":21}]');
+const splitRoundTrip = jsonFrame.fromOrient<WeatherRow>(weather.toSplit(), { orient: 'split' });
+const tableRoundTrip = jsonFrame.fromOrient<WeatherRow>(weather.toTable(), { orient: 'table' });
+void [typed, jsonFrame.JsonFrameOptionError, frame.toRecords(), splitRoundTrip, tableRoundTrip];
 `,
   );
 
   writeFileSync(
     path.resolve(consumerDir, 'consumer.bundler.ts'),
-    `import { fromOrient, type ColumnType, type JsonValue } from '@web-ts-toolkit/json-frame';
+    `import { fromOrient, type ColumnType, type DataFrame, type JsonValue } from '@web-ts-toolkit/json-frame';
 
-const frame = fromOrient(
+interface WeatherRow {
+  city: string;
+  temp: number;
+  coastal: boolean;
+}
+
+const frame = fromOrient<WeatherRow>(
   [
     { city: 'Paris', temp: 21.5, coastal: false },
     { city: 'Tokyo', temp: 27.1, coastal: true },
@@ -357,8 +378,29 @@ const frame = fromOrient(
 const columnTypes: ColumnType[] = [...frame.columnInfo.values()].map((info) => info.type);
 const json: string = frame.toJSONString('records');
 const parsed: JsonValue = JSON.parse(json) as JsonValue;
+const splitRoundTrip = fromOrient<WeatherRow>(frame.toSplit(), { orient: 'split' });
+const tableRoundTrip = fromOrient<WeatherRow>(frame.toTable(), { orient: 'table' });
+const typedRoundTrips: readonly DataFrame<WeatherRow>[] = [splitRoundTrip, tableRoundTrip];
 
-void [columnTypes, parsed, frame.filter((row) => row.coastal === true)];
+void [columnTypes, parsed, frame.filter((row) => row.coastal === true), typedRoundTrips];
+`,
+  );
+
+  writeFileSync(
+    path.resolve(consumerDir, 'consumer.browser.ts'),
+    `import { fromOrient, type DataFrame } from '@web-ts-toolkit/json-frame';
+
+interface WeatherRow {
+  city: string;
+  temp: number;
+}
+
+const frame = fromOrient<WeatherRow>([{ city: 'Paris', temp: 21 }], { orient: 'records' });
+const splitRoundTrip = fromOrient<WeatherRow>(frame.toSplit(), { orient: 'split' });
+const tableRoundTrip = fromOrient<WeatherRow>(frame.toTable(), { orient: 'table' });
+const typedRoundTrips: readonly DataFrame<WeatherRow>[] = [splitRoundTrip, tableRoundTrip];
+
+void [typedRoundTrips, frame.row(0).city];
 `,
   );
 
@@ -398,6 +440,27 @@ void [columnTypes, parsed, frame.filter((row) => row.coastal === true)];
           types: ['node'],
         },
         include: ['consumer.bundler.ts'],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+
+  writeFileSync(
+    path.resolve(consumerDir, 'tsconfig.browser.json'),
+    `${JSON.stringify(
+      {
+        compilerOptions: {
+          target: 'ES2022',
+          module: 'ESNext',
+          moduleResolution: 'Bundler',
+          strict: true,
+          noEmit: true,
+          skipLibCheck: false,
+          lib: ['ES2022'],
+          types: [],
+        },
+        include: ['consumer.browser.ts'],
       },
       null,
       2,
@@ -495,6 +558,12 @@ describe('JFRAME-08 packed consumer compatibility', () => {
     expect(packedManifest.scripts).toBeUndefined();
     expect(containsDisallowedPublishedValue(packedManifest)).toBe(false);
     expect(readFileSync(path.resolve(unpackRoot, 'README.md'), 'utf8')).toContain("from '@web-ts-toolkit/json-frame'");
+    for (const declarationFile of ['index.d.ts', 'index.d.mts']) {
+      const declaration = readFileSync(path.resolve(unpackRoot, declarationFile), 'utf8');
+      expect(declaration).toContain('non-empty `values` arrays');
+      expect(declaration).toContain('nested JSON');
+      expect(declaration).toContain('Table Schema format version');
+    }
     expect(readdirSync(unpackRoot).sort()).toEqual([
       'LICENSE',
       'README.md',
@@ -543,6 +612,7 @@ describe('JFRAME-08 packed consumer compatibility', () => {
     run('node', ['consumer.mjs'], consumerDir);
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.json'], consumerDir);
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.bundler.json'], consumerDir);
+    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.browser.json'], consumerDir);
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.readme.json'], consumerDir);
 
     const installedPackageDir = path.resolve(consumerDir, 'node_modules', '@web-ts-toolkit', 'json-frame');

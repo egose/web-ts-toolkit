@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { JsonFrameParseError, JsonFrameValidationError } from '@web-ts-toolkit/json-frame';
+import { JSON_FRAME_MAX_DEPTH, JsonFrameParseError, JsonFrameValidationError } from '@web-ts-toolkit/json-frame';
 import { normalizeFromOrientOptions } from '../../src/options';
 import { parseInput } from '../../src/parse';
 import type { ParsedFrame } from '../../src/parse';
@@ -24,7 +24,7 @@ const parseFixture = async (
   orient?: Orient,
   extraOptions: Parameters<typeof normalizeFromOrientOptions>[0] = {},
 ) => {
-  const contents = await readFile(path.join(fixtureDirectory, fixtureName), 'utf8');
+  const contents = await readFixture(fixtureName);
   return parseInput(
     contents,
     normalizeFromOrientOptions({
@@ -32,6 +32,17 @@ const parseFixture = async (
       ...(orient === undefined ? {} : { orient }),
     }),
   );
+};
+
+const readFixture = (fixtureName: string) => readFile(path.join(fixtureDirectory, fixtureName), 'utf8');
+
+const nestedArrays = (depth: number, leaf: JsonValue = 'leaf'): JsonValue => {
+  let value = leaf;
+  for (let index = 0; index < depth; index += 1) {
+    value = [value];
+  }
+
+  return value;
 };
 
 const toSnapshot = (frame: ParsedFrame) => ({
@@ -412,6 +423,57 @@ const expectedByFixture: Record<string, ExpectedFrame> = {
     indexKind: 'source',
     data: { x: [1, 2, 3] },
   },
+  'nonAscendingIntegerIndex-index.json': {
+    columns: ['v', 'n'],
+    index: ['2', '10'],
+    indexKind: 'source',
+    data: { v: ['second', 'first'], n: [200, 100] },
+  },
+  'nonAscendingIntegerIndex-columns.json': {
+    columns: ['v', 'n'],
+    index: ['2', '10'],
+    indexKind: 'source',
+    data: { v: ['second', 'first'], n: [200, 100] },
+  },
+  'nonAscendingIntegerIndex-split.json': {
+    columns: ['v', 'n'],
+    index: [10, 2],
+    indexKind: 'source',
+    data: { v: ['first', 'second'], n: [100, 200] },
+  },
+  'nonAscendingIntegerIndex-table.json': {
+    columns: ['v', 'n'],
+    index: [10, 2],
+    indexKind: 'source',
+    data: { v: ['first', 'second'], n: [100, 200] },
+    tableSchema: {
+      fields: [
+        { name: 'i', type: 'integer' },
+        { name: 'v', type: 'string', extDtype: 'str' },
+        { name: 'n', type: 'integer' },
+      ],
+      primaryKey: ['i'],
+      pandas_version: '1.4.0',
+    },
+    tableIndexField: 'i',
+  },
+  'serializationSensitive-records.json': {
+    columns: ['text', 'small', 'large', 'precision'],
+    index: [0, 1],
+    indexKind: 'synthetic',
+    data: {
+      text: ['café', 'quote " slash \\ newline\n tab\t nul\u0000'],
+      small: [1.23e-12, 0],
+      large: [1.23e20, 9007199254740991],
+      precision: [1.123456789012345, 1.123456789012346],
+    },
+  },
+  'serializationSensitive-index.json': {
+    columns: ['value'],
+    index: ['-0.0', '1.0'],
+    indexKind: 'source',
+    data: { value: ['negative zero index', 'positive index'] },
+  },
 };
 
 const explicitOrientForFixture = (fixtureName: string): ResolvedOrient => {
@@ -511,7 +573,107 @@ describe('parseInput auto detection', () => {
   });
 });
 
+describe('parseInput integer-like object-key ordering', () => {
+  it('uses JavaScript property enumeration for index orient raw strings and parsed objects', async () => {
+    const contents = await readFixture('nonAscendingIntegerIndex-index.json');
+    expect(contents.replace(/\s+/g, '')).toBe('{"10":{"v":"first","n":100},"2":{"v":"second","n":200}}');
+
+    const options = normalizeFromOrientOptions({ orient: 'index' });
+    const expected = expectedByFixture['nonAscendingIntegerIndex-index.json'];
+
+    expect(toSnapshot(parseInput(contents, options))).toEqual({
+      orient: 'index',
+      columns: [...expected.columns],
+      index: [...expected.index],
+      indexKind: expected.indexKind,
+      data: expected.data,
+    });
+    expect(toSnapshot(parseInput(JSON.parse(contents) as JsonValue, options))).toEqual({
+      orient: 'index',
+      columns: [...expected.columns],
+      index: [...expected.index],
+      indexKind: expected.indexKind,
+      data: expected.data,
+    });
+  });
+
+  it('uses JavaScript property enumeration for columns orient raw strings and parsed objects', async () => {
+    const contents = await readFixture('nonAscendingIntegerIndex-columns.json');
+    expect(contents.replace(/\s+/g, '')).toBe('{"v":{"10":"first","2":"second"},"n":{"10":100,"2":200}}');
+
+    const options = normalizeFromOrientOptions({ orient: 'columns' });
+    const expected = expectedByFixture['nonAscendingIntegerIndex-columns.json'];
+
+    expect(toSnapshot(parseInput(contents, options))).toEqual({
+      orient: 'columns',
+      columns: [...expected.columns],
+      index: [...expected.index],
+      indexKind: expected.indexKind,
+      data: expected.data,
+    });
+    expect(toSnapshot(parseInput(JSON.parse(contents) as JsonValue, options))).toEqual({
+      orient: 'columns',
+      columns: [...expected.columns],
+      index: [...expected.index],
+      indexKind: expected.indexKind,
+      data: expected.data,
+    });
+  });
+
+  it('preserves non-ascending integer index order for split and table controls', async () => {
+    for (const [fixtureName, orient] of [
+      ['nonAscendingIntegerIndex-split.json', 'split'],
+      ['nonAscendingIntegerIndex-table.json', 'table'],
+    ] as const) {
+      const contents = await readFixture(fixtureName);
+      const options = normalizeFromOrientOptions({ orient });
+      const expected = expectedByFixture[fixtureName];
+
+      for (const input of [contents, JSON.parse(contents) as JsonValue]) {
+        expect(toSnapshot(parseInput(input, options))).toEqual({
+          orient,
+          columns: [...expected.columns],
+          index: [...expected.index],
+          indexKind: expected.indexKind,
+          data: expected.data,
+          ...(expected.tableSchema === undefined ? {} : { tableSchema: expected.tableSchema }),
+          ...(expected.tableIndexField === undefined ? {} : { tableIndexField: expected.tableIndexField }),
+        });
+      }
+    }
+  });
+});
+
 describe('parseInput validation failures', () => {
+  it('parses deep programmatic and JSON-string cells at the documented depth boundary', () => {
+    const acceptedCell = nestedArrays(JSON_FRAME_MAX_DEPTH - 1);
+
+    const programmatic = parseInput([{ deep: acceptedCell }], normalizeFromOrientOptions({ orient: 'records' }));
+    const fromString = parseInput(
+      JSON.stringify([{ deep: acceptedCell }]),
+      normalizeFromOrientOptions({ orient: 'records' }),
+    );
+
+    expect(programmatic.columns).toEqual(['deep']);
+    expect(fromString.columns).toEqual(['deep']);
+  });
+
+  it('rejects over-depth programmatic and JSON-string cells with path-bearing validation errors', () => {
+    const rejectedCell = nestedArrays(JSON_FRAME_MAX_DEPTH);
+
+    for (const input of [[{ deep: rejectedCell }], JSON.stringify([{ deep: rejectedCell }])] as const) {
+      try {
+        parseInput(input, normalizeFromOrientOptions({ orient: 'records' }));
+        throw new Error('expected parseInput to throw');
+      } catch (error) {
+        expect(error).toMatchObject({ name: 'JsonFrameValidationError' });
+        expect(error).not.toBeInstanceOf(RangeError);
+        expect((error as JsonFrameValidationError).path?.startsWith('$[0].deep')).toBe(true);
+        expect((error as JsonFrameValidationError).message).toContain(String(JSON_FRAME_MAX_DEPTH));
+      }
+    }
+  });
+
   it('rejects values input without explicit columns, including empty arrays', async () => {
     await expect(parseFixture('allSixStringIndex-values.json', 'values')).rejects.toMatchObject({
       name: 'JsonFrameOptionError',
@@ -563,6 +725,66 @@ describe('parseInput validation failures', () => {
     );
   });
 
+  it('rejects duplicate table primary-key values with a bounded later-row diagnostic', () => {
+    const input = {
+      schema: {
+        fields: [
+          { name: 'row_id', type: 'string' },
+          { name: 'city', type: 'string' },
+        ],
+        primaryKey: ['row_id'],
+      },
+      data: [
+        { row_id: 'same', city: 'NYC' },
+        { row_id: 'same', city: 'LA' },
+      ],
+    };
+
+    try {
+      parseInput(input, normalizeFromOrientOptions({ orient: 'table' }));
+      throw new Error('expected duplicate primary key to throw');
+    } catch (error) {
+      const validationError = error as JsonFrameValidationError;
+      expect(validationError).toMatchObject({
+        name: 'JsonFrameValidationError',
+        orient: 'table',
+        path: '$.data[1].row_id',
+        row: 1,
+        column: 'row_id',
+        value: 'same',
+      });
+      expect(validationError.value).not.toBe(input);
+      expect(validationError.value).not.toBe(input.data);
+    }
+  });
+
+  it('treats numeric and string table primary-key labels as distinct values', () => {
+    const frame = parseInput(
+      {
+        schema: {
+          fields: [
+            { name: 'row_id', type: 'any' },
+            { name: 'city', type: 'string' },
+          ],
+          primaryKey: ['row_id'],
+        },
+        data: [
+          { row_id: 1, city: 'NYC' },
+          { row_id: '1', city: 'LA' },
+        ],
+      },
+      normalizeFromOrientOptions({ orient: 'table' }),
+    );
+
+    expect(toSnapshot(frame)).toMatchObject({
+      columns: ['city'],
+      index: [1, '1'],
+      indexKind: 'source',
+      data: { city: ['NYC', 'LA'] },
+      tableIndexField: 'row_id',
+    });
+  });
+
   it('rejects non-JSON values with actionable paths instead of generic TypeError failures', () => {
     const cyclicObject: Record<string, unknown> = { ok: true };
     cyclicObject.self = cyclicObject;
@@ -570,19 +792,19 @@ describe('parseInput validation failures', () => {
     const sparse = [1, 2];
     delete sparse[1];
 
-    const invalidInputs: Array<{ readonly input: unknown; readonly path: string }> = [
+    const invalidInputs: Array<{ readonly input: unknown; readonly path: string; readonly valueKind?: string }> = [
       { input: [{ city: undefined }], path: '$[0].city' },
       { input: [{ city: Number.NaN }], path: '$[0].city' },
       { input: [{ city: Number.POSITIVE_INFINITY }], path: '$[0].city' },
-      { input: [{ city: Symbol('x') }], path: '$[0].city' },
-      { input: [{ city: 1n }], path: '$[0].city' },
-      { input: [{ city: () => 'x' }], path: '$[0].city' },
-      { input: [{ city: new Date('2024-01-02T03:04:05Z') }], path: '$[0].city' },
-      { input: [sparse], path: '$[0][1]' },
-      { input: cyclicObject, path: '$.self' },
+      { input: [{ city: Symbol('x') }], path: '$[0].city', valueKind: 'symbol' },
+      { input: [{ city: 1n }], path: '$[0].city', valueKind: 'bigint' },
+      { input: [{ city: () => 'x' }], path: '$[0].city', valueKind: 'function' },
+      { input: [{ city: new Date('2024-01-02T03:04:05Z') }], path: '$[0].city', valueKind: 'object' },
+      { input: [sparse], path: '$[0][1]', valueKind: 'array' },
+      { input: cyclicObject, path: '$.self', valueKind: 'object' },
     ];
 
-    for (const { input, path: errorPath } of invalidInputs) {
+    for (const { input, path: errorPath, valueKind } of invalidInputs) {
       try {
         parseInput(input, normalizeFromOrientOptions({ orient: 'records' }));
         throw new Error('expected parseInput to throw');
@@ -590,6 +812,33 @@ describe('parseInput validation failures', () => {
         expect(error).toMatchObject({ name: 'JsonFrameValidationError' });
         expect(error).not.toBeInstanceOf(TypeError);
         expect((error as JsonFrameValidationError).path).toBe(errorPath);
+        if (valueKind !== undefined) {
+          expect((error as JsonFrameValidationError).value).toMatchObject({ kind: valueKind });
+          expect(Object.isFrozen((error as JsonFrameValidationError).value)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('summarizes malformed-row and auto-detection diagnostic containers without retaining inputs', () => {
+    const malformedRow = { bad: true };
+    const invalidAutoPayload = [1];
+
+    for (const [input, options, expectedPath, expectedKind] of [
+      [[[0], malformedRow], normalizeFromOrientOptions({ orient: 'values', columns: ['a'] }), '$[1]', 'object'],
+      [invalidAutoPayload, normalizeFromOrientOptions(), '$', 'array'],
+    ] as const) {
+      try {
+        parseInput(input, options);
+        throw new Error('expected parseInput to throw');
+      } catch (error) {
+        const validationError = error as JsonFrameValidationError;
+        expect(validationError).toMatchObject({ name: 'JsonFrameValidationError' });
+        expect(validationError.path).toBe(expectedPath);
+        expect(validationError.value).toMatchObject({ kind: expectedKind });
+        expect(validationError.value).not.toBe(input);
+        expect(validationError.value).not.toBe(malformedRow);
+        expect(Object.isFrozen(validationError.value)).toBe(true);
       }
     }
   });

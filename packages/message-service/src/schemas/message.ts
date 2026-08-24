@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { BaseMessageFields, MESSAGE_ARCHIVE_MODEL_NAME } from './base';
-import type { IMessage, UserId } from '../types/message';
+import type { IBaseMessage, IMessageMethods, UserId } from '../types/message';
 import type { TemplateRegistry } from '../template-registry';
 import { includesAction } from '../template-registry';
 import { isSender, isReceiver } from './methods';
@@ -11,20 +11,38 @@ import { isSender, isReceiver } from './methods';
 
 export type EmailNotifier = (email: string, title: string, message: string) => Promise<void> | void;
 
+export type EmailDeliveryFailureStage = 'recipientLookup' | 'notifier';
+
+export interface EmailDeliveryFailureEvent {
+  stage: EmailDeliveryFailureStage;
+  error: unknown;
+  messageId: unknown;
+  recipientId: UserId;
+  title: string;
+}
+
 export interface MessageSchemaConfig {
   /**
-   * Called on every message save (unless excluded) to send an email
-   * notification to the recipient. Pass `null` (the default) to disable.
+   * Called for newly created, non-transactional messages (unless excluded) to
+   * send a best-effort email notification to the recipient. Pass `null` (the
+   * default) to disable.
    *
    * When `null`, no pre-save hook is registered at all.
    */
   emailNotifier?: EmailNotifier | null;
 
   /**
-   * Message titles (lowercased, after trim) that should NOT trigger email
-   * notifications. Comparison is case-insensitive and matches the *compiled*
-   * title — i.e. the interpolated result. Use this to suppress emails for
-   * low-priority messages.
+   * Called when recipient lookup or notifier delivery fails. The message save
+   * has already succeeded and is not rolled back. If this hook throws, that
+   * secondary failure is swallowed to preserve the best-effort delivery
+   * contract.
+   */
+  onEmailDeliveryFailure?: (event: EmailDeliveryFailureEvent) => void | Promise<void>;
+
+  /**
+   * Message titles that should NOT trigger email notifications. Exclusions and
+   * rendered titles are compared with the same trim + lowercase normalization
+   * against the compiled title — i.e. the interpolated result.
    */
   emailNotificationExclusions?: string[];
 
@@ -37,6 +55,13 @@ export interface MessageSchemaConfig {
    * `buildMessageSchema` does a sanity check to give a clear error if not.
    */
   userModelName?: string;
+
+  /**
+   * Connection used for eager model-registration checks when configuring
+   * connection-local schemas. Runtime document methods and hooks still use the
+   * hydrated document's own connection.
+   */
+  connection?: mongoose.Connection;
 
   /**
    * Name of the Mongoose model used for archived messages.
@@ -53,9 +78,37 @@ interface ArchiveContext {
   archiveModelName: string;
 }
 
+type MessageModel = mongoose.Model<IBaseMessage, object, IMessageMethods>;
+type MessageHydratedDocument = mongoose.HydratedDocument<IBaseMessage, IMessageMethods>;
+
+function resolveDocumentModel(
+  document: { constructor: unknown },
+  modelName: string,
+  role: string,
+): mongoose.Model<unknown> {
+  const model = document.constructor as mongoose.Model<unknown> & { db?: mongoose.Connection; modelName?: string };
+  const connection = model.db;
+  if (!connection) {
+    throw new Error(
+      `message-service: cannot resolve ${role} model "${modelName}" because the hydrated document has no owning connection`,
+    );
+  }
+
+  try {
+    return connection.model(modelName) as mongoose.Model<unknown>;
+  } catch (error) {
+    const connectionName = connection.name || '<unnamed>';
+    const resolutionError = new Error(
+      `message-service: ${role} model "${modelName}" is not registered on Mongoose connection "${connectionName}"`,
+    );
+    (resolutionError as Error & { cause?: unknown }).cause = error;
+    throw resolutionError;
+  }
+}
+
 function createArchiveMethod(ctx: ArchiveContext) {
   return function archive(
-    this: IMessage,
+    this: MessageHydratedDocument,
     actionCd: string,
     archivedBy: UserId,
     registry: TemplateRegistry,
@@ -64,7 +117,7 @@ function createArchiveMethod(ctx: ArchiveContext) {
       return Promise.resolve();
     }
 
-    const MessageArchive = mongoose.model(ctx.archiveModelName);
+    const MessageArchive = resolveDocumentModel(this, ctx.archiveModelName, 'archive');
     const data = this.toObject();
 
     return MessageArchive.create({
@@ -78,42 +131,90 @@ function createArchiveMethod(ctx: ArchiveContext) {
 }
 
 // ---------------------------------------------------------------------------
-// Pre-save hook factory
+// Email hook factory
 // ---------------------------------------------------------------------------
 
-interface PreSaveContext {
+interface EmailHookContext {
   emailNotifier: EmailNotifier;
+  onEmailDeliveryFailure?: (event: EmailDeliveryFailureEvent) => void | Promise<void>;
   emailNotificationExclusions: string[];
   userModelName: string;
 }
 
-function createPreSaveHook(ctx: PreSaveContext) {
-  return async function sendNotificationEmail(this: IMessage) {
+const EMAIL_WAS_NEW_LOCAL = 'messageServiceEmailWasNew';
+
+function normalizeEmailTitle(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function createEmailStateCaptureHook() {
+  return function captureEmailState(this: MessageHydratedDocument) {
+    this.$locals[EMAIL_WAS_NEW_LOCAL] = this.isNew;
+  };
+}
+
+function createPostSaveEmailHook(ctx: EmailHookContext) {
+  return async function sendNotificationEmail(this: MessageHydratedDocument) {
+    if (!this.$locals[EMAIL_WAS_NEW_LOCAL]) {
+      return;
+    }
+
+    if (this.$session()) {
+      return;
+    }
+
     if (!this.toUser || !this.receiverContent?.title) {
       return;
     }
 
     const title = this.receiverContent.title.trim();
-    if (ctx.emailNotificationExclusions.includes(title.toLowerCase())) {
+    if (!title || ctx.emailNotificationExclusions.includes(normalizeEmailTitle(title))) {
       return;
     }
 
+    let user: { email?: string } | null;
     try {
-      const User = mongoose.model(ctx.userModelName);
-      const user = (await User.findById(this.toUser).select('email').lean()) as { email?: string } | null;
-      if (!user?.email) {
-        return;
-      }
+      const User = resolveDocumentModel(this, ctx.userModelName, 'user');
+      user = (await User.findById(this.toUser).select('email').lean()) as { email?: string } | null;
+    } catch (error) {
+      await reportEmailFailure(ctx, 'recipientLookup', error, this, title);
+      return;
+    }
 
-      const long = this.receiverContent.long || '';
-      const short = this.receiverContent.short || '';
-      const body = long.length > short.length ? long : short;
+    if (!user?.email) {
+      return;
+    }
 
+    const long = this.receiverContent.long || '';
+    const short = this.receiverContent.short || '';
+    const body = long.length > short.length ? long : short;
+
+    try {
       await ctx.emailNotifier(user.email, title, body);
-    } catch {
-      // Don't block message save on email failure
+    } catch (error) {
+      await reportEmailFailure(ctx, 'notifier', error, this, title);
     }
   };
+}
+
+async function reportEmailFailure(
+  ctx: Pick<EmailHookContext, 'onEmailDeliveryFailure'>,
+  stage: EmailDeliveryFailureStage,
+  error: unknown,
+  message: MessageHydratedDocument,
+  title: string,
+): Promise<void> {
+  try {
+    await ctx.onEmailDeliveryFailure?.({
+      stage,
+      error,
+      messageId: message._id,
+      recipientId: message.toUser as UserId,
+      title,
+    });
+  } catch {
+    // Preserve best-effort email delivery: observer failures must not reject a committed save.
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -125,28 +226,33 @@ function createPreSaveHook(ctx: PreSaveContext) {
  * Runs at schema-build time to give a clear error if the user forgot to
  * register the model before configuring the schema.
  */
-function assertModelRegistered(name: string, role: string): void {
-  if (!mongoose.modelNames().includes(name)) {
+function assertModelRegistered(connection: mongoose.Connection | typeof mongoose, name: string, role: string): void {
+  if (!connection.modelNames().includes(name)) {
+    const connectionName = 'name' in connection && connection.name ? connection.name : 'global mongoose';
     throw new Error(
-      `message-service: cannot configure schema — ${role} model "${name}" is not registered with Mongoose. ` +
-        `Call mongoose.model("${name}", ...) before buildMessageSchema().`,
+      `message-service: cannot configure schema — ${role} model "${name}" is not registered on Mongoose connection "${connectionName}". ` +
+        `Register the model on that connection before buildMessageSchema().`,
     );
   }
 }
 
 interface ResolvedConfig {
   emailNotifier: EmailNotifier | null;
+  onEmailDeliveryFailure?: (event: EmailDeliveryFailureEvent) => void | Promise<void>;
   emailNotificationExclusions: string[];
   userModelName: string;
   archiveModelName: string;
+  connection: mongoose.Connection | typeof mongoose;
 }
 
 function resolveConfig(config?: MessageSchemaConfig): ResolvedConfig {
   return {
     emailNotifier: config?.emailNotifier ?? null,
-    emailNotificationExclusions: (config?.emailNotificationExclusions ?? []).map((e) => e.toLowerCase()),
+    onEmailDeliveryFailure: config?.onEmailDeliveryFailure,
+    emailNotificationExclusions: (config?.emailNotificationExclusions ?? []).map(normalizeEmailTitle),
     userModelName: config?.userModelName ?? 'User',
     archiveModelName: config?.archiveModelName ?? MESSAGE_ARCHIVE_MODEL_NAME,
+    connection: config?.connection ?? mongoose,
   };
 }
 
@@ -159,25 +265,48 @@ function resolveConfig(config?: MessageSchemaConfig): ResolvedConfig {
  * be registered with Mongoose before calling this function. The schema
  * factory checks this eagerly to fail fast.
  */
-export function buildMessageSchema(config?: MessageSchemaConfig): mongoose.Schema {
+export function buildMessageSchema(
+  config?: MessageSchemaConfig,
+): mongoose.Schema<IBaseMessage, MessageModel, IMessageMethods> {
   const resolved = resolveConfig(config);
 
   if (resolved.emailNotifier) {
-    assertModelRegistered(resolved.userModelName, 'user');
+    assertModelRegistered(resolved.connection, resolved.userModelName, 'user');
   }
 
-  const schema: mongoose.Schema = new mongoose.Schema(BaseMessageFields, {
+  const schema = new mongoose.Schema<IBaseMessage, MessageModel, IMessageMethods>(BaseMessageFields, {
     timestamps: true,
   });
 
-  schema.index({ createdAt: 1 });
-  schema.index({ clientRequestId: 1 }, { sparse: true });
+  schema.index({ fromUser: 1, createdAt: -1, _id: -1 });
+  schema.index({ toUser: 1, createdAt: -1, _id: -1 });
+  schema.index({ toRoles: 1, createdAt: -1, _id: -1 });
+  schema.index({ actionState: 1, actionLeaseExpiresAt: 1 });
   schema.index(
-    { clientRequestId: 1, clientRequestItemIndex: 1 },
+    { actionAttemptId: 1 },
+    {
+      unique: true,
+      partialFilterExpression: { actionAttemptId: { $type: 'string' } },
+    },
+  );
+  schema.index(
+    { clientRequestOwnerId: 1, templateCd: 1, clientRequestId: 1, createdAt: 1, _id: 1 },
+    {
+      partialFilterExpression: {
+        clientRequestId: { $type: 'string' },
+        clientRequestOwnerId: { $type: 'string' },
+        templateCd: { $type: 'string' },
+      },
+    },
+  );
+  schema.index(
+    { clientRequestOwnerId: 1, templateCd: 1, clientRequestId: 1, clientRequestItemIndex: 1 },
     {
       unique: true,
       partialFilterExpression: {
         clientRequestId: { $type: 'string' },
+        clientRequestOwnerId: { $type: 'string' },
+        templateCd: { $type: 'string' },
         clientRequestItemIndex: { $type: 'number' },
       },
     },
@@ -188,10 +317,12 @@ export function buildMessageSchema(config?: MessageSchemaConfig): mongoose.Schem
   schema.methods.archive = createArchiveMethod({ archiveModelName: resolved.archiveModelName });
 
   if (resolved.emailNotifier) {
-    schema.pre(
+    schema.pre('save', createEmailStateCaptureHook());
+    schema.post(
       'save',
-      createPreSaveHook({
+      createPostSaveEmailHook({
         emailNotifier: resolved.emailNotifier,
+        onEmailDeliveryFailure: resolved.onEmailDeliveryFailure,
         emailNotificationExclusions: resolved.emailNotificationExclusions,
         userModelName: resolved.userModelName,
       }),
@@ -206,4 +337,4 @@ export function buildMessageSchema(config?: MessageSchemaConfig): mongoose.Schem
  * Provided for backwards compatibility and simple use cases.
  * Use `buildMessageSchema(config)` when you need custom behavior.
  */
-export const MessageSchema: mongoose.Schema = buildMessageSchema();
+export const MessageSchema = buildMessageSchema();

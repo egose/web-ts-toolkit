@@ -321,6 +321,13 @@ function addPositional(arg: string, current: string | undefined, label: string):
   return arg;
 }
 
+function setTsconfigPath(current: string | undefined, next: string): string {
+  if (current !== undefined && current !== next) {
+    throw new Error(`Conflicting --tsconfig values: ${current} and ${next}`);
+  }
+  return next;
+}
+
 function optionArgs(argv: string[]): string[] {
   const terminator = argv.indexOf('--');
   return terminator === -1 ? argv : argv.slice(0, terminator);
@@ -407,12 +414,12 @@ function parseDevArgs(argv: string[]): DevArgs {
     }
 
     if (arg === '--tsconfig') {
-      tsconfigPath = readValue(argv, index, arg);
+      tsconfigPath = setTsconfigPath(tsconfigPath, readValue(argv, index, arg));
       index += 1;
       continue;
     }
     if (arg.startsWith('--tsconfig=')) {
-      tsconfigPath = readInlineValue(arg, '--tsconfig=', '--tsconfig');
+      tsconfigPath = setTsconfigPath(tsconfigPath, readInlineValue(arg, '--tsconfig=', '--tsconfig'));
       continue;
     }
 
@@ -576,12 +583,12 @@ function parseBuildArgs(argv: string[], outNameDefault: string): BuildArgs {
     }
 
     if (arg === '--tsconfig') {
-      result.tsconfigPath = readValue(argv, index, arg);
+      result.tsconfigPath = setTsconfigPath(result.tsconfigPath, readValue(argv, index, arg));
       index += 1;
       continue;
     }
     if (arg.startsWith('--tsconfig=')) {
-      result.tsconfigPath = readInlineValue(arg, '--tsconfig=', '--tsconfig');
+      result.tsconfigPath = setTsconfigPath(result.tsconfigPath, readInlineValue(arg, '--tsconfig=', '--tsconfig'));
       continue;
     }
 
@@ -1104,7 +1111,7 @@ export function createWatchSupervisor(args: DevArgs, deps: WatchSupervisorDeps =
     // Open watchers after validation; roll back every opened watcher on setup failure.
     for (const watchPath of args.watch) {
       const absPath = pathResolve(process.cwd(), watchPath);
-      const watcher = watchImpl(absPath, { recursive: true }, (_eventType, filename) => {
+      const watchListener = (_eventType: string, filename: string | Buffer | null): void => {
         if (isShuttingDown) return;
         if (!filename) return;
         const ext = extname(filename as string)
@@ -1113,7 +1120,16 @@ export function createWatchSupervisor(args: DevArgs, deps: WatchSupervisorDeps =
         if (args.watchExt.includes(ext)) {
           debouncedRestart();
         }
-      });
+      };
+      let watcher: WatcherHandle;
+      try {
+        watcher = watchImpl(absPath, { recursive: true }, watchListener);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM') {
+          throw error;
+        }
+        watcher = watchImpl(absPath, watchListener);
+      }
       (watcher as unknown as { on?: (event: 'error', listener: (error: Error) => void) => void }).on?.(
         'error',
         (error) => {
@@ -1223,6 +1239,7 @@ export const TEMP_SERVERLESS_ENTRY_FILENAME = '.express-runtime-build-serverless
 const STAGING_DIR_PREFIX = '.wtt-build-';
 
 export type RuntimeModuleInit = () => Promise<void> | void;
+export type RuntimeModuleShutdown = () => Promise<void> | void;
 
 /**
  * Generate the temporary entry file content that wires the user's app and
@@ -1949,11 +1966,13 @@ export function createServerlessAdapterApp(handler: GenericHandler, options: Ser
 /**
  * Load a bundled app module from the `build` output.
  */
-export async function loadBuiltApp(appPath: string): Promise<{ app: Express; init?: RuntimeModuleInit }> {
+export async function loadBuiltApp(
+  appPath: string,
+): Promise<{ app: Express; init?: RuntimeModuleInit; shutdown?: RuntimeModuleShutdown }> {
   const fullPath = pathResolve(process.cwd(), appPath);
   const moduleUrl = pathToFileURL(fullPath).href;
   const mod = (await import(moduleUrl)) as Record<string, unknown>;
-  const exported = extractExport(mod);
+  const exported = mod.app ?? mod.default;
   if (!exported) {
     throw new Error(
       `Module "${appPath}" must default-export an Express app or export it as "app". Exports: ${Object.keys(mod).join(', ')}`,
@@ -1964,10 +1983,15 @@ export async function loadBuiltApp(appPath: string): Promise<{ app: Express; ini
   if (init !== undefined && typeof init !== 'function') {
     throw new Error(`Module "${appPath}" must export "init" as a function when present.`);
   }
+  const shutdown = mod.shutdown;
+  if (shutdown !== undefined && typeof shutdown !== 'function') {
+    throw new Error(`Module "${appPath}" must export "shutdown" as a function when present.`);
+  }
 
   return {
     app: await resolveExport(exported, appPath),
     init: init as RuntimeModuleInit | undefined,
+    shutdown: shutdown as RuntimeModuleShutdown | undefined,
   };
 }
 

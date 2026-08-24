@@ -19,13 +19,21 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.ts",
+        "default": "./dist/index.d.ts"
+      },
       "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./storage": {
-      "types": "./dist/storage/index.d.ts",
+      "types": {
+        "import": "./dist/storage/index.d.mts",
+        "require": "./dist/storage/index.d.ts",
+        "default": "./dist/storage/index.d.ts"
+      },
       "import": "./dist/storage/index.mjs",
       "require": "./dist/storage/index.js",
       "default": "./dist/storage/index.js"
@@ -42,18 +50,17 @@
   "engines": {
     "node": ">=22"
   },
-  "dependencies": {
-    "@web-ts-toolkit/utils": "workspace:*"
-  },
   "peerDependencies": {
-    "rxdb": ">=16",
-    "rxjs": ">=7"
+    "rxdb": ">=17.4.0 <18",
+    "rxdb-premium": ">=17.4.0 <18",
+    "rxjs": ">=7.8.0 <8",
+    "sqlite3": ">=5 <6"
   },
   "peerDependenciesMeta": {
-    "rxdb": {
+    "rxdb-premium": {
       "optional": true
     },
-    "rxjs": {
+    "sqlite3": {
       "optional": true
     }
   },

@@ -1,4 +1,5 @@
 export { fromOrient } from './api';
+export { JSON_FRAME_MAX_DEPTH } from './json';
 export type {
   ColumnInfo,
   ColumnLabel,
@@ -10,8 +11,11 @@ export type {
   IndexLabel,
   IndexPayload,
   JsonArray,
+  JsonCompatible,
+  JsonCompatibleRow,
   JsonObject,
   JsonPrimitive,
+  JsonRow,
   JsonValue,
   Orient,
   RecordsPayload,
@@ -35,3 +39,4 @@ export {
   JsonFrameValidationError,
   UnsupportedFeatureError,
 } from './errors';
+export type { JsonFrameDiagnosticValue } from './errors';

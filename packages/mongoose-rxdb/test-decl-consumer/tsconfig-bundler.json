@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "skipLibCheck": false,
+    "target": "ES2022",
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "types": ["node"]
+  },
+  "include": ["decl-consumer.bundler.mts", "decl-consumer.bundler.cts", "decl-consumer.bundler.ts"]
+}

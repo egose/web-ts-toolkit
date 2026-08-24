@@ -6,6 +6,8 @@ import type {
   IndexKind,
   IndexLabel,
   IndexPayload,
+  JsonCompatibleRow,
+  JsonRow,
   JsonValue,
   RecordsPayload,
   ResolvedOrient,
@@ -17,7 +19,13 @@ import type {
   ToTableOptions,
   ValuesPayload,
 } from '../types';
-import { createFrameStateFromData, materializeFrameData, type FrameState } from './column';
+import {
+  createFrameStateFromRebuiltData,
+  getStoredColumnValue,
+  materializeFrameData,
+  rebuildStoredColumn,
+  type FrameState,
+} from './column';
 
 const hasOwn = Object.prototype.hasOwnProperty;
 const frameStateByInstance = new WeakMap<object, FrameState>();
@@ -32,14 +40,14 @@ const cloneSchema = (
   fields: readonly TableSchemaField[],
   primaryKey?: readonly string[],
 ): TableSchema => {
-  const cloned: Record<string, JsonValue | undefined> = Object.create(null) as Record<string, JsonValue | undefined>;
+  const cloned: Record<string, JsonValue> = Object.create(null) as Record<string, JsonValue>;
 
   for (const [key, value] of Object.entries(schema)) {
     if (key === 'fields' || key === 'primaryKey') {
       continue;
     }
 
-    cloned[key] = value as JsonValue | undefined;
+    cloned[key] = value as JsonValue;
   }
 
   cloned.fields = freezeArray(fields) as unknown as JsonValue;
@@ -50,9 +58,13 @@ const cloneSchema = (
   return Object.freeze(cloned) as TableSchema;
 };
 
-type RowRecord = Record<string, JsonValue>;
-type RowPredicate<TRow extends RowRecord> = (row: Readonly<TRow>, index: IndexLabel, position: number) => boolean;
-type RowComparator<TRow extends RowRecord> = (
+type RowRecord = JsonRow;
+type RowPredicate<TRow extends JsonCompatibleRow<TRow>> = (
+  row: Readonly<TRow>,
+  index: IndexLabel,
+  position: number,
+) => boolean;
+type RowComparator<TRow extends JsonCompatibleRow<TRow>> = (
   left: Readonly<TRow>,
   right: Readonly<TRow>,
   leftIndex: IndexLabel,
@@ -73,7 +85,7 @@ type TransformSchema = {
  * callback ergonomics only; runtime validation still follows the JSON Frame
  * contracts for the selected orient.
  */
-export class DataFrame<TRow extends RowRecord = RowRecord> {
+export class DataFrame<TRow extends JsonCompatibleRow<TRow> = RowRecord> {
   readonly #state: FrameState;
   readonly #packThreshold: number;
 
@@ -146,21 +158,26 @@ export class DataFrame<TRow extends RowRecord = RowRecord> {
 
   row(position: number): Readonly<TRow> {
     this.#assertRowPosition(position);
-    return this.#createRow(this.#materializedData(), position);
+    return this.#createRow(position);
   }
 
   rows(): readonly Readonly<TRow>[] {
-    const materialized = this.#materializedData();
-    const rows = this.#state.index.map((_, position) => this.#createRow(materialized, position));
+    const rows = this.#state.index.map((_, position) => this.#createRow(position));
     return freezeArray(rows);
   }
 
   filter(predicate: RowPredicate<TRow>): DataFrame<TRow> {
-    const materialized = this.#materializedData();
+    if (typeof predicate !== 'function') {
+      throw new JsonFrameValidationError('`filter` predicate must be a function.', {
+        path: '$.predicate',
+        value: predicate,
+      });
+    }
+
     const keptPositions: number[] = [];
 
     for (let position = 0; position < this.length; position += 1) {
-      if (predicate(this.#createRow(materialized, position), this.#state.index[position]!, position)) {
+      if (predicate(this.#createRow(position), this.#state.index[position]!, position)) {
         keptPositions.push(position);
       }
     }
@@ -179,11 +196,17 @@ export class DataFrame<TRow extends RowRecord = RowRecord> {
   }
 
   sort(compare: RowComparator<TRow>): DataFrame<TRow> {
-    const materialized = this.#materializedData();
+    if (typeof compare !== 'function') {
+      throw new JsonFrameValidationError('`sort` compare must be a function.', {
+        path: '$.compare',
+        value: compare,
+      });
+    }
+
     const ordering = this.#state.index.map((indexLabel, position) => ({
       indexLabel,
       position,
-      row: this.#createRow(materialized, position),
+      row: this.#createRow(position),
     }));
 
     ordering.sort((left, right) => {
@@ -239,7 +262,29 @@ export class DataFrame<TRow extends RowRecord = RowRecord> {
   }
 
   rename(mapping: Readonly<Record<string, string>>): DataFrame<RowRecord> {
-    const nextColumns = this.#state.columns.map((column) => (hasOwn.call(mapping, column) ? mapping[column]! : column));
+    if (mapping === null || typeof mapping !== 'object' || Array.isArray(mapping)) {
+      throw new JsonFrameValidationError('`rename` mapping must be a non-array object.', {
+        path: '$.mapping',
+        value: mapping,
+      });
+    }
+
+    const nextColumns = this.#state.columns.map((column) => {
+      if (!hasOwn.call(mapping, column)) {
+        return column;
+      }
+
+      const renamedColumn = mapping[column];
+      if (typeof renamedColumn !== 'string') {
+        throw new JsonFrameValidationError('`rename` mapping values must be strings for existing columns.', {
+          path: `$.mapping[${JSON.stringify(column)}]`,
+          column,
+          value: renamedColumn,
+        });
+      }
+
+      return renamedColumn;
+    });
     const seen = new Set<string>();
 
     for (let position = 0; position < nextColumns.length; position += 1) {
@@ -288,28 +333,45 @@ export class DataFrame<TRow extends RowRecord = RowRecord> {
     return materializeFrameData(this.#state.columns, this.#state.data);
   }
 
-  #createRow(materialized: ReadonlyMap<string, readonly JsonValue[]>, position: number): Readonly<TRow> {
+  #createRow(position: number): Readonly<TRow> {
     const row = Object.create(null) as RowRecord;
 
     for (const column of this.#state.columns) {
-      row[column] = materialized.get(column)![position] as JsonValue;
+      const stored = this.#state.data.get(column);
+      if (stored === undefined) {
+        throw new JsonFrameValidationError('Stored frame data is missing a declared column.', {
+          path: '$',
+          column,
+        });
+      }
+
+      row[column] = getStoredColumnValue(stored, position);
     }
 
     return Object.freeze(row) as Readonly<TRow>;
   }
 
-  #columnTypeOverrides(
-    columns: readonly string[],
-    sourceColumns: readonly string[],
-  ): Readonly<Partial<Record<string, ColumnInfo['type']>>> {
-    return Object.freeze(
-      Object.fromEntries(
-        columns.map((column, position) => [column, this.#state.columnInfo.get(sourceColumns[position]!)!.type]),
-      ) as Partial<Record<string, ColumnInfo['type']>>,
-    );
+  #columnInfoOverrides(columns: readonly string[], sourceColumns: readonly string[]): ReadonlyMap<string, ColumnInfo> {
+    const columnInfo = new Map<string, ColumnInfo>();
+
+    for (let position = 0; position < columns.length; position += 1) {
+      const column = columns[position]!;
+      const sourceColumn = sourceColumns[position]!;
+      const sourceInfo = this.#state.columnInfo.get(sourceColumn);
+      if (sourceInfo === undefined) {
+        throw new JsonFrameValidationError('Stored frame metadata is missing a declared column.', {
+          path: '$',
+          column: sourceColumn,
+        });
+      }
+
+      columnInfo.set(column, sourceInfo);
+    }
+
+    return columnInfo;
   }
 
-  #rebuild<TReturn extends RowRecord = TRow>({
+  #rebuild<TReturn extends JsonCompatibleRow<TReturn> = TRow>({
     columns,
     sourceColumns,
     positions,
@@ -324,34 +386,34 @@ export class DataFrame<TRow extends RowRecord = RowRecord> {
     readonly indexKind: IndexKind;
     readonly schema: TransformSchema;
   }): DataFrame<TReturn> {
-    const materialized = this.#materializedData();
     const nextData = new Map<string, readonly JsonValue[]>();
+    const nextColumnInfo = this.#columnInfoOverrides(columns, sourceColumns);
 
     for (let columnIndex = 0; columnIndex < columns.length; columnIndex += 1) {
       const column = columns[columnIndex]!;
-      const sourceColumn = materialized.get(sourceColumns[columnIndex]!);
-      if (sourceColumn === undefined) {
+      const sourceStoredColumn = this.#state.data.get(sourceColumns[columnIndex]!);
+      if (sourceStoredColumn === undefined) {
         throw new JsonFrameValidationError('Stored frame data is missing a declared column.', {
           path: '$',
           column,
         });
       }
 
-      nextData.set(column, freezeArray(positions.map((position) => sourceColumn[position] as JsonValue)));
+      nextData.set(column, rebuildStoredColumn(sourceStoredColumn, positions));
     }
 
-    const state = createFrameStateFromData(
+    const state = createFrameStateFromRebuiltData(
       {
         columns,
         index,
         indexKind,
         data: nextData,
+        columnInfo: nextColumnInfo,
         ...(schema.tableSchema === undefined ? {} : { tableSchema: schema.tableSchema }),
         ...(schema.tableIndexField === undefined ? {} : { tableIndexField: schema.tableIndexField }),
       },
       {
         packThreshold: this.#packThreshold,
-        columnTypes: this.#columnTypeOverrides(columns, sourceColumns),
       },
     );
 
@@ -429,18 +491,18 @@ export class DataFrame<TRow extends RowRecord = RowRecord> {
   }
 }
 
-class InternalDataFrame<TRow extends RowRecord = RowRecord> extends DataFrame<TRow> {
+class InternalDataFrame<TRow extends JsonCompatibleRow<TRow> = RowRecord> extends DataFrame<TRow> {
   constructor(state: FrameState, packThreshold: number) {
     super(state, packThreshold);
   }
 }
 
-export const createDataFrame = <TRow extends RowRecord = RowRecord>(
+export const createDataFrame = <TRow extends JsonCompatibleRow<TRow> = RowRecord>(
   state: FrameState,
   packThreshold: number,
 ): DataFrame<TRow> => new InternalDataFrame<TRow>(state, packThreshold);
 
-export const getDataFrameState = <TRow extends RowRecord>(frame: DataFrame<TRow>): FrameState => {
+export const getDataFrameState = <TRow extends JsonCompatibleRow<TRow>>(frame: DataFrame<TRow>): FrameState => {
   const state = frameStateByInstance.get(frame);
   if (state === undefined) {
     throw new JsonFrameValidationError('Frame state is unavailable for the provided DataFrame instance.', {

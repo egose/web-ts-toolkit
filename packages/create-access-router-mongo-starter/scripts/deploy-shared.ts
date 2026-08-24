@@ -16,15 +16,28 @@
  * target is not the current directory.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  type Stats,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { readRequiredOptionValue } from '../src/shared/arg-parser';
 import { bail } from '../src/shared/bail';
+import { normalizeApiBaseURL } from '../template/src/shared/normalize-api-base-url';
 
 export { BailError, bail } from '../src/shared/bail';
 
 export const SOURCE_DIR = resolve(process.cwd());
-export const EPHEMERAL_ROOT = '/tmp/opencode';
+export const EPHEMERAL_ROOT = tmpdir();
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,13 +63,103 @@ export interface DeployPaths {
   distAbs: string;
   functionsAbs: string;
   isEphemeral: boolean;
+  cleanupIdentity?: DirectoryIdentity;
+}
+
+interface DirectoryIdentity {
+  realPath: string;
+  dev: number;
+  ino: number;
 }
 
 /** Prepared artifact metadata returned to provider adapters after building. */
 export interface PreparedDeployment {
   paths: DeployPaths;
   options: SharedDeployOptions;
-  buildEnv: NodeJS.ProcessEnv;
+  frontendEnv: NodeJS.ProcessEnv;
+  backendEnv: NodeJS.ProcessEnv;
+}
+
+export interface SharedDeployServices {
+  parentEnv: NodeJS.ProcessEnv;
+  exists(path: string): boolean;
+  mkdir(path: string): void;
+  mkdtemp(prefix: string): string;
+  lstat(path: string): Stats;
+  realpath(path: string): string;
+  remove(path: string): void;
+  symlink(source: string, target: string): void;
+  run(command: string, args: string[], env: NodeJS.ProcessEnv, dryRun: boolean, cwd: string, secrets?: string[]): void;
+  log(message?: string): void;
+  error(message?: string): void;
+}
+
+export interface ArtifactInspectionServices {
+  stat(path: string): Stats;
+  readDirectory(path: string): string[];
+}
+
+const DEFAULT_SERVICES: SharedDeployServices = {
+  parentEnv: process.env,
+  exists: existsSync,
+  mkdir: (path) => mkdirSync(path, { recursive: true }),
+  mkdtemp: mkdtempSync,
+  lstat: lstatSync,
+  realpath: (path) => realpathSync(path),
+  remove: (path) => rmSync(path, { recursive: true, force: true }),
+  symlink: (source, target) => symlinkSync(source, target, 'dir'),
+  run,
+  log: (message = '') => console.log(message),
+  error: (message = '') => console.error(message),
+};
+
+const DEFAULT_ARTIFACT_SERVICES: ArtifactInspectionServices = {
+  stat: statSync,
+  readDirectory: readdirSync,
+};
+
+/**
+ * Variables required for executable lookup, temporary/home directories, basic
+ * terminal behavior, and locale handling across supported platforms.
+ * Application credentials and arbitrary parent configuration are deliberately
+ * excluded.
+ */
+export const CHILD_ENV_ALLOWLIST = [
+  'PATH',
+  'PATHEXT',
+  'SystemRoot',
+  'SYSTEMROOT',
+  'ComSpec',
+  'COMSPEC',
+  'WINDIR',
+  'HOME',
+  'USERPROFILE',
+  'TMPDIR',
+  'TEMP',
+  'TMP',
+  'LANG',
+  'LC_ALL',
+  'LC_CTYPE',
+  'TZ',
+  'TERM',
+  'COLORTERM',
+  'NO_COLOR',
+  'FORCE_COLOR',
+  'CI',
+] as const;
+
+export function createChildEnvironment(
+  parentEnv: NodeJS.ProcessEnv,
+  additions: NodeJS.ProcessEnv = {},
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of CHILD_ENV_ALLOWLIST) {
+    if (parentEnv[key] !== undefined) env[key] = parentEnv[key];
+  }
+  for (const [key, value] of Object.entries(additions)) {
+    if (value !== undefined) env[key] = value;
+  }
+  return env;
 }
 
 export function projectRootOf(options: SharedDeployOptions): string {
@@ -82,39 +185,179 @@ export const SHARED_DEFAULTS: SharedDeployOptions = {
 // Path resolution
 // ---------------------------------------------------------------------------
 
-export function linkNodeModules(deployDir: string, projectRoot: string, dry: boolean): void {
-  const target = resolve(deployDir, 'node_modules');
-  if (existsSync(target)) return;
-  if (dry) return;
-  symlinkSync(resolve(projectRoot, 'node_modules'), target, 'dir');
+function tryLstat(path: string, services: SharedDeployServices): Stats | undefined {
+  try {
+    return services.lstat(path);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'ENOTDIR') return undefined;
+    throw error;
+  }
 }
 
-export function resolvePaths(options: SharedDeployOptions): DeployPaths {
+function canonicalProjectedPath(path: string, services: SharedDeployServices): string {
+  const absolutePath = resolve(path);
+  let ancestor = absolutePath;
+
+  while (!tryLstat(ancestor, services)) {
+    const parent = dirname(ancestor);
+    if (parent === ancestor) bail(`Cannot resolve an existing ancestor for path: ${path}`);
+    ancestor = parent;
+  }
+
+  return resolve(services.realpath(ancestor), relative(ancestor, absolutePath));
+}
+
+function isStrictDescendant(parent: string, candidate: string): boolean {
+  const remainder = relative(parent, candidate);
+  return remainder.length > 0 && remainder !== '..' && !remainder.startsWith(`..${sep}`) && !isAbsolute(remainder);
+}
+
+function hasControlCharacters(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x1f || code === 0x7f;
+  });
+}
+
+function validateSandboxOutputOption(option: '--dist-dir' | '--functions-dir', value: string): void {
+  if (!value.trim()) bail(`${option} must be a non-empty relative path in sandbox mode.`);
+  if (hasControlCharacters(value)) bail(`${option} must not contain control characters.`);
+  if (isAbsolute(value) || win32.isAbsolute(value)) {
+    bail(`${option} must be a relative path in sandbox mode.`);
+  }
+  if (value.split(/[\\/]+/u).includes('..')) {
+    bail(`${option} must not contain ".." path segments in sandbox mode.`);
+  }
+}
+
+export function validateSharedDeployOptions(options: SharedDeployOptions): SharedDeployOptions {
+  const validated = { ...options };
+  validated.projectRoot = validated.projectRoot.trim();
+  validated.distDir = validated.distDir.trim();
+  validated.functionsDir = validated.functionsDir.trim();
+  validated.functionsName = validated.functionsName.trim();
+  validated.sandboxDir = validated.sandboxDir?.trim() || undefined;
+  validated.apiBaseUrl = validated.apiBaseUrl?.trim() || undefined;
+  validated.mongodbUri = validated.mongodbUri?.trim() || undefined;
+
+  if (!validated.projectRoot) bail('--project-root must not be empty.');
+  if (!validated.distDir) bail('--dist-dir must not be empty.');
+  if (!validated.functionsDir) bail('--functions-dir must not be empty.');
+  if (hasControlCharacters(validated.distDir)) {
+    bail('--dist-dir must not contain control characters.');
+  }
+  if (hasControlCharacters(validated.functionsDir)) {
+    bail('--functions-dir must not contain control characters.');
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$/u.test(validated.functionsName)) {
+    bail('--functions-name must be 1-63 letters, digits, hyphens, or underscores and start with a letter or digit.');
+  }
+  if (validated.ephemeral && validated.sandboxDir) bail('--ephemeral and --sandbox-dir are mutually exclusive.');
+  if (validated.ephemeral || validated.sandboxDir) {
+    validateSandboxOutputOption('--dist-dir', validated.distDir);
+    validateSandboxOutputOption('--functions-dir', validated.functionsDir);
+  }
+  if (validated.apiBaseUrl) validated.apiBaseUrl = normalizeApiBaseURL(validated.apiBaseUrl, '--api-base-url');
+  if (!validated.mongodbUri) {
+    bail('--mongodb-uri or MONGODB_URI is required because every deployment includes the serverless backend.');
+  }
+  try {
+    const parsed = new URL(validated.mongodbUri);
+    if (
+      !['mongodb:', 'mongodb+srv:'].includes(parsed.protocol) ||
+      !parsed.hostname ||
+      parsed.hash ||
+      /\s/u.test(validated.mongodbUri) ||
+      (parsed.protocol === 'mongodb+srv:' && parsed.port)
+    ) {
+      throw new Error('invalid MongoDB URI');
+    }
+  } catch {
+    bail('--mongodb-uri or MONGODB_URI must be a valid MongoDB connection string.');
+  }
+  return validated;
+}
+
+function resolveSandboxOutputs(
+  deployDir: string,
+  options: SharedDeployOptions,
+  services: SharedDeployServices,
+): Pick<DeployPaths, 'distAbs' | 'functionsAbs'> {
+  validateSandboxOutputOption('--dist-dir', options.distDir);
+  validateSandboxOutputOption('--functions-dir', options.functionsDir);
+
+  const canonicalDeployDir = canonicalProjectedPath(deployDir, services);
+  const resolveOutput = (option: '--dist-dir' | '--functions-dir', value: string): string => {
+    const output = resolve(deployDir, value);
+    const canonicalOutput = canonicalProjectedPath(output, services);
+    if (!isStrictDescendant(canonicalDeployDir, canonicalOutput)) {
+      bail(`${option} must resolve to a path strictly inside the sandbox directory.`);
+    }
+    return output;
+  };
+
+  return {
+    distAbs: resolveOutput('--dist-dir', options.distDir),
+    functionsAbs: resolveOutput('--functions-dir', options.functionsDir),
+  };
+}
+
+function directoryIdentity(path: string, services: SharedDeployServices): DirectoryIdentity {
+  const stat = services.lstat(path);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    bail(`Expected the ephemeral sandbox to be a directory: ${path}`);
+  }
+  return { realPath: services.realpath(path), dev: stat.dev, ino: stat.ino };
+}
+
+export function linkNodeModules(
+  deployDir: string,
+  projectRoot: string,
+  dry: boolean,
+  services: SharedDeployServices = DEFAULT_SERVICES,
+): void {
+  const target = resolve(deployDir, 'node_modules');
+  if (services.exists(target)) return;
+  if (dry) return;
+  services.symlink(resolve(projectRoot, 'node_modules'), target);
+}
+
+export function resolvePaths(
+  options: SharedDeployOptions,
+  services: SharedDeployServices = DEFAULT_SERVICES,
+): DeployPaths {
   const projectRoot = projectRootOf(options);
 
   if (options.ephemeral) {
     if (options.sandboxDir) {
       bail('--ephemeral and --sandbox-dir are mutually exclusive.');
     }
-    const prefix = join(EPHEMERAL_ROOT, 'access-router-mongo-starter-deploy-');
-    const deployDir = options.dryRun ? `${prefix}<tmp>` : mkdtempSync(prefix);
-    linkNodeModules(deployDir, projectRoot, options.dryRun);
+    validateSandboxOutputOption('--dist-dir', options.distDir);
+    validateSandboxOutputOption('--functions-dir', options.functionsDir);
+    const prefix = join(EPHEMERAL_ROOT, 'create-access-router-mongo-starter-deploy-');
+    const deployDir = options.dryRun ? `${prefix}<tmp>` : services.mkdtemp(prefix);
+    const outputs = resolveSandboxOutputs(deployDir, options, services);
+    const cleanupIdentity = options.dryRun ? undefined : directoryIdentity(deployDir, services);
+    linkNodeModules(deployDir, projectRoot, options.dryRun, services);
     return {
       deployDir,
-      distAbs: resolve(deployDir, options.distDir),
-      functionsAbs: resolve(deployDir, options.functionsDir),
+      ...outputs,
       isEphemeral: true,
+      cleanupIdentity,
     };
   }
 
   if (options.sandboxDir) {
+    validateSandboxOutputOption('--dist-dir', options.distDir);
+    validateSandboxOutputOption('--functions-dir', options.functionsDir);
     const deployDir = resolve(options.sandboxDir);
-    if (!options.dryRun) mkdirSync(deployDir, { recursive: true });
-    linkNodeModules(deployDir, projectRoot, options.dryRun);
+    if (!options.dryRun) services.mkdir(deployDir);
+    const outputs = resolveSandboxOutputs(deployDir, options, services);
+    linkNodeModules(deployDir, projectRoot, options.dryRun, services);
     return {
       deployDir,
-      distAbs: resolve(deployDir, options.distDir),
-      functionsAbs: resolve(deployDir, options.functionsDir),
+      ...outputs,
       isEphemeral: false,
     };
   }
@@ -228,24 +471,30 @@ export function runCapture(
  * Build the frontend (Vite) and serverless backend (`wtt-access-router-runtime
  * build-serverless`). Returns the prepared deployment metadata for provider adapters.
  */
-export function buildArtifacts(options: SharedDeployOptions, paths: DeployPaths): PreparedDeployment {
-  const buildEnv: NodeJS.ProcessEnv = {
-    ...process.env,
-    VITE_API_BASE_URL: options.apiBaseUrl,
-  };
-  if (options.mongodbUri) buildEnv.MONGODB_URI = options.mongodbUri;
+export function buildArtifacts(
+  options: SharedDeployOptions,
+  paths: DeployPaths,
+  services: Pick<SharedDeployServices, 'parentEnv' | 'run' | 'log'> = DEFAULT_SERVICES,
+): PreparedDeployment {
+  const frontendEnv = createChildEnvironment(services.parentEnv, {
+    API_BASE_URL: options.apiBaseUrl,
+  });
+  const backendEnv = createChildEnvironment(services.parentEnv, {
+    API_BASE_URL: options.apiBaseUrl,
+    MONGODB_URI: options.mongodbUri,
+  });
   const projectRoot = projectRootOf(options);
 
   if (options.noBuild) {
-    console.log('\n─ Skipping build steps (--no-build) ─');
-    return { paths, options, buildEnv };
+    services.log('\n─ Skipping build steps (--no-build) ─');
+    return { paths, options, frontendEnv, backendEnv };
   }
 
-  console.log('\n─ Building frontend (vite build) ─');
-  run('vite', ['build', '--outDir', paths.distAbs, '--emptyOutDir'], buildEnv, options.dryRun, projectRoot);
+  services.log('\n─ Building frontend (vite build) ─');
+  services.run('vite', ['build', '--outDir', paths.distAbs, '--emptyOutDir'], frontendEnv, options.dryRun, projectRoot);
 
-  console.log('\n─ Building serverless backend (wtt-access-router-runtime build-serverless) ─');
-  run(
+  services.log('\n─ Building serverless backend (wtt-access-router-runtime build-serverless) ─');
+  services.run(
     'wtt-access-router-runtime',
     [
       'build-serverless',
@@ -259,32 +508,84 @@ export function buildArtifacts(options: SharedDeployOptions, paths: DeployPaths)
       '--target',
       'node22',
     ],
-    buildEnv,
+    backendEnv,
     options.dryRun,
     projectRoot,
   );
 
-  return { paths, options, buildEnv };
+  return { paths, options, frontendEnv, backendEnv };
+}
+
+export function inspectArtifacts(
+  options: SharedDeployOptions,
+  paths: DeployPaths,
+  services: ArtifactInspectionServices = DEFAULT_ARTIFACT_SERVICES,
+): void {
+  const requireNonEmptyFile = (path: string, label: string): void => {
+    let stat: Stats;
+    try {
+      stat = services.stat(path);
+    } catch {
+      bail(`${label} is missing: ${path}`);
+    }
+    if (!stat.isFile() || stat.size === 0) {
+      bail(`${label} must be a non-empty file: ${path}`);
+    }
+  };
+  const requireNonEmptyDirectory = (path: string, label: string): void => {
+    let stat: Stats;
+    try {
+      stat = services.stat(path);
+    } catch {
+      bail(`${label} is missing: ${path}`);
+    }
+    if (!stat.isDirectory() || services.readDirectory(path).length === 0) {
+      bail(`${label} must be a non-empty directory: ${path}`);
+    }
+  };
+
+  requireNonEmptyDirectory(paths.distAbs, 'Frontend artifact directory');
+  requireNonEmptyFile(resolve(paths.distAbs, 'index.html'), 'Frontend entry artifact');
+  requireNonEmptyDirectory(paths.functionsAbs, 'Functions artifact directory');
+  requireNonEmptyFile(resolve(paths.functionsAbs, `${options.functionsName}.js`), 'Serverless function artifact');
 }
 
 // ---------------------------------------------------------------------------
 // Sandbox cleanup
 // ---------------------------------------------------------------------------
 
-export function cleanupSandbox(paths: DeployPaths, keepSandbox: boolean, dryRun: boolean): void {
+export function cleanupSandbox(
+  paths: DeployPaths,
+  keepSandbox: boolean,
+  dryRun: boolean,
+  services: SharedDeployServices = DEFAULT_SERVICES,
+): void {
   if (!paths.isEphemeral || dryRun) return;
   if (keepSandbox) {
-    console.log(`\n• Ephemeral sandbox kept at ${paths.deployDir} (--keep-sandbox)`);
+    services.log(`\n• Ephemeral sandbox kept at ${paths.deployDir} (--keep-sandbox)`);
     return;
   }
-  console.log(`\n─ Cleaning up ephemeral sandbox: ${paths.deployDir} ─`);
-  rmSync(paths.deployDir, { recursive: true, force: true });
-  console.log('  Removed.');
+  const identity = paths.cleanupIdentity;
+  if (!identity) bail(`Refusing to clean an ephemeral sandbox not created by this invocation: ${paths.deployDir}`);
+  const current = tryLstat(paths.deployDir, services);
+  if (
+    !current ||
+    !current.isDirectory() ||
+    current.isSymbolicLink() ||
+    current.dev !== identity.dev ||
+    current.ino !== identity.ino ||
+    services.realpath(paths.deployDir) !== identity.realPath
+  ) {
+    bail(`Refusing to clean an ephemeral sandbox that was replaced after creation: ${paths.deployDir}`);
+  }
+  services.log(`\n─ Cleaning up ephemeral sandbox: ${paths.deployDir} ─`);
+  services.remove(paths.deployDir);
+  services.log('  Removed.');
 }
 
-export function keepSandboxOnFailure(paths: DeployPaths): void {
+export function keepSandboxOnFailure(paths: DeployPaths, services: SharedDeployServices = DEFAULT_SERVICES): void {
   if (paths.isEphemeral) {
-    console.error(`\n✖ Ephemeral sandbox kept at ${paths.deployDir} for debugging.`);
+    services.error(`\n✖ Ephemeral sandbox kept at ${paths.deployDir} for debugging.`);
   }
 }
 
@@ -292,7 +593,7 @@ export function keepSandboxOnFailure(paths: DeployPaths): void {
 // CLI entrypoint (bin)
 // ---------------------------------------------------------------------------
 
-const SHARED_HELP = `access-router-mongo-starter deploy-shared
+export const SHARED_HELP = `access-router-mongo-starter deploy-shared
 
 Provider-agnostic build preparation for the access-router-mongo-starter.
 Runs the frontend (Vite) and serverless (wtt-access-router-runtime) builds and
@@ -303,14 +604,16 @@ Usage: create-access-router-mongo-starter-deploy-shared [options]
 
 Options:
       --project-root <path>  Target app directory (default: current directory)
-      --api-base-url <url>   VITE_API_BASE_URL for the frontend build
-      --mongodb-uri <uri>    MONGODB_URI for the serverless function
-                             (env: MONGODB_URI)
-      --dist-dir <path>      Frontend publish dir (default: "dist")
-      --functions-dir <path> Serverless output dir (default: "netlify/functions")
+      --api-base-url <path>  Path-only API_BASE_URL for frontend and backend
+      --mongodb-uri <uri>    Required MONGODB_URI for the serverless function
+                             (prefer env: MONGODB_URI, to keep it out of shell history)
+      --dist-dir <path>      Frontend publish dir (default: "dist"); must be a
+                             contained relative path in sandbox modes
+      --functions-dir <path> Serverless output dir (default: "netlify/functions");
+                             must be a contained relative path in sandbox modes
       --functions-name <name> Serverless function name (default: "main")
-      --no-build             Skip the build steps; report existing artifacts
-      --ephemeral            Build into a temp dir under /tmp/opencode and
+      --no-build             Skip builds after verifying existing artifacts
+      --ephemeral            Build in a platform temporary directory and
                              remove it on success (keep with --keep-sandbox)
       --sandbox-dir <path>   Build into the given directory (persistent)
       --keep-sandbox         With --ephemeral, keep the sandbox after build
@@ -318,7 +621,9 @@ Options:
   -h, --help                 Show this help
 `;
 
-function parseSharedArgs(argv: string[]): SharedDeployOptions {
+type SharedCollectionResult = { kind: 'help' } | { kind: 'options'; options: SharedDeployOptions };
+
+function parseSharedArgs(argv: string[]): SharedCollectionResult {
   const o: SharedDeployOptions = {
     ...SHARED_DEFAULTS,
     projectRoot: process.cwd(),
@@ -371,29 +676,55 @@ function parseSharedArgs(argv: string[]): SharedDeployOptions {
         break;
       case '-h':
       case '--help':
-        process.stdout.write(SHARED_HELP);
-        process.exit(0);
-        break;
+        return { kind: 'help' };
       default:
         throw new Error(`Unknown option: ${a}\n\n${SHARED_HELP}`);
     }
   }
-  return o;
+  return { kind: 'options', options: o };
 }
 
-export function main() {
-  let options: SharedDeployOptions;
-  try {
-    options = parseSharedArgs(process.argv.slice(2));
-  } catch (err) {
-    console.error(`\n✖ ${err instanceof Error ? err.message : err}`);
-    process.exit(1);
-  }
+export interface SharedCliServices {
+  resolvePaths(options: SharedDeployOptions): DeployPaths;
+  buildArtifacts(options: SharedDeployOptions, paths: DeployPaths): PreparedDeployment;
+  inspectArtifacts(options: SharedDeployOptions, paths: DeployPaths): void;
+  cleanupSandbox(paths: DeployPaths, keepSandbox: boolean, dryRun: boolean): void;
+  log(message?: string): void;
+  error(message?: string): void;
+}
 
-  const paths = resolvePaths(options);
-  buildArtifacts(options, paths);
-  cleanupSandbox(paths, options.keepSandbox, options.dryRun);
-  console.log('\n✓ Build finished.');
-  console.log(`  distAbs:      ${paths.distAbs}`);
-  console.log(`  functionsAbs: ${paths.functionsAbs}`);
+const DEFAULT_SHARED_CLI_SERVICES: SharedCliServices = {
+  resolvePaths,
+  buildArtifacts,
+  inspectArtifacts,
+  cleanupSandbox,
+  log: (message = '') => console.log(message),
+  error: (message = '') => console.error(message),
+};
+
+export function runSharedCli(argv: string[], overrides: Partial<SharedCliServices> = {}): number {
+  const services = { ...DEFAULT_SHARED_CLI_SERVICES, ...overrides };
+  try {
+    const collected = parseSharedArgs(argv);
+    if (collected.kind === 'help') {
+      services.log(SHARED_HELP);
+      return 0;
+    }
+    const options = validateSharedDeployOptions(collected.options);
+    const paths = services.resolvePaths(options);
+    if (options.noBuild) services.inspectArtifacts(options, paths);
+    else services.buildArtifacts(options, paths);
+    services.cleanupSandbox(paths, options.keepSandbox, options.dryRun);
+    services.log('\n✓ Build finished.');
+    services.log(`  distAbs:      ${paths.distAbs}`);
+    services.log(`  functionsAbs: ${paths.functionsAbs}`);
+    return 0;
+  } catch (err) {
+    services.error(`\n✖ ${err instanceof Error ? err.message : err}`);
+    return 1;
+  }
+}
+
+export function main(): void {
+  process.exitCode = runSharedCli(process.argv.slice(2));
 }

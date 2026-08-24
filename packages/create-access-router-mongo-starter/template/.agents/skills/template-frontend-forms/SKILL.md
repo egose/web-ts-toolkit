@@ -45,6 +45,7 @@ Use this skill for form behavior inside the starter, especially `src/pages/todo-
 ## Verification
 
 - `pnpm test`
+- `pnpm test:watch` only when interactive watch behavior is needed
 - `pnpm build`
 
 Prioritize behavior-focused assertions: successful submit, blocked invalid submit, and any new field-specific validation paths.

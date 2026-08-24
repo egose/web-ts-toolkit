@@ -189,6 +189,41 @@ describe('watch supervisor — injectable seams and deterministic cleanup', () =
     expect(forkCalls).toBe(0);
   });
 
+  it('falls back to non-recursive watching when recursive fs.watch is unavailable', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wtt-watch-'));
+    tempDirs.push(dir);
+    const options: unknown[] = [];
+    let forkCalls = 0;
+    const fakeWatch = ((
+      _path: string,
+      opts: unknown,
+      cb?: (eventType: string, filename: string | Buffer | null) => void,
+    ) => {
+      options.push(opts);
+      if (options.length === 1) {
+        const error = new Error('recursive watch unavailable') as NodeJS.ErrnoException;
+        error.code = 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM';
+        throw error;
+      }
+      return new FakeWatcher(
+        cb ?? (opts as (eventType: string, filename: string | Buffer | null) => void),
+      ) as unknown as ReturnType<typeof import('node:fs').watch>;
+    }) as unknown as WatchSupervisorDeps['watch'];
+
+    const controller = createWatchSupervisor(createArgs(dir), {
+      fork: (() => {
+        forkCalls += 1;
+        return new FakeChild(1) as unknown as ReturnType<typeof import('node:child_process').fork>;
+      }) as unknown as WatchSupervisorDeps['fork'],
+      watch: fakeWatch,
+      existsSync: () => true,
+    });
+
+    expect(options).toEqual([{ recursive: true }, expect.any(Function)]);
+    expect(forkCalls).toBe(1);
+    await controller.shutdown();
+  });
+
   it('exposes observable controller and cleans up watchers/child deterministically', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'wtt-watch-'));
     tempDirs.push(dir);

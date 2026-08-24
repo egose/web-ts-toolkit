@@ -1,5 +1,7 @@
 import type { Orient, ResolvedOrient } from './types';
 
+const DIAGNOSTIC_KEY_LIMIT = 5;
+
 type JsonFrameErrorContext = {
   readonly orient?: Orient;
   readonly path?: string;
@@ -8,7 +10,65 @@ type JsonFrameErrorContext = {
   readonly value?: unknown;
 };
 
+/** Bounded value stored on structured errors instead of caller-owned containers. */
+export type JsonFrameDiagnosticValue =
+  | string
+  | number
+  | boolean
+  | null
+  | Readonly<{
+      readonly kind: 'array';
+      readonly length: number;
+    }>
+  | Readonly<{
+      readonly kind: 'object';
+      readonly keyCount: number;
+      readonly keys: readonly string[];
+      readonly truncated: boolean;
+    }>
+  | Readonly<{
+      readonly kind: 'undefined' | 'symbol' | 'bigint' | 'function';
+    }>;
+
 const freezeCopy = <T>(values: readonly T[]): readonly T[] => Object.freeze([...values]);
+
+const summarizeDiagnosticValue = (value: unknown): JsonFrameDiagnosticValue => {
+  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return Object.freeze({ kind: 'array', length: value.length });
+  }
+
+  if (typeof value === 'object') {
+    const keys = Object.keys(value as object);
+    return Object.freeze({
+      kind: 'object',
+      keyCount: keys.length,
+      keys: freezeCopy(keys.slice(0, DIAGNOSTIC_KEY_LIMIT)),
+      truncated: keys.length > DIAGNOSTIC_KEY_LIMIT,
+    });
+  }
+
+  if (typeof value === 'undefined') {
+    return Object.freeze({ kind: 'undefined' });
+  }
+
+  if (typeof value === 'symbol') {
+    return Object.freeze({ kind: 'symbol' });
+  }
+
+  if (typeof value === 'bigint') {
+    return Object.freeze({ kind: 'bigint' });
+  }
+
+  if (typeof value === 'function') {
+    return Object.freeze({ kind: 'function' });
+  }
+
+  return Object.freeze({ kind: 'object', keyCount: 0, keys: freezeCopy([]), truncated: false });
+};
 
 /** Base class for all structured `@web-ts-toolkit/json-frame` runtime failures. */
 export class JsonFrameError extends Error {
@@ -16,7 +76,7 @@ export class JsonFrameError extends Error {
   readonly path?: string;
   readonly row?: number;
   readonly column?: string;
-  readonly value?: unknown;
+  readonly value?: JsonFrameDiagnosticValue;
 
   constructor(message: string, context: JsonFrameErrorContext = {}) {
     super(message);
@@ -26,7 +86,9 @@ export class JsonFrameError extends Error {
     this.path = context.path;
     this.row = context.row;
     this.column = context.column;
-    this.value = context.value;
+    if ('value' in context) {
+      this.value = summarizeDiagnosticValue(context.value);
+    }
   }
 }
 

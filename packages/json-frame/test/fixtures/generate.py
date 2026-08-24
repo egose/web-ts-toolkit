@@ -8,10 +8,10 @@ regeneration command and the only supported Python environment.
 
 Design constraints:
 
-* Every fixture is a JSON file written with `json.dump(..., separators=(",", ":"))`
-  so file content matches `pandas.DataFrame.to_json(orient=..., indent=0)` style
-  output (no job-controlled whitespace). This makes diff-stability possible
-  when pandas reserializes the same value.
+* Every JSON fixture body is the exact string returned by
+  `pandas.DataFrame.to_json(**args)`. The writer appends one final `\n` so the
+  committed text files follow repository newline policy; the self-check ignores
+  only that documented terminator.
 * `to_json()` call arguments are recorded verbatim into the manifest
   (`manifest.json`) so a later agent can compare the committed JSON to the
   documented `to_json()` calls without re-running Python.
@@ -49,6 +49,10 @@ to the fixtures produced below:
     empty-*        empty-frame for all six orients
     prototypeLabels-*       index labels `__proto__`, `constructor`, `prototype`
                             for split/columns/index/records orients
+    nonAscendingIntegerIndex-* index labels `[10, 2]` for index/columns object-key
+                               ordering plus split/table controls
+    serializationSensitive-* non-ASCII text, escaping, exponent/precision floats,
+                             and pandas-preserved negative-zero object keys
     unsupported/multiIndexTable-*.json     multiPrimaryKey table (must be rejected)
     unsupported/nonStringColumnsSplit-.json non-string columns (must be rejected)
 
@@ -64,6 +68,10 @@ import traceback
 from typing import Any, Mapping
 
 import pandas as pd
+
+
+FINAL_NEWLINE = "\n"
+_EXPECTED_JSON_BYTES: dict[str, bytes] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -102,12 +110,18 @@ def clear_generated() -> None:
     os.makedirs(os.path.join(base, "unsupported"), exist_ok=True)
 
 
-def write_fixture(name: str, payload: Any) -> str:
-    """Write a JSON payload with no superfluous whitespace for diff stability."""
+def remember_expected_json_bytes(path: str, text: str) -> None:
+    relpath = os.path.relpath(path, here())
+    _EXPECTED_JSON_BYTES[relpath] = (text + FINAL_NEWLINE).encode("utf-8")
+
+
+def write_fixture_text(name: str, text: str) -> str:
+    """Write pandas' raw JSON text plus the documented final newline."""
     path = os.path.join(generated_dir(), name)
     with open(path, "w", encoding="utf-8") as fp:
-        fp.write(json.dumps(payload, separators=(",", ":"), allow_nan=False))
-        fp.write("\n")
+        fp.write(text)
+        fp.write(FINAL_NEWLINE)
+    remember_expected_json_bytes(path, text)
     return path
 
 
@@ -143,14 +157,50 @@ def manifest_entry(
     return entry
 
 
-def to_json(df: pd.DataFrame, **kwargs: Any) -> Any:
-    """Run `df.to_json(**kwargs)` and parse the resulting string back to a
-    Python object so it can be re-serialized with deterministic JSON
-    formatting. Pandas serializes missing and non-finite values as JSON
-    `null`; both `json.loads` and the subsequent `json.dumps(...,
-    allow_nan=False)` accept those `null`s without complaint."""
+def pandas_to_json_text(df: pd.DataFrame, **kwargs: Any) -> str:
+    """Run `df.to_json(**kwargs)` and return pandas' serializer output."""
     text = df.to_json(**kwargs)
+    return text
+
+
+def parse_pandas_json_for_checks(text: str) -> Any:
+    """Parse pandas JSON only for generator assertions; never for fixture writes."""
     return json.loads(text)
+
+
+def write_pandas_fixture(
+    name: str,
+    df: pd.DataFrame,
+    args: Mapping[str, Any],
+    *,
+    factory: str = "DataFrame.to_json",
+    extra: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    text = pandas_to_json_text(df, **dict(args))
+    parse_pandas_json_for_checks(text)
+    path = write_fixture_text(name, text)
+    return manifest_entry(os.path.relpath(path, here()), factory, args, extra=extra)
+
+
+def assert_generated_json_bytes(entries: list[dict[str, Any]]) -> None:
+    """Verify committed JSON bytes match direct pandas returns plus final newline."""
+    fixture_entries = {
+        entry["fixture"]
+        for entry in entries
+        if entry["fixture"].endswith(".json")
+    }
+    missing = fixture_entries.difference(_EXPECTED_JSON_BYTES)
+    if missing:
+        raise RuntimeError(f"missing byte expectations for {sorted(missing)}")
+
+    for relpath, expected in sorted(_EXPECTED_JSON_BYTES.items()):
+        with open(os.path.join(here(), relpath), "rb") as fp:
+            actual = fp.read()
+        if actual != expected:
+            raise RuntimeError(
+                f"fixture bytes for {relpath} differ from direct pandas to_json() output "
+                "plus the documented final newline"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -182,15 +232,7 @@ def all_six(
     for orient in ("records", "index", "columns", "values", "split", "table"):
         a = dict(args)
         a["orient"] = orient
-        payload = to_json(df, **a)
-        path = write_fixture(f"{prefix}-{orient}.json", payload)
-        entries.append(
-            manifest_entry(
-                os.path.relpath(path, here()),
-                "DataFrame(...).to_json",
-                a,
-            )
-        )
+        entries.append(write_pandas_fixture(f"{prefix}-{orient}.json", df, a, factory="DataFrame(...).to_json"))
     return entries
 
 
@@ -210,11 +252,7 @@ def index_false_records_or_split_or_values_or_table(
     a["orient"] = orient
     a["index"] = False
     try:
-        payload = to_json(df, **a)
-        path = write_fixture(f"indexFalse-{orient}.json", payload)
-        return manifest_entry(
-            os.path.relpath(path, here()), "DataFrame.to_json", a
-        )
+        return write_pandas_fixture(f"indexFalse-{orient}.json", df, a)
     except ValueError as exc:
         # `index=False` only valid for split/records/values/table. Record the
         # error so the parser tests can assert on real pandas behavior.
@@ -236,13 +274,9 @@ def nulls():
         },
         index=pd.Index(["r0", "r1", "r2"], name="ri"),
     )
-    rec = to_json(df, orient="records")
-    rec_path = write_fixture("nullsColumns-records.json", rec)
-    tbl = to_json(df, orient="table")
-    tbl_path = write_fixture("nullsColumns-table.json", tbl)
     return [
-        manifest_entry(os.path.relpath(rec_path, here()), "DataFrame.to_json", {"orient": "records"}),
-        manifest_entry(os.path.relpath(tbl_path, here()), "DataFrame.to_json", {"orient": "table"}),
+        write_pandas_fixture("nullsColumns-records.json", df, {"orient": "records"}),
+        write_pandas_fixture("nullsColumns-table.json", df, {"orient": "table"}),
     ]
 
 
@@ -251,11 +285,9 @@ def bool_col():
         {"flag": [True, False, True]},
         index=pd.Index(["r0", "r1", "r2"], name="ri"),
     )
-    rec_path = write_fixture("boolIndex-records.json", to_json(df, orient="records"))
-    tbl_path = write_fixture("boolIndex-table.json", to_json(df, orient="table"))
     return [
-        manifest_entry(os.path.relpath(rec_path, here()), "DataFrame.to_json", {"orient": "records"}),
-        manifest_entry(os.path.relpath(tbl_path, here()), "DataFrame.to_json", {"orient": "table"}),
+        write_pandas_fixture("boolIndex-records.json", df, {"orient": "records"}),
+        write_pandas_fixture("boolIndex-table.json", df, {"orient": "table"}),
     ]
 
 
@@ -264,11 +296,9 @@ def strings_col():
         {"city": ["NYC", "LA", "SF"]},
         index=pd.Index(["r0", "r1", "r2"], name="ri"),
     )
-    rec_path = write_fixture("strings-records.json", to_json(df, orient="records"))
-    tbl_path = write_fixture("strings-table.json", to_json(df, orient="table"))
     return [
-        manifest_entry(os.path.relpath(rec_path, here()), "DataFrame.to_json", {"orient": "records"}),
-        manifest_entry(os.path.relpath(tbl_path, here()), "DataFrame.to_json", {"orient": "table"}),
+        write_pandas_fixture("strings-records.json", df, {"orient": "records"}),
+        write_pandas_fixture("strings-table.json", df, {"orient": "table"}),
     ]
 
 
@@ -277,11 +307,9 @@ def ints_col():
         {"count": [1, 2, 3]},
         index=pd.Index(["r0", "r1", "r2"], name="ri"),
     )
-    rec_path = write_fixture("ints-records.json", to_json(df, orient="records"))
-    tbl_path = write_fixture("ints-table.json", to_json(df, orient="table"))
     return [
-        manifest_entry(os.path.relpath(rec_path, here()), "DataFrame.to_json", {"orient": "records"}),
-        manifest_entry(os.path.relpath(tbl_path, here()), "DataFrame.to_json", {"orient": "table"}),
+        write_pandas_fixture("ints-records.json", df, {"orient": "records"}),
+        write_pandas_fixture("ints-table.json", df, {"orient": "table"}),
     ]
 
 
@@ -290,11 +318,9 @@ def floats_col():
         {"temperature": [1.5, 2.5, 3.5]},
         index=pd.Index(["r0", "r1", "r2"], name="ri"),
     )
-    rec_path = write_fixture("floats-records.json", to_json(df, orient="records"))
-    tbl_path = write_fixture("floats-table.json", to_json(df, orient="table"))
     return [
-        manifest_entry(os.path.relpath(rec_path, here()), "DataFrame.to_json", {"orient": "records"}),
-        manifest_entry(os.path.relpath(tbl_path, here()), "DataFrame.to_json", {"orient": "table"}),
+        write_pandas_fixture("floats-records.json", df, {"orient": "records"}),
+        write_pandas_fixture("floats-table.json", df, {"orient": "table"}),
     ]
 
 
@@ -303,8 +329,7 @@ def datetime_epoch():
         {"ts": pd.to_datetime(["2024-01-02T03:04:05", "2024-01-02T03:04:06"])},
         index=pd.Index(["r0", "r1"], name="ri"),
     )
-    path = write_fixture("datetimeEpoch-records.json", to_json(df, orient="records", date_format="epoch"))
-    return [manifest_entry(os.path.relpath(path, here()), "DataFrame.to_json", {"orient": "records", "date_format": "epoch"})]
+    return [write_pandas_fixture("datetimeEpoch-records.json", df, {"orient": "records", "date_format": "epoch"})]
 
 
 def datetime_iso():
@@ -312,8 +337,7 @@ def datetime_iso():
         {"ts": pd.to_datetime(["2024-01-02T03:04:05", "2024-01-02T03:04:06"])},
         index=pd.Index(["r0", "r1"], name="ri"),
     )
-    path = write_fixture("datetimeIso-records.json", to_json(df, orient="records", date_format="iso"))
-    return [manifest_entry(os.path.relpath(path, here()), "DataFrame.to_json", {"orient": "records", "date_format": "iso"})]
+    return [write_pandas_fixture("datetimeIso-records.json", df, {"orient": "records", "date_format": "iso"})]
 
 
 def datetime_table_default():
@@ -321,8 +345,7 @@ def datetime_table_default():
         {"ts": pd.to_datetime(["2024-01-02T03:04:05", "2024-01-02T03:04:06"])},
         index=pd.Index(["r0", "r1"], name="ri"),
     )
-    path = write_fixture("datetimeTable-table.json", to_json(df, orient="table"))
-    return [manifest_entry(os.path.relpath(path, here()), "DataFrame.to_json", {"orient": "table"})]
+    return [write_pandas_fixture("datetimeTable-table.json", df, {"orient": "table"})]
 
 
 def datetime_table_iso():
@@ -330,8 +353,7 @@ def datetime_table_iso():
         {"ts": pd.to_datetime(["2024-01-02T03:04:05", "2024-01-02T03:04:06"])},
         index=pd.Index(["r0", "r1"], name="ri"),
     )
-    path = write_fixture("datetimeIsoTable-table.json", to_json(df, orient="table", date_format="iso"))
-    return [manifest_entry(os.path.relpath(path, here()), "DataFrame.to_json", {"orient": "table", "date_format": "iso"})]
+    return [write_pandas_fixture("datetimeIsoTable-table.json", df, {"orient": "table", "date_format": "iso"})]
 
 
 def categorical_table():
@@ -339,8 +361,7 @@ def categorical_table():
         {"grade": pd.Categorical(["a", "b", "a"], categories=["a", "b", "c"], ordered=True)},
         index=pd.Index(["x0", "x1", "x2"], name="i"),
     )
-    path = write_fixture("categoricalTable-table.json", to_json(df, orient="table"))
-    return [manifest_entry(os.path.relpath(path, here()), "DataFrame.to_json", {"orient": "table"})]
+    return [write_pandas_fixture("categoricalTable-table.json", df, {"orient": "table"})]
 
 
 def empty_all_six():
@@ -349,9 +370,7 @@ def empty_all_six():
     for orient in ("records", "index", "columns", "values", "split", "table"):
         a = {"orient": orient}
         try:
-            payload = to_json(df, **a)
-            path = write_fixture(f"empty-{orient}.json", payload)
-            entries.append(manifest_entry(os.path.relpath(path, here()), "DataFrame.to_json", a))
+            entries.append(write_pandas_fixture(f"empty-{orient}.json", df, a))
         except Exception as exc:
             path = write_err(f"empty-{orient}.err.txt", f"{type(exc).__name__}: {exc}")
             entries.append(
@@ -373,10 +392,48 @@ def prototype_labels():
     entries = []
     for orient in ("split", "columns", "index", "records"):
         a = {"orient": orient}
-        payload = to_json(df, **a)
-        path = write_fixture(f"prototypeLabels-{orient}.json", payload)
-        entries.append(manifest_entry(os.path.relpath(path, here()), "DataFrame.to_json", a))
+        entries.append(write_pandas_fixture(f"prototypeLabels-{orient}.json", df, a))
     return entries
+
+
+def non_ascending_integer_index():
+    df = pd.DataFrame(
+        {"v": ["first", "second"], "n": [100, 200]},
+        index=pd.Index([10, 2], name="i"),
+    )
+    entries = []
+    for orient in ("index", "columns", "split", "table"):
+        a = {"orient": orient}
+        entries.append(write_pandas_fixture(f"nonAscendingIntegerIndex-{orient}.json", df, a))
+    return entries
+
+
+def serialization_sensitive():
+    df = pd.DataFrame(
+        {
+            "text": ["café", "quote \" slash \\ newline\n tab\t nul\x00"],
+            "small": [1.23e-12, -0.0],
+            "large": [1.23e20, 9007199254740991.0],
+            "precision": [1.123456789012345, 1.1234567890123456],
+        }
+    )
+    indexed = pd.DataFrame(
+        {"value": ["negative zero index", "positive index"]},
+        index=pd.Index([-0.0, 1.0], name="i"),
+    )
+    return [
+        write_pandas_fixture(
+            "serializationSensitive-records.json",
+            df,
+            {"orient": "records", "double_precision": 15, "force_ascii": False},
+        ),
+        write_pandas_fixture(
+            "serializationSensitive-index.json",
+            indexed,
+            {"orient": "index", "double_precision": 15},
+            extra={"note": "Negative zero is preserved by pandas as the object key string `-0.0`."},
+        ),
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -390,24 +447,14 @@ def unsupported_multi_index_table():
         index=pd.MultiIndex.from_tuples([("a", 1), ("b", 2)], names=["g", "n"]),
     )
     a = {"orient": "table"}
-    payload = to_json(mi, **a)
-    path = os.path.join(here(), "generated", "unsupported", "multiIndexTable-table.json")
-    with open(path, "w", encoding="utf-8") as fp:
-        fp.write(json.dumps(payload, separators=(",", ":"), allow_nan=False))
-        fp.write("\n")
-    return manifest_entry(os.path.relpath(path, here()), "DataFrame.to_json", a)
+    return write_pandas_fixture("unsupported/multiIndexTable-table.json", mi, a)
 
 
 def unsupported_non_string_columns_split():
     df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
     df.columns = [10, "b"]  # type: ignore[index]
     a = {"orient": "split"}
-    payload = to_json(df, **a)
-    path = os.path.join(here(), "generated", "unsupported", "nonStringColumnsSplit-split.json")
-    with open(path, "w", encoding="utf-8") as fp:
-        fp.write(json.dumps(payload, separators=(",", ":"), allow_nan=False))
-        fp.write("\n")
-    return manifest_entry(os.path.relpath(path, here()), "DataFrame.to_json", a)
+    return write_pandas_fixture("unsupported/nonStringColumnsSplit-split.json", df, a)
 
 
 # ---------------------------------------------------------------------------
@@ -449,8 +496,11 @@ def main() -> int:
     entries.extend(categorical_table())
     entries.extend(empty_all_six())
     entries.extend(prototype_labels())
+    entries.extend(non_ascending_integer_index())
+    entries.extend(serialization_sensitive())
     entries.append(unsupported_multi_index_table())
     entries.append(unsupported_non_string_columns_split())
+    assert_generated_json_bytes(entries)
 
     manifest = {
         "generator": {
@@ -458,12 +508,13 @@ def main() -> int:
             **pandas_key_version(),
         },
         "note": (
-            "Every fixture is produced by a single `DataFrame.to_json(**args)` "
-            "call whose complete argument map is recorded verbatim in the "
-            "`to_json_args` field of the matching entry. Re-running this "
-            "script in the documented Python environment must produce "
-            "semantically identical JSON. The fixtures are the executable "
-            "compatibility reference for the parser implementation."
+            "Every JSON fixture body is the exact UTF-8 encoding of a single "
+            "`DataFrame.to_json(**args)` return value whose complete argument "
+            "map is recorded verbatim in `to_json_args`; the writer appends "
+            "one documented final newline. The generator self-check compares "
+            "the committed bytes to direct pandas returns plus that newline. "
+            "The fixtures are the executable compatibility reference for the "
+            "parser implementation."
         ),
         "fixtures": entries,
     }

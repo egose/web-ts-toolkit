@@ -21,7 +21,7 @@ import { describe, expect, it } from 'vitest';
  * not hand-edit them; see `./fixtures/README.md` for regeneration.
  *
  * Browser-provider and serialisation rules are documented in
- * `vitest.browser.config.ts` at the package root.
+ * `vitest.browser.config.mts` at the package root.
  */
 
 // `vitest` is hoisted from the workspace root devDependencies.
@@ -79,6 +79,75 @@ function clearWorkerConfig(): void {
 
 function applyWorkerConfig(): void {
   configurePdfWorker(workerUrl);
+}
+
+function createRenderStartAbortCanvasFactory(controller: AbortController): {
+  canvasFactory: () => HTMLCanvasElement;
+  renderStarted: Promise<void>;
+  getRenderStarted: () => boolean;
+  getPageImageEncodeCount: () => number;
+} {
+  let renderStarted = false;
+  let pageImageEncodeCount = 0;
+  let resolveRenderStarted!: () => void;
+  const renderStartedPromise = new Promise<void>((resolve) => {
+    resolveRenderStarted = resolve;
+  });
+  const patchedContexts = new WeakSet<CanvasRenderingContext2D>();
+  const renderStartMethods = [
+    'save',
+    'setTransform',
+    'transform',
+    'fillRect',
+    'drawImage',
+    'fillText',
+    'strokeText',
+    'stroke',
+    'fill',
+  ];
+  const markRenderStarted = () => {
+    if (renderStarted) return;
+    renderStarted = true;
+    resolveRenderStarted();
+    queueMicrotask(() => controller.abort());
+  };
+  const patchContext = (context: CanvasRenderingContext2D) => {
+    if (patchedContexts.has(context)) return;
+    patchedContexts.add(context);
+    const writableContext = context as unknown as Record<string, unknown>;
+    for (const methodName of renderStartMethods) {
+      const original = writableContext[methodName];
+      if (typeof original !== 'function') continue;
+      Object.defineProperty(context, methodName, {
+        configurable: true,
+        value(this: CanvasRenderingContext2D, ...args: unknown[]) {
+          markRenderStarted();
+          return original.apply(this, args);
+        },
+      });
+    }
+  };
+
+  return {
+    canvasFactory: () => {
+      const canvas = document.createElement('canvas');
+      const getContext = canvas.getContext.bind(canvas);
+      const toDataURL = canvas.toDataURL.bind(canvas);
+      canvas.getContext = ((contextId: string, options?: unknown) => {
+        const context = getContext(contextId as '2d', options as CanvasRenderingContext2DSettings);
+        if (contextId === '2d' && context) patchContext(context as CanvasRenderingContext2D);
+        return context;
+      }) as HTMLCanvasElement['getContext'];
+      canvas.toDataURL = (...args) => {
+        pageImageEncodeCount += 1;
+        return toDataURL(...args);
+      };
+      return canvas;
+    },
+    renderStarted: renderStartedPromise,
+    getRenderStarted: () => renderStarted,
+    getPageImageEncodeCount: () => pageImageEncodeCount,
+  };
 }
 
 describe('PDFR-01 real-browser PDF.js integration', () => {
@@ -350,8 +419,17 @@ describe('PDFR-01 real-browser PDF.js integration', () => {
   it('extracts inline, repeated, transformed, RGBA, and form-nested images from the PDFR-06 fixture', async () => {
     applyWorkerConfig();
     const bytes = decodeFixture(embeddedImagesB64);
+    let embeddedEncodeCount = 0;
     const reader = new PDFReader(bytes, {
-      canvasFactory: () => document.createElement('canvas'),
+      canvasFactory: () => {
+        const canvas = document.createElement('canvas');
+        const toDataURL = canvas.toDataURL.bind(canvas);
+        canvas.toDataURL = (...args) => {
+          embeddedEncodeCount += 1;
+          return toDataURL(...args);
+        };
+        return canvas;
+      },
     });
 
     try {
@@ -391,6 +469,7 @@ describe('PDFR-01 real-browser PDF.js integration', () => {
         true,
       ]);
       expect(pages[0]?.images.map((image) => image.size)).toEqual([4, 4, 4, 4, 4, 4]);
+      expect(embeddedEncodeCount).toBe(4);
 
       expect(pages[1]?.images[0]).toMatchObject({
         x: 30,
@@ -410,29 +489,31 @@ describe('PDFR-01 real-browser PDF.js integration', () => {
   it('cancels an active render and surfaces ABORTED without leaving a live canvas or page', async () => {
     applyWorkerConfig();
     const bytes = decodeFixture(multiB64);
+    const controller = new AbortController();
+    const renderHook = createRenderStartAbortCanvasFactory(controller);
     const reader = new PDFReader(bytes, {
-      canvasFactory: () => document.createElement('canvas'),
+      canvasFactory: renderHook.canvasFactory,
     });
 
     try {
       await reader.load();
-      const controller = new AbortController();
       const collected: PageResult[] = [];
       const iterate = (async () => {
         for await (const page of reader.pages({
           includePageImage: true,
-          includeText: true,
+          includeText: false,
           viewportScale: 5,
           signal: controller.signal,
         })) {
           collected.push(page);
         }
       })();
-      // Give PDF.js one turn to enter page work, then abort before this
-      // higher-resolution render completes.
-      await new Promise<void>((resolve) => setTimeout(resolve, 5));
-      controller.abort();
+
+      await renderHook.renderStarted;
+      expect(renderHook.getRenderStarted()).toBe(true);
       await expect(iterate).rejects.toMatchObject({ code: 'ABORTED' });
+      expect(collected).toHaveLength(0);
+      expect(renderHook.getPageImageEncodeCount()).toBe(0);
       // The `pages()` generator's `finally` block released the active page
       // even on the abort path; the reader's `destroy()` must be a no-op.
       await expect(reader.destroy()).resolves.toBeUndefined();

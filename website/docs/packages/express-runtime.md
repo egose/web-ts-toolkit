@@ -362,7 +362,7 @@ Starts the app with friendly local-server behavior:
 - awaitable `ready` promise that resolves on listening and rejects on init/listen failure
 - explicit lifecycle state machine: `initializing` → `listening` → `stopping` → `stopped`, or `initializing` → `failed`
 - graceful `SIGINT` and `SIGTERM` shutdown by default (single-flight, owned handlers only)
-- deterministic shutdown order: stop accepting → drain (up to `shutdownTimeout`) → `onShutdown` (covers draining only; `onShutdown` errors are logged)
+- deterministic shutdown order: stop accepting → drain (up to `shutdownTimeout`) → `onShutdown` (the timeout covers draining only; `onShutdown` errors are logged and fail shutdown)
 - optional `init`, `onShutdown`, `onListening`, and `onError` hooks
 
 Example with readiness and shutdown hooks:
@@ -394,7 +394,7 @@ try {
 await local.shutdown();
 ```
 
-`shutdown()` is memoized — concurrent calls and signals share one operation — and a shutdown requested during a pending `init` prevents the later `listen` (leaving `server.listening === false` and rejecting `ready`). If the server was never started or was closed externally, `shutdown()` resolves deterministically.
+`shutdown()` is memoized — concurrent calls and signals share one operation — and a shutdown requested during a pending `init` prevents the later `listen` (leaving `server.listening === false` and rejecting `ready`). If `onShutdown` rejects, the error is logged and `shutdown()` rejects for programmatic callers. When the CLI sets `exitAfterShutdown: true`, successful shutdown exits `0`; cleanup failure is reported to stderr and exits `1`. If the server was never started or was closed externally, `shutdown()` resolves deterministically.
 
 ## `@web-ts-toolkit/express-runtime/cli`
 

@@ -11,6 +11,7 @@
 import { bail } from './deploy-shared';
 
 export const SITE_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
+const ALL_ENV_SCOPES = ['builds', 'functions', 'runtime', 'post_processing'];
 
 export const defaultApiBaseUrl = (functionsName: string) => `/.netlify/functions/${functionsName}`;
 
@@ -57,32 +58,65 @@ export interface NetlifyApiClient {
   setEnvVarValue(params: { account_id: string; key: string; site_id?: string; body: unknown }): Promise<unknown>;
 }
 
+interface NetlifyEnvVarValue {
+  id?: string;
+  context?: string;
+  context_parameter?: string;
+  value?: string;
+}
+
+interface NetlifyEnvVar {
+  key?: string;
+  scopes?: string[];
+  values?: NetlifyEnvVarValue[];
+  is_secret?: boolean;
+}
+
+export type EnvVarVerification =
+  | { status: 'verified' }
+  | { status: 'missing' }
+  | { status: 'mismatch'; mismatches: Array<'context' | 'scope' | 'sensitivity'> }
+  | { status: 'unknown'; unavailable: Array<'context' | 'scope' | 'sensitivity'> };
+
 // ---------------------------------------------------------------------------
 // Client construction (dynamic import for ESM-only SDK)
 // ---------------------------------------------------------------------------
 
-let clientPromise: Promise<NetlifyApiClient> | null = null;
+let cachedClient: { authToken: string; promise: Promise<NetlifyApiClient> } | undefined;
+export const MAX_SITE_LIST_PAGES = 100;
+
+export type NetlifyClientFactory = (authToken: string) => Promise<NetlifyApiClient>;
+
+const createNetlifyClient: NetlifyClientFactory = async (authToken) => {
+  const mod = await import('@netlify/api');
+  const Client = mod.NetlifyAPI as unknown as new (
+    token: string | undefined,
+    opts?: Record<string, unknown>,
+  ) => NetlifyApiClient;
+  return new Client(authToken);
+};
 
 /**
  * Lazily import `@netlify/api` and construct a client. The SDK is ESM-only so
  * we use dynamic `import()` rather than a static `require()`.
  */
-export async function getClient(authToken: string): Promise<NetlifyApiClient> {
-  if (!clientPromise) {
-    clientPromise = import('@netlify/api').then((mod) => {
-      const Client = mod.NetlifyAPI as unknown as new (
-        token: string | undefined,
-        opts?: Record<string, unknown>,
-      ) => NetlifyApiClient;
-      return new Client(authToken);
+export async function getClient(
+  authToken: string,
+  factory: NetlifyClientFactory = createNetlifyClient,
+): Promise<NetlifyApiClient> {
+  if (cachedClient?.authToken !== authToken) {
+    const promise = factory(authToken);
+    cachedClient = { authToken, promise };
+    promise.catch(() => {
+      if (cachedClient?.promise === promise) cachedClient = undefined;
     });
   }
-  return clientPromise;
+  return cachedClient.promise;
 }
 
 /** Reset the cached client (used by tests to inject a mock client). */
 export function _resetClient(): void {
-  clientPromise = null;
+  cachedClient = undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,7 +184,7 @@ export async function fetchSiteByName(
   const cli = client ?? (await getClient(authToken));
   let page = 1;
   const perPage = 100;
-  while (true) {
+  while (page <= MAX_SITE_LIST_PAGES) {
     let sites: NetlifySite[];
     try {
       sites = (await cli.listSites({ name, filter: 'all', per_page: perPage, page })) as NetlifySite[];
@@ -163,6 +197,7 @@ export async function fetchSiteByName(
     if (sites.length < perPage) return null; // no more pages
     page++;
   }
+  bail(`Netlify site lookup exceeded ${MAX_SITE_LIST_PAGES} pages while searching for "${name}".`);
 }
 
 export async function resolveSiteId(
@@ -258,7 +293,7 @@ async function getAccountSiteEnvVars(
   accountId: string,
   siteId: string,
   options?: { context?: string; paidTier?: boolean },
-): Promise<{ key?: string }[]> {
+): Promise<NetlifyEnvVar[]> {
   const params: { account_id: string; site_id: string; context_name?: string; scope?: string } = {
     account_id: accountId,
     site_id: siteId,
@@ -267,7 +302,7 @@ async function getAccountSiteEnvVars(
   if (options?.context) params.context_name = options.context;
   if (options?.paidTier) params.scope = 'functions';
 
-  return (await cli.getEnvVars(params)) as { key?: string }[];
+  return (await cli.getEnvVars(params)) as NetlifyEnvVar[];
 }
 
 /**
@@ -308,7 +343,7 @@ export async function setSiteEnvVar(
   siteId: string,
   key: string,
   value: string,
-  options: { paidTier?: boolean; context?: string },
+  options: { paidTier?: boolean; context?: string; sensitive: boolean },
   client?: NetlifyApiClient,
 ): Promise<void> {
   const cli = client ?? (await getClient(authToken));
@@ -319,7 +354,7 @@ export async function setSiteEnvVar(
   const val = contextToValue(options.context, value);
 
   // Check if the env var already exists
-  let existing: { key?: string } | undefined;
+  let existing: NetlifyEnvVar | undefined;
   try {
     const envVars = await getAccountSiteEnvVars(cli, accountId, siteId);
     existing = envVars.find((v) => v.key === key);
@@ -331,8 +366,48 @@ export async function setSiteEnvVar(
   const params = { account_id: accountId, key, site_id: siteId };
 
   if (existing) {
-    // Update existing env var value for the given context
-    await cli.setEnvVarValue({ ...params, body: val });
+    const desiredScopes = options.paidTier ? ['functions'] : undefined;
+    const scopeMatches =
+      !desiredScopes ||
+      (existing.scopes?.length === desiredScopes.length &&
+        desiredScopes.every((scope) => existing.scopes?.includes(scope)));
+    const sensitivityMatches = existing.is_secret === options.sensitive;
+
+    if (scopeMatches && sensitivityMatches) {
+      await cli.setEnvVarValue({ ...params, body: val });
+      return;
+    }
+
+    const existingValues = existing.values;
+    if (!existingValues || existingValues.some((entry) => entry.value === undefined)) {
+      bail(
+        `Cannot safely reconcile metadata for existing Netlify env var "${key}" because the API did not return all ` +
+          `values needed by its replace-all update endpoint. In the Netlify UI, preserve every context value, set ` +
+          `${key} to ${options.sensitive ? 'secret' : 'non-secret'}${options.paidTier ? ' with Functions scope only' : ''}, ` +
+          `then rerun this deploy.`,
+      );
+    }
+
+    const sameContext = (entry: NetlifyEnvVarValue): boolean =>
+      entry.context === val.context && entry.context_parameter === val.context_parameter;
+    const values = existingValues
+      .filter((entry) => !sameContext(entry))
+      .map(({ context, context_parameter, value }) => ({
+        context,
+        ...(context_parameter === undefined ? {} : { context_parameter }),
+        value: value!,
+      }));
+    values.push(val);
+
+    await cli.updateEnvVar({
+      ...params,
+      body: {
+        key,
+        ...(desiredScopes ? { scopes: desiredScopes } : {}),
+        is_secret: options.sensitive,
+        values,
+      },
+    });
   } else {
     // Create new env var.
     // On free tier, omit `scopes` entirely: granular scopes are a Pro+ feature
@@ -340,13 +415,13 @@ export async function setSiteEnvVar(
     // Omitting scopes makes Netlify apply the default (all scopes) behavior.
     const envVar: { key: string; is_secret: boolean; values: unknown[]; scopes?: string[] } = {
       key,
-      is_secret: false,
+      is_secret: options.sensitive,
       values: [val],
     };
     if (options.paidTier) envVar.scopes = ['functions'];
     const body = [envVar];
     try {
-      await cli.createEnvVars({ ...params, body });
+      await cli.createEnvVars({ account_id: accountId, site_id: siteId, body });
     } catch (err) {
       bailOnAuthError(err);
       const status = (err as SdkHttpError)?.status;
@@ -366,15 +441,16 @@ export async function setSiteEnvVar(
  * Verify that an environment variable key is present on a site via the SDK,
  * replicating the behavior of `netlify env:list --json`.
  *
- * Returns 'present', 'missing', or 'unknown'.
+ * Reports success only when the API response proves the requested context,
+ * scope, and sensitivity metadata. Secret values themselves need not be readable.
  */
 export async function verifySiteEnvVar(
   authToken: string,
   siteId: string,
   envKey: string,
-  options: { context?: string; paidTier?: boolean },
+  options: { context?: string; paidTier?: boolean; sensitive: boolean },
   client?: NetlifyApiClient,
-): Promise<'present' | 'missing' | 'unknown'> {
+): Promise<EnvVarVerification> {
   const cli = client ?? (await getClient(authToken));
   try {
     const site = (await cli.getSite({ site_id: siteId })) as NetlifySite & {
@@ -382,12 +458,46 @@ export async function verifySiteEnvVar(
       account_slug?: string;
     };
     const accountId = site.account_id ?? site.account_slug;
-    if (!accountId) return 'unknown';
+    if (!accountId) return { status: 'unknown', unavailable: ['context', 'scope', 'sensitivity'] };
     const envVars = await getAccountSiteEnvVars(cli, accountId, siteId, options);
-    if (!Array.isArray(envVars)) return 'unknown';
-    return envVars.some((v) => v.key === envKey) ? 'present' : 'missing';
+    if (!Array.isArray(envVars)) {
+      return { status: 'unknown', unavailable: ['context', 'scope', 'sensitivity'] };
+    }
+    const envVar = envVars.find((value) => value.key === envKey);
+    if (!envVar) return { status: 'missing' };
+
+    const desiredContext = contextToValue(options.context, '');
+    const unavailable: Array<'context' | 'scope' | 'sensitivity'> = [];
+    const mismatches: Array<'context' | 'scope' | 'sensitivity'> = [];
+    if (!envVar.values) unavailable.push('context');
+    else if (
+      !envVar.values.some(
+        (value) =>
+          value.context === desiredContext.context && value.context_parameter === desiredContext.context_parameter,
+      )
+    ) {
+      mismatches.push('context');
+    }
+
+    if (envVar.is_secret === undefined) unavailable.push('sensitivity');
+    else if (envVar.is_secret !== options.sensitive) mismatches.push('sensitivity');
+
+    if (!envVar.scopes) unavailable.push('scope');
+    else {
+      const expectedScopes = options.paidTier ? ['functions'] : ALL_ENV_SCOPES;
+      if (
+        envVar.scopes.length !== expectedScopes.length ||
+        !expectedScopes.every((scope) => envVar.scopes?.includes(scope))
+      ) {
+        mismatches.push('scope');
+      }
+    }
+
+    if (mismatches.length > 0) return { status: 'mismatch', mismatches };
+    if (unavailable.length > 0) return { status: 'unknown', unavailable };
+    return { status: 'verified' };
   } catch {
-    return 'unknown';
+    return { status: 'unknown', unavailable: ['context', 'scope', 'sensitivity'] };
   }
 }
 

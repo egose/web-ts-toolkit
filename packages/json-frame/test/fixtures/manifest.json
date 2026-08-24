@@ -5,7 +5,7 @@
     "pythonImplementation": "CPython",
     "pandas": "3.0.3"
   },
-  "note": "Every fixture is produced by a single `DataFrame.to_json(**args)` call whose complete argument map is recorded verbatim in the `to_json_args` field of the matching entry. Re-running this script in the documented Python environment must produce semantically identical JSON. The fixtures are the executable compatibility reference for the parser implementation.",
+  "note": "Every JSON fixture body is the exact UTF-8 encoding of a single `DataFrame.to_json(**args)` return value whose complete argument map is recorded verbatim in `to_json_args`; the writer appends one documented final newline. The generator self-check compares the committed bytes to direct pandas returns plus that newline. The fixtures are the executable compatibility reference for the parser implementation.",
   "fixtures": [
     {
       "fixture": "generated/allSixStringIndex-records.json",
@@ -318,6 +318,52 @@
       "to_json_args": {
         "orient": "records"
       }
+    },
+    {
+      "fixture": "generated/nonAscendingIntegerIndex-index.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "index"
+      }
+    },
+    {
+      "fixture": "generated/nonAscendingIntegerIndex-columns.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "columns"
+      }
+    },
+    {
+      "fixture": "generated/nonAscendingIntegerIndex-split.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "split"
+      }
+    },
+    {
+      "fixture": "generated/nonAscendingIntegerIndex-table.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "table"
+      }
+    },
+    {
+      "fixture": "generated/serializationSensitive-records.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "records",
+        "double_precision": 15,
+        "force_ascii": false
+      }
+    },
+    {
+      "fixture": "generated/serializationSensitive-index.json",
+      "factory": "DataFrame.to_json",
+      "to_json_args": {
+        "orient": "index",
+        "double_precision": 15
+      },
+      "note": "Negative zero is preserved by pandas as the object key string `-0.0`."
     },
     {
       "fixture": "generated/unsupported/multiIndexTable-table.json",

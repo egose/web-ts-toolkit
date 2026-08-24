@@ -2,7 +2,7 @@
   "name": "create-access-router-mongo-starter",
   "description": "Scaffold a new access-router + MongoDB CRUD app from the web-ts-toolkit starter template",
   "version": "0.0.0-PLACEHOLDER",
-  "author": "PLACEHOLDER",
+  "author": "Junmin Ahn",
   "license": "PLACEHOLDER",
   "repository": "PLACEHOLDER",
   "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/create-access-router-mongo-starter",
@@ -21,14 +21,15 @@
     "express"
   ],
   "bin": {
-    "create-access-router-mongo-starter": "dist/cli.js",
-    "create-access-router-mongo-starter-deploy-netlify": "dist/deploy-netlify.js",
-    "create-access-router-mongo-starter-deploy-shared": "dist/deploy-shared.js"
+    "create-access-router-mongo-starter": "dist/bin/cli.js",
+    "create-access-router-mongo-starter-deploy-netlify": "dist/bin/deploy-netlify.js",
+    "create-access-router-mongo-starter-deploy-shared": "dist/bin/deploy-shared.js"
   },
   "scripts": {
-    "build": "tsup --config tsup.config.ts && tsx scripts/stage-template.ts",
+    "build": "tsup --config tsup.config.ts && tsx scripts/stage-template.entry.ts",
+    "prepack": "tsx scripts/assert-publication-ready.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "pnpm build && vitest run"
   },
   "files": [
     "README.md",
@@ -36,7 +37,8 @@
   ],
   "dependencies": {
     "@clack/prompts": "^1.7.0",
-    "@netlify/api": "^15.1.0"
+    "@netlify/api": "^15.1.0",
+    "smol-toml": "^1.8.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
@@ -47,5 +49,6 @@
   },
   "engines": {
     "node": ">=22.12.0"
-  }
+  },
+  "packageManager": "pnpm@11.18.0"
 }

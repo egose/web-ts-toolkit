@@ -41,7 +41,7 @@ Use this skill for presentational work in `src/` and `index.html`.
 2. Reuse the existing shadcn-theme components and utility classes before inventing new wrappers.
 3. Keep loading and empty states explicit in the page, not implied by missing content.
 4. If a visual change requires new data or fields, coordinate with `template-client-data` and `template-api-models-and-routers`.
-5. If editing titles or app identity text, preserve template placeholders such as `{{APP_TITLE}}` unless the scaffolding behavior is intentionally changing.
+5. If editing titles or app identity text, keep `index.html`, `src/pages/home-page.tsx`, README guidance, and package metadata consistent.
 
 ## Editing Guidance
 
@@ -55,5 +55,6 @@ Use this skill for presentational work in `src/` and `index.html`.
 
 - `pnpm build`
 - `pnpm test`
+- `pnpm test:watch` only when interactive watch behavior is needed
 
 If the change affects layout significantly, also run `pnpm dev` and check both narrow and wide viewports.

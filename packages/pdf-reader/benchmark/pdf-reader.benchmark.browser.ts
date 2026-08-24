@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import * as pkg from '../dist/index.mjs';
+import { OPS } from 'pdfjs-dist';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
@@ -8,6 +9,7 @@ import shortB64 from './generated/short.pdf.base64.txt?raw';
 import longB64 from './generated/long.pdf.base64.txt?raw';
 import textHeavyB64 from './generated/text-heavy.pdf.base64.txt?raw';
 import imageHeavyB64 from './generated/image-heavy.pdf.base64.txt?raw';
+import embeddedImagesB64 from '../test/fixtures/generated/embedded-images.pdf.base64.txt?raw';
 
 import type { PageResult } from '../src';
 
@@ -51,6 +53,11 @@ interface AbortResult {
 interface CanvasTracker {
   factory: () => HTMLCanvasElement;
   getPeakActiveCanvases: () => number;
+}
+
+interface CountingCanvasFactory {
+  factory: () => HTMLCanvasElement;
+  getEncodeCount: () => number;
 }
 
 interface PageTracker {
@@ -138,6 +145,44 @@ function createCanvasTracker(): CanvasTracker {
     factory,
     getPeakActiveCanvases: () => peakActiveCanvases,
   };
+}
+
+function createCountingCanvasFactory(): CountingCanvasFactory {
+  let encodeCount = 0;
+  return {
+    factory: () => {
+      const canvas = document.createElement('canvas');
+      const toDataURL = canvas.toDataURL.bind(canvas);
+      canvas.toDataURL = (...args) => {
+        encodeCount += 1;
+        return toDataURL(...args);
+      };
+      return canvas;
+    },
+    getEncodeCount: () => encodeCount,
+  };
+}
+
+async function countPageImageOperators(documentProxy: PDFDocumentProxy, pageNumber: number) {
+  const page = await documentProxy.getPage(pageNumber);
+  try {
+    const operators = await page.getOperatorList();
+    const xobjectRefs = operators.argsArray
+      .filter((_, index) => {
+        const operation = operators.fnArray[index];
+        return operation === OPS.paintImageXObject || operation === OPS.paintXObject;
+      })
+      .map((args) => (Array.isArray(args) ? args[0] : undefined))
+      .filter((value): value is string => typeof value === 'string');
+    const inlineCount = operators.fnArray.filter((operation) => operation === OPS.paintInlineImageXObject).length;
+    return {
+      inlineCount,
+      xobjectPaintCount: xobjectRefs.length,
+      uniqueXobjectCount: new Set(xobjectRefs).size,
+    };
+  } finally {
+    page.cleanup();
+  }
 }
 
 function instrumentDocumentPages(documentProxy: PDFDocumentProxy): PageTracker {
@@ -229,11 +274,10 @@ async function runSerialPages(
 }
 
 async function runBoundedStrategy(
-  reader: InstanceType<typeof PDFReader>,
+  readers: readonly InstanceType<typeof PDFReader>[],
   fixture: FixtureSpec,
-  concurrency: number,
 ): Promise<Omit<RunMetrics, 'peakActivePages' | 'peakActiveCanvases' | 'longTasks'>> {
-  const pageNumbers = Array.from({ length: reader.numPages ?? 0 }, (_, index) => index + 1);
+  const pageNumbers = Array.from({ length: readers[0]?.numPages ?? 0 }, (_, index) => index + 1);
   const completed = new Map<number, PageResult>();
   const outputOrder: number[] = [];
   let nextPageIndex = 0;
@@ -256,7 +300,7 @@ async function runBoundedStrategy(
     return emitChain;
   };
 
-  const worker = async () => {
+  const worker = async (reader: InstanceType<typeof PDFReader>) => {
     while (nextPageIndex < pageNumbers.length) {
       const pageIndex = nextPageIndex;
       nextPageIndex += 1;
@@ -279,7 +323,7 @@ async function runBoundedStrategy(
   };
 
   const start = performance.now();
-  const workers = Array.from({ length: Math.min(concurrency, pageNumbers.length) }, () => worker());
+  const workers = readers.slice(0, pageNumbers.length).map((reader) => worker(reader));
   const settled = await Promise.allSettled(workers);
   await emitChain;
   const rejected = settled.find((result): result is PromiseRejectedResult => result.status === 'rejected');
@@ -293,40 +337,53 @@ async function runBoundedStrategy(
 
 async function measureStrategy(strategy: StrategyName, fixture: FixtureSpec): Promise<StrategyResult> {
   const canvasTracker = createCanvasTracker();
-  const reader = new PDFReader(decodeFixture(fixture.base64), { canvasFactory: canvasTracker.factory });
+  const readerCount = strategy === 'serial-pages' ? 1 : 2;
+  const readers = Array.from(
+    { length: readerCount },
+    () => new PDFReader(decodeFixture(fixture.base64), { canvasFactory: canvasTracker.factory }),
+  );
   configurePdfWorker(workerUrl);
+  const pageTrackers: PageTracker[] = [];
 
   try {
-    const documentProxy = await reader.load();
-    const pageTracker = instrumentDocumentPages(documentProxy);
+    const documentProxies = await Promise.all(readers.map((reader) => reader.load()));
+    pageTrackers.push(...documentProxies.map((documentProxy) => instrumentDocumentPages(documentProxy)));
     try {
       const measured = await withLongTaskObserver(async () => {
+        const reader = readers[0];
+        if (!reader) throw new Error('Expected at least one benchmark reader.');
         if (strategy === 'serial-pages') return await runSerialPages(reader, fixture);
-        return await runBoundedStrategy(reader, fixture, 2);
+        return await runBoundedStrategy(readers, fixture);
       });
 
       return {
         strategy,
         ...measured.value,
-        peakActivePages: pageTracker.getPeakActivePages(),
+        peakActivePages: pageTrackers.reduce((total, pageTracker) => total + pageTracker.getPeakActivePages(), 0),
         peakActiveCanvases: canvasTracker.getPeakActiveCanvases(),
         longTasks: measured.summary,
       };
     } finally {
-      pageTracker.restore();
+      for (const pageTracker of pageTrackers) pageTracker.restore();
     }
   } finally {
-    await reader.destroy();
+    await Promise.all(readers.map((reader) => reader.destroy()));
   }
 }
 
 async function measureAbortLatency(strategy: StrategyName, fixture: FixtureSpec): Promise<AbortResult> {
   const canvasTracker = createCanvasTracker();
-  const reader = new PDFReader(decodeFixture(fixture.base64), { canvasFactory: canvasTracker.factory });
+  const readerCount = strategy === 'serial-pages' ? 1 : 2;
+  const readers = Array.from(
+    { length: readerCount },
+    () => new PDFReader(decodeFixture(fixture.base64), { canvasFactory: canvasTracker.factory }),
+  );
   configurePdfWorker(workerUrl);
 
   try {
-    await reader.load();
+    await Promise.all(readers.map((reader) => reader.load()));
+    const reader = readers[0];
+    if (!reader) throw new Error('Expected at least one benchmark reader.');
     const controller = new AbortController();
     const iterate =
       strategy === 'serial-pages'
@@ -341,7 +398,7 @@ async function measureAbortLatency(strategy: StrategyName, fixture: FixtureSpec)
               void page;
             }
           })()
-        : runAbortableBoundedStrategy(reader, controller.signal);
+        : runAbortableBoundedStrategy(readers, controller.signal);
 
     await new Promise<void>((resolve) => setTimeout(resolve, 5));
     const abortStart = performance.now();
@@ -357,15 +414,18 @@ async function measureAbortLatency(strategy: StrategyName, fixture: FixtureSpec)
         typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code) : undefined,
     };
   } finally {
-    await reader.destroy();
+    await Promise.all(readers.map((reader) => reader.destroy()));
   }
 }
 
-async function runAbortableBoundedStrategy(reader: InstanceType<typeof PDFReader>, signal: AbortSignal): Promise<void> {
-  const pageNumbers = Array.from({ length: reader.numPages ?? 0 }, (_, index) => index + 1);
+async function runAbortableBoundedStrategy(
+  readers: readonly InstanceType<typeof PDFReader>[],
+  signal: AbortSignal,
+): Promise<void> {
+  const pageNumbers = Array.from({ length: readers[0]?.numPages ?? 0 }, (_, index) => index + 1);
   let nextPageIndex = 0;
 
-  const worker = async () => {
+  const worker = async (reader: InstanceType<typeof PDFReader>) => {
     while (nextPageIndex < pageNumbers.length) {
       if (signal.aborted) return;
       const pageNumber = pageNumbers[nextPageIndex];
@@ -383,7 +443,7 @@ async function runAbortableBoundedStrategy(reader: InstanceType<typeof PDFReader
     }
   };
 
-  const settled = await Promise.allSettled([worker(), worker()]);
+  const settled = await Promise.allSettled(readers.map((reader) => worker(reader)));
   const rejected = settled.find((result): result is PromiseRejectedResult => result.status === 'rejected');
   if (rejected) throw rejected.reason;
   if (signal.aborted) throw new pkg.PdfReaderError('ABORTED', 'PDF operation was aborted.');
@@ -430,4 +490,53 @@ describe('PDFR-07 benchmark matrix', () => {
 
     console.info(`PDFR-07 benchmark summary ${JSON.stringify(summary)}`);
   }, 180_000);
+});
+
+describe('PDFR2-06 embedded-image extraction benchmark', () => {
+  it('records repeated XObject extraction cost and encode count', async () => {
+    const canvasCounter = createCountingCanvasFactory();
+    const reader = new PDFReader(decodeFixture(embeddedImagesB64), { canvasFactory: canvasCounter.factory });
+    configurePdfWorker(workerUrl);
+
+    try {
+      const documentProxy = await reader.load();
+      const operatorCounts = await countPageImageOperators(documentProxy, 1);
+      const measured = await withLongTaskObserver(async () => {
+        const start = performance.now();
+        const [page] = await reader.convert({
+          pageRange: 1,
+          includeText: false,
+          includePageImage: false,
+          includeEmbeddedImages: true,
+        });
+        if (!page) throw new Error('Expected page 1 result.');
+        return {
+          wallTimeMs: Number((performance.now() - start).toFixed(2)),
+          imageCount: page.images.length,
+          encodeCount: canvasCounter.getEncodeCount(),
+          retainedOutputBytes: estimatePageResultBytes(page),
+        };
+      });
+
+      const summary = {
+        browser: {
+          userAgent: navigator.userAgent,
+          hardwareConcurrency: navigator.hardwareConcurrency,
+          deviceMemory:
+            'deviceMemory' in navigator ? (navigator as Navigator & { deviceMemory?: number }).deviceMemory : undefined,
+        },
+        fixture: 'embedded-images.pdf page 1',
+        operatorCounts,
+        ...measured.value,
+        longTasks: measured.summary,
+      };
+
+      expect(summary.operatorCounts).toEqual({ inlineCount: 1, xobjectPaintCount: 5, uniqueXobjectCount: 2 });
+      expect(summary.imageCount).toBe(6);
+      expect(summary.encodeCount).toBe(3);
+      console.info(`PDFR2-06 embedded-image benchmark summary ${JSON.stringify(summary)}`);
+    } finally {
+      await reader.destroy();
+    }
+  }, 60_000);
 });

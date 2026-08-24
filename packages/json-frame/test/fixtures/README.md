@@ -1,9 +1,11 @@
 # `packages/json-frame/test/fixtures/`
 
 The files in `generated/` are the **executable compatibility reference** for
-`@web-ts-toolkit/json-frame`'s parser implementation. Each file is produced
-verbatim by `pandas.DataFrame.to_json(**args)`; no fixture is hand-edited after
-pandas writes it.
+`@web-ts-toolkit/json-frame`'s parser implementation. Each JSON fixture body is
+the exact UTF-8 encoding of `pandas.DataFrame.to_json(**args)`. The generator
+appends one final newline to satisfy repository text-file policy, and its
+self-check permits only that documented terminator beyond pandas' return value.
+No fixture is hand-edited after pandas writes it.
 
 These fixtures belong to task JFRAME-00 of
 `docs/tasks/20260814-170611-json-frame-package.md`.
@@ -48,6 +50,11 @@ README.md        This file.
 | `prototypeLabels-{orient}`    | Index labels `__proto__`, `constructor`, `prototype` to         |
 |                               | validate own-property-safe storage. Captured across split,      |
 |                               | columns, index, and records.                                    |
+| `nonAscendingIntegerIndex-*`  | Index labels `[10, 2]` captured across index, columns, split,   |
+|                               | and table to document JavaScript object-key enumeration limits. |
+| `serializationSensitive-*`    | Non-ASCII text, escaped quote/backslash/control characters,     |
+|                               | exponent and configured-precision floats, and negative zero     |
+|                               | where pandas preserves it as an object key.                     |
 | `unsupported/multiIndexTable- | A `MultiIndex` frame serialised by pandas with                  |
 | table`                        | `primaryKey: ["g", "n"]`. The parser MUST reject this.          |
 | `unsupported/nonStringColumns | A `DataFrame` with a non-string column label (`10`). pandas     |
@@ -77,6 +84,10 @@ Behaviour notes for the recorded `pandas 3.0.3`:
   the corresponding `*.err.txt` sidecar.
 - `MultiIndex` and non-string column labels do not raise from `to_json`;
   the parser, not pandas, is responsible for rejecting them.
+- JSON fixture writes are byte-sensitive: the body must equal the direct
+  `DataFrame.to_json(**args)` string encoded as UTF-8. The only added byte is
+  the final `\n` documented above. Semantic parsing in `generate.py` is only a
+  generator sanity check and is never the source used for fixture writes.
 
 ## Updating the reference
 
@@ -87,3 +98,6 @@ generator environment in `manifest.json` only via re-running `generate.py`
 in the new environment, and commit the regenerated files together.
 
 The committed JSON in `generated/` is the reference. Do not hand-edit it.
+Re-running `python3 generate.py` in the recorded environment performs a
+byte-level self-check against direct pandas serializer returns before writing
+`manifest.json`.

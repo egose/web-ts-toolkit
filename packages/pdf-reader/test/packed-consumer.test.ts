@@ -300,7 +300,7 @@ describe('PDFR-02 packed consumer compatibility', () => {
       },
     });
     expect(packedManifest.sideEffects).toBe(false);
-    expect(packedManifest.peerDependencies).toEqual({ 'pdfjs-dist': '^6.2.108' });
+    expect(packedManifest.peerDependencies).toEqual({ 'pdfjs-dist': '~6.2.108' });
     expect(packedManifest.devDependencies).toBeUndefined();
     expect(packedManifest.scripts).toBeUndefined();
     expect(containsDisallowedPublishedValue(packedManifest)).toBe(false);

@@ -89,6 +89,7 @@ function createPdfHarness(options: { numPages?: number; renderPromise?: Promise<
   const documentProxy = {
     numPages: options.numPages ?? 2,
     getPage: vi.fn(async () => page),
+    destroy: vi.fn(async () => undefined),
   } as unknown as PDFDocumentProxy;
   const loadingTask = {
     promise: Promise.resolve(documentProxy),
@@ -147,6 +148,26 @@ describe('PDFReader', () => {
     expect(pdf.loadingTask.destroy).toHaveBeenCalledOnce();
   });
 
+  it('characterizes externally destroyed borrowed document proxies as unsupported', async () => {
+    const pdf = createPdfHarness({ numPages: 1 });
+    const reader = new PDFReader(new Uint8Array([1]));
+    const documentProxy = await reader.load();
+    const externalDestroyError = new Error('PDF.js document proxy was destroyed externally');
+
+    vi.mocked(pdf.documentProxy.destroy).mockImplementation(async () => {
+      vi.mocked(pdf.documentProxy.getPage).mockRejectedValue(externalDestroyError);
+    });
+
+    await documentProxy.destroy();
+
+    expect(reader.state).toBe('loaded');
+    await expect(reader.convert({ includePageImage: false, includeText: false })).rejects.toBe(externalDestroyError);
+    expect(reader.state).toBe('loaded');
+
+    await reader.destroy();
+    expect(pdf.loadingTask.destroy).toHaveBeenCalledOnce();
+  });
+
   it('rejects unsafe page allocation before creating a canvas and still cleans up the page', async () => {
     const pdf = createPdfHarness({ numPages: 1 });
     const canvasFactory = vi.fn(() => createCanvasHarness().canvas);
@@ -192,6 +213,72 @@ describe('PDFReader', () => {
     });
     expect(canvas.context.putImageData).toHaveBeenCalledOnce();
     expect(canvas.canvas.width).toBe(0);
+  });
+
+  it('encodes repeated image XObject references once while preserving each placement', async () => {
+    const pdf = createPdfHarness({ numPages: 1 });
+    const canvas = createCanvasHarness();
+    vi.mocked(canvas.canvas.toDataURL).mockReturnValue('data:image/png;base64,reused');
+    vi.mocked(pdf.page.getOperatorList).mockResolvedValue({
+      fnArray: [1, 3, 5, 2, 1, 3, 5, 2],
+      argsArray: [null, [2, 0, 0, 3, 10, 20], ['image-1'], null, null, [4, 0, 0, 5, 30, 40], ['image-1'], null],
+      lastChunk: true,
+      separateAnnots: null,
+    });
+    vi.mocked(pdf.page.objs.get).mockReturnValue({
+      width: 1,
+      height: 1,
+      data: new Uint8Array([10, 20, 30]),
+      dataLen: 3,
+    });
+    const reader = new PDFReader(new Uint8Array([1]), { canvasFactory: () => canvas.canvas });
+    await reader.load();
+
+    const [page] = await reader.convert({ includePageImage: false, includeText: false, includeEmbeddedImages: true });
+
+    expect(page?.images).toHaveLength(2);
+    expect(page?.images.map((image) => image.dataUrl)).toEqual([
+      'data:image/png;base64,reused',
+      'data:image/png;base64,reused',
+    ]);
+    expect(page?.images.map((image) => image.transform)).toEqual([
+      [2, 0, 0, 3, 10, 20],
+      [4, 0, 0, 5, 30, 40],
+    ]);
+    expect(page?.images.map(({ x, y, width, height }) => ({ x, y, width, height }))).toEqual([
+      { x: 10, y: 23, width: 2, height: 3 },
+      { x: 30, y: 45, width: 4, height: 5 },
+    ]);
+    expect(pdf.page.objs.get).toHaveBeenCalledOnce();
+    expect(canvas.context.putImageData).toHaveBeenCalledOnce();
+    expect(canvas.canvas.toDataURL).toHaveBeenCalledOnce();
+    expect(canvas.canvas.width).toBe(0);
+  });
+
+  it('does not cache inline image encoding by synthetic keys', async () => {
+    const pdf = createPdfHarness({ numPages: 1 });
+    const canvas = createCanvasHarness();
+    vi.mocked(canvas.canvas.toDataURL)
+      .mockReturnValueOnce('data:image/png;base64,inline-1')
+      .mockReturnValueOnce('data:image/png;base64,inline-2');
+    const inlineImage = { width: 1, height: 1, data: new Uint8Array([10, 20, 30]), dataLen: 3 };
+    vi.mocked(pdf.page.getOperatorList).mockResolvedValue({
+      fnArray: [6, 6],
+      argsArray: [[inlineImage], [inlineImage]],
+      lastChunk: true,
+      separateAnnots: null,
+    });
+    const reader = new PDFReader(new Uint8Array([1]), { canvasFactory: () => canvas.canvas });
+    await reader.load();
+
+    const [page] = await reader.convert({ includePageImage: false, includeText: false, includeEmbeddedImages: true });
+
+    expect(page?.images.map((image) => image.dataUrl)).toEqual([
+      'data:image/png;base64,inline-1',
+      'data:image/png;base64,inline-2',
+    ]);
+    expect(canvas.context.putImageData).toHaveBeenCalledTimes(2);
+    expect(canvas.canvas.toDataURL).toHaveBeenCalledTimes(2);
   });
 
   it('applies nested form XObject matrices when extracting embedded images', async () => {
@@ -261,6 +348,240 @@ describe('PDFReader', () => {
     );
   });
 
+  it('enforces text item and string-code-unit limits after PDF.js returns text content', async () => {
+    const exact = createPdfHarness({ numPages: 1 });
+    vi.mocked(exact.page.getTextContent).mockResolvedValue({
+      items: [{ str: 'abc' }, { str: 'de' }],
+      styles: {},
+      lang: null,
+    } as never);
+    const exactReader = new PDFReader(new Uint8Array([1]), {
+      limits: { maxTextItems: 2, maxTextCodeUnits: 5 },
+    });
+    await exactReader.load();
+
+    await expect(exactReader.convert({ includePageImage: false, includeEmbeddedImages: false })).resolves.toHaveLength(
+      1,
+    );
+    expect(exact.page.cleanup).toHaveBeenCalledOnce();
+
+    const tooManyItems = createPdfHarness({ numPages: 1 });
+    vi.mocked(tooManyItems.page.getTextContent).mockResolvedValue({
+      items: [{ str: 'a' }, { str: 'b' }, { str: 'c' }],
+      styles: {},
+      lang: null,
+    } as never);
+    const itemReader = new PDFReader(new Uint8Array([1]), { limits: { maxTextItems: 2 } });
+    await itemReader.load();
+
+    await expect(itemReader.convert({ includePageImage: false, includeEmbeddedImages: false })).rejects.toMatchObject({
+      code: 'TEXT_LIMIT_EXCEEDED',
+    });
+    expect(tooManyItems.page.cleanup).toHaveBeenCalledOnce();
+
+    const tooManyCodeUnits = createPdfHarness({ numPages: 1 });
+    vi.mocked(tooManyCodeUnits.page.getTextContent).mockResolvedValue({
+      items: [{ str: 'abc' }, { str: 'def' }],
+      styles: {},
+      lang: null,
+    } as never);
+    const codeUnitReader = new PDFReader(new Uint8Array([1]), { limits: { maxTextCodeUnits: 5 } });
+    await codeUnitReader.load();
+
+    await expect(
+      codeUnitReader.convert({ includePageImage: false, includeEmbeddedImages: false }),
+    ).rejects.toMatchObject({
+      code: 'TEXT_LIMIT_EXCEEDED',
+    });
+    expect(tooManyCodeUnits.page.cleanup).toHaveBeenCalledOnce();
+  });
+
+  it('enforces operator count before traversing embedded-image operators', async () => {
+    const exact = createPdfHarness({ numPages: 1 });
+    vi.mocked(exact.page.getOperatorList).mockResolvedValue({
+      fnArray: [3, 3],
+      argsArray: [null, null],
+      lastChunk: true,
+      separateAnnots: null,
+    });
+    const exactReader = new PDFReader(new Uint8Array([1]), { limits: { maxOperatorCount: 2 } });
+    await exactReader.load();
+    await expect(
+      exactReader.convert({ includePageImage: false, includeText: false, includeEmbeddedImages: true }),
+    ).resolves.toHaveLength(1);
+
+    const overLimit = createPdfHarness({ numPages: 1 });
+    const canvasFactory = vi.fn(() => createCanvasHarness().canvas);
+    vi.mocked(overLimit.page.getOperatorList).mockResolvedValue({
+      fnArray: [3, 3, 5],
+      argsArray: [null, null, ['image-1']],
+      lastChunk: true,
+      separateAnnots: null,
+    });
+    const reader = new PDFReader(new Uint8Array([1]), {
+      canvasFactory,
+      limits: { maxOperatorCount: 2 },
+    });
+    await reader.load();
+
+    await expect(
+      reader.convert({ includePageImage: false, includeText: false, includeEmbeddedImages: true }),
+    ).rejects.toMatchObject({ code: 'OPERATOR_LIMIT_EXCEEDED' });
+    expect(overLimit.page.objs.get).not.toHaveBeenCalled();
+    expect(canvasFactory).not.toHaveBeenCalled();
+    expect(overLimit.page.cleanup).toHaveBeenCalledOnce();
+  });
+
+  it('enforces extracted-image count before allocating the next embedded-image canvas', async () => {
+    const exact = createPdfHarness({ numPages: 1 });
+    vi.mocked(exact.page.getOperatorList).mockResolvedValue({
+      fnArray: [5, 5],
+      argsArray: [['image-1'], ['image-2']],
+      lastChunk: true,
+      separateAnnots: null,
+    });
+    vi.mocked(exact.page.objs.get).mockImplementation((reference: string) => ({
+      width: 1,
+      height: 1,
+      data: new Uint8Array(reference === 'image-1' ? [10, 20, 30] : [40, 50, 60]),
+      dataLen: 3,
+    }));
+    const exactReader = new PDFReader(new Uint8Array([1]), {
+      canvasFactory: () => createCanvasHarness().canvas,
+      limits: { maxEmbeddedImages: 2 },
+    });
+    await exactReader.load();
+    await expect(
+      exactReader.convert({ includePageImage: false, includeText: false, includeEmbeddedImages: true }),
+    ).resolves.toMatchObject([{ images: [{}, {}] }]);
+
+    const overLimit = createPdfHarness({ numPages: 1 });
+    const canvas = createCanvasHarness();
+    const canvasFactory = vi.fn(() => canvas.canvas);
+    vi.mocked(overLimit.page.getOperatorList).mockResolvedValue({
+      fnArray: [5, 5],
+      argsArray: [['image-1'], ['image-2']],
+      lastChunk: true,
+      separateAnnots: null,
+    });
+    vi.mocked(overLimit.page.objs.get).mockReturnValue({ width: 1, height: 1, data: new Uint8Array([10, 20, 30]) });
+    const reader = new PDFReader(new Uint8Array([1]), {
+      canvasFactory,
+      limits: { maxEmbeddedImages: 1 },
+    });
+    await reader.load();
+
+    await expect(
+      reader.convert({ includePageImage: false, includeText: false, includeEmbeddedImages: true }),
+    ).rejects.toMatchObject({ code: 'IMAGE_COUNT_LIMIT_EXCEEDED' });
+    expect(canvasFactory).toHaveBeenCalledOnce();
+    expect(canvas.canvas.toDataURL).toHaveBeenCalledOnce();
+    expect(overLimit.page.cleanup).toHaveBeenCalledOnce();
+  });
+
+  it('enforces aggregate decoded embedded-image pixels for repeated valid image operators', async () => {
+    const exact = createPdfHarness({ numPages: 1 });
+    vi.mocked(exact.page.getOperatorList).mockResolvedValue({
+      fnArray: [5, 5],
+      argsArray: [['image-1'], ['image-1']],
+      lastChunk: true,
+      separateAnnots: null,
+    });
+    vi.mocked(exact.page.objs.get).mockReturnValue({
+      width: 1,
+      height: 2,
+      data: new Uint8Array([10, 20, 30, 40, 50, 60]),
+    });
+    const exactReader = new PDFReader(new Uint8Array([1]), {
+      canvasFactory: () => createCanvasHarness().canvas,
+      limits: { maxEmbeddedImagePixels: 2, maxEmbeddedImagePixelsTotal: 4 },
+    });
+    await exactReader.load();
+    await expect(
+      exactReader.convert({ includePageImage: false, includeText: false, includeEmbeddedImages: true }),
+    ).resolves.toMatchObject([{ images: [{}, {}] }]);
+
+    const overLimit = createPdfHarness({ numPages: 1 });
+    const canvas = createCanvasHarness();
+    const canvasFactory = vi.fn(() => canvas.canvas);
+    vi.mocked(overLimit.page.getOperatorList).mockResolvedValue({
+      fnArray: [5, 5],
+      argsArray: [['image-1'], ['image-1']],
+      lastChunk: true,
+      separateAnnots: null,
+    });
+    vi.mocked(overLimit.page.objs.get).mockReturnValue({
+      width: 1,
+      height: 2,
+      data: new Uint8Array([10, 20, 30, 40, 50, 60]),
+    });
+    const reader = new PDFReader(new Uint8Array([1]), {
+      canvasFactory,
+      limits: { maxEmbeddedImagePixels: 2, maxEmbeddedImagePixelsTotal: 3 },
+    });
+    await reader.load();
+
+    await expect(
+      reader.convert({ includePageImage: false, includeText: false, includeEmbeddedImages: true }),
+    ).rejects.toMatchObject({ code: 'IMAGE_TOTAL_PIXELS_LIMIT_EXCEEDED' });
+    expect(canvasFactory).toHaveBeenCalledOnce();
+    expect(canvas.canvas.toDataURL).toHaveBeenCalledOnce();
+    expect(overLimit.page.cleanup).toHaveBeenCalledOnce();
+  });
+
+  it('fails closed on unsafe embedded-image dimensions before canvas allocation', async () => {
+    const pdf = createPdfHarness({ numPages: 1 });
+    const canvasFactory = vi.fn(() => createCanvasHarness().canvas);
+    vi.mocked(pdf.page.getOperatorList).mockResolvedValue({
+      fnArray: [5],
+      argsArray: [['image-1']],
+      lastChunk: true,
+      separateAnnots: null,
+    });
+    vi.mocked(pdf.page.objs.get).mockReturnValue({
+      width: Number.POSITIVE_INFINITY,
+      height: 1,
+      data: new Uint8Array([1]),
+    });
+    const reader = new PDFReader(new Uint8Array([1]), { canvasFactory });
+    await reader.load();
+
+    await expect(
+      reader.convert({ includePageImage: false, includeText: false, includeEmbeddedImages: true }),
+    ).rejects.toMatchObject({ code: 'IMAGE_LIMIT_EXCEEDED' });
+    expect(canvasFactory).not.toHaveBeenCalled();
+    expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+  });
+
+  it('propagates embedded-image extraction aborts before the next canvas allocation', async () => {
+    const pdf = createPdfHarness({ numPages: 1 });
+    const canvasFactory = vi.fn(() => createCanvasHarness().canvas);
+    const controller = new AbortController();
+    vi.mocked(pdf.page.getOperatorList).mockResolvedValue({
+      fnArray: [5],
+      argsArray: [['image-1']],
+      lastChunk: true,
+      separateAnnots: null,
+    });
+    vi.mocked(pdf.page.objs.get).mockImplementation(() => {
+      controller.abort();
+      return { width: 1, height: 1, data: new Uint8Array([10, 20, 30]) };
+    });
+    const reader = new PDFReader(new Uint8Array([1]), { canvasFactory });
+    await reader.load();
+
+    await expect(
+      reader.convert({
+        includePageImage: false,
+        includeText: false,
+        includeEmbeddedImages: true,
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ code: 'ABORTED' });
+    expect(canvasFactory).not.toHaveBeenCalled();
+    expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+  });
+
   it('supports blob page output and releases the canvas after async encoding', async () => {
     const pdf = createPdfHarness({ numPages: 1 });
     const canvas = createCanvasHarness();
@@ -324,6 +645,7 @@ describe('PDFReader', () => {
 
   it('validates page ranges and document page limits with structured errors', async () => {
     const oversized = createPdfHarness({ numPages: 4 });
+    vi.mocked(oversized.loadingTask.destroy).mockRejectedValue(new Error('cleanup failed'));
     const reader = new PDFReader(new Uint8Array([1]), { limits: { maxDocumentPages: 3 } });
 
     await expect(reader.load()).rejects.toMatchObject({ code: 'PAGE_LIMIT_EXCEEDED' });
@@ -334,6 +656,25 @@ describe('PDFReader', () => {
     await validReader.load();
     await expect(validReader.convert({ pageRange: [0, 1] })).rejects.toBeInstanceOf(PdfReaderError);
     await expect(validReader.convert({ jpegQuality: Number.NaN })).rejects.toMatchObject({ code: 'INVALID_OPTION' });
+  });
+
+  it('destroys a failed PDF.js loading task once, preserves the PDF.js error, and permits retry', async () => {
+    const failed = createLoadHarness();
+    const reader = new PDFReader(new Uint8Array([1]));
+    const pdfJsError = new Error('PasswordException: no password');
+    vi.mocked(failed.loadingTask.destroy).mockRejectedValue(new Error('cleanup failed'));
+
+    const firstLoad = reader.load();
+    failed.deferred.reject(pdfJsError);
+
+    await expect(firstLoad).rejects.toBe(pdfJsError);
+    expect(failed.loadingTask.destroy).toHaveBeenCalledOnce();
+    expect(reader.state).toBe('failed');
+
+    const retry = createPdfHarness({ numPages: 1 });
+    await expect(reader.load()).resolves.toBe(retry.documentProxy);
+    expect(pdfjs.getDocument).toHaveBeenCalledTimes(2);
+    expect(failed.loadingTask.destroy).toHaveBeenCalledOnce();
   });
 
   it('rejects oversized known source bytes before PDF.js starts loading', async () => {
@@ -369,6 +710,181 @@ describe('PDFReader', () => {
     expect(pdfjs.getDocument).not.toHaveBeenCalled();
   });
 
+  it('waits for a custom thenable source policy before starting PDF.js work', async () => {
+    const pdf = createPdfHarness({ numPages: 1 });
+    const approval = createDeferred<void>();
+    const sourcePolicy = vi.fn(() => ({
+      then: approval.promise.then.bind(approval.promise),
+    }));
+    const reader = new PDFReader(new Uint8Array([1]), { sourcePolicy });
+
+    const loading = reader.load();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(sourcePolicy).toHaveBeenCalledOnce();
+    expect(pdfjs.getDocument).not.toHaveBeenCalled();
+
+    approval.resolve();
+    await expect(loading).resolves.toBe(pdf.documentProxy);
+    expect(pdfjs.getDocument).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a failed thenable source policy without starting PDF.js work', async () => {
+    createPdfHarness({ numPages: 1 });
+    const sourcePolicy = vi.fn(() => ({
+      then: (_resolve: () => void, reject: (reason?: unknown) => void) => reject(new Error('private policy detail')),
+    }));
+    const reader = new PDFReader(new Uint8Array([1]), { sourcePolicy });
+
+    await expect(reader.load()).rejects.toMatchObject({
+      code: 'SOURCE_POLICY_VIOLATION',
+      message: 'PDF source rejected by sourcePolicy.',
+    });
+    expect(pdfjs.getDocument).not.toHaveBeenCalled();
+  });
+
+  it('waits for a non-Promise policy object before starting PDF.js work', async () => {
+    const pdf = createPdfHarness({ numPages: 1 });
+    const approval = createDeferred<void>();
+    const nonNativePromise = {
+      then: approval.promise.then.bind(approval.promise),
+      catch: approval.promise.catch.bind(approval.promise),
+    };
+    const sourcePolicy = vi.fn(() => nonNativePromise);
+    const reader = new PDFReader(new Uint8Array([1]), { sourcePolicy });
+
+    const loading = reader.load();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(pdfjs.getDocument).not.toHaveBeenCalled();
+
+    approval.resolve();
+    await expect(loading).resolves.toBe(pdf.documentProxy);
+  });
+
+  it('uses the source URL and credential values approved by policy when getters change later', async () => {
+    const pdf = createPdfHarness({ numPages: 1 });
+    let urlReads = 0;
+    let credentialReads = 0;
+    const source = {
+      get url() {
+        urlReads += 1;
+        return urlReads === 1 ? 'https://example.com/approved.pdf' : 'https://example.com/replaced.pdf';
+      },
+      get withCredentials() {
+        credentialReads += 1;
+        return credentialReads === 1 ? false : true;
+      },
+    };
+    const sourcePolicy = vi.fn((info) => {
+      expect(info).toMatchObject({
+        kind: 'document-init-parameters',
+        url: 'https://example.com/approved.pdf',
+        withCredentials: false,
+      });
+    });
+    const reader = new PDFReader(source as never, { sourcePolicy });
+
+    await expect(reader.load()).resolves.toBe(pdf.documentProxy);
+
+    expect(pdfjs.getDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'https://example.com/approved.pdf',
+        withCredentials: false,
+      }),
+    );
+  });
+
+  it('keeps deferred source approval tied to one source snapshot despite later source mutation', async () => {
+    const pdf = createPdfHarness({ numPages: 1 });
+    const approval = createDeferred<void>();
+    const originalHeaders = { Authorization: 'Bearer first' };
+    const source = {
+      url: 'https://example.com/approved.pdf',
+      withCredentials: false,
+      httpHeaders: originalHeaders,
+    };
+    const sourcePolicy = vi.fn((info) => {
+      expect(info).toMatchObject({
+        url: 'https://example.com/approved.pdf',
+        hasHttpHeaders: true,
+        httpHeaders: { Authorization: 'Bearer first' },
+        withCredentials: false,
+      });
+      return { then: approval.promise.then.bind(approval.promise) };
+    });
+    const reader = new PDFReader(source as never, { sourcePolicy });
+
+    const loading = reader.load();
+    await Promise.resolve();
+    await Promise.resolve();
+    source.url = 'https://example.com/replaced.pdf';
+    source.withCredentials = true;
+    source.httpHeaders = { Authorization: 'Bearer second' };
+
+    approval.resolve();
+    await expect(loading).resolves.toBe(pdf.documentProxy);
+
+    expect(pdfjs.getDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'https://example.com/approved.pdf',
+        withCredentials: false,
+        httpHeaders: originalHeaders,
+      }),
+    );
+  });
+
+  it('reports non-plain header objects as header-bearing before PDF.js network work starts', async () => {
+    class HeaderBag {
+      forEach(callback: (value: string, name: string) => void): void {
+        callback('Bearer secret', 'Authorization');
+      }
+    }
+    const sourcePolicy = vi.fn((info) => {
+      expect(info).toMatchObject({
+        hasHttpHeaders: true,
+        httpHeaders: { Authorization: 'Bearer secret' },
+      });
+      throw new PdfReaderError(
+        'SOURCE_POLICY_VIOLATION',
+        'Credentialed or header-bearing PDF sources are not allowed.',
+      );
+    });
+    const reader = new PDFReader(
+      {
+        url: 'https://example.com/private.pdf',
+        httpHeaders: new HeaderBag(),
+      } as never,
+      { sourcePolicy },
+    );
+
+    await expect(reader.load()).rejects.toMatchObject({ code: 'SOURCE_POLICY_VIOLATION' });
+    expect(pdfjs.getDocument).not.toHaveBeenCalled();
+  });
+
+  it('rejects all load waiters with DESTROYED when destroyed during asynchronous source policy approval', async () => {
+    const approval = createDeferred<void>();
+    const sourcePolicy = vi.fn(() => approval.promise);
+    const reader = new PDFReader(new Uint8Array([1]), { sourcePolicy });
+
+    const firstLoad = reader.load();
+    const secondLoad = reader.load();
+    await Promise.resolve();
+
+    const destroying = reader.destroy();
+
+    await expect(firstLoad).rejects.toMatchObject({ code: 'DESTROYED' });
+    await expect(secondLoad).rejects.toMatchObject({ code: 'DESTROYED' });
+    await expect(destroying).resolves.toBeUndefined();
+    expect(pdfjs.getDocument).not.toHaveBeenCalled();
+
+    approval.reject(new Error('late policy rejection'));
+    await Promise.resolve();
+    expect(pdfjs.getDocument).not.toHaveBeenCalled();
+  });
+
   it('creates constructor-ready PDF URL sources with PDF.js loading options', async () => {
     const pdf = createPdfHarness({ numPages: 1 });
     const source = pdfUrlSource(new URL('https://example.com/public.pdf'), {
@@ -394,7 +910,14 @@ describe('PDFReader', () => {
         withCredentials: true,
       }),
     );
-    expect(pdfjs.getDocument).toHaveBeenCalledWith(source);
+    expect(pdfjs.getDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'https://example.com/public.pdf',
+        withCredentials: true,
+        httpHeaders: { Authorization: 'Bearer secret' },
+        password: 'secret-password', // pragma: allowlist secret
+      }),
+    );
   });
 
   it('passes allowed loading parameters through unchanged after source policy approval', async () => {
@@ -420,7 +943,16 @@ describe('PDFReader', () => {
         hasHttpHeaders: false,
       }),
     );
-    expect(pdfjs.getDocument).toHaveBeenCalledWith(source);
+    expect(pdfjs.getDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: source.data,
+        password: 'open-sesame', // pragma: allowlist secret
+        cMapUrl: '/cmaps/',
+        standardFontDataUrl: '/standard-fonts/',
+        wasmUrl: '/wasm/',
+        worker,
+      }),
+    );
   });
 
   it('rejects invalid load deadlines synchronously', () => {
@@ -522,6 +1054,60 @@ describe('PDFReader', () => {
     expect(canvas.canvas.width).toBe(0);
   });
 
+  it('rejects an overlapping page operation before acquiring another page or canvas', async () => {
+    const render = createDeferred<void>();
+    const pdf = createPdfHarness({ numPages: 1, renderPromise: render.promise });
+    const canvas = createCanvasHarness();
+    const canvasFactory = vi.fn(() => canvas.canvas);
+    const reader = new PDFReader(new Uint8Array([1]), { canvasFactory });
+    await reader.load();
+
+    const first = reader.convert({ includeText: false, includeEmbeddedImages: false });
+    await vi.waitFor(() => expect(pdf.page.render).toHaveBeenCalledOnce());
+
+    await expect(reader.convert({ includeText: false, includeEmbeddedImages: false })).rejects.toMatchObject({
+      code: 'OPERATION_IN_PROGRESS',
+    });
+    expect(pdf.documentProxy.getPage).toHaveBeenCalledOnce();
+    expect(canvasFactory).toHaveBeenCalledOnce();
+
+    render.resolve();
+    await expect(first).resolves.toHaveLength(1);
+    await expect(reader.convert({ includePageImage: false, includeText: false })).resolves.toHaveLength(1);
+  });
+
+  it('does not reserve page-operation ownership until a pages() iterator starts executing', async () => {
+    const pdf = createPdfHarness({ numPages: 1 });
+    const reader = new PDFReader(new Uint8Array([1]));
+    await reader.load();
+
+    const idleIterator = reader.pages({ includePageImage: false, includeText: false });
+
+    await expect(reader.convert({ includePageImage: false, includeText: false })).resolves.toHaveLength(1);
+    expect(pdf.documentProxy.getPage).toHaveBeenCalledOnce();
+
+    const first = await idleIterator.next();
+    expect(first.done).toBe(false);
+    await idleIterator.return(undefined);
+    expect(pdf.documentProxy.getPage).toHaveBeenCalledTimes(2);
+  });
+
+  it('releases page-operation ownership after validation errors and pre-work aborts', async () => {
+    const pdf = createPdfHarness({ numPages: 1 });
+    const reader = new PDFReader(new Uint8Array([1]));
+    await reader.load();
+
+    await expect(reader.convert({ jpegQuality: Number.NaN })).rejects.toMatchObject({ code: 'INVALID_OPTION' });
+    expect(pdf.documentProxy.getPage).not.toHaveBeenCalled();
+
+    const controller = new AbortController();
+    controller.abort();
+    await expect(reader.convert({ signal: controller.signal })).rejects.toMatchObject({ code: 'ABORTED' });
+    expect(pdf.documentProxy.getPage).not.toHaveBeenCalled();
+
+    await expect(reader.convert({ includePageImage: false, includeText: false })).resolves.toHaveLength(1);
+  });
+
   it('rejects blob encoding with ABORTED and ignores a late blob callback', async () => {
     const pdf = createPdfHarness({ numPages: 1 });
     const canvas = createCanvasHarness();
@@ -539,6 +1125,35 @@ describe('PDFReader', () => {
     resolveBlob(new Blob(['late'], { type: 'image/png' }));
 
     await expect(converting).rejects.toMatchObject({ code: 'ABORTED' });
+    expect(canvas.canvas.width).toBe(0);
+    expect(canvas.canvas.height).toBe(0);
+    expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+  });
+
+  it('rejects blob encoding with DESTROYED, releases resources once, and ignores a late blob callback', async () => {
+    const pdf = createPdfHarness({ numPages: 1 });
+    const canvas = createCanvasHarness();
+    let resolveBlob!: (blob: Blob | null) => void;
+    canvas.canvas.toBlob = vi.fn((callback: BlobCallback) => {
+      resolveBlob = callback;
+    });
+    const reader = new PDFReader(new Uint8Array([1]), { canvasFactory: () => canvas.canvas });
+    await reader.load();
+
+    const converting = reader.convert({ pageImageOutput: 'blob' });
+    await vi.waitFor(() => expect(canvas.canvas.toBlob).toHaveBeenCalledOnce());
+    const convertingRejection = expect(converting).rejects.toMatchObject({ code: 'DESTROYED' });
+    const destroying = reader.destroy();
+
+    await convertingRejection;
+    await expect(destroying).resolves.toBeUndefined();
+    expect(canvas.canvas.width).toBe(0);
+    expect(canvas.canvas.height).toBe(0);
+    expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+    expect(pdf.loadingTask.destroy).toHaveBeenCalledOnce();
+
+    resolveBlob(new Blob(['late'], { type: 'image/png' }));
+    await Promise.resolve();
     expect(canvas.canvas.width).toBe(0);
     expect(canvas.canvas.height).toBe(0);
     expect(pdf.page.cleanup).toHaveBeenCalledOnce();
@@ -590,10 +1205,13 @@ describe('PDFReader', () => {
     const first = await iterator.next();
 
     expect(first.done).toBe(false);
+    expect(reader.state).toBe('iterating');
     expect(pdf.page.cleanup).toHaveBeenCalledOnce();
 
     await iterator.return(undefined);
+    expect(reader.state).toBe('loaded');
     expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+    await expect(reader.convert({ includePageImage: false, includeText: false })).resolves.toHaveLength(2);
   });
 
   it('cleans up the current page exactly once when the consumer throws', async () => {
@@ -611,6 +1229,7 @@ describe('PDFReader', () => {
     ).rejects.toThrow('stop after first page');
 
     expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+    await expect(reader.convert({ includePageImage: false, includeText: false })).resolves.toHaveLength(2);
   });
 
   it('cancels active rendering and normalizes destroy races to DESTROYED', async () => {
@@ -632,6 +1251,26 @@ describe('PDFReader', () => {
     expect(pdf.renderTask.cancel).toHaveBeenCalledOnce();
     expect(pdf.page.cleanup).toHaveBeenCalledOnce();
     expect(pdf.loadingTask.destroy).toHaveBeenCalledOnce();
+    expect(canvas.canvas.width).toBe(0);
+    expect(canvas.canvas.height).toBe(0);
+  });
+
+  it('rejects promptly with DESTROYED when destroyed during a never-settling render', async () => {
+    const render = createDeferred<void>();
+    const pdf = createPdfHarness({ numPages: 1, renderPromise: render.promise });
+    const canvas = createCanvasHarness();
+    const reader = new PDFReader(new Uint8Array([1]), { canvasFactory: () => canvas.canvas });
+    await reader.load();
+
+    const converting = reader.convert();
+    await vi.waitFor(() => expect(pdf.page.render).toHaveBeenCalledOnce());
+    const convertingRejection = expect(converting).rejects.toMatchObject({ code: 'DESTROYED' });
+    const destroying = reader.destroy();
+
+    await convertingRejection;
+    await expect(destroying).resolves.toBeUndefined();
+    expect(pdf.renderTask.cancel).toHaveBeenCalledOnce();
+    expect(pdf.page.cleanup).toHaveBeenCalledOnce();
     expect(canvas.canvas.width).toBe(0);
     expect(canvas.canvas.height).toBe(0);
   });
