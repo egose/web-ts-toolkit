@@ -7,7 +7,9 @@ import { normalizeApiBaseURL } from './src/shared/normalize-api-base-url';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const apiBaseURL = normalizeApiBaseURL(env.API_BASE_URL ?? env.VITE_API_BASE_URL);
+  // Explicit process values (including deploy overrides) take precedence over
+  // project .env files so a release build cannot silently target another path.
+  const apiBaseURL = normalizeApiBaseURL(process.env.API_BASE_URL ?? env.API_BASE_URL);
 
   return {
     define: {

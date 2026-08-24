@@ -2,25 +2,33 @@
 
 ## Commands
 
-- `pnpm install` - install dependencies
+- `pnpm install --frozen-lockfile` - install the release-tested dependencies
 - `pnpm dev` - start the Vite frontend on `http://localhost:3000`
 - `pnpm server` - start the backend on `http://localhost:8000`
 - `pnpm build` - typecheck app + server and build the frontend
 - `pnpm typecheck` - run TypeScript checks only
 - `pnpm lint` - run ESLint
-- `pnpm test` - run Vitest
+- `pnpm test` - run Vitest once
+- `pnpm test:watch` - run Vitest in watch mode
 - `pnpm serverless` - bundle the backend into `api/functions/main.cjs`
 - `pnpm serverless:start` - run the bundled serverless handler locally
 
 ## Template Notes
 
-- This directory is a scaffold template, not a concrete app. Preserve template placeholders unless the scaffolding system itself is being changed.
-- Placeholder tokens currently used by the template are `{{APP_NAME}}`, `{{APP_TITLE}}`, `{{DB_NAME}}`, and `{{VERSION}}`. `{{VERSION}}` is replaced with the installed `create-access-router-mongo-starter` package version, and is used for `@web-ts-toolkit/*` dependency versions in `package.json`.
+- This is a scaffolded fullstack app. Keep package metadata, app title, database name, and environment examples aligned when renaming or repurposing it.
+- Maintainer-only scaffolder internals belong in the `create-access-router-mongo-starter` package README, not in generated-app guidance.
+- Keep Node and pnpm requirements aligned with `package.json` (`node >=22.12.0`, `pnpm@11.18.0`) and use frozen installs so dependency drift is detected.
 - Frontend and backend run as separate local processes: `pnpm dev` for the UI and `pnpm server` for the API.
-- Client and server routes must stay aligned: `src/api.ts` uses relative model paths, while `api/src/routers.ts` exposes `${API_BASE_URL}/...` routes (default `/api/...`) through `api/access-router.config.ts`.
+- Client and server routes must stay aligned: `API_BASE_URL` is one path-only prefix validated for Vite, the client, local runtime, serverless runtime, and deploys. Schemes, authorities, queries, fragments, backslashes, empty segments, and dot segments are invalid. `src/api.ts` uses relative model paths, while `api/src/routers.ts` exposes `${API_BASE_URL}/...` routes (default `/api/...`) through `api/access-router.config.ts`.
+- Local bindings are explicit package-script flags: Vite uses port 3000, the backend uses port 8000, and the serverless emulator uses port 9000. Do not document `PORT` or `HOST` environment overrides unless the scripts are changed to honor them.
+- Keep `src/shared/entity-schemas.ts` authoritative for browser request DTOs and backend CRUD validation. The basic starter deliberately disables root batching and blocks advanced mutation routes before access-router; do not opt in without applying those same schemas and explicit batch limits to every alternate write path.
 - `api/access-router.config.ts` is the single runtime entrypoint for local dev and serverless builds. Database startup belongs in its `db` config, not in ad hoc app entry modules.
 - `pnpm build` does not emit the serverless bundle. Use `pnpm serverless` to produce that artifact.
-- Netlify deploy is provided by the `create-access-router-mongo-starter` package bins (`create-access-router-mongo-starter-deploy-netlify`, `create-access-router-mongo-starter-deploy-shared`), not by scripts shipped in this template. Install that package at the parent/workspace level to enable deploy.
+- Netlify deploy is provided by the `create-access-router-mongo-starter` package bins (`create-access-router-mongo-starter-deploy-netlify`, `create-access-router-mongo-starter-deploy-shared`), not by scripts shipped in this template. Install the exact generator version used for the scaffold plus `netlify-cli` as dev dependencies before running deploy commands.
+- Supply `NETLIFY_AUTH_TOKEN` and the required nonblank `MONGODB_URI` through the environment or masked interactive prompts, not command arguments. Local and serverless startup reject missing or malformed Mongo configuration, and every backend deployment requires it. The deploy helper keeps Mongo credentials out of frontend/deploy child environments and marks `MONGODB_URI` secret on Netlify.
+- Keep persistence failures behind `api/src/errors.ts`: expected validation, cast, and duplicate conflicts use stable sanitized responses; unknown failures remain generic `500` responses, and structured logs must not contain credentials, request bodies, rejected values, or duplicate stacks.
+- This is explicitly a public-demo app: anonymous CRUD is intentional, production deploy requires `--acknowledge-public-demo`, and the generated README must retain the prominent warning and host abuse-control guidance. Do not describe the acknowledgement as authentication or protection.
+- Preserve referential integrity: category names are trim-normalized and case-sensitive unique; Todo category writes and Category deletes use transaction-scoped category locks, referenced Category deletion returns `409`, and deployments require transaction-capable MongoDB (replica set or sharded). Keep the documented 100-record cap, deterministic default sorts, exact-match filter allowlists, and supporting indexes aligned.
 
 ## Testing Notes
 
@@ -42,7 +50,7 @@ Skills provide focused guidance for the main parts of this starter template.
 </skill>
 <skill>
 <name>template-client-data</name>
-<description>src/api.ts, src/types.ts, createAdapter, createModelHooks, API_BASE_URL, VITE_API_BASE_URL, and list/mutation wiring. Use when changing frontend data fetching or client-server contract alignment.</description>
+<description>src/api.ts, src/types.ts, createAdapter, createModelHooks, API_BASE_URL, and list/mutation wiring. Use when changing frontend data fetching or client-server contract alignment.</description>
 <location>.agents/skills/template-client-data/SKILL.md</location>
 </skill>
 <skill>
@@ -57,7 +65,7 @@ Skills provide focused guidance for the main parts of this starter template.
 </skill>
 <skill>
 <name>template-testing-and-scaffolding</name>
-<description>README.md, .env.example, vitest.config.ts, tests/setup.ts, placeholder preservation, scaffold docs. Use when changing tests, template docs, environment defaults, or placeholder-bearing files.</description>
+<description>README.md, .env.example, vitest.config.ts, tests/setup.ts, generated-project docs, and environment defaults. Use when changing tests, docs, or scaffolded app setup.</description>
 <location>.agents/skills/template-testing-and-scaffolding/SKILL.md</location>
 </skill>
 </available_skills>

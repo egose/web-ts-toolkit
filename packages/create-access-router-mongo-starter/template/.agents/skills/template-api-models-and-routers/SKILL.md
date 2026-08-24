@@ -27,8 +27,10 @@ Use this skill for persistence and access-router changes under `api/src/`.
 - Mongoose schemas live in `api/src/models.ts`.
 - Access-router CRUD configuration lives in `api/src/routers.ts`.
 - Request validation uses `zod` via `fromZod(...)`.
-- The template defaults to open CRUD access with `true` for all operations.
+- The template is an anonymous public demo with ordinary CRUD access enabled. Do not describe it as protected; production deployment only adds a warning acknowledgement, not authentication.
 - `api/src/access-router.d.ts` is the extension point for request fields and permission keys.
+- Root batching is disabled and advanced mutation routes are blocked. Do not enable alternate write paths without the same entity schemas plus explicit batch/concurrency bounds.
+- Category names are trim-normalized and exact case-sensitive unique. Todo category writes and Category deletes use transaction-protected integrity checks; referenced Category deletion returns `409`.
 
 ## Workflow
 

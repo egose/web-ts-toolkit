@@ -59,7 +59,7 @@ Confirmed on 2026-08-24 before this task file was created:
 
 ### Task CARMS-01: Add Isolated CLI, Deployment, And Packed-Consumer Harnesses
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -105,11 +105,20 @@ Acceptance criteria:
 - Existing package tests remain deterministic when run repeatedly.
 - `pnpm --filter create-access-router-mongo-starter test` passes.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/src/cli.ts`, `packages/create-access-router-mongo-starter/scripts/deploy-shared.ts`, `packages/create-access-router-mongo-starter/scripts/deploy-netlify.ts`, `packages/create-access-router-mongo-starter/tests/support/`, `packages/create-access-router-mongo-starter/tests/harnesses.test.ts`, `packages/create-access-router-mongo-starter/tests/orchestration-seams.test.ts`, `packages/create-access-router-mongo-starter/tests/packed-consumer.test.ts`, `packages/create-access-router-mongo-starter/vitest.config.ts`, and `packages/create-access-router-mongo-starter/package.json`.
+- Verified: `pnpm --filter create-access-router-mongo-starter exec vitest run --config vitest.config.ts tests/harnesses.test.ts tests/orchestration-seams.test.ts tests/packed-consumer.test.ts` (3 files, 8 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter test` (build succeeded; 9 files, 80 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck && pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}" && git diff --check` (passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter build` (passed; all three bins and the staged template generated).
+- Result: isolated temporary/process/fake-executable harnesses, injectable scaffold/deploy orchestration boundaries, and a release-transformed offline packed-consumer harness now cover all three installed bins and a complete scaffold without live Netlify or MongoDB access.
+
 ## Wave 1: Local Data And Credential Safety
 
 ### Task CARMS-02: Prevent Destructive Scaffold Targets And Make Replacement Transactional
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -150,9 +159,22 @@ Acceptance criteria:
 - A generated target containing spaces receives a safe, usable next-step command.
 - Regressions fail against the pre-fix implementation and package tests pass.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/src/cli.ts`, `packages/create-access-router-mongo-starter/tests/scaffold-safety.test.ts`, `packages/create-access-router-mongo-starter/tests/orchestration-seams.test.ts`, and this task record.
+- Implemented: canonical nearest-existing-ancestor checks reject filesystem roots, CWD/home and their ancestors, template equality/ancestors/descendants, target symlinks, and symlink aliases before mutation. Template traversal uses `lstat` and rejects all included symlinks and non-file/non-directory entries rather than following them.
+- Implemented: scaffolds are copied and rewritten in a sibling temporary directory, checked for a valid critical `package.json` and unresolved operational placeholders, then swapped through a sibling backup. Copy, rewrite, validation, final-rename, and backup-cleanup failures clean staging state and preserve or restore the existing target.
+- Implemented: successful replacement removes temporary/backup paths, and the displayed `cd` argument uses POSIX single-quote escaping for whitespace, metacharacters, and embedded single quotes.
+- Verified: `pnpm --filter create-access-router-mongo-starter exec vitest run --config vitest.config.ts tests/scaffold-safety.test.ts tests/orchestration-seams.test.ts` (2 files, 11 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck` (passed).
+- Verified: `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}"` (passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter test` (build succeeded; 10 files, 87 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter build` (passed; all three bins and the staged template generated).
+- Verified: `git diff --check` (passed).
+
 ### Task CARMS-03: Contain Sandbox Outputs And Use Portable Temporary Directories
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -194,9 +216,19 @@ Acceptance criteria:
 - Ephemeral mode works without a pre-existing `/tmp/opencode` and uses the platform temp root.
 - Package tests pass on supported platforms.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/scripts/deploy-shared.ts`, `packages/create-access-router-mongo-starter/scripts/deploy-netlify.ts`, `packages/create-access-router-mongo-starter/tests/deploy-shared.test.ts`, and this task record.
+- Implemented: sandbox output options must be non-empty relative strict descendants after nearest-existing-ancestor canonicalization; absolute, traversal, root-equivalent, and symlink-escape paths fail before either builder runs.
+- Implemented: ephemeral sandboxes use `node:os.tmpdir()` with a package-specific `mkdtemp` prefix, and cleanup verifies the invocation-owned directory identity before removal and refuses replaced symlinks or unowned paths.
+- Verified: `pnpm --filter create-access-router-mongo-starter exec vitest run --config vitest.config.ts tests/deploy-shared.test.ts` (1 file, 25 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck` and `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}"` (passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter test` (serial build succeeded; 10 files, 99 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter build` and `git diff --check` (passed).
+
 ### Task CARMS-04: Minimize And Correctly Classify Deployment Secrets
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -243,11 +275,24 @@ Acceptance criteria:
 - Exact Netlify request bodies and child environments are asserted in regression tests.
 - Package tests pass.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/scripts/deploy-shared.ts`, `packages/create-access-router-mongo-starter/scripts/deploy-netlify.ts`, `packages/create-access-router-mongo-starter/scripts/netlify-api.ts`, `packages/create-access-router-mongo-starter/tests/deploy-shared.test.ts`, `packages/create-access-router-mongo-starter/tests/deploy-netlify.test.ts`, `packages/create-access-router-mongo-starter/tests/netlify-api.test.ts`, `packages/create-access-router-mongo-starter/tests/orchestration-seams.test.ts`, `packages/create-access-router-mongo-starter/README.md`, `packages/create-access-router-mongo-starter/template/README.md`, `packages/create-access-router-mongo-starter/template/AGENTS.md`, `website/docs/packages/create-access-router-mongo-starter.md`, and this task record.
+- Implemented: deployment plans classify `MONGODB_URI` as secret and `API_BASE_URL` as non-secret; new variables send exact sensitivity/scope metadata, and existing readable variables use a replace-all metadata update that preserves other context values. Hidden existing values stop deployment with precise Netlify UI migration instructions rather than risking value loss or silently retaining broad metadata.
+- Implemented: frontend, backend, and Netlify deploy subprocesses receive separate allowlisted environments. Only the backend receives `MONGODB_URI`; only the deploy process receives `NETLIFY_AUTH_TOKEN`, and the token is no longer included in Netlify CLI arguments. Command and orchestration failures redact both credentials.
+- Documented: package, website, generated-template, and generated-agent guidance prefer secure environment/prompt input, explain free-tier versus Functions-only paid scoping, describe the child environment allowlist, and document unsupported safe metadata migration behavior.
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck` (passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter exec vitest run --config vitest.config.ts tests/netlify-api.test.ts tests/deploy-netlify.test.ts tests/deploy-shared.test.ts tests/orchestration-seams.test.ts` (4 files, 80 tests passed).
+- Verified: `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}"` (passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter test` (serial build succeeded; 10 files, 105 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter build` (passed; all three bins and the staged template generated).
+- Verified: `git diff --check` (passed).
+
 ## Wave 2: Published And Generated Project Integrity
 
 ### Task CARMS-05: Preserve Git Ignore Protection In Packed Scaffolds
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -287,9 +332,20 @@ Acceptance criteria:
 - A file allowlist test catches future npm omission or renaming.
 - Package tests and packed-consumer tests pass.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/scripts/stage-template.ts`, `packages/create-access-router-mongo-starter/src/cli.ts`, `packages/create-access-router-mongo-starter/tests/stage-template.test.ts`, `packages/create-access-router-mongo-starter/tests/scaffold-safety.test.ts`, `packages/create-access-router-mongo-starter/tests/support/packed-consumer.ts`, `packages/create-access-router-mongo-starter/tests/packed-consumer.test.ts`, `packages/create-access-router-mongo-starter/README.md`, and this task record.
+- Implemented: staging requires a regular source `.gitignore`, rejects the reserved `_gitignore` name before replacing staged output, and publishes the ignore file under that npm-safe alias. Scaffolding maps only the root alias back to `.gitignore`, rejects alias collisions, requires the generated protection file, and rejects any residual alias before transactional destination replacement.
+- Verified: the release-like packed-consumer test asserts an exact 46-file allowlist, reads `_gitignore` from the installed tarball package, compares it byte-for-byte with the source, runs the installed CLI, and confirms the generated project contains `.gitignore` with `.env`, dependency, build, serverless, and Netlify protections and no `_gitignore` alias.
+- Documented: the npm staging rename and reserved alias are described in the package maintainer README only; generated-user README and agent guidance were not given internal packaging instructions.
+- Verified: `pnpm --filter create-access-router-mongo-starter exec vitest run --config vitest.config.ts tests/stage-template.test.ts tests/scaffold-safety.test.ts tests/packed-consumer.test.ts` (3 files, 18 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter test` (serial build succeeded; 10 files, 107 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck`, `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}"`, `pnpm --filter create-access-router-mongo-starter build`, and `git diff --check` (passed).
+- Verified: `npm pack --dry-run --json` from the package directory listed 45 intended source-layout package entries, including `dist/template/_gitignore` and excluding `dist/template/.gitignore`.
+
 ### Task CARMS-06: Establish A Reproducible Dependency And Publication Contract
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -337,9 +393,19 @@ Acceptance criteria:
 - Packed artifact size/file assertions reflect the selected lockfile policy.
 - Package and packed-consumer tests pass.
 
+Completion evidence:
+
+- Changed: `package.json`, `scripts/publish-packages.mjs`, `packages/create-access-router-mongo-starter/package.json`, `packages/create-access-router-mongo-starter/tsup.config.ts`, `packages/create-access-router-mongo-starter/scripts/assert-publication-ready.ts`, `packages/create-access-router-mongo-starter/scripts/stage-template.ts`, `packages/create-access-router-mongo-starter/src/cli.ts`, `packages/create-access-router-mongo-starter/src/runtime-paths.ts`, `packages/create-access-router-mongo-starter/template/package.json`, `packages/create-access-router-mongo-starter/template/api/access-router.config.ts`, focused staging/packed-consumer tests, package/template/website documentation, and this task record; removed the stale source `template/pnpm-lock.yaml` because the synchronized lockfile is now generated only in release-staged output.
+- Implemented: release staging replaces `{{VERSION}}` in the template manifest from `VERSION`/validated `WTT_RELEASE_VERSION`, regenerates `dist/template/pnpm-lock.yaml` with pnpm, and scaffolding preserves that lockfile. Generated metadata requires Node `>=22.12.0` and pnpm `11.18.0`; install instructions require `pnpm install --frozen-lockfile`.
+- Implemented: the repository publish wrapper rejects a requested version that differs from `VERSION`; raw package-local packing rejects placeholder metadata; the release-like artifact harness rejects outer/template version drift. Published bin targets now remain valid under `dist/bin`, and artifact assertions cover transformed metadata, LICENSE, README, all three executable bins, the exact 46-file allowlist, and packed/unpacked size floors.
+- Verified: generated manifest dependencies and the lockfile importer contain direct `@web-ts-toolkit/access-router`, `access-router-client`, `access-router-react`, and `access-router-runtime` entries at `^0.40.1`; the importer has no direct undeclared `@web-ts-toolkit/express-runtime` entry.
+- Verified: `pnpm --filter create-access-router-mongo-starter test` (serial build succeeded; 10 files and 109 tests passed). Its packed-consumer test installed a release-transformed tarball, executed all three package-name bins, scaffolded a fresh project, ran `pnpm install --frozen-lockfile --ignore-scripts`, then passed generated-project `pnpm build`, `pnpm typecheck`, `pnpm lint`, and `pnpm test -- --run`.
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck`, `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}" "scripts/publish-packages.mjs"`, and `git diff --check` passed.
+- Verified: `pnpm publish-packages -- --version 99.0.0 --filter create-access-router-mongo-starter --dry-run` failed before build with the intended `VERSION` mismatch error. `pnpm publish-packages -- --version 0.40.1 --filter create-access-router-mongo-starter --dry-run` built and enumerated the transformed 46-file artifact (125.2 kB packed, 467.9 kB unpacked, including the 305.3 kB lockfile); npm then rejected only the final dry-run publish because version `0.40.1` is already published.
+
 ### Task CARMS-07: Validate And Serialize Scaffold Values By Output Context
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -386,11 +452,23 @@ Acceptance criteria:
 - No `not_found_*` dependency version or unresolved operational token can reach a generated project.
 - Package tests pass.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/src/cli.ts`, `packages/create-access-router-mongo-starter/tests/scaffold-safety.test.ts`, `packages/create-access-router-mongo-starter/tests/orchestration-seams.test.ts`, `packages/create-access-router-mongo-starter/tests/packed-consumer.test.ts`, package/template/website documentation, and this task record.
+- Implemented: package names now follow the supported lowercase npm scoped/unscoped contract; MongoDB database names enforce the documented 1-63 UTF-8 byte and forbidden-character constraints. Scoped package names default to their unscoped segment for the database name, with dots converted to hyphens.
+- Implemented: an explicit operational-file manifest structurally updates `package.json` and applies context-specific JSON string, JSX expression, HTML text, Markdown heading, and Mongo URI-component serialization. Only those text files are decoded; all other files are copied byte-for-byte.
+- Implemented: unresolved, sentinel, malformed, or missing scaffolder versions fail before filesystem mutation. Validation checks every operational manifest slot while allowing intentionally literal placeholder examples in maintainer documentation.
+- Regression coverage: scoped npm names, invalid npm/database names, missing and sentinel versions, Unicode titles/database names, quotes, backslashes, newlines, HTML injection text, URI delimiters, literal documentation placeholders, and invalid UTF-8 binary content. The release-like installed CLI scaffolds the adversarial project, whose frozen install, build, typecheck, lint, and tests all pass.
+- Verified: `pnpm --filter create-access-router-mongo-starter exec vitest run --config vitest.config.ts tests/scaffold-safety.test.ts tests/orchestration-seams.test.ts` (2 files, 19 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck` and `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}"` (passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter test` (serial build and release staging succeeded; 10 files and 117 tests passed, including packed-consumer generated-project checks).
+- Verified: `git diff --check` (passed).
+
 ## Wave 3: Predictable Deployment Lifecycle
 
 ### Task CARMS-08: Separate Deploy Collection, Validation, Planning, And Execution
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -436,9 +514,20 @@ Acceptance criteria:
 - Full orchestration order and cleanup behavior are asserted with injected fakes.
 - Package tests pass.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/scripts/deploy-netlify.ts`, `packages/create-access-router-mongo-starter/scripts/deploy-shared.ts`, `packages/create-access-router-mongo-starter/scripts/netlify-api.ts`, `packages/create-access-router-mongo-starter/tests/orchestration-seams.test.ts`, `packages/create-access-router-mongo-starter/tests/deploy-shared.test.ts`, `packages/create-access-router-mongo-starter/tests/netlify-api.test.ts`, and this task record.
+- Implemented: CLI and interactive collection now produce discriminated help/cancel/options results without filesystem or network mutation, and one validation boundary normalizes and validates shared paths, site targeting, aliases/branches, contexts, function names, API paths, credentials, and production Mongo requirements before path resolution or deployment.
+- Implemented: deployment now orders CLI/build-tool preflight and required artifact inspection or builds before site resolution/creation, environment updates, and deploy. `--no-build` requires non-empty `index.html` and the named serverless function, core CLIs return exit codes, and thin entrypoints own `process.exitCode`.
+- Implemented: failures report completed or completion-unknown remote mutations without claiming rollback; site listing stops after 100 pages; API client reuse is limited to the current matching token and rejected client construction is evicted.
+- Regression coverage: injected fakes assert every interactive cancellation point, centralized CLI validation before mutation, missing-tool/build/artifact failure ordering, successful cleanup ordering, failure preservation, residual mutation reporting, bounded pagination, and two-token client isolation.
+- Verified: `pnpm --filter create-access-router-mongo-starter exec vitest run --config vitest.config.ts tests/deploy-netlify.test.ts tests/deploy-shared.test.ts tests/netlify-api.test.ts tests/orchestration-seams.test.ts` (4 files, 110 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter test` (serial build and release staging succeeded; 10 files and 147 tests passed, including packed-consumer generated-project checks).
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck`, `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}"`, and `git diff --check` passed.
+
 ### Task CARMS-09: Generate And Verify Safe Netlify Configuration
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -477,11 +566,23 @@ Acceptance criteria:
 - Existing unrelated Netlify configuration remains intact or the operation stops with a precise conflict.
 - Package tests pass.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/scripts/deploy-netlify.ts`, `packages/create-access-router-mongo-starter/scripts/deploy-shared.ts`, `packages/create-access-router-mongo-starter/scripts/netlify-api.ts`, focused deploy/API tests, `packages/create-access-router-mongo-starter/package.json`, `packages/create-access-router-mongo-starter/tsup.config.ts`, `pnpm-lock.yaml`, and this task record.
+- Implemented: generated `netlify.toml` files use the maintained `smol-toml` writer and carry an explicit managed-file marker. Existing TOML is parsed before use; matching user configuration is preserved byte-for-byte, conflicting or malformed user configuration stops with a controlled error, and only structurally unmodified managed files can be regenerated.
+- Implemented: malformed or structurally invalid `.netlify/state.json` now stops with a precise error instead of being silently ignored. Relinking preserves unrelated valid state fields, and linked site IDs take precedence over legacy names.
+- Implemented: output paths containing control characters are rejected, while spaces, quotes, backslashes, and TOML-like structural text serialize as literal path values. Parser-based tests assert build publish, functions directory/bundler, an ordered custom API-path rewrite to the configured function, and the final SPA fallback; the default direct function path avoids a self-rewrite.
+- Implemented: environment verification now requires API evidence for the requested context, scope, and sensitivity. Missing and mismatched metadata stop deployment; unavailable evidence produces a narrowly worded warning rather than a key-presence success claim.
+- Verified: `pnpm --filter create-access-router-mongo-starter exec vitest run --config vitest.config.ts tests/deploy-netlify.test.ts tests/deploy-shared.test.ts tests/netlify-api.test.ts tests/orchestration-seams.test.ts` (4 files, 123 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck` and `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}"` passed.
+- Verified: `pnpm --filter create-access-router-mongo-starter test` passed serially (build/release staging succeeded; 10 files and 160 tests passed, including packed-consumer generated-project checks).
+- Verified: `git diff --check` passed.
+
 ## Wave 4: Generated Backend Correctness And Security
 
 ### Task CARMS-10: Enforce One Validation Contract Across Exposed API Paths
 
-Status: pending
+Status: completed
 
 Priority: P0
 
@@ -526,9 +627,19 @@ Acceptance criteria:
 - Public route surface and limits are accurately documented.
 - Backend route and generated-project tests pass.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/template/src/shared/entity-schemas.ts`, `template/api/src/routers.ts`, `template/api/src/models.ts`, `template/api/access-router.config.ts`, browser DTO/form types, `template/tests/api-contract.test.ts`, packed-artifact assertions, package/template/website documentation, and this task record.
+- Implemented: shared browser-safe Zod schemas trim and bound Todo titles (200 characters) and Category names (80 characters), require six-digit hex colors, and reuse one 24-hex ObjectId schema for `categoryId`, direct document IDs, and advanced-read IDs. Mongoose length/color constraints remain as persistence-level defense in depth.
+- Implemented: ordinary create/update routers use the shared schemas and are checked with `satisfies ModelRouterOptions<...>`; the previous double assertions were removed. Browser request DTOs and Todo form values are inferred from the shared schemas.
+- Implemented D-02: `rootRouter: false` removes root batching, while pre-router enforcement returns stable `404` responses for advanced `__mutation` create/update/upsert paths, including trailing-slash variants. Generated guidance requires equivalent entity schemas and explicit bulk/concurrency bounds before any advanced opt-in.
+- Regression coverage: generated backend tests prove whitespace-only and oversized strings, malformed colors, malformed `categoryId` values, malformed direct/advanced-read IDs, and invalid updates return `400` before model calls; root and advanced writes, including oversized alternate-write batches, return `404` without model calls; valid missing IDs return `404`; accepted strings and colors are normalized.
+- Verified: `pnpm --filter create-access-router-mongo-starter test` passed serially (10 package test files, 160 package tests). The packed-consumer test installed a release-like artifact and passed generated-project install, build, typecheck, lint, and tests (2 generated test files, 16 tests).
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck`, `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}"`, and `git diff --check` passed serially.
+
 ### Task CARMS-11: Fail Fast On Mongo Configuration And Sanitize API Errors
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -575,9 +686,19 @@ Acceptance criteria:
 - Local and serverless entry paths expose the same routes and error semantics.
 - Backend integration and generated-project tests pass.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/template/api/access-router.config.ts`, `template/api/src/config.ts`, `template/api/src/errors.ts`, `template/tests/api-contract.test.ts`, `template/tests/setup.ts`, shared/Netlify deployment validation and tests, packed-consumer verification, package/template/website documentation, and generated-agent guidance.
+- Implemented: runtime config evaluation requires a trimmed, syntactically valid `mongodb://` or `mongodb+srv://` URI before either local startup or serverless handler initialization. Shared and Netlify deployment validation now requires the same configuration for preview, branch, dry-run, no-build, and production flows because every artifact includes the backend.
+- Implemented: the runtime `init` hook configures each actual model router response handler. Zod/access-router and Mongoose validation/cast failures become stable sanitized `400` responses, duplicate-key failures become `409`, and unknown failures become a generic `500`; the unused `AppError` was removed. One structured server log records only boundary/category/name/code/status metadata, never raw messages, stacks, request bodies, rejected values, collection names, or credentials.
+- Regression coverage: missing/blank/malformed Mongo values, all-deployment enforcement, Zod and Mongoose cast/validation/duplicate/unknown response sanitization, local/serverless response parity, transient runtime initialization retry, and secret/detail absence from responses and logs. The packed generated project now also builds its serverless artifact.
+- Verified: `pnpm --filter create-access-router-mongo-starter exec vitest run --config vitest.config.ts tests/deploy-shared.test.ts tests/deploy-netlify.test.ts tests/orchestration-seams.test.ts` (3 files, 92 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter test` (serial build/release staging succeeded; 10 package test files and 167 tests passed; packed generated-project install, build, typecheck, lint, tests, and serverless build passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck`, `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}"`, `pnpm --filter create-access-router-mongo-starter build`, and `git diff --check` passed serially.
+
 ### Task CARMS-12: Define Public Demo And Referential Integrity Policies
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -622,9 +743,20 @@ Acceptance criteria:
 - Public API limits and production responsibilities are visible before deployment commands.
 - MongoDB integration tests and generated-project tests pass.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/template/api/src/integrity.ts`, `template/api/src/models.ts`, `template/api/src/routers.ts`, `template/api/src/errors.ts`, `template/src/pages/home-page.tsx`, deployment collection/validation, focused package and generated-project tests, package/template/website documentation, generated-agent guidance, packed-artifact allowlisting, and this task record.
+- Implemented D-03: the starter is explicitly documented as an anonymous public demo. Every deployment prints a prominent warning; interactive production requires confirming the warning, and noninteractive production requires `--acknowledge-public-demo` before path resolution, build, or remote mutation. Documentation makes clear that acknowledgement is not protection and identifies host rate limiting/WAF, bot/traffic controls, function and spend limits, monitoring/alerts, MongoDB limits, authentication, authorization, tenancy, and incident response as operator responsibilities.
+- Implemented D-04: Todo create/update validates category existence before persistence; Mongoose save/delete middleware uses transaction-scoped writes to a private Category integrity field so Todo writes/deletes and Category deletion serialize on the same category. Referenced deletion aborts with sanitized `409`, and Mongo write conflicts from races also map to `409`. Documentation requires a transaction-capable replica set or sharded MongoDB deployment.
+- Implemented data policy: trim-normalized Category names are exact case-sensitive unique; Todo and Category lists have deterministic defaults; advanced list filters are exact-match allowlists only; custom sorts are rejected; Todo category/completion and Category name indexes support the documented paths; list limits remain 100 and are explicit.
+- Implemented UI coordination for CARMS-14: Todo create/update integrity failures display an accessible generic error, edit state closes only after server success, and referenced Category deletion displays an explicit failure rather than relying on a refresh that can appear successful. Broader pending/retry/query-state work remains owned by CARMS-14.
+- Regression coverage: deterministic mocked Mongoose session/model tests assert category-lock, reference-check, commit, and abort ordering without a live database; Supertest coverage asserts missing-category rejection before Todo persistence, bounded filter policy, indexes/default sorts, and sanitized race conflicts. Deployment tests assert flag parsing, preflight rejection, and the interactive production warning without Netlify access.
+- Verified: `pnpm --filter create-access-router-mongo-starter test` passed serially (10 package test files, 170 tests). Its packed-consumer test installed the release-like artifact and passed generated-project install, build, typecheck, lint, 36 generated tests, and serverless build.
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck`, `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}"`, and `git diff --check` passed.
+
 ### Task CARMS-13: Align API Base Path, Port, And Deployment Configuration
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -670,11 +802,22 @@ Acceptance criteria:
 - Documented `PORT` behavior matches actual process binding.
 - Generated-project build and tests pass.
 
+Completion evidence:
+
+- Changed: the shared template API-base validator, Vite/client/backend configuration, deploy validation/build environments and help, `.env.example`, package/template/website documentation, generated-agent guidance, focused package tests, generated runtime integration tests, and packed-consumer build assertions; no generated `dist` file was edited manually.
+- Implemented D-05: `API_BASE_URL` is the only frontend/backend API-prefix variable. The shared parser defaults blank/unset values to `/api`, trims outer whitespace and trailing slashes, and rejects schemes, authorities, root-only values, whitespace, queries, fragments, backslashes, empty segments, malformed encoding, dot segments (including encoded forms), and encoded path separators before Vite build, backend startup, or deploy side effects.
+- Implemented deterministic deploy builds: the least-privilege frontend child environment now receives the selected `API_BASE_URL`, and Vite gives that explicit process value precedence over mode/project env files. Backend build/runtime and Netlify site configuration receive the same normalized value; prior credential isolation and preflight/build/remote-mutation ordering are unchanged.
+- Removed dead `PORT`/`HOST` exports and env examples. Generated scripts remain the authoritative binding contract: frontend `3000`, backend `8000`, and serverless emulator `9000`; docs and agent instructions state that these scripts do not accept `PORT`/`HOST` overrides.
+- Regression coverage: path-contract matrices cover frontend/backend/deploy validation; a generated-project test starts a real local runtime and invokes a real serverless handler at `/.netlify/functions/main`; the release-like packed consumer writes conflicting `.env` (`/api`), runs a real Vite build with the deployment override, and confirms the emitted JavaScript targets `/.netlify/functions/main`.
+- Verified: `pnpm --filter create-access-router-mongo-starter exec vitest run --config vitest.config.ts tests/template-api-base-url.test.ts tests/deploy-shared.test.ts` (2 files, 66 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter test` passed serially (build/release staging succeeded; 10 package test files and 192 tests passed, including packed generated-project install, real Vite build, typecheck, lint, local/serverless integration tests, and serverless bundle).
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck`, `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}"`, and `git diff --check` passed serially.
+
 ## Wave 5: Frontend Reliability, Accessibility, And Ownership
 
 ### Task CARMS-14: Preserve UI State Across Failed And Pending Mutations
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -715,9 +858,19 @@ Acceptance criteria:
 - The list cap is visible or navigation exposes all records.
 - Frontend tests cover loading, empty, success, rejection, pending, and retry states.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/template/src/pages/home-page.tsx`, `template/src/pages/todo-form.tsx`, `template/tests/home-page.test.tsx`, and this task record.
+- Implemented: create/edit/category input state and edit mode are preserved until mutation and required list reloads both succeed; mutation failures show safe actionable alerts; confirmed writes whose reload fails are reported as partial completion with a retry-refresh action rather than success.
+- Implemented: a single page-level operation lock disables conflicting controls while mutations or required refresh retries are pending, preventing duplicate creates/updates/deletes. Category deletion refreshes both categories and todos so CARMS-12 integrity UI cannot hide related-data changes.
+- Implemented: query failures render safe retryable errors, and todo/category lists explicitly disclose the 100-record demo cap using the access-router React hook query/refetch lifecycle without adding custom shared caching.
+- Regression coverage: generated-template frontend tests cover loading, empty state, success, safe query errors, create rejection/retry, pending duplicate prevention, edit rejection/success, refetch failure/retry without duplicate mutation, duplicate category rejection, and related-data refresh after category deletion.
+- Verified: `/home/jahn/projects/_web-ts-toolkit/node_modules/.bin/vitest run tests/home-page.test.tsx tests/todo-form.test.tsx` from `packages/create-access-router-mongo-starter/template` (2 files, 9 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter test` passed serially (build/release staging succeeded; 10 package test files and 192 tests passed, including packed generated-project checks).
+
 ### Task CARMS-15: Add Accessible Names, Validation Relationships, And Status Semantics
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -756,9 +909,20 @@ Acceptance criteria:
 - Automated accessibility-focused tests cover the primary CRUD flow.
 - Template tests pass.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/template/src/pages/home-page.tsx`, `template/src/pages/todo-form.tsx`, `template/tests/home-page.test.tsx`, `template/tests/todo-form.test.tsx`, staged generated template output from build, and this task record.
+- Implemented: Todo row checkboxes, edit actions, and Todo/Category delete actions now have item-specific accessible names; repeated destructive actions are distinguishable by role/name without test-only ARIA.
+- Implemented: Todo title and category fields expose semantic labels, descriptions, validation error association via `aria-describedby`, and invalid state via `aria-invalid`; category creation exposes the same association for its validation path.
+- Implemented: list loading states use polite status semantics, mutation saving/saved transitions use a polite status region, failures use focusable alerts, and focus predictably moves to the edit title field, restored edit button on cancel, status after delete, and alert after errors while preserving CARMS-14 pending/retry behavior.
+- Regression coverage: Testing Library tests assert accessible field descriptions/errors, unique row action names, alert/status focus, edit/cancel focus, delete status focus, loading status text, and the existing create/edit/delete/retry reliability flows.
+- Verified: `/home/jahn/projects/_web-ts-toolkit/node_modules/.bin/vitest run tests/home-page.test.tsx tests/todo-form.test.tsx` from `packages/create-access-router-mongo-starter/template` passed (2 files, 11 tests).
+- Verified: `pnpm --filter create-access-router-mongo-starter test` passed serially (build/release staging succeeded; 10 package test files and 192 tests passed, including packed generated-project checks).
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck`, `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}"`, `pnpm --filter create-access-router-mongo-starter build`, and `git diff --check` passed serially.
+
 ### Task CARMS-16: Consolidate Shared DTOs And Injectable Frontend Boundaries
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -803,11 +967,21 @@ Acceptance criteria:
 - No broad `any` or `unknown` assertion replaces the removed casts.
 - Generated-project typecheck and tests pass.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/template/src/shared/entity-schemas.ts`, `template/src/types.ts`, `template/src/api.ts`, `template/src/pages/home-page-controller.ts`, `template/src/pages/home-page.tsx`, `template/src/pages/todo-form.tsx`, `template/tests/home-page.test.tsx`, `packages/create-access-router-mongo-starter/tests/packed-consumer.test.ts`, staged generated template output from build, and this task record.
+- Implemented: shared browser-safe transport schemas now infer Todo/Category response DTOs with required `_id` values, while create/update request inputs remain separate from persisted/response entities. Frontend model services are typed against the same transport request/response contract used by backend route schemas, and routine `_id as string` casts were removed from page/form code.
+- Implemented: `HomePage` now accepts a small hook-shaped `HomePageController` from `home-page-controller.ts`; production keeps the default access-router controller, while tests inject deterministic list/mutation hooks and errors without module mocking or fragmenting page markup.
+- Regression coverage: frontend tests exercise the CARMS-14/15 loading, error, pending, retry, focus, and accessible-name behavior through the injected controller; packed-consumer assertions include the new controller module and generated-project lint/typecheck/tests.
+- Verified: `/home/jahn/projects/_web-ts-toolkit/node_modules/.bin/vitest run tests/home-page.test.tsx tests/todo-form.test.tsx` from the template directory passed (2 files, 11 tests).
+- Verified: `/home/jahn/projects/_web-ts-toolkit/node_modules/.bin/tsc -p tsconfig.json --noEmit` from the template directory passed. Direct `pnpm typecheck`/`pnpm lint` in the source template still cannot start because pnpm attempts to resolve the intentional `{{VERSION}}` placeholder manifest before running scripts.
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck`, `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}"`, `pnpm --filter create-access-router-mongo-starter test`, `pnpm --filter create-access-router-mongo-starter build`, and `git diff --check` passed serially. The package test included the packed generated-project install, build, typecheck, lint, tests, and serverless build path.
+
 ## Wave 6: Staging, Documentation, And Maintenance
 
 ### Task CARMS-17: Make Template Staging Import-Safe And Policies Explicit
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -848,9 +1022,23 @@ Acceptance criteria:
 - Source/staged drift fails verification instead of being silently repaired by test import.
 - Package tests and build pass serially.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/scripts/stage-template.ts`, `packages/create-access-router-mongo-starter/scripts/stage-template.entry.ts`, `packages/create-access-router-mongo-starter/src/shared/template-policy.ts`, `packages/create-access-router-mongo-starter/src/cli.ts`, `packages/create-access-router-mongo-starter/scripts/assert-publication-ready.ts`, `packages/create-access-router-mongo-starter/tests/stage-template.test.ts`, `packages/create-access-router-mongo-starter/package.json`, `packages/create-access-router-mongo-starter/README.md`, and this task record.
+- Implemented: staging helper imports are side-effect free; `stageTemplate(options)` performs work only when called, while the package build uses the thin executable `stage-template.entry.ts`.
+- Implemented: named publish and scaffold policies centralize exclusion behavior. Documentation now calls out intentional differences for `_gitignore`, `.env`, generated outputs, and the release-synchronized generated lockfile.
+- Implemented: staging writes to a sibling temporary directory, rejects source symlinks and unsupported entries, preserves existing staged output on validation or lockfile-generation failure, and swaps output only after staging succeeds.
+- Implemented: `verifyStagedTemplate` compares source-policy output with staged package content without repairing it; `assert-publication-ready.ts` rejects stale `dist/template` during transformed publication readiness checks.
+- Tested: temporary staging coverage includes hidden files, nested paths, excluded artifacts, symlink rejection, lockfile generation failure cleanup, and stale-output drift reporting without repository `dist/` mutation from import-only tests.
+- Verified: `pnpm --filter create-access-router-mongo-starter exec vitest run --config vitest.config.ts tests/stage-template.test.ts` (1 file, 15 tests passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck` (passed).
+- Verified: `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}" "scripts/publish-packages.mjs"` (passed).
+- Verified: `pnpm --filter create-access-router-mongo-starter test` (serial build/staging succeeded; 10 files and 196 tests passed).
+- Verified: `git diff --check` (passed).
+
 ### Task CARMS-18: Reconcile Commands, Placeholder Docs, And Generated Guidance
 
-Status: pending
+Status: completed
 
 Priority: P2
 
@@ -897,11 +1085,21 @@ Acceptance criteria:
 - Environment and deployment tables match tested behavior.
 - Documentation checks and generated-project smoke tests pass.
 
+Completion evidence:
+
+- Changed: `packages/create-access-router-mongo-starter/template/package.json`, `src/cli.ts`, `tests/packed-consumer.test.ts`, package README, generated template README, generated `AGENTS.md`, template `.agents/skills/`, website docs, staged template output from the package build, and this task record.
+- Implemented: generated `test` now runs `vitest run`, `test:watch` runs watch mode, the scaffolded next steps and generated README print the exact pinned `create-access-router-mongo-starter@<version>` plus `netlify-cli` dev install before deploy-bin usage, and generated README examples run through `pnpm exec` without credential values in arguments.
+- Implemented: source placeholder policy is documented once in the package maintainer README; generated README and generated agent guidance no longer contain source-template placeholder explanations. The scaffold manifest now replaces the generated README's deploy-helper version token, and the packed-consumer test asserts generated README output has no unresolved operational tokens.
+- Reconciled: generated/package/website/agent guidance now agrees on frozen lockfile installs, Node `>=22.12.0`, pnpm `11.18.0`, path-only `API_BASE_URL` precedence, fixed local ports, required Mongo configuration for all backend deploys, public-demo warning/acknowledgement, 100-record list cap, Netlify side effects, credential boundaries, and sandbox behavior.
+- Verified: `pnpm --filter create-access-router-mongo-starter exec vitest run --config vitest.config.ts tests/packed-consumer.test.ts` passed after rebuilding staged output (1 file, 2 tests). This performed release-like install, executed all three bins, scaffolded a generated app, then ran generated `pnpm install --frozen-lockfile --ignore-scripts`, `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm serverless` serially.
+- Verified: `pnpm --filter create-access-router-mongo-starter test` passed serially after the final source changes (10 files, 196 tests), including package build/staging and packed generated-project smoke checks.
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck && pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}" "scripts/publish-packages.mjs" && git diff --check` passed.
+
 ## Wave 7: Independent Integration Review
 
 ### Task CARMS-19: Perform Independent Security, Artifact, And Generated-App Review
 
-Status: pending
+Status: completed
 
 Priority: P1
 
@@ -945,6 +1143,21 @@ Acceptance criteria:
 - Targeted, package, template, full-repository, and artifact checks pass serially.
 - `git diff --check` passes and unrelated worktree changes remain untouched.
 
+Completion evidence:
+
+- Reviewed: CARMS-01 through CARMS-18 are all marked `completed` and each has Completion evidence. Static integration review covered scaffold path validation/transactional replacement, sandbox containment/cleanup, secret boundaries in child argv/env/logging/Netlify payloads, staging and packed-template policy, generated lockfile and metadata, API validation and disabled root/advanced writes, sanitized runtime errors, public-demo acknowledgement and category integrity, path-only API base handling, frontend pending/error/accessibility/type seams, deployment side-effect ordering, and package/template/website/generated-agent documentation consistency.
+- Result: no new P0/P1 integration finding was identified. No code changes were required during CARMS-19; only this task record was updated. Existing warnings observed during verification were non-blocking tool warnings: Vite native config-loader notices, package/dependency peer/deprecation warnings, release-artifact symlink-bin warnings, and expected React 18 test stderr from error-boundary assertions whose test files passed.
+- Verified: `pnpm --filter create-access-router-mongo-starter test` passed serially (10 files, 196 tests). This includes the packed-consumer harness: release-like install, all three bins, scaffolded app, frozen generated install, generated build/typecheck/lint/test, Netlify-style conflicting `.env` Vite build assertion, and serverless bundle path.
+- Verified: `pnpm --filter create-access-router-mongo-starter typecheck` passed.
+- Verified: `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}" "scripts/publish-packages.mjs"` passed.
+- Verified: `pnpm --filter create-access-router-mongo-starter build` passed and regenerated the staged template from source.
+- Verified: `pnpm lint` passed.
+- Verified: `pnpm build` passed serially for the full repository.
+- Verified: `pnpm test` passed serially for the full repository. The visible `access-router-react` React 18 stack traces were expected test stderr for thrown query-key validation errors; the React 18 lane and full command completed successfully.
+- Verified: `pnpm build-artifact -- --version 0.40.1` produced `dist/web-ts-toolkit-0.40.1.tar.gz` with commands `wtt-access-router-runtime`, `create-access-router-mongo-starter`, `create-access-router-mongo-starter-deploy-netlify`, `create-access-router-mongo-starter-deploy-shared`, and `wtt-express-runtime`.
+- Verified: `pnpm verify-artifact -- --version 0.40.1` passed.
+- Verified: `git diff --check` passed after the CARMS-19 task-record update.
+
 ## Dependency And Parallelization Guidance
 
 | Agent lane                | Tasks                                                      | Sequencing notes                                                                                                                                                                                                                                     |
@@ -971,6 +1184,8 @@ Shared hotspots requiring explicit coordination:
 
 ### D-01: Generated Dependency Reproducibility
 
+Decision: ship a release-synchronized lockfile and require frozen installation in the smoke test.
+
 Choose one:
 
 - Recommended: ship a release-synchronized lockfile and require frozen installation in the smoke test.
@@ -980,11 +1195,15 @@ This decision blocks CARMS-06 and the final staging policy in CARMS-17, but does
 
 ### D-02: Basic Starter Route Surface
 
+Decision: disable advanced mutation and root write routes in the basic starter.
+
 Choose whether root batch and advanced mutation endpoints remain enabled in the basic starter. If retained, they must use equivalent validation and explicit bounds; if removed, document secure opt-in examples.
 
 This decision blocks the final implementation shape of CARMS-10.
 
 ### D-03: Public Write Access
+
+Decision: use explicit public-demo mode with production acknowledgement and prominent warnings.
 
 Choose one generated default:
 
@@ -996,17 +1215,23 @@ This decision blocks CARMS-12. It does not justify leaving current validation by
 
 ### D-04: Category Referential Integrity
 
+Decision: reject deletion of a category while it is referenced.
+
 Choose one policy for referenced category deletion: reject with conflict, transactionally null references, cascade-delete Todos, or explicitly allow dangling references. Rejecting deletion while referenced is the least destructive default.
 
 This decision blocks CARMS-12.
 
 ### D-05: API Base Value Shape
 
+Decision: support route prefixes only with a path-only API base contract.
+
 Choose whether configuration supports route prefixes only or full absolute API origins. A path-only contract is simpler for the current same-origin local and Netlify architecture; absolute origins require CORS and URL-aware joining.
 
 This decision blocks CARMS-13.
 
 ### D-06: Home Directory Force Protection
+
+Decision: always reject replacement of the user's home directory.
 
 Choose whether `--force` must always reject the user's home directory or may permit it behind a stronger exact-path confirmation. Always rejecting it is recommended for a scaffolder.
 

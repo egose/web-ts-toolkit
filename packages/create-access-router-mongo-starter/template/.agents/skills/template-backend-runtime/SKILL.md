@@ -24,7 +24,10 @@ Use this skill for access-router runtime wiring, environment-driven behavior, an
 
 - `api/access-router.config.ts` is the single runtime config used by both local dev and serverless bundling.
 - `api/access-router.config.ts` requires `MONGODB_URI` through its `db.url`; there is no silent fallback.
-- `api/src/config.ts` owns `API_BASE_URL`, which defaults to `/api` and is used by `api/access-router.config.ts` and `api/src/routers.ts`.
+- `api/src/config.ts` owns the strict path-only `API_BASE_URL`, which defaults to `/api` and is shared with Vite/deploy validation before use by `api/access-router.config.ts` and `api/src/routers.ts`.
+- Backend and emulator bindings are explicit package-script flags (`8000` and `9000`); `PORT` and `HOST` environment variables are intentionally unsupported.
+- Local startup, serverless startup, and every backend deployment require a valid nonblank `mongodb://` or `mongodb+srv://` `MONGODB_URI`.
+- Keep API errors sanitized: expected validation/cast failures are stable 4xx responses, duplicate conflicts are `409`, and unknown persistence details stay out of HTTP responses and logs.
 
 ## Workflow
 
@@ -38,12 +41,13 @@ Use this skill for access-router runtime wiring, environment-driven behavior, an
 
 - Prefer extending `api/access-router.config.ts` over reintroducing custom app bootstrap files.
 - Keep environment-variable handling explicit in `api/src/config.ts` and the runtime config.
-- Preserve the template placeholder in the API root response payload unless the scaffolding behavior is intentionally changing.
+- Keep the API root response name aligned with package metadata unless the scaffolding behavior is intentionally changing.
 
 ## Verification
 
 - `pnpm typecheck`
 - `pnpm build`
+- `pnpm test`
 - `pnpm serverless`
 
 If startup behavior changed, also verify the intended local path with `pnpm server`.
