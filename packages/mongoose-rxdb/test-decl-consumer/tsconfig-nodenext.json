@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "skipLibCheck": false,
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"]
+  },
+  "include": ["decl-consumer.nodenext.mts", "decl-consumer.nodenext.cts", "decl-consumer.nodenext.ts"]
+}

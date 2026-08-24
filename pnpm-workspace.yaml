@@ -10,6 +10,7 @@ allowBuilds:
   rxdb-premium: false
   secp256k1: false
   sharp: false
+  sqlite3: false
   unix-dgram: false
 minimumReleaseAgeExclude:
 - '@repo-toolkit/changelog@0.13.0'

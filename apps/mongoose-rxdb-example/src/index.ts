@@ -1,5 +1,5 @@
 import { Schema, Connection, sanitizeFilter } from '@web-ts-toolkit/mongoose-rxdb';
-import type { Document, FilterQuery, Model } from '@web-ts-toolkit/mongoose-rxdb';
+import type { HydratedDocument, LooseFilterQuery, Model } from '@web-ts-toolkit/mongoose-rxdb';
 import { createMemoryDatabase, createSqliteDatabase } from '@web-ts-toolkit/mongoose-rxdb/storage';
 
 interface UserDoc {
@@ -11,26 +11,20 @@ interface UserDoc {
   tags: string[];
 }
 
-type UserDocument = Document<UserDoc> &
-  UserDoc & {
-    isAdmin: boolean;
-    addTag(tag: string): string[];
-  };
+interface UserMethods {
+  addTag(tag: string): string[];
+}
 
-type UserModel = Model<UserDoc> & {
+interface UserVirtuals {
+  isAdmin: boolean;
+}
+
+interface UserStatics {
   adults(): Promise<UserDocument[]>;
-  create(docs: Partial<UserDoc>): Promise<UserDocument>;
-  create(docs: Partial<UserDoc>[]): Promise<UserDocument[]>;
-  find(filter?: FilterQuery<UserDoc>): {
-    where(field: string): ReturnType<Model<UserDoc>['find']>;
-    exec(): Promise<UserDocument[]>;
-    sort(spec: Record<string, 1 | -1 | 'asc' | 'desc'>): ReturnType<Model<UserDoc>['find']>;
-  };
-  findOne(filter?: FilterQuery<UserDoc>): {
-    exec(): Promise<UserDocument | null>;
-  };
-  findById(id: string): Promise<UserDocument | null>;
-};
+}
+
+type UserDocument = HydratedDocument<UserDoc, UserMethods, UserVirtuals>;
+type UserModel = Model<UserDoc, UserMethods, UserStatics, UserVirtuals>;
 
 async function main() {
   // 1) Connection with pluggable storage. Two modes:
@@ -49,7 +43,7 @@ async function main() {
   await conn.connect(storageFactory);
 
   // 2) Schema definition reads like Mongoose.
-  const userSchema = new Schema<UserDoc>(
+  const userSchema = new Schema<UserDoc, UserMethods, UserStatics, UserVirtuals>(
     {
       name: { type: String, required: true },
       age: { type: Number, default: 0, min: 0, max: 150 },
@@ -83,10 +77,10 @@ async function main() {
 
   // 6) A static method available on the compiled model.
   userSchema.static('adults', function (this: UserModel) {
-    return this.find().where('age').gte(18).exec() as Promise<UserDocument[]>;
+    return this.find().where('age').gte(18).exec();
   });
 
-  const User = conn.model<UserDoc>('User', userSchema, 'users') as UserModel;
+  const User = conn.model('User', userSchema, 'users');
 
   console.log('\n== create ==');
   const ada = await User.create({
@@ -120,7 +114,7 @@ async function main() {
   console.log('User.adults() count =', viaStatic.length);
 
   console.log('\n== dirty-tracking save ==');
-  const loaded = ((await User.findById(grace._id!)) as UserDocument | null)!;
+  const loaded = (await User.findById(grace._id!))!;
   console.log('loaded.isNew =', loaded.isNew, ' isModified(age) =', loaded.isModified('age'));
   loaded.age = 86;
   console.log('after mutate isModified(age) =', loaded.isModified('age'), ' modifiedPaths =', loaded.modifiedPaths());
@@ -140,17 +134,18 @@ async function main() {
 
   console.log('\n== sanitizeFilter (security) ==');
   // Simulate a filter coming from request body. An attacker tries a `$where`-style injection
-  // as an extra top-level field. sanitizeFilter wraps nested operator-like objects as literal
-  // `$eq` values so they cannot be interpreted as Mongo operators.
-  const userFilter = { name: 'Ada Lovelace', role: { $where: 'this.age > 0' } } as FilterQuery<UserDoc>;
-  const safe = sanitizeFilter(userFilter);
+  // inside a field predicate. sanitizeFilter rejects unsupported operators before execution,
+  // so destructive operations cannot accidentally broaden to match-all.
+  const userFilter: LooseFilterQuery<UserDoc> = { name: 'Ada Lovelace', role: { $where: 'this.age > 0' } };
   console.log('raw filter  =', JSON.stringify(userFilter));
-  console.log('sanitized   =', JSON.stringify(safe));
   const found = (await User.findOne({ name: 'Ada Lovelace' }).exec())!;
   console.log('findOne(name=Ada) =', found.name);
-  const none = await User.findOne(safe).exec();
-  console.log('findOne(sanitized-with role.$where) = ', none ? none.name : '<null as expected>');
-  // Without sanitization, the `$where` object could be misinterpreted as an operator map.
+  try {
+    const safe = sanitizeFilter(userFilter);
+    await User.findOne(safe).exec();
+  } catch (error) {
+    console.log('sanitizeFilter rejected role.$where =', (error as Error).name);
+  }
 
   console.log('\n== deleteMany / cleanup ==');
   await User.deleteMany({}).exec();

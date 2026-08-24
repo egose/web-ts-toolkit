@@ -23,17 +23,14 @@ afterAll(async () => {
 let userCounter = 0;
 const makeUserModel = () => {
   userCounter += 1;
-  const schema = new Schema(
-    {
-      name: { type: String, required: true, min: 1 },
-      age: { type: Number, default: 0, min: 0, max: 150 },
-      email: { type: String, match: /@/ },
-      role: { type: String, enum: ['admin', 'user'], default: 'user' },
-      tags: [String],
-      meta: { type: Object },
-    },
-    { timestamps: true },
-  );
+  const schema = new Schema({
+    name: { type: String, required: true, min: 1 },
+    age: { type: Number, default: 0, min: 0, max: 150 },
+    email: { type: String, match: /@/ },
+    role: { type: String, enum: ['admin', 'user'], default: 'user' },
+    tags: [String],
+    meta: { type: Object },
+  });
   // unique model + collection name per call so tests never collide
   return connection.model(`User_${userCounter}`, schema, `users_${userCounter}`);
 };
@@ -212,10 +209,14 @@ describe('regression: save only persists dirty fields', () => {
 });
 
 describe('sanitizeFilter', () => {
-  it('wraps nested non-operator objects in $eq', () => {
+  it('rejects nested unsupported operators', () => {
     const malicious = { user: { $where: 'evil()' } } as any;
-    const safe = sanitizeFilter(malicious);
-    expect((safe as any).user).toEqual({ $eq: { $where: 'evil()' } });
+    expect(() => sanitizeFilter(malicious)).toThrow('Unsupported filter operator $where');
+  });
+
+  it('wraps nested non-operator objects in $eq', () => {
+    const safe = sanitizeFilter({ user: { name: 'Ada' } } as any) as any;
+    expect((safe as any).user.$eq.name).toBe('Ada');
   });
 
   it('preserves legitimate operator maps', () => {
