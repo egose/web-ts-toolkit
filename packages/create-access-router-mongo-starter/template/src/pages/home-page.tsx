@@ -201,7 +201,10 @@ export function HomePage({ controller = defaultHomePageController }: { controlle
       <p className={mutedClass}>A CRUD starter built on the web-ts-toolkit access-router stack.</p>
       {operationError && (
         <div
-          ref={alertRef}
+          ref={(node) => {
+            alertRef.current = node;
+            node?.focus();
+          }}
           role="alert"
           tabIndex={-1}
           className="mt-4 flex flex-wrap items-center gap-2 text-sm text-red-500"
