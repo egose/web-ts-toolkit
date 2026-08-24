@@ -576,7 +576,7 @@ describe('parseInput auto detection', () => {
 describe('parseInput integer-like object-key ordering', () => {
   it('uses JavaScript property enumeration for index orient raw strings and parsed objects', async () => {
     const contents = await readFixture('nonAscendingIntegerIndex-index.json');
-    expect(contents.trim()).toBe('{"10":{"v":"first","n":100},"2":{"v":"second","n":200}}');
+    expect(contents.replace(/\s+/g, '')).toBe('{"10":{"v":"first","n":100},"2":{"v":"second","n":200}}');
 
     const options = normalizeFromOrientOptions({ orient: 'index' });
     const expected = expectedByFixture['nonAscendingIntegerIndex-index.json'];
@@ -599,7 +599,7 @@ describe('parseInput integer-like object-key ordering', () => {
 
   it('uses JavaScript property enumeration for columns orient raw strings and parsed objects', async () => {
     const contents = await readFixture('nonAscendingIntegerIndex-columns.json');
-    expect(contents.trim()).toBe('{"v":{"10":"first","2":"second"},"n":{"10":100,"2":200}}');
+    expect(contents.replace(/\s+/g, '')).toBe('{"v":{"10":"first","2":"second"},"n":{"10":100,"2":200}}');
 
     const options = normalizeFromOrientOptions({ orient: 'columns' });
     const expected = expectedByFixture['nonAscendingIntegerIndex-columns.json'];
