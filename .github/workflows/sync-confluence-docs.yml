@@ -1,0 +1,30 @@
+name: Sync docs to Confluence
+
+on:
+  push:
+    branches:
+    - main
+    paths:
+    - .github/workflows/deploy-confluence.yml
+    - docs/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-confluence:
+    runs-on: ubuntu-24.04
+    environment: confluence
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+    - name: Sync Docs to Confluence
+      uses: egose/actions/confluence@main
+      with:
+        folder: docs
+        username: ${{ secrets.CONFLUENCE_USERNAME }}
+        api-token: ${{ secrets.CONFLUENCE_API_TOKEN }}
+        confluence-base-url: ${{ secrets.CONFLUENCE_BASE_URL }}
+        space-key: ${{ secrets.CONFLUENCE_SPACE_KEY }}
+        parent-page-id: ${{ secrets.CONFLUENCE_PARENT_PAGE_ID }}
