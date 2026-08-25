@@ -37,7 +37,7 @@
     "@repo-toolkit/publish-packages": "^0.16.0",
     "@repo-toolkit/release-artifact": "^0.16.0",
     "@types/node": "^26.2.0",
-    "eslint": "10.9.0",
+    "eslint": "10.9.1",
     "eslint-plugin-mocha-no-only": "^1.2.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.11.0",
