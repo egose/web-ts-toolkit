@@ -24,14 +24,14 @@ importers:
         specifier: ^8.0.0
         version: 8.0.0(release-it@21.0.2(@types/node@26.2.0)(magicast@0.5.4)(supports-color@10.2.2))
       '@repo-toolkit/changelog':
-        specifier: ^0.15.0
-        version: 0.15.0
+        specifier: ^0.16.0
+        version: 0.16.0
       '@repo-toolkit/publish-packages':
-        specifier: ^0.15.0
-        version: 0.15.0
+        specifier: ^0.16.0
+        version: 0.16.0
       '@repo-toolkit/release-artifact':
-        specifier: ^0.15.0
-        version: 0.15.0
+        specifier: ^0.16.0
+        version: 0.16.0
       '@types/node':
         specifier: ^26.2.0
         version: 26.2.0
@@ -4212,23 +4212,23 @@ packages:
     peerDependencies:
       release-it: ^18.0.0 || ^19.0.0 || ^20.0.0 || ^21.0.0
 
-  '@repo-toolkit/changelog@0.15.0':
-    resolution: {integrity: sha512-ITElV3zQVHvYRLdqdfzOYHBknDdQqmmnVBRrKOCv29PPJNAlT/RKUHtDd48cyWScWk1nowvPQ/Se8Lsa384OmA==}
+  '@repo-toolkit/changelog@0.16.0':
+    resolution: {integrity: sha512-R5ddixTsSIb2ZcFaFCMfwiAyonmodaq/W+i9pAYRNo33vpMguecEzufhmN2VtUm0MknqXR90HOEfrjd6TPJ+Yw==}
     engines: {node: '>=20'}
     hasBin: true
 
-  '@repo-toolkit/publish-package@0.15.0':
-    resolution: {integrity: sha512-Et7gJNGjc0k6U9C9+O5yh6XRPPcrN8qKwj2WrsNf9Y51v2cay2ywONJwR+l2HFethPGRVDNE2L3NlmaMGjs9Yw==}
+  '@repo-toolkit/publish-package@0.16.0':
+    resolution: {integrity: sha512-QEcC9tpIrFLvC/mLStpsMN8f4JGccQ+l9185tYOJqogvBDYhYHRCgV6ebsI4yjLZDp/lGZgvyTckjH1zCv8Xzg==}
     engines: {node: '>=20'}
     hasBin: true
 
-  '@repo-toolkit/publish-packages@0.15.0':
-    resolution: {integrity: sha512-MKvKro/oE88oDdokGl/Vw62FhB5Cujv9XmKziKqgbbm/6oOfjLqoyjtkS1UvSm3TnekW+AQlvoeb8KxMbOFmgg==}
+  '@repo-toolkit/publish-packages@0.16.0':
+    resolution: {integrity: sha512-Q1MmvwMNDg9p8yNReUP08XIYOzgMxh1YB0RyEJum5k6hp7EMIxteXq/TH+XiWtUNPj4As7QaBeOXLJUGF4v8OQ==}
     engines: {node: '>=20'}
     hasBin: true
 
-  '@repo-toolkit/release-artifact@0.15.0':
-    resolution: {integrity: sha512-9Qx2M92Azw1xmLVePbS8ATC7Lq8bH/ojyEaoPEeq4bCavn81h0BVpB9zNo4NzPot4y3kshLeEHaKlUbjUrmzKw==}
+  '@repo-toolkit/release-artifact@0.16.0':
+    resolution: {integrity: sha512-1FrXeeAbFTKoJH/cVspH8JiMJutnd/zOeJywHo9HZ+Eqjjnultm4nY3/cPdF+gZhfA400RFL2geRHKK6UQwVzA==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -15099,25 +15099,25 @@ snapshots:
       release-it: 21.0.2(@types/node@26.2.0)(magicast@0.5.4)(supports-color@10.2.2)
       semver: 7.8.5
 
-  '@repo-toolkit/changelog@0.15.0':
+  '@repo-toolkit/changelog@0.16.0':
     dependencies:
-      '@repo-toolkit/publish-package': 0.15.0
+      '@repo-toolkit/publish-package': 0.16.0
       conventional-changelog: 7.2.1
       conventional-changelog-conventionalcommits: 9.3.1
     transitivePeerDependencies:
       - conventional-commits-filter
 
-  '@repo-toolkit/publish-package@0.15.0':
+  '@repo-toolkit/publish-package@0.16.0':
     dependencies:
       '@clack/prompts': 1.7.0
 
-  '@repo-toolkit/publish-packages@0.15.0':
+  '@repo-toolkit/publish-packages@0.16.0':
     dependencies:
-      '@repo-toolkit/publish-package': 0.15.0
+      '@repo-toolkit/publish-package': 0.16.0
 
-  '@repo-toolkit/release-artifact@0.15.0':
+  '@repo-toolkit/release-artifact@0.16.0':
     dependencies:
-      '@repo-toolkit/publish-package': 0.15.0
+      '@repo-toolkit/publish-package': 0.16.0
 
   '@rolldown/binding-android-arm64@1.2.4':
     optional: true
