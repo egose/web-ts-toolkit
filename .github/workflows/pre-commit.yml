@@ -15,7 +15,7 @@ jobs:
       uses: ./.github/actions/setup-npm
 
     - name: Run pre-commit
-      uses: egose/actions/precommit@e15b9c2e3b42cc9ca49641cf6a428f7c7e503ae5
+      uses: egose/actions/precommit@66a82313a99a4e502830eb48acc073aedcdbdce1
       with:
         config: .pre-commit-config.yaml
         commit-on-push: true
