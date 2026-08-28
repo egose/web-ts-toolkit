@@ -379,10 +379,11 @@ importers:
         version: 4.4.3
 
   packages/access-router-deco:
-    devDependencies:
+    dependencies:
       '@types/express':
         specifier: ^5.0.3
         version: 5.0.6
+    devDependencies:
       '@types/node':
         specifier: ^25.9.5
         version: 25.9.5

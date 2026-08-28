@@ -173,20 +173,32 @@ describe('EgoseFactory', () => {
       expect(mockAcl.createRouter).toHaveBeenCalledWith('User', {});
     });
 
-    it('should not treat inherited or generic string metadata as router identity', () => {
+    it('should reject inherited or generic string metadata as router identity before construction', () => {
+      let childCtorCalled = false;
       class BaseRouter {}
       Router('Base')(BaseRouter);
-      class ChildRouter extends BaseRouter {}
+      class ChildRouter extends BaseRouter {
+        constructor() {
+          super();
+          childCtorCalled = true;
+        }
+      }
       Reflect.defineMetadata('__router__', true, ChildRouter);
       Reflect.defineMetadata('__router_model__', 'Wrong', ChildRouter);
       Reflect.defineMetadata('__router_options__', { basePath: '/wrong' }, ChildRouter);
 
-      const TestModule = class {};
+      class TestModule {}
       Module({ routers: [ChildRouter] })(TestModule);
 
-      EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+      const app = createMockExpressApp();
+      expect(() => EgoseFactoryStatic.create().bootstrap(TestModule, app)).toThrow(
+        /Invalid module "TestModule": class "ChildRouter" in "routers" array.*inherited.*expected own @Router/,
+      );
+      expect(childCtorCalled).toBe(false);
       expect(mockAcl.setModelOptions).not.toHaveBeenCalled();
       expect(mockAcl.createRouter).not.toHaveBeenCalled();
+      expect(mockAcl.setGlobalOptions).not.toHaveBeenCalled();
+      expect(app.use).not.toHaveBeenCalled();
     });
 
     it('should create model router with exact Mongoose model instances', () => {

@@ -134,4 +134,17 @@ export class OpenApiRegistry {
   getSpec(info: OpenApiDocumentOptions) {
     return buildOpenApiSpec(this.routes, info);
   }
+
+  snapshot(): { routes: OpenApiRouteDescriptor[]; options: Required<OpenApiRegistryOptions> } {
+    return {
+      routes: [...this.routes],
+      options: { ...this.options },
+    };
+  }
+
+  restore(snapshot: { routes: OpenApiRouteDescriptor[]; options: Required<OpenApiRegistryOptions> }): void {
+    this.routes.length = 0;
+    this.routes.push(...snapshot.routes);
+    this.options = { ...snapshot.options };
+  }
 }

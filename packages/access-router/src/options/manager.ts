@@ -1,4 +1,4 @@
-import { assign, get, set } from '@web-ts-toolkit/utils';
+import { assign, get, isPlainObject, set } from '@web-ts-toolkit/utils';
 
 type PropertyPath = string | number | Array<string | number>;
 
@@ -116,7 +116,8 @@ export class OptionsManager<T1 extends object, T2 extends object> {
 
     const [rootKey, ...nestedPath] = path;
     const currentRoot = get(this.currentOptions, [rootKey] as PropertyPath, undefined);
-    const nextRoot = cloneConfigValue(currentRoot ?? {});
+    const baseRoot = isPlainObject(currentRoot) ? currentRoot : {};
+    const nextRoot = cloneConfigValue(baseRoot as object);
     set(nextRoot as object, nestedPath, cloneConfigValue(value));
     set(this.currentOptions, [rootKey] as PropertyPath, nextRoot);
   }
@@ -149,5 +150,32 @@ export class OptionsManager<T1 extends object, T2 extends object> {
   ) {
     set(this.listeners, key as PropertyPath, func);
     return this;
+  }
+
+  snapshot(): T1 {
+    const cloned = cloneConfigValue(this.currentOptions) as Record<string, unknown>;
+    for (const key of this.preserveKeys) {
+      if (key in (this.currentOptions as Record<string, unknown>)) {
+        cloned[key] = (this.currentOptions as Record<string, unknown>)[key];
+      }
+    }
+    return cloned as T1;
+  }
+
+  restore(snapshot: T1): void {
+    const snap = snapshot as Record<string, unknown>;
+    const current = this.currentOptions as Record<string, unknown>;
+    for (const key of Object.keys(current)) {
+      if (!(key in snap)) {
+        delete current[key];
+      }
+    }
+    const cloned = cloneConfigValue(snap) as Record<string, unknown>;
+    for (const key of this.preserveKeys) {
+      if (key in snap) {
+        cloned[key] = snap[key];
+      }
+    }
+    assign(current as T1, cloned as T1);
   }
 }

@@ -253,6 +253,118 @@ export class AccessRuntime {
     return this.openApiRegistry.getSpec(info);
   }
 
+  createBootstrapSnapshot(): {
+    globalOptions: GlobalOptions;
+    defaultModelOptions: DefaultModelRouterOptions;
+    modelOptions: Record<string, ModelRouterOptions>;
+    dataOptions: Record<string, DataRouterOptions>;
+    modelInstances: Record<string, mongoose.Model<unknown>>;
+    modelJsonSchemas: Record<string, Record<string, unknown>>;
+    modelRefs: Record<string, ModelReferenceMap>;
+    modelSubs: Record<string, string[]>;
+    modelAtts: Record<string, string[]>;
+    openApi: { routes: OpenApiRouteDescriptor[]; options: Required<import('./openapi/types').OpenApiRegistryOptions> };
+  } {
+    const modelOptionsSnap: Record<string, ModelRouterOptions> = {};
+    for (const [name, mgr] of Object.entries(this.modelOptions)) {
+      modelOptionsSnap[name] = mgr.snapshot() as ModelRouterOptions;
+    }
+    const dataOptionsSnap: Record<string, DataRouterOptions> = {};
+    for (const [name, mgr] of Object.entries(this.dataOptions)) {
+      dataOptionsSnap[name] = mgr.snapshot() as DataRouterOptions;
+    }
+    return {
+      globalOptions: this.globalOptions.snapshot() as GlobalOptions,
+      defaultModelOptions: this.defaultModelOptions.snapshot() as DefaultModelRouterOptions,
+      modelOptions: modelOptionsSnap,
+      dataOptions: dataOptionsSnap,
+      modelInstances: { ...this.modelInstances },
+      modelJsonSchemas: { ...this.modelJsonSchemas },
+      modelRefs: Object.fromEntries(
+        Object.entries(this.modelRefs).map(([k, v]) => [k, JSON.parse(JSON.stringify(v))]),
+      ) as Record<string, ModelReferenceMap>,
+      modelSubs: Object.fromEntries(Object.entries(this.modelSubs).map(([k, v]) => [k, [...v]])) as Record<
+        string,
+        string[]
+      >,
+      modelAtts: Object.fromEntries(Object.entries(this.modelAtts).map(([k, v]) => [k, [...v]])) as Record<
+        string,
+        string[]
+      >,
+      openApi: this.openApiRegistry.snapshot(),
+    };
+  }
+
+  restoreBootstrapSnapshot(snapshot: ReturnType<AccessRuntime['createBootstrapSnapshot']>): void {
+    this.globalOptions.restore(snapshot.globalOptions as any);
+    this.defaultModelOptions.restore(snapshot.defaultModelOptions as any);
+
+    // Restore or delete model managers to match snapshot keys exactly.
+    for (const name of Object.keys(this.modelOptions)) {
+      if (!(name in snapshot.modelOptions)) {
+        delete this.modelOptions[name];
+      }
+    }
+    for (const [name, opts] of Object.entries(snapshot.modelOptions)) {
+      const existing = this.modelOptions[name];
+      if (existing) {
+        existing.restore(opts as any);
+      } else {
+        // Recreate manager for names that were removed (should not happen normally
+        // because createModelOptions requires a registered model, but handles edge case).
+        const mgr = this.createModelOptions(name);
+        mgr.restore(opts as any);
+        this.modelOptions[name] = mgr;
+      }
+    }
+    // Ensure any new managers created during failed attempt that are not in snapshot are removed (already handled above).
+    // For snapshot model names that had no manager before, the above recreation ensures exact match.
+
+    for (const name of Object.keys(this.dataOptions)) {
+      if (!(name in snapshot.dataOptions)) {
+        delete this.dataOptions[name];
+      }
+    }
+    for (const [name, opts] of Object.entries(snapshot.dataOptions)) {
+      const existing = this.dataOptions[name];
+      if (existing) {
+        existing.restore(opts as any);
+      } else {
+        const mgr = this.createDataOptions(name);
+        mgr.restore(opts as any);
+        this.dataOptions[name] = mgr;
+      }
+    }
+
+    // Replace instance/refs maps with snapshot shallow copies.
+    for (const k of Object.keys(this.modelInstances)) {
+      if (!(k in snapshot.modelInstances)) delete this.modelInstances[k];
+    }
+    Object.assign(this.modelInstances, snapshot.modelInstances);
+
+    for (const k of Object.keys(this.modelJsonSchemas)) {
+      if (!(k in snapshot.modelJsonSchemas)) delete this.modelJsonSchemas[k];
+    }
+    Object.assign(this.modelJsonSchemas, snapshot.modelJsonSchemas);
+
+    for (const k of Object.keys(this.modelRefs)) {
+      if (!(k in snapshot.modelRefs)) delete this.modelRefs[k];
+    }
+    Object.assign(this.modelRefs, snapshot.modelRefs);
+
+    for (const k of Object.keys(this.modelSubs)) {
+      if (!(k in snapshot.modelSubs)) delete this.modelSubs[k];
+    }
+    Object.assign(this.modelSubs, snapshot.modelSubs);
+
+    for (const k of Object.keys(this.modelAtts)) {
+      if (!(k in snapshot.modelAtts)) delete this.modelAtts[k];
+    }
+    Object.assign(this.modelAtts, snapshot.modelAtts);
+
+    this.openApiRegistry.restore(snapshot.openApi);
+  }
+
   setGlobalOptions(options: GlobalOptions) {
     this.globalOptions.assign(options);
   }

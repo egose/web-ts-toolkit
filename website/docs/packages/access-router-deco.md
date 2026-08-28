@@ -20,7 +20,11 @@ Peer dependencies:
 - `@web-ts-toolkit/access-router`
 - `express >=5`
 - `mongoose >=8` through `@web-ts-toolkit/access-router`
-- `reflect-metadata`
+- `reflect-metadata ^0.1.13 || ^0.2.0` (both `0.1` and `0.2` lines satisfy the documented init policy)
+
+Declaration types: `@types/express` is a runtime dependency of this package. A clean consumer installing only the package and the peers above resolves all emitted `.d.ts` imports with `skipLibCheck: false` — no extra `@types/express` install needed. Removing unrelated workspace packages or their transitive `@types/express` does not break compilation.
+
+TypeScript: `>=5.5 <7.0` (maintained `5.x`/`6.x` lines, verified `5.5`/`5.9`/`6.0`). Requires `experimentalDecorators: true` (legacy decorators); `emitDecoratorMetadata: true` is supported but not required. `skipLibCheck: false` with `moduleResolution: NodeNext` or `Bundler` is verified via the packed-consumer suite (see Compatibility Matrix in the package README — sentinel in `pnpm test`, full matrix via `pnpm --filter @web-ts-toolkit/access-router-deco test:compat`).
 
 Importing `@web-ts-toolkit/access-router-deco` initializes `reflect-metadata` once before the package decorators run.
 
@@ -40,6 +44,7 @@ Importing `@web-ts-toolkit/access-router-deco` initializes `reflect-metadata` on
 ## Quick Start
 
 ```ts
+import 'reflect-metadata';
 import express from 'express';
 import mongoose from 'mongoose';
 import {
@@ -52,7 +57,7 @@ import {
   Request,
   Document,
   Permissions,
-  EgoseFactory,
+  EgoseFactoryStatic,
 } from '@web-ts-toolkit/access-router-deco';
 
 mongoose.model('User', new mongoose.Schema({ email: String, name: String, public: Boolean }));
@@ -67,12 +72,10 @@ class UserRouter {
   }
 
   @Validate('create')
-  validateCreate(@Document() doc: any) {
-    if (!doc.email) {
-      throw new Error('email is required');
-    }
-
-    return doc;
+  validateCreate(@Document() doc: { email?: string; name?: string }) {
+    if (!doc.email) return ['email is required'];
+    if (!doc.name) return false;
+    return true;
   }
 }
 
@@ -99,7 +102,14 @@ class AppModule {
 }
 
 const app = express();
-EgoseFactory.bootstrap(AppModule, app);
+const factory = EgoseFactoryStatic.create();
+const { runtime } = factory.bootstrap(AppModule, app);
+// Isolated runtime per factory — preferred for apps and tests. `EgoseFactory` is still available as a compatibility singleton for shared-runtime apps.
+
+// Invalid input uses controlled validation failure (false / issue array → 400), not throw or document return:
+// - validateCreate({ name: 'Ada' }) → ['email is required']
+// - validateCreate({ email: 'a@b.co' }) → false
+// - validateCreate({ email: 'a@b.co', name: 'Ada' }) → true
 ```
 
 This package is a good fit when you like `access-router`'s hooks and configuration model but want to express them through decorators and classes instead of building option objects manually.
@@ -129,7 +139,7 @@ The bootstrap result exposes the bound `runtime` and mounted Express `router` fo
 
 ## TypeScript Decorator Configuration
 
-This package uses TypeScript legacy decorators, including parameter decorators. Compile consumers with `experimentalDecorators: true` and use a compiler/transpiler that preserves legacy class, method, property, and parameter decorators. `emitDecoratorMetadata` is supported but not required for injection. Consumers must install the `reflect-metadata` peer dependency; importing this package initializes it once before package decorators run.
+This package uses TypeScript legacy decorators, including parameter decorators. Compile consumers with `experimentalDecorators: true` and use a compiler/transpiler that preserves legacy class, method, property, and parameter decorators. `emitDecoratorMetadata: true` is supported but not required — the package imports `reflect-metadata` from its root entrypoint, so consumers own installing the peer (`^0.1.13 || ^0.2.0`) but do not need a separate `import 'reflect-metadata'` before importing this package. Supported range is `typescript >=5.5 <7.0` (each maintained `5.x`/`6.x` line; minimum verified `5.5`).
 
 Parameter injection is explicit: undecorated hook parameters receive no values. Use decorators such as `@Request()`, `@Document()`, `@Permissions()`, `@Context()`, `@Filter()`, and `@Id()` for every runtime value a hook needs.
 
@@ -271,37 +281,39 @@ Use the one-argument form for default model options and the two-argument form fo
 
 ## Hook Decorators
 
-These decorators map directly to `access-router` option keys.
+These decorators map directly to `access-router` option keys. Every hook method runs with `this` bound to the decorated class instance (not the request — use `@Request()` for request data) and uses **explicit parameter injection** — undecorated parameters receive no value.
 
-| Decorator              | Maps to             |
-| ---------------------- | ------------------- |
-| `@GlobalPermissions()` | `globalPermissions` |
-| `@DocPermissions(...)` | `docPermissions.*`  |
-| `@BaseFilter(...)`     | `baseFilter.*`      |
-| `@OverrideFilter(...)` | `overrideFilter.*`  |
-| `@Validate(...)`       | `validate.*`        |
-| `@Prepare(...)`        | `prepare.*`         |
-| `@Transform(...)`      | `transform.*`       |
-| `@AfterPersist(...)`   | `afterPersist.*`    |
-| `@Decorate(...)`       | `decorate.*`        |
-| `@DecorateAll(...)`    | `decorateAll.*`     |
-| `@RouteGuard(...)`     | `operationAccess.*` |
-| `@Identifier()`        | `resolveIdFilter`   |
-| `@BeforeDelete()`      | `beforeDelete`      |
-| `@AfterDelete()`       | `afterDelete`       |
+| Decorator              | Maps to             | Scope / Valid Class Role                                           | Operations                                                                                    | Result Shape (`MaybePromise<…>`)                                                                                                     |
+| ---------------------- | ------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `@GlobalPermissions()` | `globalPermissions` | `@Module` only                                                     | —                                                                                             | `GlobalPermissionValue` (`string \| string[] \| Record<string,boolean> \| null \| undefined`)                                        |
+| `@DocPermissions(op)`  | `docPermissions.*`  | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `create`, `update`, `list`, `read`                                                 | `Record<string,unknown>`                                                                                                             |
+| `@BaseFilter(op)`      | `baseFilter.*`      | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `update`, `list`, `read`, `delete`                                                 | `Filter \| true \| null \| undefined`                                                                                                |
+| `@OverrideFilter(op)`  | `overrideFilter.*`  | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `update`, `list`, `read`, `delete`                                                 | `Filter`                                                                                                                             |
+| `@Validate(op)`        | `validate.*`        | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `create`, `update`                                                                 | `boolean \| unknown[]` — `true` passes, `false` / non-empty array → `400` controlled failure; returning the document is a type error |
+| `@Prepare(op)`         | `prepare.*`         | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `create`, `update`                                                                 | `TValue` (prepared document)                                                                                                         |
+| `@Transform(op)`       | `transform.*`       | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `update`                                                                           | `ModelDocument<TValue>`                                                                                                              |
+| `@AfterPersist(op)`    | `afterPersist.*`    | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `create`, `update`                                                                 | `ModelDocument<TValue>`                                                                                                              |
+| `@Decorate(op)`        | `decorate.*`        | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `create`, `update`, `list`, `read`                                                 | `TValue`                                                                                                                             |
+| `@DecorateAll(op)`     | `decorateAll.*`     | `@Router(Model)` / `@RouterOptions(Model)`                         | `default`, `list`                                                                             | `TValue[]`                                                                                                                           |
+| `@RouteGuard(op)`      | `operationAccess.*` | `@Router(Model)` / `@RouterOptions(Model)` / default model options | `default`, `new`, `list`, `create`, `read`, `update`, `upsert`, `delete`, `distinct`, `count` | `boolean`                                                                                                                            |
+| `@Identifier()`        | `resolveIdFilter`   | `@Router(Model)` / `@RouterOptions(Model)` / default               | —                                                                                             | `Filter`                                                                                                                             |
+| `@BeforeDelete()`      | `beforeDelete`      | `@Router(Model)` / `@RouterOptions(Model)`                         | —                                                                                             | `void`                                                                                                                               |
+| `@AfterDelete()`       | `afterDelete`       | `@Router(Model)` / `@RouterOptions(Model)`                         | —                                                                                             | `void`                                                                                                                               |
 
-Most decorators take the same operation names you would use in plain `access-router` options, such as `create`, `read`, `update`, `list`, or `delete`.
+Most decorators take the same operation names you would use in plain `access-router` options, such as `create`, `read`, `update`, `list`, or `delete`. Scalar hooks (`globalPermissions`, `docPermissions`, `baseFilter`, `overrideFilter`, `validate`, `routeGuard`, `identifier`, `beforeDelete`, `afterDelete`) reject duplicate keys on the same class; array hooks (`prepare`, `transform`, `afterPersist`, `decorate`, `decorateAll`) compose base→derived.
+
+`@Validate`: return `true` on success, `false` or an issue array such as `['email is required']` on invalid input — do not `throw` for expected invalid input nor return the document, and the typed hook now fails to compile if you return a document.
 
 ## Parameter Decorators
 
-Hook methods can declare only the inputs they need.
+Hook methods can declare only the inputs they need. Injection is **explicit**: undecorated parameters receive no value — every runtime value must be requested with a decorator, and `this` is always the class instance.
 
-- `@Request()` injects the active request for global permission hooks
-- `@Document()` injects the document payload or current document
-- `@Permissions()` injects resolved permissions
-- `@Context()` injects the hook context from `access-router`
-- `@Filter()` injects the current filter for `@OverrideFilter(...)` hooks
-- `@Id()` injects the route identifier for `@Identifier()` hooks
+- `@Request()` injects the active request (`AccessRouterRequest`) — valid on any hook
+- `@Document()` injects the document / allowed data — valid on model hooks (`docPermissions`, `validate`, `prepare`, `transform`, `decorate`, `before/afterDelete`, etc.)
+- `@Permissions()` injects resolved permissions — valid on `@RouteGuard`, `@BaseFilter`, `@DocPermissions`, `@Validate`, etc.
+- `@Context()` injects the `ModelHookContext` from `access-router` — valid on model hooks
+- `@Filter()` injects the current filter — valid only on `@OverrideFilter(...)` hooks
+- `@Id()` injects the route identifier string — valid only on `@Identifier()` hooks
 
 Example:
 
@@ -336,9 +348,18 @@ bySlug(@Id() id: string) {
 }
 ```
 
-## Property Decorator
+## Property Decorators
 
-`@Option(...)` copies a class property value onto global, default-model, or model-specific options during bootstrap.
+`@Option(...)` and its scoped variants copy a class property value onto runtime options during bootstrap (explicit — undecorated properties are not copied; build-time keys like `basePath`, `idParam` must be set before route construction).
+
+| Decorator                   | Scope / Valid Class Role                                          | Typed Key                                 | Effect                              |
+| --------------------------- | ----------------------------------------------------------------- | ----------------------------------------- | ----------------------------------- |
+| `@GlobalOption(key?)`       | `@Module` (global)                                                | `keyof GlobalOptions`                     | `setGlobalOption(key, value)`       |
+| `@ModelOption(key?)`        | `@Router(Model)` / `@RouterOptions(Model)`                        | `keyof ExtendedModelRouterOptions`        | `setModelOption(model, key, value)` |
+| `@DefaultModelOption(key?)` | `@RouterOptions` default                                          | `keyof ExtendedDefaultModelRouterOptions` | `setDefaultModelOption(key, value)` |
+| `@Option(key?)`             | legacy unscoped — any hook-hosting class (role determines target) | `string`                                  | same via role-appropriate setter    |
+
+Example:
 
 ```ts
 @RouterOptions('User')
@@ -350,11 +371,21 @@ class UserRouterOptions {
 
 ## Bootstrapping
 
-`EgoseFactory.bootstrap(...)` reads the decorator metadata and mounts the resulting routers onto an Express app.
+`EgoseFactoryStatic.create().bootstrap(...)` reads the decorator metadata and mounts the resulting routers onto an isolated runtime and Express app. `EgoseFactory` remains as a compatibility singleton bound to the default `access-router` runtime.
 
 ```ts
-const app = express();
+import { EgoseFactoryStatic } from '@web-ts-toolkit/access-router-deco';
 
+const app = express();
+const factory = EgoseFactoryStatic.create();
+const { runtime, router } = factory.bootstrap(AppModule, app);
+// or with an explicit runtime: EgoseFactoryStatic.create(createAccessRuntime())
+```
+
+Legacy singleton form (shared default runtime) is still supported:
+
+```ts
+import { EgoseFactory } from '@web-ts-toolkit/access-router-deco';
 EgoseFactory.bootstrap(AppModule, app);
 ```
 

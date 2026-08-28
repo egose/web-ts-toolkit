@@ -203,6 +203,7 @@ export type {
   ModelOverrideFilterHook,
   ModelValidateHook,
 } from './interfaces';
+export type { GuardHook, Validation, RouteGuardAccess } from './interfaces/access';
 export * from './permission';
 export * from './plugins';
 export { redactFilter, redactPayload, safeStringify, isLevelEnabled } from './logger-helpers';

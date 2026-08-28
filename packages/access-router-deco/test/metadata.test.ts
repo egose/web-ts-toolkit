@@ -13,21 +13,9 @@ import {
   isModelRouter,
   isDefaultModelRouterOptions,
   isModelRouterOptions,
-  isGlobalPermissionsMethod,
-  isDocPermissionsMethod,
-  isBaseFilterMethod,
-  isOverrideFilterMethod,
-  isValidateMethod,
-  isPrepareMethod,
-  isTransformMethod,
-  isAfterPersistMethod,
-  isDecorateMethod,
-  isDecorateAllMethod,
-  isRouteGuardMethod,
-  isIdentifierMethod,
-  isBeforeDeleteMethod,
-  isAfterDeleteMethod,
+  isHookMethod,
 } from '../src/metadata';
+import { HOOK_DEFINITIONS } from '../src/constants';
 import {
   GlobalPermissions,
   DocPermissions,
@@ -269,38 +257,41 @@ describe('metadata', () => {
   });
 
   describe('method-level watermark helpers', () => {
-    const helpers: Array<{
-      name: string;
-      helper: (obj: object, method: string) => boolean;
+    // Hook-specific predicates were removed (ARDECO-09). Verify the single
+    // authoritative helper `isHookMethod` with one entry per HOOK_DEFINITIONS
+    // key — adding a hook still requires one definition plus this table entry.
+    const cases: Array<{
+      hookKey: keyof typeof HOOK_DEFINITIONS;
       decorator: () => MethodDecorator;
     }> = [
-      { name: 'isGlobalPermissionsMethod', helper: isGlobalPermissionsMethod, decorator: GlobalPermissions },
-      { name: 'isDocPermissionsMethod', helper: isDocPermissionsMethod, decorator: () => DocPermissions('read') },
-      { name: 'isBaseFilterMethod', helper: isBaseFilterMethod, decorator: () => BaseFilter('list') },
-      { name: 'isOverrideFilterMethod', helper: isOverrideFilterMethod, decorator: () => OverrideFilter('read') },
-      { name: 'isValidateMethod', helper: isValidateMethod, decorator: () => Validate('create') },
-      { name: 'isPrepareMethod', helper: isPrepareMethod, decorator: () => Prepare('update') },
-      { name: 'isTransformMethod', helper: isTransformMethod, decorator: () => Transform('update') },
-      { name: 'isAfterPersistMethod', helper: isAfterPersistMethod, decorator: () => AfterPersist('create') },
-      { name: 'isDecorateMethod', helper: isDecorateMethod, decorator: () => Decorate('read') },
-      { name: 'isDecorateAllMethod', helper: isDecorateAllMethod, decorator: () => DecorateAll('list') },
-      { name: 'isRouteGuardMethod', helper: isRouteGuardMethod, decorator: () => RouteGuard('delete') },
-      { name: 'isIdentifierMethod', helper: isIdentifierMethod, decorator: Identifier },
-      { name: 'isBeforeDeleteMethod', helper: isBeforeDeleteMethod, decorator: BeforeDelete },
-      { name: 'isAfterDeleteMethod', helper: isAfterDeleteMethod, decorator: AfterDelete },
+      { hookKey: 'globalPermissions', decorator: GlobalPermissions },
+      { hookKey: 'docPermissions', decorator: () => DocPermissions('read') },
+      { hookKey: 'baseFilter', decorator: () => BaseFilter('list') },
+      { hookKey: 'overrideFilter', decorator: () => OverrideFilter('read') },
+      { hookKey: 'validate', decorator: () => Validate('create') },
+      { hookKey: 'prepare', decorator: () => Prepare('update') },
+      { hookKey: 'transform', decorator: () => Transform('update') },
+      { hookKey: 'afterPersist', decorator: () => AfterPersist('create') },
+      { hookKey: 'decorate', decorator: () => Decorate('read') },
+      { hookKey: 'decorateAll', decorator: () => DecorateAll('list') },
+      { hookKey: 'routeGuard', decorator: () => RouteGuard('delete') },
+      { hookKey: 'identifier', decorator: Identifier },
+      { hookKey: 'beforeDelete', decorator: BeforeDelete },
+      { hookKey: 'afterDelete', decorator: AfterDelete },
     ];
 
-    for (const { name, helper, decorator } of helpers) {
-      it(name, () => {
+    for (const { hookKey, decorator } of cases) {
+      it(`isHookMethod for ${hookKey}`, () => {
         class Target {
           handler() {}
           other() {}
         }
         applyMethodDecorator(decorator(), Target.prototype, 'handler');
         const instance = new Target();
+        const hook = HOOK_DEFINITIONS[hookKey];
 
-        expect(helper(instance, 'handler')).toBe(true);
-        expect(helper(instance, 'other')).toBe(false);
+        expect(isHookMethod(instance, 'handler', hook)).toBe(true);
+        expect(isHookMethod(instance, 'other', hook)).toBe(false);
       });
     }
   });
