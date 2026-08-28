@@ -121,8 +121,8 @@ const toc = [{
   "id": "parameter-decorators",
   "level": 2
 }, {
-  "value": "Property Decorator",
-  "id": "property-decorator",
+  "value": "Property Decorators",
+  "id": "property-decorators",
   "level": 2
 }, {
   "value": "Bootstrapping",
@@ -148,6 +148,7 @@ function _createMdxContent(props) {
     li: "li",
     p: "p",
     pre: "pre",
+    strong: "strong",
     table: "table",
     tbody: "tbody",
     td: "td",
@@ -232,11 +233,55 @@ function _createMdxContent(props) {
         }), " through ", (0,jsx_runtime.jsx)(_components.code, {
           children: "@web-ts-toolkit/access-router"
         })]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "reflect-metadata"
-        })
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "reflect-metadata ^0.1.13 || ^0.2.0"
+        }), " (both ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "0.1"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "0.2"
+        }), " lines satisfy the documented init policy)"]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Declaration types: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@types/express"
+      }), " is a runtime dependency of this package. A clean consumer installing only the package and the peers above resolves all emitted ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".d.ts"
+      }), " imports with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "skipLibCheck: false"
+      }), " — no extra ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@types/express"
+      }), " install needed. Removing unrelated workspace packages or their transitive ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@types/express"
+      }), " does not break compilation."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["TypeScript: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ">=5.5 <7.0"
+      }), " (maintained ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "5.x"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "6.x"
+      }), " lines, verified ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "5.5"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "5.9"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "6.0"
+      }), "). Requires ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "experimentalDecorators: true"
+      }), " (legacy decorators); ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "emitDecoratorMetadata: true"
+      }), " is supported but not required. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "skipLibCheck: false"
+      }), " with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "moduleResolution: NodeNext"
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Bundler"
+      }), " is verified via the packed-consumer suite (see Compatibility Matrix in the package README — sentinel in ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pnpm test"
+      }), ", full matrix via ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pnpm --filter @web-ts-toolkit/access-router-deco test:compat"
+      }), ")."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Importing ", (0,jsx_runtime.jsx)(_components.code, {
         children: "@web-ts-toolkit/access-router-deco"
@@ -324,7 +369,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import express from 'express';\nimport mongoose from 'mongoose';\nimport {\n  Module,\n  Router,\n  RouterOptions,\n  GlobalPermissions,\n  DocPermissions,\n  Validate,\n  Request,\n  Document,\n  Permissions,\n  EgoseFactory,\n} from '@web-ts-toolkit/access-router-deco';\n\nmongoose.model('User', new mongoose.Schema({ email: String, name: String, public: Boolean }));\n\n@Router('User', {\n  basePath: '/users',\n})\nclass UserRouter {\n  @DocPermissions('read')\n  canRead(@Document() doc: any, @Permissions() permissions: { has(permission: string): boolean }) {\n    return { read: doc.public || permissions.has('isAdmin') };\n  }\n\n  @Validate('create')\n  validateCreate(@Document() doc: any) {\n    if (!doc.email) {\n      throw new Error('email is required');\n    }\n\n    return doc;\n  }\n}\n\n@RouterOptions({\n  operationAccess: {\n    list: true,\n    read: true,\n  },\n})\nclass DefaultOptions {}\n\n@Module({\n  routers: [UserRouter],\n  routerOptions: [DefaultOptions],\n  options: {\n    basePath: '/api',\n  },\n})\nclass AppModule {\n  @GlobalPermissions()\n  permissions(@Request() req: express.Request) {\n    return req.headers['x-role'] === 'admin' ? ['isAdmin'] : [];\n  }\n}\n\nconst app = express();\nEgoseFactory.bootstrap(AppModule, app);\n"
+        children: "import 'reflect-metadata';\nimport express from 'express';\nimport mongoose from 'mongoose';\nimport {\n  Module,\n  Router,\n  RouterOptions,\n  GlobalPermissions,\n  DocPermissions,\n  Validate,\n  Request,\n  Document,\n  Permissions,\n  EgoseFactoryStatic,\n} from '@web-ts-toolkit/access-router-deco';\n\nmongoose.model('User', new mongoose.Schema({ email: String, name: String, public: Boolean }));\n\n@Router('User', {\n  basePath: '/users',\n})\nclass UserRouter {\n  @DocPermissions('read')\n  canRead(@Document() doc: any, @Permissions() permissions: { has(permission: string): boolean }) {\n    return { read: doc.public || permissions.has('isAdmin') };\n  }\n\n  @Validate('create')\n  validateCreate(@Document() doc: { email?: string; name?: string }) {\n    if (!doc.email) return ['email is required'];\n    if (!doc.name) return false;\n    return true;\n  }\n}\n\n@RouterOptions({\n  operationAccess: {\n    list: true,\n    read: true,\n  },\n})\nclass DefaultOptions {}\n\n@Module({\n  routers: [UserRouter],\n  routerOptions: [DefaultOptions],\n  options: {\n    basePath: '/api',\n  },\n})\nclass AppModule {\n  @GlobalPermissions()\n  permissions(@Request() req: express.Request) {\n    return req.headers['x-role'] === 'admin' ? ['isAdmin'] : [];\n  }\n}\n\nconst app = express();\nconst factory = EgoseFactoryStatic.create();\nconst { runtime } = factory.bootstrap(AppModule, app);\n// Isolated runtime per factory — preferred for apps and tests. `EgoseFactory` is still available as a compatibility singleton for shared-runtime apps.\n\n// Invalid input uses controlled validation failure (false / issue array → 400), not throw or document return:\n// - validateCreate({ name: 'Ada' }) → ['email is required']\n// - validateCreate({ email: 'a@b.co' }) → false\n// - validateCreate({ email: 'a@b.co', name: 'Ada' }) → true\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["This package is a good fit when you like ", (0,jsx_runtime.jsx)(_components.code, {
@@ -372,10 +417,22 @@ function _createMdxContent(props) {
       children: ["This package uses TypeScript legacy decorators, including parameter decorators. Compile consumers with ", (0,jsx_runtime.jsx)(_components.code, {
         children: "experimentalDecorators: true"
       }), " and use a compiler/transpiler that preserves legacy class, method, property, and parameter decorators. ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "emitDecoratorMetadata"
-      }), " is supported but not required for injection. Consumers must install the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "emitDecoratorMetadata: true"
+      }), " is supported but not required — the package imports ", (0,jsx_runtime.jsx)(_components.code, {
         children: "reflect-metadata"
-      }), " peer dependency; importing this package initializes it once before package decorators run."]
+      }), " from its root entrypoint, so consumers own installing the peer (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "^0.1.13 || ^0.2.0"
+      }), ") but do not need a separate ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "import 'reflect-metadata'"
+      }), " before importing this package. Supported range is ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "typescript >=5.5 <7.0"
+      }), " (each maintained ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "5.x"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "6.x"
+      }), " line; minimum verified ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "5.5"
+      }), ")."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Parameter injection is explicit: undecorated hook parameters receive no values. Use decorators such as ", (0,jsx_runtime.jsx)(_components.code, {
         children: "@Request()"
@@ -637,7 +694,13 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["These decorators map directly to ", (0,jsx_runtime.jsx)(_components.code, {
         children: "access-router"
-      }), " option keys."]
+      }), " option keys. Every hook method runs with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "this"
+      }), " bound to the decorated class instance (not the request — use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Request()"
+      }), " for request data) and uses ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "explicit parameter injection"
+      }), " — undecorated parameters receive no value."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
       children: [(0,jsx_runtime.jsx)(_components.thead, {
         children: (0,jsx_runtime.jsxs)(_components.tr, {
@@ -645,6 +708,14 @@ function _createMdxContent(props) {
             children: "Decorator"
           }), (0,jsx_runtime.jsx)(_components.th, {
             children: "Maps to"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Scope / Valid Class Role"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Operations"
+          }), (0,jsx_runtime.jsxs)(_components.th, {
+            children: ["Result Shape (", (0,jsx_runtime.jsx)(_components.code, {
+              children: "MaybePromise<…>"
+            }), ")"]
           })]
         })
       }), (0,jsx_runtime.jsxs)(_components.tbody, {
@@ -657,105 +728,329 @@ function _createMdxContent(props) {
             children: (0,jsx_runtime.jsx)(_components.code, {
               children: "globalPermissions"
             })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Module"
+            }), " only"]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "GlobalPermissionValue"
+            }), " (", (0,jsx_runtime.jsx)(_components.code, {
+              children: "string | string[] | Record<string,boolean> | null | undefined"
+            }), ")"]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "@DocPermissions(...)"
+              children: "@DocPermissions(op)"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
               children: "docPermissions.*"
             })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Router(Model)"
+            }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouterOptions(Model)"
+            })]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "default"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "create"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "update"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "list"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "read"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "Record<string,unknown>"
+            })
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "@BaseFilter(...)"
+              children: "@BaseFilter(op)"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
               children: "baseFilter.*"
             })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Router(Model)"
+            }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouterOptions(Model)"
+            })]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "default"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "update"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "list"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "read"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "delete"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "Filter | true | null | undefined"
+            })
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "@OverrideFilter(...)"
+              children: "@OverrideFilter(op)"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
               children: "overrideFilter.*"
             })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Router(Model)"
+            }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouterOptions(Model)"
+            })]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "default"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "update"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "list"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "read"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "delete"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "Filter"
+            })
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "@Validate(...)"
+              children: "@Validate(op)"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
               children: "validate.*"
             })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Router(Model)"
+            }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouterOptions(Model)"
+            })]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "default"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "create"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "update"
+            })]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "boolean | unknown[]"
+            }), " — ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "true"
+            }), " passes, ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "false"
+            }), " / non-empty array → ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "400"
+            }), " controlled failure; returning the document is a type error"]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "@Prepare(...)"
+              children: "@Prepare(op)"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
               children: "prepare.*"
             })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Router(Model)"
+            }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouterOptions(Model)"
+            })]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "default"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "create"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "update"
+            })]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "TValue"
+            }), " (prepared document)"]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "@Transform(...)"
+              children: "@Transform(op)"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
               children: "transform.*"
             })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Router(Model)"
+            }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouterOptions(Model)"
+            })]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "default"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "update"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "ModelDocument<TValue>"
+            })
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "@AfterPersist(...)"
+              children: "@AfterPersist(op)"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
               children: "afterPersist.*"
             })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Router(Model)"
+            }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouterOptions(Model)"
+            })]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "default"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "create"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "update"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "ModelDocument<TValue>"
+            })
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "@Decorate(...)"
+              children: "@Decorate(op)"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
               children: "decorate.*"
             })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Router(Model)"
+            }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouterOptions(Model)"
+            })]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "default"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "create"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "update"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "list"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "read"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "TValue"
+            })
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "@DecorateAll(...)"
+              children: "@DecorateAll(op)"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
               children: "decorateAll.*"
             })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Router(Model)"
+            }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouterOptions(Model)"
+            })]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "default"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "list"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "TValue[]"
+            })
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
-              children: "@RouteGuard(...)"
+              children: "@RouteGuard(op)"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
               children: "operationAccess.*"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Router(Model)"
+            }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouterOptions(Model)"
+            }), " / default model options"]
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "default"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "new"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "list"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "create"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "read"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "update"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "upsert"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "delete"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "distinct"
+            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "count"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "boolean"
             })
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
@@ -767,6 +1062,18 @@ function _createMdxContent(props) {
             children: (0,jsx_runtime.jsx)(_components.code, {
               children: "resolveIdFilter"
             })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Router(Model)"
+            }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouterOptions(Model)"
+            }), " / default"]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "Filter"
+            })
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
@@ -777,6 +1084,18 @@ function _createMdxContent(props) {
             children: (0,jsx_runtime.jsx)(_components.code, {
               children: "beforeDelete"
             })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Router(Model)"
+            }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouterOptions(Model)"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "void"
+            })
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
@@ -786,6 +1105,18 @@ function _createMdxContent(props) {
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: (0,jsx_runtime.jsx)(_components.code, {
               children: "afterDelete"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Router(Model)"
+            }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouterOptions(Model)"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "—"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "void"
             })
           })]
         })]
@@ -803,41 +1134,109 @@ function _createMdxContent(props) {
         children: "list"
       }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
         children: "delete"
-      }), "."]
+      }), ". Scalar hooks (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "globalPermissions"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "docPermissions"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "baseFilter"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "overrideFilter"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "validate"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "routeGuard"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "identifier"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "beforeDelete"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "afterDelete"
+      }), ") reject duplicate keys on the same class; array hooks (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "prepare"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "transform"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "afterPersist"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "decorate"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "decorateAll"
+      }), ") compose base→derived."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "@Validate"
+      }), ": return ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "true"
+      }), " on success, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), " or an issue array such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "['email is required']"
+      }), " on invalid input — do not ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "throw"
+      }), " for expected invalid input nor return the document, and the typed hook now fails to compile if you return a document."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "parameter-decorators",
       children: "Parameter Decorators"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Hook methods can declare only the inputs they need."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Hook methods can declare only the inputs they need. Injection is ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "explicit"
+      }), ": undecorated parameters receive no value — every runtime value must be requested with a decorator, and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "this"
+      }), " is always the class instance."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "@Request()"
-        }), " injects the active request for global permission hooks"]
+        }), " injects the active request (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "AccessRouterRequest"
+        }), ") — valid on any hook"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "@Document()"
-        }), " injects the document payload or current document"]
+        }), " injects the document / allowed data — valid on model hooks (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "docPermissions"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "validate"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "prepare"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "transform"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "decorate"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "before/afterDelete"
+        }), ", etc.)"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "@Permissions()"
-        }), " injects resolved permissions"]
+        }), " injects resolved permissions — valid on ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "@RouteGuard"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "@BaseFilter"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "@DocPermissions"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "@Validate"
+        }), ", etc."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "@Context()"
-        }), " injects the hook context from ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " injects the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ModelHookContext"
+        }), " from ", (0,jsx_runtime.jsx)(_components.code, {
           children: "access-router"
-        })]
+        }), " — valid on model hooks"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "@Filter()"
-        }), " injects the current filter for ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " injects the current filter — valid only on ", (0,jsx_runtime.jsx)(_components.code, {
           children: "@OverrideFilter(...)"
         }), " hooks"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "@Id()"
-        }), " injects the route identifier for ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " injects the route identifier string — valid only on ", (0,jsx_runtime.jsx)(_components.code, {
           children: "@Identifier()"
         }), " hooks"]
       }), "\n"]
@@ -865,12 +1264,104 @@ function _createMdxContent(props) {
         children: "@Identifier()\nbySlug(@Id() id: string) {\n  return { slug: id };\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "property-decorator",
-      children: "Property Decorator"
+      id: "property-decorators",
+      children: "Property Decorators"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "@Option(...)"
-      }), " copies a class property value onto global, default-model, or model-specific options during bootstrap."]
+      }), " and its scoped variants copy a class property value onto runtime options during bootstrap (explicit — undecorated properties are not copied; build-time keys like ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "basePath"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "idParam"
+      }), " must be set before route construction)."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "Decorator"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Scope / Valid Class Role"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Typed Key"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Effect"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@GlobalOption(key?)"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Module"
+            }), " (global)"]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "keyof GlobalOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "setGlobalOption(key, value)"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@ModelOption(key?)"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@Router(Model)"
+            }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouterOptions(Model)"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "keyof ExtendedModelRouterOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "setModelOption(model, key, value)"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@DefaultModelOption(key?)"
+            })
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "@RouterOptions"
+            }), " default"]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "keyof ExtendedDefaultModelRouterOptions"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "setDefaultModelOption(key, value)"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "@Option(key?)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "legacy unscoped — any hook-hosting class (role determines target)"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "string"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "same via role-appropriate setter"
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Example:"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
@@ -881,12 +1372,23 @@ function _createMdxContent(props) {
       children: "Bootstrapping"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "EgoseFactory.bootstrap(...)"
-      }), " reads the decorator metadata and mounts the resulting routers onto an Express app."]
+        children: "EgoseFactoryStatic.create().bootstrap(...)"
+      }), " reads the decorator metadata and mounts the resulting routers onto an isolated runtime and Express app. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "EgoseFactory"
+      }), " remains as a compatibility singleton bound to the default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "access-router"
+      }), " runtime."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "const app = express();\n\nEgoseFactory.bootstrap(AppModule, app);\n"
+        children: "import { EgoseFactoryStatic } from '@web-ts-toolkit/access-router-deco';\n\nconst app = express();\nconst factory = EgoseFactoryStatic.create();\nconst { runtime, router } = factory.bootstrap(AppModule, app);\n// or with an explicit runtime: EgoseFactoryStatic.create(createAccessRuntime())\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Legacy singleton form (shared default runtime) is still supported:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { EgoseFactory } from '@web-ts-toolkit/access-router-deco';\nEgoseFactory.bootstrap(AppModule, app);\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["If you already prefer explicit ", (0,jsx_runtime.jsx)(_components.code, {
