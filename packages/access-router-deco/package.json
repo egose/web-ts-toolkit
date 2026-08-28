@@ -16,7 +16,8 @@
   "scripts": {
     "build": "tsup --config tsup.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
-    "test": "pnpm --filter @web-ts-toolkit/access-router-deco... build && pnpm typecheck && vitest run --config vitest.config.ts"
+    "test": "pnpm --filter @web-ts-toolkit/access-router-deco... build && pnpm typecheck && vitest run --config vitest.config.ts",
+    "test:compat": "ARDECO_COMPAT_FULL=1 pnpm --filter @web-ts-toolkit/access-router-deco... build && ARDECO_COMPAT_FULL=1 pnpm typecheck && ARDECO_COMPAT_FULL=1 vitest run --config vitest.compat.config.ts"
   },
   "engines": {
     "node": ">=22"
@@ -36,6 +37,9 @@
     "README.md",
     "dist"
   ],
+  "dependencies": {
+    "@types/express": "^5.0.3"
+  },
   "peerDependencies": {
     "@web-ts-toolkit/access-router": "workspace:*",
     "express": ">=5.0.0",
@@ -43,7 +47,6 @@
     "reflect-metadata": "^0.1.13 || ^0.2.0"
   },
   "devDependencies": {
-    "@types/express": "^5.0.3",
     "@types/node": "^25.9.5",
     "@web-ts-toolkit/access-router": "workspace:*",
     "express": "^5.2.1",

@@ -1,3 +1,7 @@
+// Metadata keys use Symbol.for for intentional cross-copy interoperability of class watermarks
+// (e.g., multiple installed copies sharing Router/Module identity). Operation metadata remains
+// string-based but is validated against HOOK_DEFINITIONS before producing any ACL registration
+// to prevent forged same-prefix keys from creating runtime options.
 const metadataKey = (name: string) => Symbol.for(`@web-ts-toolkit/access-router-deco:${name}`);
 
 export const MODULE_ROUTERS = metadataKey('module.routers');
@@ -53,7 +57,18 @@ export const AFTER_DELETE_ARGS = [HookParamtypes.DOCUMENT, HookParamtypes.PERMIS
 
 export const IDENTIFIER_ARGS = [HookParamtypes.ID];
 
-const routeGuardOperations = ['create', 'update', 'read', 'list', 'delete', 'upsert', 'count'] as const;
+const routeGuardOperations = [
+  'default',
+  'new',
+  'list',
+  'create',
+  'read',
+  'update',
+  'upsert',
+  'delete',
+  'distinct',
+  'count',
+] as const;
 
 export const HOOK_DEFINITIONS = {
   globalPermissions: {
@@ -196,7 +211,3 @@ export const MODEL_HOOK_DEFINITIONS = HOOK_DEFINITION_LIST.filter((hook) => hook
 export const DEFAULT_MODEL_ROUTER_OPTIONS_HOOK_DEFINITIONS = MODEL_HOOK_DEFINITIONS.filter(
   (hook) => hook.defaultModelOptions,
 );
-
-export const ARGS = Object.fromEntries(HOOK_DEFINITION_LIST.map((hook) => [hook.optionKey, hook.args])) as {
-  [K in HookOptionKey]: Extract<HookDefinition, { optionKey: K }>['args'];
-};
