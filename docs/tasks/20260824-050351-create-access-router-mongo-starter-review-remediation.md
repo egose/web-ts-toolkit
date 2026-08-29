@@ -865,7 +865,7 @@ Completion evidence:
 - Implemented: a single page-level operation lock disables conflicting controls while mutations or required refresh retries are pending, preventing duplicate creates/updates/deletes. Category deletion refreshes both categories and todos so CARMS-12 integrity UI cannot hide related-data changes.
 - Implemented: query failures render safe retryable errors, and todo/category lists explicitly disclose the 100-record demo cap using the access-router React hook query/refetch lifecycle without adding custom shared caching.
 - Regression coverage: generated-template frontend tests cover loading, empty state, success, safe query errors, create rejection/retry, pending duplicate prevention, edit rejection/success, refetch failure/retry without duplicate mutation, duplicate category rejection, and related-data refresh after category deletion.
-- Verified: `/home/jahn/projects/_web-ts-toolkit/node_modules/.bin/vitest run tests/home-page.test.tsx tests/todo-form.test.tsx` from `packages/create-access-router-mongo-starter/template` (2 files, 9 tests passed).
+- Verified: `node_modules/.bin/vitest run tests/home-page.test.tsx tests/todo-form.test.tsx` from `packages/create-access-router-mongo-starter/template` (2 files, 9 tests passed).
 - Verified: `pnpm --filter create-access-router-mongo-starter test` passed serially (build/release staging succeeded; 10 package test files and 192 tests passed, including packed generated-project checks).
 
 ### Task CARMS-15: Add Accessible Names, Validation Relationships, And Status Semantics
@@ -916,7 +916,7 @@ Completion evidence:
 - Implemented: Todo title and category fields expose semantic labels, descriptions, validation error association via `aria-describedby`, and invalid state via `aria-invalid`; category creation exposes the same association for its validation path.
 - Implemented: list loading states use polite status semantics, mutation saving/saved transitions use a polite status region, failures use focusable alerts, and focus predictably moves to the edit title field, restored edit button on cancel, status after delete, and alert after errors while preserving CARMS-14 pending/retry behavior.
 - Regression coverage: Testing Library tests assert accessible field descriptions/errors, unique row action names, alert/status focus, edit/cancel focus, delete status focus, loading status text, and the existing create/edit/delete/retry reliability flows.
-- Verified: `/home/jahn/projects/_web-ts-toolkit/node_modules/.bin/vitest run tests/home-page.test.tsx tests/todo-form.test.tsx` from `packages/create-access-router-mongo-starter/template` passed (2 files, 11 tests).
+- Verified: `node_modules/.bin/vitest run tests/home-page.test.tsx tests/todo-form.test.tsx` from `packages/create-access-router-mongo-starter/template` passed (2 files, 11 tests).
 - Verified: `pnpm --filter create-access-router-mongo-starter test` passed serially (build/release staging succeeded; 10 package test files and 192 tests passed, including packed generated-project checks).
 - Verified: `pnpm --filter create-access-router-mongo-starter typecheck`, `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}"`, `pnpm --filter create-access-router-mongo-starter build`, and `git diff --check` passed serially.
 
@@ -973,8 +973,8 @@ Completion evidence:
 - Implemented: shared browser-safe transport schemas now infer Todo/Category response DTOs with required `_id` values, while create/update request inputs remain separate from persisted/response entities. Frontend model services are typed against the same transport request/response contract used by backend route schemas, and routine `_id as string` casts were removed from page/form code.
 - Implemented: `HomePage` now accepts a small hook-shaped `HomePageController` from `home-page-controller.ts`; production keeps the default access-router controller, while tests inject deterministic list/mutation hooks and errors without module mocking or fragmenting page markup.
 - Regression coverage: frontend tests exercise the CARMS-14/15 loading, error, pending, retry, focus, and accessible-name behavior through the injected controller; packed-consumer assertions include the new controller module and generated-project lint/typecheck/tests.
-- Verified: `/home/jahn/projects/_web-ts-toolkit/node_modules/.bin/vitest run tests/home-page.test.tsx tests/todo-form.test.tsx` from the template directory passed (2 files, 11 tests).
-- Verified: `/home/jahn/projects/_web-ts-toolkit/node_modules/.bin/tsc -p tsconfig.json --noEmit` from the template directory passed. Direct `pnpm typecheck`/`pnpm lint` in the source template still cannot start because pnpm attempts to resolve the intentional `{{VERSION}}` placeholder manifest before running scripts.
+- Verified: `node_modules/.bin/vitest run tests/home-page.test.tsx tests/todo-form.test.tsx` from the template directory passed (2 files, 11 tests).
+- Verified: `node_modules/.bin/tsc -p tsconfig.json --noEmit` from the template directory passed. Direct `pnpm typecheck`/`pnpm lint` in the source template still cannot start because pnpm attempts to resolve the intentional `{{VERSION}}` placeholder manifest before running scripts.
 - Verified: `pnpm --filter create-access-router-mongo-starter typecheck`, `pnpm exec eslint "packages/create-access-router-mongo-starter/**/*.{ts,tsx,js}"`, `pnpm --filter create-access-router-mongo-starter test`, `pnpm --filter create-access-router-mongo-starter build`, and `git diff --check` passed serially. The package test included the packed generated-project install, build, typecheck, lint, tests, and serverless build path.
 
 ## Wave 6: Staging, Documentation, And Maintenance
