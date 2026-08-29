@@ -1,0 +1,3 @@
+# Prettier ignore - intentionally malformed fixtures for asset-inliner
+packages/asset-inliner/test/fixtures/legacy/negative/malformed.css
+packages/asset-inliner/test/fixtures/legacy/negative/malformed.html
