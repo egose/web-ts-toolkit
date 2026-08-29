@@ -690,8 +690,8 @@ importers:
         version: link:../utils
     devDependencies:
       '@egose/keycloak-fluent':
-        specifier: ^0.12.1
-        version: 0.12.1
+        specifier: ^0.14.0
+        version: 0.14.0
       mongodb-memory-server:
         specifier: ^11.2.0
         version: 11.2.0(socks@2.8.9)(supports-color@10.2.2)
@@ -1501,8 +1501,8 @@ packages:
     resolution: {integrity: sha512-v6oD9Ukp+N7V4n6p5I/+mM5fIohSfkrDSGlFm5w/pYmchvbk+sMIHsLxrFJ5Lnujewj1BzWL0K84d88lwZAMQA==}
     engines: {node: '>=18'}
 
-  '@egose/keycloak-fluent@0.12.1':
-    resolution: {integrity: sha512-CJelJTNjlcFbu5pipAloTOT4xANIcmuyWYu8cgZbzM6Trlo0xY5s7tO5Psg322cH++EXadeCgWL2hV3zfSKiQQ==}
+  '@egose/keycloak-fluent@0.14.0':
+    resolution: {integrity: sha512-ZvdwJcG/xhztoOqendXkdFgaDE3SBDZ/MZvtbad2d6dGtAInC1RAJdOe69xzFBf9R1t+RdYU3PGFUOUm7Ps03Q==}
     engines: {node: '>=20'}
 
   '@egose/shadcn-theme@0.1.13':
@@ -12215,7 +12215,7 @@ snapshots:
       gonzales-pe: 4.3.0
       node-source-walk: 7.0.2
 
-  '@egose/keycloak-fluent@0.12.1':
+  '@egose/keycloak-fluent@0.14.0':
     dependencies:
       '@keycloak/keycloak-admin-client': 26.7.2
       lodash-es: 4.18.1
