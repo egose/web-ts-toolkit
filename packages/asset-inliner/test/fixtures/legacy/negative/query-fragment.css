@@ -1,0 +1,6 @@
+@font-face {
+  font-family: 'Akronim';
+  src:
+    url('../fonts/akronim-v9-latin-regular.woff?#iefix') format('woff'),
+    url('../fonts/akronim-v9-latin-regular.woff2#Akronim') format('woff2');
+}

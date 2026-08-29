@@ -1,0 +1,9 @@
+.apple {
+  background: lightblue url('../images/apple.png') no-repeat center;
+  height: 200px;
+}
+
+.pear {
+  background: lightblue url('../images/pear.png') no-repeat center;
+  height: 200px;
+}
