@@ -36,6 +36,16 @@ import { inlineFiles } from '@web-ts-toolkit/asset-inliner';
 await inlineFiles({ assets: ['./assets'], targets: ['./styles'] }); // dry-run; add write:true to persist
 ```
 
+## Notes
+
+- **Registry reuse:** pass an already-validated `AssetDefinitionRegistry` via `{ registry }` to `createAssetCatalog`, `discoverAssets`, or `encodeAsset` to avoid re-normalizing `definitions`.
+- **Literal unions:** `AssetInlinerErrorCode` (`'RESOURCE_LIMIT'` etc.) and `DiagnosticCode` (`'UNRESOLVED_REFERENCE'` etc.) narrow in consumers; subclasses like `ResourceLimitError` carry `code: 'RESOURCE_LIMIT' as const`.
+- **sourcePath:** `EncodedAsset.sourcePath` is a normalized absolute path (`path.resolve`) when input was a file path.
+- **Definition shape:** `AssetTypeDefinition` is a discriminated union — `fontFormat` only allowed when `kind === 'font'` (checked at type and runtime).
+- **Changed HTML:** `inlineHtml` prefers source-location patches of the targeted attribute value ranges so unrelated markup stays byte-identical; if a patch is invalid/overlapping it falls back to full serialization (may normalize).
+- **Embedded CSS:** `inlineEmbeddedCss: true` (opt-in, default `false`) inlines local `url(...)` inside `<style>` elements and `style` attributes using the same CSS semantics as `inlineCss`, with shared limits, source-offset location mapping, and a `PARSE_ERROR` diagnostic (no corruption) for malformed chunks.
+- **Selective inlining:** `InlineOptions`/`InlineFilesOptions` accept `maxInlineBytes` (byteLength threshold) and/or `shouldInline(asset, url) => boolean` to leave large or predicate-rejected assets as external references with an `INLINE_SKIPPED` (`warn`) diagnostic; hard limits (`maxAssetBytes`/`maxTotalBytes`) remain fail-closed (`ResourceLimitError`) and cannot be downgraded, with deterministic order and no implicit heuristics.
+
 ## Migration note
 
 Legacy `node-font2base64` and `base64-injector` both exposed `encodeToDataSrc` with conflicting semantics and unsafe defaults. The new package splits them into `encodeAsset` (data URL only) + `formatCssUrl` (generic) / `formatFontSource` (font, requires `fontFormat`), makes file writes opt-in, skips remote/`data:` URLs before I/O, and reports ambiguity as `AmbiguousAssetError` instead of picking a winner. The package `README.md` contains the complete migration matrices for both legacies, the intentional breaking changes, CSP/caching and SVG non-sanitization caveats, and MIT provenance/license notices for dependencies (`file-type`, `postcss`, `postcss-value-parser`, `parse5`) and fixtures.
