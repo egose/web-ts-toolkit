@@ -1,27 +1,31 @@
 /**
  * Typed errors for `@web-ts-toolkit/asset-inliner`.
  *
- * All errors extend `AssetInlinerError` with stable `code` values,
- * optional contextual fields (path, extension, limit) and preserved `cause`
- * chains. Raw asset bytes are never included in messages.
+ * All errors extend `AssetInlinerError` with stable `code` values.
+ * Raw asset bytes are never included in messages.
  */
 
-// Base ------------------------------------------------------------------------
+export type AssetInlinerErrorCode =
+  | 'UNSUPPORTED_ASSET'
+  | 'AMBIGUOUS_DEFINITION'
+  | 'INVALID_OPTIONS'
+  | 'DETECTION_MISMATCH'
+  | 'AMBIGUOUS_ASSET'
+  | 'RESOURCE_LIMIT'
+  | 'PARSE_ERROR'
+  | 'FILESYSTEM_ERROR';
 
 /**
  * Base for all package-specific errors.
- * Each subclass carries a stable `code` for programmatic handling
- * and preserves `cause` chains. Messages never include raw asset bytes.
+ * `code` is a stable literal union for exhaustive handling.
  */
 export class AssetInlinerError extends Error {
-  /** Stable machine-readable code, e.g. `UNSUPPORTED_ASSET`. */
-  readonly code: string;
+  readonly code: AssetInlinerErrorCode;
 
-  constructor(message: string, code: string, options?: { cause?: unknown }) {
+  constructor(message: string, code: AssetInlinerErrorCode, options?: { cause?: unknown }) {
     super(message, options as ErrorOptions);
     this.name = this.constructor.name;
     this.code = code;
-    // Ensure proper prototype chain for instanceof when transpiled.
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
@@ -30,11 +34,9 @@ export class AssetInlinerError extends Error {
 
 /** Thrown when an extension or media type is not in the registry. Code `UNSUPPORTED_ASSET`. */
 export class UnsupportedAssetError extends AssetInlinerError {
-  /** Normalized extension that was not in the registry, if available. */
+  override readonly code = 'UNSUPPORTED_ASSET' as const;
   readonly extension?: string;
-  /** Media type that was not supported, if available. */
   readonly mediaType?: string;
-  /** Associated file path or filename, if available. */
   readonly path?: string;
 
   constructor(message: string, context?: { extension?: string; mediaType?: string; path?: string; cause?: unknown }) {
@@ -45,10 +47,11 @@ export class UnsupportedAssetError extends AssetInlinerError {
   }
 }
 
-// Ambiguous definition (registry construction) --------------------------------
+// Ambiguous definition
 
 /** Thrown when two definitions claim the same extension. Code `AMBIGUOUS_DEFINITION`. */
 export class AmbiguousDefinitionError extends AssetInlinerError {
+  override readonly code = 'AMBIGUOUS_DEFINITION' as const;
   readonly extension: string;
   readonly conflictingMediaTypes?: readonly string[];
 
@@ -68,6 +71,7 @@ export class AmbiguousDefinitionError extends AssetInlinerError {
 
 /** Thrown for malformed or out-of-range options. Code `INVALID_OPTIONS`. */
 export class InvalidOptionsError extends AssetInlinerError {
+  override readonly code = 'INVALID_OPTIONS' as const;
   readonly path?: string;
 
   constructor(message: string, context?: { path?: string; cause?: unknown }) {
@@ -78,8 +82,9 @@ export class InvalidOptionsError extends AssetInlinerError {
 
 // Detection mismatch ---------------------------------------------------------
 
-/** Thrown when `detection: 'verify'` detects a mismatch between expected and detected media types. Code `DETECTION_MISMATCH`. */
+/** Thrown when `detection: 'verify'` detects a mismatch. Code `DETECTION_MISMATCH`. */
 export class DetectionMismatchError extends AssetInlinerError {
+  override readonly code = 'DETECTION_MISMATCH' as const;
   readonly expectedMediaType?: string;
   readonly detectedMediaType?: string;
   readonly path?: string;
@@ -99,6 +104,7 @@ export class DetectionMismatchError extends AssetInlinerError {
 
 /** Thrown when basename compatibility mode finds duplicate candidates. Code `AMBIGUOUS_ASSET`. */
 export class AmbiguousAssetError extends AssetInlinerError {
+  override readonly code = 'AMBIGUOUS_ASSET' as const;
   readonly basename: string;
   readonly candidates: readonly string[];
 
@@ -113,6 +119,7 @@ export class AmbiguousAssetError extends AssetInlinerError {
 
 /** Thrown when a byte, count, depth, target, or concurrency limit is exceeded. Code `RESOURCE_LIMIT`. */
 export class ResourceLimitError extends AssetInlinerError {
+  override readonly code = 'RESOURCE_LIMIT' as const;
   readonly limit: number;
   readonly actual?: number;
   readonly path?: string;
@@ -127,8 +134,9 @@ export class ResourceLimitError extends AssetInlinerError {
 
 // Parse ----------------------------------------------------------------------
 
-/** Thrown when CSS is unparseable. Code `PARSE_ERROR`. HTML uses per-target diagnostics for malformed markup instead. */
+/** Thrown when CSS is unparseable. Code `PARSE_ERROR`. */
 export class ParseError extends AssetInlinerError {
+  override readonly code = 'PARSE_ERROR' as const;
   readonly path?: string;
 
   constructor(message: string, context?: { path?: string; cause?: unknown }) {
@@ -141,6 +149,7 @@ export class ParseError extends AssetInlinerError {
 
 /** Thrown for missing paths, permission errors, or failed writes. Code `FILESYSTEM_ERROR`. */
 export class FilesystemError extends AssetInlinerError {
+  override readonly code = 'FILESYSTEM_ERROR' as const;
   readonly path: string;
   readonly operation?: string;
 

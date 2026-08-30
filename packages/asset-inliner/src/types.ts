@@ -1,11 +1,6 @@
-/**
- * Public model types for `@web-ts-toolkit/asset-inliner`.
- *
- * All registries, collections, and results are immutable values.
- * Extension keys are normalized once (lowercase, leading dot) and duplicate
- * definitions are rejected at catalog construction time.
- * Result collections are readonly snapshots preserving deterministic input order.
- */
+/** Public model types for `@web-ts-toolkit/asset-inliner`. */
+
+import type { AssetDefinitionRegistry } from './definitions.ts';
 
 // ---------------------------------------------------------------------------
 // Asset kind and definition
@@ -23,24 +18,20 @@ export type BuiltInAssetKind = 'font' | 'image' | 'audio' | 'video';
  */
 export type AssetKind = BuiltInAssetKind | (string & {});
 
-/**
- * Immutable definition for a single asset type.
- * One definition maps a set of file extensions to a canonical media type
- * and, for fonts, a CSS `format(...)` hint.
- */
-export interface AssetTypeDefinition {
-  /** Logical kind (e.g. 'font', 'image'). */
-  readonly kind: AssetKind;
-  /** File extensions including leading dot, e.g. ['.woff2', '.woff']. Normalized to lowercase. */
-  readonly extensions: readonly string[];
-  /** Canonical IANA media type, e.g. 'font/woff2' or 'image/png'. */
-  readonly mediaType: string;
-  /**
-   * CSS font format hint for `@font-face src`, e.g. 'woff2', 'truetype', 'svg'.
-   * Only meaningful when `kind === 'font'`. Images and other kinds must leave this undefined.
-   */
-  readonly fontFormat?: string;
-}
+/** Immutable definition for a single asset type. */
+export type AssetTypeDefinition =
+  | {
+      readonly kind: 'font';
+      readonly extensions: readonly string[];
+      readonly mediaType: string;
+      readonly fontFormat?: string;
+    }
+  | {
+      readonly kind: Exclude<AssetKind, 'font'>;
+      readonly extensions: readonly string[];
+      readonly mediaType: string;
+      readonly fontFormat?: never;
+    };
 
 // ---------------------------------------------------------------------------
 // Encoding inputs/outputs
@@ -62,22 +53,14 @@ export type AssetInput =
       readonly fontFormat?: string;
     };
 
-/**
- * Result of encoding a single asset to a Base64 data URL.
- * Never includes raw bytes — only the encoded URL plus immutable metadata.
- */
+/** Result of encoding a single asset to a Base64 data URL. */
 export interface EncodedAsset {
-  /** Original absolute file path, if input was a file path. */
+  /** Normalized absolute path when input was a file path. */
   readonly sourcePath?: string;
-  /** Filename derived from path or explicit `filename`. */
   readonly filename?: string;
-  /** Resolved asset kind. */
   readonly kind: AssetKind;
-  /** Canonical media type used in the data URL. */
   readonly mediaType: string;
-  /** Font format hint, if applicable. */
   readonly fontFormat?: string;
-  /** Original byte length before Base64 expansion. */
   readonly byteLength: number;
   /** RFC 2397 data URL: `data:<mediaType>;base64,<payload>` */
   readonly dataUrl: string;
@@ -87,26 +70,12 @@ export interface EncodedAsset {
 // Catalog — immutable registry + encoded assets
 // ---------------------------------------------------------------------------
 
-/**
- * Immutable catalog of encoded assets and their resolved definitions.
- * Constructed by `createAssetCatalog` / `createAssetCatalogSync`.
- * Keys are normalized absolute paths internally; diagnostics use POSIX-style
- * logical paths. Lookup is exact by default; basename compatibility mode
- * reports ambiguity instead of picking a winner.
- */
+/** Immutable catalog of encoded assets. Keys are normalized absolute paths. */
 export interface AssetCatalog {
-  /** Assets in deterministic input order. */
   readonly assets: readonly EncodedAsset[];
-  /** Normalized definitions in deterministic order. */
   readonly definitions: readonly AssetTypeDefinition[];
-  /**
-   * Resolve an encoded asset by normalized absolute path.
-   * Returns undefined if not found.
-   */
   readonly getByPath: (absolutePath: string) => EncodedAsset | undefined;
-  /** Resolve by filename basename (compatibility mode); throws AmbiguousAssetError on duplicate. */
   readonly getByBasename: (basename: string) => EncodedAsset | undefined;
-  /** Number of entries. */
   readonly size: number;
 }
 
@@ -114,21 +83,13 @@ export interface AssetCatalog {
 // Replacement diagnostics (pure transform boundaries)
 // ---------------------------------------------------------------------------
 
-/**
- * One deterministic replacement of a local URL with an inlined data URL.
- */
+/** One replacement of a local URL with an inlined data URL. */
 export interface AssetReplacement {
-  /** Original URL text as it appeared in the source (before stripping query/fragment for lookup). */
   readonly originalUrl: string;
-  /** Normalized resolved asset path that was replaced. */
   readonly resolvedPath: string;
-  /** Kind of the resolved asset. */
   readonly kind: AssetKind;
-  /** Media type of the resolved asset. */
   readonly mediaType: string;
-  /** Byte length of the original asset. */
   readonly byteLength: number;
-  /** Location hint: byte offset or line/column when available. */
   readonly location?: {
     readonly offset: number;
     readonly line?: number;
@@ -136,21 +97,24 @@ export interface AssetReplacement {
   };
 }
 
-/**
- * Structured diagnostic for skipped, ambiguous, or failed references.
- * Replacements succeed; diagnostics explain what did not (and why) without
- * leaking raw asset bytes.
- */
+export type DiagnosticCode =
+  | 'UNRESOLVED_REFERENCE'
+  | 'AMBIGUOUS_ASSET'
+  | 'UNSUPPORTED_KIND'
+  | 'INVALID_OPTIONS'
+  | 'RESOURCE_LIMIT'
+  | 'PARSE_ERROR'
+  | 'FILESYSTEM_ERROR'
+  | 'UNSUPPORTED_TYPE'
+  | 'RESOLVE_ERROR'
+  | 'INLINE_SKIPPED';
+
+/** Structured diagnostic for skipped or failed references. */
 export interface AssetDiagnostic {
-  /** Stable diagnostic code, e.g. 'UNRESOLVED_REFERENCE', 'AMBIGUOUS_ASSET', 'UNSUPPORTED_TYPE'. */
-  readonly code: string;
-  /** Human-readable message. */
+  readonly code: DiagnosticCode;
   readonly message: string;
-  /** Original URL that triggered the diagnostic. */
   readonly originalUrl?: string;
-  /** Associated file or document path. */
   readonly filePath?: string;
-  /** Severity. */
   readonly severity: 'warn' | 'error';
 }
 
@@ -158,18 +122,11 @@ export interface AssetDiagnostic {
 // Transform results
 // ---------------------------------------------------------------------------
 
-/**
- * Result of a pure content transform (CSS or HTML) over an already-encoded catalog.
- * `content` is byte-identical to input when `modified === false`.
- */
+/** Result of a pure content transform. */
 export interface InlineResult {
-  /** Transformed content (or original when unmodified). */
   readonly content: string;
-  /** Whether any replacement occurred. */
   readonly modified: boolean;
-  /** Deterministic replacement records in source order. */
   readonly replacements: readonly AssetReplacement[];
-  /** Diagnostics for unresolved/ambiguous/skipped references. */
   readonly diagnostics: readonly AssetDiagnostic[];
 }
 
@@ -181,9 +138,7 @@ export interface InlineFileResult extends InlineResult {
   readonly written: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Option stubs — refined by ASSET-02..ASSET-08, but frozen here so signatures are stable.
-// ---------------------------------------------------------------------------
+// Option types
 
 /**
  * Detection mode for resolving media type.
@@ -193,12 +148,16 @@ export interface InlineFileResult extends InlineResult {
  */
 export type DetectionMode = 'extension' | 'content' | 'verify';
 
-/**
- * Options for single/batch encoding. Extended by later tasks without breaking call sites.
- */
+/** Options for single/batch encoding. */
 export interface EncodeOptions {
   /** Immutable registry overrides. Duplicate extensions are rejected. */
   readonly definitions?: readonly AssetTypeDefinition[];
+  /**
+   * Already validated registry. When provided, `definitions` must not be provided;
+   * the registry is used directly without re-normalization. Allows callers that
+   * already hold a `createDefinitionRegistry` result to avoid repeated validation.
+   */
+  readonly registry?: AssetDefinitionRegistry;
   /** Detection mode. Sync APIs reject `content`/`verify` immediately. */
   readonly detection?: DetectionMode;
   /**
@@ -213,6 +172,13 @@ export interface EncodeOptions {
   readonly maxTotalBytes?: number;
   /** AbortSignal honored between I/O stages (async only). */
   readonly signal?: AbortSignal;
+  /**
+   * Per-operation detector for `detection: 'content' | 'verify'`.
+   * When omitted the default lazy `file-type` detector is used. No process-global
+   * mutation is required; concurrent operations may supply independent detectors
+   * without interference. The object must have an async `detect(bytes, signal?)` method.
+   */
+  readonly detector?: import('./detect.ts').AssetDetector;
 }
 
 /** Discovery policy — traversal bounds, symlink handling, and filtering. */
@@ -244,6 +210,11 @@ export interface DiscoveryOptions {
   readonly allowedExtensions?: readonly string[];
   /** AbortSignal honored between stages (async and sync check). */
   readonly signal?: AbortSignal;
+  /**
+   * Already validated registry for filtering. When provided, `definitions` must not be provided.
+   * Discovery can reuse a registry already held by the caller to avoid re-normalizing.
+   */
+  readonly registry?: AssetDefinitionRegistry;
 }
 
 /** Options for catalog creation (discovery + encoding). */
@@ -270,12 +241,29 @@ export interface ResolverInput {
 export type ResolverResult = EncodedAsset | undefined;
 
 /**
- * Custom matcher/resolver hook.
- * Receives a narrow, AST-free input describing the URL to resolve and the catalog.
+ * Synchronous custom matcher/resolver hook — **sync-only** honest contract for inline transforms.
+ * Normal TypeScript rejects async callbacks (those returning `Promise`) at compile time when this
+ * type is used in `InlineOptions`/`InlineFilesOptions`. At runtime any thenable
+ * (native Promise, cross-realm Promise, custom `{ then: Function }`) is rejected with
+ * `INVALID_OPTIONS` before mutation.
  * Return an `EncodedAsset` to use, or `undefined` to let default exact/basename matching run.
  * The hook must not throw for skip/remote cases; classification is handled before the hook is called.
  */
-export type AssetResolver = (input: ResolverInput, catalog: AssetCatalog) => ResolverResult | Promise<ResolverResult>;
+export type AssetResolverSync = (input: ResolverInput, catalog: AssetCatalog) => ResolverResult;
+
+/** Async-capable resolver hook — for the standalone `resolveAssetReference` utility. */
+export type AssetResolverAsync = (
+  input: ResolverInput,
+  catalog: AssetCatalog,
+) => ResolverResult | Promise<ResolverResult>;
+
+/**
+ * Custom matcher/resolver hook — legacy alias.
+ * @deprecated Use `AssetResolverSync` for transforms (`inlineCss`/`inlineHtml`/`inlineFiles`) or
+ * `AssetResolverAsync` for standalone async `resolveAssetReference`. This alias is retained for
+ * backwards compatibility and equals `AssetResolverAsync`.
+ */
+export type AssetResolver = AssetResolverAsync;
 
 /** Options for pure CSS/HTML inlining over an existing catalog. */
 export interface InlineOptions {
@@ -287,13 +275,55 @@ export interface InlineOptions {
   readonly rootDir?: string;
   /** Opt-in basename compatibility mode (default: exact-path only). */
   readonly allowBasenameMatch?: boolean;
+  /** Optional custom resolver hook — sync-only. Async resolvers rejected at compile time and at runtime with `INVALID_OPTIONS`. */
+  readonly resolver?: AssetResolverSync;
   /**
-   * Optional custom resolver hook. Receives a narrow `ResolverInput` (originalUrl, decodedPath, basename)
-   * and the catalog, without requiring parser AST knowledge. Return an `EncodedAsset` to use for that
-   * URL, or `undefined` to fall back to default exact/basename matching. The hook is only invoked for
-   * local URLs that passed remote/data/blob/fragment skipping and decoded without error.
+   * Maximum target input bytes (UTF-8). Finite positive safe integer.
+   * Default `5242880` (5 MiB, `DEFAULT_MAX_TARGET_BYTES`). Values > `52428800` (50 MiB) rejected as unreasonable.
+   * Enforced before parser invocation; pure transforms throw `ResourceLimitError`, `inlineFiles` converts to per-target diagnostic.
    */
-  readonly resolver?: AssetResolver;
+  readonly maxTargetBytes?: number;
+  /**
+   * Maximum replacements per target. Finite positive safe integer.
+   * Default `1000` (`DEFAULT_MAX_REPLACEMENTS`). Values > `100000` rejected as unreasonable.
+   * Enforced before inserting each data URL.
+   */
+  readonly maxReplacements?: number;
+  /**
+   * Maximum transformed output bytes (UTF-8) per target. Finite positive safe integer.
+   * Default `20971520` (20 MiB, `DEFAULT_MAX_OUTPUT_BYTES`). Values > `104857600` (100 MiB) rejected as unreasonable.
+   * Enforced per replacement via pessimistic projection (`original + sum delta`) with safe-integer arithmetic before insertion.
+   */
+  readonly maxOutputBytes?: number;
+  /**
+   * Selective inlining threshold — assets whose `byteLength` exceeds this value
+   * are left as external references with a structured `INLINE_SKIPPED` diagnostic
+   * (`severity: 'warn'`). Distinct from hard resource limits (`maxAssetBytes` /
+   * `maxTotalBytes`) which remain fail-closed and throw `ResourceLimitError`.
+   * Finite positive safe integer, `<= 104857600` (100 MiB). No default — when
+   * omitted every catalogued asset is eligible for inlining (subject to kind gating).
+   * No implicit extension or environment heuristics are applied.
+   */
+  readonly maxInlineBytes?: number;
+  /**
+   * Synchronous predicate for selective inlining. Called with each resolved
+   * `EncodedAsset` and the original URL string; return `false` to leave the
+   * reference external with an `INLINE_SKIPPED` diagnostic, `true` to inline.
+   * Must be synchronous — returning a thenable is rejected. When provided,
+   * `maxInlineBytes` is still enforced first; both conditions must pass to inline.
+   */
+  readonly shouldInline?: (asset: EncodedAsset, url: string) => boolean;
+  /**
+   * Opt-in embedded CSS processing for `inlineHtml` (default `false`).
+   * When `true`, `<style>` element text and `style` attribute values are
+   * transformed with the same CSS semantics as `inlineCss`: local `url(...)`
+   * resolve relative to the HTML `documentPath`/`rootDir`, remote and `data:`
+   * URLs are left untouched, and the same target/replacement/output limits apply.
+   * Malformed embedded CSS produces a `PARSE_ERROR` diagnostic and leaves the
+   * chunk unchanged — it never corrupts the surrounding HTML. Replacement
+   * locations are mapped back to HTML source offsets.
+   */
+  readonly inlineEmbeddedCss?: boolean;
 }
 
 /** Options for file-level orchestration (`inlineFiles`). */
@@ -306,15 +336,45 @@ export interface InlineFilesOptions extends CatalogOptions {
   readonly write?: boolean;
   /** Catalog may be supplied directly to avoid rebuilding it per target. */
   readonly catalog?: AssetCatalog;
-  /**
-   * Maximum number of target files to process. Finite positive integer.
-   * Default `500` (see `src/policy.ts` `DEFAULT_MAX_TARGETS`). Values > `5000` are rejected as unreasonable.
-   */
+  /** Maximum number of target files to process. Default `500`. Values > `5000` rejected. */
   readonly maxTargets?: number;
   /** Explicit root for resolving relative URLs when documentPath is not used; passed to per-file inline dispatch. */
   readonly rootDir?: string;
   /** Opt-in basename compatibility mode for per-file inline dispatch. */
   readonly allowBasenameMatch?: boolean;
-  /** Optional custom resolver hook for per-file inline dispatch. */
-  readonly resolver?: AssetResolver;
+  /** Optional custom resolver hook — sync-only. */
+  readonly resolver?: AssetResolverSync;
+  /**
+   * Maximum target input bytes (UTF-8) per file. Finite positive safe integer.
+   * Default `5242880` (5 MiB). Enforced before parser invocation; per-target `RESOURCE_LIMIT` diagnostic with `written:false`, no partial write.
+   */
+  readonly maxTargetBytes?: number;
+  /**
+   * Maximum replacements per target file. Finite positive safe integer.
+   * Default `1000`. Enforced before each data URL insertion; per-target diagnostic on exceed.
+   */
+  readonly maxReplacements?: number;
+  /**
+   * Maximum transformed output bytes (UTF-8) per target file. Finite positive safe integer.
+   * Default `20971520` (20 MiB). Enforced per replacement via projection with safe-integer arithmetic.
+   */
+  readonly maxOutputBytes?: number;
+  /**
+   * Selective inlining threshold — assets whose `byteLength` exceeds this value
+   * are left as external references with a structured `INLINE_SKIPPED` diagnostic
+   * (`severity: 'warn'`). Distinct from hard limits (`maxAssetBytes`/`maxTotalBytes`)
+   * which remain fail-closed. Finite positive safe integer, `<= 104857600`. No default.
+   */
+  readonly maxInlineBytes?: number;
+  /**
+   * Synchronous predicate for selective inlining. Return `false` to leave external
+   * with `INLINE_SKIPPED` diagnostic. Must be synchronous; thenable rejected.
+   * When provided, `maxInlineBytes` is still enforced first.
+   */
+  readonly shouldInline?: (asset: EncodedAsset, url: string) => boolean;
+  /**
+   * Opt-in embedded CSS processing for HTML targets (default `false`).
+   * Forwarded to `inlineHtml`; see `InlineOptions.inlineEmbeddedCss`.
+   */
+  readonly inlineEmbeddedCss?: boolean;
 }

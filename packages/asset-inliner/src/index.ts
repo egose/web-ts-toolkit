@@ -12,6 +12,7 @@ export type {
   AssetCatalog,
   AssetReplacement,
   AssetDiagnostic,
+  DiagnosticCode,
   InlineResult,
   InlineFileResult,
   BuiltInAssetKind,
@@ -25,6 +26,8 @@ export type {
   ResolverInput,
   ResolverResult,
   AssetResolver,
+  AssetResolverSync,
+  AssetResolverAsync,
 } from './types.ts';
 
 // Registry and definitions — immutable built-ins plus explicit SVG-font.
@@ -37,7 +40,7 @@ export {
 } from './definitions.ts';
 export type { AssetDefinitionRegistry } from './definitions.ts';
 
-// Typed errors — stable codes, preserved causes, no leaked bytes.
+// Typed errors — stable literal codes; subclasses narrow `code`.
 export {
   AssetInlinerError,
   UnsupportedAssetError,
@@ -49,16 +52,10 @@ export {
   ParseError,
   FilesystemError,
 } from './errors.ts';
+export type { AssetInlinerErrorCode } from './errors.ts';
 
-// Detection internals (exposed for testing/stubbing, not part of stable public contract but exportable)
-export {
-  defaultDetector,
-  getDetector,
-  setDetector,
-  resetDetector,
-  resolveByExtension,
-  resolveWithDetector,
-} from './detect.ts';
+// Detection — default lazy detector and advanced helpers.
+export { defaultDetector, resolveByExtension, resolveWithDetector } from './detect.ts';
 export type { DetectorResult, AssetDetector, ResolvedMeta } from './detect.ts';
 
 // Encoding — file path or Uint8Array -> data URL
@@ -89,7 +86,7 @@ export {
   resolveAssetReference,
   resolveAssetReferenceSync,
 } from './resolve.ts';
-export type { UrlClassification, ResolveAssetOptions, ResolvedAsset } from './resolve.ts';
+export type { UrlClassification, ResolveAssetOptions, ResolveAssetOptionsSync, ResolvedAsset } from './resolve.ts';
 
 // ---------------------------------------------------------------------------
 // Catalog — immutable registry + encoded assets
@@ -126,12 +123,19 @@ export {
   DEFAULT_MAX_DEPTH,
   DEFAULT_MAX_TARGETS,
   DEFAULT_CONCURRENCY,
+  DEFAULT_MAX_TARGET_BYTES,
+  DEFAULT_MAX_REPLACEMENTS,
+  DEFAULT_MAX_OUTPUT_BYTES,
   MAX_REASONABLE_MAX_ASSET_BYTES,
   MAX_REASONABLE_MAX_TOTAL_BYTES,
   MAX_REASONABLE_MAX_FILES,
   MAX_REASONABLE_MAX_DEPTH,
   MAX_REASONABLE_MAX_TARGETS,
   MAX_REASONABLE_CONCURRENCY,
+  MAX_REASONABLE_MAX_TARGET_BYTES,
+  MAX_REASONABLE_MAX_REPLACEMENTS,
+  MAX_REASONABLE_MAX_OUTPUT_BYTES,
+  MAX_REASONABLE_MAX_INLINE_BYTES,
   DEFAULT_POLICY,
   validatePolicyValue,
   validatePolicyOptions,

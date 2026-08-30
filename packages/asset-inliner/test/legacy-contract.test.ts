@@ -20,6 +20,8 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { inlineHtml } from '../src/html.ts';
+import { createAssetCatalogSync } from '../src/catalog.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers — intentionally local so the contract is executable before the package exists.
@@ -415,14 +417,18 @@ describe('legacy-contract: HTML image replacement', () => {
   });
 
   it('<img> without src never throws (negative fixture)', () => {
-    const html = fs.readFileSync(path.join(FIXTURE_ROOT, 'negative', 'img-no-src.html'), 'utf8');
-    expect(html).toMatch(/<img alt="no src">/);
+    const fixturePath = path.join(FIXTURE_ROOT, 'negative', 'img-no-src.html');
+    const html = fs.readFileSync(fixturePath, 'utf8');
+    // Semantic contract: fixture contains an <img> element without a src attribute
+    // (spelling/serialization agnostic — self-closed or not).
+    expect(html).toMatch(/<img\b(?![^>]*\bsrc\s*=)[^>]*>/);
     // legacy core.js:329 would throw on src.length if src undefined; new contract must not.
-    expect(() => {
-      // Simulate safe handling: only touch elements that have src attribute
-      const safe = html.includes('<img alt="no src">');
-      expect(safe).toBe(true);
-    }).not.toThrow();
+    const catalog = createAssetCatalogSync([path.join(FIXTURE_ROOT, 'images', 'apple.png')]);
+    const options = { catalog, documentPath: path.join(FIXTURE_ROOT, 'negative', 'dummy.html') };
+    expect(() => inlineHtml(html, options)).not.toThrow();
+    const result = inlineHtml(html, options);
+    // The src-less <img> is left untouched.
+    expect(result.content).toMatch(/<img\b(?![^>]*\bsrc\s*=)[^>]*\balt="no src"[^>]*>/);
   });
 
   it('srcset handling must not split on commas inside data URLs (contract for ASSET-06)', () => {

@@ -104,6 +104,11 @@ export function normalizeDefinition(def: AssetTypeDefinition): AssetTypeDefiniti
   const kind = normalizeKind(def.kind);
   const mediaType = normalizeMediaType(def.mediaType);
   const fontFormat = normalizeFontFormat(def.fontFormat);
+  if (fontFormat !== undefined && kind !== 'font') {
+    throw new InvalidOptionsError(
+      `fontFormat "${fontFormat}" is only allowed when kind === 'font', got kind "${kind}" for mediaType "${mediaType}"`,
+    );
+  }
 
   if (!Array.isArray(def.extensions) || def.extensions.length === 0) {
     throw new InvalidOptionsError(`Definition for "${mediaType}" must have at least one extension`);
@@ -146,7 +151,12 @@ function def(
   mediaType: string,
   fontFormat?: string,
 ): AssetTypeDefinition {
-  return normalizeDefinition({ kind, extensions: [...extensions], mediaType, ...(fontFormat ? { fontFormat } : {}) });
+  return normalizeDefinition({
+    kind,
+    extensions: [...extensions],
+    mediaType,
+    ...(fontFormat ? { fontFormat } : {}),
+  } as AssetTypeDefinition);
 }
 
 // Fonts — current IANA types: font/ttf, font/otf, font/woff, font/woff2, font/collection, font/sfnt, application/vnd.ms-fontobject

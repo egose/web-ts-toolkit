@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -9,7 +9,6 @@ import {
   encodeAssetsSync,
   formatCssUrl,
   formatFontSource,
-  resetDetector,
 } from '../src/index.ts';
 import {
   UnsupportedAssetError,
@@ -36,9 +35,6 @@ function decodeDataUrl(dataUrl: string): Buffer {
 function mkTmp(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'asset-inliner-encode-'));
 }
-
-beforeEach(() => resetDetector());
-afterEach(() => resetDetector());
 
 // ---------------------------------------------------------------------------
 // Helpers for fixture enumeration

@@ -9,13 +9,15 @@
  */
 
 import path from 'node:path';
+import { stat } from 'node:fs/promises';
 import type { AssetCatalog, AssetInput, CatalogOptions, EncodedAsset, AssetTypeDefinition } from './types.ts';
 import { createDefinitionRegistry } from './definitions.ts';
 import type { AssetDefinitionRegistry } from './definitions.ts';
 import { encodeAsset, encodeAssetSync } from './encode.ts';
 import { discoverAssets, discoverAssetsSync } from './discovery.ts';
+import type { DiscoverOptions } from './discovery.ts';
 import { AmbiguousAssetError, InvalidOptionsError, ResourceLimitError } from './errors.ts';
-import { validatePolicyOptions } from './policy.ts';
+import { validatePolicyOptions, DEFAULT_MAX_TOTAL_BYTES } from './policy.ts';
 
 function normalizeAbsolute(p: string): string {
   return path.resolve(p);
@@ -36,6 +38,30 @@ function validateCatalogOptions(opts: CatalogOptions): void {
     concurrency: opts.concurrency,
     maxTargets: (opts as { maxTargets?: unknown }).maxTargets,
   });
+  if (opts.registry !== undefined && opts.definitions !== undefined) {
+    throw new InvalidOptionsError('Provide either registry or definitions, not both');
+  }
+  if (opts.registry !== undefined) {
+    const r: unknown = opts.registry;
+    if (
+      r === null ||
+      typeof r !== 'object' ||
+      !Array.isArray((r as { definitions?: unknown }).definitions) ||
+      typeof (r as { get?: unknown }).get !== 'function'
+    ) {
+      throw new InvalidOptionsError(
+        'CatalogOptions.registry must be an AssetDefinitionRegistry from createDefinitionRegistry',
+      );
+    }
+  }
+  if ((opts as { detector?: unknown }).detector !== undefined) {
+    const d: unknown = (opts as { detector?: unknown }).detector;
+    if (d === null || typeof d !== 'object' || typeof (d as { detect?: unknown }).detect !== 'function') {
+      throw new InvalidOptionsError(
+        'CatalogOptions.detector must be an AssetDetector with async detect(bytes, signal?) method',
+      );
+    }
+  }
 }
 
 function asArray<T>(input: T | readonly T[]): readonly T[] {
@@ -45,6 +71,183 @@ function asArray<T>(input: T | readonly T[]): readonly T[] {
 
 function isByteInput(input: AssetInput): input is Extract<AssetInput, { data: Uint8Array }> {
   return typeof input !== 'string';
+}
+
+// ---------------------------------------------------------------------------
+// Registry resolution (reuse validated registry)
+// ---------------------------------------------------------------------------
+
+function resolveCatalogRegistry(options: CatalogOptions): AssetDefinitionRegistry {
+  if (options.registry) {
+    return options.registry;
+  }
+  return options.definitions ? createDefinitionRegistry(options.definitions) : createDefinitionRegistry();
+}
+
+/** Adapter: allow callers with `registry.definitions` to pass either shape without re-normalizing. */
+export function registryFromDefinitionsOrRegistry(options: {
+  definitions?: readonly AssetTypeDefinition[];
+  registry?: AssetDefinitionRegistry;
+}): AssetDefinitionRegistry {
+  if (options.registry) return options.registry;
+  return options.definitions ? createDefinitionRegistry(options.definitions) : createDefinitionRegistry();
+}
+
+// ---------------------------------------------------------------------------
+// Pure helpers: queue normalization
+// ---------------------------------------------------------------------------
+
+type InputOrderEntry =
+  | { kind: 'path'; value: string }
+  | { kind: 'byte'; input: Extract<AssetInput, { data: Uint8Array }> };
+
+function normalizeCatalogInputs(list: readonly AssetInput[]): InputOrderEntry[] {
+  const order: InputOrderEntry[] = [];
+  for (const inp of list) {
+    if (isByteInput(inp)) order.push({ kind: 'byte', input: inp });
+    else order.push({ kind: 'path', value: inp });
+  }
+  return order;
+}
+
+function discoveryOptionsFromCatalog(options: CatalogOptions, registry: AssetDefinitionRegistry): DiscoverOptions {
+  return {
+    followSymlinks: options.followSymlinks,
+    maxDepth: options.maxDepth,
+    maxFiles: options.maxFiles,
+    traversalRoot: options.traversalRoot,
+    allowTraversalEscape: options.allowTraversalEscape,
+    concurrency: options.concurrency,
+    signal: options.signal,
+    registry,
+    allowedKinds: (options as CatalogOptions).allowedKinds,
+    allowedExtensions: (options as CatalogOptions).allowedExtensions,
+  };
+}
+
+// Build ordered per-root discovery groups once so mixed path/byte inputs retain order without duplicate traversal.
+// Each distinct normalized root is discovered at most once (cache) and global file dedupe respects first occurrence.
+// Pure ordering logic; I/O is isolated to discoverAssets calls.
+
+async function buildOrderedQueueAsync(
+  inputOrder: InputOrderEntry[],
+  discoverOpts: DiscoverOptions,
+): Promise<QueueItem[]> {
+  const cache = new Map<string, readonly string[]>();
+  const globalSeen = new Set<string>();
+  const queue: QueueItem[] = [];
+  for (const entry of inputOrder) {
+    throwIfAborted(discoverOpts.signal);
+    if (entry.kind === 'byte') {
+      queue.push({ type: 'byte', input: entry.input });
+    } else {
+      const normRoot = normalizeAbsolute(entry.value);
+      let files = cache.get(normRoot);
+      if (!files) {
+        files = await discoverAssets(entry.value, discoverOpts);
+        cache.set(normRoot, files);
+      }
+      for (const f of files) {
+        const norm = normalizeAbsolute(f);
+        if (globalSeen.has(norm)) continue;
+        globalSeen.add(norm);
+        queue.push({ type: 'file', path: norm });
+      }
+    }
+  }
+  return queue;
+}
+
+function buildOrderedQueueSync(inputOrder: InputOrderEntry[], discoverOpts: DiscoverOptions): QueueItem[] {
+  const cache = new Map<string, readonly string[]>();
+  const globalSeen = new Set<string>();
+  const queue: QueueItem[] = [];
+  for (const entry of inputOrder) {
+    throwIfAborted(discoverOpts.signal);
+    if (entry.kind === 'byte') {
+      queue.push({ type: 'byte', input: entry.input });
+    } else {
+      const normRoot = normalizeAbsolute(entry.value);
+      let files = cache.get(normRoot);
+      if (!files) {
+        files = discoverAssetsSync(entry.value, discoverOpts);
+        cache.set(normRoot, files);
+      }
+      for (const f of files) {
+        const norm = normalizeAbsolute(f);
+        if (globalSeen.has(norm)) continue;
+        globalSeen.add(norm);
+        queue.push({ type: 'file', path: norm });
+      }
+    }
+  }
+  return queue;
+}
+
+// ---------------------------------------------------------------------------
+// Aggregate byte accounting
+// ---------------------------------------------------------------------------
+
+type QueueItem = { type: 'file'; path: string } | { type: 'byte'; input: Extract<AssetInput, { data: Uint8Array }> };
+
+function itemLabel(item: QueueItem): string | undefined {
+  return item.type === 'file' ? item.path : item.input.filename;
+}
+
+/**
+ * Probe the planned byte size of a catalog queue item before it is encoded.
+ * Byte inputs know their length; file paths are statted so a bounded
+ * concurrent chunk can refuse work that would exceed the remaining total
+ * before Base64 payload allocation. Returns `undefined` when the size cannot
+ * be inspected; the encode path remains the authoritative enforcer.
+ */
+async function probeItemSize(item: QueueItem): Promise<number | undefined> {
+  if (item.type === 'byte') return item.input.data.length;
+  try {
+    const st = await stat(item.path);
+    return st.isFile() ? st.size : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Throw the deterministic aggregate-limit error for the first overflowing item. */
+function throwTotalLimit(total: number, limit: number, item: EncodedAsset | QueueItem): never {
+  const ref = 'byteLength' in item ? (item.sourcePath ?? item.filename) : itemLabel(item);
+  throw new ResourceLimitError(`Total bytes ${total} exceeds maxTotalBytes ${limit}`, {
+    limit,
+    actual: total,
+    path: ref,
+  });
+}
+
+/**
+ * Plan one concurrent chunk against the remaining aggregate budget so a chunk
+ * cannot allocate an unbounded amount past the effective remaining total.
+ * Returns the number of leading queue items that fit; the first non-fitting
+ * item fails with `RESOURCE_LIMIT` after the fitting prefix is encoded and
+ * accounted, preserving deterministic input order. Files may change between
+ * this probe and their read; the actual encoded bytes are still re-checked
+ * against the limit afterwards.
+ */
+async function planChunk(
+  queue: readonly QueueItem[],
+  offset: number,
+  chunkSize: number,
+  remaining: number,
+): Promise<number> {
+  const end = Math.min(queue.length, offset + chunkSize);
+  let planned = 0;
+  for (let i = offset; i < end; i++) {
+    const size = await probeItemSize(queue[i]!);
+    if (size !== undefined) {
+      if (planned + size > remaining) {
+        return i - offset;
+      }
+      planned += size;
+    }
+  }
+  return end - offset;
 }
 
 // ---------------------------------------------------------------------------
@@ -144,7 +347,7 @@ function createImmutableCatalog(
 /**
  * Create an immutable asset catalog from file paths, directories, and byte inputs (async).
  * - Discovery is deterministic lexical order, deduplicated, caller-order preserved.
- * - Encoding is bounded, honors `AbortSignal`, and preserves input order regardless of async completion timing.
+ * - Encoding is bounded, honors `AbortSignal`, and preserves input order regardless of async timing.
  * - Exact path matching is default; basename compatibility mode is opt-in and throws `AmbiguousAssetError` on duplicates.
  */
 export async function createAssetCatalog(
@@ -155,122 +358,13 @@ export async function createAssetCatalog(
   throwIfAborted(options.signal);
 
   const list = asArray(inputs);
-  const registry: AssetDefinitionRegistry = options.definitions
-    ? createDefinitionRegistry(options.definitions)
-    : createDefinitionRegistry();
-
-  // Separate string path inputs (need discovery) vs byte inputs (direct)
-  const stringPaths: string[] = [];
-  const byteInputs: Array<{ input: Extract<AssetInput, { data: Uint8Array }>; index: number }> = [];
-  const inputOrder: Array<
-    { kind: 'path'; value: string } | { kind: 'byte'; input: Extract<AssetInput, { data: Uint8Array }> }
-  > = [];
-
-  for (const inp of list) {
-    if (isByteInput(inp)) {
-      byteInputs.push({ input: inp, index: inputOrder.length });
-      inputOrder.push({ kind: 'byte', input: inp });
-    } else {
-      stringPaths.push(inp);
-      inputOrder.push({ kind: 'path', value: inp });
-    }
-  }
-
-  // Discovery for string paths: deterministic, deduped, lexical, root-aware
-  let discoveredFiles: readonly string[] = Object.freeze([] as string[]);
-  if (stringPaths.length > 0) {
-    // Use discoverAssets with relevant DiscoveryOptions propagated
-    const discoverOpts = {
-      followSymlinks: options.followSymlinks,
-      maxDepth: options.maxDepth,
-      maxFiles: options.maxFiles,
-      traversalRoot: options.traversalRoot,
-      allowTraversalEscape: options.allowTraversalEscape,
-      concurrency: options.concurrency,
-      signal: options.signal,
-      definitions: options.definitions,
-      allowedKinds: (options as CatalogOptions).allowedKinds,
-      allowedExtensions: (options as CatalogOptions).allowedExtensions,
-    };
-    discoveredFiles = await discoverAssets(stringPaths, discoverOpts);
-  }
+  const registry = resolveCatalogRegistry(options);
+  const inputOrder = normalizeCatalogInputs(list);
+  const discoverOpts = discoveryOptionsFromCatalog(options, registry);
 
   throwIfAborted(options.signal);
 
-  // Encode phase: preserve overall input order.
-  // For string path inputs, the discovered files are interleaved in caller order.
-  // We have `discoveredFiles` as ordered deduped list from discovery, but we need to map each original string path
-  // to its expanded files in order. `discoverAssets` already retains caller order between roots, so we can use it directly
-  // as the ordered path sequence. However we also need to interleave byte inputs in original inputOrder positions.
-  // Simpler: build final ordered encode queue as:
-  // - iterate inputOrder; for 'byte' push that byte input; for 'path' push its expanded segment?
-  // But discoveredFiles loses grouping per root. Instead we can reconstruct by invoking discovery per root individually
-  // while preserving order. Our current `discoveredFiles` is already globally ordered by roots' caller order, so we can
-  // treat it as the path queue and interleave bytes by original positions using a stable merge:
-  // The spec says "Preserve input order, deduplicate" — meaning overall catalog order follows input order.
-  // If input is [byteA, "/dir1", byteB, "/dir2"], catalog should be [encoded(byteA), files from /dir1 lexically, encoded(byteB), files from /dir2 lexically].
-  // To achieve, we need per-root expansion while preserving positions.
-
-  // Re-expand per root to interleave correctly, dedup globally but keep first occurrence order.
-  const globalSeen = new Set<string>();
-  const orderedQueue: Array<
-    { type: 'file'; path: string } | { type: 'byte'; input: Extract<AssetInput, { data: Uint8Array }> }
-  > = [];
-
-  // Helper to expand a single root string to files (or single file) deterministically
-  // We already have discoveredFiles globally deduped, but for interleaving we need per-root grouping.
-  // Instead of reusing global, we will discover per path root sequentially to build ordered queue.
-
-  // If we have both path and byte inputs interleaved, we need to process path roots one by one in inputOrder.
-  // So we will iterate inputOrder and for each 'path' expand via discoverAssets for that single root.
-
-  // To avoid double discovery, we already discovered globally; but we can split global into per-root segments
-  // by discovering each root individually now (still deterministic, but extra work). Simpler to redo per-root discovery
-  // for ordering when byte inputs are interleaved; when no byte interleaving, we can just use global.
-
-  const hasInterleavedBytes = byteInputs.length > 0 && stringPaths.length > 0;
-  if (hasInterleavedBytes) {
-    // Discover per root in order, building queue interleaved with bytes
-    for (const entry of inputOrder) {
-      throwIfAborted(options.signal);
-      if (entry.kind === 'byte') {
-        orderedQueue.push({ type: 'byte', input: entry.input });
-      } else {
-        // entry is a path string root
-        const filesForRoot = await discoverAssets(entry.value, {
-          followSymlinks: options.followSymlinks,
-          maxDepth: options.maxDepth,
-          maxFiles: options.maxFiles,
-          traversalRoot: options.traversalRoot,
-          allowTraversalEscape: options.allowTraversalEscape,
-          concurrency: options.concurrency,
-          signal: options.signal,
-          definitions: options.definitions,
-          allowedKinds: (options as CatalogOptions).allowedKinds,
-          allowedExtensions: (options as CatalogOptions).allowedExtensions,
-        });
-        for (const f of filesForRoot) {
-          const norm = normalizeAbsolute(f);
-          if (globalSeen.has(norm)) continue;
-          globalSeen.add(norm);
-          orderedQueue.push({ type: 'file', path: norm });
-        }
-      }
-    }
-  } else if (stringPaths.length > 0) {
-    // Only path inputs: use global discoveredFiles as queue in order
-    for (const f of discoveredFiles) {
-      const norm = normalizeAbsolute(f);
-      if (globalSeen.has(norm)) continue;
-      globalSeen.add(norm);
-      orderedQueue.push({ type: 'file', path: norm });
-    }
-  } else {
-    // Only byte inputs
-    for (const entry of inputOrder) {
-      if (entry.kind === 'byte') orderedQueue.push({ type: 'byte', input: entry.input });
-    }
-  }
+  const orderedQueue = await buildOrderedQueueAsync(inputOrder, discoverOpts);
 
   throwIfAborted(options.signal);
 
@@ -279,67 +373,49 @@ export async function createAssetCatalog(
 
   const concurrency = options.concurrency ?? 16;
   validateCatalogOptions({ concurrency } as CatalogOptions);
+  // One effective aggregate limit for this operation; the default applies
+  // even when `maxTotalBytes` is omitted.
+  const maxTotalBytes = options.maxTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES;
 
   const encoded: EncodedAsset[] = [];
   let totalBytes = 0;
 
-  // Sequential path ensures determinism; we still respect abort and limits.
-  // If concurrency >1, we could allow limited parallel but must merge in order. For simplicity, sequential.
-  // To honor concurrency bound, we process in batches of `concurrency` with Promise.all but store ordered.
-  // Even with parallel, result order is input order, not completion order, because we map index->result.
-
-  // Implement batched parallel while preserving order:
+  // Pass validated registry to encode to avoid re-normalizing.
+  const encodeOptions: CatalogOptions = { ...options, registry, definitions: undefined };
+  // `planChunk` bounds each chunk against the remaining aggregate budget, so a
+  // concurrent chunk cannot allocate an unbounded amount past the limit.
   if (concurrency > 1 && orderedQueue.length > 1) {
-    // Process in chunks of concurrency, awaiting each chunk to keep determinism and bounded resource
     for (let i = 0; i < orderedQueue.length; i += concurrency) {
       throwIfAborted(options.signal);
-      const chunk = orderedQueue.slice(i, i + concurrency);
+      const fitting = await planChunk(orderedQueue, i, concurrency, maxTotalBytes - totalBytes);
+      const chunk = orderedQueue.slice(i, i + fitting);
       const chunkResults = await Promise.all(
         chunk.map(async (item) => {
           throwIfAborted(options.signal);
-          if (item.type === 'file') {
-            // Encode file path
-            // Use same options (definitions, detection, limits, signal)
-            const enc = await encodeAsset(item.path, options);
-            return enc;
-          } else {
-            const enc = await encodeAsset(item.input as AssetInput, options);
-            return enc;
-          }
+          return item.type === 'file' ? encodeAsset(item.path, encodeOptions) : encodeAsset(item.input, encodeOptions);
         }),
       );
       for (const enc of chunkResults) {
         throwIfAborted(options.signal);
-        // Check total bytes limit incrementally in order of chunk (which is input order)
         totalBytes += enc.byteLength;
-        if (options.maxTotalBytes !== undefined && totalBytes > options.maxTotalBytes) {
-          throw new ResourceLimitError(`Total bytes ${totalBytes} exceeds maxTotalBytes ${options.maxTotalBytes}`, {
-            limit: options.maxTotalBytes,
-            actual: totalBytes,
-            path: enc.sourcePath ?? enc.filename,
-          });
-        }
-        // Per-asset limit already enforced in encode, but double-check
+        if (totalBytes > maxTotalBytes) throwTotalLimit(totalBytes, maxTotalBytes, enc);
         encoded.push(enc);
+      }
+      if (fitting < Math.min(concurrency, orderedQueue.length - i)) {
+        const overItem = orderedQueue[i + fitting]!;
+        const size = (await probeItemSize(overItem)) ?? 0;
+        throwTotalLimit(totalBytes + size, maxTotalBytes, overItem);
       }
     }
   } else {
     for (const item of orderedQueue) {
       throwIfAborted(options.signal);
-      let enc: EncodedAsset;
-      if (item.type === 'file') {
-        enc = await encodeAsset(item.path, options);
-      } else {
-        enc = await encodeAsset(item.input as AssetInput, options);
-      }
+      const enc =
+        item.type === 'file'
+          ? await encodeAsset(item.path, encodeOptions)
+          : await encodeAsset(item.input, encodeOptions);
       totalBytes += enc.byteLength;
-      if (options.maxTotalBytes !== undefined && totalBytes > options.maxTotalBytes) {
-        throw new ResourceLimitError(`Total bytes ${totalBytes} exceeds maxTotalBytes ${options.maxTotalBytes}`, {
-          limit: options.maxTotalBytes,
-          actual: totalBytes,
-          path: enc.sourcePath ?? enc.filename,
-        });
-      }
+      if (totalBytes > maxTotalBytes) throwTotalLimit(totalBytes, maxTotalBytes, enc);
       encoded.push(enc);
       throwIfAborted(options.signal);
     }
@@ -370,106 +446,27 @@ export function createAssetCatalogSync(
   }
 
   const list = asArray(inputs);
-  const registry = options.definitions ? createDefinitionRegistry(options.definitions) : createDefinitionRegistry();
-
-  const stringPaths: string[] = [];
-  const inputOrder: Array<
-    { kind: 'path'; value: string } | { kind: 'byte'; input: Extract<AssetInput, { data: Uint8Array }> }
-  > = [];
-
-  for (const inp of list) {
-    if (isByteInput(inp)) {
-      inputOrder.push({ kind: 'byte', input: inp });
-    } else {
-      stringPaths.push(inp);
-      inputOrder.push({ kind: 'path', value: inp });
-    }
-  }
-
-  // Discovery sync
-  let discoveredFiles: readonly string[] = Object.freeze([] as string[]);
-  if (stringPaths.length > 0) {
-    discoveredFiles = discoverAssetsSync(stringPaths, {
-      followSymlinks: options.followSymlinks,
-      maxDepth: options.maxDepth,
-      maxFiles: options.maxFiles,
-      traversalRoot: options.traversalRoot,
-      allowTraversalEscape: options.allowTraversalEscape,
-      concurrency: options.concurrency,
-      signal: options.signal,
-      definitions: options.definitions,
-      allowedKinds: (options as CatalogOptions).allowedKinds,
-      allowedExtensions: (options as CatalogOptions).allowedExtensions,
-    });
-  }
+  const registry = resolveCatalogRegistry(options);
+  const inputOrder = normalizeCatalogInputs(list);
+  const discoverOpts = discoveryOptionsFromCatalog(options, registry);
 
   throwIfAborted(options.signal);
 
-  const globalSeen = new Set<string>();
-  const orderedQueue: Array<
-    { type: 'file'; path: string } | { type: 'byte'; input: Extract<AssetInput, { data: Uint8Array }> }
-  > = [];
-
-  const hasInterleavedBytes = list.some(isByteInput) && stringPaths.length > 0;
-  if (hasInterleavedBytes) {
-    for (const entry of inputOrder) {
-      throwIfAborted(options.signal);
-      if (entry.kind === 'byte') {
-        orderedQueue.push({ type: 'byte', input: entry.input });
-      } else {
-        const filesForRoot = discoverAssetsSync(entry.value, {
-          followSymlinks: options.followSymlinks,
-          maxDepth: options.maxDepth,
-          maxFiles: options.maxFiles,
-          traversalRoot: options.traversalRoot,
-          allowTraversalEscape: options.allowTraversalEscape,
-          concurrency: options.concurrency,
-          signal: options.signal,
-          definitions: options.definitions,
-          allowedKinds: (options as CatalogOptions).allowedKinds,
-          allowedExtensions: (options as CatalogOptions).allowedExtensions,
-        });
-        for (const f of filesForRoot) {
-          const norm = normalizeAbsolute(f);
-          if (globalSeen.has(norm)) continue;
-          globalSeen.add(norm);
-          orderedQueue.push({ type: 'file', path: norm });
-        }
-      }
-    }
-  } else if (stringPaths.length > 0) {
-    for (const f of discoveredFiles) {
-      const norm = normalizeAbsolute(f);
-      if (globalSeen.has(norm)) continue;
-      globalSeen.add(norm);
-      orderedQueue.push({ type: 'file', path: norm });
-    }
-  } else {
-    for (const entry of inputOrder) {
-      if (entry.kind === 'byte') orderedQueue.push({ type: 'byte', input: entry.input });
-    }
-  }
+  const orderedQueue = buildOrderedQueueSync(inputOrder, discoverOpts);
 
   throwIfAborted(options.signal);
 
   const encoded: EncodedAsset[] = [];
   let totalBytes = 0;
+  // One effective aggregate limit; the default applies even when omitted.
+  const maxTotalBytes = options.maxTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES;
+  const encodeOptions: CatalogOptions = { ...options, registry, definitions: undefined };
   for (const item of orderedQueue) {
     throwIfAborted(options.signal);
-    let enc: EncodedAsset;
-    if (item.type === 'file') {
-      enc = encodeAssetSync(item.path, options);
-    } else {
-      enc = encodeAssetSync(item.input as AssetInput, options);
-    }
+    const enc =
+      item.type === 'file' ? encodeAssetSync(item.path, encodeOptions) : encodeAssetSync(item.input, encodeOptions);
     totalBytes += enc.byteLength;
-    if (options.maxTotalBytes !== undefined && totalBytes > options.maxTotalBytes) {
-      throw new ResourceLimitError(`Total bytes ${totalBytes} exceeds maxTotalBytes ${options.maxTotalBytes}`, {
-        limit: options.maxTotalBytes,
-        actual: totalBytes,
-        path: enc.sourcePath ?? enc.filename,
-      });
-    }
+    if (totalBytes > maxTotalBytes) throwTotalLimit(totalBytes, maxTotalBytes, enc);
     encoded.push(enc);
   }
 

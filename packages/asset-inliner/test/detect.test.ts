@@ -1,15 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  encodeAsset,
-  encodeAssetSync,
-  setDetector,
-  resetDetector,
-  defaultDetector,
-  resolveByExtension,
-  resolveWithDetector,
-} from '../src/index.ts';
+import { encodeAsset, encodeAssetSync, defaultDetector, resolveByExtension } from '../src/index.ts';
 import { createDefinitionRegistry } from '../src/definitions.ts';
 import {
   UnsupportedAssetError,
@@ -24,10 +16,8 @@ const IMAGES_DIR = path.resolve(
   'legacy',
   'images',
 );
-const FIXTURE_ROOT = path.resolve(IMAGES_DIR, '..');
 
-beforeEach(() => resetDetector());
-afterEach(() => resetDetector());
+// no global detector mutation — per-operation injection
 
 function pngBytes(): Uint8Array {
   return fs.readFileSync(path.join(IMAGES_DIR, 'sample.png'));
@@ -89,7 +79,6 @@ describe('detect: content mode async-only, identifies binary via file-type', () 
   });
 
   it('content may identify via bounded input (first 4100 bytes)', async () => {
-    // Use a large PNG-like buffer with extra trailing bytes - detection should still succeed via first chunk
     const data = pngBytes();
     const large = new Uint8Array(8000);
     large.set(data, 0);
@@ -100,14 +89,12 @@ describe('detect: content mode async-only, identifies binary via file-type', () 
 
   it('content with filename present still detects', async () => {
     const data = gifBytes();
-    // filename is generic .bin but content is GIF
     const res = await encodeAsset({ data, filename: 'unknown.bin' }, { detection: 'content' });
     expect(res.mediaType).toBe('image/gif');
   });
 
   it('content falls back to extension for SVG (text not detected)', async () => {
     const data = svgBytes();
-    // file-type does not detect SVG; should fallback via extension
     const res = await encodeAsset({ data, filename: 'icon.svg' }, { detection: 'content' });
     expect(res.mediaType).toBe('image/svg+xml');
   });
@@ -120,17 +107,15 @@ describe('detect: content mode async-only, identifies binary via file-type', () 
     await expect(encodeAsset({ data }, { detection: 'content' })).rejects.toBeInstanceOf(UnsupportedAssetError);
   });
 
-  it('content keeps file-type behind abstraction — stubbable', async () => {
+  it('content keeps file-type behind abstraction — stubbable via per-op detector', async () => {
     const stubDetector = {
       async detect(_bytes: Uint8Array, _signal?: AbortSignal) {
         return { ext: 'png', mime: 'image/png' };
       },
     };
-    setDetector(stubDetector);
-    const data = new Uint8Array([0, 1, 2, 3]); // not actually PNG
-    const res = await encodeAsset({ data }, { detection: 'content' });
+    const data = new Uint8Array([0, 1, 2, 3]);
+    const res = await encodeAsset({ data }, { detection: 'content', detector: stubDetector });
     expect(res.mediaType).toBe('image/png');
-    // ensure stub was used not real file-type
     let called = false;
     const countingDetector = {
       async detect() {
@@ -138,22 +123,29 @@ describe('detect: content mode async-only, identifies binary via file-type', () 
         return { ext: 'gif', mime: 'image/gif' };
       },
     };
-    setDetector(countingDetector);
-    const res2 = await encodeAsset({ data: new Uint8Array([9, 9, 9]) }, { detection: 'content' });
+    const res2 = await encodeAsset(
+      { data: new Uint8Array([9, 9, 9]) },
+      { detection: 'content', detector: countingDetector },
+    );
     expect(called).toBe(true);
     expect(res2.mediaType).toBe('image/gif');
   });
 
   it('content with explicit mediaType wins over detection (no override)', async () => {
-    const data = pngBytes(); // PNG bytes
-    // Stub detector to return gif but explicit says custom -> should keep custom
-    setDetector({
+    const data = pngBytes();
+    let detectCalled = false;
+    const detector = {
       async detect() {
+        detectCalled = true;
         return { ext: 'gif', mime: 'image/gif' };
       },
-    });
-    const res = await encodeAsset({ data, filename: 'a.png', mediaType: 'image/custom' }, { detection: 'content' });
+    };
+    const res = await encodeAsset(
+      { data, filename: 'a.png', mediaType: 'image/custom' },
+      { detection: 'content', detector },
+    );
     expect(res.mediaType).toBe('image/custom');
+    expect(detectCalled).toBe(false);
   });
 
   it('sync must reject content detection immediately', () => {
@@ -193,19 +185,18 @@ describe('detect: verify mode async-only compares detected vs expected', () => {
 
   it('verify with explicit mediaType match succeeds (no silent override)', async () => {
     const data = pngBytes();
-    // explicit says png, detected also png => ok
     const res = await encodeAsset({ data, mediaType: 'image/png' }, { detection: 'verify' });
     expect(res.mediaType).toBe('image/png');
   });
 
-  it('verify does not silently emit caller-unexpected mediaType — stub mismatch', async () => {
-    setDetector({
+  it('verify does not silently emit caller-unexpected mediaType — stub mismatch via per-op detector', async () => {
+    const detector = {
       async detect() {
         return { ext: 'png', mime: 'image/png' };
       },
-    });
+    };
     const data = new Uint8Array([1, 2, 3]);
-    await expect(encodeAsset({ data, filename: 'a.gif' }, { detection: 'verify' })).rejects.toBeInstanceOf(
+    await expect(encodeAsset({ data, filename: 'a.gif' }, { detection: 'verify', detector })).rejects.toBeInstanceOf(
       DetectionMismatchError,
     );
   });
@@ -221,56 +212,59 @@ describe('detect: verify mode async-only compares detected vs expected', () => {
     expect(() => encodeAssetSync({ data, filename: 'a.png' }, { detection: 'verify' })).toThrow(InvalidOptionsError);
   });
 
-  it('verify honors AbortSignal between stages', async () => {
+  it('verify honors AbortSignal between stages via per-op detector', async () => {
     const ac = new AbortController();
     const data = pngBytes();
-    // create a detector that delays
-    setDetector({
-      async detect(_bytes, signal) {
+    const detector = {
+      async detect(_bytes: Uint8Array, signal?: AbortSignal) {
         if (signal?.aborted) throw signal.reason;
-        // simulate async delay then abort?
         await new Promise((r) => setTimeout(r, 10));
         if (signal?.aborted) throw signal.reason;
         return { ext: 'png', mime: 'image/png' };
       },
-    });
-    const promise = encodeAsset({ data, filename: 'a.png' }, { detection: 'verify', signal: ac.signal });
+    };
+    const promise = encodeAsset({ data, filename: 'a.png' }, { detection: 'verify', signal: ac.signal, detector });
     ac.abort(new DOMException('aborted', 'AbortError'));
-    await expect(promise).rejects.toSatisfy((e) => String(e).includes('aborted') || e.name === 'AbortError');
+    await expect(promise).rejects.toSatisfy((e) => String(e).includes('aborted') || (e as Error).name === 'AbortError');
   });
 });
 
 describe('detect: explicit mediaType precedence and registry control', () => {
-  it('explicit mediaType outside registry still accepted', async () => {
+  it('explicit mediaType outside registry requires explicit kind', async () => {
     const data = new Uint8Array([1, 2, 3]);
-    const res = await encodeAsset({ data, mediaType: 'application/custom+type' });
+    await expect(encodeAsset({ data, mediaType: 'application/custom+type' })).rejects.toBeInstanceOf(
+      UnsupportedAssetError,
+    );
+    const res = await encodeAsset({ data, mediaType: 'application/custom+type', kind: 'custom' });
     expect(res.mediaType).toBe('application/custom+type');
+    expect(res.kind).toBe('custom');
   });
 
-  it('explicit mediaType takes precedence over detected and extension in verify', async () => {
-    setDetector({
+  it('explicit mediaType takes precedence over detected and extension in verify via per-op detector', async () => {
+    const detector = {
       async detect() {
         return { ext: 'jpg', mime: 'image/jpeg' };
       },
-    });
+    };
     const data = new Uint8Array([1, 2, 3]);
-    // extension says png, explicit says jpeg, detected says jpeg => expected is jpeg, matches detected => no error, returns explicit
-    const res = await encodeAsset({ data, filename: 'a.png', mediaType: 'image/jpeg' }, { detection: 'verify' });
+    const res = await encodeAsset(
+      { data, filename: 'a.png', mediaType: 'image/jpeg' },
+      { detection: 'verify', detector },
+    );
     expect(res.mediaType).toBe('image/jpeg');
   });
 
-  it('content with explicit mediaType never calls detector override silently', async () => {
+  it('content with explicit mediaType never calls detector override silently via per-op detector', async () => {
     let detectCalled = false;
-    setDetector({
+    const detector = {
       async detect() {
         detectCalled = true;
         return { ext: 'gif', mime: 'image/gif' };
       },
-    });
+    };
     const data = pngBytes();
-    const res = await encodeAsset({ data, mediaType: 'image/custom' }, { detection: 'content' });
+    const res = await encodeAsset({ data, mediaType: 'image/custom' }, { detection: 'content', detector });
     expect(res.mediaType).toBe('image/custom');
-    // For content with explicit, we skip detection entirely
     expect(detectCalled).toBe(false);
   });
 });
@@ -309,7 +303,7 @@ describe('detect: defaultDetector bounds and honors AbortSignal', () => {
     const ac = new AbortController();
     ac.abort(new DOMException('aborted', 'AbortError'));
     await expect(defaultDetector.detect(pngBytes(), ac.signal)).rejects.toSatisfy(
-      (e) => String(e).includes('aborted') || e.name === 'AbortError',
+      (e) => String(e).includes('aborted') || (e as Error).name === 'AbortError',
     );
   });
 });

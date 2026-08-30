@@ -1,17 +1,7 @@
-/**
- * Discovery — deterministic filesystem traversal for asset files.
- *
- * Guarantees:
- * - Lexical (sorted) order within each directory, retained caller order between roots.
- * - Deduplication by normalized absolute path (`path.resolve`).
- * - Extension/kind filtering before expensive reads: explicit unsupported files throw
- *   `UnsupportedAssetError`, directory entries that miss the filter are silently ignored.
- * - Symlink `false` by default with cycle detection and optional root-escape denial.
- * - Finite validated bounds for depth, count, concurrency; honors `AbortSignal`.
- */
+/** Discovery — deterministic filesystem traversal with canonical containment. */
 
 import fs from 'node:fs';
-import { readdir, lstat, realpath } from 'node:fs/promises';
+import { readdir, lstat, stat as statAsync, realpath as realpathAsync } from 'node:fs/promises';
 import path from 'node:path';
 import type { AssetTypeDefinition } from './types.ts';
 import type { DiscoveryOptions as BaseDiscoveryOptions } from './types.ts';
@@ -105,8 +95,19 @@ function passesExtensionFilter(
   return true;
 }
 
-// Build registry for filtering if definitions provided
-function getRegistryForFilter(options: BaseDiscoveryOptions & { definitions?: readonly AssetTypeDefinition[] }) {
+// Build registry for filtering if definitions provided — reuses validated registry when available.
+function getRegistryForFilter(
+  options: BaseDiscoveryOptions & {
+    definitions?: readonly AssetTypeDefinition[];
+    registry?: import('./definitions.ts').AssetDefinitionRegistry;
+  },
+) {
+  if (options.registry) {
+    if (options.definitions) {
+      throw new InvalidOptionsError('Provide either registry or definitions, not both for discovery');
+    }
+    return options.registry;
+  }
   if (options.definitions) {
     return createDefinitionRegistry(options.definitions);
   }
@@ -128,6 +129,7 @@ function getRegistryForFilter(options: BaseDiscoveryOptions & { definitions?: re
 
 export interface DiscoverOptions extends BaseDiscoveryOptions {
   readonly definitions?: readonly AssetTypeDefinition[];
+  readonly registry?: import('./definitions.ts').AssetDefinitionRegistry;
 }
 
 const DEFAULT_MAX_DEPTH = POLICY_DEFAULT_MAX_DEPTH;
@@ -154,6 +156,9 @@ function normalizeDiscoverOptions(opts: DiscoverOptions = {}): DiscoverOptions &
   if (opts.allowTraversalEscape !== undefined && typeof opts.allowTraversalEscape !== 'boolean') {
     throw new InvalidOptionsError('allowTraversalEscape must be boolean');
   }
+  if (opts.registry !== undefined && opts.definitions !== undefined) {
+    throw new InvalidOptionsError('Provide either registry or definitions, not both for discovery');
+  }
   return {
     followSymlinks: opts.followSymlinks ?? false,
     maxDepth: opts.maxDepth ?? DEFAULT_MAX_DEPTH,
@@ -162,10 +167,56 @@ function normalizeDiscoverOptions(opts: DiscoverOptions = {}): DiscoverOptions &
     traversalRoot: opts.traversalRoot !== undefined ? normalizeAbsolute(opts.traversalRoot) : undefined,
     allowTraversalEscape: opts.allowTraversalEscape ?? false,
     definitions: opts.definitions,
+    registry: opts.registry,
     allowedKinds: opts.allowedKinds,
     allowedExtensions: opts.allowedExtensions,
     signal: opts.signal,
   };
+}
+
+type NormalizedDiscoverOptions = ReturnType<typeof normalizeDiscoverOptions>;
+
+/** Shared state for one discovery operation (async or sync). */
+interface WalkState {
+  readonly opts: NormalizedDiscoverOptions;
+  readonly registry: ReturnType<typeof createDefinitionRegistry>;
+  /** Canonical root identity (`realpath` of `traversalRoot`), when configured. */
+  readonly canonicalRoot: string | undefined;
+  /** Canonical identities already accepted (dedupe key). */
+  readonly seen: Set<string>;
+  /** Canonical directory identities already walked (cycle/alias guard). */
+  readonly visitedDirs: Set<string>;
+  /** First-seen logical paths in deterministic emission order. */
+  readonly result: string[];
+}
+
+function pushIfNew(state: WalkState, logical: string, canonical: string): void {
+  const { opts } = state;
+  if (state.seen.has(canonical)) return;
+  if (state.result.length >= opts.maxFiles) {
+    throw new ResourceLimitError(`Discovered file count ${state.result.length + 1} exceeds maxFiles ${opts.maxFiles}`, {
+      limit: opts.maxFiles,
+      actual: state.result.length + 1,
+      path: logical,
+    });
+  }
+  state.seen.add(canonical);
+  state.result.push(logical);
+}
+
+/**
+ * Canonical containment gate: reject when a canonicalized identity resolves
+ * outside the canonical traversal root. No-op unless `traversalRoot` is
+ * configured and `allowTraversalEscape` is not set.
+ */
+function assertContained(state: WalkState, logical: string, canonical: string): void {
+  if (!state.canonicalRoot || state.opts.allowTraversalEscape) return;
+  if (!isWithinRoot(canonical, state.canonicalRoot)) {
+    throw new FilesystemError(
+      `Traversal escape denied: "${logical}" resolves to "${canonical}" outside root "${state.canonicalRoot}"`,
+      { path: logical, operation: 'traversalRoot' },
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -174,11 +225,14 @@ function normalizeDiscoverOptions(opts: DiscoverOptions = {}): DiscoverOptions &
 
 /**
  * Discover asset files from explicit paths and directories.
- * - Lexical order within directories, caller order between roots.
- * - Deduplicates normalized absolute identities.
- * - Applies extension/kind filters before reads; explicit unsupported files throw `UnsupportedAssetError`,
- *   directory entries that miss the filter are silently skipped.
- * - Respects `followSymlinks` (false by default), cycle detection, depth, count, concurrency, traversalRoot.
+ * - Lexical depth-first entry order within directories, caller order between roots.
+ * - Deduplicates by canonical (`realpath`) identity; reports first-seen logical paths.
+ * - Canonical containment under `traversalRoot` unless `allowTraversalEscape` is set;
+ *   a regular file beneath a symlinked ancestor cannot escape the root.
+ * - Applies extension/kind filters before reads; explicit unsupported files throw
+ *   `UnsupportedAssetError`, directory entries that miss the filter are silently skipped.
+ * - Respects `followSymlinks` (false by default), cycle detection, depth, count.
+ *   Traversal is serial; `concurrency` is validated but does not accelerate discovery.
  * - Throws `FilesystemError` for missing explicit paths or permission errors.
  */
 export async function discoverAssets(
@@ -191,37 +245,34 @@ export async function discoverAssets(
   const roots = Array.isArray(inputs) ? [...inputs] : [inputs];
   if (roots.length === 0) return Object.freeze([] as string[]);
 
-  const registry = getRegistryForFilter(opts);
-  const seen = new Set<string>();
-  const result: string[] = [];
-  const visitedRealDirs = new Set<string>(); // for cycle detection when following symlinks
-
-  // Helper to enforce maxFiles before pushing
-  function pushIfNew(abs: string) {
-    if (seen.has(abs)) return;
-    if (result.length >= opts.maxFiles) {
-      throw new ResourceLimitError(`Discovered file count ${result.length + 1} exceeds maxFiles ${opts.maxFiles}`, {
-        limit: opts.maxFiles,
-        actual: result.length + 1,
-        path: abs,
+  // Canonicalize the traversal root once; all containment checks compare
+  // canonical identities, never lexical paths.
+  let canonicalRoot: string | undefined;
+  if (opts.traversalRoot && !opts.allowTraversalEscape) {
+    try {
+      canonicalRoot = await realpathAsync(opts.traversalRoot);
+    } catch (err) {
+      throw new FilesystemError(`Failed to canonicalize traversalRoot "${opts.traversalRoot}"`, {
+        path: opts.traversalRoot,
+        operation: 'realpath',
+        cause: err,
       });
     }
-    // Enforce traversalRoot escape if configured
-    if (opts.traversalRoot && !opts.allowTraversalEscape) {
-      if (!isWithinRoot(abs, opts.traversalRoot)) {
-        throw new FilesystemError(`Traversal escape denied: "${abs}" is outside root "${opts.traversalRoot}"`, {
-          path: abs,
-          operation: 'traversalRoot',
-        });
-      }
-    }
-    seen.add(abs);
-    result.push(abs);
   }
 
-  // Recursive async walk with depth control, lexical sorting, concurrency bounded per directory.
-  // For determinism we process directories sequentially in lexical order, but we respect concurrency
-  // for parallel sub-directory traversal within a single parent when concurrency > 1 by batching.
+  const state: WalkState = {
+    opts,
+    registry: getRegistryForFilter(opts),
+    canonicalRoot,
+    seen: new Set(),
+    visitedDirs: new Set(),
+    result: [],
+  };
+
+  // Recursive depth-first walk: each sorted entry's subtree is fully processed
+  // before the next sibling entry, giving one deterministic lexical entry order.
+  // Traversal is intentionally serial so result order never depends on
+  // parallel completion; `concurrency` does not accelerate discovery.
   async function walkDir(dirAbs: string, depth: number): Promise<void> {
     throwIfAborted(opts.signal);
     if (depth > opts.maxDepth) {
@@ -244,23 +295,9 @@ export async function discoverAssets(
     entries.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     throwIfAborted(opts.signal);
 
-    // Process entries sequentially for determinism; concurrency is used to bound parallel recursive walks
-    // For each entry we determine if file or directory. We could parallelize directory sub-walks
-    // in batches of `concurrency` while preserving lexical order in result via ordered insertion.
-
-    // Collect subdirectories to walk after files in lexical order
-    const subDirs: Array<{ abs: string; depth: number; real?: string }> = [];
-
     for (const entry of entries) {
       throwIfAborted(opts.signal);
       const entryAbs = path.resolve(dirAbs, entry);
-      // Enforce traversalRoot escape early
-      if (opts.traversalRoot && !opts.allowTraversalEscape && !isWithinRoot(entryAbs, opts.traversalRoot)) {
-        throw new FilesystemError(`Traversal escape denied: "${entryAbs}" is outside root "${opts.traversalRoot}"`, {
-          path: entryAbs,
-          operation: 'traversalRoot',
-        });
-      }
 
       let lst: fs.Stats;
       try {
@@ -273,115 +310,55 @@ export async function discoverAssets(
         });
       }
       const isSym = lst.isSymbolicLink();
-      if (isSym && !opts.followSymlinks) {
-        // Skip symlink entries entirely when not following
-        continue;
-      }
+      // Never follow a symlink entry unless explicitly allowed; the entry is
+      // skipped entirely rather than inspected through its target.
+      if (isSym && !opts.followSymlinks) continue;
+
       let statToUse = lst;
-      let realForCycle: string | undefined;
-      if (isSym && opts.followSymlinks) {
-        let real: string;
+      let canonical: string;
+      try {
+        canonical = await realpathAsync(entryAbs);
+      } catch (err) {
+        throw new FilesystemError(`Failed to canonicalize "${entryAbs}"`, {
+          path: entryAbs,
+          operation: 'realpath',
+          cause: err,
+        });
+      }
+      assertContained(state, entryAbs, canonical);
+      if (isSym) {
         try {
-          real = await realpath(entryAbs);
+          statToUse = await statAsync(canonical);
         } catch (err) {
-          throw new FilesystemError(`Failed to resolve symlink "${entryAbs}"`, {
-            path: entryAbs,
-            operation: 'realpath',
-            cause: err,
-          });
-        }
-        // Root escape check on realpath as well
-        if (opts.traversalRoot && !opts.allowTraversalEscape && !isWithinRoot(real, opts.traversalRoot)) {
-          throw new FilesystemError(
-            `Symlink traversal escape denied: "${entryAbs}" -> "${real}" outside root "${opts.traversalRoot}"`,
-            {
-              path: entryAbs,
-              operation: 'realpath',
-            },
-          );
-        }
-        // Cycle detection: if real directory already visited, skip
-        try {
-          const realStat = await lstat(real);
-          statToUse = realStat;
-          // Need to know if target is directory; but we need to check isDirectory via stat after realpath
-          // Use fs.promises.stat to follow? lstat on real still gives target stats but if target is symlink again?
-          // For simplicity, use fs.promises.stat equivalent: use await import then stat
-          const { stat } = await import('node:fs/promises');
-          const targetStat = await stat(real);
-          statToUse = targetStat;
-        } catch (err) {
-          throw new FilesystemError(`Failed to stat symlink target "${entryAbs}" -> "${real}"`, {
+          throw new FilesystemError(`Failed to stat symlink target "${entryAbs}" -> "${canonical}"`, {
             path: entryAbs,
             operation: 'stat',
             cause: err,
           });
         }
-        realForCycle = real;
-        // If cycle detected for directory, skip
-        if (statToUse.isDirectory() && visitedRealDirs.has(real)) {
-          continue;
-        }
       }
 
       if (statToUse.isDirectory()) {
-        // Check depth before queuing
         if (depth + 1 > opts.maxDepth) {
           throw new ResourceLimitError(
             `Traversal depth ${depth + 1} exceeds maxDepth ${opts.maxDepth} at "${entryAbs}"`,
             { limit: opts.maxDepth, actual: depth + 1, path: entryAbs },
           );
         }
-        if (opts.followSymlinks && realForCycle) {
-          visitedRealDirs.add(realForCycle);
-        } else if (!opts.followSymlinks) {
-          // For non-symlink dirs, track realpath for cycle when follow true later? Use canonical path as key
-          // Use absolute path as visited key for simple cycle avoidance even without symlink (hard links)
-          // Not strictly needed but prevent infinite loops via hard links.
-        }
-        // Enqueue for later walk; we will walk sequentially to keep lexical order deterministic
-        subDirs.push({
-          abs: isSym && opts.followSymlinks ? (realForCycle as string) : entryAbs,
-          depth: depth + 1,
-          real: realForCycle,
-        });
-        // But note: if symlink follow, entryAbs vs real differs — we walk real path but logical path check uses entryAbs.
-        // For result deduplication, if symlink dir yields files, their real paths will be deduped via seen set.
+        // Cycle/alias guard on canonical directory identity.
+        if (state.visitedDirs.has(canonical)) continue;
+        state.visitedDirs.add(canonical);
+        // Depth-first: process this entry's subtree before later siblings.
+        await walkDir(entryAbs, depth + 1);
       } else if (statToUse.isFile()) {
         const ext = path.extname(entryAbs).toLowerCase();
         // Directory entry: silently skip if not passing filter
-        if (!passesExtensionFilter(ext, opts, registry)) {
-          continue;
-        }
-        // Check symlink file: need to use real path for deduplication? Use normalized absolute of entryAbs for identity?
-        // When following symlinks, use real path as identity to dedupe same file via different symlinks.
-        const identity =
-          isSym && opts.followSymlinks && realForCycle ? normalizeAbsolute(realForCycle) : normalizeAbsolute(entryAbs);
-        pushIfNew(identity);
+        if (!passesExtensionFilter(ext, opts, state.registry)) continue;
+        pushIfNew(state, normalizeAbsolute(entryAbs), canonical);
       } else {
         // Other types (FIFO, socket) -> ignore
         continue;
       }
-    }
-
-    // Walk subdirectories in lexical order, respecting concurrency via batched parallel
-    // To keep deterministic result order (not completion order), we collect sub-results in order
-    // and push in lexical order regardless of completion timing by awaiting batches sequentially in order
-    // but allowing concurrency within batch.
-
-    // Simple approach: sequential walk for determinism — concurrency is still bounded (1 at a time)
-    // For concurrency >1, we could walk subDirs in parallel batches but still push results sorted.
-    // We implement batched parallel with ordered merge: each walkDir appends to `result` in lexical order of its subtree,
-    // but parallel execution could interleave pushes causing nondeterministic order if we push as we discover.
-    // To avoid, we walk sequentially regardless of concurrency for full determinism, but still validate concurrency bound.
-    // This still satisfies "bounded concurrency" (uses at most 1) and determinism.
-
-    // If we want to demonstrate bounded concurrency, we could limit to opts.concurrency but keep sequential for determinism.
-    for (const sub of subDirs) {
-      // Need to walk the original entryAbs directory, not the real path alias? For listing we already used dirAbs's entries,
-      // but sub.abs is either entryAbs or real. Walk that path.
-      // If symlink, we already resolved to real, walk real.
-      await walkDir(sub.abs, sub.depth);
     }
   }
 
@@ -405,42 +382,26 @@ export async function discoverAssets(
       });
     }
     const isSym = lst.isSymbolicLink();
-    if (isSym && !opts.followSymlinks) {
-      // Explicit symlink file: if it's a symlink to file and follow false, should we skip or throw?
-      // For determinism, treat explicit symlink when not following as skipped? But spec says symlink false by default
-      // should not follow; we skip directory symlinks, but explicit file symlink maybe treat as file not followed.
-      // Simpler: if explicit path is symlink and not following, throw or skip? We'll skip to avoid surprise.
-      // However for cycle test we need to detect symlink file vs directory separately.
-      // Check target type via realpath+stat to decide file vs dir
-      // If symlink points to file, we could consider it as file but not follow — skip?
-      continue;
-    }
+    // Explicit symlink root with followSymlinks false is not followed: skip.
+    if (isSym && !opts.followSymlinks) continue;
+
     let statToUse = lst;
-    let realForRoot: string | undefined;
-    if (isSym && opts.followSymlinks) {
-      let real: string;
+    let canonical: string;
+    try {
+      canonical = await realpathAsync(rootAbs);
+    } catch (err) {
+      throw new FilesystemError(`Failed to canonicalize "${rootAbs}"`, {
+        path: rootAbs,
+        operation: 'realpath',
+        cause: err,
+      });
+    }
+    // Canonical containment applies even when the final path component is a
+    // plain regular file or directory reached through a symlinked ancestor.
+    assertContained(state, rootAbs, canonical);
+    if (isSym) {
       try {
-        real = await realpath(rootAbs);
-      } catch (err) {
-        throw new FilesystemError(`Failed to resolve symlink "${rootAbs}"`, {
-          path: rootAbs,
-          operation: 'realpath',
-          cause: err,
-        });
-      }
-      if (opts.traversalRoot && !opts.allowTraversalEscape && !isWithinRoot(real, opts.traversalRoot)) {
-        throw new FilesystemError(`Symlink traversal escape denied: "${rootAbs}" -> "${real}"`, {
-          path: rootAbs,
-          operation: 'realpath',
-        });
-      }
-      if (visitedRealDirs.has(real)) {
-        continue;
-      }
-      try {
-        const { stat } = await import('node:fs/promises');
-        const targetStat = await stat(real);
-        statToUse = targetStat;
+        statToUse = await statAsync(canonical);
       } catch (err) {
         throw new FilesystemError(`Failed to stat symlink target "${rootAbs}"`, {
           path: rootAbs,
@@ -448,40 +409,29 @@ export async function discoverAssets(
           cause: err,
         });
       }
-      realForRoot = real;
     }
 
     if (statToUse.isDirectory()) {
-      if (opts.followSymlinks && realForRoot) visitedRealDirs.add(realForRoot);
-      // Directory root: walk it
-      // Enforce root containment for dir itself
-      if (opts.traversalRoot && !opts.allowTraversalEscape && !isWithinRoot(rootAbs, opts.traversalRoot)) {
-        throw new FilesystemError(`Traversal escape denied: "${rootAbs}" is outside root "${opts.traversalRoot}"`, {
-          path: rootAbs,
-          operation: 'traversalRoot',
-        });
-      }
-      const walkTarget = isSym && opts.followSymlinks && realForRoot ? realForRoot : rootAbs;
-      await walkDir(walkTarget, 1);
+      if (state.visitedDirs.has(canonical)) continue;
+      state.visitedDirs.add(canonical);
+      await walkDir(rootAbs, 1);
     } else if (statToUse.isFile()) {
       const ext = path.extname(rootAbs).toLowerCase();
       // Explicit file: must surface unsupported distinctly
-      const passes = passesExtensionFilter(ext, opts, registry);
-      if (!passes) {
+      if (!passesExtensionFilter(ext, opts, state.registry)) {
         throw new UnsupportedAssetError(`Unsupported asset extension "${ext}" for explicit file "${rootAbs}"`, {
           extension: ext,
           path: rootAbs,
         });
       }
-      const identity = isSym && opts.followSymlinks && realForRoot ? normalizeAbsolute(realForRoot) : rootAbs;
-      pushIfNew(identity);
+      pushIfNew(state, rootAbs, canonical);
     } else {
       // Ignore other types
       continue;
     }
   }
 
-  return Object.freeze([...result]) as readonly string[];
+  return Object.freeze([...state.result]) as readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -489,9 +439,9 @@ export async function discoverAssets(
 // ---------------------------------------------------------------------------
 
 /**
- * Synchronous variant of `discoverAssets`. Rejects async detection concerns but
- * otherwise mirrors async semantics. No `AbortSignal` suspension is needed but
- * `signal.aborted` is still checked between stages.
+ * Synchronous variant of `discoverAssets`. Semantics match the async version,
+ * including canonical containment and lexical depth-first entry order.
+ * `signal.aborted` is checked between stages.
  */
 export function discoverAssetsSync(
   inputs: string | readonly string[],
@@ -503,31 +453,27 @@ export function discoverAssetsSync(
   const roots = Array.isArray(inputs) ? [...inputs] : [inputs];
   if (roots.length === 0) return Object.freeze([] as string[]);
 
-  const registry = getRegistryForFilter(opts);
-  const seen = new Set<string>();
-  const result: string[] = [];
-  const visitedRealDirs = new Set<string>();
-
-  function pushIfNew(abs: string) {
-    if (seen.has(abs)) return;
-    if (result.length >= opts.maxFiles) {
-      throw new ResourceLimitError(`Discovered file count ${result.length + 1} exceeds maxFiles ${opts.maxFiles}`, {
-        limit: opts.maxFiles,
-        actual: result.length + 1,
-        path: abs,
+  let canonicalRoot: string | undefined;
+  if (opts.traversalRoot && !opts.allowTraversalEscape) {
+    try {
+      canonicalRoot = fs.realpathSync(opts.traversalRoot);
+    } catch (err) {
+      throw new FilesystemError(`Failed to canonicalize traversalRoot "${opts.traversalRoot}"`, {
+        path: opts.traversalRoot,
+        operation: 'realpathSync',
+        cause: err,
       });
     }
-    if (opts.traversalRoot && !opts.allowTraversalEscape) {
-      if (!isWithinRoot(abs, opts.traversalRoot)) {
-        throw new FilesystemError(`Traversal escape denied: "${abs}" is outside root "${opts.traversalRoot}"`, {
-          path: abs,
-          operation: 'traversalRoot',
-        });
-      }
-    }
-    seen.add(abs);
-    result.push(abs);
   }
+
+  const state: WalkState = {
+    opts,
+    registry: getRegistryForFilter(opts),
+    canonicalRoot,
+    seen: new Set(),
+    visitedDirs: new Set(),
+    result: [],
+  };
 
   function walkDirSync(dirAbs: string, depth: number): void {
     throwIfAborted(opts.signal);
@@ -551,17 +497,9 @@ export function discoverAssetsSync(
     entries.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     throwIfAborted(opts.signal);
 
-    const subDirs: Array<{ abs: string; depth: number; real?: string }> = [];
-
     for (const entry of entries) {
       throwIfAborted(opts.signal);
       const entryAbs = path.resolve(dirAbs, entry);
-      if (opts.traversalRoot && !opts.allowTraversalEscape && !isWithinRoot(entryAbs, opts.traversalRoot)) {
-        throw new FilesystemError(`Traversal escape denied: "${entryAbs}" is outside root "${opts.traversalRoot}"`, {
-          path: entryAbs,
-          operation: 'traversalRoot',
-        });
-      }
       let lst: fs.Stats;
       try {
         lst = fs.lstatSync(entryAbs);
@@ -574,40 +512,29 @@ export function discoverAssetsSync(
       }
       const isSym = lst.isSymbolicLink();
       if (isSym && !opts.followSymlinks) continue;
+
       let statToUse = lst;
-      let realForCycle: string | undefined;
-      if (isSym && opts.followSymlinks) {
-        let real: string;
+      let canonical: string;
+      try {
+        canonical = fs.realpathSync(entryAbs);
+      } catch (err) {
+        throw new FilesystemError(`Failed to canonicalize "${entryAbs}"`, {
+          path: entryAbs,
+          operation: 'realpathSync',
+          cause: err,
+        });
+      }
+      assertContained(state, entryAbs, canonical);
+      if (isSym) {
         try {
-          real = fs.realpathSync(entryAbs);
+          statToUse = fs.statSync(canonical);
         } catch (err) {
-          throw new FilesystemError(`Failed to resolve symlink "${entryAbs}"`, {
-            path: entryAbs,
-            operation: 'realpathSync',
-            cause: err,
-          });
-        }
-        if (opts.traversalRoot && !opts.allowTraversalEscape && !isWithinRoot(real, opts.traversalRoot)) {
-          throw new FilesystemError(
-            `Symlink traversal escape denied: "${entryAbs}" -> "${real}" outside root "${opts.traversalRoot}"`,
-            {
-              path: entryAbs,
-              operation: 'realpathSync',
-            },
-          );
-        }
-        try {
-          const targetStat = fs.statSync(real);
-          statToUse = targetStat;
-        } catch (err) {
-          throw new FilesystemError(`Failed to stat symlink target "${entryAbs}" -> "${real}"`, {
+          throw new FilesystemError(`Failed to stat symlink target "${entryAbs}" -> "${canonical}"`, {
             path: entryAbs,
             operation: 'statSync',
             cause: err,
           });
         }
-        realForCycle = real;
-        if (statToUse.isDirectory() && visitedRealDirs.has(real)) continue;
       }
 
       if (statToUse.isDirectory()) {
@@ -617,23 +544,14 @@ export function discoverAssetsSync(
             { limit: opts.maxDepth, actual: depth + 1, path: entryAbs },
           );
         }
-        if (opts.followSymlinks && realForCycle) visitedRealDirs.add(realForCycle);
-        subDirs.push({
-          abs: isSym && opts.followSymlinks ? (realForCycle as string) : entryAbs,
-          depth: depth + 1,
-          real: realForCycle,
-        });
+        if (state.visitedDirs.has(canonical)) continue;
+        state.visitedDirs.add(canonical);
+        walkDirSync(entryAbs, depth + 1);
       } else if (statToUse.isFile()) {
         const ext = path.extname(entryAbs).toLowerCase();
-        if (!passesExtensionFilter(ext, opts, registry)) continue;
-        const identity =
-          isSym && opts.followSymlinks && realForCycle ? normalizeAbsolute(realForCycle) : normalizeAbsolute(entryAbs);
-        pushIfNew(identity);
+        if (!passesExtensionFilter(ext, opts, state.registry)) continue;
+        pushIfNew(state, normalizeAbsolute(entryAbs), canonical);
       }
-    }
-
-    for (const sub of subDirs) {
-      walkDirSync(sub.abs, sub.depth);
     }
   }
 
@@ -657,29 +575,22 @@ export function discoverAssetsSync(
     }
     const isSym = lst.isSymbolicLink();
     if (isSym && !opts.followSymlinks) continue;
+
     let statToUse = lst;
-    let realForRoot: string | undefined;
-    if (isSym && opts.followSymlinks) {
-      let real: string;
+    let canonical: string;
+    try {
+      canonical = fs.realpathSync(rootAbs);
+    } catch (err) {
+      throw new FilesystemError(`Failed to canonicalize "${rootAbs}"`, {
+        path: rootAbs,
+        operation: 'realpathSync',
+        cause: err,
+      });
+    }
+    assertContained(state, rootAbs, canonical);
+    if (isSym) {
       try {
-        real = fs.realpathSync(rootAbs);
-      } catch (err) {
-        throw new FilesystemError(`Failed to resolve symlink "${rootAbs}"`, {
-          path: rootAbs,
-          operation: 'realpathSync',
-          cause: err,
-        });
-      }
-      if (opts.traversalRoot && !opts.allowTraversalEscape && !isWithinRoot(real, opts.traversalRoot)) {
-        throw new FilesystemError(`Symlink traversal escape denied: "${rootAbs}" -> "${real}"`, {
-          path: rootAbs,
-          operation: 'realpathSync',
-        });
-      }
-      if (visitedRealDirs.has(real)) continue;
-      try {
-        const targetStat = fs.statSync(real);
-        statToUse = targetStat;
+        statToUse = fs.statSync(canonical);
       } catch (err) {
         throw new FilesystemError(`Failed to stat symlink target "${rootAbs}"`, {
           path: rootAbs,
@@ -687,32 +598,23 @@ export function discoverAssetsSync(
           cause: err,
         });
       }
-      realForRoot = real;
     }
 
     if (statToUse.isDirectory()) {
-      if (opts.followSymlinks && realForRoot) visitedRealDirs.add(realForRoot);
-      if (opts.traversalRoot && !opts.allowTraversalEscape && !isWithinRoot(rootAbs, opts.traversalRoot)) {
-        throw new FilesystemError(`Traversal escape denied: "${rootAbs}" is outside root "${opts.traversalRoot}"`, {
-          path: rootAbs,
-          operation: 'traversalRoot',
-        });
-      }
-      const walkTarget = isSym && opts.followSymlinks && realForRoot ? realForRoot : rootAbs;
-      walkDirSync(walkTarget, 1);
+      if (state.visitedDirs.has(canonical)) continue;
+      state.visitedDirs.add(canonical);
+      walkDirSync(rootAbs, 1);
     } else if (statToUse.isFile()) {
       const ext = path.extname(rootAbs).toLowerCase();
-      const passes = passesExtensionFilter(ext, opts, registry);
-      if (!passes) {
+      if (!passesExtensionFilter(ext, opts, state.registry)) {
         throw new UnsupportedAssetError(`Unsupported asset extension "${ext}" for explicit file "${rootAbs}"`, {
           extension: ext,
           path: rootAbs,
         });
       }
-      const identity = isSym && opts.followSymlinks && realForRoot ? normalizeAbsolute(realForRoot) : rootAbs;
-      pushIfNew(identity);
+      pushIfNew(state, rootAbs, canonical);
     }
   }
 
-  return Object.freeze([...result]) as readonly string[];
+  return Object.freeze([...state.result]) as readonly string[];
 }

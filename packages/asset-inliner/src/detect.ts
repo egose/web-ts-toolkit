@@ -11,7 +11,7 @@
 
 import type { AssetKind } from './types.ts';
 import type { AssetDefinitionRegistry } from './definitions.ts';
-import { UnsupportedAssetError, DetectionMismatchError } from './errors.ts';
+import { UnsupportedAssetError, DetectionMismatchError, InvalidOptionsError } from './errors.ts';
 import { normalizeMediaType } from './definitions.ts';
 import path from 'node:path';
 
@@ -51,14 +51,26 @@ export const defaultDetector: AssetDetector = {
 
 let currentDetector: AssetDetector = defaultDetector;
 
+/**
+ * @deprecated Process-global detector mutation races concurrent consumers.
+ * Use per-operation `EncodeOptions.detector` / `CatalogOptions.detector` instead.
+ * Kept for internal backwards compatibility and not exported from the package root.
+ */
 export function getDetector(): AssetDetector {
   return currentDetector;
 }
 
+/**
+ * @deprecated Mutates process-global state and races concurrent consumers/tests.
+ * Use per-operation `detector` option instead. Kept internally only; not part of stable root API.
+ */
 export function setDetector(detector: AssetDetector | undefined): void {
   currentDetector = detector ?? defaultDetector;
 }
 
+/**
+ * @deprecated Use per-operation detector injection. Kept internally only.
+ */
 export function resetDetector(): void {
   currentDetector = defaultDetector;
 }
@@ -102,10 +114,60 @@ function freezeMeta(meta: ResolvedMeta): ResolvedMeta {
   return Object.freeze({ ...meta }) as ResolvedMeta;
 }
 
+function validateDetectorResult(result: DetectorResult, registry: AssetDefinitionRegistry): void {
+  if (!result || typeof result.ext !== 'string' || typeof result.mime !== 'string') {
+    throw new InvalidOptionsError('Detector result must have string ext and mime');
+  }
+  const ext = result.ext.trim().toLowerCase();
+  const mimeRaw = result.mime.trim();
+  if (!ext || !mimeRaw) {
+    throw new InvalidOptionsError('Detector result ext and mime must be non-empty');
+  }
+  let normalizedMime: string;
+  try {
+    normalizedMime = normalizeMediaType(mimeRaw);
+  } catch (e) {
+    throw new InvalidOptionsError(`Detector mime "${result.mime}" is malformed`, { cause: e as Error });
+  }
+  const byExt = safeGet(registry, `.${ext}`);
+  let byMime: import('./types.ts').AssetTypeDefinition | undefined;
+  for (const def of registry.definitions) {
+    if (def.mediaType === normalizedMime) {
+      byMime = def;
+      break;
+    }
+  }
+  if (byExt && byMime && byExt.mediaType !== byMime.mediaType) {
+    throw new InvalidOptionsError(
+      `Detector result inconsistent: ext ".${ext}" maps to "${byExt.mediaType}" but mime "${normalizedMime}" maps to "${byMime.mediaType}"`,
+    );
+  }
+  if (byExt && !byMime) {
+    // ext known but mime unknown to registry — treat as inconsistent unless mime matches ext's mediaType case-insensitively
+    if (byExt.mediaType !== normalizedMime) {
+      throw new InvalidOptionsError(
+        `Detector result inconsistent: ext ".${ext}" maps to "${byExt.mediaType}" but mime "${normalizedMime}" is not in registry for that extension`,
+      );
+    }
+  }
+  if (!byExt && byMime) {
+    // mime known but ext unknown — also inconsistent, since detector should be self-consistent
+    // Allow if ext's normalized mime would match? But ext not in registry -> we cannot validate, treat as inconsistent for strictness
+    // Instead check if ext would correspond to mime via registry lookup failure — this is still inconsistent for known mime
+    // We throw only when ext is known-extension-like but not registered? For now, require both to agree when at least one is known.
+    // If ext maps to nothing but mime does, consider inconsistent.
+    throw new InvalidOptionsError(
+      `Detector result inconsistent: mime "${normalizedMime}" maps to "${byMime.mediaType}" but ext ".${ext}" is not registered`,
+    );
+  }
+}
+
 function findDefinitionForDetected(
   result: DetectorResult,
   registry: AssetDefinitionRegistry,
 ): import('./types.ts').AssetTypeDefinition | undefined {
+  // Validate consistency first — single authoritative check
+  validateDetectorResult(result, registry);
   // Try by ext first
   const extKey = `.${result.ext.toLowerCase()}`;
   const byExt = safeGet(registry, extKey);
@@ -163,7 +225,12 @@ export function resolveByExtension(opts: {
       else if (mediaType.startsWith('image/')) kind = 'image';
       else if (mediaType.startsWith('audio/')) kind = 'audio';
       else if (mediaType.startsWith('video/')) kind = 'video';
-      else kind = 'image';
+      else {
+        throw new UnsupportedAssetError(
+          `Explicit media type "${mediaType}" requires an explicit kind — no registry entry and no supported top-level family (font/, image/, audio/, video/)`,
+          { mediaType, path: filename },
+        );
+      }
     }
 
     // Special SVG font heuristic when explicit kind font but image registry
@@ -172,8 +239,12 @@ export function resolveByExtension(opts: {
       if (ext === '.svg') fontFormat = 'svg';
     }
 
-    // Non-font must not carry fontFormat
-    if (kind !== 'font') fontFormat = undefined;
+    // Non-font must not carry fontFormat — reject explicitly
+    if (kind !== 'font' && fontFormat !== undefined) {
+      throw new InvalidOptionsError(
+        `fontFormat "${fontFormat}" is only allowed when kind === 'font', got kind "${kind}" for mediaType "${mediaType}"`,
+      );
+    }
 
     return freezeMeta({ kind: kind as AssetKind, mediaType, ...(fontFormat !== undefined ? { fontFormat } : {}) });
   }
@@ -205,7 +276,11 @@ export function resolveByExtension(opts: {
   if (kind === 'font' && fontFormat === undefined && ext === '.svg') {
     fontFormat = 'svg';
   }
-  if (kind !== 'font') fontFormat = undefined;
+  if (kind !== 'font' && fontFormat !== undefined) {
+    throw new InvalidOptionsError(
+      `fontFormat "${fontFormat}" is only allowed when kind === 'font', got kind "${kind}" for extension "${ext}"`,
+    );
+  }
 
   return freezeMeta({
     kind,
@@ -251,7 +326,7 @@ export async function resolveWithDetector(opts: {
     // Expected via extension/explicit
     const expected = resolveByExtension({ filename, explicitMediaType, explicitKind, explicitFontFormat, registry });
     assertNotAborted(signal);
-    const d = detector ?? getDetector();
+    const d = detector ?? defaultDetector;
     const detected = await d.detect(bytes, signal);
     assertNotAborted(signal);
     if (!detected) {
@@ -286,7 +361,7 @@ export async function resolveWithDetector(opts: {
 
   // detection === 'content' without explicit mediaType: try detector first
   assertNotAborted(signal);
-  const d = detector ?? getDetector();
+  const d = detector ?? defaultDetector;
   const detected = await d.detect(bytes, signal);
   assertNotAborted(signal);
 
@@ -299,7 +374,11 @@ export async function resolveWithDetector(opts: {
       if (kind === 'font' && fontFormat === undefined && def.extensions.includes('.svg')) {
         fontFormat = 'svg';
       }
-      if (kind !== 'font') fontFormat = undefined;
+      if (kind !== 'font' && fontFormat !== undefined) {
+        throw new InvalidOptionsError(
+          `fontFormat "${fontFormat}" is only allowed when kind === 'font', got kind "${kind}" for detected type "${def.mediaType}"`,
+        );
+      }
       // If explicit mediaType absent, use def mediaType
       return freezeMeta({
         kind,

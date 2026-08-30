@@ -9,13 +9,13 @@
  */
 
 import fs from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { AssetInput, EncodedAsset, EncodeOptions } from './types.ts';
 import { createDefinitionRegistry } from './definitions.ts';
 import type { AssetDefinitionRegistry } from './definitions.ts';
 import { InvalidOptionsError, ResourceLimitError, FilesystemError } from './errors.ts';
-import { resolveByExtension, resolveWithDetector, getDetector } from './detect.ts';
+import { resolveByExtension, resolveWithDetector, defaultDetector } from './detect.ts';
 import type { AssetDetector } from './detect.ts';
 import { validatePolicyOptions, DEFAULT_MAX_ASSET_BYTES, DEFAULT_MAX_TOTAL_BYTES } from './policy.ts';
 
@@ -28,10 +28,34 @@ function validateLimits(options: EncodeOptions): void {
     maxAssetBytes: options.maxAssetBytes,
     maxTotalBytes: options.maxTotalBytes,
   });
+  if (options.registry !== undefined && options.definitions !== undefined) {
+    throw new InvalidOptionsError('Provide either registry or definitions, not both');
+  }
+  if (options.registry !== undefined) {
+    const r: unknown = options.registry;
+    if (
+      r === null ||
+      typeof r !== 'object' ||
+      !Array.isArray((r as { definitions?: unknown }).definitions) ||
+      typeof (r as { get?: unknown }).get !== 'function'
+    ) {
+      throw new InvalidOptionsError(
+        'EncodeOptions.registry must be an AssetDefinitionRegistry from createDefinitionRegistry',
+      );
+    }
+  }
   if (options.detection !== undefined && !['extension', 'content', 'verify'].includes(options.detection)) {
     throw new InvalidOptionsError(
       `Invalid detection mode "${String(options.detection)}" — expected 'extension' | 'content' | 'verify'`,
     );
+  }
+  if (options.detector !== undefined) {
+    const d: unknown = options.detector;
+    if (d === null || typeof d !== 'object' || typeof (d as { detect?: unknown }).detect !== 'function') {
+      throw new InvalidOptionsError(
+        'EncodeOptions.detector must be an AssetDetector with async detect(bytes, signal?) method',
+      );
+    }
   }
 }
 
@@ -45,15 +69,87 @@ function assertNotAborted(signal?: AbortSignal): void {
 }
 
 function getRegistry(options: EncodeOptions): AssetDefinitionRegistry {
+  if (options.registry !== undefined) {
+    if (options.definitions !== undefined) {
+      throw new InvalidOptionsError('Provide either registry or definitions, not both');
+    }
+    return options.registry;
+  }
   if (options.definitions !== undefined) {
     return createDefinitionRegistry(options.definitions);
   }
   return createDefinitionRegistry();
 }
 
+/** Shared helper: resolve registry without re-validating when already validated. */
+export function registryFromEncodeOptions(options: EncodeOptions): AssetDefinitionRegistry {
+  return getRegistry(options);
+}
+
 function ensureUint8Array(data: Uint8Array): Uint8Array {
   if (data instanceof Uint8Array) return data;
   throw new InvalidOptionsError('AssetInput data must be Uint8Array');
+}
+
+/**
+ * One effective limit set per operation. Defaults apply even when omitted —
+ * a limit that is only enforced when explicitly supplied is not a limit.
+ */
+interface EffectiveLimits {
+  readonly maxAssetBytes: number;
+  readonly maxTotalBytes: number;
+}
+
+function resolveEffectiveLimits(options: EncodeOptions): EffectiveLimits {
+  return {
+    maxAssetBytes: options.maxAssetBytes ?? DEFAULT_MAX_ASSET_BYTES,
+    maxTotalBytes: options.maxTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES,
+  };
+}
+
+function throwAssetByteLimit(actual: number, limit: number, ref: string | undefined): never {
+  throw new ResourceLimitError(`Asset byte length ${actual} exceeds maxAssetBytes ${limit}`, {
+    limit,
+    actual,
+    path: ref,
+  });
+}
+
+/**
+ * Base64-encode without copying a Buffer into a new full-size Uint8Array and
+ * back into another Buffer. Buffers encode in place; ArrayBuffer-backed views
+ * are wrapped (shared memory, no copy); anything else is copied once.
+ */
+function toBase64(bytes: Uint8Array): string {
+  if (Buffer.isBuffer(bytes)) return bytes.toString('base64');
+  if (bytes.buffer instanceof ArrayBuffer) {
+    return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('base64');
+  }
+  return Buffer.from(bytes).toString('base64');
+}
+
+/**
+ * Byte length of a regular file at `p`, or `undefined` when the metadata
+ * cannot be inspected. Failure to stat falls through to the read, which
+ * keeps the historical `FilesystemError` surface for missing/inaccessible
+ * files.
+ */
+async function inspectFileSize(p: string): Promise<number | undefined> {
+  try {
+    const st = await stat(p);
+    return st.isFile() ? st.size : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function inspectFileSizeSync(p: string): number | undefined {
+  try {
+    const st = fs.statSync(p);
+    return st.isFile() ? st.size : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -65,6 +161,7 @@ async function encodeOneAsync(
   options: EncodeOptions,
   registry: AssetDefinitionRegistry,
   detector: AssetDetector | undefined,
+  limits: EffectiveLimits,
 ): Promise<EncodedAsset> {
   assertNotAborted(options.signal);
 
@@ -77,17 +174,29 @@ async function encodeOneAsync(
 
   if (typeof input === 'string') {
     const p = input;
-    sourcePath = p;
+    const absPath = path.resolve(p);
+    sourcePath = absPath;
     filename = p;
+    assertNotAborted(options.signal);
+    const knownSize = await inspectFileSize(p);
+    if (knownSize !== undefined && knownSize > limits.maxAssetBytes) {
+      throwAssetByteLimit(knownSize, limits.maxAssetBytes, p);
+    }
     assertNotAborted(options.signal);
     let buf: Buffer;
     try {
-      buf = await readFile(p);
+      buf = await readFile(p, options.signal ? { signal: options.signal } : undefined);
     } catch (err) {
+      if (options.signal?.aborted) {
+        throw options.signal.reason ?? err;
+      }
       throw new FilesystemError(`Failed to read file "${p}"`, { path: p, operation: 'readFile', cause: err });
     }
     assertNotAborted(options.signal);
-    bytes = new Uint8Array(buf);
+    bytes = buf;
+    if (bytes.length > limits.maxAssetBytes) {
+      throwAssetByteLimit(bytes.length, limits.maxAssetBytes, p);
+    }
   } else {
     if (!input || typeof input !== 'object' || !('data' in input)) {
       throw new InvalidOptionsError('AssetInput object must have data: Uint8Array');
@@ -97,17 +206,8 @@ async function encodeOneAsync(
     explicitMediaType = input.mediaType;
     explicitKind = input.kind as string | undefined;
     explicitFontFormat = input.fontFormat;
-  }
-
-  // Per-asset limit before Base64 — finite default enforced (see src/policy.ts)
-  {
-    const effective = options.maxAssetBytes ?? DEFAULT_MAX_ASSET_BYTES;
-    if (bytes.length > effective) {
-      throw new ResourceLimitError(`Asset byte length ${bytes.length} exceeds maxAssetBytes ${effective}`, {
-        limit: effective,
-        actual: bytes.length,
-        path: filename ?? sourcePath,
-      });
+    if (bytes.length > limits.maxAssetBytes) {
+      throwAssetByteLimit(bytes.length, limits.maxAssetBytes, filename);
     }
   }
 
@@ -141,19 +241,7 @@ async function encodeOneAsync(
 
   assertNotAborted(options.signal);
 
-  // Re-validate limit after detection? Still original bytes, but double-check
-  {
-    const effective = options.maxAssetBytes ?? DEFAULT_MAX_ASSET_BYTES;
-    if (bytes.length > effective) {
-      throw new ResourceLimitError(`Asset byte length ${bytes.length} exceeds maxAssetBytes ${effective}`, {
-        limit: effective,
-        actual: bytes.length,
-        path: filename ?? sourcePath,
-      });
-    }
-  }
-
-  const base64 = Buffer.from(bytes).toString('base64');
+  const base64 = toBase64(bytes);
   const dataUrl = `data:${meta.mediaType};base64,${base64}`;
 
   const result: EncodedAsset = Object.freeze({
@@ -169,7 +257,12 @@ async function encodeOneAsync(
   return result;
 }
 
-function encodeOneSync(input: AssetInput, options: EncodeOptions, registry: AssetDefinitionRegistry): EncodedAsset {
+function encodeOneSync(
+  input: AssetInput,
+  options: EncodeOptions,
+  registry: AssetDefinitionRegistry,
+  limits: EffectiveLimits,
+): EncodedAsset {
   assertNotAborted(options.signal);
 
   // Sync must reject async detection modes immediately
@@ -187,15 +280,27 @@ function encodeOneSync(input: AssetInput, options: EncodeOptions, registry: Asse
 
   if (typeof input === 'string') {
     const p = input;
-    sourcePath = p;
+    const absPath = path.resolve(p);
+    sourcePath = absPath;
     filename = p;
+    assertNotAborted(options.signal);
+    const knownSize = inspectFileSizeSync(p);
+    if (knownSize !== undefined && knownSize > limits.maxAssetBytes) {
+      throwAssetByteLimit(knownSize, limits.maxAssetBytes, p);
+    }
     let buf: Buffer;
     try {
       buf = fs.readFileSync(p);
     } catch (err) {
+      if (options.signal?.aborted) {
+        throw options.signal.reason ?? err;
+      }
       throw new FilesystemError(`Failed to read file "${p}"`, { path: p, operation: 'readFileSync', cause: err });
     }
-    bytes = new Uint8Array(buf);
+    bytes = buf;
+    if (bytes.length > limits.maxAssetBytes) {
+      throwAssetByteLimit(bytes.length, limits.maxAssetBytes, p);
+    }
   } else {
     if (!input || typeof input !== 'object' || !('data' in input)) {
       throw new InvalidOptionsError('AssetInput object must have data: Uint8Array');
@@ -205,16 +310,8 @@ function encodeOneSync(input: AssetInput, options: EncodeOptions, registry: Asse
     explicitMediaType = input.mediaType;
     explicitKind = input.kind as string | undefined;
     explicitFontFormat = input.fontFormat;
-  }
-
-  {
-    const effective = options.maxAssetBytes ?? DEFAULT_MAX_ASSET_BYTES;
-    if (bytes.length > effective) {
-      throw new ResourceLimitError(`Asset byte length ${bytes.length} exceeds maxAssetBytes ${effective}`, {
-        limit: effective,
-        actual: bytes.length,
-        path: filename ?? sourcePath,
-      });
+    if (bytes.length > limits.maxAssetBytes) {
+      throwAssetByteLimit(bytes.length, limits.maxAssetBytes, filename);
     }
   }
 
@@ -226,7 +323,7 @@ function encodeOneSync(input: AssetInput, options: EncodeOptions, registry: Asse
     registry,
   });
 
-  const base64 = Buffer.from(bytes).toString('base64');
+  const base64 = toBase64(bytes);
   const dataUrl = `data:${meta.mediaType};base64,${base64}`;
 
   const result: EncodedAsset = Object.freeze({
@@ -267,24 +364,16 @@ function encodeOneSync(input: AssetInput, options: EncodeOptions, registry: Asse
 export async function encodeAsset(input: AssetInput, options: EncodeOptions = {}): Promise<EncodedAsset> {
   validateLimits(options);
   assertNotAborted(options.signal);
+  const limits = resolveEffectiveLimits(options);
   const registry = getRegistry(options);
-  const detector = getDetector();
-  // total check for single is same as per-asset when maxTotalBytes present
-  if (options.maxTotalBytes !== undefined) {
-    // Need bytes length to compare; we will check after reading inside encodeOneAsync
-    // For single, we delegate check inside: if byteLength > maxTotalBytes -> ResourceLimitError
-    // Do it here via a wrapper: peek? Instead let encodeOne handle per-asset, then verify total.
-  }
-  const result = await encodeOneAsync(input, options, registry, detector);
-  {
-    const effectiveTotal = options.maxTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES;
-    if (result.byteLength > effectiveTotal) {
-      throw new ResourceLimitError(`Total bytes ${result.byteLength} exceeds maxTotalBytes ${effectiveTotal}`, {
-        limit: effectiveTotal,
-        actual: result.byteLength,
-        path: result.filename ?? result.sourcePath,
-      });
-    }
+  const detector = options.detector ?? defaultDetector;
+  const result = await encodeOneAsync(input, options, registry, detector, limits);
+  if (result.byteLength > limits.maxTotalBytes) {
+    throw new ResourceLimitError(`Total bytes ${result.byteLength} exceeds maxTotalBytes ${limits.maxTotalBytes}`, {
+      limit: limits.maxTotalBytes,
+      actual: result.byteLength,
+      path: result.filename ?? result.sourcePath,
+    });
   }
   return result;
 }
@@ -297,17 +386,15 @@ export async function encodeAsset(input: AssetInput, options: EncodeOptions = {}
 export function encodeAssetSync(input: AssetInput, options: EncodeOptions = {}): EncodedAsset {
   validateLimits(options);
   assertNotAborted(options.signal);
+  const limits = resolveEffectiveLimits(options);
   const registry = getRegistry(options);
-  const result = encodeOneSync(input, options, registry);
-  {
-    const effectiveTotal = options.maxTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES;
-    if (result.byteLength > effectiveTotal) {
-      throw new ResourceLimitError(`Total bytes ${result.byteLength} exceeds maxTotalBytes ${effectiveTotal}`, {
-        limit: effectiveTotal,
-        actual: result.byteLength,
-        path: result.filename ?? result.sourcePath,
-      });
-    }
+  const result = encodeOneSync(input, options, registry, limits);
+  if (result.byteLength > limits.maxTotalBytes) {
+    throw new ResourceLimitError(`Total bytes ${result.byteLength} exceeds maxTotalBytes ${limits.maxTotalBytes}`, {
+      limit: limits.maxTotalBytes,
+      actual: result.byteLength,
+      path: result.filename ?? result.sourcePath,
+    });
   }
   return result;
 }
@@ -326,21 +413,22 @@ export async function encodeAssets(
   if (!Array.isArray(inputs)) {
     throw new InvalidOptionsError('encodeAssets expects an array of AssetInput');
   }
+  const limits = resolveEffectiveLimits(options);
   const registry = getRegistry(options);
-  const detector = getDetector();
+  const detector = options.detector ?? defaultDetector;
   const results: EncodedAsset[] = [];
   let total = 0;
   for (let i = 0; i < inputs.length; i++) {
     assertNotAborted(options.signal);
     const input = inputs[i]!;
-    const encoded = await encodeOneAsync(input, options, registry, detector);
-    // total check before pushing? check cumulative
+    const encoded = await encodeOneAsync(input, options, registry, detector, limits);
     total += encoded.byteLength;
-    if (options.maxTotalBytes !== undefined && total > options.maxTotalBytes) {
-      throw new ResourceLimitError(
-        `Total bytes ${total} exceeds maxTotalBytes ${options.maxTotalBytes} at index ${i}`,
-        { limit: options.maxTotalBytes, actual: total, path: encoded.filename ?? encoded.sourcePath },
-      );
+    if (total > limits.maxTotalBytes) {
+      throw new ResourceLimitError(`Total bytes ${total} exceeds maxTotalBytes ${limits.maxTotalBytes} at index ${i}`, {
+        limit: limits.maxTotalBytes,
+        actual: total,
+        path: encoded.filename ?? encoded.sourcePath,
+      });
     }
     results.push(encoded);
     assertNotAborted(options.signal);
@@ -363,19 +451,21 @@ export function encodeAssetsSync(inputs: readonly AssetInput[], options: EncodeO
       `Detection mode "${options.detection}" is async-only and cannot be used with sync APIs`,
     );
   }
+  const limits = resolveEffectiveLimits(options);
   const registry = getRegistry(options);
   const results: EncodedAsset[] = [];
   let total = 0;
   for (let i = 0; i < inputs.length; i++) {
     assertNotAborted(options.signal);
     const input = inputs[i]!;
-    const encoded = encodeOneSync(input, options, registry);
+    const encoded = encodeOneSync(input, options, registry, limits);
     total += encoded.byteLength;
-    if (options.maxTotalBytes !== undefined && total > options.maxTotalBytes) {
-      throw new ResourceLimitError(
-        `Total bytes ${total} exceeds maxTotalBytes ${options.maxTotalBytes} at index ${i}`,
-        { limit: options.maxTotalBytes, actual: total, path: encoded.filename ?? encoded.sourcePath },
-      );
+    if (total > limits.maxTotalBytes) {
+      throw new ResourceLimitError(`Total bytes ${total} exceeds maxTotalBytes ${limits.maxTotalBytes} at index ${i}`, {
+        limit: limits.maxTotalBytes,
+        actual: total,
+        path: encoded.filename ?? encoded.sourcePath,
+      });
     }
     results.push(encoded);
   }

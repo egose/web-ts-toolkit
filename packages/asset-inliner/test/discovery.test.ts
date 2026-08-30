@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { discoverAssets, discoverAssetsSync } from '../src/index.ts';
+import { discoverAssets, discoverAssetsSync, inlineFiles, inlineFilesSync } from '../src/index.ts';
 import { FilesystemError, UnsupportedAssetError, ResourceLimitError } from '../src/errors.ts';
 import { createDefinitionRegistry } from '../src/definitions.ts';
 
@@ -317,6 +317,142 @@ describe('discovery: traversal policy', () => {
         (e: any) => String(e).includes('abort') || e.name === 'AbortError',
       );
       expect(() => discoverAssetsSync(tmp, { signal: ac.signal })).toThrow();
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('discovery: canonical traversal containment (AINL2-02)', () => {
+  it('rejects an explicit in-root path whose ancestor symlink resolves outside the canonical root', async () => {
+    const tmp = mkTmp('root-');
+    const outside = mkTmp('outside-');
+    try {
+      fs.writeFileSync(path.join(outside, 'secret.png'), 'secret');
+      const alias = path.join(tmp, 'alias');
+      try {
+        fs.symlinkSync(outside, alias, 'dir');
+      } catch {
+        return; // platform without symlink privileges
+      }
+      // The final component is a regular file; only the ancestor is a symlink.
+      const explicit = path.join(alias, 'secret.png');
+      expect(fs.lstatSync(explicit).isSymbolicLink()).toBe(false);
+
+      const opts = { traversalRoot: tmp, followSymlinks: false };
+      await expect(discoverAssets(explicit, opts)).rejects.toBeInstanceOf(FilesystemError);
+      expect(() => discoverAssetsSync(explicit, opts)).toThrow(FilesystemError);
+      // Also rejected when followSymlinks is true — containment is canonical.
+      await expect(discoverAssets(explicit, { traversalRoot: tmp, followSymlinks: true })).rejects.toBeInstanceOf(
+        FilesystemError,
+      );
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('allows the same path only when allowTraversalEscape explicitly permits it', async () => {
+    const tmp = mkTmp('root-');
+    const outside = mkTmp('outside-');
+    try {
+      fs.writeFileSync(path.join(outside, 'secret.png'), 'secret');
+      const alias = path.join(tmp, 'alias');
+      try {
+        fs.symlinkSync(outside, alias, 'dir');
+      } catch {
+        return;
+      }
+      const explicit = path.join(alias, 'secret.png');
+      const escaped = await discoverAssets(explicit, { traversalRoot: tmp, allowTraversalEscape: true });
+      expect(escaped).toHaveLength(1);
+      const escapedSync = discoverAssetsSync(explicit, { traversalRoot: tmp, allowTraversalEscape: true });
+      expect(escapedSync).toHaveLength(1);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('deduplicates explicit aliases by canonical identity', async () => {
+    const tmp = mkTmp('root-');
+    const outside = mkTmp('outside-');
+    try {
+      fs.writeFileSync(path.join(outside, 'dup.png'), 'dup');
+      const alias = path.join(tmp, 'alias');
+      try {
+        fs.symlinkSync(outside, alias, 'dir');
+      } catch {
+        return;
+      }
+      const real = path.join(outside, 'dup.png');
+      const viaAlias = path.join(alias, 'dup.png');
+      const files = await discoverAssets([real, viaAlias], { traversalRoot: tmp, allowTraversalEscape: true });
+      expect(files).toHaveLength(1);
+      const syncFiles = discoverAssetsSync([real, viaAlias], { traversalRoot: tmp, allowTraversalEscape: true });
+      expect(syncFiles).toHaveLength(1);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('inlineFiles cannot rewrite a file outside traversalRoot via a symlinked ancestor', async () => {
+    const tmp = mkTmp('root-');
+    const outside = mkTmp('outside-');
+    try {
+      fs.writeFileSync(path.join(outside, 'secret.png'), 'secret');
+      const cssPath = path.join(outside, 'style.css');
+      const cssOriginal = `.a{background:url('./secret.png')}`;
+      fs.writeFileSync(cssPath, cssOriginal);
+      const alias = path.join(tmp, 'alias');
+      try {
+        fs.symlinkSync(outside, alias, 'dir');
+      } catch {
+        return;
+      }
+      const aliasedTarget = path.join(alias, 'style.css');
+      const aliasedAsset = path.join(alias, 'secret.png');
+
+      await expect(
+        inlineFiles({
+          targets: aliasedTarget,
+          assets: aliasedAsset,
+          traversalRoot: tmp,
+          write: true,
+        }),
+      ).rejects.toBeInstanceOf(FilesystemError);
+      expect(() =>
+        inlineFilesSync({
+          targets: aliasedTarget,
+          assets: aliasedAsset,
+          traversalRoot: tmp,
+          write: true,
+        }),
+      ).toThrow(FilesystemError);
+      // The file outside the traversal root must remain untouched.
+      expect(fs.readFileSync(cssPath, 'utf8')).toBe(cssOriginal);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('discovery: lexical depth-first entry order', () => {
+  it('processes a directory entry and its subtree before a later-sorting sibling file', async () => {
+    const tmp = mkTmp();
+    try {
+      // 'adir' sorts before 'z.png'; entry order requires the directory subtree first.
+      fs.mkdirSync(path.join(tmp, 'adir'));
+      fs.writeFileSync(path.join(tmp, 'adir', 'inner.png'), 'inner');
+      fs.writeFileSync(path.join(tmp, 'z.png'), 'z');
+
+      const expected = [path.resolve(tmp, 'adir', 'inner.png'), path.resolve(tmp, 'z.png')];
+      const asyncFiles = await discoverAssets(tmp);
+      expect(asyncFiles).toEqual(expected);
+      const syncFiles = discoverAssetsSync(tmp);
+      expect(syncFiles).toEqual(expected);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }

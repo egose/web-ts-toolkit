@@ -1,41 +1,20 @@
 /**
- * CSS inliner — pure synchronous transform over an already-encoded immutable AssetCatalog.
- *
- * **Library choice rationale (Node22 / ESM / source-preserving / license / malformed):**
- * - `postcss@8.5.26` — MIT, maintained (primary CSS parser in ecosystem), `>= Node 14` so Node22 is
- *   well within support, ships both CJS and ESM entrypoints (`import postcss from 'postcss'` works
- *   under `"type": "module"` + Node22), preserves comments, whitespace, and raw values via `decl.raws`,
- *   and throws `CssSyntaxError` on malformed CSS (we map to `ParseError`) rather than swallowing errors.
- * - `postcss-value-parser@4.2.0` — MIT, maintained as the companion value parser for PostCSS,
- *   `>= Node 0.10`, used by most PostCSS plugins; it is CJS but importable as ESM via default-import
- *   interop (`import vp from 'postcss-value-parser'` → `(vp as any).default ?? vp`), preserves
- *   quoted/unquoted URL forms, escapes, spaces, comments, and comma/div separators, and tolerates
- *   gracefully without throwing for most values (we surface value-parse failures as diagnostics rather
- *   than silent prints).
- *   Alternatives considered: `css-tree` (strong typing but normalizes output aggressively, less source
- *   preserving), `rework` / `css` (unmaintained, deprecated, poorer ESM story). The PostCSS pair
- *   gives the best trade-off for "minimal edits to affected declaration values while preserving
- *   surrounding formatting as closely as the parser permits" and has the widest license/audit coverage.
- *
- * **Malformed-CSS policy (documented):** `inlineCss` **throws** `ParseError` if the stylesheet cannot
- * be parsed by PostCSS (e.g. unclosed `url(`, broken `@font-face`). This is a single, explicit
- * throw-or-diagnostic boundary: CSS syntax failure throws immediately with `cause` preserved; per-URL
- * resolution problems (unresolved path, duplicate basename, malformed percent-encoding, NUL) are
- * emitted as `diagnostics` with `severity: 'warn'|'error'` and do not throw, and the offending
- * `url(...)` is left unchanged. No error is swallowed via `console.error` and no partial success is
- * reported as `true`. Callers may distinguish "stylesheet is unparseable" (catch `ParseError`) from
- * "stylesheet parsed but some URLs did not resolve" (inspect `diagnostics`).
- *
- * The transform is purely synchronous and depends only on the provided `AssetCatalog` plus the
- * resolver helpers in `src/resolve.ts`. It never performs I/O, fetches remote URLs, or re-encodes
- * assets. Async filesystem / detection work must happen during catalog construction.
+ * CSS inliner — pure synchronous transform over an `AssetCatalog`.
+ * Replaces local `url(...)` with data URLs; preserves remote/data URLs.
+ * Throws `ParseError` for unparseable CSS; per-URL issues become diagnostics.
  */
 
 import postcss from 'postcss';
 import * as valueParserModule from 'postcss-value-parser';
 import type { InlineOptions, InlineResult, AssetReplacement, AssetDiagnostic } from './types.ts';
-import { InvalidOptionsError, ParseError } from './errors.ts';
+import { InvalidOptionsError, ParseError, ResourceLimitError } from './errors.ts';
 import { classifyUrl, resolveAssetReferenceSync } from './resolve.ts';
+import {
+  validatePolicyOptions,
+  DEFAULT_MAX_TARGET_BYTES,
+  DEFAULT_MAX_REPLACEMENTS,
+  DEFAULT_MAX_OUTPUT_BYTES,
+} from './policy.ts';
 
 // ---------------------------------------------------------------------------
 // ESM interop for CJS postcss-value-parser
@@ -83,31 +62,129 @@ function hasFollowingFormat(nodes: readonly unknown[], startIndex: number): bool
   return false;
 }
 
+function byteLengthUtf8(str: string): number {
+  return Buffer.byteLength(str, 'utf8');
+}
+
+function addSafe(a: number, b: number, limit: number, documentPath?: string): number {
+  if (!Number.isSafeInteger(a) || !Number.isSafeInteger(b)) {
+    throw new ResourceLimitError(`Unsafe integer arithmetic: ${a} + ${b} exceeds safe integer range`, {
+      limit,
+      actual: Number.isSafeInteger(a) ? b : a,
+      path: documentPath,
+    });
+  }
+  const c = a + b;
+  if (!Number.isSafeInteger(c)) {
+    throw new ResourceLimitError(`Unsafe integer arithmetic: ${a} + ${b} exceeds safe integer range`, {
+      limit,
+      actual: c,
+      path: documentPath,
+    });
+  }
+  return c;
+}
+
+function subSafe(a: number, b: number, documentPath?: string): number {
+  if (!Number.isSafeInteger(a) || !Number.isSafeInteger(b)) {
+    throw new ResourceLimitError(`Unsafe integer arithmetic: ${a} - ${b} exceeds safe integer range`, {
+      limit: a,
+      actual: b,
+      path: documentPath,
+    });
+  }
+  const c = a - b;
+  if (!Number.isSafeInteger(c)) {
+    throw new ResourceLimitError(`Unsafe integer arithmetic: ${a} - ${b} exceeds safe integer range`, {
+      limit: a,
+      actual: c,
+      path: documentPath,
+    });
+  }
+  return c;
+}
+
+function offsetToLineCol(content: string, offset: number): { line: number; column: number } {
+  const before = content.slice(0, offset);
+  const line = before.split('\n').length;
+  const lastNl = before.lastIndexOf('\n');
+  const column = lastNl === -1 ? offset + 1 : offset - lastNl;
+  return { line, column };
+}
+
+/**
+ * CSS-unescape a string per CSS Syntax Module Level 3.
+ * Handles:
+ * - Hex escapes: \[1-6 hex digits] optional single whitespace (space, tab, newline, form-feed, carriage-return) consumed; \r\n handled as one
+ * - Escaped newline: \ followed by \n, \r\n, \r, \f  -> ignored (line continuation)
+ * - Simple escapes: \ + any non-hex non-newline char -> that char
+ * Throws InvalidOptionsError on trailing single backslash (malformed escape).
+ */
+function cssUnescape(input: string): string {
+  let out = '';
+  const len = input.length;
+  let i = 0;
+  while (i < len) {
+    const ch = input[i] as string;
+    if (ch !== '\\') {
+      out += ch;
+      i++;
+      continue;
+    }
+    // ch is backslash
+    if (i + 1 >= len) {
+      throw new InvalidOptionsError(`Malformed CSS escape: trailing backslash in "${input}"`);
+    }
+    const next = input[i + 1] as string;
+    // Escaped newline (line continuation)
+    if (next === '\n' || next === '\r' || next === '\f') {
+      if (next === '\r' && i + 2 < len && input[i + 2] === '\n') {
+        i += 3;
+      } else {
+        i += 2;
+      }
+      continue;
+    }
+    // Hex escape
+    if (/[0-9a-fA-F]/.test(next)) {
+      let hex = '';
+      let j = i + 1;
+      while (j < len && hex.length < 6 && /[0-9a-fA-F]/.test(input[j] as string)) {
+        hex += input[j] as string;
+        j++;
+      }
+      // Optional single whitespace after hex
+      if (j < len) {
+        const ws = input[j] as string;
+        if (ws === ' ' || ws === '\t' || ws === '\n' || ws === '\r' || ws === '\f') {
+          if (ws === '\r' && j + 1 < len && input[j + 1] === '\n') {
+            j += 2;
+          } else {
+            j += 1;
+          }
+        }
+      }
+      const codePoint = parseInt(hex, 16);
+      if (codePoint === 0 || (codePoint >= 0xd800 && codePoint <= 0xdfff) || codePoint > 0x10ffff) {
+        throw new InvalidOptionsError(`Malformed CSS hex escape \\${hex} produces invalid codepoint ${codePoint}`);
+      } else {
+        out += String.fromCodePoint(codePoint);
+      }
+      i = j;
+      continue;
+    }
+    // Simple escape: backslash + any other char
+    out += next;
+    i += 2;
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Public API: inlineCss
 // ---------------------------------------------------------------------------
 
-/**
- * Inline local `url(...)` references in CSS content using an already-encoded catalog.
- *
- * - Replaces eligible local `url(...)` tokens in **any** declaration value (not only
- *   `background`/`background-image`); supports masks, borders, cursors, list-styles,
- *   generated content, custom properties (`--*`), gradients, multiple URLs, and comments.
- * - Parses comma-separated `@font-face src` values correctly and preserves remote,
- *   unsupported, already-inlined, and unresolved alternatives.
- * - Adds `format(...)` only for font assets (`kind === 'font' && fontFormat`) inside
- *   `@font-face src` when no existing `format(...)` follows the `url(...)`.
- * - Handles quoted/unquoted URLs, CSS escapes, whitespace, query strings, fragments,
- *   and percent-decoding via `src/resolve.ts` helpers (query/fragment stripped before lookup,
- *   never emitted inside data URL).
- * - Returns original `content` byte-for-byte when unchanged; for changed content minimizes
- *   edits to affected declaration values rather than normalizing the full stylesheet.
- * - Emits one deterministic `AssetReplacement` per replaced URL with location, original
- *   reference, resolved identity, kind, and bytes.
- * - Malformed CSS throws `ParseError` (single documented policy); per-URL issues emit
- *   `diagnostics` without printing or swallowing invisibly.
- * - Pure, synchronous, no I/O off the content string — async work belongs in catalog creation.
- */
+/** Inline local `url(...)` in CSS using an `AssetCatalog`. Returns original content when unchanged. */
 export function inlineCss(content: string, options: InlineOptions): InlineResult {
   if (typeof content !== 'string') {
     throw new InvalidOptionsError('inlineCss requires content as string');
@@ -116,11 +193,48 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
     throw new InvalidOptionsError('inlineCss requires options.catalog');
   }
 
+  validatePolicyOptions({
+    maxTargetBytes: (options as unknown as { maxTargetBytes?: unknown }).maxTargetBytes,
+    maxReplacements: (options as unknown as { maxReplacements?: unknown }).maxReplacements,
+    maxOutputBytes: (options as unknown as { maxOutputBytes?: unknown }).maxOutputBytes,
+    maxInlineBytes: (options as unknown as { maxInlineBytes?: unknown }).maxInlineBytes,
+  });
+  if (
+    (options as unknown as { shouldInline?: unknown }).shouldInline !== undefined &&
+    typeof (options as unknown as { shouldInline: unknown }).shouldInline !== 'function'
+  ) {
+    throw new InvalidOptionsError('shouldInline must be a function (asset, url) => boolean');
+  }
+
   const catalog = options.catalog;
   const documentPath = options.documentPath;
   const rootDir = options.rootDir;
   const allowBasenameMatch = options.allowBasenameMatch ?? false;
   const resolver = options.resolver;
+  const maxTargetBytes = (options as unknown as { maxTargetBytes?: number }).maxTargetBytes ?? DEFAULT_MAX_TARGET_BYTES;
+  const maxReplacements =
+    (options as unknown as { maxReplacements?: number }).maxReplacements ?? DEFAULT_MAX_REPLACEMENTS;
+  const maxOutputBytes = (options as unknown as { maxOutputBytes?: number }).maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
+  const maxInlineBytes = (options as unknown as { maxInlineBytes?: number }).maxInlineBytes;
+  const shouldInline = (
+    options as unknown as { shouldInline?: (asset: import('./types.ts').EncodedAsset, url: string) => boolean }
+  ).shouldInline;
+
+  const targetBytes = byteLengthUtf8(content);
+  if (!Number.isSafeInteger(targetBytes)) {
+    throw new ResourceLimitError(`Target byte length ${targetBytes} exceeds safe integer range`, {
+      limit: maxTargetBytes,
+      actual: targetBytes,
+      path: documentPath,
+    });
+  }
+  if (targetBytes > maxTargetBytes) {
+    throw new ResourceLimitError(`Target input bytes ${targetBytes} exceeds maxTargetBytes ${maxTargetBytes}`, {
+      limit: maxTargetBytes,
+      actual: targetBytes,
+      path: documentPath,
+    });
+  }
 
   let root: postcss.Root;
   try {
@@ -133,17 +247,19 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
   const replacements: AssetReplacement[] = [];
   const diagnostics: AssetDiagnostic[] = [];
   let modified = false;
+  let projectedBytes = targetBytes;
 
   // Walk every declaration (including custom properties)
   root.walkDecls((decl) => {
     const rawValue = decl.value;
-    if (!rawValue) return;
+    const rawForParse = ((decl.raws as unknown as { value?: { raw?: string } }).value?.raw ?? rawValue) as string;
+    if (!rawForParse) return;
     // Fast-path: case-insensitive check for "url(" to avoid parsing values that cannot contain urls
-    if (!/url\s*\(/i.test(rawValue)) return;
+    if (!/url\s*\(/i.test(rawForParse)) return;
 
     let parsed: ReturnType<typeof parseValue>;
     try {
-      parsed = parseValue(rawValue);
+      parsed = parseValue(rawForParse);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       diagnostics.push({
@@ -157,8 +273,37 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
 
     const isFontFaceSrc = isFontFaceSrcDecl(decl);
 
+    // Derive value start offset in original content for location mapping (decl-local, not global indexOf)
+    let valueStartOffset = -1;
+    const startOff = (decl.source?.start?.offset ?? -1) as number;
+    if (typeof startOff === 'number' && startOff >= 0 && decl.source?.input?.css === content) {
+      const propRaw = ((decl.raws as unknown as { prop?: { raw?: string } }).prop?.raw ?? decl.prop) as string;
+      const between = ((decl.raws as unknown as { between?: string }).between ?? ': ') as string;
+      valueStartOffset = startOff + propRaw.length + between.length;
+      // Guard: valueStartOffset should point inside content at rawForParse start; if mismatch fallback to search
+      if (valueStartOffset < 0 || valueStartOffset + rawForParse.length > content.length) {
+        valueStartOffset = -1;
+      } else {
+        // Verify slice matches rawForParse (which includes comments); if not, fallback
+        const slice = content.slice(valueStartOffset, valueStartOffset + rawForParse.length);
+        if (slice !== rawForParse) {
+          // Fallback: search rawForParse sequentially from decl start
+          const idx = content.indexOf(rawForParse, startOff);
+          if (idx !== -1) valueStartOffset = idx;
+          else valueStartOffset = -1;
+        }
+      }
+    }
+
     // Collect url entries via walk (captures nested functions like image-set)
-    type Entry = { node: unknown; index: number; nodes: unknown[]; originalUrl: string };
+    type Entry = {
+      node: unknown;
+      index: number;
+      nodes: unknown[];
+      originalUrl: string;
+      contentStartLocal: number;
+      globalOffset: number;
+    };
     const entries: Entry[] = [];
 
     // valueParser walk visits nested nodes; we capture parent nodes array for each url
@@ -167,38 +312,91 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
         const n = node as { type: string; value: string; nodes?: unknown[] };
         if (n.type !== 'function' || n.value.toLowerCase() !== 'url') return;
 
-        // Extract inner URL string
+        // Extract inner URL string and its local offset inside decl.value
         let originalUrl!: string;
+        // eslint-disable-next-line no-useless-assignment
+        let contentStartLocal = -1;
         const inner = n.nodes as unknown[] | undefined;
         if (!inner || inner.length === 0) {
           // empty url() — treat as empty reference, skip
           return;
         }
-        const first = inner[0] as { type: string; value: string };
+        const first = inner[0] as { type: string; value: string; sourceIndex?: number };
         if (first.type === 'string') {
           originalUrl = first.value;
+          const si = typeof first.sourceIndex === 'number' ? first.sourceIndex : -1;
+          contentStartLocal = si >= 0 ? si + 1 : -1;
         } else if (first.type === 'word') {
           originalUrl = first.value;
+          const si = typeof first.sourceIndex === 'number' ? first.sourceIndex : -1;
+          contentStartLocal = si >= 0 ? si : -1;
         } else if (first.type === 'function') {
           // unusual nested; stringify
           originalUrl = parseValue.stringify(first as unknown as import('postcss-value-parser').Node);
+          const si =
+            typeof (first as unknown as { sourceIndex?: number }).sourceIndex === 'number'
+              ? (first as unknown as { sourceIndex: number }).sourceIndex
+              : -1;
+          contentStartLocal =
+            si >= 0
+              ? si
+              : typeof (n as unknown as { sourceIndex?: number }).sourceIndex === 'number'
+                ? (n as unknown as { sourceIndex: number }).sourceIndex
+                : -1;
         } else {
           // fallback: stringify inner
           originalUrl = (inner as unknown[])
             .map((x) => parseValue.stringify(x as import('postcss-value-parser').Node))
             .join('');
+          const si = typeof first.sourceIndex === 'number' ? first.sourceIndex : -1;
+          contentStartLocal = si >= 0 ? si : -1;
         }
 
-        entries.push({ node, index, nodes: nodes as unknown[], originalUrl });
+        // If parser index missing, fallback to decl-local indexOf search for originalUrl inside rawValue
+        if (contentStartLocal < 0) {
+          // Find sequentially: we will resolve later via pending ordering, but for globalOffset we need local index
+          // Use -1 sentinel and handle during pending sort via fallback search
+          contentStartLocal = -1;
+        }
+
+        let globalOffset = -1;
+        if (valueStartOffset >= 0 && contentStartLocal >= 0) {
+          globalOffset = valueStartOffset + contentStartLocal;
+        }
+
+        entries.push({ node, index, nodes: nodes as unknown[], originalUrl, contentStartLocal, globalOffset });
       },
     );
 
     if (entries.length === 0) return;
 
+    // Resolve fallback local offsets for entries where parser index missing via decl-local sequential search
+    // This still avoids global content.indexOf and respects comments/decl boundaries.
+    let declCursor = 0;
+    for (const e of entries) {
+      if (e.contentStartLocal >= 0) {
+        // Already have parser offset; still advance declCursor past this token for fallback entries ordering
+        const len = e.originalUrl.length;
+        declCursor = Math.max(declCursor, e.contentStartLocal + len);
+        continue;
+      }
+      // Need to locate originalUrl inside rawForParse starting from declCursor
+      const idx = rawForParse.indexOf(e.originalUrl, declCursor);
+      if (idx !== -1) {
+        e.contentStartLocal = idx;
+        if (valueStartOffset >= 0) e.globalOffset = valueStartOffset + idx;
+        declCursor = idx + e.originalUrl.length;
+      } else {
+        const fallback = rawForParse.indexOf(e.originalUrl);
+        if (fallback !== -1) {
+          e.contentStartLocal = fallback;
+          if (valueStartOffset >= 0) e.globalOffset = valueStartOffset + fallback;
+        }
+      }
+    }
+
     // Sort descending by index within same parent array to keep splice indices stable.
     // Group by parent reference: for same parent, higher index first.
-    // For different parents, order does not matter, but we sort globally descending for determinism.
-    // To make grouping correct, we map parent -> max index and stable sort.
     const parentId = new WeakMap<object, number>();
     let idCounter = 0;
     for (const e of entries) {
@@ -219,30 +417,57 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
       mediaType: string;
       kind: import('./types.ts').AssetKind;
       byteLength: number;
-      index: number;
+      globalOffset: number;
     };
     const pending: Pending[] = [];
 
     for (const entry of entries) {
-      const { node, index, nodes, originalUrl } = entry;
+      const { node, index, nodes, originalUrl, globalOffset } = entry;
       const urlNode = node as { type: string; value: string; nodes: unknown[] };
 
-      // Classification: skip remote / data / blob / fragment-only etc. before filesystem work
-      const classification = classifyUrl(originalUrl);
+      // CSS-unescape before classification/percent decode; retain original spelling for records
+      let unescapedUrl: string;
+      try {
+        unescapedUrl = cssUnescape(originalUrl);
+      } catch (err) {
+        const code = (err as { code?: string }).code ?? 'INVALID_OPTIONS';
+        const msg = err instanceof Error ? err.message : String(err);
+        diagnostics.push({
+          code,
+          message: msg,
+          originalUrl,
+          severity: 'error',
+          filePath: documentPath,
+        } as AssetDiagnostic);
+        continue;
+      }
+
+      // Classification: skip remote / data / blob / fragment-only etc. before filesystem work (use unescaped)
+      const classification = classifyUrl(unescapedUrl);
       if (classification.kind === 'skip') {
         continue;
       }
 
-      // Resolve via catalog + options
+      // Resolve via catalog + options using unescaped value
       let resolved: ReturnType<typeof resolveAssetReferenceSync> extends infer R ? R : never;
       try {
-        resolved = resolveAssetReferenceSync(originalUrl, catalog, {
+        resolved = resolveAssetReferenceSync(unescapedUrl, catalog, {
           documentPath,
           rootDir,
           allowBasenameMatch,
           resolver,
         } as unknown as Parameters<typeof resolveAssetReferenceSync>[2]);
       } catch (err) {
+        // Resolver contract violations (thenable, malformed asset) must fail fast with INVALID_OPTIONS before mutation.
+        // Other resolve errors (malformed percent/NUL, ambiguous) remain per-URL diagnostics.
+        if (
+          err instanceof InvalidOptionsError &&
+          String((err as Error).message)
+            .toLowerCase()
+            .includes('resolver')
+        ) {
+          throw err;
+        }
         const code = (err as { code?: string }).code ?? 'RESOLVE_ERROR';
         const msg = err instanceof Error ? err.message : String(err);
         diagnostics.push({
@@ -273,12 +498,92 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
       const asset = res.asset as import('./types.ts').EncodedAsset;
       const resolvedPath = res.resolvedPath ?? asset.sourcePath ?? asset.filename ?? originalUrl;
 
+      // Selective inlining policy — distinct from hard resource limits.
+      // Assets exceeding maxInlineBytes or rejected by shouldInline predicate
+      // remain external with a structured INLINE_SKIPPED diagnostic (warn, not error).
+      // Hard limits (maxAssetBytes/maxTotalBytes) remain fail-closed via encode/catalog.
+      if (typeof maxInlineBytes === 'number' && asset.byteLength > maxInlineBytes) {
+        diagnostics.push({
+          code: 'INLINE_SKIPPED',
+          message: `Asset "${originalUrl}" (${asset.byteLength} bytes) exceeds maxInlineBytes ${maxInlineBytes} — left as external reference`,
+          originalUrl,
+          filePath: resolvedPath,
+          severity: 'warn',
+        } as AssetDiagnostic);
+        continue;
+      }
+      if (shouldInline !== undefined) {
+        let decision: unknown;
+        try {
+          decision = shouldInline(asset, originalUrl);
+        } catch (err) {
+          throw new InvalidOptionsError(
+            `shouldInline predicate threw: ${err instanceof Error ? err.message : String(err)}`,
+            { cause: err },
+          );
+        }
+        if (
+          decision !== null &&
+          typeof decision === 'object' &&
+          typeof (decision as { then?: unknown }).then === 'function'
+        ) {
+          throw new InvalidOptionsError('shouldInline must be synchronous — returned a thenable');
+        }
+        if (!decision) {
+          diagnostics.push({
+            code: 'INLINE_SKIPPED',
+            message: `Asset "${originalUrl}" skipped by shouldInline predicate — left as external reference`,
+            originalUrl,
+            filePath: resolvedPath,
+            severity: 'warn',
+          } as AssetDiagnostic);
+          continue;
+        }
+      }
+
       const needsFormat =
         isFontFaceSrc &&
         asset.kind === 'font' &&
         typeof asset.fontFormat === 'string' &&
         asset.fontFormat.length > 0 &&
         !hasFollowingFormat(nodes as readonly unknown[], index);
+
+      // Enforce replacement and projected-output bounds BEFORE inserting each data URL
+      const nextCount = addSafe(replacements.length + pending.length, 1, maxReplacements, documentPath);
+      if (nextCount > maxReplacements) {
+        throw new ResourceLimitError(`Replacement count ${nextCount} exceeds maxReplacements ${maxReplacements}`, {
+          limit: maxReplacements,
+          actual: nextCount,
+          path: documentPath,
+        });
+      }
+      const dataUrlBytes = byteLengthUtf8(asset.dataUrl);
+      const origBytes = byteLengthUtf8(originalUrl);
+      if (!Number.isSafeInteger(dataUrlBytes) || !Number.isSafeInteger(origBytes)) {
+        throw new ResourceLimitError(`Unsafe integer byte length for replacement`, {
+          limit: maxOutputBytes,
+          actual: dataUrlBytes,
+          path: documentPath,
+        });
+      }
+      let delta = subSafe(dataUrlBytes, origBytes, documentPath);
+      if (needsFormat && asset.fontFormat) {
+        const formatStr = ` format('${asset.fontFormat}')`;
+        const formatBytes = byteLengthUtf8(formatStr);
+        delta = addSafe(delta, formatBytes, maxOutputBytes, documentPath);
+      }
+      const nextProjected = addSafe(projectedBytes, delta, maxOutputBytes, documentPath);
+      if (nextProjected > maxOutputBytes) {
+        throw new ResourceLimitError(
+          `Projected output bytes ${nextProjected} exceeds maxOutputBytes ${maxOutputBytes}`,
+          {
+            limit: maxOutputBytes,
+            actual: nextProjected,
+            path: documentPath,
+          },
+        );
+      }
+      projectedBytes = nextProjected;
 
       if (needsFormat && asset.fontFormat) {
         // Replace url inner with dataUrl
@@ -306,15 +611,26 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
         mediaType: asset.mediaType,
         kind: asset.kind,
         byteLength: asset.byteLength,
-        index,
+        globalOffset,
       });
       declModified = true;
       modified = true;
     }
 
-    // Push to global replacements in source order (ascending index) to keep deterministic order per decl
-    pending.sort((a, b) => a.index - b.index);
+    // Push to global replacements in source order (ascending globalOffset) to keep deterministic order per decl
+    // Use globalOffset when available, fallback to index ordering
+    pending.sort((a, b) => {
+      if (a.globalOffset >= 0 && b.globalOffset >= 0) return a.globalOffset - b.globalOffset;
+      return 0;
+    });
     for (const p of pending) {
+      const loc =
+        p.globalOffset >= 0
+          ? (() => {
+              const { line, column } = offsetToLineCol(content, p.globalOffset);
+              return { offset: p.globalOffset, line, column };
+            })()
+          : { offset: -1 };
       replacements.push(
         Object.freeze({
           originalUrl: p.originalUrl,
@@ -322,7 +638,7 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
           mediaType: p.mediaType,
           kind: p.kind,
           byteLength: p.byteLength,
-          location: { offset: -1 },
+          location: loc,
         }) as AssetReplacement,
       );
     }
@@ -342,30 +658,26 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
   }
 
   const newContent = root.toString();
-
-  // Finalize location offsets deterministically in source order (already in source order due to pending sort per decl
-  // and root.walkDecls order). We compute offsets via sequential scan to handle duplicate originalUrls correctly.
-  const withOffsets: AssetReplacement[] = [];
-  let cursor = 0;
-  for (const rep of replacements) {
-    const idx = content.indexOf(rep.originalUrl, cursor);
-    const offset = idx !== -1 ? idx : content.indexOf(rep.originalUrl);
-    if (idx !== -1) cursor = idx + rep.originalUrl.length;
-    const before = offset !== -1 ? content.slice(0, offset) : '';
-    const line = before ? before.split('\n').length : 1;
-    const col = before ? before.length - before.lastIndexOf('\n') - 1 : 0;
-    withOffsets.push(
-      Object.freeze({
-        ...rep,
-        location: { offset: offset !== -1 ? offset : -1, line, column: col },
-      }) as AssetReplacement,
-    );
+  const finalBytes = byteLengthUtf8(newContent);
+  if (!Number.isSafeInteger(finalBytes)) {
+    throw new ResourceLimitError(`Final output exceeds safe integer range`, {
+      limit: maxOutputBytes,
+      actual: finalBytes,
+      path: documentPath,
+    });
+  }
+  if (finalBytes > maxOutputBytes) {
+    throw new ResourceLimitError(`Transformed output bytes ${finalBytes} exceeds maxOutputBytes ${maxOutputBytes}`, {
+      limit: maxOutputBytes,
+      actual: finalBytes,
+      path: documentPath,
+    });
   }
 
   return Object.freeze({
     content: newContent,
     modified: true,
-    replacements: Object.freeze(withOffsets) as readonly AssetReplacement[],
+    replacements: Object.freeze([...replacements]) as readonly AssetReplacement[],
     diagnostics: Object.freeze([...diagnostics]) as readonly AssetDiagnostic[],
   }) as InlineResult;
 }

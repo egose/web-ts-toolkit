@@ -6,7 +6,10 @@
  * No timing assertions — just logs for manual inspection.
  */
 
-import { encodeAsset, encodeAssets, DEFAULT_MAX_ASSET_BYTES, DEFAULT_MAX_TOTAL_BYTES } from '../dist/index.mjs';
+import { encodeAsset, encodeAssets, createAssetCatalog, DEFAULT_MAX_ASSET_BYTES, DEFAULT_MAX_TOTAL_BYTES } from '../dist/index.mjs';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 function syntheticBytes(size, fill = 0x61) {
   const arr = new Uint8Array(size);
@@ -77,7 +80,8 @@ async function run() {
     console.log(`[rejected ${rejectedSize}B] rejected in ${(r1 - r0).toFixed(3)}ms → ${e.code ?? e.name}: ${e.message} (no Base64 alloc)`);
   }
 
-  // 6) Async throughput: 50 × 12KB with concurrency implicit (catalog batched 16)
+  // 6) Sequential batch throughput: 50 × 12KB via encodeAssets (sequential, preserves input order).
+  //    Bounded catalog concurrency (default 16) applies only to catalog chunked encoding, not to this batch.
   const batch = Array.from({ length: 50 }, (_, i) => ({ data: syntheticBytes(12 * 1024, 0x60 + (i % 26)), filename: `img${i}.png` }));
   const th0 = performance.now();
   const batchRes = await encodeAssets(batch);
@@ -85,7 +89,31 @@ async function run() {
   const throughput = batch.length / ((th1 - th0) / 1000);
   const totalBytes = batchRes.reduce((s, r) => s + r.byteLength, 0);
   const totalChars = batchRes.reduce((s, r) => s + r.dataUrl.length, 0);
-  console.log(`[throughput 50×12KB] ${(th1 - th0).toFixed(1)}ms total, ${throughput.toFixed(1)} assets/s, totalBytes ${totalBytes}, total dataUrl chars ${totalChars}, avg expansion ${(totalChars / totalBytes).toFixed(3)}x`);
+  console.log(`[sequential batch 50×12KB] ${(th1 - th0).toFixed(1)}ms total, ${throughput.toFixed(1)} assets/s (sequential ` + `encodeAssets), totalBytes ${totalBytes}, total dataUrl chars ${totalChars}, avg expansion ${(totalChars / totalBytes).toFixed(3)}x`);
+  console.log(`  Note: catalog encoding uses bounded concurrency (default 16) with deterministic order; sequential batch above measures pure encode path.`);
+
+  // 6b) Representative catalog tree: 20 files across subdirs, measure discovery+encode elapsed (no assertions)
+  {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bench-catalog-'));
+    try {
+      const subA = path.join(tmp, 'a');
+      const subB = path.join(tmp, 'b');
+      fs.mkdirSync(subA, { recursive: true });
+      fs.mkdirSync(subB, { recursive: true });
+      for (let i = 0; i < 10; i++) {
+        const bytes = syntheticBytes(8 * 1024, 0x60 + (i % 26));
+        fs.writeFileSync(path.join(subA, `img${String(i).padStart(2,'0')}.png`), bytes);
+        fs.writeFileSync(path.join(subB, `img${String(i).padStart(2,'0')}.png`), bytes);
+      }
+      const c0 = performance.now();
+      const cat = await createAssetCatalog(tmp);
+      const c1 = performance.now();
+      const totalCatBytes = cat.assets.reduce((s, a) => s + a.byteLength, 0);
+      console.log(`[catalog tree 20×8KB] discovery+encode ${(c1 - c0).toFixed(1)}ms, assets ${cat.size}, totalBytes ${totalCatBytes}`);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  }
 
   // 7) Custom audio definition (proves extensibility without source change)
   const audioBytes = new Uint8Array([0x49, 0x44, 0x33, 0x03, 0x00, 0x00, 0x00, 0x00]); // minimal ID3 stub

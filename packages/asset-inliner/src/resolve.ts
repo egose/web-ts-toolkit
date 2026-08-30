@@ -1,20 +1,61 @@
-/**
- * Resolver — URL classification, safe percent-decoding, and filesystem matching.
- *
- * Responsibilities:
- * - Classify and skip remote, protocol-relative, data:, blob:, fragment-only, non-local refs.
- * - Decode only URL-syntax safe for filesystem matching; reject malformed or NUL-containing paths.
- * - Never interpret query/fragment as path segment (strip before filesystem lookup).
- * - Resolve relative to `documentPath` or explicit `rootDir` using POSIX semantics for URLs,
- *   without depending on host separator for logical URL parsing.
- * - Raise `AmbiguousAssetError` for duplicate basename candidates.
- * - Provide narrow custom matcher/resolver hook (`AssetResolver`) that does not require parser AST knowledge.
- */
+/** URL classification, decoding, and catalog lookup for transforms. */
 
 import path from 'node:path';
-import type { AssetCatalog, ResolverInput, AssetResolver } from './types.ts';
+import type { AssetCatalog, ResolverInput, AssetResolverAsync, AssetResolverSync } from './types.ts';
 import type { EncodedAsset } from './types.ts';
 import { InvalidOptionsError } from './errors.ts';
+
+// ---------------------------------------------------------------------------
+// Resolver helpers — thenable detection and structural validation
+// ---------------------------------------------------------------------------
+
+function isThenable(value: unknown): boolean {
+  return (
+    value !== null &&
+    (typeof value === 'object' || typeof value === 'function') &&
+    typeof (value as { then?: unknown }).then === 'function'
+  );
+}
+
+function validateResolverAsset(asset: unknown): asserts asset is EncodedAsset {
+  if (asset === null || typeof asset !== 'object') {
+    throw new InvalidOptionsError('Invalid resolver asset: resolver must return an EncodedAsset object or undefined');
+  }
+  const a = asset as Record<string, unknown>;
+  // Reject thenable assets themselves (EncodedAsset must not be a thenable)
+  if (isThenable(a)) {
+    throw new InvalidOptionsError(
+      'Invalid resolver asset: resolver returned a thenable (Promise/custom thenable) — async resolver cannot be used with sync API',
+    );
+  }
+  const dataUrl = a['dataUrl'];
+  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:') || !dataUrl.includes(';base64,')) {
+    throw new InvalidOptionsError(
+      `Invalid resolver asset: dataUrl must be a string starting with "data:" and containing ";base64," (got ${String(dataUrl)})`,
+    );
+  }
+  const kind = a['kind'];
+  if (typeof kind !== 'string' || kind.trim() === '') {
+    throw new InvalidOptionsError(`Invalid resolver asset: kind must be a non-empty string (got ${String(kind)})`);
+  }
+  const mediaType = a['mediaType'];
+  if (typeof mediaType !== 'string' || mediaType.trim() === '' || !mediaType.includes('/')) {
+    throw new InvalidOptionsError(
+      `Invalid resolver asset: mediaType must be a non-empty string containing "/" (got ${String(mediaType)})`,
+    );
+  }
+  const byteLength = a['byteLength'];
+  if (
+    typeof byteLength !== 'number' ||
+    !Number.isFinite(byteLength) ||
+    !Number.isSafeInteger(byteLength) ||
+    byteLength < 0
+  ) {
+    throw new InvalidOptionsError(
+      `Invalid resolver asset: byteLength must be a finite safe non-negative integer (got ${String(byteLength)})`,
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Classification — skip non-local refs before filesystem work
@@ -206,7 +247,16 @@ export interface ResolveAssetOptions {
   readonly documentPath?: string;
   readonly rootDir?: string;
   readonly allowBasenameMatch?: boolean;
-  readonly resolver?: AssetResolver;
+  /** Async-capable resolver — for standalone `resolveAssetReference` (sync transforms use `ResolveAssetOptionsSync`). */
+  readonly resolver?: AssetResolverAsync;
+}
+
+/** Sync-only options — resolver must be `AssetResolverSync` (honest contract for `inlineCss`/`inlineHtml`/`inlineFiles`). */
+export interface ResolveAssetOptionsSync {
+  readonly documentPath?: string;
+  readonly rootDir?: string;
+  readonly allowBasenameMatch?: boolean;
+  readonly resolver?: AssetResolverSync;
 }
 
 export interface ResolvedAsset {
@@ -223,7 +273,12 @@ export interface ResolvedAsset {
 }
 
 /**
- * Resolve a single URL reference against a catalog.
+ * Resolve a single URL reference against a catalog (async helper).
+ *
+ * This is the standalone async-capable resolver utility. It supports both sync and async
+ * resolvers (`AssetResolverAsync`). It is retained for callers that need async data sources
+ * outside the synchronous transform pipeline; it is not used by `inlineCss`/`inlineHtml`/
+ * `inlineFiles` (see module header decision).
  *
  * Steps in order:
  * 1. Classify and skip remote/protocol-relative/data:/blob:/fragment-only before any filesystem work.
@@ -232,12 +287,14 @@ export interface ResolvedAsset {
  * 4. If `resolver` hook is provided, invoke it with narrow `ResolverInput` (originalUrl, decodedPath, basename, documentPath, rootDir).
  *    If hook returns an `EncodedAsset`, that asset is used and default lookup is skipped.
  *    Hook is only invoked for local URLs that passed steps 1-3 without error.
+ *    The async path `await`s the hook result and structurally validates the resolved asset
+ *    (dataUrl, kind, mediaType, byteLength). Thenable assets themselves are rejected.
  * 5. Default lookup: exact path via `catalog.getByPath`. If not found and `allowBasenameMatch` is true,
  *    try basename via `catalog.getByBasename` (which throws `AmbiguousAssetError` on duplicate).
  * 6. Return `{ skipped: true }` for non-local refs, or `{ asset, resolvedPath }` for matches, or `{ asset: undefined }` for unresolved.
  *
  * Throws:
- * - `InvalidOptionsError` for malformed percent-encoding or NUL.
+ * - `InvalidOptionsError` for malformed percent-encoding, NUL, or invalid resolver asset / thenable asset.
  * - `AmbiguousAssetError` when basename mode finds duplicates (from catalog.getByBasename).
  */
 export async function resolveAssetReference(
@@ -276,7 +333,9 @@ export async function resolveAssetReference(
       ...(options.rootDir !== undefined ? { rootDir: options.rootDir } : {}),
     }) as ResolverInput;
     const hookResult = await options.resolver(input, catalog);
-    if (hookResult) {
+    if (hookResult !== undefined && hookResult !== null) {
+      // Structurally validate before use (and reject thenable assets after await)
+      validateResolverAsset(hookResult);
       // Hook returned an asset directly — use it.
       // We still compute resolvedPath for diagnostics via normal resolution for observability.
       const hookResolvedPath = resolveLogicalPathToAbsolute(normalizedLogical, {
@@ -290,7 +349,7 @@ export async function resolveAssetReference(
         skipped: false,
       };
     }
-    // Hook returned undefined => fall back to default
+    // Hook returned undefined/null => fall back to default
   }
 
   const absolute = resolveLogicalPathToAbsolute(normalizedLogical, {
@@ -332,13 +391,15 @@ export async function resolveAssetReference(
 }
 
 /**
- * Synchronous variant of `resolveAssetReference`. Requires `resolver` to be sync (or returns Promise which is not awaited — we throw).
- * For simplicity we support only sync resolvers in sync mode; async resolvers will throw.
+ * Synchronous variant of `resolveAssetReference`. Honest sync contract: requires `resolver`
+ * to be sync (`AssetResolverSync`). Any thenable (native Promise, cross-realm Promise,
+ * custom thenable) is rejected with `INVALID_OPTIONS` before mutation. Resolver-returned
+ * assets are structurally validated (dataUrl, kind, mediaType, byteLength).
  */
 export function resolveAssetReferenceSync(
   originalUrl: string,
   catalog: AssetCatalog,
-  options: ResolveAssetOptions = {},
+  options: ResolveAssetOptionsSync = {},
 ): ResolvedAsset {
   const classification = classifyUrl(originalUrl);
   if (classification.kind === 'skip') {
@@ -365,18 +426,21 @@ export function resolveAssetReferenceSync(
       ...(options.documentPath !== undefined ? { documentPath: options.documentPath } : {}),
       ...(options.rootDir !== undefined ? { rootDir: options.rootDir } : {}),
     }) as ResolverInput;
-    const hookResult = options.resolver(input, catalog) as EncodedAsset | undefined | Promise<EncodedAsset | undefined>;
-    if (hookResult instanceof Promise) {
-      throw new InvalidOptionsError('Async resolver cannot be used with sync API');
+    const hookResult = (options.resolver as AssetResolverSync)(input, catalog) as unknown;
+    if (isThenable(hookResult)) {
+      throw new InvalidOptionsError(
+        'Async resolver cannot be used with sync API — resolver returned a thenable (Promise, cross-realm Promise, or custom thenable)',
+      );
     }
-    if (hookResult) {
+    if (hookResult !== undefined && hookResult !== null) {
+      validateResolverAsset(hookResult);
       const hookResolvedPath = resolveLogicalPathToAbsolute(normalizedLogical, {
         documentPath: options.documentPath,
         rootDir: options.rootDir,
       });
       return {
         originalUrl,
-        asset: hookResult,
+        asset: hookResult as EncodedAsset,
         resolvedPath: hookResolvedPath,
         skipped: false,
       };
