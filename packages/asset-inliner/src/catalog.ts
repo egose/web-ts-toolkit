@@ -256,7 +256,6 @@ async function planChunk(
 
 function buildCatalogIndexes(
   assets: readonly EncodedAsset[],
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _definitions: readonly AssetTypeDefinition[],
 ): Pick<AssetCatalog, 'getByPath' | 'getByBasename' | 'size'> {
   const exactMap = new Map<string, EncodedAsset>();
