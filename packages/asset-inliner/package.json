@@ -1,0 +1,58 @@
+{
+  "name": "@web-ts-toolkit/asset-inliner",
+  "description": "Generic asset inliner for CSS and HTML — ESM-only Node 22+ Base64 data URL encoding, CSS url() and font source formatting, deterministic catalog and inlining pipeline",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/asset-inliner",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egose/web-ts-toolkit.git",
+    "directory": "packages/asset-inliner"
+  },
+  "keywords": [
+    "asset",
+    "inliner",
+    "base64",
+    "data-url",
+    "css",
+    "html",
+    "font",
+    "image",
+    "typescript",
+    "esm"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts && node -e \"import fs from 'node:fs'; const a='dist/index.d.ts', b='dist/index.d.mts'; if(fs.existsSync(a)){fs.renameSync(a,b);} const am='dist/index.d.ts.map', bm='dist/index.d.mts.map'; if(fs.existsSync(am)){fs.renameSync(am,bm);}\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "pnpm --filter @web-ts-toolkit/asset-inliner... build && vitest run --config ../../vitest.config.ts --run",
+    "test:watch": "vitest --config ../../vitest.config.ts --watch"
+  },
+  "dependencies": {
+    "file-type": "22.0.2",
+    "parse5": "8.0.0",
+    "postcss": "8.5.26",
+    "postcss-value-parser": "4.2.0"
+  }
+}
