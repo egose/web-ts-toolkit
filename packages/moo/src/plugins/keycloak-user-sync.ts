@@ -553,6 +553,7 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
       try {
         user =
           (await realmHandle.user(username).create({
+            username,
             ...payload,
             ...(desiredPassword && {
               password: desiredPassword,
