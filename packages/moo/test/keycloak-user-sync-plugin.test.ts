@@ -289,6 +289,21 @@ describe('keycloakUserSyncPlugin', () => {
     );
   });
 
+  it('includes the username when a password-only save creates a missing Keycloak user', async () => {
+    const UserModel = createUserModel(keycloak, { syncFields: { password: true }, persistProviderId: false });
+    const user = await UserModel.create({ username: 'alice', email: 'alice@example.com' });
+    keycloak.users.length = 0;
+    keycloak.calls.length = 0;
+
+    user.password = 'next-secret'; // pragma: allowlist secret
+    await user.save();
+
+    expect(keycloak.callsFor('user.create')[0]?.args[1]).toMatchObject({
+      username: 'alice',
+      password: 'next-secret', // pragma: allowlist secret
+    });
+  });
+
   it('delegates created-user password provisioning to the fluent user create path with the temporary policy', async () => {
     const UserModel = createUserModel(keycloak, { syncFields: { password: true }, passwordTemporary: true });
 
