@@ -110,7 +110,7 @@ importers:
         version: 11.2.0(socks@2.8.9)(supports-color@10.2.2)
       mongoose:
         specifier: ^9.6.2
-        version: 9.9.2(socks@2.8.9)
+        version: 9.9.5(socks@2.8.9)
     devDependencies:
       '@types/express':
         specifier: ^5.0.6
@@ -280,7 +280,7 @@ importers:
         version: 11.2.0(socks@2.8.9)(supports-color@10.2.2)
       mongoose:
         specifier: ^9.6.2
-        version: 9.9.2(socks@2.8.9)
+        version: 9.9.5(socks@2.8.9)
     devDependencies:
       '@types/express':
         specifier: ^5.0.6
@@ -311,7 +311,7 @@ importers:
         version: 6.0.2
       mongoose-schema-jsonschema:
         specifier: ^4.0.1
-        version: 4.0.1(mongoose@9.9.2(socks@2.8.9))
+        version: 4.0.1(mongoose@9.9.5(socks@2.8.9))
       sift:
         specifier: ^17.1.3
         version: 17.1.3
@@ -336,7 +336,7 @@ importers:
         version: 11.2.0(socks@2.8.9)(supports-color@10.2.2)
       mongoose:
         specifier: ^9.8.0
-        version: 9.9.2(socks@2.8.9)
+        version: 9.9.5(socks@2.8.9)
       supertest:
         specifier: ^7.2.2
         version: 7.2.2(supports-color@10.2.2)
@@ -373,7 +373,7 @@ importers:
         version: 11.2.0(socks@2.8.9)(supports-color@10.2.2)
       mongoose:
         specifier: ^9.8.0
-        version: 9.9.2(socks@2.8.9)
+        version: 9.9.5(socks@2.8.9)
       zod:
         specifier: ^4.1.12
         version: 4.4.3
@@ -395,7 +395,7 @@ importers:
         version: 5.2.1(supports-color@10.2.2)
       mongoose:
         specifier: ^9.8.0
-        version: 9.9.2(socks@2.8.9)
+        version: 9.9.5(socks@2.8.9)
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -456,7 +456,7 @@ importers:
         version: 5.2.1(supports-color@10.2.2)
       mongoose:
         specifier: ^9.8.0
-        version: 9.9.2(socks@2.8.9)
+        version: 9.9.5(socks@2.8.9)
       supertest:
         specifier: ^7.2.2
         version: 7.2.2(supports-color@10.2.2)
@@ -677,7 +677,7 @@ importers:
         version: 5.2.1(supports-color@10.2.2)
       mongoose:
         specifier: ^9.8.0
-        version: 9.9.2(socks@2.8.9)
+        version: 9.9.5(socks@2.8.9)
 
   packages/mongoose-rxdb:
     dependencies:
@@ -712,7 +712,7 @@ importers:
         version: 11.2.0(socks@2.8.9)(supports-color@10.2.2)
       mongoose:
         specifier: ^9.8.0
-        version: 9.9.2(socks@2.8.9)
+        version: 9.9.5(socks@2.8.9)
 
   packages/pdf-reader:
     devDependencies:
@@ -8520,8 +8520,8 @@ packages:
     peerDependencies:
       mongoose: '>=6.0.0 <10.0.0'
 
-  mongoose@9.9.2:
-    resolution: {integrity: sha512-Nz8Rwu9jvADm0pyX0M3mEy8bx3wB5b/tRDI4XnjL7p6tZgmdyL9g0gE/EC9It6/XMIbcvniwYQDKYs91Qm+o+g==}
+  mongoose@9.9.5:
+    resolution: {integrity: sha512-t/kUoeDjlHmav7yCaq//YKU3wiIgUPaTj4GrluiTHUw4jQ77/CXtdMDSor4f1u3SKLhIK6NgCF+AzzUqU02Aag==}
     engines: {node: '>=20.19.0'}
 
   move-file@3.1.0:
@@ -19878,12 +19878,12 @@ snapshots:
     optionalDependencies:
       socks: 2.8.9
 
-  mongoose-schema-jsonschema@4.0.1(mongoose@9.9.2(socks@2.8.9)):
+  mongoose-schema-jsonschema@4.0.1(mongoose@9.9.5(socks@2.8.9)):
     dependencies:
-      mongoose: 9.9.2(socks@2.8.9)
+      mongoose: 9.9.5(socks@2.8.9)
       pluralize: 8.0.0
 
-  mongoose@9.9.2(socks@2.8.9):
+  mongoose@9.9.5(socks@2.8.9):
     dependencies:
       '@standard-schema/spec': 1.1.0
       kareem: 3.3.0
