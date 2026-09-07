@@ -207,8 +207,13 @@ describe('AINL2-03: atomic write failures fail closed', () => {
         const handle: any = await origOpen(p, flags, mode);
         if (String(p).includes('.tmp.')) {
           const origClose = handle.close.bind(handle);
+          let called = false;
           handle.close = async () => {
-            throw Object.assign(new Error('injected close failure'), { code: 'EIO' });
+            if (!called) {
+              called = true;
+              throw Object.assign(new Error('injected close failure'), { code: 'EIO' });
+            }
+            return origClose();
           };
         }
         return handle;

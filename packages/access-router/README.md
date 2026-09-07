@@ -104,6 +104,17 @@ snapshots. Mutating the original options object, a fetched options snapshot, or 
 not change live runtime policy or served in-memory records. Replace configured data through `router.data(next)`
 or `setDataOption(name, 'data', next)`.
 
+ACL filter hooks may return `false` to deny a query. That denial is terminal through identifier, override, and
+base-filter composition. `overrideFilter` is a trusted hook that may replace an ordinary client or identifier
+filter before the base filter is applied, but it is not called for an existing `false` filter and cannot revive
+that denial. Returning `false` from `overrideFilter` also denies the query. Empty or absent filters retain their
+normal unrestricted meaning unless a base filter restricts them.
+
+Advanced mutation validators drive dispatch: nested `data` validators run first, then the whole-body (`default`)
+validator sees that transformed envelope, and the service persists only the final parsed `data`, `select`,
+`populate`, `tasks`, and allowed `options`. Missing body options fall back to `returning_all`/`include_permissions`
+query params; only `includePermissions`/`populateAccess` (plus `returningAll` for update/upsert) are forwarded.
+
 ## Main Exports
 
 Root entrypoint (`@web-ts-toolkit/access-router`):
@@ -151,6 +162,15 @@ An isolated runtime does not look up process-global `mongoose.models` by string 
 to `runtime.createRouter(model, options)` or call `runtime.registerModelInstance(name, model)` before constructing a
 string-name router. The default `acl` runtime retains string-name compatibility with `mongoose.model(name, schema)` and
 adopts that exact global model instance into its registry on first lookup.
+
+Cross-runtime composition on a shared request keeps independent runtime-owned state. When one request passes through
+middleware from runtime A and then runtime B, B initializes its own core, resolves its own `globalPermissions`, and
+uses its own base-filter cache; it never reuses A's permissions or cached filters, even when both runtimes use the
+same `requestPermissionField` name. Repeating the same runtime's middleware on one request reuses that runtime's state
+without rerunning its resolver. Values already present in `requestPermissionField` before any runtime middleware runs
+are treated as application-supplied and preserved. Migration: if you relied on B silently inheriting A's resolved
+permissions on a shared request, set those permissions explicitly before the chain or configure B's `globalPermissions`
+to resolve them.
 
 ## createRouter overloads
 

@@ -1117,7 +1117,7 @@ Commands run and results (serial per AGENTS.md, no concurrent `tsup`):
 Verification of packed consumer (NodeNext TypeScript, `type:module`, `module:NodeNext`, `moduleResolution:NodeNext`):
 
 - Created `/tmp/opencode/consumer` with `package.json {type:module}` + `tsconfig.json {module:NodeNext, moduleResolution:NodeNext, target:ES2022, strict:true}` + `index.ts` importing `encodeAsset`, `ResourceLimitError`, `UnsupportedAssetError`, `AssetInlinerErrorCode`, `DiagnosticCode`.
-- `ASDF_NODEJS_VERSION=26.7.0 npm install /home/jahn/projects/_web-ts-toolkit/packages/asset-inliner/web-ts-toolkit-asset-inliner-0.1.0.tgz typescript @types/node` — succeeded.
+- `ASDF_NODEJS_VERSION=26.7.0 npm install packages/asset-inliner/web-ts-toolkit-asset-inliner-0.1.0.tgz typescript @types/node` — succeeded.
 - `ASDF_NODEJS_VERSION=26.7.0 npx tsc --noEmit` — passed (exit 0), literal narrowing verified (`e instanceof ResourceLimitError -> e.code: "RESOURCE_LIMIT"` as `AssetInlinerErrorCode`, `d.code: DiagnosticCode` narrows to `"INLINE_SKIPPED"` etc.).
 - `ASDF_NODEJS_VERSION=26.7.0 node --input-type=module -e "import {encodeAsset} from '@web-ts-toolkit/asset-inliner'; ..."` — runtime ESM loading succeeded (`encode ok image/png`, `esm ok image/png`).
 - Named imports work, **no default export leaking** (`(pkg as any).default === undefined` true), **no deep import** (`import '@web-ts-toolkit/asset-inliner/dist/index.mjs'` throws `ERR_PACKAGE_PATH_NOT_EXPORTED` via `exports` map), ESM only, Node `>=22`.

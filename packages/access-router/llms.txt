@@ -88,6 +88,9 @@ void [typed, conservative];
 - `/advanced` does NOT export `acl`, `defaultRuntime`, `createRouter`, or `createAccessRuntime` — those live on the root entry only
 - `/processors` `copyAndDepopulate(...)` defaults to conservative `CopyAndDepopulateOutput`; pass an explicit output type when the transformed shape is known. Unsafe paths and missing id fields throw plain `Error` instances.
 - `createDataRouter(...)` holds data in-memory; use it for lightweight/non-persisted resources
+- ACL filter value `false` is a terminal denial. Trusted `overrideFilter` hooks may replace ordinary filters before base-filter composition, but are not called for an existing denial; returning `false` also denies the query.
+- Shared-request cross-runtime composition keeps independent state: runtime B never reuses runtime A's permissions or base-filter cache, even with the same `requestPermissionField` name. Same-runtime middleware repeats reuse state without rerunning `globalPermissions`. Pre-populated request permission fields are application-supplied and preserved.
+- Advanced mutation routes persist the final parsed body: nested `data` validators run before the whole-body (`default`) validator, and only final `data`/`select`/`populate`/`tasks` plus allowed `options` (`includePermissions`/`populateAccess`, plus `returningAll` for update/upsert) reach the service. Missing body options fall back to `returning_all`/`include_permissions` query params.
 - `package.json` declares `sideEffects` array listing the bundled runtime entries that run the lazy `mongoose-schema-jsonschema` patch on first runtime construction — bundlers must retain those entries
 
 ## Pointers
