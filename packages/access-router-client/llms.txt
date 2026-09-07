@@ -73,6 +73,8 @@ const grouped = await adapter.group(
   - `countAdvanced(filter, axiosRequestConfig?)` no longer accepts an `access` argument the server rejects
   - `SubDocumentListResponse<S>` carries `count` (the server's field), not `totalCount`; `ListModelResponse<T>` still carries `totalCount`
   - subdocument `create(data | data[], ...)` accepts a single object or an array; the response is always the post-create subdocument array
+- `distinct(field, ...)` / `distinctAdvanced(field, filter, ...)` return `Response<unknown[]>` with no server-value stringification; narrow elements (e.g. `typeof v === 'string'`) before calling string methods
+- service defaults accept null, string, boolean, finite numbers, valid `Date` values (detached per request), plain objects, and arrays; anything else throws `UnsupportedServiceDefaultValueError`. `sq` in adapter/service defaults applies to `list`, `listAdvanced`, `read`, `readAdvanced`, and `readAdvancedFilter` with per-call, service, then adapter precedence
   - `Response<TRaw, TData = TRaw, TError = unknown>` is a discriminated union (`SuccessResult<TRaw, TData> | FailureResult<TError>`); branch on `result.success` to narrow `raw`/`data`. On `success: false`, `data` is always `null` and `raw` is the unknown (or opt-in typed) server error payload. Only model/data list responses carry `totalCount`; subdocument list-like responses carry `count`; scalar and single responses carry neither
 - this package targets `@web-ts-toolkit/access-router` servers; plain Axios is simpler for non-access-router APIs
 - imports are named-only (`import { createAdapter }`); there is no default export

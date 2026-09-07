@@ -10,9 +10,11 @@ import { defineConfig } from 'tsup';
  * bundle targets their syntax intersection rather than `node22`. The source
  * imports no Node built-ins; the only runtime-conditional is the cache
  * timer's feature-detected `unref()` guard, which is a no-op in browsers.
- * A Vitest + jsdom (Vite-powered) smoke test imports `dist/index.mjs` and
- * exercises the public surface to catch Node-only built-ins or incompatible
- * syntax (see `test/access-router-client.browser-smoke.test.ts`).
+ * A Vitest + jsdom (Vite-powered) smoke test imports the built `dist/index.mjs`
+ * and exercises the public surface to catch Node-only built-in leaks or basic
+ * ESM browser-bundling regressions (see
+ * `test/access-router-client.browser-smoke.ts`). It is not a real-browser
+ * engine/version compatibility gate.
  */
 export default defineConfig({
   entry: ['src/index.ts'],

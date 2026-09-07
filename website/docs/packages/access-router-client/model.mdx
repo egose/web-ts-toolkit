@@ -101,7 +101,7 @@ user.data.role = baseline;
 user.data.isDirty('role'); // false — reverted to the snapshot
 ```
 
-The same rule applies to nested writes through `set('path.to.field', value)` because nested writes normalize to their top-level field. Reverting a nested value back to its baseline cleans the entire top-level field.
+The same rule applies to nested writes through `set('path.to.field', value)` because nested writes normalize to their top-level field. Dot, bracket-index (`items[0].label`), and quoted-key (`a['b-c']`) forms share one parsed path and the same dirty root across `set`, `markModified`, and `isDirty`. Reverting a nested value back to its baseline cleans the entire top-level field.
 
 ```ts
 const original = user.data.statusHistory[0].label;

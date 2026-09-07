@@ -240,30 +240,124 @@ const isLegacyListPayload = <TData>(value: unknown): value is { count: number; r
   return 'count' in value && typeof value.count === 'number' && 'rows' in value && Array.isArray(value.rows);
 };
 
-const cloneDefaultValue = <T>(value: T): T => {
-  if (Array.isArray(value)) {
-    return value.map((item) => cloneDefaultValue(item)) as T;
+export class UnsupportedServiceDefaultValueError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnsupportedServiceDefaultValueError';
+  }
+}
+
+const isPlainDefaultObject = (value: object): value is Record<string, unknown> => {
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
+
+/**
+ * Supported service-default value domain (serializable, detached).
+ *
+ * Supported: `null`, `undefined`, `string`, `boolean`, finite `number`,
+ * valid `Date` (cloned to a detached instance), plain objects (prototype
+ * `Object.prototype` or `null`), and arrays thereof.
+ *
+ * Explicitly rejected with `UnsupportedServiceDefaultValueError` (never
+ * silently corrupted to `{}`): functions, symbols, bigints, non-finite
+ * numbers, invalid Dates, non-plain instances (`Map`, `Set`,
+ * `URLSearchParams`, `ArrayBuffer`, `AxiosHeaders`, custom classes, …),
+ * and circular array/object references. `Date` instances are cloned via
+ * `new Date(time)` so later caller mutation (`setTime`, …) cannot affect
+ * stored defaults; `Object.freeze` alone does not block `Date` mutators.
+ */
+const cloneDefaultValueInner = (value: unknown, seen: WeakSet<object>, path: string): unknown => {
+  if (value == null) return value;
+
+  if (typeof value === 'string' || typeof value === 'boolean') return value;
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw new UnsupportedServiceDefaultValueError(
+        `Service defaults do not support non-finite numeric value at ${path}`,
+      );
+    }
+    return value;
   }
 
-  if (value && typeof value === 'object') {
-    const cloned: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value)) {
-      cloned[key] = cloneDefaultValue(item);
+  if (typeof value === 'function') {
+    throw new UnsupportedServiceDefaultValueError(`Service defaults do not support function value at ${path}`);
+  }
+
+  if (typeof value === 'symbol') {
+    throw new UnsupportedServiceDefaultValueError(`Service defaults do not support symbol value at ${path}`);
+  }
+
+  if (typeof value === 'bigint') {
+    throw new UnsupportedServiceDefaultValueError(`Service defaults do not support bigint value at ${path}`);
+  }
+
+  if (value instanceof Date) {
+    const time = value.getTime();
+    if (Number.isNaN(time)) {
+      throw new UnsupportedServiceDefaultValueError(`Service defaults do not support invalid Date at ${path}`);
     }
-    return cloned as T;
+    return new Date(time);
+  }
+
+  if (Array.isArray(value)) {
+    if (seen.has(value)) {
+      throw new UnsupportedServiceDefaultValueError(`Service defaults do not support circular value at ${path}`);
+    }
+    seen.add(value);
+    try {
+      return value.map((item, index) => cloneDefaultValueInner(item, seen, `${path}[${index}]`));
+    } finally {
+      seen.delete(value);
+    }
+  }
+
+  if (typeof value === 'object') {
+    if (seen.has(value)) {
+      throw new UnsupportedServiceDefaultValueError(`Service defaults do not support circular value at ${path}`);
+    }
+    if (!isPlainDefaultObject(value)) {
+      throw new UnsupportedServiceDefaultValueError(
+        `Service defaults do not support non-plain object instance at ${path}`,
+      );
+    }
+    seen.add(value);
+    try {
+      const cloned: Record<string, unknown> = {};
+      for (const [key, item] of Object.entries(value)) {
+        cloned[key] = cloneDefaultValueInner(item, seen, path === 'defaults' ? `defaults.${key}` : `${path}.${key}`);
+      }
+      return cloned;
+    } finally {
+      seen.delete(value);
+    }
   }
 
   return value;
 };
 
-const deepFreeze = <T>(value: T): T => {
-  if (!value || typeof value !== 'object' || Object.isFrozen(value)) {
+const cloneDefaultValue = <T>(value: T): T => cloneDefaultValueInner(value, new WeakSet<object>(), 'defaults') as T;
+
+/**
+ * Detached clone of a stored service-default value for per-request use.
+ * Shares the supported domain and controlled rejection of
+ * `normalizeServiceDefaults` so request bodies never alias the frozen
+ * stored defaults (notably `Date` instances, whose mutators ignore
+ * `Object.freeze`, and `__query` metadata readable via `prom.__query`).
+ */
+export const cloneServiceDefaultValue = <T>(value: T): T =>
+  cloneDefaultValueInner(value, new WeakSet<object>(), 'defaults') as T;
+
+const deepFreeze = <T>(value: T, seen: WeakSet<object> = new WeakSet<object>()): T => {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value) || seen.has(value)) {
     return value;
   }
 
+  seen.add(value);
   Object.freeze(value);
   for (const item of Object.values(value)) {
-    deepFreeze(item);
+    deepFreeze(item, seen);
   }
 
   return value;

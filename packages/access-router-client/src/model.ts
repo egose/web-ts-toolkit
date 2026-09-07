@@ -30,6 +30,47 @@ export class MissingPersistenceIdentityError extends Error {
   }
 }
 
+// Path parsing mirrors `@web-ts-toolkit/utils` `_internal.toPath` so the
+// dirty root always matches the shared setter's first segment (dot, bracket,
+// and quoted-key forms). Kept local to avoid changing workspace utils
+// semantics; update together if the shared pattern changes.
+const MODEL_PATH_PATTERN = /[^.[\]]+|\[(?:([^"'[\]]+)|["']([^"']+)["'])\]/g;
+const MODEL_UNSAFE_PATH_PARTS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function toModelPathParts(path: string): Array<string | number> {
+  if (path.length === 0) {
+    return [];
+  }
+  const result: Array<string | number> = [];
+  path.replace(MODEL_PATH_PATTERN, (_match: string, bare?: string, quoted?: string) => {
+    const token = bare ?? quoted ?? _match;
+    result.push(/^\d+$/.test(token) ? Number(token) : token);
+    return '';
+  });
+  return result.length > 0 ? result : [path];
+}
+
+function modelPathRoot(path: string): string {
+  const parts = toModelPathParts(path);
+  if (parts.length === 0) {
+    return '';
+  }
+  return String(parts[0]);
+}
+
+function assertSupportedModelPath(path: string): string {
+  const parts = toModelPathParts(path);
+  if (parts.length === 0) {
+    throw new Error(`Model path must not be empty.`);
+  }
+  for (const part of parts) {
+    if (typeof part === 'string' && MODEL_UNSAFE_PATH_PARTS.has(part)) {
+      throw new Error(`Model path "${path}" contains a reserved segment "${part}".`);
+    }
+  }
+  return String(parts[0]);
+}
+
 /**
  * A dirty-tracking wrapper around a model document. Constructed via
  * {@link ModelService.create}, {@link ModelService.read},
@@ -161,32 +202,11 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
   }
 
   private async saveNow(reqConfig?: AxiosRequestConfig): Promise<ModelResponse<T, TData>> {
-    // 1. Snapshot submitted paths and their values BEFORE the request.
-    const submittedPaths = new Set(this.modifiedPaths);
-    const submittedValues: Record<string, unknown> = {};
-    for (const path of submittedPaths) {
-      submittedValues[path] = cloneDeep(getValue(this._data, path));
-    }
-    const submittedData: object = this.prepareData();
-
-    // ARC-21: resolve persistence identity OUTSIDE the projected `_data`
-    // payload. When `_data._id` is present (the common case — mutation paths
-    // and default-inclusion projections) it takes precedence so callers can
-    // still deliberately point `_id` at a bogus id to observe a failing save
-    // (see `Model integration` suite's "supports Model helper methods and
-    // preserves dirty state on failed save" test). When a read projection
-    // deliberately omits `_id` (e.g. `select: { name: 1, _id: 0 }`), the
-    // identity captured at `read`/`readAdvanced` time — `_persistenceId` —
-    // is used so the save targets the original document instead of silently
-    // POSTing a duplicate. When neither `_data._id` nor `_persistenceId` is
-    // available AND the wrapper was built from an existing-document read
-    // (`_fromExisting === true`, e.g. `readAdvancedFilter` or list/filter
-    // items with an `_id`-excluding projection), `save()` throws rather than
-    // becoming a silent create. When neither identity is available but the
-    // wrapper is a draft (`_fromExisting === false`, the historic direct
-    // `new Model({ ... }, service)` / `ModelService.new()` drafting API),
-    // save() treats the call as an intentional create — matching the existing
-    // "supports creating a new unsaved Model instance via save()" test.
+    // Invariant: create-vs-update resolves from captured identity, not the
+    // projected payload; create submits the full draft, update submits dirty-only.
+    // When `_data._id` is present it takes precedence (bogus-id failure tests);
+    // otherwise the read-time `_persistenceId` is used. No identity plus
+    // `_fromExisting` throws; no identity plus draft creates.
     const persistenceId = this._data._id ?? this._persistenceId;
     if (persistenceId == null && this._fromExisting) {
       throw new MissingPersistenceIdentityError(
@@ -197,6 +217,15 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     }
 
     const isCreate = persistenceId == null;
+    // Snapshot submitted paths/values BEFORE the request so an in-flight
+    // revert/reset (which clears dirty vs the old snapshot) is still
+    // recognizable as pending vs the submitted value after the response.
+    const submittedPaths = new Set(this.modifiedPaths);
+    const submittedValues: Record<string, unknown> = {};
+    for (const path of submittedPaths) {
+      submittedValues[path] = cloneDeep(getValue(this._data, path));
+    }
+    const submittedData: object = this.prepareData(isCreate);
     const result: ModelResponse<T, TData> = isCreate
       ? await this._service.create<TData>(submittedData, undefined, reqConfig)
       : await this._service.update<TData>(String(persistenceId), submittedData, { returningAll: false }, reqConfig);
@@ -206,17 +235,22 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
       return { ...result, data: null } as ModelResponse<T, TData>;
     }
 
-    // Helper: did the user re-modify `path` to a value different from what
-    // we submitted? If so, the local edit is newer than the server's view
-    // for that path and must not be overwritten.
+    // Invariant: concurrency is judged from pre-merge local state (before
+    // server values overwrite it). A submitted path is concurrent iff local
+    // != submitted at response time — this includes a revert/reset to the
+    // pre-save baseline, which clears dirty early but still differs from what
+    // was persisted. Judging after the merge would mistake the server's own
+    // update for a user edit.
+    const preMergeDirty = new Set(this.modifiedPaths);
+    const preMergeValues: Record<string, unknown> = {};
+    for (const path of submittedPaths) {
+      preMergeValues[path] = cloneDeep(getValue(this._data, path));
+    }
     const isConcurrentEdit = (path: string): boolean => {
       if (!submittedPaths.has(path)) {
-        return this.modifiedPaths.has(path);
+        return preMergeDirty.has(path);
       }
-
-      const current = getValue(this._data, path);
-      const submitted = submittedValues[path];
-      return !isEqual(current, submitted);
+      return !isEqual(preMergeValues[path], submittedValues[path]);
     };
 
     // Merge server-returned values. Only overwrite local values for paths
@@ -240,12 +274,15 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
       this.modifiedPaths.delete(normKey);
     }
 
-    // Clear submitted paths whose current value still equals the submitted
-    // value (server may not echo every field back, but the field was
-    // accepted and is no longer dirty).
+    // Invariant: submitted path stays dirty iff current != submitted, even
+    // when current reverted to the pre-save baseline (revert/reset during
+    // save clears dirty early); otherwise an A->B->save->A sequence would
+    // record A clean while B is persisted.
     for (const path of submittedPaths) {
       if (!isConcurrentEdit(path)) {
         this.modifiedPaths.delete(path);
+      } else {
+        this.modifiedPaths.add(path);
       }
     }
 
@@ -293,14 +330,16 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
 
     this.definePublicDataProps();
 
+    // Invariant: the returned wrapper shares the post-save baseline and dirty
+    // set as independent copies; adopting `result.data` preserves pending
+    // edits and reset behavior without aliasing the original.
+    const returned = Model.create<T, TData>(this._data, this._service, this._persistenceId, true);
+    returned._snapshot = cloneDeep(this._snapshot);
+    returned.modifiedPaths = new Set(this.modifiedPaths);
+    returned.definePublicDataProps();
     return {
       ...result,
-      // The post-save snapshot is always an existing document, so propagate
-      // `_fromExisting=true` plus the refreshed persistence identity so the
-      // returned wrapper cannot later silently create a duplicate. (If the
-      // caller intends a fresh draft, they construct `new Model({...}, s)`
-      // directly — `${_fromExisting}` defaults to `false` there.)
-      data: Model.create<T, TData>(this._data, this._service, this._persistenceId, true),
+      data: returned,
     } as ModelResponse<T, TData>;
   }
 
@@ -322,6 +361,7 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
    * run `reconcilePath` after the write.
    */
   markModified(path: keyof TData | string) {
+    assertSupportedModelPath(String(path));
     this.trackModified(String(path));
     return this;
   }
@@ -335,6 +375,8 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
   set<TKey extends keyof TData>(path: TKey, value: TData[TKey]): this;
   set(path: string, value: unknown): this;
   set(path: string, value: unknown) {
+    // Validate before mutating so unsupported syntax never partially writes.
+    const root = assertSupportedModelPath(path);
     const currentValue = getValue(this._data, path);
     if (Object.is(currentValue, value)) {
       return this;
@@ -343,7 +385,7 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     setValue(this._data as object, path, value);
     this.trackModified(path);
     this.definePublicDataProps();
-    this.reconcilePath(this.normalizePath(path));
+    this.reconcilePath(root);
     return this;
   }
 
@@ -368,8 +410,15 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
   }
 
   reset() {
+    // Invariant: reset restores the persisted baseline for saved models; for
+    // unsaved drafts the snapshot is not persisted, so initial values stay
+    // dirty and a later create still POSTs the full draft.
+    const wasDraft = this.isUnsavedDraft();
     this.replaceData(this._snapshot);
     this.modifiedPaths.clear();
+    if (wasDraft) {
+      this.initializeDirtyState();
+    }
     return this;
   }
 
@@ -410,7 +459,13 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     }
   }
 
-  private prepareData() {
+  private prepareData(isCreate: boolean) {
+    // Invariant: drafts create with the full document (minus `_id`);
+    // existing models update with dirty-only partials so unchanged fields
+    // stay omitted from PATCH.
+    if (isCreate) {
+      return cloneDeep(omit(this._data, ['_id']));
+    }
     return omit(pick(this._data, Array.from(this.modifiedPaths).map(String)), ['_id']);
   }
 
@@ -465,22 +520,26 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
   }
 
   private normalizePath(path: string) {
-    return path.split('.')[0];
+    // Consistent with the shared setter: the dirty root is the first parsed
+    // segment, so `items.0.label`, `items[0].label`, and quoted-key forms
+    // all track `items`. Non-throwing so read queries (`isDirty`) stay total;
+    // `set`/`markModified` validate via `assertSupportedModelPath` before mutation.
+    return modelPathRoot(path);
   }
 
   /**
-   * Removes `path` from the dirty set when its current top-level value deeply
-   * equals the snapshot baseline. Used uniformly by `set()`, `assign()`,
-   * public property setters (via the proxy), and `markModified()` so all
-   * entry points share the same tracking rule.
-   *
-   * Note: `_id` is intentionally never reconciled away here — it is excluded
-   * from `initializeDirtyState` and managed explicitly during `save()`
-   * reconciliation.
+   * Removes `path` from the dirty set when its current value deeply equals
+   * the snapshot baseline. Invariant: unsaved drafts never reconcile clean
+   * (snapshot is unpersisted); `_id` is never reconciled here.
    */
+  private isUnsavedDraft(): boolean {
+    return !this._fromExisting && (this._data._id ?? this._persistenceId) == null;
+  }
+
   private reconcilePath(path: string) {
     if (path === '_id') return;
     if (!this.modifiedPaths.has(path)) return;
+    if (this.isUnsavedDraft()) return;
     const current = (this._data as unknown as Record<string, unknown>)[path];
     const base = (this._snapshot as unknown as Record<string, unknown>)[path];
     if (isEqual(current, base)) {

@@ -39,7 +39,13 @@ import { Model } from '../model';
 import { Service } from './service';
 import { replaceSubQuery, encodePathSegment } from '../helpers';
 import { cloneConfigWithCacheBypass } from './interceptors';
-import { createResponseHandler, ensureListResultCount, normalizeServiceDefaults, processListResult } from './shared';
+import {
+  cloneServiceDefaultValue,
+  createResponseHandler,
+  ensureListResultCount,
+  normalizeServiceDefaults,
+  processListResult,
+} from './shared';
 import { makeRequest } from './request';
 import { buildSubDocumentOps } from './sub-ops';
 
@@ -130,8 +136,10 @@ export class ModelService<
       includeCount = this._defaults.listOptions.includeCount ?? false,
       includeExtraHeaders = this._defaults.listOptions.includeExtraHeaders ?? false,
       ignoreCache = this._defaults.listOptions.ignoreCache ?? false,
-      sq,
     } = options ?? {};
+    // Adapter/service/per-call `sq` precedence: per-call wins, otherwise the
+    // detached service default (which already merges adapter defaults).
+    const sq = options?.sq ?? cloneServiceDefaultValue(this._defaults.listOptions.sq);
 
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
@@ -196,16 +204,20 @@ export class ModelService<
     axiosRequestConfig?: RequestConfig,
   ): ModelRequest<ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
     const {
-      populate = this._defaults.listAdvancedArgs.populate,
-      include = this._defaults.listAdvancedArgs.include,
-      sort = this._defaults.listAdvancedArgs.sort,
       skip = this._defaults.listAdvancedArgs.skip,
       limit = this._defaults.listAdvancedArgs.limit,
       page = this._defaults.listAdvancedArgs.page,
       pageSize = this._defaults.listAdvancedArgs.pageSize,
-      tasks = this._defaults.listAdvancedArgs.tasks,
     } = args ?? {};
-    const select = (args?.select ?? this._defaults.listAdvancedArgs.select) as TSelect | undefined;
+    // Detached clones so wire bodies and `__query.args` never alias the
+    // frozen stored defaults (`Date` mutators ignore `Object.freeze`).
+    const populate = args?.populate ?? cloneServiceDefaultValue(this._defaults.listAdvancedArgs.populate);
+    const include = args?.include ?? cloneServiceDefaultValue(this._defaults.listAdvancedArgs.include);
+    const sort = args?.sort ?? cloneServiceDefaultValue(this._defaults.listAdvancedArgs.sort);
+    const tasks = args?.tasks ?? cloneServiceDefaultValue(this._defaults.listAdvancedArgs.tasks);
+    const select = (args?.select ?? cloneServiceDefaultValue(this._defaults.listAdvancedArgs.select)) as
+      | TSelect
+      | undefined;
 
     const {
       skim = this._defaults.listAdvancedOptions.skim ?? true,
@@ -214,8 +226,8 @@ export class ModelService<
       includeExtraHeaders = this._defaults.listAdvancedOptions.includeExtraHeaders ?? false,
       populateAccess = this._defaults.listAdvancedOptions.populateAccess,
       ignoreCache = this._defaults.listAdvancedOptions.ignoreCache ?? false,
-      sq,
     } = options ?? {};
+    const sq = options?.sq ?? cloneServiceDefaultValue(this._defaults.listAdvancedOptions.sq);
 
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
@@ -360,9 +372,11 @@ export class ModelService<
     | ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>
     | ArrayModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>
   > {
-    const { populate = this._defaults.createAdvancedArgs.populate, tasks = this._defaults.createAdvancedArgs.tasks } =
-      args ?? {};
-    const select = (args?.select ?? this._defaults.createAdvancedArgs.select) as TSelect | undefined;
+    const populate = args?.populate ?? cloneServiceDefaultValue(this._defaults.createAdvancedArgs.populate);
+    const tasks = args?.tasks ?? cloneServiceDefaultValue(this._defaults.createAdvancedArgs.tasks);
+    const select = (args?.select ?? cloneServiceDefaultValue(this._defaults.createAdvancedArgs.select)) as
+      | TSelect
+      | undefined;
 
     const {
       includePermissions = this._defaults.createAdvancedOptions.includePermissions ?? true,
@@ -474,9 +488,11 @@ export class ModelService<
     options?: UpsertAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
   ): ModelRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
-    const { populate = this._defaults.upsertAdvancedArgs.populate, tasks = this._defaults.upsertAdvancedArgs.tasks } =
-      args ?? {};
-    const select = (args?.select ?? this._defaults.upsertAdvancedArgs.select) as TSelect | undefined;
+    const populate = args?.populate ?? cloneServiceDefaultValue(this._defaults.upsertAdvancedArgs.populate);
+    const tasks = args?.tasks ?? cloneServiceDefaultValue(this._defaults.upsertAdvancedArgs.tasks);
+    const select = (args?.select ?? cloneServiceDefaultValue(this._defaults.upsertAdvancedArgs.select)) as
+      | TSelect
+      | undefined;
 
     const {
       returningAll = this._defaults.upsertAdvancedOptions.returningAll ?? true,
@@ -597,20 +613,28 @@ export class ModelService<
     );
   }
 
+  /**
+   * BND-11: distinct values are `unknown[]`, not `string[]`. The sibling
+   * server returns raw distinct values without string conversion, so numeric
+   * and boolean values arrive as-is. Source-compat: callers that assumed
+   * `string[]` must narrow first (e.g. `typeof v === 'string'` or a type
+   * guard) before calling string methods; see the BND-11 task record for
+   * migration. No server values are stringified to satisfy the old type.
+   */
   distinct(field: string, axiosRequestConfig?: RequestConfig) {
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
-    return makeRequest<Response<string[]>>(
+    return makeRequest<Response<unknown[]>>(
       () =>
         this._axios
           .get(`${this._basePath}/distinct/${encodePathSegment(field)}`, reqConfig)
-          .then((res) => this.handleSuccess<Response<string[]>>(res))
-          .then((result: Response<string[]>) => {
+          .then((res) => this.handleSuccess<Response<unknown[]>>(res))
+          .then((result: Response<unknown[]>) => {
             if (result.success) result.data = result.raw;
             return result;
           })
-          .catch(this.handleError<Response<string[]>>)
-          .then((res) => this._handleCallbacks<Response<string[]>>(res, throwOnError)),
+          .catch(this.handleError<Response<unknown[]>>)
+          .then((res) => this._handleCallbacks<Response<unknown[]>>(res, throwOnError)),
       {
         __throwOnError: throwOnError,
         __op: 'distinct',
@@ -628,20 +652,25 @@ export class ModelService<
     );
   }
 
+  /**
+   * BND-11: filtered distinct variant. Same `unknown[]` contract as
+   * {@link distinct}: narrow elements before assuming strings. No
+   * stringification is applied; dynamic field names are accepted as `string`.
+   */
   distinctAdvanced(field: string, conditions: FilterQuery<T>, axiosRequestConfig?: RequestConfig) {
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
-    return makeRequest<Response<string[]>>(
+    return makeRequest<Response<unknown[]>>(
       () =>
         this._axios
           .post(`${this._basePath}/distinct/${encodePathSegment(field)}`, { filter: conditions }, reqConfig)
-          .then((res) => this.handleSuccess<Response<string[]>>(res))
-          .then((result: Response<string[]>) => {
+          .then((res) => this.handleSuccess<Response<unknown[]>>(res))
+          .then((result: Response<unknown[]>) => {
             if (result.success) result.data = result.raw;
             return result;
           })
-          .catch(this.handleError<Response<string[]>>)
-          .then((res) => this._handleCallbacks<Response<string[]>>(res, throwOnError)),
+          .catch(this.handleError<Response<unknown[]>>)
+          .then((res) => this._handleCallbacks<Response<unknown[]>>(res, throwOnError)),
       {
         __throwOnError: throwOnError,
         __op: 'distinctAdvanced',
@@ -730,8 +759,8 @@ export class ModelService<
       includePermissions = this._defaults.readOptions.includePermissions ?? true,
       tryList = this._defaults.readOptions.tryList ?? true,
       ignoreCache = this._defaults.readOptions.ignoreCache ?? false,
-      sq,
     } = options ?? {};
+    const sq = options?.sq ?? cloneServiceDefaultValue(this._defaults.readOptions.sq);
 
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
@@ -784,12 +813,12 @@ export class ModelService<
     options?: ReadAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
   ): ModelRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
-    const {
-      populate = this._defaults.readAdvancedArgs.populate,
-      include = this._defaults.readAdvancedArgs.include,
-      tasks = this._defaults.readAdvancedArgs.tasks,
-    } = args ?? {};
-    const select = (args?.select ?? this._defaults.readAdvancedArgs.select) as TSelect | undefined;
+    const populate = args?.populate ?? cloneServiceDefaultValue(this._defaults.readAdvancedArgs.populate);
+    const include = args?.include ?? cloneServiceDefaultValue(this._defaults.readAdvancedArgs.include);
+    const tasks = args?.tasks ?? cloneServiceDefaultValue(this._defaults.readAdvancedArgs.tasks);
+    const select = (args?.select ?? cloneServiceDefaultValue(this._defaults.readAdvancedArgs.select)) as
+      | TSelect
+      | undefined;
 
     const {
       skim = this._defaults.readAdvancedOptions.skim ?? true,
@@ -797,8 +826,8 @@ export class ModelService<
       tryList = this._defaults.readAdvancedOptions.tryList ?? true,
       populateAccess = this._defaults.readAdvancedOptions.populateAccess,
       ignoreCache = this._defaults.readAdvancedOptions.ignoreCache ?? false,
-      sq,
     } = options ?? {};
+    const sq = options?.sq ?? cloneServiceDefaultValue(this._defaults.readAdvancedOptions.sq);
 
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
@@ -860,13 +889,13 @@ export class ModelService<
     options?: ReadAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
   ): ModelRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
-    const {
-      sort = this._defaults.readAdvancedArgs.sort,
-      populate = this._defaults.readAdvancedArgs.populate,
-      include = this._defaults.readAdvancedArgs.include,
-      tasks = this._defaults.readAdvancedArgs.tasks,
-    } = args ?? {};
-    const select = (args?.select ?? this._defaults.readAdvancedArgs.select) as TSelect | undefined;
+    const sort = args?.sort ?? cloneServiceDefaultValue(this._defaults.readAdvancedArgs.sort);
+    const populate = args?.populate ?? cloneServiceDefaultValue(this._defaults.readAdvancedArgs.populate);
+    const include = args?.include ?? cloneServiceDefaultValue(this._defaults.readAdvancedArgs.include);
+    const tasks = args?.tasks ?? cloneServiceDefaultValue(this._defaults.readAdvancedArgs.tasks);
+    const select = (args?.select ?? cloneServiceDefaultValue(this._defaults.readAdvancedArgs.select)) as
+      | TSelect
+      | undefined;
 
     const {
       skim = this._defaults.readAdvancedOptions.skim ?? true,
@@ -874,8 +903,8 @@ export class ModelService<
       tryList = this._defaults.readAdvancedOptions.tryList ?? true,
       populateAccess = this._defaults.readAdvancedOptions.populateAccess,
       ignoreCache = this._defaults.readAdvancedOptions.ignoreCache ?? false,
-      sq,
     } = options ?? {};
+    const sq = options?.sq ?? cloneServiceDefaultValue(this._defaults.readAdvancedOptions.sq);
 
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
@@ -992,9 +1021,11 @@ export class ModelService<
     options?: UpdateAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
   ): ModelRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
-    const { populate = this._defaults.updateAdvancedArgs.populate, tasks = this._defaults.updateAdvancedArgs.tasks } =
-      args ?? {};
-    const select = (args?.select ?? this._defaults.updateAdvancedArgs.select) as TSelect | undefined;
+    const populate = args?.populate ?? cloneServiceDefaultValue(this._defaults.updateAdvancedArgs.populate);
+    const tasks = args?.tasks ?? cloneServiceDefaultValue(this._defaults.updateAdvancedArgs.tasks);
+    const select = (args?.select ?? cloneServiceDefaultValue(this._defaults.updateAdvancedArgs.select)) as
+      | TSelect
+      | undefined;
 
     const {
       returningAll = this._defaults.updateAdvancedOptions.returningAll ?? true,
