@@ -258,7 +258,17 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The same rule applies to nested writes through ", (0,jsx_runtime.jsx)(_components.code, {
         children: "set('path.to.field', value)"
-      }), " because nested writes normalize to their top-level field. Reverting a nested value back to its baseline cleans the entire top-level field."]
+      }), " because nested writes normalize to their top-level field. Dot, bracket-index (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "items[0].label"
+      }), "), and quoted-key (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "a['b-c']"
+      }), ") forms share one parsed path and the same dirty root across ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "markModified"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "isDirty"
+      }), ". Reverting a nested value back to its baseline cleans the entire top-level field."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",

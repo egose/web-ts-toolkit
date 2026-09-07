@@ -311,10 +311,16 @@ function _createMdxContent(props) {
         children: "authorization"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "cookie"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "set-cookie"
       }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "proxy-authorization"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "x-api-key"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "x-auth-token"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "x-access-token"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set-cookie"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "www-authenticate"
       }), ") are excluded from cache keys\nregardless of the partition token."]

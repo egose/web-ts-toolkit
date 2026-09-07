@@ -197,6 +197,16 @@ function _createMdxContent(props) {
           children: "countAdvanced(filter, axiosRequestConfig?)"
         })
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "distinct"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "distinctAdvanced"
+      }), " return ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Response<unknown[]>"
+      }), ": the sibling\nserver returns raw distinct values without string conversion, so numeric and\nboolean values arrive as-is. Narrow elements (for example with\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "typeof v === 'string'"
+      }), ") before calling string methods."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "These methods map closely to the server-side model router operations."
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
@@ -423,7 +433,21 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Many model methods accept ", (0,jsx_runtime.jsx)(_components.code, {
         children: "sq"
-      }), " in their options."]
+      }), " in their options. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sq"
+      }), " is also accepted in\nadapter and service defaults for ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "list"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "listAdvanced"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "read"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "readAdvanced"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "readAdvancedFilter"
+      }), ", with per-call, service, then adapter\nprecedence (a per-call ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sq"
+      }), " wins over defaults)."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["That is a client-side way to embed another lazy request into a filter, so the server can resolve it as an ", (0,jsx_runtime.jsx)(_components.code, {
         children: "access-router"
