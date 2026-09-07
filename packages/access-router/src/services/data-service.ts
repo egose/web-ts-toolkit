@@ -1,4 +1,4 @@
-import { getDataOptions, getGlobalOption } from '../options';
+import { getDataOptions, getDataSnapshot, getGlobalOption } from '../options';
 import {
   findElement,
   filterCollection,
@@ -42,7 +42,12 @@ export class DataService<T> {
     this.req = req;
     this.dataName = dataName;
     this.options = getDataOptions<T>(dataName);
-    this.data = (this.options.data ?? []) as T[];
+    // ARH-11: reuse the shared immutable snapshot created on assignment rather
+    // than cloning all records per request. Captured once per service so a
+    // replacement leaves this in-flight reader on its coherent version. Served
+    // rows are shaped into new objects per request; no query-result caching and
+    // no mutable internal references are exposed.
+    this.data = getDataSnapshot<T>(dataName) as T[];
   }
 
   public async findOne<TSelect extends Projection | undefined = undefined>(

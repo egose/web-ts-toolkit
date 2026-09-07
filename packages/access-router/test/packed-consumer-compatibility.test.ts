@@ -59,7 +59,7 @@ type PackageJson = {
   module?: string;
   types?: string;
   bin?: Record<string, string> | string;
-  exports?: Record<string, Record<string, string> | string>;
+  exports?: Record<string, Record<string, string | Record<string, string>> | string>;
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
@@ -446,6 +446,16 @@ const output = copyAndDepopulate({ items: [{ _id: 'x', name: 'x' }] }, [{ src: '
   mutable: false,
 });
 
+// ARH-09: exercise actual calls, not only symbol existence.
+const middlewareFactory = acl();
+if (typeof middlewareFactory !== 'function') throw new Error('default factory did not return middleware');
+const defaultRouter = acl.createRouter({ basePath: '/api', operationAccess: true });
+if (typeof defaultRouter.routes === 'undefined') throw new Error('acl.createRouter failed');
+const isolatedRouter = runtime.createRouter({ basePath: '/api', operationAccess: true });
+if (typeof isolatedRouter.routes === 'undefined') throw new Error('runtime.createRouter failed');
+const handler = guard('isAdmin');
+if (typeof handler !== 'function') throw new Error('guard call failed');
+
 if (typeof acl.createRouter !== 'function') throw new Error('missing default runtime API');
 if (typeof runtime.createRouter !== 'function') throw new Error('missing isolated runtime API');
 if (typeof guard !== 'function') throw new Error('missing guard export');
@@ -467,6 +477,16 @@ const output = processors.copyAndDepopulate({ items: [{ _id: 'x', name: 'x' }] }
   mutable: false,
 });
 
+// ARH-09: exercise actual calls, not only symbol existence.
+const middlewareFactory = acl();
+if (typeof middlewareFactory !== 'function') throw new Error('default factory did not return middleware');
+const defaultRouter = acl.createRouter({ basePath: '/api', operationAccess: true });
+if (typeof defaultRouter.routes === 'undefined') throw new Error('acl.createRouter failed');
+const isolatedRouter = runtime.createRouter({ basePath: '/api', operationAccess: true });
+if (typeof isolatedRouter.routes === 'undefined') throw new Error('runtime.createRouter failed');
+const handler = accessRouter.guard('isAdmin');
+if (typeof handler !== 'function') throw new Error('guard call failed');
+
 if (typeof acl.createRouter !== 'function') throw new Error('missing createRouter');
 if (typeof runtime.createRouter !== 'function') throw new Error('missing runtime.createRouter');
 if (typeof advanced.parseBody !== 'function') throw new Error('missing parseBody');
@@ -475,10 +495,15 @@ if (output.items[0] !== 'x') throw new Error('processors subpath failed');
 `,
   );
 
+  // ARH-09: strict NodeNext ESM consumer. Uses the README preferred default
+  // import plus named helpers, selects the `import` declaration condition
+  // (`.d.mts`), and executes actual calls. Under the pre-fix single `.d.ts`
+  // mapping the default import is unusable here (NodeNext treats `.d.ts` as
+  // CommonJS, so `acl.createRouter` is not callable).
   writeFileSync(
-    path.resolve(consumerDir, 'consumer.nodenext.ts'),
-    `import acl, { createAccessRuntime, type GuardModelCondition, type RootRouterOptions } from '@web-ts-toolkit/access-router';
-import { Codes } from '@web-ts-toolkit/access-router/advanced';
+    path.resolve(consumerDir, 'consumer.nodenext.mts'),
+    `import acl, { createAccessRuntime, fromZod, guard, type GuardModelCondition, type RootRouterOptions } from '@web-ts-toolkit/access-router';
+import { Codes, parseBody } from '@web-ts-toolkit/access-router/advanced';
 import { copyAndDepopulate, type CopyAndDepopulateOptions, type ProcessCopy } from '@web-ts-toolkit/access-router/processors';
 
 type DepopulatedItems = { items: string[]; snapshot: Array<{ _id: string }> };
@@ -487,10 +512,67 @@ const opts: RootRouterOptions = { basePath: '/api', operationAccess: true };
 const condition: GuardModelCondition = { modelName: 'User', id: 'x', condition: 'isAdmin' };
 const op: ProcessCopy = { src: 'items', dest: 'snapshot' };
 const processorOptions: CopyAndDepopulateOptions = { mutable: false };
-const runtime = createAccessRuntime();
-const out = copyAndDepopulate({ items: [{ _id: 'x' }] }, [op], processorOptions) as unknown as DepopulatedItems;
 
-void [acl, runtime, opts, condition, Codes, out];
+const middlewareFactory: unknown = acl();
+if (typeof middlewareFactory !== 'function') throw new Error('default factory did not return middleware');
+
+const defaultRouter = acl.createRouter(opts);
+if (typeof defaultRouter.routes === 'undefined') throw new Error('acl.createRouter failed');
+
+const runtime = createAccessRuntime();
+const isolatedRouter = runtime.createRouter(opts);
+if (typeof isolatedRouter.routes === 'undefined') throw new Error('runtime.createRouter failed');
+
+const handler = guard(condition);
+const stringHandler = guard('isAdmin');
+if (typeof handler !== 'function' || typeof stringHandler !== 'function') throw new Error('guard call failed');
+if (typeof fromZod !== 'function') throw new Error('missing fromZod export');
+if (typeof parseBody !== 'function') throw new Error('missing parseBody export');
+if (Codes.Success == null) throw new Error('missing Codes export');
+
+const out = copyAndDepopulate({ items: [{ _id: 'x' }] }, [op], processorOptions) as unknown as DepopulatedItems;
+if (out.items[0] !== 'x') throw new Error('processors subpath failed');
+
+export { defaultRouter, isolatedRouter, handler, out };
+`,
+  );
+
+  // ARH-09: strict NodeNext CJS consumer. The `import ... = require(...)`
+  // form selects the `require` declaration condition (`.d.ts`).
+  writeFileSync(
+    path.resolve(consumerDir, 'consumer.nodenext.cts'),
+    `import accessRouterModule = require('@web-ts-toolkit/access-router');
+import type { GuardModelCondition, RootRouterOptions } from '@web-ts-toolkit/access-router';
+import advancedModule = require('@web-ts-toolkit/access-router/advanced');
+import processorsModule = require('@web-ts-toolkit/access-router/processors');
+
+const acl = accessRouterModule.default;
+const opts: RootRouterOptions = { basePath: '/api', operationAccess: true };
+const condition: GuardModelCondition = { modelName: 'User', id: 'x', condition: 'isAdmin' };
+
+const middlewareFactory: unknown = acl();
+if (typeof middlewareFactory !== 'function') throw new Error('default factory did not return middleware');
+
+const defaultRouter = acl.createRouter(opts);
+if (typeof defaultRouter.routes === 'undefined') throw new Error('acl.createRouter failed');
+
+const runtime = accessRouterModule.createAccessRuntime();
+const isolatedRouter = runtime.createRouter(opts);
+if (typeof isolatedRouter.routes === 'undefined') throw new Error('runtime.createRouter failed');
+
+const handler = accessRouterModule.guard(condition);
+if (typeof handler !== 'function') throw new Error('guard call failed');
+if (typeof advancedModule.parseBody !== 'function') throw new Error('missing parseBody export');
+if (advancedModule.Codes.Success == null) throw new Error('missing Codes export');
+
+const out = processorsModule.copyAndDepopulate(
+  { items: [{ _id: 'x' }] },
+  [{ src: 'items', dest: 'snapshot' }],
+  { mutable: false },
+) as unknown as { items: string[]; snapshot: Array<{ _id: string }> };
+if (out.items[0] !== 'x') throw new Error('processors subpath failed');
+
+export { defaultRouter, isolatedRouter, handler, out };
 `,
   );
 
@@ -525,9 +607,32 @@ void [acl, runtime, condition, MIDDLEWARE, out];
           strict: true,
           noEmit: true,
           skipLibCheck,
+          esModuleInterop: true,
           types: ['node'],
         },
-        include: ['consumer.nodenext.ts'],
+        include: ['consumer.nodenext.mts', 'consumer.nodenext.cts'],
+      },
+      null,
+      2,
+    ),
+  );
+
+  writeFileSync(
+    path.resolve(consumerDir, 'tsconfig.nodenext.emit.json'),
+    JSON.stringify(
+      {
+        compilerOptions: {
+          target: 'ES2022',
+          module: 'NodeNext',
+          moduleResolution: 'NodeNext',
+          strict: true,
+          noEmit: false,
+          outDir: 'nodenext-out',
+          skipLibCheck,
+          esModuleInterop: true,
+          types: ['node'],
+        },
+        include: ['consumer.nodenext.mts'],
       },
       null,
       2,
@@ -545,6 +650,7 @@ void [acl, runtime, condition, MIDDLEWARE, out];
           strict: true,
           noEmit: true,
           skipLibCheck,
+          esModuleInterop: true,
           types: ['node'],
         },
         include: ['consumer.bundler.ts'],
@@ -556,22 +662,27 @@ void [acl, runtime, condition, MIDDLEWARE, out];
 }
 
 /**
- * Execute the ESM runtime (`esm.mjs`), the CJS runtime (`cjs.cjs`), and the
- * NodeNext/Bundler TypeScript type checks against the installed consumer tree.
+ * Execute the ESM runtime (`esm.mjs`), the CJS runtime (`cjs.cjs`), the
+ * strict NodeNext `.mts`/`.cts` type checks, the emitted `.mts` runtime, and
+ * the Bundler TypeScript type check against the installed consumer tree.
  * The ESM smoke file was previously written but never executed, which left
- * ESM-only import failures undetected (ARF-09 finding #2). All four execution
- * paths must pass against the real release-artifact tarballs. Current-peer
- * TypeScript configs intentionally keep skipLibCheck disabled so root,
- * /advanced, and /processors declarations are checked as a real installed
- * consumer sees them. Minimum-peer runtime smoke keeps lib checking skipped to
- * avoid failing on old peer declaration internals unrelated to access-router's
- * emitted declaration graph.
+ * ESM-only import failures undetected (ARF-09 finding #2). ARH-09 extends the
+ * same gap to types: the NodeNext consumer merely voided `acl` instead of
+ * calling it, so the `.d.ts`-as-CJS default-import failure stayed hidden.
+ * All execution paths must pass against the real release-artifact tarballs.
+ * Current-peer TypeScript configs intentionally keep skipLibCheck disabled so
+ * root, /advanced, and /processors declarations are checked as a real
+ * installed consumer sees them. Minimum-peer runtime smoke keeps lib checking
+ * skipped to avoid failing on old peer declaration internals unrelated to
+ * access-router's emitted declaration graph.
  */
 function runConsumerSmokeTests(consumerDir: string, options: { fullDeclarationCheck: boolean }): void {
   writeConsumerFiles(consumerDir, options);
   run('node', ['esm.mjs'], consumerDir);
   run('node', ['cjs.cjs'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.json'], consumerDir);
+  run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.emit.json'], consumerDir);
+  run('node', ['nodenext-out/consumer.nodenext.mjs'], consumerDir);
   run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.bundler.json'], consumerDir);
 }
 
@@ -625,24 +736,48 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     expect(accessRouterManifest.types).toBe('./index.d.ts');
     expect(accessRouterManifest.exports).toEqual({
       '.': {
-        types: './index.d.ts',
+        types: {
+          import: './index.d.mts',
+          require: './index.d.ts',
+          default: './index.d.ts',
+        },
         import: './index.mjs',
         require: './index.js',
         default: './index.js',
       },
       './advanced': {
-        types: './advanced.d.ts',
+        types: {
+          import: './advanced.d.mts',
+          require: './advanced.d.ts',
+          default: './advanced.d.ts',
+        },
         import: './advanced.mjs',
         require: './advanced.js',
         default: './advanced.js',
       },
       './processors': {
-        types: './processors.d.ts',
+        types: {
+          import: './processors.d.mts',
+          require: './processors.d.ts',
+          default: './processors.d.ts',
+        },
         import: './processors.mjs',
         require: './processors.js',
         default: './processors.js',
       },
     });
+    // ARH-09: ESM consumers must resolve `.d.mts` while CJS/Bundler consumers
+    // resolve `.d.ts`, for the root and both subpaths.
+    for (const subpath of ['.', './advanced', './processors'] as const) {
+      const entry = (accessRouterManifest.exports as Record<string, Record<string, unknown>>)[subpath] as Record<
+        string,
+        unknown
+      >;
+      const types = entry.types as Record<string, string>;
+      expect(types.import).toMatch(/\.d\.mts$/);
+      expect(types.require).toMatch(/\.d\.ts$/);
+      expect(types.default).toMatch(/\.d\.ts$/);
+    }
     expect(accessRouterManifest.sideEffects).toEqual([
       './**/index.js',
       './**/index.mjs',
@@ -656,7 +791,20 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     expect(accessRouterManifest.devDependencies).toBeUndefined();
     expect(accessRouterManifest.scripts).toBeUndefined();
     expect(containsDisallowedPublishedValue(accessRouterManifest)).toBe(false);
-    for (const emitted of ['index.js', 'index.mjs', 'advanced.js', 'advanced.mjs']) {
+    for (const emitted of [
+      'index.js',
+      'index.mjs',
+      'index.d.ts',
+      'index.d.mts',
+      'advanced.js',
+      'advanced.mjs',
+      'advanced.d.ts',
+      'advanced.d.mts',
+      'processors.js',
+      'processors.mjs',
+      'processors.d.ts',
+      'processors.d.mts',
+    ]) {
       expect(existsSync(path.resolve(accessRouterPackageRoot, emitted))).toBe(true);
     }
   });

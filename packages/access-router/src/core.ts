@@ -49,7 +49,6 @@ import { Cache } from './cache';
 import { logger } from './logger';
 import { warn as warnLog } from './logger-helpers';
 import {
-  canActivateRequest,
   getGlobalPermissions,
   getResolvedRequestPermissions,
   initializeAclRequest,
@@ -65,7 +64,7 @@ import {
 import type { AccessRuntime } from './runtime';
 import { defaultRuntime } from './runtime';
 import { getActiveRuntime, runWithRuntime } from './runtime-context';
-import { callHookChain } from './core-shared';
+import { callHookChain, evaluateRouteGuard } from './core-shared';
 
 type InternalModelHookContext = ModelHookContext & {
   fieldPermissionAccess?: {
@@ -79,6 +78,7 @@ export class Core {
   private caches: {
     baseFilter: Cache<string, unknown>;
   };
+  private cachedPermissions: Permission | null = null;
 
   constructor(req: AccessRouterBaseRequest) {
     this.req = req as ModelRequest;
@@ -481,15 +481,17 @@ export class Core {
   }
 
   getPermissions() {
+    if (this.cachedPermissions) return this.cachedPermissions;
     return getResolvedRequestPermissions(this.req);
   }
 
   async setPermissions() {
     await setResolvedRequestPermissions(this.req);
+    this.cachedPermissions = getResolvedRequestPermissions(this.req);
   }
 
   async canActivate(routeGuard: Validation): Promise<boolean> {
-    return canActivateRequest(this.req, routeGuard);
+    return evaluateRouteGuard(this.req, this.getGlobalPermissions(), routeGuard);
   }
 
   async isAllowed(modelName: string, access: RouteGuardAccess | string): Promise<boolean> {
@@ -535,6 +537,7 @@ export class Core {
   }
 
   private getGlobalPermissions() {
+    if (this.cachedPermissions) return this.cachedPermissions;
     return getGlobalPermissions(this.req);
   }
 }
@@ -545,6 +548,7 @@ export const createSetCore = (runtime: AccessRuntime = defaultRuntime) => {
       await initializeAclRequest({
         req,
         flag: MIDDLEWARE,
+        runtime,
         createCore: (request) => new Core(request),
         assignCore: (core) => {
           req.macl = core;

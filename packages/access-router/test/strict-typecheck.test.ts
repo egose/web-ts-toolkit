@@ -23,8 +23,16 @@ describe('ARF-14 package strict typecheck', () => {
       'pnpm --filter @web-ts-toolkit/access-router... build && tsc --noEmit -p tsconfig.typecheck.json',
     );
 
+    // Coordinator follow-up FH-01: run `tsc` directly instead of `pnpm run
+    // typecheck` here. The `typecheck` script rebuilds `dist/` (tsup cleans
+    // the output folder), and this test runs in parallel with sibling tests
+    // that copy/import `dist/` (packed/strict consumers), so relaunching the
+    // build mid-suite intermittently wipes `dist` and flakes those tests
+    // (`Cannot find module '../dist/index.mjs'`, missing `.d.mts`). The outer
+    // `pnpm ... test` script already built `dist/` before vitest started, and
+    // the script-string contract above is still asserted unchanged.
     expect(() =>
-      execFileSync('pnpm', ['run', 'typecheck'], {
+      execFileSync('pnpm', ['exec', 'tsc', '--noEmit', '-p', 'tsconfig.typecheck.json'], {
         cwd: packageRoot,
         encoding: 'utf8',
         stdio: 'pipe',

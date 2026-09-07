@@ -298,6 +298,11 @@ export class DataRouter<TData = unknown> {
     this,
     'baseFilter',
   );
+  /**
+   * Trusted filter replacements applied before base-filter composition.
+   * They may replace ordinary filters, but cannot replace an existing `false` denial.
+   * Returning `false` denies the transaction.
+   */
   public overrideFilter: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['overrideFilter']> =
     setOption.bind(this, 'overrideFilter');
   public decorate: SetTargetOption<DataRouter<TData>, DataRouterOptions<TData>['decorate']> = setOption.bind(

@@ -23,18 +23,24 @@ export async function canActivateRequest(req: AccessRouterBaseRequest, routeGuar
 export async function initializeAclRequest<TCore>({
   req,
   flag,
+  runtime,
   createCore,
   assignCore,
 }: {
   req: AccessRouterBaseRequest;
   flag: symbol;
+  runtime: unknown;
   createCore: (req: AccessRouterBaseRequest) => TCore & {
     setPermissions(): Promise<void>;
     getPermissions(): Permission;
   };
   assignCore: (core: TCore) => void;
 }) {
-  if (req[flag]) {
+  // Runtime-owned initialization: same-runtime repeats reuse the existing core
+  // (and its base-filter cache) without rerunning resolvers. A different
+  // runtime on the same request gets independent state instead of silently
+  // reusing another runtime's core and credentials.
+  if (req[flag] === runtime) {
     return null;
   }
 
@@ -44,7 +50,7 @@ export async function initializeAclRequest<TCore>({
   assignCore(core);
   req[PERMISSIONS] = core.getPermissions();
   req[PERMISSION_KEYS] = [...req[PERMISSIONS].keys];
-  req[flag] = true;
+  req[flag] = runtime;
 
   return core;
 }

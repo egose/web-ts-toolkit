@@ -95,3 +95,101 @@ describe('ART-10 configuration and data ownership', () => {
     expect(secondResponse.body.data).toEqual([{ id: '3', name: 'replacement', public: true }]);
   });
 });
+
+describe('ARH-11 data snapshot reuse and ownership', () => {
+  it('keeps function identities and rejects fetched-snapshot mutation', () => {
+    const runtime = createAccessRuntime();
+    const dataName = `arh11-fns-${++counter}`;
+    const decorateFn = async (doc: unknown) => doc;
+    const resolveIdFilter = (id: string) => ({ id }) as never;
+
+    runtime.createDataRouter(dataName, {
+      basePath: `/arh11-fns-${counter}`,
+      idField: 'id',
+      operationAccess: { list: true, read: true },
+      data: [{ id: '1', name: 'a', public: true }],
+      permissionSchema: { id: true, name: true, public: true },
+      decorate: decorateFn as never,
+      resolveIdFilter: resolveIdFilter as never,
+    });
+
+    expect(runtime.runtime.getDataOption(dataName, 'decorate')).toBe(decorateFn);
+    expect(runtime.runtime.getDataOption(dataName, 'resolveIdFilter')).toBe(resolveIdFilter);
+
+    const snapshot = runtime.runtime.getDataOptions<{ id: string }>(dataName);
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(Object.isFrozen(snapshot.data)).toBe(true);
+    expect(Object.isFrozen(snapshot.data?.[0])).toBe(true);
+    expect(() => {
+      (snapshot.data as Array<Record<string, unknown>>)[0] = { id: 'hacked' };
+    }).toThrow(TypeError);
+    expect(() => {
+      ((snapshot.data as Array<Record<string, unknown>>)[0] as Record<string, unknown>).id = 'hacked';
+    }).toThrow(TypeError);
+    expect(runtime.runtime.getDataSnapshot<{ id: string }>(dataName)[0]).toMatchObject({ id: '1' });
+  });
+
+  it('preserves in-flight snapshot consistency during replacement', async () => {
+    const runtime = createAccessRuntime();
+    const dataName = `arh11-inflight-${++counter}`;
+    const router = runtime.createDataRouter(dataName, {
+      basePath: `/arh11-inflight-${counter}`,
+      idField: 'id',
+      operationAccess: { list: true, read: true },
+      data: [{ id: '1', name: 'before', public: true }],
+      permissionSchema: { id: true, name: true, public: true },
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.use(router.routes);
+
+    const beforeSnapshot = runtime.runtime.getDataSnapshot<{ id: string; name: string }>(dataName);
+    expect(beforeSnapshot).toHaveLength(1);
+
+    await request(app).get(`/arh11-inflight-${counter}`).expect(200);
+
+    router.data([{ id: '2', name: 'after', public: true }]);
+
+    const afterSnapshot = runtime.runtime.getDataSnapshot<{ id: string; name: string }>(dataName);
+    expect(afterSnapshot).not.toBe(beforeSnapshot);
+    // In-flight holder keeps its coherent version.
+    expect(beforeSnapshot).toEqual([{ id: '1', name: 'before', public: true }]);
+    expect(afterSnapshot).toEqual([{ id: '2', name: 'after', public: true }]);
+    expect(Object.isFrozen(beforeSnapshot)).toBe(true);
+    expect(Object.isFrozen(afterSnapshot)).toBe(true);
+
+    const response = await request(app).get(`/arh11-inflight-${counter}`).expect(200);
+    expect(response.body.data).toEqual([{ id: '2', name: 'after', public: true }]);
+  });
+
+  it('prevents decorators and response mutation from altering stored records', async () => {
+    const runtime = createAccessRuntime();
+    const dataName = `arh11-decorate-${++counter}`;
+    const router = runtime.createDataRouter(dataName, {
+      basePath: `/arh11-decorate-${counter}`,
+      idField: 'id',
+      operationAccess: { list: true, read: true },
+      data: [{ id: '1', name: 'stored', public: true }],
+      permissionSchema: { id: true, name: true, public: true },
+      async decorate(doc: Record<string, unknown>) {
+        return { ...doc, name: 'decorated' };
+      },
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.use(router.routes);
+
+    const first = await request(app).get(`/arh11-decorate-${counter}`).expect(200);
+    expect(first.body.data).toEqual([{ id: '1', name: 'decorated', public: true }]);
+
+    // Mutating the served copy must not affect the next read.
+    first.body.data[0].name = 'hacked';
+    const second = await request(app).get(`/arh11-decorate-${counter}`).expect(200);
+    expect(second.body.data).toEqual([{ id: '1', name: 'decorated', public: true }]);
+    expect(runtime.runtime.getDataSnapshot<Record<string, unknown>>(dataName)[0]).toMatchObject({
+      name: 'stored',
+    });
+  });
+});

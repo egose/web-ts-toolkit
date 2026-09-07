@@ -80,7 +80,9 @@ export type StandardSchemaInferOutput<TSchema extends StandardSchemaV1> = NonNul
 export type RequestSchemaLike<T = unknown> = RequestSchemaValidator<T> | RequestSchemaAdapter<T> | StandardSchemaV1;
 
 export type YupValidationErrorLike = {
+  name: 'ValidationError';
   message: string;
+  errors: ReadonlyArray<string>;
   path?: string;
   inner?: ReadonlyArray<YupValidationErrorLike>;
 };
@@ -131,9 +133,14 @@ export type AjvErrorObjectLike = {
   };
 };
 
-export type AjvValidatorLike<T = unknown> = {
-  (value: unknown): boolean | Promise<boolean>;
+export type AjvValidationErrorLike = {
   errors?: ReadonlyArray<AjvErrorObjectLike> | null;
+};
+
+export type AjvValidatorLike<T = unknown> = {
+  (value: unknown): boolean | Promise<T | boolean>;
+  errors?: ReadonlyArray<AjvErrorObjectLike> | null;
+  $async?: boolean;
 };
 
 export type ValibotPathItemLike = {
@@ -173,11 +180,14 @@ export type ArkTypeProblemLike = {
 
 export type ArkTypeErrorsLike = ReadonlyArray<ArkTypeProblemLike> & {
   summary?: string;
+  readonly arkKind?: string;
+  readonly ' arkKind'?: string;
 };
 
 export type ArkTypeLike<T = unknown> = {
-  (value: unknown): T | ArkTypeErrorsLike;
+  (value: unknown): T | ArkTypeErrorsLike | Promise<T | ArkTypeErrorsLike>;
   errors?: unknown;
+  readonly '~standard'?: StandardSchemaV1['~standard'];
 };
 
 export type IoTsContextEntryLike = {
@@ -226,6 +236,9 @@ export type VineValidationMessageLike = {
 };
 
 export type VineValidationErrorLike = {
+  name?: string;
+  code?: string;
+  status?: number;
   messages: ReadonlyArray<VineValidationMessageLike>;
 };
 

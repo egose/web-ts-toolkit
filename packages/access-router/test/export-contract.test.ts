@@ -1,5 +1,6 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -95,21 +96,61 @@ describe('AR-14 published export contract', () => {
     it('declares root, /advanced, and /processors subpaths', () => {
       expect(pkg.exports).toMatchObject({
         '.': expect.objectContaining({
-          types: expect.any(String),
+          types: {
+            import: expect.stringMatching(/\.d\.mts$/),
+            require: expect.stringMatching(/\.d\.ts$/),
+            default: expect.stringMatching(/\.d\.ts$/),
+          },
           import: expect.any(String),
           require: expect.any(String),
         }),
         './advanced': expect.objectContaining({
-          types: expect.any(String),
+          types: {
+            import: expect.stringMatching(/\.d\.mts$/),
+            require: expect.stringMatching(/\.d\.ts$/),
+            default: expect.stringMatching(/\.d\.ts$/),
+          },
           import: expect.any(String),
           require: expect.any(String),
         }),
         './processors': expect.objectContaining({
-          types: expect.any(String),
+          types: {
+            import: expect.stringMatching(/\.d\.mts$/),
+            require: expect.stringMatching(/\.d\.ts$/),
+            default: expect.stringMatching(/\.d\.ts$/),
+          },
           import: expect.any(String),
           require: expect.any(String),
         }),
       });
+    });
+
+    it('selects ESM/CJS declarations under their respective conditions (ARH-09)', () => {
+      expect(pkg.exports).toEqual(
+        expect.objectContaining({
+          '.': expect.objectContaining({
+            types: {
+              import: './dist/index.d.mts',
+              require: './dist/index.d.ts',
+              default: './dist/index.d.ts',
+            },
+          }),
+          './advanced': expect.objectContaining({
+            types: {
+              import: './dist/advanced.d.mts',
+              require: './dist/advanced.d.ts',
+              default: './dist/advanced.d.ts',
+            },
+          }),
+          './processors': expect.objectContaining({
+            types: {
+              import: './dist/processors.d.mts',
+              require: './dist/processors.d.ts',
+              default: './dist/processors.d.ts',
+            },
+          }),
+        }),
+      );
     });
 
     it('declares all files published by the tarball', () => {
@@ -300,7 +341,15 @@ describe('AR-14 published export contract', () => {
 
   describe('dist artifact sanity', () => {
     it('every declared dist file in exports resolves on disk', () => {
-      const targets = Object.values(pkg.exports).flatMap((entry) => Object.values(entry as Record<string, string>));
+      const collectTargets = (value: unknown): string[] => {
+        if (typeof value === 'string') return [value];
+        if (value && typeof value === 'object') {
+          return Object.values(value as Record<string, unknown>).flatMap(collectTargets);
+        }
+        return [];
+      };
+      const targets = Object.values(pkg.exports).flatMap(collectTargets);
+      expect(targets.length).toBeGreaterThan(0);
       for (const target of targets) {
         const resolved = path.resolve(packageRoot, target.replace(/^\.\//, ''));
         expect(existsSync(resolved)).toBe(true);
@@ -321,15 +370,20 @@ describe('AR-14 published export contract', () => {
 
     it('compiles a TypeScript snippet against published declarations without error', async () => {
       const ts = require('typescript') as typeof import('typescript');
+      const rootJs = path.resolve(packageRoot, 'dist/index.js');
+      const advancedJs = path.resolve(packageRoot, 'dist/advanced.js');
+      const processorsJs = path.resolve(packageRoot, 'dist/processors.js');
       const rootTypes = path.resolve(packageRoot, 'dist/index.d.ts');
       const advancedTypes = path.resolve(packageRoot, 'dist/advanced.d.ts');
       const processorsTypes = path.resolve(packageRoot, 'dist/processors.d.ts');
 
-      const tmp = '/tmp/access-router-export-contract.ts';
+      const snippetFile = path.resolve(packageRoot, 'dist/__export-contract-snippet__.ts');
       const snippet = `
-        import acl, { AccessRuntime, GuardModelCondition, RootRouterOptions } from '${rootTypes}';
-        import { AccessRuntime as AdvancedAccessRuntime, Codes } from '${advancedTypes}';
-        import { copyAndDepopulate, ProcessCopy, CopyAndDepopulateOptions, CopyAndDepopulateOutput } from '${processorsTypes}';
+        import acl, { AccessRuntime } from '${rootJs}';
+        import type { GuardModelCondition, RootRouterOptions } from '${rootTypes}';
+        import { Codes } from '${advancedJs}';
+        import { copyAndDepopulate } from '${processorsJs}';
+        import type { ProcessCopy, CopyAndDepopulateOptions, CopyAndDepopulateOutput } from '${processorsTypes}';
 
         const condition: GuardModelCondition = { modelName: 'User', id: 'x', condition: 'isAdmin' };
         const opts: RootRouterOptions = { basePath: '/api', operationAccess: true };
@@ -337,11 +391,11 @@ describe('AR-14 published export contract', () => {
         const copyOpts: CopyAndDepopulateOptions = { mutable: false };
         const copied: CopyAndDepopulateOutput = copyAndDepopulate({ a: { _id: 'a' } }, [op], copyOpts);
         const codes: unknown = Codes;
-        const runtime: typeof AdvancedAccessRuntime = AccessRuntime;
+        const runtime: typeof AccessRuntime = AccessRuntime;
         void [acl, condition, opts, op, copyOpts, copied, codes, runtime];
       `;
 
-      const program = ts.createProgram([tmp, rootTypes, advancedTypes, processorsTypes], {
+      const options: import('typescript').CompilerOptions = {
         target: ts.ScriptTarget.ESNext,
         module: ts.ModuleKind.ESNext,
         moduleResolution: ts.ModuleResolutionKind.Bundler,
@@ -349,19 +403,105 @@ describe('AR-14 published export contract', () => {
         noEmit: true,
         skipLibCheck: true,
         types: [],
-      });
+      };
+      const host = ts.createCompilerHost(options);
+      const originalGetSourceFile = host.getSourceFile.bind(host);
+      const originalFileExists = host.fileExists.bind(host);
+      const originalReadFile = host.readFile.bind(host);
+      host.getSourceFile = (fileName, languageVersion, ...rest) => {
+        if (path.resolve(fileName) === snippetFile) {
+          return ts.createSourceFile(fileName, snippet, languageVersion, true);
+        }
+        return originalGetSourceFile(fileName, languageVersion, ...rest);
+      };
+      host.fileExists = (fileName) => {
+        if (path.resolve(fileName) === snippetFile) return true;
+        return originalFileExists(fileName);
+      };
+      host.readFile = (fileName) => {
+        if (path.resolve(fileName) === snippetFile) return snippet;
+        return originalReadFile(fileName);
+      };
 
-      const diagnostics = ts
-        .getPreEmitDiagnostics(program)
-        .filter(
-          (d) =>
-            d.file?.fileName === tmp ||
-            d.file?.fileName === rootTypes ||
-            d.file?.fileName === advancedTypes ||
-            d.file?.fileName === processorsTypes,
-        );
+      const program = ts.createProgram([snippetFile, rootTypes, advancedTypes, processorsTypes], options, host);
+
+      const loaded = program.getSourceFile(snippetFile)?.text;
+      expect(loaded).toContain('copyAndDepopulate');
+
+      const diagnostics = ts.getPreEmitDiagnostics(program);
       const messages = diagnostics.map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'));
       expect(messages).toEqual([]);
+    });
+
+    it('rejects nonexistent exports from published declarations', async () => {
+      const ts = require('typescript') as typeof import('typescript');
+      const rootJs = path.resolve(packageRoot, 'dist/index.js');
+      const rootTypes = path.resolve(packageRoot, 'dist/index.d.ts');
+
+      const snippetFile = path.resolve(packageRoot, 'dist/__export-contract-negative__.ts');
+      const snippet = `import { __DoesNotExist as missing } from '${rootJs}';\nvoid missing;\n`;
+      const options: import('typescript').CompilerOptions = {
+        target: ts.ScriptTarget.ESNext,
+        module: ts.ModuleKind.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+        strict: true,
+        noEmit: true,
+        skipLibCheck: true,
+        types: [],
+      };
+      const host = ts.createCompilerHost(options);
+      const originalGetSourceFile = host.getSourceFile.bind(host);
+      const originalFileExists = host.fileExists.bind(host);
+      const originalReadFile = host.readFile.bind(host);
+      host.getSourceFile = (fileName, languageVersion, ...rest) => {
+        if (path.resolve(fileName) === snippetFile) {
+          return ts.createSourceFile(fileName, snippet, languageVersion, true);
+        }
+        return originalGetSourceFile(fileName, languageVersion, ...rest);
+      };
+      host.fileExists = (fileName) => {
+        if (path.resolve(fileName) === snippetFile) return true;
+        return originalFileExists(fileName);
+      };
+      host.readFile = (fileName) => {
+        if (path.resolve(fileName) === snippetFile) return snippet;
+        return originalReadFile(fileName);
+      };
+
+      const program = ts.createProgram([snippetFile, rootTypes], options, host);
+      expect(program.getSourceFile(snippetFile)?.text).toContain('__DoesNotExist');
+      const messages = ts
+        .getPreEmitDiagnostics(program)
+        .map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'));
+      expect(messages.length).toBeGreaterThan(0);
+      const joined = messages.join('\n');
+      expect(joined).toContain('__DoesNotExist');
+      expect(joined).not.toMatch(/declaration file cannot be imported/i);
+    });
+
+    it('reports a missing consumer source instead of passing silently', async () => {
+      const ts = require('typescript') as typeof import('typescript');
+      const rootTypes = path.resolve(packageRoot, 'dist/index.d.ts');
+      const fixtureDir = mkdtempSync(path.join(os.tmpdir(), 'access-router-export-contract-'));
+      try {
+        const missingFile = path.join(fixtureDir, 'missing-consumer.ts');
+        const program = ts.createProgram([missingFile, rootTypes], {
+          target: ts.ScriptTarget.ESNext,
+          module: ts.ModuleKind.ESNext,
+          moduleResolution: ts.ModuleResolutionKind.Bundler,
+          strict: true,
+          noEmit: true,
+          skipLibCheck: true,
+          types: [],
+        });
+        const messages = ts
+          .getPreEmitDiagnostics(program)
+          .map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'));
+        expect(messages.length).toBeGreaterThan(0);
+        expect(messages.join('\n')).toContain(missingFile);
+      } finally {
+        rmSync(fixtureDir, { recursive: true, force: true });
+      }
     });
 
     it('does not publish undeclared source files in the tarball list', () => {
@@ -428,7 +568,8 @@ describe('AR-14 published export contract', () => {
       const interfacesFile = path.resolve(packageRoot, 'src/interfaces/index.ts');
       const serviceResultFile = path.resolve(packageRoot, 'src/http/response-pipelines/service-result.ts');
       const enumsFile = path.resolve(packageRoot, 'src/enums.ts');
-      const tmp = '/tmp/access-router-arf13-type-boundary.ts';
+      const fixtureDir = mkdtempSync(path.join(os.tmpdir(), 'access-router-arf13-'));
+      const tmp = path.join(fixtureDir, 'type-boundary.ts');
 
       // The snippet deliberately imports the internal interfaces and the public
       // DTOs from the package source, then attempts three direct crossings
@@ -483,33 +624,39 @@ describe('AR-14 published export contract', () => {
           Codes.Success,
         ];
       `;
-      const fs = require('node:fs') as typeof import('node:fs');
-      fs.writeFileSync(tmp, snippet);
+      writeFileSync(tmp, snippet);
 
-      const program = ts.createProgram([tmp, interfacesFile, serviceResultFile, enumsFile], {
-        target: ts.ScriptTarget.ESNext,
-        module: ts.ModuleKind.ESNext,
-        moduleResolution: ts.ModuleResolutionKind.Bundler,
-        strict: true,
-        noEmit: true,
-        allowImportingTsExtensions: true,
-        skipLibCheck: true,
-        types: [],
-      });
+      try {
+        const program = ts.createProgram([tmp, interfacesFile, serviceResultFile, enumsFile], {
+          target: ts.ScriptTarget.ESNext,
+          module: ts.ModuleKind.ESNext,
+          moduleResolution: ts.ModuleResolutionKind.Bundler,
+          strict: true,
+          noEmit: true,
+          allowImportingTsExtensions: true,
+          skipLibCheck: true,
+          types: [],
+        });
 
-      // Only diagnostics in the consumer snippet matter; transitive source
-      // files may emit unrelated diagnostics under this stripped-down config.
-      const diagnostics = ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === tmp);
-      const messages = diagnostics.map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'));
+        expect(program.getSourceFile(tmp)?.text).toContain('toPublicListResult');
 
-      // Zero diagnostics in the snippet means: every @ts-expect-error
-      // suppressed a real error (no TS2578), every serializer crossing
-      // compiled (no TS2352/TS2741), and the public DTO brand is doing the
-      // work. Reverting the brand surfaces exactly three TS2578 "Unused
-      // '@ts-expect-error' directive" diagnostics instead.
-      expect(messages).toEqual([]);
+        // Diagnostics in the consumer snippet plus global/option diagnostics
+        // matter; transitive source files may emit unrelated diagnostics under
+        // this stripped-down config.
+        const diagnostics = ts
+          .getPreEmitDiagnostics(program)
+          .filter((d) => d.file === undefined || d.file.fileName === tmp);
+        const messages = diagnostics.map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'));
 
-      fs.rmSync(tmp, { force: true });
+        // Zero diagnostics in the snippet means: every @ts-expect-error
+        // suppressed a real error (no TS2578), every serializer crossing
+        // compiled (no TS2352/TS2741), and the public DTO brand is doing the
+        // work. Reverting the brand surfaces exactly three TS2578 "Unused
+        // '@ts-expect-error' directive" diagnostics instead.
+        expect(messages).toEqual([]);
+      } finally {
+        rmSync(fixtureDir, { recursive: true, force: true });
+      }
     });
   });
 

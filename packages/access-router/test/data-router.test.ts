@@ -943,9 +943,19 @@ describe('data router', () => {
             const data = value as { select?: unknown };
             if (data.select !== undefined && !Array.isArray(data.select)) {
               throw {
+                name: 'ValidationError',
                 message: 'Expected array',
+                errors: ['Expected array'],
                 path: 'select',
-                inner: [{ message: 'Expected array', path: 'select' }],
+                inner: [
+                  {
+                    name: 'ValidationError',
+                    message: 'Expected array',
+                    errors: ['Expected array'],
+                    path: 'select',
+                    inner: [],
+                  },
+                ],
               };
             }
 
@@ -1103,7 +1113,10 @@ describe('data router', () => {
       const data = value as { filter?: { public?: unknown } };
 
       if (data.filter && typeof data.filter.public !== 'boolean') {
-        return [{ path: ['filter', 'public'], problem: 'must be boolean' }];
+        return Object.assign([{ path: ['filter', 'public'], problem: 'must be boolean' }], {
+          arkKind: 'errors',
+          summary: 'must be boolean',
+        });
       }
 
       return data;
@@ -1232,6 +1245,10 @@ describe('data router', () => {
             const data = value as { select?: unknown };
             if (data.select !== undefined && !Array.isArray(data.select)) {
               throw {
+                name: 'ValidationError',
+                code: 'E_VALIDATION_ERROR',
+                status: 422,
+                message: 'Validation failure',
                 messages: [{ field: 'select', message: 'Expected array' }],
               };
             }

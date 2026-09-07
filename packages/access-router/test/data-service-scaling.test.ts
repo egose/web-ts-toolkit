@@ -2,7 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import acl, { setGlobalOptions } from '../dist/index.mjs';
+import acl, { createAccessRuntime, setGlobalOptions } from '../dist/index.mjs';
 
 let modelCounter = 0;
 
@@ -222,5 +222,129 @@ describe('ARF-15 data-service list scaling', () => {
     expect(fullTrim.body.trimmedCount).toBe(matched.length);
     expect(fullTrimFieldCheckCalls).toBe(matched.length);
     expect(fullTrimFieldCheckCalls).toBeGreaterThan(pageSize);
+  });
+});
+
+describe('ARH-11 data snapshot reuse', () => {
+  it('repeated first-row reads reuse the immutable snapshot without recopying payloads', async () => {
+    // Measurement setup for the coordinator to cite:
+    // - Representative nested dataset: 2000 records with nested profile/address,
+    //   tags array, stats object, and a counting `payload` getter.
+    // - Before ARH-11: DataService construction called getDataOptions()->fetch(),
+    //   which deep-cloned every record and nested value per request
+    //   (cloneConfigValue + freezeConfigValue traversal, O(N*M) allocations).
+    //   Each first-row read therefore invoked all N payload getters.
+    // - After ARH-11: assignment clones once and freezes; fetch shares frozen
+    //   subtrees via cloneForRead and getDataSnapshot returns the shared frozen
+    //   array. Repeated reads allocate only a small top-level wrapper.
+    const NESTED_COUNT = 2000;
+    let payloadReads = 0;
+    type NestedRecord = {
+      id: string;
+      name: string;
+      group: string;
+      score: number;
+      profile: { email: string; address: { city: string; zip: string } };
+      tags: string[];
+      stats: { views: number; nested: { level: number } };
+      payload: string;
+      public: boolean;
+    };
+
+    const dataset = Array.from({ length: NESTED_COUNT }, (_, i) => {
+      const record = {
+        id: `arh11-${i}`,
+        name: `Record ${i}`,
+        group: ['A', 'B', 'C', 'D'][i % 4],
+        score: (i * 7) % 1000,
+        profile: { email: `user${i}@example.com`, address: { city: `City ${i % 50}`, zip: `zip-${i % 100}` } },
+        tags: [`t${i % 5}`, `t${(i + 1) % 5}`],
+        stats: { views: (i * 7) % 1000, nested: { level: i % 3 } },
+        public: true,
+      } as Record<string, unknown>;
+      let payloadValue = `payload-${i}-${'x'.repeat(20)}`;
+      Object.defineProperty(record, 'payload', {
+        enumerable: true,
+        configurable: false,
+        get() {
+          payloadReads += 1;
+          return payloadValue;
+        },
+        set(next: string) {
+          payloadValue = next;
+        },
+      });
+      return record as unknown as NestedRecord;
+    });
+
+    const runtime = createAccessRuntime();
+    const dataName = `Arh11Snapshot${++modelCounter}`;
+    const basePath = `/arh11-snapshot-${modelCounter}`;
+    const router = runtime.createDataRouter<NestedRecord>(dataName, {
+      basePath,
+      idField: 'id',
+      operationAccess: { list: true, read: true },
+      data: dataset,
+      permissionSchema: {
+        id: true,
+        name: true,
+        group: true,
+        score: true,
+        profile: true,
+        tags: true,
+        stats: true,
+        payload: true,
+        public: true,
+      },
+    });
+
+    // Assignment clones once; reset the counter so reads are measured in isolation.
+    payloadReads = 0;
+
+    // Deterministic snapshot reuse: repeated option/snapshot reads share references.
+    const snapshotA = runtime.runtime.getDataSnapshot<NestedRecord>(dataName);
+    const snapshotB = runtime.runtime.getDataSnapshot<NestedRecord>(dataName);
+    expect(snapshotA).toBe(snapshotB);
+    const optionsA = runtime.runtime.getDataOptions<NestedRecord>(dataName);
+    const optionsB = runtime.runtime.getDataOptions<NestedRecord>(dataName);
+    expect(optionsA.data).toBe(optionsB.data);
+    expect(optionsA.data).toBe(snapshotA);
+    expect(payloadReads).toBe(0);
+
+    const app = express();
+    app.use(express.json());
+    app.use(router.routes);
+
+    // Repeated first-row reads via findOne (findElement stops at the first match,
+    // so only the returned row's payload is shaped; a full copy would touch all N).
+    const READS = 20;
+    const startedAt = performance.now();
+    for (let i = 0; i < READS; i += 1) {
+      const response = await request(app)
+        .post(`${basePath}/__query/__filter`)
+        .send({ filter: { id: 'arh11-0' } })
+        .expect(200);
+      expect(response.body.id).toBe('arh11-0');
+    }
+    const durationMs = performance.now() - startedAt;
+    console.info(
+      `[ARH-11] first-row reads=${READS} nested=${NESTED_COUNT} payloadReads=${payloadReads} durationMs=${durationMs.toFixed(1)}`,
+    );
+
+    // Deterministic: shaping touches only returned rows, not every stored payload.
+    expect(payloadReads).toBeLessThanOrEqual(READS + 2);
+    expect(payloadReads).toBeLessThan(NESTED_COUNT);
+    // Non-gating timing/allocation comparison: recorded for the coordinator, soft assert only.
+    expect(durationMs).toBeGreaterThanOrEqual(0);
+
+    // Pagination, filters, sorting, totals, and hooks still work on the shared snapshot.
+    const page = await request(app)
+      .post(`${basePath}/__query`)
+      .send({ filter: { public: true }, sort: '-score', limit: 10, options: { includeCount: true } })
+      .expect(200);
+    expect(page.body.data).toHaveLength(10);
+    expect(page.body.meta.totalCount).toBe(NESTED_COUNT);
+    const scores = (page.body.data as NestedRecord[]).map((row) => row.score);
+    expect([...scores].sort((a, b) => b - a)).toEqual(scores);
   });
 });

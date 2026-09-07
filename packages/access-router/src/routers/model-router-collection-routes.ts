@@ -141,26 +141,28 @@ export function setModelCollectionRoutes<TModel>(context: ModelRouterRouteContex
     await context.assertAllowed(req, 'create');
 
     const { include_permissions } = parseQuery(requestSchemas.createQuery, req.query);
-    const body = (await parseNestedBodyWithSchema(
+    const intermediateBody = (await parseNestedBodyWithSchema(
       advancedCreateBodySchema,
       req.body,
       'data',
       context.getRequestSchema('requestSchemas.advancedCreate.data'),
     )) as AdvancedCreateBody;
-    const { data, select, populate, tasks } = body;
-    const advancedOptions: NonNullable<AdvancedCreateBody['options']> = body.options ?? {};
-    await parseBodyWithSchema(
+    const { data: nestedData, select: nestedSelect, populate: nestedPopulate, tasks: nestedTasks } = intermediateBody;
+    const nestedOptions: NonNullable<AdvancedCreateBody['options']> = intermediateBody.options ?? {};
+    const finalBody = (await parseBodyWithSchema(
       advancedCreateBodySchema,
-      { data, select, populate, tasks, options: advancedOptions },
+      { data: nestedData, select: nestedSelect, populate: nestedPopulate, tasks: nestedTasks, options: nestedOptions },
       context.getRequestSchema('requestSchemas.advancedCreate.default') ??
         context.getRequestSchema('requestSchemas.advancedCreate'),
-    );
-    const { includePermissions, populateAccess } = advancedOptions;
+    )) as AdvancedCreateBody;
+    const { data: finalData, select: finalSelect, populate: finalPopulate, tasks: finalTasks } = finalBody;
+    const finalOptions: NonNullable<AdvancedCreateBody['options']> = finalBody.options ?? {};
+    const { includePermissions, populateAccess } = finalOptions;
 
     const svc = context.getPublicService(req);
     const result = await svc._create(
-      data as Record<string, unknown> | Record<string, unknown>[],
-      { select, populate, tasks },
+      finalData as Record<string, unknown> | Record<string, unknown>[],
+      { select: finalSelect, populate: finalPopulate, tasks: finalTasks },
       {
         includePermissions: includePermissions ?? parseBooleanString(include_permissions),
         populateAccess: populateAccess as PopulateAccess | undefined,

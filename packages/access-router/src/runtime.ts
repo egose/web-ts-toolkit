@@ -196,30 +196,30 @@ export class AccessRuntime {
   private readonly modelInstances: Record<string, mongoose.Model<unknown>> = {};
   private readonly openApiRegistry = new OpenApiRegistry();
 
-  registerModelInstance(modelName: string, model: mongoose.Model<unknown>): void {
+  registerModelInstance<TModel>(modelName: string, model: mongoose.Model<TModel>): void {
     if (!modelName || typeof modelName !== 'string') {
       throw new TypeError(`registerModelInstance: modelName must be a non-empty string, received ${typeof modelName}`);
     }
     const existing = this.modelInstances[modelName];
-    if (existing && existing !== model) {
+    if (existing && existing !== (model as unknown as mongoose.Model<unknown>)) {
       throw new Error(
         `Runtime model registry conflict: model "${modelName}" is already registered to a different mongoose.Model instance on this runtime. Use a distinct model name or a separate runtime.`,
       );
     }
-    this.modelInstances[modelName] = model;
+    this.modelInstances[modelName] = model as unknown as mongoose.Model<unknown>;
   }
 
   hasModelInstance(modelName: string): boolean {
     return modelName in this.modelInstances || (this.allowGlobalModelLookup && modelName in mongoose.models);
   }
 
-  getModelInstance(modelName: string): mongoose.Model<unknown> | null {
+  getModelInstance<TModel = unknown>(modelName: string): mongoose.Model<TModel> | null {
     const registered = this.modelInstances[modelName];
-    if (registered) return registered;
+    if (registered) return registered as unknown as mongoose.Model<TModel>;
 
     if (!this.allowGlobalModelLookup) return null;
 
-    const global = mongoose.models[modelName] as mongoose.Model<unknown> | undefined;
+    const global = mongoose.models[modelName] as unknown as mongoose.Model<TModel> | undefined;
     if (!global) return null;
 
     this.registerModelInstance(modelName, global);
@@ -534,9 +534,11 @@ export class AccessRuntime {
 
   setDataOptions<TData = unknown>(dataName: string, options: DataRouterOptions<TData>) {
     const manager = this.getOrCreateDataOptions<TData>(dataName);
-    const currentDataOptions = manager.fetch();
-
-    manager.assign({ ...currentDataOptions, ...options });
+    // ARH-11: assign directly instead of fetch-merge-assign. OptionsManager.assign
+    // shallow-merges, so the extra fetch previously recopied every stored record
+    // on each unrelated option update. Assignment clones once and freezes; reads
+    // reuse the frozen snapshot.
+    manager.assign(options);
   }
 
   setDataOption<K extends keyof DataRouterOptions<TData>, TData = unknown>(
@@ -551,7 +553,19 @@ export class AccessRuntime {
 
   getDataOptions<TData = unknown>(dataName: string) {
     const manager = this.getOrCreateDataOptions<TData>(dataName);
+    // ARH-11: fetch reuses the frozen internal data snapshot created on
+    // assignment (see OptionsManager), so per-request reads do not recopy payloads.
     return manager.fetch() as DataRouterOptions<TData>;
+  }
+
+  getDataSnapshot<TData = unknown>(dataName: string): readonly TData[] {
+    // ARH-11: return the shared immutable snapshot created on
+    // assignment/replacement without cloning records or caching query results.
+    // Replacement swaps the stored reference, so previously returned snapshots
+    // stay coherent for in-flight readers. Callers must not mutate the result.
+    const manager = this.getOrCreateDataOptions<TData>(dataName);
+    const snapshot = manager.get('data') as TData[] | undefined;
+    return (snapshot ?? []) as readonly TData[];
   }
 
   getDataOption<K extends keyof DataRouterOptions<TData>, TData = unknown>(

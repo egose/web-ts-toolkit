@@ -247,9 +247,9 @@ interface Wtt {
   setDefaultModelOption: typeof setDefaultModelOption;
   getDefaultModelOptions: typeof getDefaultModelOptions;
   getDefaultModelOption: typeof getDefaultModelOption;
-  registerModelInstance: (modelName: string, model: mongoose.Model<unknown>) => void;
+  registerModelInstance: <TModel>(modelName: string, model: mongoose.Model<TModel>) => void;
   hasModelInstance: (modelName: string) => boolean;
-  getModelInstance: (modelName: string) => mongoose.Model<unknown> | null;
+  getModelInstance: <TModel = unknown>(modelName: string) => mongoose.Model<TModel> | null;
   RootRouter: typeof RootRouter;
   ModelRouter: typeof ModelRouter;
   DataRouter: typeof DataRouter;

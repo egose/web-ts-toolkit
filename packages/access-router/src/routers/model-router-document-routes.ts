@@ -232,27 +232,35 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     const id = parsePathParam(req.params[options.idParam], options.idParam);
     const { returning_all, include_permissions } = parseQuery(requestSchemas.updateQuery, req.query);
-    const body = (await parseNestedBodyWithSchema(
+    const intermediateBody = (await parseNestedBodyWithSchema(
       advancedUpdateBodySchema,
       req.body,
       'data',
       context.getRequestSchema('requestSchemas.advancedUpdate.data'),
     )) as AdvancedUpdateBody;
-    const { data, select, populate, tasks } = body;
-    const advancedOptions: NonNullable<AdvancedUpdateBody['options']> = body.options ?? {};
-    await parseBodyWithSchema(
+    const { data: nestedData, select: nestedSelect, populate: nestedPopulate, tasks: nestedTasks } = intermediateBody;
+    const nestedOptions: NonNullable<AdvancedUpdateBody['options']> = intermediateBody.options ?? {};
+    const finalBody = (await parseBodyWithSchema(
       advancedUpdateBodySchema,
-      { data, select, populate, tasks, options: advancedOptions },
+      {
+        data: nestedData,
+        select: nestedSelect,
+        populate: nestedPopulate,
+        tasks: nestedTasks,
+        options: nestedOptions,
+      },
       context.getRequestSchema('requestSchemas.advancedUpdate.default') ??
         context.getRequestSchema('requestSchemas.advancedUpdate'),
-    );
-    const { returningAll, includePermissions, populateAccess } = advancedOptions;
+    )) as AdvancedUpdateBody;
+    const { data: finalData, select: finalSelect, populate: finalPopulate, tasks: finalTasks } = finalBody;
+    const finalOptions: NonNullable<AdvancedUpdateBody['options']> = finalBody.options ?? {};
+    const { returningAll, includePermissions, populateAccess } = finalOptions;
 
     const svc = context.getPublicService(req);
     const result = await svc._update(
       id,
-      data as Record<string, unknown>,
-      { select, populate, tasks },
+      finalData as Record<string, unknown>,
+      { select: finalSelect, populate: finalPopulate, tasks: finalTasks },
       {
         returningAll: returningAll ?? parseBooleanString(returning_all),
         includePermissions: includePermissions ?? parseBooleanString(include_permissions),
@@ -310,24 +318,32 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
 
     const svc = context.getPublicService(req);
     const { returning_all, include_permissions } = parseQuery(requestSchemas.upsertQuery, req.query);
-    const body = (await parseNestedBodyWithSchema(
+    const intermediateBody = (await parseNestedBodyWithSchema(
       advancedUpsertBodySchema,
       req.body,
       'data',
       context.getRequestSchema('requestSchemas.advancedUpsert.data'),
     )) as AdvancedUpsertBody;
-    const { data, select, populate, tasks } = body;
-    const advancedOptions: NonNullable<AdvancedUpsertBody['options']> = body.options ?? {};
-    await parseBodyWithSchema(
+    const { data: nestedData, select: nestedSelect, populate: nestedPopulate, tasks: nestedTasks } = intermediateBody;
+    const nestedOptions: NonNullable<AdvancedUpsertBody['options']> = intermediateBody.options ?? {};
+    const finalBody = (await parseBodyWithSchema(
       advancedUpsertBodySchema,
-      { data, select, populate, tasks, options: advancedOptions },
+      {
+        data: nestedData,
+        select: nestedSelect,
+        populate: nestedPopulate,
+        tasks: nestedTasks,
+        options: nestedOptions,
+      },
       context.getRequestSchema('requestSchemas.advancedUpsert.default') ??
         context.getRequestSchema('requestSchemas.advancedUpsert'),
-    );
-    const { returningAll, includePermissions, populateAccess } = advancedOptions;
+    )) as AdvancedUpsertBody;
+    const { data: finalData, select: finalSelect, populate: finalPopulate, tasks: finalTasks } = finalBody;
+    const finalOptions: NonNullable<AdvancedUpsertBody['options']> = finalBody.options ?? {};
+    const { returningAll, includePermissions, populateAccess } = finalOptions;
     const result = await svc._upsert(
-      data,
-      { select, populate, tasks },
+      finalData,
+      { select: finalSelect, populate: finalPopulate, tasks: finalTasks },
       {
         returningAll: returningAll ?? parseBooleanString(returning_all),
         includePermissions: includePermissions ?? parseBooleanString(include_permissions),

@@ -1,5 +1,4 @@
 import { formatModelCreatedResponse, unwrapServiceData } from '../http/response-pipelines/model-response';
-import { getModelSub } from '../meta';
 import type {
   Filter,
   ModelRequest,
@@ -21,7 +20,7 @@ import type { ModelRouterRouteContext } from './model-router-route-context';
 import { defineOpenApiSchemaResolver } from '../openapi/schemas';
 
 export function setModelSubDocumentRoutes<TModel>(context: ModelRouterRouteContext<TModel>) {
-  const subs = getModelSub(context.modelName);
+  const subs = context.runtime.getModelSub(context.modelName);
 
   for (let x = 0; x < subs.length; x++) {
     const sub = subs[x];
