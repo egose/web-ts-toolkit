@@ -20,6 +20,10 @@ export const getDataOptions = <TData = unknown>(dataName: string) => {
   return getRuntime().getDataOptions<TData>(dataName);
 };
 
+export const getDataSnapshot = <TData = unknown>(dataName: string): readonly TData[] => {
+  return getRuntime().getDataSnapshot<TData>(dataName);
+};
+
 export const getDataOption = <K extends keyof DataRouterOptions<TData>, TData = unknown>(
   dataName: string,
   key: K | string,

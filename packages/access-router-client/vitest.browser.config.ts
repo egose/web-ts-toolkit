@@ -9,7 +9,7 @@ import { defineConfig } from 'vitest/config';
  * built-ins and basic browser-bundling regressions. This is not a real-browser
  * engine/version compatibility gate.
  *
- * Scoped to `test/access-router-client.browser-smoke.test.ts` via the
+ * Scoped to `test/access-router-client.browser-smoke.ts` via the
  * `test:browser-smoke` package script so the rest of the suite continues to
  * run under the shared Node `vitest.config.ts` at the repo root.
  */

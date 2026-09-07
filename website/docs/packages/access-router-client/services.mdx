@@ -32,6 +32,11 @@ Model reads usually return `data` as `Model<T>` wrappers. That means read result
 - `count(axiosRequestConfig?)`
 - `countAdvanced(filter, axiosRequestConfig?)`
 
+`distinct` and `distinctAdvanced` return `Response<unknown[]>`: the sibling
+server returns raw distinct values without string conversion, so numeric and
+boolean values arrive as-is. Narrow elements (for example with
+`typeof v === 'string'`) before calling string methods.
+
 These methods map closely to the server-side model router operations.
 
 `create(...)` and `createAdvanced(...)` preserve input cardinality: one object
@@ -110,7 +115,10 @@ const users = await userService.listAdvanced(
 
 ## Subqueries
 
-Many model methods accept `sq` in their options.
+Many model methods accept `sq` in their options. `sq` is also accepted in
+adapter and service defaults for `list`, `listAdvanced`, `read`,
+`readAdvanced`, and `readAdvancedFilter`, with per-call, service, then adapter
+precedence (a per-call `sq` wins over defaults).
 
 That is a client-side way to embed another lazy request into a filter, so the server can resolve it as an `access-router` subquery.
 

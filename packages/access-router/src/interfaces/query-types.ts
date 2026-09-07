@@ -112,30 +112,32 @@ export type SelectedPopulatedPublicOutput<T, TProjection, TPopulate> = Simplify<
   SelectedPublicOutput<T, TProjection> & PopulateOutput<T, TPopulate>
 >;
 
+type Unwrap<T> = NonNullable<Descend<T>>;
+
 export type DeepFieldPath<T, Depth extends number = 4> = [Depth] extends [never]
   ? never
-  : Descend<T> extends NonTraversable
+  : Unwrap<T> extends NonTraversable
     ? never
     : {
-        [K in Extract<keyof Descend<T>, string>]:
+        [K in Extract<keyof Unwrap<T>, string>]:
           | K
-          | (Descend<T>[K] extends NonTraversable
+          | (NonNullable<Unwrap<T>[K]> extends NonTraversable
               ? never
-              : Descend<T>[K] extends readonly (infer U)[]
-                ? U extends NonTraversable
+              : NonNullable<Unwrap<T>[K]> extends readonly (infer U)[]
+                ? Unwrap<U> extends NonTraversable
                   ? never
                   : `${K}.${DeepFieldPath<U, PrevDepth[Depth]>}`
-                : Descend<T>[K] extends object
-                  ? `${K}.${DeepFieldPath<Descend<T>[K], PrevDepth[Depth]>}`
+                : NonNullable<Unwrap<T>[K]> extends object
+                  ? `${K}.${DeepFieldPath<NonNullable<Unwrap<T>[K]>, PrevDepth[Depth]>}`
                   : never);
-      }[Extract<keyof Descend<T>, string>];
+      }[Extract<keyof Unwrap<T>, string>];
 
 export type PathValue<T, TPath extends string> = TPath extends `${infer Head}.${infer Tail}`
-  ? Head extends Extract<keyof Descend<T>, string>
-    ? PathValue<Descend<Descend<T>[Head]>, Tail>
+  ? Head extends Extract<keyof Unwrap<T>, string>
+    ? PathValue<Unwrap<Unwrap<T>[Head]>, Tail>
     : unknown
-  : TPath extends Extract<keyof Descend<T>, string>
-    ? Descend<T>[TPath]
+  : TPath extends Extract<keyof Unwrap<T>, string>
+    ? Unwrap<T>[TPath]
     : unknown;
 
 type FieldFilterOperators<T> = {

@@ -182,8 +182,11 @@ export const copyAndDepopulate = <Output extends object = CopyAndDepopulateOutpu
           if (!isPlainObject(target)) return ret;
           const targetObject = target as Record<string, unknown>;
           const next = targetObject[seg];
-          if (isArray(next)) ret.push(...next);
-          else if (next !== null && next !== undefined) ret.push(next);
+          if (isArray(next)) {
+            for (const item of next) {
+              ret.push(item);
+            }
+          } else if (next !== null && next !== undefined) ret.push(next);
           return ret;
         }, []);
       }

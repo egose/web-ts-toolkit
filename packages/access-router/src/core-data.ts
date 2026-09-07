@@ -19,12 +19,12 @@ import { normalizeSelect } from './helpers';
 import { DATA_MIDDLEWARE } from './symbols';
 import { Cache } from './cache';
 import {
-  canActivateRequest,
   getGlobalPermissions,
   getResolvedRequestPermissions,
   initializeAclRequest,
   setResolvedRequestPermissions,
 } from './acl/request-context';
+import { evaluateRouteGuard } from './core-shared';
 import { resolveAccessFilterForRequest, resolveIdentifierFilterForRequest } from './acl/filter-resolution';
 import { runDecorateAllHook, runDecorateHook } from './acl/hook-runner';
 import {
@@ -41,6 +41,7 @@ export class DataCore {
   private caches: {
     baseFilter: Cache<string, Filter>;
   };
+  private cachedPermissions: Permission | null = null;
 
   constructor(req: AccessRouterBaseRequest) {
     this.req = req as DataRequest;
@@ -177,15 +178,17 @@ export class DataCore {
   }
 
   getPermissions() {
+    if (this.cachedPermissions) return this.cachedPermissions;
     return getResolvedRequestPermissions(this.req);
   }
 
   async setPermissions() {
     await setResolvedRequestPermissions(this.req);
+    this.cachedPermissions = getResolvedRequestPermissions(this.req);
   }
 
   async canActivate(routeGuard: Validation): Promise<boolean> {
-    return canActivateRequest(this.req, routeGuard);
+    return evaluateRouteGuard(this.req, this.getGlobalPermissions(), routeGuard);
   }
 
   async isAllowed(dataName: string, access: RouteGuardAccess | string): Promise<boolean> {
@@ -206,6 +209,7 @@ export class DataCore {
   }
 
   private getGlobalPermissions() {
+    if (this.cachedPermissions) return this.cachedPermissions;
     return getGlobalPermissions(this.req);
   }
 }
@@ -216,6 +220,7 @@ export const createSetDataCore = (runtime: AccessRuntime = defaultRuntime) => {
       await initializeAclRequest({
         req,
         flag: DATA_MIDDLEWARE,
+        runtime,
         createCore: (request) => new DataCore(request),
         assignCore: (core) => {
           req.dacl = core;

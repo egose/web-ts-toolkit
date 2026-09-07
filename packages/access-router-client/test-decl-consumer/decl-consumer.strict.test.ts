@@ -157,4 +157,28 @@ describe('access-router-client built-declaration consumer (ARC-15)', () => {
     // @ts-expect-error — `number` does not satisfy `extends Document`.
     createAdapter({ baseURL: 'x' }).createModelService<number>({ modelName: 'N', basePath: 'n' });
   });
+
+  it('BND-11: distinct results are unknown[] across both variants and dynamic field names', () => {
+    const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });
+    const petService = adapter.createModelService<Pet>({ modelName: 'Pet', basePath: 'pets' });
+    const dynamicField: string = ['a', 'g', 'e'].join('');
+    const direct = petService.distinct(dynamicField);
+    const filtered = petService.distinctAdvanced(dynamicField, { name: 'Max' });
+    type DirectData = Extract<Awaited<typeof direct>, { success: true }>['data'];
+    type FilteredData = Extract<Awaited<typeof filtered>, { success: true }>['data'];
+    expectTypeAssignableTo<unknown[]>([] as DirectData);
+    expectTypeAssignableTo<unknown[]>([] as FilteredData);
+    // @ts-expect-error — BND-11: distinct values are unknown, not strings.
+    expectTypeAssignableTo<string[]>([] as DirectData);
+    // @ts-expect-error — BND-11: filtered distinct values are unknown, not strings.
+    expectTypeAssignableTo<string[]>([] as FilteredData);
+    const narrow = (result: Awaited<typeof direct>): string[] => {
+      if (!result.success) return [];
+      return result.data.filter((value): value is string => typeof value === 'string');
+    };
+    expectTypeAssignableTo<string[]>(narrow({} as Awaited<typeof direct>));
+    expect(narrow).toBeDefined();
+    void direct;
+    void filtered;
+  });
 });

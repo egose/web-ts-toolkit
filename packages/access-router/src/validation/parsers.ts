@@ -22,6 +22,7 @@ import type {
   StandardSchemaIssue,
   StandardSchemaPathSegment,
   StandardSchemaResult,
+  StandardSchemaSuccess,
   StandardSchemaV1,
   StandardSchemaInferOutput,
   SuperstructFailureLike,
@@ -197,12 +198,23 @@ export function defineRequestSchema<T = unknown>(
 /**
  * Adapts a Zod schema into a `RequestSchemaValidator` for `access-router`.
  *
+ * Supports both synchronous schemas and schemas with async refinements or
+ * transforms via `safeParseAsync` when available. Synchronous schemas keep
+ * their existing output values and issue paths. Operational exceptions thrown
+ * by `safeParseAsync` itself propagate unchanged.
+ *
  * @example
  * const validator = fromZod(z.object({ name: z.string() }));
  */
 export function fromZod<TSchema extends z.ZodTypeAny>(schema: TSchema): RequestSchemaValidator<z.output<TSchema>> {
-  return (value: unknown): RequestSchemaResult<z.output<TSchema>> => {
-    const result = schema.safeParse(value);
+  return async (value: unknown): Promise<RequestSchemaResult<z.output<TSchema>>> => {
+    const candidate = schema as unknown as {
+      safeParseAsync?: (data: unknown) => Promise<ReturnType<typeof schema.safeParse>>;
+    };
+    const result =
+      typeof candidate.safeParseAsync === 'function'
+        ? await candidate.safeParseAsync.call(schema, value)
+        : schema.safeParse(value);
     if (result.success) {
       return {
         success: true,
@@ -245,6 +257,9 @@ export function fromYup<TSchema extends YupSchemaLike>(schema: TSchema): Request
         data,
       };
     } catch (error) {
+      if (!isYupValidationError(error)) {
+        throw error;
+      }
       return {
         success: false,
         issues: normalizeYupIssues(error),
@@ -270,10 +285,47 @@ export function fromJoi<TSchema extends JoiSchemaLike>(schema: TSchema): Request
   };
 }
 
+/**
+ * Adapts an AJV validator into a `RequestSchemaValidator`.
+ *
+ * Contract: synchronous validators return a boolean and expose input-local
+ * diagnostics via mutable `validator.errors`; those errors are snapshotted
+ * synchronously before any suspension so concurrent same-turn validations do
+ * not observe another input's diagnostics. Asynchronous AJV schemas
+ * (`$async: true`) return a promise that resolves with validated data on
+ * success or rejects with a `ValidationError` carrying an `errors` array on
+ * failure; rejection-carried errors are normalized, while any other rejection
+ * propagates unchanged as an operational exception.
+ */
 export function fromAjv<TValue = unknown>(validator: AjvValidatorLike<TValue>): RequestSchemaValidator<TValue> {
   return async (value: unknown): Promise<RequestSchemaResult<TValue>> => {
-    const valid = await validator(value);
-    if (valid) {
+    const outcome = validator(value);
+    if (isThenable<TValue | boolean>(outcome)) {
+      try {
+        const data = await outcome;
+        if (data === false) {
+          return {
+            success: false,
+            issues: normalizeAjvIssues(validator.errors ?? []),
+          };
+        }
+        return {
+          success: true,
+          data: (data === true ? value : data) as TValue,
+        };
+      } catch (error) {
+        if (!isAjvValidationError(error)) {
+          throw error;
+        }
+        return {
+          success: false,
+          issues: normalizeAjvIssues(error.errors ?? []),
+        };
+      }
+    }
+
+    const errorsSnapshot = validator.errors ? [...validator.errors] : [];
+    if (outcome) {
       return {
         success: true,
         data: value as TValue,
@@ -282,7 +334,7 @@ export function fromAjv<TValue = unknown>(validator: AjvValidatorLike<TValue>): 
 
     return {
       success: false,
-      issues: normalizeAjvIssues(validator.errors ?? []),
+      issues: normalizeAjvIssues(errorsSnapshot),
     };
   };
 }
@@ -307,13 +359,49 @@ export function fromValibot<TSchema, TOutput = unknown>(
   };
 }
 
+/**
+ * Adapts an ArkType type into a `RequestSchemaValidator`.
+ *
+ * Success/failure is discriminated via the supported ArkErrors brand key
+ * (`hasArkKind(result, "errors")`, stored at runtime as `' arkKind'` with a
+ * leading space; the unspaced `arkKind` alias is also accepted) or, when the
+ * type exposes a Standard Schema `~standard.validate` contract, via that
+ * contract. ArkType's Standard Schema `validate` returns `{ value }` on
+ * success but returns raw `ArkErrors` on failure instead of `{ issues }`, so
+ * both shapes are handled. Array shape and `message`/`path`-like record
+ * fields are never used as discriminators, so valid empty/scalar/record/
+ * nullable arrays pass through unchanged. Unexpected exceptions thrown by the
+ * type propagate unchanged.
+ */
 export function fromArkType<TValue = unknown>(type: ArkTypeLike<TValue>): RequestSchemaValidator<TValue> {
   return async (value: unknown): Promise<RequestSchemaResult<TValue>> => {
+    if (isStandardSchema(type)) {
+      const result = await type['~standard'].validate(value);
+      if (isArkTypeErrors(result)) {
+        return {
+          success: false,
+          issues: normalizeArkTypeIssues(result),
+        };
+      }
+
+      if (isStandardSchemaFailure(result)) {
+        return {
+          success: false,
+          issues: normalizeArkTypeStandardIssues(result.issues),
+        };
+      }
+
+      return {
+        success: true,
+        data: (result as StandardSchemaSuccess<TValue>).value as TValue,
+      };
+    }
+
     const result = await type(value);
     if (!isArkTypeErrors(result)) {
       return {
         success: true,
-        data: result,
+        data: result as TValue,
       };
     }
 
@@ -370,6 +458,9 @@ export function fromVine<TValue = unknown>(validator: VineValidatorLike<TValue>)
         data: output,
       };
     } catch (error) {
+      if (!isVineValidationError(error)) {
+        throw error;
+      }
       return {
         success: false,
         issues: normalizeVineError(error),
@@ -446,6 +537,17 @@ function normalizeArkTypeIssues(issues: ArkTypeErrorsLike): RequestSchemaIssue[]
   return normalized.length ? normalized : [{ message: issues.summary ?? 'Validation failed' }];
 }
 
+function normalizeArkTypeStandardIssues(
+  issues: ReadonlyArray<StandardSchemaIssue & { problem?: string }>,
+): RequestSchemaIssue[] {
+  const normalized = issues.map((issue) => ({
+    message: issue.message ?? issue.problem ?? 'Validation failed',
+    path: issue.path?.flatMap((segment) => normalizePathSegment(segment)),
+  }));
+
+  return normalized.length ? normalized : [{ message: 'Validation failed' }];
+}
+
 function normalizeIoTsIssues(issues: ReadonlyArray<IoTsDecodeErrorLike>): RequestSchemaIssue[] {
   return issues.map((issue) => ({
     message: issue.message ?? 'Validation failed',
@@ -492,17 +594,25 @@ function normalizeVineField(message: VineValidationMessageLike) {
   return path.length ? path : undefined;
 }
 
-function parseAjvPath(issue: AjvErrorObjectLike) {
-  const path = issue.instancePath
-    ?.split('/')
-    .filter(Boolean)
-    .map((segment) => (/^\d+$/.test(segment) ? Number(segment) : segment));
+function decodeAjvSegment(segment: string) {
+  return segment.replace(/~1/g, '/').replace(/~0/g, '~');
+}
 
-  if (issue.params?.missingProperty) {
-    return (path ?? []).concat(issue.params.missingProperty);
+function encodePointerSegment(segment: string) {
+  return encodeURIComponent(segment.replace(/~/g, '~0').replace(/\//g, '~1'));
+}
+
+function parseAjvPath(issue: AjvErrorObjectLike) {
+  const raw = issue.instancePath;
+  const base: string[] =
+    raw == null || raw === '' ? [] : (raw.startsWith('/') ? raw.slice(1) : raw).split('/').map(decodeAjvSegment);
+
+  const missing = issue.params?.missingProperty;
+  if (typeof missing === 'string') {
+    return [...base, missing];
   }
 
-  return path;
+  return base;
 }
 
 function parsePathString(path: string | undefined) {
@@ -516,15 +626,71 @@ function parsePathString(path: string | undefined) {
 }
 
 function isYupValidationError(error: unknown): error is YupValidationErrorLike {
-  return typeof error === 'object' && error !== null && 'message' in error;
+  if (typeof error !== 'object' || error === null || !('message' in error)) {
+    return false;
+  }
+
+  const candidate = error as Record<string, unknown>;
+  return (
+    candidate.name === 'ValidationError' &&
+    typeof candidate.message === 'string' &&
+    Array.isArray(candidate.errors) &&
+    Array.isArray(candidate.inner)
+  );
 }
 
 function isArkTypeErrors(value: unknown): value is ArkTypeErrorsLike {
-  return Array.isArray(value);
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  // Real ArkErrors brands itself under the runtime `arkKind` key, which is
+  // `' arkKind'` (leading space); accept the unspaced alias too for
+  // cross-version/test doubles. Never Array shape or message/path fields.
+  const record = value as Record<string, unknown>;
+  return record.arkKind === 'errors' || record[' arkKind'] === 'errors';
+}
+
+function isThenable<T>(value: unknown): value is Promise<T> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'then' in value &&
+    typeof (value as Record<string, unknown>).then === 'function'
+  );
+}
+
+function isAjvValidationError(error: unknown): error is { errors?: ReadonlyArray<AjvErrorObjectLike> | null } {
+  if (typeof error !== 'object' || error === null || !('errors' in error)) {
+    return false;
+  }
+
+  const errors = (error as Record<string, unknown>).errors;
+  return errors == null || Array.isArray(errors);
 }
 
 function isVineValidationError(error: unknown): error is VineValidationErrorLike {
-  return typeof error === 'object' && error !== null && 'messages' in error && Array.isArray(error.messages);
+  if (typeof error !== 'object' || error === null || !('messages' in error)) {
+    return false;
+  }
+
+  const candidate = error as Record<string, unknown>;
+  if (!Array.isArray(candidate.messages) || candidate.messages.length === 0) {
+    return false;
+  }
+
+  const hasDiscriminator = candidate.code === 'E_VALIDATION_ERROR' || candidate.name === 'ValidationError';
+  if (!hasDiscriminator) {
+    return false;
+  }
+
+  return candidate.messages.every(
+    (message) =>
+      typeof message === 'object' &&
+      message !== null &&
+      typeof (message as Record<string, unknown>).message === 'string' &&
+      typeof (message as Record<string, unknown>).field === 'string',
+  );
 }
 
 function formatIssue(
@@ -549,5 +715,5 @@ function formatIssue(
 }
 
 function buildPointer(path: string[]) {
-  return path.length === 0 ? '#' : `#/${path.join('/')}`;
+  return path.length === 0 ? '#' : `#/${path.map(encodePointerSegment).join('/')}`;
 }

@@ -28,6 +28,34 @@ const cloneConfigValue = <T>(value: T): T => {
   ) as T;
 };
 
+const cloneForRead = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    if (Object.isFrozen(value)) {
+      return value;
+    }
+    return value.map((item) => cloneForRead(item)) as T;
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  if (Object.getPrototypeOf(value) !== Object.prototype) {
+    return value;
+  }
+
+  if (Object.isFrozen(value)) {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([entryKey, entryValue]) => [
+      entryKey,
+      cloneForRead(entryValue),
+    ]),
+  ) as T;
+};
+
 const freezeConfigValue = <T>(value: T): T => {
   if (!value || typeof value !== 'object') {
     return value;
@@ -48,7 +76,9 @@ const freezeConfigValue = <T>(value: T): T => {
   return value;
 };
 
-export const cloneOptionsSnapshot = <T>(value: T): T => freezeConfigValue(cloneConfigValue(value));
+const cloneAndFreezeForStore = <T>(value: T): T => freezeConfigValue(cloneForRead(value));
+
+export const cloneOptionsSnapshot = <T>(value: T): T => freezeConfigValue(cloneForRead(value));
 
 export const getNestedOption = <T extends object, K extends keyof T>(
   manager: OptionsManager<object, T>,
@@ -110,20 +140,28 @@ export class OptionsManager<T1 extends object, T2 extends object> {
   set<K extends keyof T2>(key: K | string, value: T2[K]) {
     const path = toPath(key as PropertyPath);
     if (path.length <= 1) {
-      set(this.currentOptions, path, this.preserveKeys.has(String(path[0])) ? value : cloneConfigValue(value));
+      // ARH-11: store an immutable snapshot created once on assignment. Frozen
+      // plain values are safe to share, so later reads reuse them without
+      // recopying every stored payload. Function/model identities are preserved
+      // because clone helpers return non-plain values by reference.
+      set(this.currentOptions, path, this.preserveKeys.has(String(path[0])) ? value : cloneAndFreezeForStore(value));
       return;
     }
 
     const [rootKey, ...nestedPath] = path;
     const currentRoot = get(this.currentOptions, [rootKey] as PropertyPath, undefined);
     const baseRoot = isPlainObject(currentRoot) ? currentRoot : {};
+    // Copy-on-write: always deep-clone the stored (possibly frozen) root into a
+    // mutable copy so in-flight readers keep the previous frozen version.
     const nextRoot = cloneConfigValue(baseRoot as object);
-    set(nextRoot as object, nestedPath, cloneConfigValue(value));
-    set(this.currentOptions, [rootKey] as PropertyPath, nextRoot);
+    set(nextRoot as object, nestedPath, cloneForRead(value));
+    set(this.currentOptions, [rootKey] as PropertyPath, freezeConfigValue(nextRoot));
   }
 
   fetch() {
-    const cloned = cloneConfigValue(this.currentOptions) as Record<string, unknown>;
+    // ARH-11: reuse frozen internal subtrees instead of cloning all records per
+    // request. Only the top-level wrapper and unfrozen values are copied.
+    const cloned = cloneForRead(this.currentOptions) as Record<string, unknown>;
     for (const key of this.preserveKeys) {
       if (key in (this.currentOptions as Record<string, unknown>)) {
         cloned[key] = (this.currentOptions as Record<string, unknown>)[key];
@@ -134,14 +172,20 @@ export class OptionsManager<T1 extends object, T2 extends object> {
   }
 
   assign(options: T1) {
-    const cloned = cloneConfigValue(options) as Record<string, unknown>;
+    // ARH-11: clone once on assignment (reusing already-frozen input subtrees),
+    // then replace top-level keys. PreserveKeys are assigned into the unfrozen
+    // clone first and the result is frozen afterwards (same order as fetch), so
+    // writing a preserved reference such as `logger` never writes into a frozen
+    // object. Replacement keeps in-flight fetch holders on their previous
+    // coherent version.
+    const cloned = cloneForRead(options) as Record<string, unknown>;
     for (const key of this.preserveKeys) {
       if (key in (options as Record<string, unknown>)) {
         cloned[key] = (options as Record<string, unknown>)[key];
       }
     }
 
-    assign(this.currentOptions, cloned as T1);
+    assign(this.currentOptions, freezeConfigValue(cloned) as T1);
   }
 
   onchange<K extends keyof T1>(
@@ -153,7 +197,7 @@ export class OptionsManager<T1 extends object, T2 extends object> {
   }
 
   snapshot(): T1 {
-    const cloned = cloneConfigValue(this.currentOptions) as Record<string, unknown>;
+    const cloned = cloneForRead(this.currentOptions) as Record<string, unknown>;
     for (const key of this.preserveKeys) {
       if (key in (this.currentOptions as Record<string, unknown>)) {
         cloned[key] = (this.currentOptions as Record<string, unknown>)[key];
@@ -170,12 +214,12 @@ export class OptionsManager<T1 extends object, T2 extends object> {
         delete current[key];
       }
     }
-    const cloned = cloneConfigValue(snap) as Record<string, unknown>;
+    const cloned = cloneForRead(snap) as Record<string, unknown>;
     for (const key of this.preserveKeys) {
       if (key in snap) {
         cloned[key] = snap[key];
       }
     }
-    assign(current as T1, cloned as T1);
+    assign(current as T1, freezeConfigValue(cloned) as T1);
   }
 }

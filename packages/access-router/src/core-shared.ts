@@ -14,6 +14,7 @@ import { Cache } from './cache';
 import { createValidator } from './helpers';
 import { AccessRouterBaseRequest, Filter, Validation } from './interfaces';
 import { getGlobalOption } from './options';
+import { getActiveRuntime } from './runtime-context';
 import Permission, { Permissions } from './permission';
 
 type OptionGetter = (key: string, defaultValue?: unknown) => unknown;
@@ -155,12 +156,14 @@ export async function resolveAccessFilter<T = unknown>({
   let nextFilter = normalizeFilter<T>(filter);
 
   const overrideFilterFn = getOption(`overrideFilter.${access}`, null);
-  if (isFunction(overrideFilterFn)) {
+  if (nextFilter !== false && isFunction(overrideFilterFn)) {
     nextFilter = normalizeFilter<T>(await overrideFilterFn.call(req, nextFilter, permissions));
   }
 
+  if (nextFilter === false) return false;
+
   const baseFilterFn = getOption(`baseFilter.${access}`, null);
-  if (!isFunction(baseFilterFn)) return nextFilter || {};
+  if (!isFunction(baseFilterFn)) return nextFilter ?? {};
 
   const baseFilter = normalizeFilter<T>(
     (cache.has(cacheKey) ? cache.get(cacheKey) : await baseFilterFn.call(req, permissions)) as
@@ -174,7 +177,7 @@ export async function resolveAccessFilter<T = unknown>({
   }
 
   if (baseFilter === false) return false;
-  if (!baseFilter) return nextFilter || {};
+  if (!baseFilter) return nextFilter ?? {};
   if (!nextFilter) return baseFilter;
 
   return optimizeAndFilter<T>([baseFilter, nextFilter]);
@@ -185,9 +188,33 @@ export function getRequestPermissions(req: AccessRouterBaseRequest) {
   return new Permission((req[requestPermissionField] as { [key: string]: boolean }) || {});
 }
 
+// Tracks which runtime populated the request permission field so a shared
+// request gets independent runtime-owned state. A field value present without
+// a recorded owner is treated as application-supplied and preserved.
+const permissionFieldOwners = new WeakMap<object, Map<string, unknown>>();
+
+function getPermissionFieldOwnerMap(req: AccessRouterBaseRequest): Map<string, unknown> {
+  let owners = permissionFieldOwners.get(req);
+  if (!owners) {
+    owners = new Map<string, unknown>();
+    permissionFieldOwners.set(req, owners);
+  }
+  return owners;
+}
+
 export async function setRequestPermissions(req: AccessRouterBaseRequest) {
-  const requestPermissionField = getGlobalOption('requestPermissionField');
-  if (req[requestPermissionField]) return;
+  const requestPermissionField = getGlobalOption('requestPermissionField') as string;
+  const activeRuntime = getActiveRuntime();
+  const owners = getPermissionFieldOwnerMap(req);
+  const owner = owners.get(requestPermissionField);
+  const hasFieldValue = Boolean(req[requestPermissionField]);
+
+  // Same runtime already resolved (or attempted) this field: do not rerun.
+  if (owner === activeRuntime) return;
+  // Application-supplied value with no runtime owner: preserve it.
+  if (hasFieldValue && owner === undefined) return;
+  // Otherwise the field is absent (first resolution) or owned by another
+  // runtime on this shared request: resolve independently and take ownership.
 
   const globalPermissions = getGlobalOption('globalPermissions');
   if (!isFunction(globalPermissions)) return;
@@ -196,6 +223,8 @@ export async function setRequestPermissions(req: AccessRouterBaseRequest) {
   if (isPlainObject(permissions)) req[requestPermissionField] = permissions;
   else if (isArray(permissions)) req[requestPermissionField] = arrayToRecord(permissions as string[]);
   else if (isString(permissions)) req[requestPermissionField] = { [permissions]: true };
+
+  owners.set(requestPermissionField, activeRuntime);
 }
 
 export async function evaluateRouteGuard(

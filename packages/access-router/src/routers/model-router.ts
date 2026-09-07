@@ -58,8 +58,8 @@ export class ModelRouter<TModel = unknown> {
     this.logEndpoints();
   }
 
-  static fromModel<TModel = unknown>(
-    model: mongoose.Model<unknown>,
+  static fromModel<TModel>(
+    model: mongoose.Model<TModel>,
     initialOptions: ModelRouterOptions<TModel>,
     runtime: AccessRuntime = defaultRuntime,
   ): ModelRouter<TModel> {
@@ -100,6 +100,7 @@ export class ModelRouter<TModel = unknown> {
       modelName: this.modelName,
       router: this.router,
       options: this.options,
+      runtime: this.runtime,
       getRequestSchema: this.getRequestSchema.bind(this),
       getPublicService: this.getPublicService.bind(this),
       assertAllowed: this.assertAllowed.bind(this),
@@ -115,6 +116,7 @@ export class ModelRouter<TModel = unknown> {
       modelName: this.modelName,
       router: this.router,
       options: this.options,
+      runtime: this.runtime,
       getRequestSchema: this.getRequestSchema.bind(this),
       getPublicService: this.getPublicService.bind(this),
       assertAllowed: this.assertAllowed.bind(this),
@@ -130,6 +132,7 @@ export class ModelRouter<TModel = unknown> {
       modelName: this.modelName,
       router: this.router,
       options: this.options,
+      runtime: this.runtime,
       getRequestSchema: this.getRequestSchema.bind(this),
       getPublicService: this.getPublicService.bind(this),
       assertAllowed: this.assertAllowed.bind(this),
@@ -229,7 +232,9 @@ export class ModelRouter<TModel = unknown> {
   );
 
   /**
-   * The override filter definitions applied in every query transaction.
+   * Trusted filter replacements applied before base-filter composition.
+   * They may replace ordinary filters, but cannot replace an existing `false` denial.
+   * Returning `false` denies the transaction.
    * @operation `list`, `read`, `update`, `delete`
    */
   public overrideFilter: SetTargetOption<ModelRouter<TModel>, ModelRouterOptions<TModel>['overrideFilter']> =

@@ -80,8 +80,9 @@ When `cacheTTL > 0`, `createAdapter(...)` returns an adapter exposing
 Credentialed requests are NEVER cached unless `cachePartition` is configured,
 to prevent one identity from receiving a response created under another. The
 partition token must be a stable, non-secret value (for example a user id or
-tenant id); sensitive headers (`authorization`, `cookie`, `set-cookie`,
-`proxy-authorization`, `www-authenticate`) are excluded from cache keys
+tenant id); sensitive headers (`authorization`, `cookie`,
+`proxy-authorization`, `x-api-key`, `x-auth-token`, `x-access-token`,
+`set-cookie`, `www-authenticate`) are excluded from cache keys
 regardless of the partition token.
 
 Browser cookie credentials controlled by `withCredentials`/CORS/cookie policy,

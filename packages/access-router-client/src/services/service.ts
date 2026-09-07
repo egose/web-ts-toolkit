@@ -2,6 +2,7 @@ import { AxiosHeaders, AxiosResponse, AxiosRequestConfig, AxiosInstance } from '
 import { FailureResult, Response } from '../types';
 import { CACHE_HEADER } from '../constants';
 import { createWrapHelper } from './wrap';
+import { hasCacheControlHeader } from './interceptors';
 
 /**
  * Normalized failure payload. Mirrors {@link FailureResult} but kept
@@ -266,7 +267,9 @@ export class Service {
       return cloned;
     }
 
-    if (CACHE_HEADER in headers) return headers;
+    // Case-insensitive precedence shared with the interceptor bypass rule:
+    // an explicit caller override in any letter case wins over ignoreCache.
+    if (hasCacheControlHeader(headers)) return headers;
 
     return {
       ...headers,

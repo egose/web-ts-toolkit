@@ -443,4 +443,132 @@ describe('model router sub-document routes', () => {
       });
     }
   });
+
+  // ARH-03: subdocument routes must be discovered from the owning runtime.
+  // These tests perform no persistence I/O: routers are constructed from
+  // unconnected `mongoose.createConnection()` models and asserted via
+  // endpoint snapshots and the owning runtime's OpenAPI registry only.
+  describe('ARH-03 owning-runtime subdocument route discovery', () => {
+    let arh03Counter = 0;
+
+    const getEndpointPaths = (modelRouter: { router: { getEndpoints(): Array<{ path: string }> } }) =>
+      modelRouter.router.getEndpoints().map((entry) => entry.path);
+
+    const getOperationIds = (api: ReturnType<typeof createAccessRuntime>) =>
+      api.runtime.getOpenApiRoutes().map((route) => route.operationId);
+
+    afterEach(() => {
+      mongoose.deleteModel(/AclArh03.*/);
+    });
+
+    it('generates subdocument endpoints from an isolated unconnected connection model without a database server', async () => {
+      const api = createAccessRuntime();
+      const modelName = `AclArh03Iso${++arh03Counter}`;
+      const conn = mongoose.createConnection();
+      try {
+        const commentSchema = new mongoose.Schema({ body: String, votes: Number });
+        const schema = new mongoose.Schema({ title: String, comments: [commentSchema] });
+        const IsolatedPost = conn.model(modelName, schema);
+
+        const modelRouter = api.createRouter(IsolatedPost, {
+          basePath: '/arh03-iso-posts',
+          operationAccess: {
+            read: true,
+            subs: { comments: { list: true, read: true, create: true, update: true, delete: true } },
+          },
+          permissionSchema: { title: { read: true } },
+        });
+
+        // Isolated model must not leak into the global mongoose registry.
+        expect(mongoose.models[modelName]).toBeUndefined();
+        expect(api.runtime.getModelInstance(modelName)).toBe(IsolatedPost);
+        expect(api.runtime.getModelSub(modelName)).toEqual(['comments']);
+
+        const paths = getEndpointPaths(modelRouter);
+        expect(paths.some((path) => path.includes('/comments'))).toBe(true);
+        expect(paths.some((path) => path.includes('/reviews'))).toBe(false);
+
+        const operationIds = getOperationIds(api);
+        for (const suffix of [
+          'list',
+          'listAdvanced',
+          'bulkUpdate',
+          'read',
+          'readAdvanced',
+          'update',
+          'create',
+          'delete',
+        ]) {
+          expect(operationIds).toContain(`${modelName}.comments.${suffix}`);
+        }
+      } finally {
+        await conn.destroy();
+      }
+    });
+
+    it.each([['global-first'], ['isolated-first']] as Array<['global-first' | 'isolated-first']>)(
+      'same-name global and isolated models diverge by owning runtime (order: %s)',
+      async (order) => {
+        const sharedName = `AclArh03Shared${++arh03Counter}`;
+        const isolatedConn = mongoose.createConnection();
+        try {
+          const globalSchema = new mongoose.Schema({
+            title: String,
+            comments: [new mongoose.Schema({ body: String })],
+          });
+          const isolatedSchema = new mongoose.Schema({
+            title: String,
+            reviews: [new mongoose.Schema({ score: Number })],
+          });
+
+          const GlobalPost = mongoose.model(sharedName, globalSchema);
+          const IsolatedPost = isolatedConn.model(sharedName, isolatedSchema);
+
+          const globalApi = createAccessRuntime();
+          const isolatedApi = createAccessRuntime();
+          const routerOptions = (sub: string) => ({
+            basePath: `/arh03-${sub}`,
+            operationAccess: {
+              read: true,
+              subs: { [sub]: { list: true, read: true, create: true, update: true, delete: true } },
+            },
+            permissionSchema: { title: { read: true } },
+          });
+
+          let globalRouter: ReturnType<typeof globalApi.createRouter>;
+          let isolatedRouter: ReturnType<typeof isolatedApi.createRouter>;
+          if (order === 'global-first') {
+            globalRouter = globalApi.createRouter(GlobalPost, routerOptions('comments'));
+            isolatedRouter = isolatedApi.createRouter(IsolatedPost, routerOptions('reviews'));
+          } else {
+            isolatedRouter = isolatedApi.createRouter(IsolatedPost, routerOptions('reviews'));
+            globalRouter = globalApi.createRouter(GlobalPost, routerOptions('comments'));
+          }
+
+          // Owning runtimes keep distinct model instances and metadata caches.
+          expect(globalApi.runtime.getModelInstance(sharedName)).toBe(GlobalPost);
+          expect(isolatedApi.runtime.getModelInstance(sharedName)).toBe(IsolatedPost);
+          expect(mongoose.models[sharedName]).toBe(GlobalPost);
+          expect(globalApi.runtime.getModelSub(sharedName)).toEqual(['comments']);
+          expect(isolatedApi.runtime.getModelSub(sharedName)).toEqual(['reviews']);
+
+          const globalPaths = getEndpointPaths(globalRouter);
+          const isolatedPaths = getEndpointPaths(isolatedRouter);
+          expect(globalPaths.some((path) => path.includes('/comments'))).toBe(true);
+          expect(globalPaths.some((path) => path.includes('/reviews'))).toBe(false);
+          expect(isolatedPaths.some((path) => path.includes('/reviews'))).toBe(true);
+          expect(isolatedPaths.some((path) => path.includes('/comments'))).toBe(false);
+
+          const globalOperationIds = getOperationIds(globalApi);
+          const isolatedOperationIds = getOperationIds(isolatedApi);
+          expect(globalOperationIds).toContain(`${sharedName}.comments.list`);
+          expect(globalOperationIds.some((id) => id?.includes('.reviews.'))).toBe(false);
+          expect(isolatedOperationIds).toContain(`${sharedName}.reviews.list`);
+          expect(isolatedOperationIds.some((id) => id?.includes('.comments.'))).toBe(false);
+        } finally {
+          await isolatedConn.destroy();
+        }
+      },
+    );
+  });
 });

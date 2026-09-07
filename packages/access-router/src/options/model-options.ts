@@ -44,7 +44,7 @@ export const getModelJsonSchema = (modelName: string) => {
   return getRuntime().getModelJsonSchema(modelName);
 };
 
-export const registerModelInstance = (modelName: string, model: mongoose.Model<unknown>): void => {
+export const registerModelInstance = <TModel>(modelName: string, model: mongoose.Model<TModel>): void => {
   getRuntime().registerModelInstance(modelName, model);
 };
 
@@ -52,6 +52,6 @@ export const hasModelInstance = (modelName: string): boolean => {
   return getRuntime().hasModelInstance(modelName);
 };
 
-export const getModelInstance = (modelName: string): mongoose.Model<unknown> | null => {
-  return getRuntime().getModelInstance(modelName);
+export const getModelInstance = <TModel = unknown>(modelName: string): mongoose.Model<TModel> | null => {
+  return getRuntime().getModelInstance<TModel>(modelName);
 };

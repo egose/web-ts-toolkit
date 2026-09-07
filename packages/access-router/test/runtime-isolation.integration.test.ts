@@ -415,4 +415,222 @@ describe('AR-11 runtime model ownership isolation', () => {
     await connA.destroy();
     await connB.destroy();
   });
+
+  // ARH-02: shared-request runtime isolation. A single request traversing
+  // runtime A then runtime B must use B's independent permissions and
+  // base-filter cache at B's boundary, never A's grants. Same-runtime repeats
+  // stay idempotent; application-supplied fields are preserved.
+  describe('ARH-02 shared-request runtime-owned state', () => {
+    it('shared model/model request cannot reuse runtime A grants under runtime B policy', async () => {
+      const runtimeA = createAccessRuntime();
+      const runtimeB = createAccessRuntime();
+      runtimeA.setGlobalOptions({
+        requestPermissionField: '_permissions',
+        globalPermissions: () => ['permA'],
+      });
+      runtimeB.setGlobalOptions({
+        requestPermissionField: '_permissions',
+        globalPermissions: () => ['permB'],
+      });
+
+      const modelName = `Arh02SharedModel${++modelCounter}`;
+      const schema = new mongoose.Schema({ name: String });
+      const model = mongoose.model(modelName, schema);
+      runtimeB.createRouter(model, {
+        basePath: '/arh02-users',
+        operationAccess: { list: 'permA', read: 'permB' },
+        permissionSchema: { name: true },
+      });
+
+      const mwA = (runtimeA as unknown as () => express.RequestHandler)();
+      const mwB = (runtimeB as unknown as () => express.RequestHandler)();
+      const app = express();
+      app.use(express.json());
+      app.use(mwA);
+      app.use(mwB);
+      app.get('/check', async (req, res) => {
+        const macl = (req as unknown as { macl: { isAllowed(n: string, op: string): Promise<boolean> } }).macl;
+        const listAllowed = await macl.isAllowed(modelName, 'list');
+        const readAllowed = await macl.isAllowed(modelName, 'read');
+        res.json({ listAllowed, readAllowed });
+      });
+
+      const response = await request(app).get('/check').expect(200);
+      // list requires permA (only A has it): B must deny.
+      expect(response.body.listAllowed).toBe(false);
+      // read requires permB (only B resolves it): B must allow.
+      expect(response.body.readAllowed).toBe(true);
+    });
+
+    it('warmed same-name base-filter cache does not leak across runtimes on a shared request', async () => {
+      const runtimeA = createAccessRuntime();
+      const runtimeB = createAccessRuntime();
+      runtimeA.setGlobalOptions({
+        requestPermissionField: '_permissions',
+        globalPermissions: () => ['isAdmin'],
+      });
+      runtimeB.setGlobalOptions({
+        requestPermissionField: '_permissions',
+        globalPermissions: () => ['isAdmin'],
+      });
+
+      const modelName = `Arh02SharedFilter${++modelCounter}`;
+      const schema = new mongoose.Schema({ name: String, public: Boolean });
+      const model = mongoose.model(modelName, schema);
+      runtimeA.createRouter(model, {
+        basePath: '/arh02-a',
+        operationAccess: { list: true, read: true },
+        permissionSchema: { name: true, public: true },
+        baseFilter: { list: () => ({ public: true }) },
+      });
+      runtimeB.createRouter(model, {
+        basePath: '/arh02-b',
+        operationAccess: { list: true, read: true },
+        permissionSchema: { name: true, public: true },
+        baseFilter: { list: () => ({ public: false }) },
+      });
+
+      const mwA = (runtimeA as unknown as () => express.RequestHandler)();
+      const mwB = (runtimeB as unknown as () => express.RequestHandler)();
+      const app = express();
+      app.use(express.json());
+      app.use(mwA);
+      app.use(async (req, _res, next) => {
+        // Warm A's per-request base-filter cache for this model/access.
+        const macl = (req as unknown as { macl: { genFilter(n: string, op: string): Promise<unknown> } }).macl;
+        await macl.genFilter(modelName, 'list');
+        next();
+      });
+      app.use(mwB);
+      app.get('/check', async (req, res) => {
+        const macl = (req as unknown as { macl: { genFilter(n: string, op: string): Promise<unknown> } }).macl;
+        res.json({ filter: await macl.genFilter(modelName, 'list') });
+      });
+
+      const response = await request(app).get('/check').expect(200);
+      expect(response.body.filter).toEqual({ public: false });
+    });
+
+    it('shared model/data and model/root transitions use the second runtime credentials', async () => {
+      const runtimeA = createAccessRuntime();
+      const runtimeB = createAccessRuntime();
+      runtimeA.setGlobalOptions({
+        requestPermissionField: '_permissions',
+        globalPermissions: () => ['permA'],
+      });
+      runtimeB.setGlobalOptions({
+        requestPermissionField: '_permissions',
+        globalPermissions: () => ['permB'],
+      });
+
+      const dataName = `Arh02SharedData${++modelCounter}`;
+      runtimeB.createDataRouter(dataName, {
+        basePath: '/arh02-fruit',
+        idField: 'id',
+        data: [{ id: 'a1', name: 'Apple' }],
+        operationAccess: { list: 'permA', read: 'permB' },
+        permissionSchema: { id: true, name: true },
+      });
+      const rootB = runtimeB.createRouter({ basePath: '/arh02-root', operationAccess: true });
+
+      const mwA = (runtimeA as unknown as () => express.RequestHandler)();
+      const app = express();
+      app.use(express.json());
+      app.use(mwA);
+      app.use(rootB.routes);
+
+      // list requires permA (A-only): B's data boundary must deny.
+      const denied = await request(app)
+        .post('/arh02-root')
+        .send([{ target: 'data', name: dataName, op: 'list' }])
+        .expect(200);
+      expect(denied.body[0]).toMatchObject({ statusCode: 401 });
+
+      // read requires permB (B resolves it): B's data boundary must allow.
+      const allowed = await request(app)
+        .post('/arh02-root')
+        .send([{ target: 'data', name: dataName, op: 'read', id: 'a1' }])
+        .expect(200);
+      expect(allowed.body[0]).toMatchObject({ statusCode: 200 });
+    });
+
+    it('preserves application-supplied request permissions across runtimes', async () => {
+      const runtimeA = createAccessRuntime();
+      const runtimeB = createAccessRuntime();
+      runtimeA.setGlobalOptions({
+        requestPermissionField: '_permissions',
+        globalPermissions: () => ['permA'],
+      });
+      runtimeB.setGlobalOptions({
+        requestPermissionField: '_permissions',
+        globalPermissions: () => ['permB'],
+      });
+
+      const modelName = `Arh02AppSupplied${++modelCounter}`;
+      const schema = new mongoose.Schema({ name: String });
+      const model = mongoose.model(modelName, schema);
+      runtimeB.createRouter(model, {
+        basePath: '/arh02-app',
+        operationAccess: { list: 'appGrant', read: 'permB' },
+        permissionSchema: { name: true },
+      });
+
+      const mwA = (runtimeA as unknown as () => express.RequestHandler)();
+      const mwB = (runtimeB as unknown as () => express.RequestHandler)();
+      const app = express();
+      app.use(express.json());
+      app.use((req, _res, next) => {
+        (req as unknown as Record<string, unknown>)._permissions = { appGrant: true };
+        next();
+      });
+      app.use(mwA);
+      app.use(mwB);
+      app.get('/check', async (req, res) => {
+        const macl = (req as unknown as { macl: { isAllowed(n: string, op: string): Promise<boolean> } }).macl;
+        res.json({
+          listAllowed: await macl.isAllowed(modelName, 'list'),
+          readAllowed: await macl.isAllowed(modelName, 'read'),
+        });
+      });
+
+      const response = await request(app).get('/check').expect(200);
+      expect(response.body.listAllowed).toBe(true);
+      expect(response.body.readAllowed).toBe(false);
+    });
+
+    it('same-runtime repeated middleware does not rerun its resolver', async () => {
+      const runtime = createAccessRuntime();
+      let calls = 0;
+      runtime.setGlobalOptions({
+        requestPermissionField: '_permissions',
+        globalPermissions: () => {
+          calls += 1;
+          return ['permA'];
+        },
+      });
+
+      const modelName = `Arh02Repeat${++modelCounter}`;
+      const schema = new mongoose.Schema({ name: String });
+      const model = mongoose.model(modelName, schema);
+      runtime.createRouter(model, {
+        basePath: '/arh02-repeat',
+        operationAccess: { list: 'permA' },
+        permissionSchema: { name: true },
+      });
+
+      const mw = (runtime as unknown as () => express.RequestHandler)();
+      const app = express();
+      app.use(express.json());
+      app.use(mw);
+      app.use(mw);
+      app.get('/check', async (req, res) => {
+        const macl = (req as unknown as { macl: { isAllowed(n: string, op: string): Promise<boolean> } }).macl;
+        res.json({ allowed: await macl.isAllowed(modelName, 'list') });
+      });
+
+      const response = await request(app).get('/check').expect(200);
+      expect(response.body.allowed).toBe(true);
+      expect(calls).toBe(1);
+    });
+  });
 });

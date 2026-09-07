@@ -25,19 +25,31 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.ts",
+        "default": "./dist/index.d.ts"
+      },
       "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./advanced": {
-      "types": "./dist/advanced.d.ts",
+      "types": {
+        "import": "./dist/advanced.d.mts",
+        "require": "./dist/advanced.d.ts",
+        "default": "./dist/advanced.d.ts"
+      },
       "import": "./dist/advanced.mjs",
       "require": "./dist/advanced.js",
       "default": "./dist/advanced.js"
     },
     "./processors": {
-      "types": "./dist/processors.d.ts",
+      "types": {
+        "import": "./dist/processors.d.mts",
+        "require": "./dist/processors.d.ts",
+        "default": "./dist/processors.d.ts"
+      },
       "import": "./dist/processors.mjs",
       "require": "./dist/processors.js",
       "default": "./dist/processors.js"
@@ -71,6 +83,8 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "ajv": "^8.20.0",
+    "arktype": "^2.2.0",
     "esbuild": "^0.28.0",
     "express": "^5.2.1",
     "mongodb-memory-server": "^11.2.0",

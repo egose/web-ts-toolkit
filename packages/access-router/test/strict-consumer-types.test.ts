@@ -99,7 +99,19 @@ describe('ARF-14 strict packed-consumer types', () => {
     const sourceFile = path.resolve(consumerDir, 'strict-consumer.ts');
     const tsconfigPath = path.resolve(consumerDir, 'tsconfig.strict-consumer.json');
     const snippet = `
-      import { createAccessRuntime, guard, type GuardModelCondition } from '@web-ts-toolkit/access-router';
+      import acl, {
+        ModelRouter,
+        createAccessRuntime,
+        getModelInstance,
+        guard,
+        registerModelInstance,
+        type ExtendedModelRouterOptions,
+        type GuardModelCondition,
+        type ModelDocumentHook,
+        type ModelHook,
+        type ModelListHook,
+        type ModelRouterOptions,
+      } from '@web-ts-toolkit/access-router';
       import { Codes, type Filter, type Projection, type SelectedPublicOutput } from '@web-ts-toolkit/access-router/advanced';
       import {
         copyAndDepopulate,
@@ -107,12 +119,21 @@ describe('ARF-14 strict packed-consumer types', () => {
         type CopyAndDepopulateOutput,
         type ProcessCopy,
       } from '@web-ts-toolkit/access-router/processors';
+      import mongoose from 'mongoose';
 
       type User = {
         name: string;
         age: number;
         profile: { email: string; active: boolean };
         tags: Array<{ label: string }>;
+      };
+
+      type OptUser = {
+        name: string;
+        age: number;
+        profile?: { email: string; active: boolean } | null;
+        tags?: Array<{ label: string }> | null;
+        meta?: { count: number; note?: string | null } | null;
       };
 
       const runtime = createAccessRuntime();
@@ -135,6 +156,133 @@ describe('ARF-14 strict packed-consumer types', () => {
         name: 'Ada',
         profile: { email: 'ada@example.com' },
       };
+
+      const UserSchema = new mongoose.Schema(
+        { name: { type: String, required: true }, age: { type: Number, required: true } },
+        { strict: false },
+      );
+      const UserModel = mongoose.model<User>('ARH10User', UserSchema);
+
+      registerModelInstance('ARH10User', UserModel);
+      acl.registerModelInstance('ARH10User', UserModel);
+      runtime.registerModelInstance('ARH10User', UserModel);
+      const namedRetrieved: mongoose.Model<User> | null = getModelInstance<User>('ARH10User');
+      const facadeRetrieved: mongoose.Model<User> | null = acl.getModelInstance<User>('ARH10User');
+      const runtimeRetrieved: mongoose.Model<User> | null = runtime.getModelInstance<User>('ARH10User');
+
+      const typedRouter = acl.createRouter(UserModel, { permissionSchema: { name: true } });
+      const typedRouterCheck: ModelRouter<User> = typedRouter;
+      const inferredRouter = ModelRouter.fromModel(UserModel, { permissionSchema: { age: true } });
+      const inferredCheck: ModelRouter<User> = inferredRouter;
+      // @ts-expect-error fromModel must infer User, not an unrelated shape
+      const inferredMismatch: ModelRouter<{ unrelated: number }> = inferredRouter;
+
+      const decorateValid: ModelHook<User> = function (value) {
+        void value.name;
+        return value;
+      };
+      const decorateBad: ModelHook<User> = function (value) {
+        // @ts-expect-error unknown hook field must fail
+        void value.missing;
+        return value;
+      };
+      const listValid: ModelListHook<User> = function (value) {
+        void value[0].name;
+        return value;
+      };
+      const listBad: ModelListHook<User> = function (value) {
+        // @ts-expect-error unknown list hook field must fail
+        void value[0].missing;
+        return value;
+      };
+      const docValid: ModelDocumentHook<User> = function (value) {
+        void value.name;
+        return value;
+      };
+      const docBad: ModelDocumentHook<User> = function (value) {
+        // @ts-expect-error unknown document hook field must fail
+        void value.missing;
+        return value;
+      };
+
+      const modelOpts: ModelRouterOptions<User> = {
+        decorate: function (value) {
+          void value.name;
+          return value;
+        },
+        decorateAll: function (value) {
+          void value[0].name;
+          return value;
+        },
+        transform: function (value) {
+          void value.name;
+          return value;
+        },
+        afterPersist: function (value) {
+          void value.age;
+          return value;
+        },
+      };
+
+      const dottedOpts: ExtendedModelRouterOptions<User> = {
+        'decorate.list': function (value) {
+          void value.name;
+          return value;
+        },
+        'decorateAll.list': function (value) {
+          void value[0].age;
+          return value;
+        },
+        'prepare.create': function (value) {
+          void value.age;
+          return value;
+        },
+        'transform.update': function (value) {
+          void value.name;
+          return value;
+        },
+        'afterPersist.create': function (value) {
+          void value.age;
+          return value;
+        },
+      };
+      const dottedBad: ExtendedModelRouterOptions<User> = {
+        'decorate.list': function (value) {
+          // @ts-expect-error dotted hook must reject unknown field
+          void value.missing;
+          return value;
+        },
+      };
+
+      typedRouter.set('decorate.list', function (value) {
+        void value.name;
+        return value;
+      });
+      typedRouter.set('decorateAll.list', function (value) {
+        void value[0].name;
+        return value;
+      });
+      typedRouter.set('transform.update', function (value) {
+        void value.name;
+        return value;
+      });
+      typedRouter.set('decorate.list', function (value) {
+        // @ts-expect-error router.set must reject unknown hook field
+        void value.missing;
+        return value;
+      });
+
+      const optFilter: Filter<OptUser> = {
+        'profile.email': 'ada@example.com',
+        'profile.active': true,
+        'tags.label': 'vip',
+        'meta.count': 1,
+        'meta.note': 'hello',
+      };
+      // @ts-expect-error nonexistent optional dotted path must fail
+      const optBadPath: Filter<OptUser> = { 'profile.missing': true };
+      // @ts-expect-error wrong leaf value must fail
+      const optBadLeaf: Filter<OptUser> = { 'profile.email': 123 };
 
       const op: ProcessCopy = { src: 'profile', dest: 'profileId' };
       const processorOptions: CopyAndDepopulateOptions = { mutable: false };
@@ -175,6 +323,27 @@ describe('ARF-14 strict packed-consumer types', () => {
         filter,
         projection,
         selected,
+        UserModel,
+        namedRetrieved,
+        facadeRetrieved,
+        runtimeRetrieved,
+        typedRouter,
+        typedRouterCheck,
+        inferredRouter,
+        inferredCheck,
+        inferredMismatch,
+        decorateValid,
+        decorateBad,
+        listValid,
+        listBad,
+        docValid,
+        docBad,
+        modelOpts,
+        dottedOpts,
+        dottedBad,
+        optFilter,
+        optBadPath,
+        optBadLeaf,
         depopulated,
         depopulatedProfileId,
         conservativeDepopulated,

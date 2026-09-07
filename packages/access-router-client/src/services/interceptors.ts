@@ -1,4 +1,4 @@
-import axios, { AxiosHeaders, AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { CACHE_HEADER } from '../constants';
 import { normalizeConfigValue } from './cache-utils';
 
@@ -8,14 +8,6 @@ const CACHEABLE_RESPONSE_TYPES = new Set(['', 'json', 'text']);
 const CACHE_INVALIDATE_ON_SUCCESS = '__accessRouterClientCacheInvalidateOnSuccess';
 const CACHE_INVALIDATE_HEADER = 'x-axios-cache-invalidate-on-success';
 
-const SENSITIVE_CACHE_HEADERS = new Set([
-  'authorization',
-  'cookie',
-  'set-cookie',
-  'proxy-authorization',
-  'www-authenticate',
-]);
-
 const AUTHENTICATION_REQUEST_HEADERS = new Set([
   'authorization',
   'cookie',
@@ -24,6 +16,11 @@ const AUTHENTICATION_REQUEST_HEADERS = new Set([
   'x-auth-token',
   'x-access-token',
 ]);
+
+// Redaction for cache keys is derived from the recognized credential set plus
+// response-only sensitive headers, so adding a credential header above
+// automatically excludes it from keys without maintaining a second list.
+const SENSITIVE_CACHE_HEADERS = new Set([...AUTHENTICATION_REQUEST_HEADERS, 'set-cookie', 'www-authenticate']);
 
 /**
  * Adapter-scoped cache control surface returned by `useCacheInterceptors`.
@@ -80,7 +77,11 @@ export interface CachePolicy {
  * - the in-flight mutation is never itself cached as if it were a read.
  *
  * The returned object is detached from the caller; mutating it has no effect
- * on caller-owned AxiosHeaders or config objects.
+ * on caller-owned AxiosHeaders or config objects. The bypass marker is
+ * normalized to the single lowercase `CACHE_HEADER` key, and invalidation
+ * intent is carried only as non-wire config metadata (never as a header), so
+ * nothing internal reaches dispatch — even when caching is disabled and no
+ * interceptor is installed to strip it.
  */
 export const cloneConfigWithCacheBypass = <T extends { headers?: unknown }>(
   config: T | undefined,
@@ -98,20 +99,62 @@ export const cloneConfigWithCacheBypass = <T extends { headers?: unknown }>(
     next.headers = {};
   }
 
+  // Normalize to one lowercase bypass key: a caller-supplied mixed-case
+  // `X-Axios-Cache` would otherwise survive alongside the forced entry and
+  // send duplicate conflicting headers.
+  for (const key of Object.keys(next.headers)) {
+    if (key.toLowerCase() === CACHE_HEADER.toLowerCase()) {
+      delete next.headers[key];
+    }
+  }
   (next.headers as Record<string, unknown>)[CACHE_HEADER] = 'false';
   if (invalidateOnSuccess) {
     (next as T & Record<typeof CACHE_INVALIDATE_ON_SUCCESS, true>)[CACHE_INVALIDATE_ON_SUCCESS] = true;
-    (next.headers as Record<string, unknown>)[CACHE_INVALIDATE_HEADER] = 'true';
   }
   return next;
 };
 
+// One case-insensitive, nonmutating header access rule shared by the
+// service (`updateHeaders` precedence) and interceptor (bypass) boundaries.
+// `AxiosHeaders` accessors are already case-insensitive; plain objects are
+// scanned for the first case-variant so `X-Axios-Cache` is honored exactly
+// like `x-axios-cache`. Nothing here mutates the caller's headers.
+const findHeaderKey = (headers: Record<string, unknown>, name: string): string | undefined => {
+  const target = name.toLowerCase();
+  return Object.keys(headers).find((key) => key.toLowerCase() === target);
+};
+
+/** Reads the package-owned cache-control value without mutating headers. */
+export const getCacheControlValue = (headers: unknown): unknown => {
+  if (!headers || typeof headers !== 'object') return undefined;
+  if (headers instanceof AxiosHeaders) return headers.get(CACHE_HEADER);
+  const key = findHeaderKey(headers as Record<string, unknown>, CACHE_HEADER);
+  return key === undefined ? undefined : (headers as Record<string, unknown>)[key];
+};
+
+/** True when the caller explicitly set the package-owned cache header (any case). */
+export const hasCacheControlHeader = (headers: unknown): boolean => getCacheControlValue(headers) !== undefined;
+
+const hasInvalidateSignal = (headers: unknown): boolean => {
+  if (!headers || typeof headers !== 'object') return false;
+  if (headers instanceof AxiosHeaders) return headers.has(CACHE_INVALIDATE_HEADER);
+  return findHeaderKey(headers as Record<string, unknown>, CACHE_INVALIDATE_HEADER) !== undefined;
+};
+
+const deleteInvalidateSignal = (headers: Record<string, unknown> | AxiosHeaders): void => {
+  if (headers instanceof AxiosHeaders) {
+    headers.delete(CACHE_INVALIDATE_HEADER);
+    return;
+  }
+  const key = findHeaderKey(headers as Record<string, unknown>, CACHE_INVALIDATE_HEADER);
+  if (key !== undefined) {
+    delete (headers as Record<string, unknown>)[key];
+  }
+};
+
 export const removeCacheInvalidationSignal = <T extends object>(config: T): T => {
   const headers = (config as { headers?: unknown }).headers;
-  const hasHeaderSignal =
-    headers instanceof AxiosHeaders
-      ? headers.has(CACHE_INVALIDATE_HEADER)
-      : Boolean(headers && typeof headers === 'object' && CACHE_INVALIDATE_HEADER in headers);
+  const hasHeaderSignal = hasInvalidateSignal(headers);
 
   if (CACHE_INVALIDATE_ON_SUCCESS in config || hasHeaderSignal) {
     const next = { ...config } as T & { headers?: unknown };
@@ -123,7 +166,7 @@ export const removeCacheInvalidationSignal = <T extends object>(config: T): T =>
       next.headers = clonedHeaders;
     } else if (headers && typeof headers === 'object') {
       next.headers = { ...(headers as Record<string, unknown>) };
-      delete (next.headers as Record<string, unknown>)[CACHE_INVALIDATE_HEADER];
+      deleteInvalidateSignal(next.headers as Record<string, unknown>);
     }
 
     return next;
@@ -295,6 +338,52 @@ const snapshotResponse = (response: AxiosResponse, clone: <U>(value: U) => U): C
   };
 };
 
+// Single transformation boundary: snapshots hold already-transformed data.
+// Synthetic hit/tail adapters must not reparse it through Axios transforms,
+// so they run under an identity transform and settle per caller below.
+const identityTransform = (data: unknown): unknown => data;
+
+const bypassResponseTransform = (config: InternalAxiosRequestConfig): void => {
+  config.transformResponse = [identityTransform as never];
+};
+
+const settleSyntheticResponse = (callerConfig: InternalAxiosRequestConfig, response: AxiosResponse): AxiosResponse => {
+  const status = response.status;
+  const validateStatus = (callerConfig as { validateStatus?: (status: number) => boolean }).validateStatus;
+  if (!status || !validateStatus || validateStatus(status)) {
+    return response;
+  }
+  throw new AxiosError(
+    `Request failed with status code ${status}`,
+    status >= 400 && status < 500 ? AxiosError.ERR_BAD_REQUEST : AxiosError.ERR_BAD_RESPONSE,
+    callerConfig as never,
+    undefined,
+    response,
+  );
+};
+
+// Returns true when `error` is an adapter-level settlement rejection for
+// `sourceConfig` (status present and rejected by that caller's policy). Only
+// then can tails safely re-settle the shared network response under their own
+// policy; transform failures and transport errors without a settlement
+// decision must reject the slot.
+const isSettlementRejectionFor = (error: unknown, sourceConfig: InternalAxiosRequestConfig): boolean => {
+  const response = (error as { response?: AxiosResponse })?.response;
+  if (!response || !response.status) return false;
+  const validateStatus = (sourceConfig as { validateStatus?: (status: number) => boolean }).validateStatus;
+  if (!validateStatus) {
+    // Mirrors Axios settle with transitional validateStatusUndefinedResolves:
+    // undefined policy resolves, so a rejection carrying a response is not a
+    // settlement decision (e.g. transform failure).
+    return false;
+  }
+  try {
+    return !validateStatus(response.status);
+  } catch {
+    return false;
+  }
+};
+
 const serializeHeaders = (headers: InternalAxiosRequestConfig['headers']) => {
   const resolvedHeaders = headers instanceof AxiosHeaders ? headers.toJSON() : headers;
 
@@ -303,6 +392,7 @@ const serializeHeaders = (headers: InternalAxiosRequestConfig['headers']) => {
       const normalizedKey = key.toLowerCase();
       return (
         normalizedKey !== CACHE_HEADER.toLowerCase() &&
+        normalizedKey !== CACHE_INVALIDATE_HEADER.toLowerCase() &&
         !SENSITIVE_CACHE_HEADERS.has(normalizedKey) &&
         value !== undefined
       );
@@ -323,11 +413,11 @@ const hasHeaderValue = (value: unknown): boolean => {
 };
 
 const consumeCacheInvalidationSignal = (config: CacheRequestConfig): void => {
+  // Back-compat: callers that still stamp the legacy wire header get the
+  // same invalidation intent, consumed here (any letter case) before the
+  // request reaches dispatch. The package itself no longer emits the header.
   const headers = config.headers;
-  const hasSignal =
-    headers instanceof AxiosHeaders
-      ? headers.has(CACHE_INVALIDATE_HEADER)
-      : Boolean(headers && typeof headers === 'object' && CACHE_INVALIDATE_HEADER in headers);
+  const hasSignal = hasInvalidateSignal(headers);
 
   if (!hasSignal && !config[CACHE_INVALIDATE_ON_SUCCESS]) return;
 
@@ -335,7 +425,7 @@ const consumeCacheInvalidationSignal = (config: CacheRequestConfig): void => {
   if (headers instanceof AxiosHeaders) {
     headers.delete(CACHE_INVALIDATE_HEADER);
   } else if (headers && typeof headers === 'object') {
-    delete (headers as Record<string, unknown>)[CACHE_INVALIDATE_HEADER];
+    deleteInvalidateSignal(headers as Record<string, unknown>);
   }
 };
 
@@ -379,6 +469,27 @@ const sameConfigIdentity = (configured: unknown, defaultValue: unknown): boolean
   return configured === defaultValue;
 };
 
+// Pristine Axios built-in parsing hooks, snapshotted at module load.
+// Eligibility must compare request transforms against these built-ins, never
+// against the mutable instance defaults: `createAdapter` merges
+// construction-time `transformRequest`/`transformResponse` into
+// `instance.defaults`, so comparing against instance defaults mistakes a
+// custom instance default for an Axios built-in and caches responses the
+// README promises to bypass ("custom transforms or serializers always bypass
+// caching").
+//
+// Supported parsing boundary for the installed Axios (1.x): the default
+// response transform honors per-request `parseReviver`, and the default
+// request transform honors per-request `formSerializer`; either hook changes
+// the transformed value without changing transform identity, so a defined
+// hook bypasses caching (construction-time values propagate through Axios's
+// config merge, so checking the merged request config covers both). The
+// `transitional` JSON-parsing flags remain cache-keyed (independent entries
+// per flag set). `env` only selects FormData/Blob/fetch implementations for
+// non-GET bodies, which are ineligible for caching regardless.
+const PRISTINE_TRANSFORM_REQUEST: unknown = axios.defaults.transformRequest;
+const PRISTINE_TRANSFORM_RESPONSE: unknown = axios.defaults.transformResponse;
+
 const isCacheEligible = (config: InternalAxiosRequestConfig, instance: AxiosInstance): boolean => {
   const method = (config.method ?? 'get').toLowerCase();
   const responseType = config.responseType ?? '';
@@ -393,8 +504,10 @@ const isCacheEligible = (config: InternalAxiosRequestConfig, instance: AxiosInst
     config.onDownloadProgress === undefined &&
     config.onUploadProgress === undefined &&
     sameConfigIdentity(config.adapter, instance.defaults.adapter) &&
-    sameTransform(config.transformRequest, instance.defaults.transformRequest) &&
-    sameTransform(config.transformResponse, instance.defaults.transformResponse) &&
+    sameTransform(config.transformRequest, PRISTINE_TRANSFORM_REQUEST) &&
+    sameTransform(config.transformResponse, PRISTINE_TRANSFORM_RESPONSE) &&
+    config.parseReviver === undefined &&
+    config.formSerializer === undefined &&
     hasStableCacheValue(config.params) &&
     hasStableCacheValue(config.data) &&
     hasStableCacheValue(config.headers)
@@ -451,6 +564,12 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
   // but each gets an independent snapshot per ARC-03 isolation. Mutations and
   // requests that bypass cache do NOT enter this map.
   const inflight = new Map<string, InflightSlot>();
+  // Lifecycle ownership of every unsettled slot, independent of join
+  // eligibility. `inflight` gates new joins; invalidation clears it to detach
+  // old generations, but detached slots stay in `activeSlots` until they
+  // settle so disposal can still reject them. Settling removes the slot
+  // from both collections.
+  const activeSlots = new Set<InflightSlot>();
   let generation = 0;
   let disposed = false;
 
@@ -458,6 +577,7 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
     if (inflight.get(slot.key) === slot) {
       inflight.delete(slot.key);
     }
+    activeSlots.delete(slot);
   };
 
   const resolveInflight = (slot: InflightSlot, response: AxiosResponse) => {
@@ -477,15 +597,17 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
   const invalidate = () => {
     generation += 1;
     store.clear();
-    // Existing sources and their attached tails retain their slots, but new
-    // requests cannot join reads started before the invalidation boundary.
+    // Existing sources and their attached tails retain lifecycle ownership in
+    // `activeSlots`, but new requests cannot join reads started before the
+    // invalidation boundary.
     inflight.clear();
   };
 
   instance.interceptors.request.use(
     async (config) => {
       consumeCacheInvalidationSignal(config as CacheRequestConfig);
-      if (disposed || config.headers[CACHE_HEADER] === 'false' || !isCacheEligible(config, instance)) return config;
+      if (disposed || getCacheControlValue(config.headers) === 'false' || !isCacheEligible(config, instance))
+        return config;
 
       const isCredentialed =
         resolveWithCredentials(config, withCredentialsDefault) || hasAuthenticationHeader(config.headers);
@@ -499,23 +621,30 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
       policy.onCacheKey?.(key);
 
       // 1) A finished cache hit: serve a fresh clone of the snapshot directly.
+      // Snapshots are already transformed; run under an identity transform so
+      // Axios does not reparse them, then settle per caller config.
       const snapshot = store.get(key);
       if (snapshot) {
         setCacheRequestState(config, Object.freeze({ key, generation, role: 'hit' }));
+        bypassResponseTransform(config);
         config.adapter = async (_config) => {
-          return {
+          const response = {
             data: snapshot.data,
             status: snapshot.status,
             statusText: snapshot.statusText,
             headers: { ...snapshot.headers, [CACHE_HEADER]: 'true' },
             config: _config,
           } as unknown as AxiosResponse;
+          return settleSyntheticResponse(_config, response);
         };
         return config;
       }
 
       // 2) In-flight miss: dedup. Attach a tail adapter that awaits the
       //    in-flight response and returns an independent clone to each caller.
+      //    The shared slot holds the once-transformed network response; tails
+      //    run under an identity transform and settle per their own
+      //    validateStatus so divergent policies stay source-order independent.
       const existing = inflight.get(key);
       if (existing) {
         // The tail adapter awaits `existing`, then returns an independent
@@ -523,16 +652,18 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
         // a no-op `.catch` attached at registration time so an early
         // rejection never surfaces as an unhandledRejection before the
         // caller attaches its own handler (e.g. via Promise.allSettled).
+        bypassResponseTransform(config);
         config.adapter = async (_config) => {
           const response = await existing.promise;
           const shared = response as unknown as CachedResponseSnapshot & { config?: unknown };
-          return {
+          const tailResponse = {
             data: clone(shared.data),
             status: shared.status,
             statusText: shared.statusText,
             headers: { ...shared.headers, [CACHE_HEADER]: 'true' },
             config: _config,
           } as unknown as AxiosResponse;
+          return settleSyntheticResponse(_config, tailResponse);
         };
         setCacheRequestState(config, Object.freeze({ key, generation, role: 'tail', slot: existing }));
         return config;
@@ -566,9 +697,43 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
         settled: false,
       };
       inflight.set(key, slot);
+      activeSlots.add(slot);
 
       const nextConfig = { ...config } as InternalAxiosRequestConfig;
       setCacheRequestState(nextConfig, Object.freeze({ key, generation, role: 'source', slot }));
+
+      // Settle the registered slot on any transformation failure. Axios runs
+      // `transformRequest`/`transformResponse` inside `dispatchRequest`, after
+      // the wrapped adapter above has already resolved, and a throwing
+      // transform (e.g. a plain Error, which carries no `config`) never
+      // reaches the adapter catch or the response error interceptor's
+      // `error.config` lookup — leaving the slot (and every tail awaiting it)
+      // abandoned. Wrapping at the throw site settles the slot independently
+      // of what the error carries.
+      const settleTransformFailure = (error: unknown): never => {
+        rejectInflight(slot, error);
+        throw error;
+      };
+      const wrapTransformList = (value: unknown): unknown => {
+        const list = Array.isArray(value) ? value : [value];
+        return list.map((fn) => {
+          if (typeof fn !== 'function') return fn;
+          const original = fn as (...args: never[]) => unknown;
+          return function (this: unknown, ...args: never[]) {
+            try {
+              const result = original.apply(this, args);
+              if (result && typeof (result as { catch?: unknown }).catch === 'function') {
+                return (result as Promise<unknown>).catch((error: unknown) => settleTransformFailure(error));
+              }
+              return result;
+            } catch (error) {
+              return settleTransformFailure(error);
+            }
+          };
+        });
+      };
+      nextConfig.transformRequest = wrapTransformList(nextConfig.transformRequest) as never;
+      nextConfig.transformResponse = wrapTransformList(nextConfig.transformResponse) as never;
 
       // Use the original adapter wrapped so we control the in-flight rejection
       // at the source rather than at Axios's response pipeline. Axios's
@@ -602,7 +767,16 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
           const response = await dispatch(adapterConfig);
           return response;
         } catch (error) {
-          rejectInflight(slot, error);
+          // Decouple slot settlement from the source's status policy so tails
+          // can re-settle the shared network response under their own
+          // validateStatus. Settlement rejections resolve the slot with the
+          // response; transform/transport failures reject it.
+          const errResponse = (error as { response?: AxiosResponse })?.response;
+          if (errResponse && isSettlementRejectionFor(error, adapterConfig)) {
+            resolveInflight(slot, errResponse);
+          } else {
+            rejectInflight(slot, error);
+          }
           throw error;
         }
       };
@@ -648,7 +822,16 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
     (error) => {
       const state = ((error?.config ?? {}) as CacheRequestConfig)[CACHE_REQUEST_STATE];
       if (state?.role === 'source' && state.slot) {
-        rejectInflight(state.slot, error);
+        // Same decoupling as the source adapter wrapper: settlement
+        // rejections share the response with tails for per-caller settlement.
+        // Fallback path when the wrapper could not dispatch (no `dispatch`).
+        const errResponse = (error as { response?: AxiosResponse })?.response;
+        const sourceConfig = (error?.config ?? {}) as InternalAxiosRequestConfig;
+        if (errResponse && isSettlementRejectionFor(error, sourceConfig)) {
+          resolveInflight(state.slot, errResponse);
+        } else {
+          rejectInflight(state.slot, error);
+        }
       }
       return Promise.reject(error);
     },
@@ -662,10 +845,14 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
       generation += 1;
       store.dispose();
       const error = new Error(CACHE_DISPOSED_ERROR);
-      for (const slot of inflight.values()) {
+      // Reject every unsettled slot, including generations detached by an
+      // earlier clear/mutation. `rejectInflight` finalizes each slot out of
+      // both collections; the trailing clears only guard against reentry.
+      for (const slot of [...activeSlots]) {
         rejectInflight(slot, error);
       }
       inflight.clear();
+      activeSlots.clear();
     },
   };
 }

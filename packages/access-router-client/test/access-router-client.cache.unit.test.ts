@@ -285,6 +285,101 @@ describe('cache interceptors credential safety', () => {
       expect(key.toLowerCase()).not.toContain('authorization');
     }
   });
+
+  it.each([
+    {
+      caseName: 'x-api-key plain-object lowercase',
+      headerName: 'x-api-key',
+      container: 'plain' as const,
+      firstSecret: 'sentinel-apikey-AAA-7f3a9c1e', // pragma: allowlist secret
+      secondSecret: 'sentinel-apikey-BBB-4d2b8f0a', // pragma: allowlist secret
+    },
+    {
+      caseName: 'x-api-key AxiosHeaders mixed-case',
+      headerName: 'X-API-KEY',
+      container: 'axios' as const,
+      firstSecret: 'sentinel-apikey-CCC-1a2b3c4d', // pragma: allowlist secret
+      secondSecret: 'sentinel-apikey-DDD-5e6f7a8b', // pragma: allowlist secret
+    },
+    {
+      caseName: 'x-auth-token plain-object mixed-case',
+      headerName: 'X-Auth-Token',
+      container: 'plain' as const,
+      firstSecret: 'sentinel-authtoken-AAA-9c1e7f3a', // pragma: allowlist secret
+      secondSecret: 'sentinel-authtoken-BBB-8f0a4d2b', // pragma: allowlist secret
+    },
+    {
+      caseName: 'x-auth-token AxiosHeaders lowercase',
+      headerName: 'x-auth-token',
+      container: 'axios' as const,
+      firstSecret: 'sentinel-authtoken-CCC-3c4d1a2b', // pragma: allowlist secret
+      secondSecret: 'sentinel-authtoken-DDD-7a8b5e6f', // pragma: allowlist secret
+    },
+    {
+      caseName: 'x-access-token plain-object lowercase',
+      headerName: 'x-access-token',
+      container: 'plain' as const,
+      firstSecret: 'sentinel-accesstoken-AAA-abc123xy', // pragma: allowlist secret
+      secondSecret: 'sentinel-accesstoken-BBB-def456zw', // pragma: allowlist secret
+    },
+    {
+      caseName: 'x-access-token AxiosHeaders mixed-case',
+      headerName: 'X-Access-Token',
+      container: 'axios' as const,
+      firstSecret: 'sentinel-accesstoken-CCC-ghi789uv', // pragma: allowlist secret
+      secondSecret: 'sentinel-accesstoken-DDD-jkl012st', // pragma: allowlist secret
+    },
+  ])(
+    'never places recognized credential $caseName into raw or decoded cache keys',
+    async ({ headerName, container, firstSecret, secondSecret }) => {
+      let invocations = 0;
+      const capturedKeys: string[] = [];
+      const { instance } = createFakeAdapter(() => {
+        invocations += 1;
+        return { data: { value: invocations }, status: 200, headers: {} };
+      });
+
+      const policy: CachePolicy = {
+        ttlMs: 60_000,
+        withCredentialsDefault: false,
+        partitionForRequest: () => 'identity-shared',
+        onCacheKey: (key) => {
+          capturedKeys.push(key);
+        },
+      };
+      useCacheInterceptors(instance, policy);
+
+      const buildHeaders = (secret: string) => {
+        if (container === 'axios') {
+          return new AxiosHeaders({ [CACHE_HEADER]: 'true', [headerName]: secret });
+        }
+        return { [CACHE_HEADER]: 'true', [headerName]: secret };
+      };
+
+      await instance.get('/cached', { withCredentials: false, headers: buildHeaders(firstSecret) });
+      await instance.get('/cached', { withCredentials: false, headers: buildHeaders(secondSecret) });
+
+      // Explicit non-secret partition preserves reuse across credential rotation.
+      expect(invocations).toBe(1);
+      expect(capturedKeys).toHaveLength(2);
+      expect(capturedKeys[0]).toBe(capturedKeys[1]);
+      for (const key of capturedKeys) {
+        const decoded = decodeURI(key);
+        for (const secret of [firstSecret, secondSecret]) {
+          expect(key).not.toContain(secret);
+          expect(decoded).not.toContain(secret);
+        }
+        expect(key.toLowerCase()).not.toContain(firstSecret.toLowerCase().slice(0, 16));
+        expect(decoded.toLowerCase()).not.toContain(firstSecret.toLowerCase().slice(0, 16));
+        expect(key.toLowerCase()).not.toContain('x-api-key');
+        expect(key.toLowerCase()).not.toContain('x-auth-token');
+        expect(key.toLowerCase()).not.toContain('x-access-token');
+        expect(decoded.toLowerCase()).not.toContain('x-api-key');
+        expect(decoded.toLowerCase()).not.toContain('x-auth-token');
+        expect(decoded.toLowerCase()).not.toContain('x-access-token');
+      }
+    },
+  );
 });
 
 describe('cache mutation bypass and invalidation', () => {
