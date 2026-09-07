@@ -32,12 +32,37 @@ export interface PackedConsumer {
   unpackedSize: number;
 }
 
+function execChecked(command: string, args: string[], cwd: string): string {
+  try {
+    return execFileSync(command, args, { cwd, encoding: 'utf8', stdio: 'pipe' });
+  } catch (err) {
+    const error = err as { stdout?: string; stderr?: string; message?: string };
+    throw new Error(
+      [
+        `Command failed: ${command} ${args.join(' ')}`,
+        `cwd: ${cwd}`,
+        error.stdout ?? '',
+        error.stderr ?? error.message ?? '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      { cause: err },
+    );
+  }
+}
+
+function seedToolVersions(dir: string, workspaceRoot: string): void {
+  const source = resolve(workspaceRoot, '.tool-versions');
+  if (existsSync(source)) cpSync(source, resolve(dir, '.tool-versions'));
+}
+
 export function createPackedConsumer(
   workspace: TestWorkspace,
   packageRoot: string,
   workspaceRoot: string,
   version = readFileSync(resolve(workspaceRoot, 'VERSION'), 'utf8').trim(),
 ): PackedConsumer {
+  seedToolVersions(workspace.root, workspaceRoot);
   const sourceManifest = JSON.parse(readFileSync(resolve(packageRoot, 'package.json'), 'utf8')) as Record<
     string,
     unknown
@@ -91,7 +116,7 @@ export function createPackedConsumer(
 
   const tarballDir = resolve(workspace.root, 'tarballs');
   mkdirSync(tarballDir, { recursive: true });
-  execFileSync('pnpm', ['pack', '--pack-destination', tarballDir], { cwd: stageDir, stdio: 'pipe' });
+  execChecked('pnpm', ['pack', '--pack-destination', tarballDir], stageDir);
   const tarball = resolve(tarballDir, `create-access-router-mongo-starter-${version}.tgz`);
   if (!existsSync(tarball)) throw new Error(`Expected packed artifact was not created: ${tarball}`);
 
@@ -100,7 +125,8 @@ export function createPackedConsumer(
     `${JSON.stringify({ private: true, dependencies: { 'create-access-router-mongo-starter': `file:${tarball}` } }, null, 2)}\n`,
   );
   writeFileSync(resolve(workspace.consumer, 'pnpm-workspace.yaml'), 'packages: []\n');
-  execFileSync('pnpm', ['install', '--offline', '--ignore-scripts'], { cwd: workspace.consumer, stdio: 'pipe' });
+  seedToolVersions(workspace.consumer, workspaceRoot);
+  execChecked('pnpm', ['install', '--ignore-scripts'], workspace.consumer);
 
   return {
     tarball,
