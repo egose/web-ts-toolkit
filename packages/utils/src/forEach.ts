@@ -29,7 +29,9 @@ export default function forEach<T>(
   const keys = Object.keys(collection);
   for (let index = 0; index < keys.length; index++) {
     const key = keys[index];
-    if (callback(collection[key], key, collection) === false) {
+    // UTILS-09 strict gate: index through a Record view so a generic object
+    // type is not indexed directly by a string. Behavior unchanged.
+    if (callback((collection as Record<string, unknown>)[key], key, collection) === false) {
       break;
     }
   }

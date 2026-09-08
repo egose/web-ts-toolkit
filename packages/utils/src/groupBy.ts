@@ -1,4 +1,14 @@
 import { getIteratee } from './_internal';
+import { defineOwnDataProperty, hasOwnDataProperty } from './dictionary';
+
+/**
+ * Groups collection values by iteratee result.
+ *
+ * UTILS-01 contract: group names are ordinary string keys preserved as own
+ * data properties, including `__proto__`, `constructor`, `prototype`, and
+ * `toString`. The result keeps the default `Object.prototype` prototype;
+ * inherited members are never read as existing groups.
+ */
 
 export default function groupBy<T>(
   collection: T[] | Record<string, T> | null | undefined,
@@ -15,7 +25,12 @@ export default function groupBy<T>(
     for (let index = 0; index < collection.length; index++) {
       const value = collection[index];
       const key = String(callback(value, index, collection));
-      (result[key] ??= []).push(value);
+      let bucket = hasOwnDataProperty(result, key) ? result[key] : undefined;
+      if (bucket === undefined) {
+        bucket = [];
+        defineOwnDataProperty(result as Record<string, unknown>, key, bucket);
+      }
+      bucket.push(value);
     }
 
     return result;
@@ -26,7 +41,12 @@ export default function groupBy<T>(
     const key = keys[index];
     const value = collection[key];
     const group = String(callback(value, key, collection));
-    (result[group] ??= []).push(value);
+    let bucket = hasOwnDataProperty(result, group) ? result[group] : undefined;
+    if (bucket === undefined) {
+      bucket = [];
+      defineOwnDataProperty(result as Record<string, unknown>, group, bucket);
+    }
+    bucket.push(value);
   }
 
   return result;

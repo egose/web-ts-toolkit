@@ -1,5 +1,21 @@
 import { getIteratee } from './_internal';
 
+/**
+ * Map an array by a known element key: the result element type follows the
+ * property type (e.g. `map(users, 'name')` yields `string[]`).
+ *
+ * UTILS-09: deeper property paths (`'a.b'`) are not key types and fall
+ * through to the generic overload below, yielding an honest `unknown[]`
+ * instead of a fabricated inference. No speculative path-type machinery.
+ */
+export default function map<T, K extends keyof T>(
+  collection: readonly T[] | null | undefined,
+  iteratee: K,
+): Array<T[K]>;
+export default function map<T, TResult>(
+  collection: T[] | Record<string, T> | null | undefined,
+  iteratee: string | number | ((value: T, key: number | string, collection: T[] | Record<string, T>) => TResult),
+): TResult[];
 export default function map<T, TResult>(
   collection: T[] | Record<string, T> | null | undefined,
   iteratee: string | number | ((value: T, key: number | string, collection: T[] | Record<string, T>) => TResult),
