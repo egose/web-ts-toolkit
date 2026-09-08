@@ -41,6 +41,12 @@ function implStartBoth(impl: () => LocalServer): void {
 }
 
 function startCalls(): unknown[][] {
+  // On fresh checkouts the gitignored stale `src/index.js` is absent, so both
+  // mocked specifiers resolve to the same module and both mocks are the same
+  // fn. Concatenating would then double-count a single start invocation.
+  if (mockStartTs === (mockStartJs as unknown)) {
+    return mockStartTs.mock.calls;
+  }
   return [...mockStartTs.mock.calls, ...mockStartJs.mock.calls];
 }
 
