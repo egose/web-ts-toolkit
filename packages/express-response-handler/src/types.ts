@@ -36,7 +36,7 @@ export type ResponseLike = {
 
 export type EventState = {
   canceled: boolean;
-  nextError: unknown;
+  reported: boolean;
 };
 
 export type MiddlewareFunction<
@@ -61,6 +61,7 @@ export type RouterFunction<
 > = RequestHandler<Params, ResBody, ReqBody, ReqQuery, Locals>;
 
 export type HandleResponse = {
+  // Single-function input returns a single router function.
   <
     Params = ParamsDictionary,
     ResBody = unknown,
@@ -71,6 +72,83 @@ export type HandleResponse = {
   >(
     fn: MiddlewareFunction<Params, ResBody, ReqBody, ReqQuery, Locals, Return>,
   ): RouterFunction<Params, ResBody, ReqBody, ReqQuery, Locals>;
+  // Empty-array input is rejected at runtime
+  // (`at least one middleware handler is required`); typed as never so it
+  // fails compilation instead of pretending to return routers.
+  (fns: readonly []): never;
+  // Singleton-array input returns a single router function. This reflects the
+  // shipped length-dependent runtime (`middlewares.length === 1` unwraps),
+  // not input-shape consistency.
+  //
+  // Contract choice (B-ERH-07): audit of workspace callers shows single-fn,
+  // variadic-multi, fixed multi-array, and one dynamic-array caller
+  // (`express-json-router` spreads `[...middlewares, ...routeCallbacks]` and
+  // forwards the result to Express, which accepts either a function or an
+  // array). No workspace caller depends on singleton arrays returning an
+  // array, but changing singleton-array runtime to always return an array
+  // would still break external callers (`.map()`/length checks) and needs
+  // release notes plus maintainer approval. So the declaration accurately
+  // types existing length-dependent behavior; input-shape consistency
+  // (`[fn] -> [router]`) is deferred, not applied silently.
+  <
+    Params = ParamsDictionary,
+    ResBody = unknown,
+    ReqBody = unknown,
+    ReqQuery = Query,
+    Locals extends Record<string, unknown> = Record<string, unknown>,
+    Return = unknown,
+  >(
+    fns: readonly [MiddlewareFunction<Params, ResBody, ReqBody, ReqQuery, Locals, Return>],
+  ): RouterFunction<Params, ResBody, ReqBody, ReqQuery, Locals>;
+  // Fixed multi-array input (2 or more) always returns an array.
+  <
+    Params = ParamsDictionary,
+    ResBody = unknown,
+    ReqBody = unknown,
+    ReqQuery = Query,
+    Locals extends Record<string, unknown> = Record<string, unknown>,
+    Return = unknown,
+  >(
+    fns: readonly [
+      MiddlewareFunction<Params, ResBody, ReqBody, ReqQuery, Locals, Return>,
+      MiddlewareFunction<Params, ResBody, ReqBody, ReqQuery, Locals, Return>,
+      ...Array<MiddlewareFunction<Params, ResBody, ReqBody, ReqQuery, Locals, Return>>,
+    ],
+  ): Array<RouterFunction<Params, ResBody, ReqBody, ReqQuery, Locals>>;
+  // Dynamic-length array input: the runtime unwraps length 1 to a single
+  // function, returns an array for length 2+, and throws for length 0. The
+  // union return avoids pretending a compile-time guarantee exists.
+  <
+    Params = ParamsDictionary,
+    ResBody = unknown,
+    ReqBody = unknown,
+    ReqQuery = Query,
+    Locals extends Record<string, unknown> = Record<string, unknown>,
+    Return = unknown,
+  >(
+    fns: readonly MiddlewareFunction<Params, ResBody, ReqBody, ReqQuery, Locals, Return>[],
+  ):
+    | RouterFunction<Params, ResBody, ReqBody, ReqQuery, Locals>
+    | Array<RouterFunction<Params, ResBody, ReqBody, ReqQuery, Locals>>;
+  // Empty variadic input is rejected at runtime; typed as never.
+  (): never;
+  // Fixed variadic input (2 or more functions) always returns an array.
+  <
+    Params = ParamsDictionary,
+    ResBody = unknown,
+    ReqBody = unknown,
+    ReqQuery = Query,
+    Locals extends Record<string, unknown> = Record<string, unknown>,
+    Return = unknown,
+  >(
+    fn1: MiddlewareFunction<Params, ResBody, ReqBody, ReqQuery, Locals, Return>,
+    fn2: MiddlewareFunction<Params, ResBody, ReqBody, ReqQuery, Locals, Return>,
+    ...rest: Array<MiddlewareFunction<Params, ResBody, ReqBody, ReqQuery, Locals, Return>>
+  ): Array<RouterFunction<Params, ResBody, ReqBody, ReqQuery, Locals>>;
+  // Dynamic-length variadic spread (for example `handleResponse(...list)` with
+  // `list: MiddlewareFunction[]`): singleton resolves to a single function at
+  // runtime, multi resolves to an array, empty throws. Union return documents
+  // the absence of a compile-time length guarantee.
   <
     Params = ParamsDictionary,
     ResBody = unknown,
@@ -80,17 +158,9 @@ export type HandleResponse = {
     Return = unknown,
   >(
     ...fns: Array<MiddlewareFunction<Params, ResBody, ReqBody, ReqQuery, Locals, Return>>
-  ): Array<RouterFunction<Params, ResBody, ReqBody, ReqQuery, Locals>>;
-  <
-    Params = ParamsDictionary,
-    ResBody = unknown,
-    ReqBody = unknown,
-    ReqQuery = Query,
-    Locals extends Record<string, unknown> = Record<string, unknown>,
-    Return = unknown,
-  >(
-    fns: Array<MiddlewareFunction<Params, ResBody, ReqBody, ReqQuery, Locals, Return>>,
-  ): Array<RouterFunction<Params, ResBody, ReqBody, ReqQuery, Locals>>;
+  ):
+    | RouterFunction<Params, ResBody, ReqBody, ReqQuery, Locals>
+    | Array<RouterFunction<Params, ResBody, ReqBody, ReqQuery, Locals>>;
 };
 
 export type ErrorWithPayload = {

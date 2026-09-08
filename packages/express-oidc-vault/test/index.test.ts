@@ -1335,41 +1335,112 @@ describe('createOidcVaultMiddleware', () => {
       }),
     );
 
-    const cases: Array<{ override: Record<string, unknown>; code: string }> = [
-      { override: { token_type: undefined }, code: 'OIDC_VAULT_INVALID_TOKEN_RESPONSE' },
-      { override: { token_type: 'mac' }, code: 'OIDC_VAULT_INVALID_TOKEN_RESPONSE' },
-      { override: { expires_in: -1 }, code: 'OIDC_VAULT_INVALID_TOKEN_RESPONSE' },
-      { override: { expires_in: 1.5 }, code: 'OIDC_VAULT_INVALID_TOKEN_RESPONSE' },
+    const createToken = createIdToken;
+
+    const cases: Array<{
+      name: string;
+      build: (nonce: string) => Promise<Record<string, unknown>>;
+      code: string;
+    }> = [
       {
-        override: { id_token: await createIdToken({ omitExpirationTime: true }) },
-        code: 'OIDC_VAULT_INVALID_ID_TOKEN',
-      },
-      { override: { id_token: await createIdToken({ omitIssuedAt: true }) }, code: 'OIDC_VAULT_INVALID_ID_TOKEN' },
-      {
-        override: { id_token: await createIdToken({ payload: { azp: 'other_client' } }) },
-        code: 'OIDC_VAULT_INVALID_ID_TOKEN',
+        name: 'missing token_type',
+        build: async () => ({ token_type: undefined }),
+        code: 'OIDC_VAULT_INVALID_TOKEN_RESPONSE',
       },
       {
-        override: { id_token: await createIdToken({ audience: ['client_1', 'client_2'] }) },
+        name: 'wrong token_type',
+        build: async () => ({ token_type: 'mac' }),
+        code: 'OIDC_VAULT_INVALID_TOKEN_RESPONSE',
+      },
+      {
+        name: 'negative expires_in',
+        build: async () => ({ expires_in: -1 }),
+        code: 'OIDC_VAULT_INVALID_TOKEN_RESPONSE',
+      },
+      {
+        name: 'fractional expires_in',
+        build: async () => ({ expires_in: 1.5 }),
+        code: 'OIDC_VAULT_INVALID_TOKEN_RESPONSE',
+      },
+      {
+        name: 'missing exp',
+        build: async (nonce) => ({ id_token: await createToken({ nonce, omitExpirationTime: true }) }),
+        code: 'OIDC_VAULT_INVALID_ID_TOKEN',
+      },
+      {
+        name: 'missing iat',
+        build: async (nonce) => ({ id_token: await createToken({ nonce, omitIssuedAt: true }) }),
+        code: 'OIDC_VAULT_INVALID_ID_TOKEN',
+      },
+      {
+        name: 'wrong azp',
+        build: async (nonce) => ({ id_token: await createToken({ nonce, payload: { azp: 'other_client' } }) }),
+        code: 'OIDC_VAULT_INVALID_ID_TOKEN',
+      },
+      {
+        name: 'multiple audiences without azp',
+        build: async (nonce) => ({ id_token: await createToken({ nonce, audience: ['client_1', 'client_2'] }) }),
+        code: 'OIDC_VAULT_INVALID_ID_TOKEN',
+      },
+      {
+        name: 'wrong nonce',
+        build: async (nonce) => ({ id_token: await createToken({ nonce: `${nonce}_wrong` }) }),
         code: 'OIDC_VAULT_INVALID_ID_TOKEN',
       },
     ];
 
     for (const testCase of cases) {
-      authorizationCodeTokenResponseOverride = testCase.override;
       const loginResponse = await request(app).get('/auth/oidc/login');
       const authorizationUrl = new URL(loginResponse.headers.location);
+      const nonce = authorizationUrl.searchParams.get('nonce');
+
+      if (!nonce) {
+        throw new Error(`Missing login nonce for case ${testCase.name}.`);
+      }
+
+      authorizationCodeTokenResponseOverride = await testCase.build(nonce);
       const response = await request(app)
         .get('/auth/oidc/callback')
         .query({
           state: authorizationUrl.searchParams.get('state'),
-          code: `authcode:${authorizationUrl.searchParams.get('nonce')}`,
+          code: `authcode:${nonce}`,
         });
 
       expect(response.status).toBe(502);
       expect(response.body).toMatchObject({
         code: testCase.code,
       });
+    }
+
+    // Valid controls prove each rejection fixture reached its named boundary:
+    // a plain login nonce round-trips, and multiple audiences succeed when azp matches.
+    for (const control of ['single audience', 'multiple audiences with matching azp']) {
+      const loginResponse = await request(app).get('/auth/oidc/login');
+      const authorizationUrl = new URL(loginResponse.headers.location);
+      const nonce = authorizationUrl.searchParams.get('nonce');
+
+      if (!nonce) {
+        throw new Error(`Missing login nonce for control ${control}.`);
+      }
+
+      authorizationCodeTokenResponseOverride =
+        control === 'multiple audiences with matching azp'
+          ? {
+              id_token: await createToken({
+                nonce,
+                audience: ['client_1', 'client_2'],
+                payload: { azp: 'client_1' },
+              }),
+            }
+          : undefined;
+      const response = await request(app)
+        .get('/auth/oidc/callback')
+        .query({
+          state: authorizationUrl.searchParams.get('state'),
+          code: `authcode:${nonce}`,
+        });
+
+      expect(response.status).toBe(302);
     }
   });
 

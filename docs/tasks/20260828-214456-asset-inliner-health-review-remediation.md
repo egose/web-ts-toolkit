@@ -8,6 +8,8 @@ Related completed plan: `docs/tasks/20260828-113925-asset-inliner-package.md`
 
 Overall status: completed
 
+Subsequent review: `docs/tasks/20260908-073603-asset-inliner-health-follow-up.md` records new boundary cases and specific residual regressions, including cancellation/temporary-file cases extending AINL2-03. Historical completion evidence below is preserved.
+
 ## Objective
 
 Close the correctness, security, resource-bounding, filesystem, API, performance, readability, and testability gaps found in the first post-implementation review of `@web-ts-toolkit/asset-inliner`.

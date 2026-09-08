@@ -12,7 +12,7 @@ describe('resolveOidcVaultConfig', () => {
 
     expect(config).toEqual({
       mode: 'issuer',
-      issuer: 'https://issuer.example.com/',
+      issuer: 'https://issuer.example.com',
       clientId: 'client_1',
       clientSecret: 'secret_1', // pragma: allowlist secret
       scopes: DEFAULT_OIDC_SCOPES,
@@ -33,7 +33,7 @@ describe('resolveOidcVaultConfig', () => {
 
     expect(config).toEqual({
       mode: 'manual',
-      issuer: 'https://issuer.example.com/',
+      issuer: 'https://issuer.example.com',
       authorizationEndpoint: 'https://issuer.example.com/auth',
       tokenEndpoint: 'https://issuer.example.com/token',
       userInfoEndpoint: 'https://issuer.example.com/userinfo',
@@ -92,7 +92,7 @@ describe('resolveOidcVaultConfigFromEnv', () => {
 
     expect(config).toEqual({
       mode: 'manual',
-      issuer: 'https://issuer.example.com/',
+      issuer: 'https://issuer.example.com',
       authorizationEndpoint: 'https://issuer.example.com/auth',
       tokenEndpoint: 'https://issuer.example.com/token',
       jwksUri: 'https://issuer.example.com/jwks',

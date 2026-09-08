@@ -209,4 +209,38 @@ describe('access-router-deco documentation examples', () => {
     // Verify that throwing is NOT the documented pattern — the hook returns controlled values instead
     // (service layer maps false/issue-array to 400; throw would be 500 sanitized)
   });
+
+  describe('BDECO-07 denial-documentation contract (no runtime change)', () => {
+    it('shipped declarations preserve corrected filter/permission/this guidance', () => {
+      const dts = readFileSync(path.join(packageRoot, 'dist', 'index.d.ts'), 'utf8');
+      // corrected guidance present in emitted declarations
+      expect(dts).toMatch(/Only `false` denies/);
+      expect(dts).toMatch(/never revokes a global grant/);
+      expect(dts).toMatch(/never the request object/);
+      // stale misleading prose gone from emitted declarations
+      expect(dts).not.toMatch(/`null`\/`false` denies/);
+      expect(dts).not.toMatch(/empty map denies/);
+      expect(dts).not.toMatch(/Actually wrapped via/);
+      // supported result types still declared
+      expect(dts).toMatch(/Filter \| true \| null \| undefined/);
+      expect(dts).toMatch(/MaybePromise<Record<string, unknown>>/);
+    });
+
+    it('README and website docs agree on effective semantics and flag prior guidance', () => {
+      const readme = readFileSync(path.join(packageRoot, 'README.md'), 'utf8');
+      const website = readFileSync(
+        path.join(workspaceRoot, 'website', 'docs', 'packages', 'access-router-deco.md'),
+        'utf8',
+      );
+      for (const doc of [readme, website]) {
+        expect(doc).toMatch(/only a `false` (base\/override )?filter denies/);
+        expect(doc).toMatch(/never revokes a global grant/);
+        expect(doc).toMatch(/never the request object/);
+        expect(doc).not.toMatch(/empty map denies/);
+      }
+      // migration/security notes name the corrected guidance
+      expect(readme).toMatch(/BDECO-07/);
+      expect(website).toMatch(/BDECO-07/);
+    });
+  });
 });

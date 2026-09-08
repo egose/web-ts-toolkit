@@ -43,4 +43,23 @@ export interface BootstrapResult {
   router: Router;
 }
 
-export type RouterModel = string | mongoose.Model<unknown>;
+/**
+ * Model reference accepted by `@Router(...)` and `@RouterOptions(...)`.
+ *
+ * A model name string (resolved against Mongoose's default connection at
+ * bootstrap) or a Mongoose model instance (registered with the factory's
+ * bound runtime before route creation, keeping same-name models from
+ * separate connections isolated).
+ *
+ * The parameter stays generic so `RouterModel<User>` composes through
+ * variables and function parameters while decorator overloads keep
+ * model-specific option inference (`ModelRouterOptions<TModel>`). The
+ * bare default (`RouterModel`) accepts any model type: Mongoose's
+ * `Model<T>` is invariant in `T`, so `Model<unknown>` would reject
+ * ordinary typed models such as `Model<{ name: string }>`; the `any`
+ * default is confined to this alias and the union overloads below rather
+ * than widening option or hook types.
+ *
+ * @publicApi
+ */
+export type RouterModel<TModel = any> = string | mongoose.Model<TModel>;

@@ -125,6 +125,105 @@ const appendHook = (current: unknown, fn: Function, aclOptionKey: string) => {
   return [...normalizeHookChain(current, aclOptionKey), fn];
 };
 
+/**
+ * Exact-slot read without runtime `default`/root fallback.
+ *
+ * `getModelOption('prepare.update')` resolves `prepare.default` and the
+ * whole `prepare` record when the exact slot is missing, so it cannot be
+ * used to decide whether `prepare.update` itself is occupied. This helper
+ * traverses own properties only: a sibling map such as
+ * `{ create: [...] }` yields `undefined` for `prepare.update`, while a
+ * malformed exact value such as `{ bad: true }` stored at the exact slot
+ * is returned as-is so `normalizeHookChain` still rejects it.
+ */
+const getExactNestedValue = (container: unknown, key: string): unknown => {
+  if (container == null) return undefined;
+  const parts = key.split('.');
+  let current: unknown = container;
+  for (const part of parts) {
+    if (current == null) return undefined;
+    if (typeof current !== 'object' && typeof current !== 'function') return undefined;
+    if (!Object.hasOwn(current as object, part)) return undefined;
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
+};
+
+const readExactStoredOption = (
+  runtime: { getModelOptions?: (modelName: string) => unknown; getDefaultModelOptions?: () => unknown },
+  modelName: string | null,
+  isDefault: boolean,
+  key: string,
+): unknown => {
+  try {
+    if (isDefault) {
+      if (typeof runtime.getDefaultModelOptions !== 'function') return undefined;
+      return getExactNestedValue(runtime.getDefaultModelOptions(), key);
+    }
+    if (!modelName || typeof runtime.getModelOptions !== 'function') return undefined;
+    return getExactNestedValue(runtime.getModelOptions(modelName), key);
+  } catch {
+    return undefined;
+  }
+};
+
+const isValidateRootShorthand = (root: unknown): boolean => {
+  if (root == null) return false;
+  if (typeof root === 'function' || typeof root === 'boolean') return true;
+  if (Array.isArray(root)) return true;
+  return false;
+};
+
+const isArrayHookRootShorthand = (root: unknown): boolean => {
+  if (root == null) return false;
+  if (typeof root === 'function') return true;
+  if (Array.isArray(root)) return true;
+  return false;
+};
+
+/**
+ * Root-shorthand contract for `validate` (BDECO-01):
+ * - `validate` may be a root shorthand (`boolean | unknown[] | hook`),
+ *   a `default` fallback, or an operation map (`{ create, update, default }`).
+ * - A decorated `@Validate(op)` occupies exactly `validate.<op>`. When the
+ *   exact slot is already defined, bootstrap rejects under the existing
+ *   duplicate policy.
+ * - When the exact slot is free but a root shorthand is stored, bootstrap
+ *   also rejects under the duplicate policy instead of replacing the root
+ *   record (which would silently weaken unrelated operations such as
+ *   `update` when only `create` is decorated). A plain operation map without
+ *   this operation (sibling or `default` only) does not conflict.
+ */
+const getValidateExactConflict = (
+  runtime: { getModelOptions?: (modelName: string) => unknown; getDefaultModelOptions?: () => unknown },
+  modelName: string | null,
+  isDefault: boolean,
+  aclOptionKey: string,
+): unknown => {
+  const exact = readExactStoredOption(runtime, modelName, isDefault, aclOptionKey);
+  if (exact !== undefined) return exact;
+  const root = readExactStoredOption(runtime, modelName, isDefault, 'validate');
+  if (isValidateRootShorthand(root)) return root;
+  return undefined;
+};
+
+const assertArrayRootShorthandFree = (
+  runtime: { getModelOptions?: (modelName: string) => unknown; getDefaultModelOptions?: () => unknown },
+  modelName: string | null,
+  isDefault: boolean,
+  aclOptionKey: string,
+  methodName: string | symbol,
+): void => {
+  const base = aclOptionKey.split('.')[0] as string;
+  if (!base || base === aclOptionKey) return;
+  const root = readExactStoredOption(runtime, modelName, isDefault, base);
+  if (isArrayHookRootShorthand(root)) {
+    throw new Error(
+      `Conflicting root hook chain for ${aclOptionKey} on ${describeMethodKey(methodName)}: "${base}" is already configured as a root shorthand; register operation slots or a root shorthand, not both`,
+    );
+  }
+};
+
 const getValidateOperationOption = (aclOptionKey: string, getOption: OptionGetter) => {
   const [, operation] = aclOptionKey.split('.');
   const validateOptions = getOption('validate');
@@ -177,6 +276,7 @@ const getAclOptionKey = (hook: HookConfig, metadataKey: string) =>
  */
 export class EgoseFactoryStatic {
   private readonly bootstrappedModules = new WeakMap<Type, WeakSet<Express>>();
+  private readonly bootstrapInProgress = new WeakMap<Type, WeakSet<Express>>();
 
   static create(runtime: AccessRuntimeApi = createAccessRuntime()): EgoseFactoryStatic {
     return new EgoseFactoryStatic(runtime);
@@ -191,49 +291,80 @@ export class EgoseFactoryStatic {
    * - **Outside rollback:** arbitrary user constructors/field initializers executed
    *   while building `ModuleConfigurationPlan` (via `new Type()`) are not undone.
    *   Express internals outside the mount stack (e.g., app settings, already-sent
-   *   responses) are also not rolled back.
+   *   responses) are also not rolled back. Preventing nested package bootstrap
+   *   does not roll back those user-code side effects.
    * - **Inside rollback:** package-controlled runtime state (global/default/model
    *   options, model instance registrations, model refs/subs/atts, OpenAPI
    *   registrations) is snapshotted via `createBootstrapSnapshot()` (when
-   *   available) before any setter and restored via `restoreBootstrapSnapshot()`
-   *   on any failure. Host `expressApp` publication is delayed until all
+   *   available) after user construction but before any potentially mutating
+   *   preflight or setter, and restored via `restoreBootstrapSnapshot()`
+   *   on any failure. Preflight runs inside the guarded region so a
+   *   default-runtime lazy model lookup that later conflicts leaves the
+   *   snapshot unchanged. Host `expressApp` publication is delayed until all
    *   registration and router construction succeed; on failure the app's internal
    *   stack is truncated to its pre-bootstrap length so no package middleware
    *   remains mounted. If the final `expressApp.use(...)` itself throws, runtime
    *   state is also restored and the tuple remains retryable.
-   * - **Ownership:** `markBootstrapped` is set only after the final mount
-   *   succeeds, so retrying a failed module/app tuple behaves like a clean first
-   *   attempt with exactly one middleware and one copy of every route/hook.
+   * - **Ownership:** an in-progress tuple is reserved before user
+   *   constructors/callbacks execute; reentrant bootstrap for the same
+   *   module/app is rejected before nested publication and the reservation
+   *   is released on failure. `markBootstrapped` is set only after the final
+   *   mount succeeds, so retrying a failed module/app tuple behaves like a
+   *   clean first attempt with exactly one mounted module router (request
+   *   runtime initialization scoped inside it) and one copy of every
+   *   route/hook. Independent module/app tuples are unaffected.
+   *   Request runtime initialization is scoped to the module router mounted at
+   *   `basePath`; it does not run on unrelated host routes. Applications
+   *   needing runtime initialization outside module routes must explicitly own
+   *   that middleware (e.g. `app.use(factory.runtime())`).
    */
   public bootstrap(module: Type, expressApp: Express): BootstrapResult {
     this.assertNotBootstrapped(module, expressApp);
-    const routers = getOwnMetadata(module, MODULE_ROUTERS) || [];
-    const routerOptions = getOwnMetadata(module, MODULE_ROUTER_OPTIONS) || [];
-    const moduleOptions = (getOwnMetadata(module, MODULE_OPTIONS) || {}) as ModuleOptions;
-    const { basePath, handleErrors, globalOptions } = splitModuleOptions(moduleOptions);
-
-    const plan = this.validateModuleConfiguration(module, routers, routerOptions);
-
-    const runtimeSnapshot = this.createRuntimeSnapshot();
-    const appStackCapture = this.captureAppStack(expressApp);
-
-    this.validateHookChainPreflight(plan);
-    this.validateModelRegistrationPreflight(plan);
-
-    let expressRouter: Router | undefined;
-    let runtimeMiddleware: express.RequestHandler | undefined;
+    this.markBootstrapInProgress(module, expressApp);
+    let runtimeSnapshot: unknown | null = null;
+    let appStackCapture: { stack: any[] | null; length: number } | null = null;
     try {
+      const routers = getOwnMetadata(module, MODULE_ROUTERS) || [];
+      const routerOptions = getOwnMetadata(module, MODULE_ROUTER_OPTIONS) || [];
+      const moduleOptions = (getOwnMetadata(module, MODULE_OPTIONS) || {}) as ModuleOptions;
+      const { basePath, handleErrors, globalOptions } = splitModuleOptions(moduleOptions);
+
+      const plan = this.validateModuleConfiguration(module, routers, routerOptions);
+
+      runtimeSnapshot = this.createRuntimeSnapshot();
+      appStackCapture = this.captureAppStack(expressApp);
+
+      this.validateHookChainPreflight(plan);
+      this.validateModelRegistrationPreflight(plan);
+
       this.runtime.setGlobalOptions(globalOptions);
       this.bootstrapEgose(plan.module);
 
-      for (let x = 0; x < routerOptions.length; x++) {
+      // Apply default providers before model providers regardless of caller
+      // array order: `setModelOptions` materializes current defaults into the
+      // model manager at call time, so a model provider running before a
+      // later default provider would retain stale defaults (guards, parentPath,
+      // idParam). Relative order within each group is preserved, and each entry
+      // keeps its associated plan via the shared index.
+      const providerOrder = [
+        ...routerOptions.keys().filter((x: number) => isDefaultModelRouterOptions(routerOptions[x])),
+        ...routerOptions.keys().filter((x: number) => isModelRouterOptions(routerOptions[x])),
+      ];
+      for (const x of providerOrder) {
         const routerOption = routerOptions[x];
         const routerOptionPlan = plan.routerOptions[x];
         if (isDefaultModelRouterOptions(routerOption)) this.setDefaultModelRouterOptions(routerOptionPlan);
         else if (isModelRouterOptions(routerOption)) this.setModelRouterOptions(routerOptionPlan);
       }
 
-      expressRouter = express.Router();
+      const expressRouter = express.Router();
+      // Scope request runtime initialization to the module router (BDECO-03):
+      // the init middleware runs only under `basePath`, before module routes
+      // and the opt-in module error boundary. Applications needing runtime
+      // init outside module routes must explicitly own that middleware
+      // (e.g. `app.use(factory.runtime())`).
+      const runtimeMiddleware = this.runtime() as unknown as express.RequestHandler;
+      expressRouter.use(runtimeMiddleware);
 
       for (let x = 0; x < routers.length; x++) {
         const router = routers[x];
@@ -245,17 +376,16 @@ export class EgoseFactoryStatic {
         installRouterErrorHandlers(expressRouter!);
       }
 
-      runtimeMiddleware = this.runtime() as unknown as express.RequestHandler;
-
-      expressApp.use(runtimeMiddleware);
       expressApp.use(basePath, expressRouter!);
       this.markBootstrapped(module, expressApp);
 
       return { runtime: this.runtime, router: expressRouter! };
     } catch (err) {
       this.restoreRuntimeSnapshot(runtimeSnapshot);
-      this.restoreAppStack(expressApp, appStackCapture);
+      if (appStackCapture) this.restoreAppStack(expressApp, appStackCapture);
       throw err;
+    } finally {
+      this.clearBootstrapInProgress(module, expressApp);
     }
   }
 
@@ -265,6 +395,26 @@ export class EgoseFactoryStatic {
     if (apps?.has(expressApp)) {
       throw new Error('EgoseFactory.bootstrap() was already called for this module and Express app');
     }
+
+    const inProgress = this.bootstrapInProgress.get(module);
+    if (inProgress?.has(expressApp)) {
+      throw new Error(
+        'EgoseFactory.bootstrap() reentrant call detected for this module and Express app (bootstrap already in progress); nested publication is rejected before any nested router is mounted',
+      );
+    }
+  }
+
+  private markBootstrapInProgress(module: Type, expressApp: Express) {
+    let apps = this.bootstrapInProgress.get(module);
+    if (!apps) {
+      apps = new WeakSet<Express>();
+      this.bootstrapInProgress.set(module, apps);
+    }
+    apps.add(expressApp);
+  }
+
+  private clearBootstrapInProgress(module: Type, expressApp: Express) {
+    this.bootstrapInProgress.get(module)?.delete(expressApp);
   }
 
   private markBootstrapped(module: Type, expressApp: Express) {
@@ -366,26 +516,17 @@ export class EgoseFactoryStatic {
       for (const reg of prepared.plan.hooks) {
         for (const key of reg.metadataKeys) {
           const aclKey = getAclOptionKey(reg.hook, key);
-          const getOption: OptionGetter = isDefault
-            ? (k) => (this.runtime as any).getDefaultModelOption(k as any)
-            : (k) => {
-                if (!modelName) return undefined;
-                try {
-                  return (this.runtime as any).getModelOption(modelName, k as any);
-                } catch {
-                  return undefined;
-                }
-              };
           if (reg.hook.array && reg.hook.aclKey !== 'validate') {
             // Avoid creating a new manager for a model that doesn't exist yet — treat missing as empty
             const shouldCheck = isDefault || this.shouldValidateModelHook(modelName);
             if (!shouldCheck) continue;
-            const current = getOption(aclKey);
+            assertArrayRootShorthandFree(this.runtime as any, modelName, isDefault, aclKey, reg.methodName);
+            const current = readExactStoredOption(this.runtime as any, modelName, isDefault, aclKey);
             normalizeHookChain(current, aclKey);
           } else if (reg.hook.aclKey === 'validate') {
             const shouldCheck = isDefault || this.shouldValidateModelHook(modelName);
             if (!shouldCheck) continue;
-            const current = getValidateOperationOption(aclKey, getOption);
+            const current = getValidateExactConflict(this.runtime as any, modelName, isDefault, aclKey);
             assertNoDuplicateValidateHook(aclKey, current, reg.methodName);
           }
         }
@@ -401,20 +542,14 @@ export class EgoseFactoryStatic {
       for (const reg of prepared.plan.hooks) {
         for (const key of reg.metadataKeys) {
           const aclKey = getAclOptionKey(reg.hook, key);
-          const getOption: OptionGetter = (k) => {
-            try {
-              return (this.runtime as any).getModelOption(modelName, k as any);
-            } catch {
-              return undefined;
-            }
-          };
           if (reg.hook.array && reg.hook.aclKey !== 'validate') {
             if (!this.shouldValidateModelHook(modelName)) continue;
-            const current = getOption(aclKey);
+            assertArrayRootShorthandFree(this.runtime as any, modelName, false, aclKey, reg.methodName);
+            const current = readExactStoredOption(this.runtime as any, modelName, false, aclKey);
             normalizeHookChain(current, aclKey);
           } else if (reg.hook.aclKey === 'validate') {
             if (!this.shouldValidateModelHook(modelName)) continue;
-            const current = getValidateOperationOption(aclKey, getOption);
+            const current = getValidateExactConflict(this.runtime as any, modelName, false, aclKey);
             assertNoDuplicateValidateHook(aclKey, current, reg.methodName);
           }
         }
@@ -519,6 +654,7 @@ export class EgoseFactoryStatic {
       prepared.plan,
       (key, val) => this.runtime.setModelOption(modelName, key as never, val as never),
       (key) => this.runtime.getModelOption(modelName, key as never),
+      { modelName, isDefault: false },
     );
 
     const modelRouter =
@@ -540,6 +676,7 @@ export class EgoseFactoryStatic {
       prepared.plan,
       (key, val) => this.runtime.setDefaultModelOption(key as never, val as never),
       (key) => this.runtime.getDefaultModelOption(key as never),
+      { modelName: null, isDefault: true },
     );
   }
 
@@ -559,6 +696,7 @@ export class EgoseFactoryStatic {
       prepared.plan,
       (key, val) => this.runtime.setModelOption(modelName, key as never, val as never),
       (key) => this.runtime.getModelOption(modelName, key as never),
+      { modelName, isDefault: false },
     );
   }
 
@@ -581,9 +719,10 @@ export class EgoseFactoryStatic {
     plan: ClassRegistrationPlan,
     setOption: OptionSetter,
     getOption: OptionGetter,
+    scope?: { modelName: string | null; isDefault: boolean },
   ) {
     for (const registration of plan.hooks) {
-      this.registerMethodHookOnAcl(instance, registration, setOption, getOption);
+      this.registerMethodHookOnAcl(instance, registration, setOption, getOption, scope);
     }
   }
 
@@ -1021,6 +1160,7 @@ export class EgoseFactoryStatic {
     registration: HookRegistration,
     setOption: OptionSetter,
     getOption: OptionGetter,
+    scope?: { modelName: string | null; isDefault: boolean },
   ) {
     const { hook } = registration;
     for (let x = 0; x < registration.metadataKeys.length; x++) {
@@ -1035,14 +1175,25 @@ export class EgoseFactoryStatic {
       const aclOptionKey = getAclOptionKey(hook, key);
 
       if (hook.array && hook.aclKey !== 'validate') {
-        setOption(aclOptionKey, appendHook(getOption(aclOptionKey), fn, aclOptionKey));
-      } else {
-        if (hook.aclKey === 'validate') {
-          assertNoDuplicateValidateHook(
+        if (scope) {
+          assertArrayRootShorthandFree(
+            this.runtime as any,
+            scope.modelName,
+            scope.isDefault,
             aclOptionKey,
-            getValidateOperationOption(aclOptionKey, getOption),
             registration.methodName,
           );
+          const exact = readExactStoredOption(this.runtime as any, scope.modelName, scope.isDefault, aclOptionKey);
+          setOption(aclOptionKey, appendHook(exact, fn, aclOptionKey));
+        } else {
+          setOption(aclOptionKey, appendHook(getOption(aclOptionKey), fn, aclOptionKey));
+        }
+      } else {
+        if (hook.aclKey === 'validate') {
+          const current = scope
+            ? getValidateExactConflict(this.runtime as any, scope.modelName, scope.isDefault, aclOptionKey)
+            : getValidateOperationOption(aclOptionKey, getOption);
+          assertNoDuplicateValidateHook(aclOptionKey, current, registration.methodName);
         }
         setOption(aclOptionKey, fn);
       }
@@ -1057,17 +1208,22 @@ export class EgoseFactoryStatic {
     const arglist = hook.args;
 
     return function (this: unknown, ...args: unknown[]) {
-      const ordered = params
-        .slice()
-        .sort((a, b) => a.index - b.index)
-        .map((meta) => {
-          if (meta.type === HookParamtypes.REQUEST) return this;
+      // Assign each injected value at its declared parameter index so
+      // undecorated positions stay undefined (holes) instead of compacting.
+      // Holes spread/apply as `undefined`, letting default parameters apply.
+      const sparse: unknown[] = [];
+      const sorted = params.slice().sort((a, b) => a.index - b.index);
+      for (const meta of sorted) {
+        if (meta.type === HookParamtypes.REQUEST) {
+          sparse[meta.index] = this;
+          continue;
+        }
 
-          const index = arglist.findIndex((v) => v === meta.type);
-          return args[index];
-        });
+        const index = arglist.findIndex((v) => v === meta.type);
+        sparse[meta.index] = args[index];
+      }
 
-      return dtor.value.call(target, ...ordered);
+      return dtor.value.apply(target, sparse);
     };
   }
 

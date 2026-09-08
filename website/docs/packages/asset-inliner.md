@@ -21,14 +21,18 @@ ESM only with import-only export map (`dist/index.mjs` + `dist/index.d.mts`). `r
 
 ```ts
 import { encodeAsset, formatCssUrl } from '@web-ts-toolkit/asset-inliner';
-const asset = await encodeAsset('./assets/logo.png');
+const asset = await encodeAsset('test/fixtures/legacy/images/apple.png');
 formatCssUrl(asset); // url(data:image/png;base64,...)
 ```
 
 ```ts
 import { createAssetCatalog, inlineCss } from '@web-ts-toolkit/asset-inliner';
-const catalog = await createAssetCatalog(['./assets']);
-const result = inlineCss('a { background: url("./assets/logo.png") }', { catalog, documentPath: '/project/src/a.css' });
+// Runnable from the package root: catalog paths and documentPath share one fixture tree.
+const catalog = await createAssetCatalog(['test/fixtures/legacy/images/apple.png']);
+const result = inlineCss('.hero { background: url("../images/apple.png") }', {
+  catalog,
+  documentPath: 'test/fixtures/legacy/css/site.css',
+});
 ```
 
 ```ts
@@ -45,6 +49,7 @@ await inlineFiles({ assets: ['./assets'], targets: ['./styles'] }); // dry-run; 
 - **Changed HTML:** `inlineHtml` prefers source-location patches of the targeted attribute value ranges so unrelated markup stays byte-identical; if a patch is invalid/overlapping it falls back to full serialization (may normalize).
 - **Embedded CSS:** `inlineEmbeddedCss: true` (opt-in, default `false`) inlines local `url(...)` inside `<style>` elements and `style` attributes using the same CSS semantics as `inlineCss`, with shared limits, source-offset location mapping, and a `PARSE_ERROR` diagnostic (no corruption) for malformed chunks.
 - **Selective inlining:** `InlineOptions`/`InlineFilesOptions` accept `maxInlineBytes` (byteLength threshold) and/or `shouldInline(asset, url) => boolean` to leave large or predicate-rejected assets as external references with an `INLINE_SKIPPED` (`warn`) diagnostic; hard limits (`maxAssetBytes`/`maxTotalBytes`) remain fail-closed (`ResourceLimitError`) and cannot be downgraded, with deterministic order and no implicit heuristics.
+- **Changed contracts:** `maxFiles` is one catalog-wide budget across roots (byte `{ data }` inputs sit outside it); oversized targets rejected by `maxTargetBytes` return `content: ''` with `written: false` (metadata preflight only, not a strict allocation bound); resolver/catalog/formatter data URLs must match `data:<type>/<subtype>;base64,<strict-base64>` or fail with `INVALID_OPTIONS`; `image/x-icon` detections normalize to canonical `image/vnd.microsoft.icon`.
 
 ## Migration note
 

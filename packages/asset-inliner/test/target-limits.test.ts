@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -267,5 +267,283 @@ describe('safe-integer and no partial write', () => {
     } catch (e) {
       expect((e as any).code).toBe('PARSE_ERROR');
     }
+  });
+});
+
+describe('target read bounding (AIH-03)', () => {
+  // Byte-backed catalog: no asset file reads, so readFile/readFileSync spies
+  // observe only target body reads (discovery uses stat/readdir, not reads).
+  function byteCatalog(): ReturnType<typeof createAssetCatalogSync> {
+    const png = fs.readFileSync(path.join(IMAGES_DIR, 'apple.png'));
+    return createAssetCatalogSync([{ data: new Uint8Array(png), filename: 'apple.png' }]);
+  }
+
+  function makeTmpTarget(css: string): { tmp: string; targetPath: string; orig: string } {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'asset-inliner-aih03-'));
+    const targetPath = path.join(tmp, 'app.css');
+    fs.writeFileSync(targetPath, css, 'utf8');
+    return { tmp, targetPath, orig: css };
+  }
+
+  function cleanup(tmp: string): void {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+
+  it('async oversized regular target: no body read, RESOURCE_LIMIT, written:false, unchanged disk, bounded content', async () => {
+    const catalog = byteCatalog();
+    const css = '.a { color: red; }\n'.repeat(200);
+    const { tmp, targetPath, orig } = makeTmpTarget(css);
+    const readSpy = vi.spyOn(fs.promises, 'readFile');
+    try {
+      const results = (await inlineFiles({
+        catalog,
+        targets: [targetPath],
+        write: true,
+        maxTargetBytes: 64,
+      } as any)) as unknown as Array<{
+        content: string;
+        modified: boolean;
+        written: boolean;
+        diagnostics: Array<{ code: string }>;
+      }>;
+      expect(readSpy.mock.calls.filter((c) => String(c[0]) === targetPath)).toHaveLength(0);
+      expect(results).toHaveLength(1);
+      expect(results[0].diagnostics.some((d) => d.code === 'RESOURCE_LIMIT')).toBe(true);
+      expect(results[0].modified).toBe(false);
+      expect(results[0].written).toBe(false);
+      expect(results[0].content).toBe('');
+      expect(Buffer.byteLength(results[0].content, 'utf8')).toBeLessThanOrEqual(64);
+    } finally {
+      readSpy.mockRestore();
+    }
+    expect(fs.readFileSync(targetPath, 'utf8')).toBe(orig);
+    cleanup(tmp);
+  });
+
+  it('sync oversized regular target: no body read, RESOURCE_LIMIT, written:false, unchanged disk, bounded content', () => {
+    const catalog = byteCatalog();
+    const css = '.a { color: red; }\n'.repeat(200);
+    const { tmp, targetPath, orig } = makeTmpTarget(css);
+    const readSpy = vi.spyOn(fs, 'readFileSync');
+    try {
+      const results = inlineFilesSync({
+        catalog,
+        targets: [targetPath],
+        write: true,
+        maxTargetBytes: 64,
+      } as any) as unknown as Array<{
+        content: string;
+        modified: boolean;
+        written: boolean;
+        diagnostics: Array<{ code: string }>;
+      }>;
+      expect(readSpy.mock.calls.filter((c) => String(c[0]) === targetPath)).toHaveLength(0);
+      expect(results).toHaveLength(1);
+      expect(results[0].diagnostics.some((d) => d.code === 'RESOURCE_LIMIT')).toBe(true);
+      expect(results[0].modified).toBe(false);
+      expect(results[0].written).toBe(false);
+      expect(results[0].content).toBe('');
+      expect(Buffer.byteLength(results[0].content, 'utf8')).toBeLessThanOrEqual(64);
+    } finally {
+      readSpy.mockRestore();
+    }
+    expect(fs.readFileSync(targetPath, 'utf8')).toBe(orig);
+    cleanup(tmp);
+  });
+
+  it('exact-boundary UTF-8 target succeeds in both variants; one byte less rejects', async () => {
+    const catalog = byteCatalog();
+    // Multibyte content: char length < byte length, so the bound is on UTF-8 bytes.
+    const css = '.a::after { content: "é☃"; }\n';
+    const len = Buffer.byteLength(css, 'utf8');
+    expect(len).toBeGreaterThan(css.length);
+    const { tmp, targetPath, orig } = makeTmpTarget(css);
+    try {
+      const asyncResults = (await inlineFiles({
+        catalog,
+        targets: [targetPath],
+        write: true,
+        maxTargetBytes: len,
+      } as any)) as unknown as Array<{ diagnostics: Array<{ code: string }> }>;
+      expect(asyncResults[0].diagnostics.some((d) => d.code === 'RESOURCE_LIMIT')).toBe(false);
+      const syncResults = inlineFilesSync({
+        catalog,
+        targets: [targetPath],
+        write: true,
+        maxTargetBytes: len,
+      } as any) as unknown as Array<{ diagnostics: Array<{ code: string }> }>;
+      expect(syncResults[0].diagnostics.some((d) => d.code === 'RESOURCE_LIMIT')).toBe(false);
+      expect(fs.readFileSync(targetPath, 'utf8')).toBe(orig);
+      const overResults = (await inlineFiles({
+        catalog,
+        targets: [targetPath],
+        write: true,
+        maxTargetBytes: len - 1,
+      } as any)) as unknown as Array<{
+        content: string;
+        written: boolean;
+        diagnostics: Array<{ code: string }>;
+      }>;
+      expect(overResults[0].diagnostics.some((d) => d.code === 'RESOURCE_LIMIT')).toBe(true);
+      expect(overResults[0].written).toBe(false);
+      expect(overResults[0].content).toBe('');
+      expect(fs.readFileSync(targetPath, 'utf8')).toBe(orig);
+    } finally {
+      cleanup(tmp);
+    }
+  });
+
+  it('async simulated growth between stat and read is rejected with bounded content', async () => {
+    const catalog = byteCatalog();
+    const css = '.a { color: red; }\n'; // small on disk: passes metadata preflight
+    expect(Buffer.byteLength(css, 'utf8')).toBeLessThan(64);
+    const { tmp, targetPath, orig } = makeTmpTarget(css);
+    const grown = 'x'.repeat(10000);
+    const readSpy = vi.spyOn(fs.promises, 'readFile');
+    (readSpy as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue(grown);
+    let results: Array<{
+      content: string;
+      modified: boolean;
+      written: boolean;
+      diagnostics: Array<{ code: string }>;
+    }>;
+    try {
+      results = (await inlineFiles({
+        catalog,
+        targets: [targetPath],
+        write: true,
+        maxTargetBytes: 64,
+      } as any)) as unknown as typeof results;
+    } finally {
+      readSpy.mockRestore();
+    }
+    expect(results!).toHaveLength(1);
+    expect(results![0].diagnostics.some((d) => d.code === 'RESOURCE_LIMIT')).toBe(true);
+    expect(results![0].modified).toBe(false);
+    expect(results![0].written).toBe(false);
+    // Growth-race body was read, but must not be retained in the result.
+    expect(results![0].content).toBe('');
+    expect(fs.readFileSync(targetPath, 'utf8')).toBe(orig);
+    cleanup(tmp);
+  });
+
+  it('sync simulated growth between stat and read is rejected with bounded content', () => {
+    const catalog = byteCatalog();
+    const css = '.a { color: red; }\n';
+    expect(Buffer.byteLength(css, 'utf8')).toBeLessThan(64);
+    const { tmp, targetPath, orig } = makeTmpTarget(css);
+    const grown = 'x'.repeat(10000);
+    const readSpy = vi.spyOn(fs, 'readFileSync');
+    (readSpy as unknown as { mockReturnValue: (v: unknown) => void }).mockReturnValue(grown);
+    let results: Array<{
+      content: string;
+      modified: boolean;
+      written: boolean;
+      diagnostics: Array<{ code: string }>;
+    }>;
+    try {
+      results = inlineFilesSync({
+        catalog,
+        targets: [targetPath],
+        write: true,
+        maxTargetBytes: 64,
+      } as any) as unknown as typeof results;
+    } finally {
+      readSpy.mockRestore();
+    }
+    expect(results!).toHaveLength(1);
+    expect(results![0].diagnostics.some((d) => d.code === 'RESOURCE_LIMIT')).toBe(true);
+    expect(results![0].modified).toBe(false);
+    expect(results![0].written).toBe(false);
+    expect(results![0].content).toBe('');
+    expect(fs.readFileSync(targetPath, 'utf8')).toBe(orig);
+    cleanup(tmp);
+  });
+
+  it('async target body reads receive the supplied AbortSignal', async () => {
+    const catalog = byteCatalog();
+    const { tmp, targetPath } = makeTmpTarget('.a { color: red; }\n');
+    const ctrl = new AbortController();
+    const readSpy = vi.spyOn(fs.promises, 'readFile');
+    try {
+      await inlineFiles({
+        catalog,
+        targets: [targetPath],
+        signal: ctrl.signal,
+        maxTargetBytes: 1024,
+      } as any);
+      expect(readSpy).toHaveBeenCalled();
+      for (const call of readSpy.mock.calls) {
+        expect(call[1]).toMatchObject({ signal: ctrl.signal });
+      }
+    } finally {
+      readSpy.mockRestore();
+      cleanup(tmp);
+    }
+  });
+
+  it('pre-aborted async batch rejects with the signal reason and leaves disk untouched', async () => {
+    const catalog = byteCatalog();
+    const css = '.a { color: red; }\n';
+    const { tmp, targetPath, orig } = makeTmpTarget(css);
+    const ctrl = new AbortController();
+    const reason = new DOMException('stop-aih03', 'AbortError');
+    ctrl.abort(reason);
+    try {
+      await expect(
+        inlineFiles({ catalog, targets: [targetPath], signal: ctrl.signal, maxTargetBytes: 1024 } as any),
+      ).rejects.toBe(reason);
+      expect(fs.readFileSync(targetPath, 'utf8')).toBe(orig);
+    } finally {
+      cleanup(tmp);
+    }
+  });
+
+  it.each([1, 4])('oversized-target read/retention experiment at concurrency %i', async (concurrency) => {
+    const catalog = byteCatalog();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'asset-inliner-aih03-exp-'));
+    const perTarget = '.a { color: red; }\n'.repeat(400); // ~8 KiB per target on disk
+    const targetPaths: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      const p = path.join(tmp, `t${i}.css`);
+      fs.writeFileSync(p, perTarget, 'utf8');
+      targetPaths.push(p);
+    }
+    const onDiskBytes = targetPaths.reduce((n, p) => n + fs.statSync(p).size, 0);
+    expect(onDiskBytes).toBeGreaterThan(4 * 1024);
+    const readSpy = vi.spyOn(fs.promises, 'readFile');
+    let results: Array<{
+      content: string;
+      written: boolean;
+      diagnostics: Array<{ code: string }>;
+    }>;
+    let observedCalls: unknown[][] | undefined;
+    try {
+      results = (await inlineFiles({
+        catalog,
+        targets: tmp,
+        write: true,
+        concurrency,
+        maxTargetBytes: 64,
+      } as any)) as unknown as typeof results;
+      // Capture before mockRestore: restoring a spy clears its call history.
+      observedCalls = [...readSpy.mock.calls];
+    } finally {
+      readSpy.mockRestore();
+    }
+    const bodyReads = (observedCalls ?? []).filter((c) => targetPaths.includes(String(c[0]))).length;
+    const retainedBytes = results!.reduce((n, r) => n + Buffer.byteLength(r.content, 'utf8'), 0);
+    // Measured experiment (recorded in AIH-03 evidence): with the fix, no
+    // target body is read and no oversized content is retained, at either
+    // concurrency. Pre-fix this fails: every target body is read and retained.
+    expect(bodyReads).toBe(0);
+    expect(retainedBytes).toBe(0);
+    expect(results!).toHaveLength(4);
+    for (const r of results!) {
+      expect(r.diagnostics.some((d) => d.code === 'RESOURCE_LIMIT')).toBe(true);
+      expect(r.written).toBe(false);
+    }
+    for (const p of targetPaths) expect(fs.readFileSync(p, 'utf8')).toBe(perTarget);
+    cleanup(tmp);
   });
 });

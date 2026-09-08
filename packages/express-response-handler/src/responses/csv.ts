@@ -1,6 +1,5 @@
 import { format } from '@fast-csv/format';
 import { castArray, isBoolean, isPlainObject } from '@web-ts-toolkit/utils';
-import { once } from 'events';
 import type { Writable } from 'stream';
 
 type CsvProcessor = (value: unknown) => unknown;
@@ -116,31 +115,85 @@ export class CSVResponse {
     }
   }
 
+  /**
+   * Streams the dataset as CSV into `res`.
+   *
+   * Contract choice (B-ERH-06): minimal runtime-safe fallback, no breaking
+   * signature change. `onBeforeOutputError` stays optional.
+   *
+   * - Pre-output failure (invalid filename, failed first read, first-row
+   *   processor throw, before headers are sent) with an error owner:
+   *   the owner is invoked exactly once with the normalized failure and owns
+   *   destination termination (the handler owner renders a single redacted
+   *   JSON error; direct callers must end/destroy `res` themselves). A
+   *   throwing owner is contained and the destination is then destroyed with
+   *   the original failure so it never stays open.
+   * - Pre-output failure without an error owner: deterministic fallback —
+   *   the destination is destroyed with the normalized failure (or ended
+   *   when `destroy` is unavailable), observable via `error` + `close`.
+   * - Post-output failure (after piping starts): the destination is always
+   *   destroyed with the failure, with or without an owner.
+   *
+   * Non-`Error` failures are wrapped in an `Error` with the original kept as
+   * `cause`. A throwing owner never displaces the original failure and never
+   * escapes as a process-level error.
+   */
   streamCsv(res: CsvStreamResponse, onBeforeOutputError?: CsvErrorHandler): void {
     const stream = format({ headers: this.headers });
     let outputStarted = false;
     let failed = false;
     let finished = false;
+    let cleaned = false;
     let activeIterator: AsyncIterator<unknown> | null = null;
-    let abortStreaming: (error: Error) => void = () => undefined;
-    const abortSignal = new Promise<never>((_, reject) => {
-      abortStreaming = reject;
-    });
-    abortSignal.catch((): undefined => undefined);
+    // Bounded cancellation: fail() flips `failed` and wakes the single active
+    // drain waiter (if any). The pump never races each row against a shared
+    // pending promise, so no per-row reaction accumulates for the export
+    // duration. Backpressure is still observed via drain; iterator cleanup
+    // stays one-time via closeActiveIterator.
+    // Limitation: a pending iterator.next() cannot be cancelled. Abort only
+    // prevents subsequent processing after the read settles. Prompt
+    // cancellation of a stuck read requires a cooperative source (for example
+    // next() that rejects on abort, or a return() that settles the read).
+    const abortWaiters = new Set<() => void>();
+    const notifyAborted = (): void => {
+      for (const notify of Array.from(abortWaiters)) {
+        abortWaiters.delete(notify);
+
+        try {
+          notify();
+        } catch {
+          // A waking waiter must not interrupt notifying the rest.
+        }
+      }
+    };
 
     const cleanup = () => {
+      if (cleaned) {
+        return;
+      }
+
+      cleaned = true;
       stream.off('error', fail);
       res.off?.('error', fail);
-      res.off?.('close', abort);
-      res.off?.('finish', markFinished);
+      res.off?.('close', handleClose);
+      res.off?.('finish', handleFinish);
     };
 
     const closeActiveIterator = () => {
       const iterator = activeIterator;
       activeIterator = null;
 
-      if (iterator?.return) {
+      if (!iterator?.return) {
+        return;
+      }
+
+      // Contain synchronous cleanup throws without displacing the initiating
+      // failure or interrupting stream termination. Asynchronous rejections
+      // are observed to avoid unhandled rejections.
+      try {
         void Promise.resolve(iterator.return()).catch((): undefined => undefined);
+      } catch {
+        return;
       }
     };
 
@@ -159,73 +212,193 @@ export class CSVResponse {
       }
 
       failed = true;
-      cleanup();
+      notifyAborted();
+      const normalizedError =
+        error instanceof Error
+          ? error
+          : (() => {
+              const wrapped = new Error('CSV response streaming failed');
 
-      const normalizedError = error instanceof Error ? error : new Error('CSV response streaming failed');
-      abortStreaming(normalizedError);
+              try {
+                (wrapped as Error & { cause: unknown }).cause = error;
+              } catch {
+                // Preserve termination even if cause assignment fails.
+              }
+
+              return wrapped;
+            })();
       closeActiveIterator();
 
       if (!outputStarted && !res.headersSent) {
-        onBeforeOutputError?.(normalizedError);
+        stream.destroy();
+
+        if (onBeforeOutputError) {
+          cleanup();
+
+          try {
+            onBeforeOutputError(normalizedError);
+          } catch {
+            // A throwing error owner must not displace the original failure,
+            // escape as a process-level error, or leave the destination open.
+            // Ownership was already released by cleanup(), so observe the
+            // fallback destroy error locally before terminating.
+            try {
+              res.on?.('error', (): undefined => undefined);
+            } catch {
+              // Termination still attempted below.
+            }
+
+            try {
+              closeResponse(normalizedError);
+            } catch {
+              // Destination termination is best-effort once observed.
+            }
+          }
+
+          return;
+        }
+
+        // Callback-free pre-output failure: deterministic fallback. Retain
+        // destination error/close/finish ownership through actual destruction
+        // (cleanup runs on close/finish) so the failure stays observable via
+        // `error` + `close` and the destination never stays open.
+        try {
+          closeResponse(normalizedError);
+        } catch {
+          cleanup();
+        }
+
         return;
       }
 
       stream.destroy();
+
+      // Retain destination error/close/finish ownership through actual
+      // destruction. Cleanup runs on close/finish, not here, so delayed
+      // _write/_final failures and destroy errors stay observed.
       closeResponse(normalizedError);
     };
 
-    const abort = () => {
-      if (!finished) {
+    const handleClose = () => {
+      if (!finished && !failed) {
         fail(new Error('CSV response streaming aborted'));
+        // The close that triggered this failure is already in flight, so no
+        // later close/finish will drive terminal cleanup.
+        cleanup();
+        return;
       }
+
+      // Terminal close after success (finish) or after failure destruction:
+      // actual destination completion, now release owned listeners.
+      cleanup();
     };
 
-    const markFinished = () => {
+    const handleFinish = () => {
       finished = true;
+      cleanup();
     };
 
     const writeRow = async (row: unknown) => {
+      if (failed) {
+        return;
+      }
+
       outputStarted = true;
 
       if (!stream.write(row)) {
-        await Promise.race([once(stream, 'drain'), abortSignal]);
+        await new Promise<void>((resolve) => {
+          if (failed) {
+            resolve();
+            return;
+          }
+
+          const onDrain = (): void => {
+            stream.off('drain', onDrain);
+            abortWaiters.delete(onAbort);
+            resolve();
+          };
+          const onAbort = (): void => {
+            stream.off('drain', onDrain);
+            resolve();
+          };
+          abortWaiters.add(onAbort);
+          stream.once('drain', onDrain);
+        });
       }
     };
 
     stream.on('error', fail);
-    stream.on('end', cleanup);
     res.on?.('error', fail);
-    res.on?.('close', abort);
-    res.on?.('finish', markFinished);
+    res.on?.('close', handleClose);
+    res.on?.('finish', handleFinish);
 
     const pump = async () => {
       try {
         const iterator = createAsyncIterator(this.dataset);
         activeIterator = iterator;
         const first = await iterator.next();
-        const firstRow = first.done ? undefined : this.processor(first.value);
+
+        // First-read cancellation: a disconnect may settle while the read is
+        // pending. Never process, assign headers, pipe, or write afterwards.
+        // A pending read itself cannot be cancelled; this only prevents
+        // subsequent work after it settles (see the cooperative-source note).
+        if (failed) {
+          return;
+        }
+
+        let firstRow: unknown;
+
+        if (!first.done) {
+          firstRow = this.processor(first.value);
+
+          if (failed) {
+            return;
+          }
+        }
+
         const contentDisposition = createAttachmentContentDisposition(this.filename);
+
+        if (failed) {
+          return;
+        }
 
         res.set('Content-Type', 'text/csv');
         res.set('Content-Disposition', contentDisposition);
         stream.pipe(res as unknown as Writable);
 
-        if (!first.done) {
-          await writeRow(firstRow);
+        // Respect completion immediately: an exhausted source must not be
+        // read again (a second read may throw or never settle).
+        if (first.done) {
+          if (!failed) {
+            stream.end();
+          }
+
+          return;
         }
 
-        while (!failed) {
-          const row = await Promise.race([iterator.next(), abortSignal]);
+        await writeRow(firstRow);
 
-          if (row.done) {
+        while (!failed) {
+          const result = await iterator.next();
+
+          if (failed) {
+            return;
+          }
+
+          if (result.done) {
             break;
           }
 
-          await writeRow(this.processor(row.value));
+          const processed = this.processor(result.value);
+
+          if (failed) {
+            return;
+          }
+
+          await writeRow(processed);
         }
 
         if (!failed) {
-          finished = true;
           stream.end();
         }
       } catch (error) {
@@ -235,6 +408,6 @@ export class CSVResponse {
       }
     };
 
-    void pump();
+    void pump().then(undefined, (): undefined => undefined);
   }
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import http from 'node:http';
+import net from 'node:net';
 import express from 'express';
 import request from 'supertest';
 import { createExpressApp, createServerlessHandler } from '../src/index';
@@ -96,6 +97,42 @@ describe('adapter e2e — real createServerlessHandler through local adapter', (
     expect(res.body.headers).toBe('yes');
   });
 
+  // ERT-B02: prototype-named query keys (old code threw
+  // `multi[key].push is not a function` -> 500) must reach the handler.
+  it('delivers literal and encoded prototype-named query keys to the handler without 500', async () => {
+    const seen: unknown[] = [];
+    const captureHandler = vi.fn().mockImplementation((event: unknown) => {
+      seen.push(event);
+      return Promise.resolve({ statusCode: 200, body: 'ok' });
+    });
+    const adapterApp = createServerlessAdapterApp(captureHandler);
+
+    const res = await request(adapterApp).get(
+      '/x?constructor=one&constructor=two&toString=a&%74oString=b&__proto__=p1&%5F%5Fproto%5F%5F=p2&plain=ok',
+    );
+    expect(res.status).toBe(200);
+    expect(res.text).toBe('ok');
+    expect(captureHandler).toHaveBeenCalledOnce();
+    const event = seen[0] as {
+      queryStringParameters: Record<string, string>;
+      multiValueQueryStringParameters: Record<string, string[]>;
+    };
+    // NOTE: JSON.parse keeps `__proto__` as an own key (a literal would set
+    // the prototype instead).
+    const expectedMulti = JSON.parse(
+      '{"constructor":["one","two"],"toString":["a","b"],"__proto__":["p1","p2"],"plain":["ok"]}',
+    ) as Record<string, string[]>;
+    const expectedSingle = JSON.parse('{"constructor":"two","toString":"b","__proto__":"p2","plain":"ok"}') as Record<
+      string,
+      string
+    >;
+    expect(event.multiValueQueryStringParameters).toEqual(expectedMulti);
+    expect(event.queryStringParameters).toEqual(expectedSingle);
+    expect(Object.prototype.hasOwnProperty.call(event.queryStringParameters, '__proto__')).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(event.multiValueQueryStringParameters, 'constructor')).toBe(true);
+    expect(({} as Record<string, unknown>).constructor).toBe(Object);
+  });
+
   it('round-trips encoded query edge cases according to the AWS REST v1 local contract', async () => {
     const app = createExpressApp();
     app.get('/edge', (req, res) => res.json(req.query));
@@ -113,6 +150,148 @@ describe('adapter e2e — real createServerlessHandler through local adapter', (
       unicode: '✓',
       already: '%26',
     });
+  });
+
+  // ERT-B03: raw request targets must survive event translation and
+  // wrapped routing verbatim. Raw `http.request({ path })` is used
+  // deliberately: URL-based clients normalize `//` and dot segments
+  // before sending, which would hide the server-side rewrite. The old
+  // WHATWG `URL` split turned `//admin/users` into `/users` and
+  // `/a/../private` into `/private`.
+  it('preserves raw request targets end to end over real HTTP', async () => {
+    const seen: unknown[] = [];
+    const captureHandler = vi.fn().mockImplementation((event: unknown) => {
+      seen.push(event);
+      return Promise.resolve({ statusCode: 200, body: 'ok' });
+    });
+    const adapterApp = createServerlessAdapterApp(captureHandler);
+    const server = http.createServer(adapterApp);
+    servers.push(server);
+    server.listen(0, '127.0.0.1');
+    const { port } = await waitForListening(server);
+
+    const rawGet = (path: string): Promise<{ status: number; body: string }> =>
+      new Promise((resolve, reject) => {
+        const req = http.request({ host: '127.0.0.1', port, method: 'GET', path }, (res) => {
+          let data = '';
+          res.on('data', (chunk) => (data += chunk.toString()));
+          res.on('end', () => resolve({ status: res.statusCode ?? 0, body: data }));
+        });
+        req.on('error', reject);
+        req.end();
+      });
+
+    const rawPaths = ['//admin/users', '/a/../private', '/a/./b', '/%2E%2E/private', '/a%2Fb'];
+    for (const path of rawPaths) {
+      const res = await rawGet(path);
+      expect(res.status).toBe(200);
+    }
+    expect(seen).toHaveLength(rawPaths.length);
+    for (const [index, path] of rawPaths.entries()) {
+      expect((seen[index] as { path: string }).path).toBe(path);
+    }
+
+    const queryRes = await rawGet('/x?a=1&a=2&encodedDelimiter=a%26b%3Dc&plus=a+b');
+    expect(queryRes.status).toBe(200);
+    const queryEvent = seen[seen.length - 1] as {
+      path: string;
+      queryStringParameters: Record<string, string>;
+      multiValueQueryStringParameters: Record<string, string[]>;
+    };
+    expect(queryEvent.path).toBe('/x');
+    expect(queryEvent.multiValueQueryStringParameters).toEqual({
+      a: ['1', '2'],
+      encodedDelimiter: ['a&b=c'],
+      plus: ['a+b'],
+    });
+    expect(queryEvent.queryStringParameters).toEqual({ a: '2', encodedDelimiter: 'a&b=c', plus: 'a+b' });
+  });
+
+  it('routes raw paths literally instead of the previously normalized route', async () => {
+    const app = createExpressApp();
+    app.get('/users', (_req, res) => res.json({ route: 'users' }));
+    app.get('/private', (_req, res) => res.json({ route: 'private' }));
+    const handler = createServerlessHandler(app);
+    const adapterApp = createServerlessAdapterApp(handler);
+    const server = http.createServer(adapterApp);
+    servers.push(server);
+    server.listen(0, '127.0.0.1');
+    const { port } = await waitForListening(server);
+
+    const rawGet = (path: string): Promise<{ status: number; body: string }> =>
+      new Promise((resolve, reject) => {
+        const req = http.request({ host: '127.0.0.1', port, method: 'GET', path }, (res) => {
+          let data = '';
+          res.on('data', (chunk) => (data += chunk.toString()));
+          res.on('end', () => resolve({ status: res.statusCode ?? 0, body: data }));
+        });
+        req.on('error', reject);
+        req.end();
+      });
+
+    // Sanity: ordinary paths still route.
+    for (const [path, route] of [
+      ['/users', 'users'],
+      ['/private', 'private'],
+    ] as const) {
+      const res = await rawGet(path);
+      expect(res.status).toBe(200);
+      expect(JSON.parse(res.body)).toEqual({ route });
+    }
+    // Raw targets must not be rewritten onto those routes.
+    for (const path of ['//admin/users', '/a/../private', '/a/./b']) {
+      const res = await rawGet(path);
+      expect(res.status).toBe(404);
+    }
+  });
+
+  // ERT-B04: repeated request headers must stay distinct in
+  // multiValueHeaders. `req.headers` has already joined duplicates
+  // (`"one, with comma, two"`), so the adapter derives the maps from the
+  // verbatim `rawHeaders` wire list instead of splitting on commas. A raw
+  // socket is used so the two wire lines really differ in case.
+  it('preserves repeated differently-cased headers with commas from rawHeaders over real HTTP', async () => {
+    const seen: unknown[] = [];
+    const captureHandler = vi.fn().mockImplementation((event: unknown) => {
+      seen.push(event);
+      return Promise.resolve({ statusCode: 200, body: 'ok' });
+    });
+    const adapterApp = createServerlessAdapterApp(captureHandler);
+    const server = http.createServer(adapterApp);
+    servers.push(server);
+    server.listen(0, '127.0.0.1');
+    const { port } = await waitForListening(server);
+
+    const rawResponse = await new Promise<string>((resolve, reject) => {
+      const sock = net.connect(port, '127.0.0.1', () => {
+        sock.write(
+          'GET /x HTTP/1.1\r\n' +
+            'Host: 127.0.0.1\r\n' +
+            'X-Repeat: one, with comma\r\n' +
+            'x-repeat: two\r\n' +
+            'X-Plain: solo\r\n' +
+            'Connection: close\r\n' +
+            '\r\n',
+        );
+      });
+      let data = '';
+      sock.on('data', (chunk) => (data += chunk.toString()));
+      sock.on('end', () => resolve(data));
+      sock.on('error', reject);
+      setTimeout(() => reject(new Error('timed out waiting for raw HTTP response')), 5000).unref?.();
+    });
+    expect(rawResponse).toContain('200');
+    expect(seen).toHaveLength(1);
+    const event = seen[0] as {
+      headers: Record<string, string>;
+      multiValueHeaders: Record<string, string[]>;
+    };
+    // Values preserved verbatim in wire order — no comma splitting.
+    expect(event.multiValueHeaders['x-repeat']).toEqual(['one, with comma', 'two']);
+    // Documented single-map policy: repeated values joined with ", ".
+    expect(event.headers['x-repeat']).toBe('one, with comma, two');
+    expect(event.multiValueHeaders['x-plain']).toEqual(['solo']);
+    expect(event.headers['x-plain']).toBe('solo');
   });
 
   it('delivers multiple Set-Cookie values from multiValueHeaders to the local client', async () => {
@@ -158,6 +337,10 @@ describe('adapter e2e — real createServerlessHandler through local adapter', (
       { statusCode: 99, headers: { 'x-before': 'no' }, body: 'no' },
       { statusCode: 200, headers: { 'x-before': ['no'] }, body: 'no' },
       { statusCode: 200, isBase64Encoded: true, body: 'not base64!' },
+      // ERT-B05: invalid multi-value name with an empty array must still fail
+      // closed. Old code only validated names inside the value loop, so this
+      // passed validation and leaked the staged `x-before` header at setHeader.
+      { headers: { 'x-before': 'leak' }, multiValueHeaders: { 'bad header': [] }, body: 'leak' },
       null,
     ];
 
@@ -172,6 +355,68 @@ describe('adapter e2e — real createServerlessHandler through local adapter', (
     errorSpy.mockRestore();
   });
 
+  // ERT-B05: real-HTTP regression — a sentinel header staged before an invalid
+  // empty-array name must not leak onto the fallback 500 (no earlier headers,
+  // body, or framing).
+  it('returns a clean 500 over real HTTP when an empty header array has an invalid name', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const adapterApp = createServerlessAdapterApp(
+      vi.fn().mockResolvedValue({
+        statusCode: 200,
+        headers: { 'x-sentinel': 'leak', 'content-type': 'text/plain' },
+        multiValueHeaders: { 'bad header': [] },
+        body: 'leak-body',
+      }),
+    );
+    const server = http.createServer(adapterApp);
+    servers.push(server);
+    server.listen(0, '127.0.0.1');
+    const { port } = await waitForListening(server);
+
+    const raw = await new Promise<string>((resolve, reject) => {
+      const req = http.request({ host: '127.0.0.1', port, method: 'GET', path: '/x' }, (res) => {
+        let data = '';
+        res.on('data', (chunk) => (data += chunk.toString()));
+        res.on('end', () => {
+          const headerBlock = res.rawHeaders.join('\n');
+          resolve(`${res.statusCode}\n${headerBlock}\n\n${data}`);
+        });
+      });
+      req.on('error', reject);
+      req.end();
+    });
+    expect(raw.split('\n')[0]).toBe('500');
+    expect(raw).not.toMatch(/x-sentinel/i);
+    expect(raw).not.toContain('leak-body');
+    expect(raw).toContain('Internal server error');
+    errorSpy.mockRestore();
+  });
+
+  // ERT-B05: valid empty arrays are omitted (documented policy) while cookies
+  // and single/multi precedence still work.
+  it('omits valid empty header arrays while preserving cookies and precedence', async () => {
+    const adapterApp = createServerlessAdapterApp(
+      vi.fn().mockResolvedValue({
+        statusCode: 200,
+        headers: { 'x-keep': 'yes', 'x-shadowed': 'single' },
+        multiValueHeaders: {
+          'x-empty': [],
+          'set-cookie': ['a=1; Path=/', 'b=2; Path=/'],
+          'x-shadowed': ['multi'],
+        },
+        body: 'ok',
+      }),
+    );
+
+    const res = await request(adapterApp).get('/empty');
+    expect(res.status).toBe(200);
+    expect(res.text).toBe('ok');
+    expect(res.headers['x-keep']).toBe('yes');
+    expect(res.headers['x-empty']).toBeUndefined();
+    expect(res.headers['x-shadowed']).toBe('multi');
+    expect(res.headers['set-cookie']).toEqual(['a=1; Path=/', 'b=2; Path=/']);
+  });
+
   it('handles 500 from handler without hanging (error path)', async () => {
     const app = createExpressApp();
     app.get('/boom', () => {
@@ -181,9 +426,9 @@ describe('adapter e2e — real createServerlessHandler through local adapter', (
     const adapterApp = createServerlessAdapterApp(handler);
 
     const res = await request(adapterApp).get('/boom');
-    // Serverless-http will return 500 via Express error handling; adapter should forward.
-    // Even if not, we verify adapter doesn't hang and responds deterministically.
-    expect([500, 200]).toContain(res.status);
+    // ERT-B05: tightened — a throwing handler must deterministically surface
+    // as 500 rather than permitting 200.
+    expect(res.status).toBe(500);
   });
 
   it('keeps Express parser limits, hook conversion thresholds, and adapter rejection limits distinct', async () => {

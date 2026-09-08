@@ -133,11 +133,13 @@ const { runtime } = factory.bootstrap(AppModule, app);
 
 Every hook method uses **explicit parameter injection** — undecorated parameters receive no value. `this` inside every hook is the decorated class instance (not the request — use `@Request()` for request data).
 
+Migration note (BDECO-05 — fail-fast decorator targets): hook, parameter, and property decorators are instance-only and reject unsupported targets at decoration time before writing metadata. Static methods/properties/parameters, constructor parameters, and missing/invalid operations (including zero-argument JavaScript calls like `BaseFilter()`) now throw instead of being silently skipped. Previously such declarations compiled but never registered, so a deny guard or filter could silently disappear. If you relied on static decorators, move the hook to an instance method.
+
 | Decorator              | Scope / Valid Class Role                                                                     | Operations                                                                                    | Result Shape (`MaybePromise<…>`)                                                                                                                   | Valid Parameter Decorators                                          |
 | ---------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | `@GlobalPermissions()` | `@Module` only (scalar)                                                                      | —                                                                                             | `GlobalPermissionValue` (`string \| string[] \| Record<string,boolean> \| null \| undefined`)                                                      | `@Request()`                                                        |
-| `@DocPermissions(op)`  | `@Router(Model)` / `@RouterOptions(Model)` (scalar)                                          | `default`, `create`, `update`, `list`, `read`                                                 | `Record<string, unknown>` (permission map)                                                                                                         | `@Document()`, `@Permissions()`, `@Context()`, `@Request()`         |
-| `@BaseFilter(op)`      | `@Router(Model)` / `@RouterOptions(Model)` (scalar)                                          | `default`, `update`, `list`, `read`, `delete`                                                 | `Filter \| true \| null \| undefined`                                                                                                              | `@Permissions()`, `@Request()`                                      |
+| `@DocPermissions(op)`  | `@Router(Model)` / `@RouterOptions(Model)` (scalar)                                          | `default`, `create`, `update`, `list`, `read`                                                 | `Record<string, unknown>` — per-document map, OR-combined with global grants; empty map grants nothing and never revokes a global grant            | `@Document()`, `@Permissions()`, `@Context()`, `@Request()`         |
+| `@BaseFilter(op)`      | `@Router(Model)` / `@RouterOptions(Model)` (scalar)                                          | `default`, `update`, `list`, `read`, `delete`                                                 | `Filter \| true \| null \| undefined` — filter restricts; only `false` denies; `null`/`undefined`/`true`/`{}` add no base restriction              | `@Permissions()`, `@Request()`                                      |
 | `@OverrideFilter(op)`  | `@Router(Model)` / `@RouterOptions(Model)` (scalar)                                          | `default`, `update`, `list`, `read`, `delete`                                                 | `Filter`                                                                                                                                           | `@Filter()`, `@Permissions()`, `@Request()`                         |
 | `@Validate(op)`        | `@Router(Model)` / `@RouterOptions(Model)` (scalar-like; duplicate `validate.<op>` rejected) | `default`, `create`, `update`                                                                 | `boolean \| unknown[]` — `true` passes, `false` / non-empty array → controlled `400`; do not return document or `throw` for expected invalid input | `@Document()`, `@Permissions()`, `@Context()`, `@Request()`         |
 | `@Prepare(op)`         | `@Router(Model)` / `@RouterOptions(Model)` (array — composes)                                | `default`, `create`, `update`                                                                 | `TValue` (prepared document)                                                                                                                       | `@Document()`, `@Permissions()`, `@Context()`, `@Request()`         |
@@ -151,6 +153,10 @@ Every hook method uses **explicit parameter injection** — undecorated paramete
 | `@AfterDelete()`       | `@Router(Model)` / `@RouterOptions(Model)` (scalar)                                          | —                                                                                             | `void`                                                                                                                                             | `@Document()`, `@Permissions()`, `@Context()`, `@Request()`         |
 
 Scalar hooks reject duplicate `<hook>.<operation>` (or `<hook>`) on the same class before any runtime setter; array hooks (`prepare`, `transform`, `afterPersist`, `decorate`, `decorateAll`) compose base→derived.
+
+Security / migration note (BDECO-07 — previously misleading guidance, runtime semantics unchanged): earlier docs said `@BaseFilter` `null` denies and `@DocPermissions` `{}` denies. The runtime never behaved that way — only a `false` base/override filter denies (`null`/`undefined`/`true`/empty `{}` normalize to no restriction and pass the incoming filter through), and document permissions combine with global grants via OR (`permissions.has(key) || docPermissions[key]`), so an empty document map cannot revoke a global grant. If you relied on `null` filters or `{}` document maps to deny, return `false` from the filter hook or gate the route with `@RouteGuard(op)` returning `false` instead. `@Identifier()` hooks run with `this` bound to the decorated class instance like every other hook (never the request object); use `@Request()`/`@Id()` for request values.
+
+Root-shorthand contract (exact-slot registration): decorated hooks occupy exactly one operation slot (`validate.<op>`, `prepare.<op>`, …). Sibling operations (`create` + `update`) and `default` + operation combinations are supported in either declaration order with isolated chains; callback order within one slot is preserved and malformed exact chains still throw. A stored root shorthand (`validate: false | unknown[] | hook`, `prepare: fn | fn[]`, etc.) conflicts with any decorated operation on the same scope — bootstrap rejects with `Duplicate decorated validator for validate.<op>` (validate) or `Conflicting root hook chain for <hook>.<op>` (array hooks) before any setter, so unrelated operations are never silently weakened. Use either root shorthands or decorated operation slots for the same hook scope, not both.
 
 ### Property Decorators (Option Injection)
 
@@ -215,9 +221,11 @@ Calling `bootstrap(...)` twice with the same factory, module class, and Express 
 
 ## Transactional Bootstrap
 
-`EgoseFactoryStatic.bootstrap(...)` is atomic for package-controlled state. Module, router, and option classes are validated before any constructor runs. The factory snapshots `globalOptions`, `defaultModelOptions`, `modelOptions`, model registrations, model refs/subs/atts, and OpenAPI registrations via `createBootstrapSnapshot()` before mutating the runtime, then restores them via `restoreBootstrapSnapshot()` on any failure. All decorated option registration and Express router construction happen on an unmounted `express.Router()` first; only after every step succeeds are the runtime middleware and `basePath` router mounted on the host app with `app.use(...)`. If the final `app.use` itself throws, the runtime snapshot is still restored and the app's internal stack is truncated to its pre-bootstrap length.
+`EgoseFactoryStatic.bootstrap(...)` is atomic for package-controlled state. Module, router, and option classes are validated before any constructor runs. The factory snapshots `globalOptions`, `defaultModelOptions`, `modelOptions`, model registrations, model refs/subs/atts, and OpenAPI registrations via `createBootstrapSnapshot()` before mutating the runtime, then restores them via `restoreBootstrapSnapshot()` on any failure. Request runtime initialization (`factory.runtime()`), all decorated option registration, routes, and opt-in error handlers are composed on an unmounted `express.Router()` first (init before routes and error handlers); only after every step succeeds is that single module router mounted on the host app with `app.use(basePath, router)`. If the final `app.use` itself throws, the runtime snapshot is still restored and the app's internal stack is truncated to its pre-bootstrap length.
 
-Deterministic checks such as malformed hook chains (`Invalid hook chain for <aclKey>`) and duplicate validator/static-array conflicts are validated in preflight before any setter, so a failure never leaves partial runtime state. A failed `bootstrap` does not mark the module/app tuple as bootstrapped, so retrying with a corrected module behaves like a clean first attempt and mounts exactly one copy of the runtime middleware and every route/hook (no duplication of global/default/model options, hook chains, or OpenAPI routes).
+Request runtime initialization is scoped to the module router mounted at `basePath` and does not run on unrelated host routes. Two isolated modules on one app each use only their owning runtime on their own paths. Applications needing request runtime initialization outside module routes must explicitly own that middleware (for example, `app.use(factory.runtime())`).
+
+Deterministic checks such as malformed hook chains (`Invalid hook chain for <aclKey>`) and duplicate validator/static-array conflicts are validated in preflight before any setter, so a failure never leaves partial runtime state. A failed `bootstrap` does not mark the module/app tuple as bootstrapped, so retrying with a corrected module behaves like a clean first attempt and mounts exactly one module router with one copy of initialization and every route/hook (no duplication of global/default/model options, hook chains, or OpenAPI routes).
 
 **Non-rollback boundary:** arbitrary user constructors and field initializers (`new Type()`) executed while building the module plan are outside the transaction and are not undone. Express internals outside the mount stack (e.g., `app.set(...)`, already-sent responses) are also not rolled back. The guarantee covers only the factory's runtime state and the Express mount stack (`app._router.stack` / `app.router.stack` truncation).
 
@@ -246,6 +254,26 @@ class UserOptions {}
 ```
 
 `EgoseFactory.bootstrap(...)` registers the supplied model instance with the factory's bound runtime before route creation. This keeps same-name models from separate Mongoose connections isolated when each module uses its own `EgoseFactoryStatic.create()` runtime.
+
+Typed models compose through the exported `RouterModel<TModel>` alias without casts, and decorator overloads keep model-specific option inference (`ModelRouterOptions<TModel>`):
+
+```ts
+import type { Model } from 'mongoose';
+import type { RouterModel } from '@web-ts-toolkit/access-router-deco';
+
+type User = { name: string };
+declare const UserModel: Model<User>;
+
+const modelRef: RouterModel = UserModel;
+const typedRef: RouterModel<User> = UserModel;
+
+function registerModel(value: RouterModel<User>) {
+  Router(value, { basePath: '/users' })(UserRouter);
+  RouterOptions(value, { idParam: 'userId' })(UserOptions);
+}
+```
+
+A `string | Model<TModel>` union held in a variable or function parameter is accepted wherever a model name or instance is. Option objects still infer from the model type (e.g. `permissionSchema` keys), and model-like objects or non-model values are still rejected.
 
 ## Hook Inheritance & Symbol Methods
 

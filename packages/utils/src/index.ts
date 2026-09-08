@@ -56,3 +56,8 @@ export { default as toStringRecord } from './toStringRecord';
 export { default as uniq } from './uniq';
 export { default as uniqBy } from './uniqBy';
 export { default as upperCase } from './upperCase';
+
+// UTILS-09: `PropertyPath` already appears in the public signatures of
+// `get`/`set`/`pick`/`omit`; exporting the type lets consumers spell wrapper
+// signatures without re-declaring it. Type-only, no runtime surface change.
+export type { PropertyPath } from './_internal';

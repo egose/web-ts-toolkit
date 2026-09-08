@@ -2,6 +2,19 @@
 
 FastAPI-style return-value response handling for Express: route handlers return plain values, `HttpResponse` wrappers, or throw typed HTTP errors.
 
+## Installation
+
+Requires Node.js `>=22` and Express `^5` (peer, installed separately).
+
+```sh
+pnpm add @web-ts-toolkit/express-response-handler @web-ts-toolkit/http-errors express
+pnpm add -D typescript @types/express @types/node
+```
+
+The quickstart imports `express` and `@web-ts-toolkit/http-errors` directly,
+so both must be direct dependencies (transitive packages are not importable
+from an isolated pnpm consumer).
+
 ## Main Patterns
 
 ```ts
@@ -40,17 +53,23 @@ import { Created, NoContent } from '@web-ts-toolkit/express-response-handler/res
 
 ## Gotchas
 
+- requires Node.js `>=22` and Express `^5` (peer dependency)
+- install direct imports explicitly: `@web-ts-toolkit/http-errors` (typed thrown errors) and `express` are not usable transitively under isolated installs
+- default export is the handler instance; named exports (`handleResponse`, `HttpResponse`, `createHandler`, `ErrorFormats`) are also available; use one style consistently within a module
 - depends on `@web-ts-toolkit/http-errors` for typed thrown errors
-- default export is the handler instance; named exports (`handleResponse`, `HttpResponse`, `createHandler`, `ErrorFormats`) are also available
 - return plain values for `200 OK`; use `HttpResponse.*` wrappers for other status codes
 - `ErrorFormats` selects between `simple`, `aip193`, and `rfc9457` error payload shapes
 - unexpected non-HTTP errors return `500` with `Internal Server Error`; raw thrown messages are kept for hooks/logging and are not sent to clients by default
 - only finite integer `4xx` and `5xx` status codes are serialized as HTTP errors; invalid status values are rejected before headers are written
 - hooks (`preJson`, `postJson`, `preError`, `postError`) are observational `void | Promise<void>` side effects; returned values never transform payloads
-- `postJson` and `postError` run after successful HTTP `finish`; they do not run on client `close`, failed serialization, or `undefined` handler returns
+- `preJson` is skipped for `undefined` returns and manual ownership; `postJson` never runs for manual responses or fallback JSON errors
+- success-path serialization, rejected `preJson`, and CSV-before-output failures run one bounded error lifecycle: one `preError` with the original, one redacted body, one finish-timed `postError`, never `postJson`, never re-entering a failing `preError`/provider
+- owned partial-write failures delegate to Express error middleware with `next(err)` and no second body
+- `postJson` and `postError` run after successful HTTP `finish`; they do not run on client `close`, partial responses without an error body, or `undefined` handler returns
 - pre-hook failures go through the normal error response path; post-hook failures are passed to Express with `next(err)` after the response has finished
 - the default export is a mutable process-wide singleton; use `createHandler()` for isolated hook and error-provider state
 - response wrappers (`Created`, `NoContent`, `CSVResponse`, etc.) are also exported from the root entrypoint, but the subpaths give tree-shakeable access
+- direct `streamCsv(res)` keeps its optional error-owner callback: pre-output failures with an owner invoke it once (owner terminates; throwing owners are contained and the destination is destroyed with the original), without an owner the destination is destroyed with the normalized failure; post-output failures always destroy
 
 ## Pointers
 

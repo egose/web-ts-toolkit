@@ -45,6 +45,14 @@ export interface OidcVaultSession {
   expiresAt?: number;
   createdAt: number;
   updatedAt: number;
+  /**
+   * Verified session profile. On refresh with a new `id_token`, the profile
+   * is rebuilt from fresh verified ID claims overlaid with freshly fetched
+   * matching UserInfo; retained values are never carried forward, so removed
+   * provider claims disappear. Application custom attributes belong in
+   * `metadata`, not in `user`. Without a new `id_token`, the retained
+   * profile is kept verbatim (fresh UserInfo still overlays per key).
+   */
   user?: OidcVaultUserProfile;
   /**
    * Store-portable application metadata.
@@ -148,6 +156,14 @@ export interface OidcVaultStoreProvider {
    *
    * Returns `false` for duplicate, expired, exact-boundary, `NaN`, or infinite
    * expiries. A JTI rejected for invalid or already-expired expiry is not stored.
+   *
+   * The core middleware (BOV-01) passes an opaque replay key that already
+   * namespaces the raw logout-token `jti` by issuer and client ID, so
+   * providers must treat `jti` as an opaque string and need no schema change. Pre-BOV-01 raw-`jti` records use
+   * a different key shape and expire naturally with the logout-token `exp`;
+   * they are never matched by namespaced keys. Retry safety comes from the
+   * atomic single-key reservation plus idempotent catch-up deletion in the
+   * route handler, not from a multi-key store transaction.
    */
   consumeBackchannelLogoutTokenJti(input: ConsumeBackchannelLogoutTokenJtiInput): Promise<boolean>;
   deleteSessionsBySubject(input: string | DeleteSessionsBySubjectInput): Promise<number>;
@@ -210,9 +226,35 @@ export interface OidcVaultAccessTokenValidator {
   validate(token: string): Promise<OidcVaultAccessTokenValidationResult>;
 }
 
+export interface OidcVaultAccessTokenMiddlewareErrorContext {
+  error: unknown;
+  req: Request;
+  res: Response;
+  token?: string;
+  auth?: OidcVaultAuthContext;
+}
+
 export interface OidcVaultAccessTokenMiddlewareOptions {
   validator: OidcVaultAccessTokenValidator;
+  /**
+   * Pre-`next()` veto hook, not a post-commit notification: when it throws,
+   * downstream middleware never runs and `req.auth` is detached before the
+   * error response is sent. A valid bearer credential plus a failing hook
+   * never surfaces as an invalid-token 401: an `OidcVaultHttpError` from the
+   * hook keeps its own status/code/client message (a 401 keeps the `Bearer`
+   * challenge, other statuses carry no challenge), while any other hook
+   * error becomes a sanitized `500 OIDC_VAULT_AUTH_CONTEXT_FAILED` without
+   * leaking the original message. The original error is observable via
+   * `onError` for private server-side logs.
+   */
   onAuthContext?(input: { req: Request; res: Response; auth: OidcVaultAuthContext }): void | Promise<void>;
+  /**
+   * Observes the original error for every bearer-middleware failure
+   * (extraction, validator, and `onAuthContext` failures) without affecting
+   * the sanitized client response. Failures thrown by this observer are
+   * swallowed so the original error response is preserved.
+   */
+  onError?(context: OidcVaultAccessTokenMiddlewareErrorContext): void | Promise<void>;
 }
 
 export interface OidcVaultAuthenticatedRequest extends Request {
@@ -234,6 +276,17 @@ declare module 'express-serve-static-core' {
 }
 
 export interface OidcVaultConfig {
+  /**
+   * OIDC issuer identifier, preserved exactly after surrounding-whitespace
+   * trimming (no trailing slash is added, so `/tenant`, `/tenant/`, and
+   * `/tenant//` remain distinct). Must be an absolute http(s) URL without
+   * userinfo, query, or fragment; `http` is accepted for local-test
+   * providers. Required in both discovery mode (issuer only) and manual mode
+   * (issuer plus endpoints); when any manual endpoint is configured, manual
+   * endpoints are used and discovery is not performed. Discovery responses
+   * must carry an exactly equal issuer, and ID/logout tokens are validated
+   * against this exact identifier.
+   */
   issuer?: string;
   authorizationEndpoint?: string;
   tokenEndpoint?: string;
@@ -246,6 +299,16 @@ export interface OidcVaultConfig {
 }
 
 export interface OidcVaultLogoutResult {
+  /**
+   * Local logout always commits before any upstream work: `loggedOut: true`
+   * means the local session lineage is revoked (and the session cookie is
+   * cleared under cookie transport). Local-only logout (`redirect` unset or
+   * `false`) never contacts the provider. Redirected logout (`redirect: true`)
+   * treats the upstream end-session redirect as best-effort: when provider
+   * discovery fails or no `endSessionEndpoint` is available, the route still
+   * returns this local success and reports the upstream failure via `onError`
+   * instead of undoing the revocation or skipping `onLogout`.
+   */
   loggedOut: true;
 }
 
@@ -266,12 +329,42 @@ export type OidcVaultCookieDeploymentMode = 'same-origin' | 'same-site' | 'cross
 export type OidcVaultCookieSameSite = 'lax' | 'strict' | 'none';
 
 export interface OidcVaultCookieOptions {
+  /**
+   * Session cookie name. Must be a valid HTTP cookie name (printable ASCII
+   * token). Names with the `__Secure-` prefix require an effectively Secure
+   * cookie; names with the `__Host-` prefix additionally require no
+   * `cookie.domain` and `cookie.path: '/'`. Checked against effective
+   * serialized values, so `sameSite: 'none'` counts as Secure.
+   */
   name?: string;
   deploymentMode?: OidcVaultCookieDeploymentMode;
   sameSite?: OidcVaultCookieSameSite;
+  /**
+   * Explicit `Secure` override. When omitted, defaults to `true` for HTTPS
+   * `backendOrigin`, `sameSite: 'none'`, or `deploymentMode: 'cross-site'`;
+   * otherwise `false` as an intentional HTTP local-development policy
+   * (plaintext backends must opt into `secure: true` when served over HTTPS
+   * behind a proxy that reports an `http` origin). `SameSite=None` is always
+   * serialized with `Secure` regardless of this flag because browsers reject
+   * `SameSite=None` without it.
+   */
   secure?: boolean;
+  /**
+   * Optional cookie `Domain`. Must be a valid cookie domain when set. Must be
+   * omitted for `__Host-` prefixed names (host-only requirement).
+   */
   domain?: string;
+  /**
+   * Cookie `Path`. Must start with `/` and contain only header-safe printable
+   * ASCII (no CTLs, DEL, non-ASCII/Unicode, or `;`). `__Host-` prefixed names
+   * require exactly `'/'`.
+   */
   path?: string;
+  /**
+   * Must be `true` or omitted. Middleware creation rejects
+   * `httpOnly: false` for cookie session transport; there is no unsafe
+   * compatibility switch.
+   */
   httpOnly?: boolean;
 }
 
@@ -280,9 +373,32 @@ export interface OidcVaultOptions {
   backendOrigin: string;
   storeProvider: OidcVaultStoreProvider;
   config?: OidcVaultConfig;
+  /**
+   * Lifecycle hooks shared by reference (not cloned): pre-commit hooks run
+   * before durable state changes and can veto by throwing, while
+   * `onSessionCreated`/`onSessionRefreshed`/`onLogout` are post-commit
+   * notifications whose failures reach `onError` without undoing state.
+   * Replacing the caller options object after middleware creation has no
+   * effect; the `hooks` service object itself is retained live.
+   */
   hooks?: OidcVaultHooks;
   tokenIssuer?: OidcVaultTokenIssuer;
+  /**
+   * Default browser return target after backend callback completion. Required
+   * if login accepts a custom `returnTo`. Remains optional at middleware
+   * creation because non-callback routes do not need it; the callback route
+   * instead validates its destination (transaction `returnTo` or this value)
+   * before any provider call or durable session/code creation and fails with
+   * `500 OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI` when neither is configured.
+   */
   frontendRedirectUri?: string;
+  /**
+   * Optional provider-registered HTTP(S) URL used in the upstream end-session
+   * redirect. Only consulted for redirected logout (`redirect: true`); local
+   * logout never contacts the provider, and redirected logout treats upstream
+   * metadata/endpoint failures as best-effort (local `200 { loggedOut: true }`
+   * plus `onError`, with `onLogout` still delivered).
+   */
   postLogoutRedirectUri?: string;
   fetchUserInfo?: boolean;
   authorizationTransactionTtlMs?: number;
@@ -291,6 +407,18 @@ export interface OidcVaultOptions {
   cookie?: OidcVaultCookieOptions;
   trustedOrigins?: string[];
   requestBodyLimit?: string | number;
+  /**
+   * Overall deadline in milliseconds for a single upstream provider HTTP
+   * exchange, covering DNS/connect/TLS, response headers, and complete
+   * success/error body consumption plus stream cleanup.
+   *
+   * Successful discovery metadata is shared across timeout policies, but an
+   * in-flight discovery fetch honors each joining caller's own deadline
+   * without aborting the shared fetch. Remote JWKS resolvers are isolated by
+   * `(jwks_uri, providerRequestTimeoutMs)` because JOSE fixes the fetch
+   * timeout at resolver creation; the package JWKS transport additionally
+   * bounds JWKS bodies (1 MiB, 100 keys) that JOSE leaves unbounded.
+   */
   providerRequestTimeoutMs?: number;
   now?: () => number;
 }

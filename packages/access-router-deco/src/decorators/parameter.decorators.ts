@@ -3,8 +3,41 @@ import { ARGS_METADATA, HookParamtypes } from '../constants';
 
 type HookParamMetadata = { index: number; type: HookParamtypes };
 
+/**
+ * Instance-only parameter contract.
+ *
+ * Hook parameter decorators (`@Request`, `@Document`, `@Permissions`,
+ * `@Context`, `@Filter`, `@Id`) target **instance hook method parameters
+ * only**. Constructor parameters (`key === undefined`) and static method
+ * parameters (`typeof target === 'function'`) throw before any metadata
+ * write.
+ *
+ * Compatibility impact: previously constructor parameters silently did
+ * nothing, and static parameters wrote `ARGS_METADATA` onto the shared
+ * `Function` object (via `target.constructor`), contaminating unrelated
+ * classes while never registering. Both now fail fast at decoration time.
+ */
+const PARAM_DECORATOR_NAMES: Record<HookParamtypes, string> = {
+  [HookParamtypes.REQUEST]: 'Request',
+  [HookParamtypes.DOCUMENT]: 'Document',
+  [HookParamtypes.CONTEXT]: 'Context',
+  [HookParamtypes.PERMISSIONS]: 'Permissions',
+  [HookParamtypes.FILTER]: 'Filter',
+  [HookParamtypes.ID]: 'Id',
+};
+
 const mergeHookParams = (target: object, key: string | symbol | undefined, index: number, type: HookParamtypes) => {
-  if (key === undefined) return;
+  const name = PARAM_DECORATOR_NAMES[type];
+  if (key === undefined) {
+    throw new Error(
+      `Invalid @${name} target: constructor parameters are not supported; decorate an instance hook method parameter. Constructor injection silently did nothing, so this fails fast instead of being ignored.`,
+    );
+  }
+  if (typeof target === 'function') {
+    throw new Error(
+      `Invalid @${name} target: static methods are not supported; decorate an instance hook method parameter. Static parameter metadata was written to shared Function metadata and never registered, so this fails fast instead of contaminating unrelated classes.`,
+    );
+  }
   const args = (Reflect.getOwnMetadata(ARGS_METADATA, target.constructor, key) || []) as HookParamMetadata[];
   Reflect.defineMetadata(
     ARGS_METADATA,

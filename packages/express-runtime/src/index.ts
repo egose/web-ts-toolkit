@@ -2,7 +2,7 @@ import http from 'node:http';
 import type { Express, RequestHandler, ErrorRequestHandler } from 'express';
 import express from 'express';
 import serverless from 'serverless-http';
-import { MAX_INTEGER_OPTION_VALUE, parsePortValue, validateFiniteInteger } from './numeric-validation';
+import { parsePortValue, validateTimerDuration } from './numeric-validation';
 
 // ---------------------------------------------------------------------------
 // Logger
@@ -164,9 +164,13 @@ export function createExpressApp(options: ExpressAppOptions = {}): Express {
 // ---------------------------------------------------------------------------
 
 /**
- * A platform-agnostic serverless handler. Works with Netlify, Vercel, AWS
- * Lambda, and any platform that calls `(event, context)` and expects a
- * response.
+ * A serverless handler generic over provider event/context shapes, backed by
+ * `serverless-http` 4. The handler accepts the event shapes the configured
+ * `serverlessOptions.provider` supports (`'aws'`/`'azure'`, with default
+ * detection); it is not tested against Netlify, Vercel, HTTP API v2, or ALB
+ * shapes. The local `start-serverless` adapter supplies AWS API Gateway REST
+ * API v1 events only. Provide provider-specific `TEvent`/`TContext` when hooks
+ * need typed access; the default for both is `Record<string, unknown>`.
  */
 export type ServerlessHandler<
   TEvent extends object = Record<string, unknown>,
@@ -222,8 +226,8 @@ export interface ServerlessHandlerOptions<
   /** Hook called after Express finishes processing as `(response, event, context)`. */
   response?: ServerlessResponseHook<TEvent, TContext>;
   /**
-   * Additional options forwarded to `serverless-http` (e.g. `provider`,
-   * `binary`, `basePath`). `request` and `response` are controlled by the
+   * Additional options forwarded to `serverless-http` (e.g. `provider`
+   * (`'aws'`/`'azure'`), `binary`, `basePath`). `request` and `response` are controlled by the
    * dedicated hooks above.
    */
   serverlessOptions?: Omit<ServerlessHttpOptions, 'request' | 'response'>;
@@ -245,6 +249,12 @@ export interface ServerlessHandlerOptions<
  * strings. Malformed JSON is treated as client input and left unchanged without
  * logging an internal error.
  *
+ * String conversion is deferred until the media-type/readability decision
+ * needs it: readable JSON inputs return before any `toString('utf8')`, so no
+ * unused UTF-8 decode is performed for the streamed path. Plain-object
+ * conversion behavior, media-type matching, the `maxBodyBytes` threshold, and
+ * Express parser ownership are unchanged.
+ *
  * Public extension seam used by the default `createServerlessHandler()` request
  * hook and by consumers that want the same conservative body conversion policy
  * in a custom hook.
@@ -261,21 +271,20 @@ export function defaultRequestHook(
     logger.debug?.(' Skipping oversized serverless body for content-type parsing');
     return;
   }
-  const bodyStr = req.body.toString('utf8');
   const contentType = getHeaderValue(req.headers, 'content-type');
   if (isJsonMediaType(contentType)) {
     if (isReadableRequest(req)) {
       return;
     }
     try {
-      req.body = JSON.parse(bodyStr);
+      req.body = JSON.parse(req.body.toString('utf8'));
     } catch (_error) {
       void _error;
     }
     return;
   }
 
-  req.body = bodyStr;
+  req.body = req.body.toString('utf8');
 }
 
 function getHeaderValue(headers: ServerlessRequest['headers'], name: string): string {
@@ -393,7 +402,7 @@ export interface LocalServerOptions {
    * `shutdown()`. Pass an explicit array to choose different signals.
    */
   signals?: boolean | ReadonlyArray<NodeJS.Signals>;
-  /** Max ms to wait for in-flight requests on shutdown. Default: `5000`. */
+  /** Max ms to wait for in-flight requests on shutdown. Default: `5000`. Must be a finite integer in `0..2147483647` (Node timer limit); `0` force-closes immediately, `2147483647` is the largest safe delay. */
   shutdownTimeout?: number;
   /**
    * Call `process.exit(0)` after graceful shutdown completes. Default: `false`
@@ -476,11 +485,7 @@ export function startLocalServer(app: Express, options: LocalServerOptions = {})
   const logger = options.logger ?? defaultLogger;
   const port = normalizePort(options.port);
   const host = options.host ?? process.env.HOST ?? '0.0.0.0';
-  const shutdownTimeout = validateFiniteInteger(options.shutdownTimeout ?? DEFAULT_SHUTDOWN_TIMEOUT, {
-    name: 'shutdownTimeout',
-    min: 0,
-    max: MAX_INTEGER_OPTION_VALUE,
-  });
+  const shutdownTimeout = validateTimerDuration(options.shutdownTimeout ?? DEFAULT_SHUTDOWN_TIMEOUT, 'shutdownTimeout');
 
   const server = http.createServer(app);
   app.set('port', port);
@@ -680,6 +685,7 @@ export function startLocalServer(app: Express, options: LocalServerOptions = {})
     // Drain complete — now run application cleanup under documented policy:
     // shutdownTimeout covers only draining; cleanup failure is reported and
     // propagates unless the CLI-owned process exit path handles it here.
+    let shutdownFailed = false;
     let shutdownError: unknown;
     try {
       if (options.onShutdown) {
@@ -687,10 +693,11 @@ export function startLocalServer(app: Express, options: LocalServerOptions = {})
       }
     } catch (err) {
       logger.error('onShutdown hook failed:', err);
+      shutdownFailed = true;
       shutdownError = err;
     }
 
-    if (shutdownError) {
+    if (shutdownFailed) {
       state = 'failed';
       if (options.exitAfterShutdown) {
         process.exit(1);
@@ -716,7 +723,7 @@ export function startLocalServer(app: Express, options: LocalServerOptions = {})
       options.signals === undefined || options.signals === true
         ? DEFAULT_SIGNALS
         : (options.signals as ReadonlyArray<NodeJS.Signals>);
-    for (const sig of list) {
+    for (const sig of new Set(list)) {
       const handler = () => {
         void shutdown().catch(() => {});
       };

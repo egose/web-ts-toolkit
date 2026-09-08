@@ -34,6 +34,7 @@ import type {
   UseCreateMutateResult,
   UseUpdateMutateOptions,
   UseUpsertMutateOptions,
+  ProjectedShape,
   ProjectedShapeArray,
   ProjectedModelResponse,
   ProjectedListModelResponse,
@@ -270,3 +271,107 @@ const manualList = hooks.useList({ listParams: { pageSize: 10 } });
 type ManualListRes = Awaited<ReturnType<typeof manualList.query>>;
 expectTypeAssignableTo<ListModelResponse<Pet>>({} as ManualListRes);
 void manualList;
+
+// ── ARR-B03 conservative projections: supplied-but-indeterminable and
+// union selections must NOT fall back to the full required model ──
+
+const b03DynString: string = 'status';
+const b03DynArray: string[] = ['name'];
+const b03Excl = { status: -1 } as const;
+const b03Union: readonly ['name'] | readonly ['status'] = Date.now() > 0 ? (['name'] as const) : (['status'] as const);
+
+// Omitted selection keeps the full-model shape (positive control).
+type B03Omitted = ProjectedShape<Pet, Projection>;
+expectTypeAssignableTo<Model<Pet> & Pet>({} as B03Omitted);
+
+// Literal tuple keeps the selected field required (positive control).
+type B03Literal = ProjectedShape<Pet, readonly ['name']>;
+const b03Literal = {} as B03Literal;
+expectTypeAssignableTo<string>(b03Literal.name);
+// @ts-expect-error — literal ['name'] drops `status` to optional.
+expectTypeAssignableTo<string>(b03Literal.status);
+
+// Broad `string` select: every field optional on data and response payloads.
+type B03DynStrData = ProjectedShape<Pet, string>;
+const b03DynStrData = {} as B03DynStrData;
+// @ts-expect-error — ARR-B03: dynamic string select cannot claim `status` as required.
+expectTypeAssignableTo<string>(b03DynStrData.status);
+type B03DynStrRes = ProjectedModelResponse<Pet, string>;
+type B03DynStrSucc = Extract<B03DynStrRes, { success: true }>['data'];
+const b03DynStrSucc = {} as B03DynStrSucc;
+// @ts-expect-error — ARR-B03: dynamic string response payload cannot claim `status` as required.
+expectTypeAssignableTo<string>(b03DynStrSucc.status);
+const b03DynRead = hooks.useRead({ id: '1', advanced: true, select: b03DynString });
+if (b03DynRead.data) {
+  // @ts-expect-error — ARR-B03: hook data under a dynamic string select is optional.
+  expectTypeAssignableTo<string>(b03DynRead.data.status);
+}
+
+// Broad `string[]` select: every field optional on list data, previousData, callbacks.
+type B03DynArr = ProjectedShapeArray<Pet, string[]>;
+const b03DynArr = {} as B03DynArr;
+if (b03DynArr.length > 0) {
+  // @ts-expect-error — ARR-B03: dynamic array select cannot claim `status` as required.
+  expectTypeAssignableTo<string>(b03DynArr[0].status);
+}
+const b03DynList = hooks.useList({ listParams: { pageSize: 10 }, advanced: true, select: b03DynArray });
+if (b03DynList.data.length > 0) {
+  // @ts-expect-error — ARR-B03: hook list data under a dynamic array select is optional.
+  expectTypeAssignableTo<string>(b03DynList.data[0].status);
+}
+if (b03DynList.previousData && b03DynList.previousData.length > 0) {
+  // @ts-expect-error — ARR-B03: previousData follows the same conservative element shape.
+  expectTypeAssignableTo<string>(b03DynList.previousData[0].status);
+}
+const b03DynOpts: UseReadQueryOptions<Pet, string> = {
+  onSuccess: (result) => {
+    if (result.success) {
+      // @ts-expect-error — ARR-B03: onSuccess payload under a dynamic select is optional.
+      expectTypeAssignableTo<string>(result.data.status);
+    }
+  },
+};
+void b03DynOpts;
+
+// Exclusion-only `{ status: -1 }`: every field optional.
+type B03ExclRes = ProjectedModelResponse<Pet, { status: -1 }>;
+type B03ExclSucc = Extract<B03ExclRes, { success: true }>['data'];
+const b03ExclSucc = {} as B03ExclSucc;
+// @ts-expect-error — ARR-B03: exclusion-only select cannot claim `status` as required.
+expectTypeAssignableTo<string>(b03ExclSucc.status);
+const b03ExclRead = hooks.useRead({ id: '1', advanced: true, select: b03Excl });
+if (b03ExclRead.data) {
+  // @ts-expect-error — ARR-B03: hook data under an exclusion-only select is optional.
+  expectTypeAssignableTo<string>(b03ExclRead.data.status);
+}
+
+// Union preserves alternatives instead of requiring both.
+type B03Union = ProjectedShape<Pet, readonly ['name'] | readonly ['status']>;
+const b03UnionShape = {} as B03Union;
+// @ts-expect-error — ARR-B03: union select cannot claim `status` as required.
+expectTypeAssignableTo<string>(b03UnionShape.status);
+// @ts-expect-error — ARR-B03: union select cannot claim `name` as required.
+expectTypeAssignableTo<string>(b03UnionShape.name);
+const b03UnionRead = hooks.useRead({ id: '1', advanced: true, select: b03Union });
+if (b03UnionRead.data) {
+  // @ts-expect-error — ARR-B03: hook data under a union select cannot claim `status` as required.
+  expectTypeAssignableTo<string>(b03UnionRead.data.status);
+}
+
+// Mutations: dynamic/union/exclusion selections are conservative on data,
+// callbacks, and mutate() payloads.
+const b03DynCreate = hooks.useCreate({ advanced: true, select: b03DynString });
+if (b03DynCreate.data) {
+  // @ts-expect-error — ARR-B03: create data under a dynamic select is optional.
+  expectTypeAssignableTo<string>(b03DynCreate.data.status);
+}
+const b03UnionUpdate = hooks.useUpdate({ advanced: true, select: b03Union });
+if (b03UnionUpdate.data) {
+  // @ts-expect-error — ARR-B03: update data under a union select cannot claim `status` as required.
+  expectTypeAssignableTo<string>(b03UnionUpdate.data.status);
+}
+const b03ExclUpsert = hooks.useUpsert({ advanced: true, select: b03Excl });
+if (b03ExclUpsert.data) {
+  // @ts-expect-error — ARR-B03: upsert data under an exclusion-only select is optional.
+  expectTypeAssignableTo<string>(b03ExclUpsert.data.name);
+}

@@ -63,6 +63,20 @@
  *   diagnostic (`PARSE_ERROR` / `FILESYSTEM_ERROR`) with `modified: false`,
  *   `written: false` and does **not** abort the batch nor cause the batch to
  *   be reported as fully successful.
+ *
+ * **Target read bounding (AIH-03) — metadata-preflight only:**
+ * - Before any body read or decoding, the regular-file size from `stat` is
+ *   compared against `maxTargetBytes`; oversized regular targets are rejected
+ *   with a per-target `RESOURCE_LIMIT` diagnostic (`modified: false`,
+ *   `written: false`, `content: ''`) without reading or decoding the body.
+ * - This is a metadata preflight, NOT a strictly bounded read: non-regular
+ *   targets and stat failures skip the preflight, and a file that grows
+ *   between `stat` and `read` still allocates its grown body before the
+ *   post-read actual-bytes check rejects it. Growth-race bodies are discarded
+ *   (`content: ''`), never retained in the result.
+ * - Async body reads receive the caller's `AbortSignal`; sync reads accept no
+ *   signal (honest-sync semantics). Cancellation reporting follows the
+ *   commit-point rules above.
  */
 
 import fs from 'node:fs';
@@ -123,6 +137,14 @@ function normalizeAbsolute(p: string): string {
   return path.resolve(p);
 }
 
+function targetByteLimitError(actual: number, maxTargetBytes: number, filePath: string): ResourceLimitError {
+  return new ResourceLimitError(`Target input bytes ${actual} exceeds maxTargetBytes ${maxTargetBytes}`, {
+    limit: maxTargetBytes,
+    actual,
+    path: filePath,
+  });
+}
+
 function enforceTargetBytes(content: string, filePath: string, opts: InlineFilesOptions): void {
   const maxTargetBytes = opts.maxTargetBytes ?? DEFAULT_MAX_TARGET_BYTES;
   const bytes = byteLengthUtf8(content);
@@ -134,11 +156,37 @@ function enforceTargetBytes(content: string, filePath: string, opts: InlineFiles
     });
   }
   if (bytes > maxTargetBytes) {
-    throw new ResourceLimitError(`Target input bytes ${bytes} exceeds maxTargetBytes ${maxTargetBytes}`, {
-      limit: maxTargetBytes,
-      actual: bytes,
-      path: filePath,
-    });
+    throw targetByteLimitError(bytes, maxTargetBytes, filePath);
+  }
+}
+
+/**
+ * AIH-03 metadata preflight for target reads.
+ *
+ * Returns the regular-file size without reading the body, or `undefined`
+ * when the metadata cannot be inspected (missing file, non-regular file such
+ * as a pipe, stat failure). Callers fall through to the body read in that
+ * case, which keeps the historical `FILESYSTEM_ERROR` surface and the
+ * post-read actual-bytes check for growth races. Target reads are therefore
+ * metadata-preflight only, NOT strictly bounded: a file that grows between
+ * `stat` and `read` still allocates its grown body before the post-read
+ * check rejects it (with `content: ''` so the body is not retained).
+ */
+async function inspectTargetSizeAsync(p: string): Promise<number | undefined> {
+  try {
+    const st = await fs.promises.stat(p);
+    return st.isFile() ? st.size : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function inspectTargetSizeSync(p: string): number | undefined {
+  try {
+    const st = fs.statSync(p);
+    return st.isFile() ? st.size : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -394,10 +442,6 @@ async function writeAtomicAsync(targetPath: string, content: string, signal?: Ab
         try {
           await fs.promises.unlink(tempPath);
         } catch {} // eslint-disable-line no-empty
-      } else {
-        try {
-          await fs.promises.unlink(tempPath);
-        } catch {} // eslint-disable-line no-empty
       }
       // If rename already committed (tempCreated === false after success), we would not be in this catch for post-rename abort
       // because we check abort before rename. So reaching here means abort won before commit.
@@ -409,15 +453,19 @@ async function writeAtomicAsync(targetPath: string, content: string, signal?: Ab
     }
 
     primaryError = err;
-    // Preserve primary error, cleanup without masking it
+    // Preserve primary error, cleanup without masking it.
+    // Only unlink temps we exclusively created (tempCreated); an EEXIST
+    // from 'wx' creation means the path is unowned and must survive.
     if (handle) {
       try {
         await handle.close();
       } catch {} // eslint-disable-line no-empty
     }
-    try {
-      await fs.promises.unlink(tempPath);
-    } catch {} // eslint-disable-line no-empty
+    if (tempCreated) {
+      try {
+        await fs.promises.unlink(tempPath);
+      } catch {} // eslint-disable-line no-empty
+    }
 
     if (primaryError instanceof FilesystemError) throw primaryError;
     // Wrap non-FilesystemError with appropriate operation
@@ -508,7 +556,7 @@ function writeAtomicSync(targetPath: string, content: string, signal?: AbortSign
     throwIfAborted(signal);
     primaryOperation = 'renameSync';
     fs.renameSync(tempPath, targetPath);
-    tempCreated = false; // eslint-disable-line @typescript-eslint/no-unused-vars
+    tempCreated = false;
 
     // Best-effort parent dir fsync
     try {
@@ -527,9 +575,11 @@ function writeAtomicSync(targetPath: string, content: string, signal?: AbortSign
           fs.closeSync(fd);
         } catch {} // eslint-disable-line no-empty
       }
-      try {
-        fs.unlinkSync(tempPath);
-      } catch {} // eslint-disable-line no-empty
+      if (tempCreated) {
+        try {
+          fs.unlinkSync(tempPath);
+        } catch {} // eslint-disable-line no-empty
+      }
       if (err instanceof DOMException && err.name === 'AbortError') throw err;
       throw abortReason;
     }
@@ -540,9 +590,11 @@ function writeAtomicSync(targetPath: string, content: string, signal?: AbortSign
         fs.closeSync(fd);
       } catch {} // eslint-disable-line no-empty
     }
-    try {
-      fs.unlinkSync(tempPath);
-    } catch {} // eslint-disable-line no-empty
+    if (tempCreated) {
+      try {
+        fs.unlinkSync(tempPath);
+      } catch {} // eslint-disable-line no-empty
+    }
 
     if (primaryError instanceof FilesystemError) throw primaryError;
     throw new FilesystemError(`Failed to write target "${targetPath}" atomically`, {
@@ -773,9 +825,24 @@ export async function inlineFiles(options: InlineFilesOptions): Promise<readonly
     const chunkPromises = chunkIndices.map(async (idx) => {
       throwIfAborted(options.signal);
       const filePath = orderedTargets[idx]!;
+      const maxTargetBytes = options.maxTargetBytes ?? DEFAULT_MAX_TARGET_BYTES;
+      // AIH-03: reject oversized regular targets before the body read or
+      // decoding. Non-regular targets (or stat failures) skip the preflight
+      // and rely on the post-read actual-bytes check below.
+      const knownSize = await inspectTargetSizeAsync(filePath);
+      if (knownSize !== undefined && knownSize > maxTargetBytes) {
+        throwIfAborted(options.signal);
+        const err = targetByteLimitError(knownSize, maxTargetBytes, filePath);
+        const diag = makeDiagnostic('RESOURCE_LIMIT', err.message, filePath);
+        return { idx, result: makeErrorFileResult(filePath, '', [diag]) };
+      }
+      throwIfAborted(options.signal);
       let content: string;
       try {
-        content = await fs.promises.readFile(filePath, 'utf8');
+        content = await fs.promises.readFile(
+          filePath,
+          options.signal ? { encoding: 'utf8', signal: options.signal } : 'utf8',
+        );
       } catch (err) {
         if (options.signal?.aborted) throwIfAborted(options.signal);
         const diag = makeDiagnostic('FILESYSTEM_ERROR', err instanceof Error ? err.message : String(err), filePath);
@@ -796,7 +863,11 @@ export async function inlineFiles(options: InlineFilesOptions): Promise<readonly
               ? 'RESOURCE_LIMIT'
               : 'RESOLVE_ERROR')) as import('./types.ts').DiagnosticCode;
         const diag = makeDiagnostic(code, err instanceof Error ? err.message : String(err), filePath);
-        return { idx, result: makeErrorFileResult(filePath, content, [diag]) };
+        // AIH-03: never retain an over-limit body in the error result. The
+        // preflight path above never reads it; a growth race that passes the
+        // preflight but fails the post-read check discards it here.
+        const bounded = code === 'RESOURCE_LIMIT' ? '' : content;
+        return { idx, result: makeErrorFileResult(filePath, bounded, [diag]) };
       }
       throwIfAborted(options.signal);
       if (write && inlineResult.modified) throwIfAborted(options.signal);
@@ -824,6 +895,17 @@ export async function inlineFiles(options: InlineFilesOptions): Promise<readonly
     });
 
     const settled = await Promise.allSettled(chunkPromises);
+    // Determine every committed outcome in this chunk before deciding
+    // whether cancellation may reject, so a later-index commit is observed
+    // even when an earlier index aborted.
+    let chunkCommitted = false;
+    for (const s of settled) {
+      if (s.status === 'fulfilled' && s.value.result.written) {
+        chunkCommitted = true;
+        break;
+      }
+    }
+    const effectiveCommitted = hasCommitted || chunkCommitted;
     let abortReason: unknown;
     let hasAbortInChunk = false;
     for (let i = 0; i < settled.length; i++) {
@@ -832,7 +914,6 @@ export async function inlineFiles(options: InlineFilesOptions): Promise<readonly
       if (s.status === 'fulfilled') {
         const { idx: rIdx, result } = s.value;
         results[rIdx] = result;
-        if (result.written) hasCommitted = true;
       } else {
         const reason = s.reason;
         const isAbort =
@@ -840,7 +921,7 @@ export async function inlineFiles(options: InlineFilesOptions): Promise<readonly
         if (isAbort) {
           hasAbortInChunk = true;
           abortReason = reason instanceof DOMException ? reason : (options.signal?.reason ?? reason);
-          if (!hasCommitted) {
+          if (!effectiveCommitted) {
             // No commit yet — propagate abort
             throw abortReason;
           }
@@ -857,6 +938,7 @@ export async function inlineFiles(options: InlineFilesOptions): Promise<readonly
         }
       }
     }
+    if (effectiveCommitted) hasCommitted = true;
     if (hasAbortInChunk && !hasCommitted) {
       throw abortReason ?? options.signal?.reason ?? new DOMException('Aborted', 'AbortError');
     }
@@ -941,23 +1023,79 @@ export function inlineFilesSync(options: InlineFilesOptions): readonly InlineFil
         throwIfAborted(options.signal);
       }
     }
+    // AIH-03: metadata preflight — reject oversized regular targets before
+    // the body read or decoding. Sync reads accept no signal (honest-sync
+    // semantics kept); non-regular targets and stat failures fall through to
+    // the read plus the post-read actual-bytes check below.
+    const maxTargetBytes = options.maxTargetBytes ?? DEFAULT_MAX_TARGET_BYTES;
+    const knownSize = inspectTargetSizeSync(filePath);
+    if (knownSize !== undefined && knownSize > maxTargetBytes) {
+      if (options.signal?.aborted) {
+        if (hasCommitted) {
+          const abortDiag = makeDiagnostic(
+            'FILESYSTEM_ERROR',
+            String(options.signal.reason ?? new DOMException('Aborted', 'AbortError')),
+            filePath,
+          );
+          results.push(makeErrorFileResult(filePath, '', [abortDiag]));
+          continue;
+        }
+        throwIfAborted(options.signal);
+      }
+      const err = targetByteLimitError(knownSize, maxTargetBytes, filePath);
+      results.push(makeErrorFileResult(filePath, '', [makeDiagnostic('RESOURCE_LIMIT', err.message, filePath)]));
+      continue;
+    }
     let content: string;
     try {
       content = fs.readFileSync(filePath, 'utf8');
     } catch (err) {
-      if (options.signal?.aborted) throwIfAborted(options.signal);
+      if (options.signal?.aborted) {
+        if (hasCommitted) {
+          const abortDiag = makeDiagnostic(
+            'FILESYSTEM_ERROR',
+            String(options.signal.reason ?? new DOMException('Aborted', 'AbortError')),
+            filePath,
+          );
+          results.push(makeErrorFileResult(filePath, '', [abortDiag]));
+          continue;
+        }
+        throwIfAborted(options.signal);
+      }
       const diag = makeDiagnostic('FILESYSTEM_ERROR', err instanceof Error ? err.message : String(err), filePath);
       results.push(makeErrorFileResult(filePath, '', [diag]));
       continue;
     }
-    throwIfAborted(options.signal);
+    if (options.signal?.aborted) {
+      if (hasCommitted) {
+        const abortDiag = makeDiagnostic(
+          'FILESYSTEM_ERROR',
+          String(options.signal.reason ?? new DOMException('Aborted', 'AbortError')),
+          filePath,
+        );
+        results.push(makeErrorFileResult(filePath, content, [abortDiag]));
+        continue;
+      }
+      throwIfAborted(options.signal);
+    }
 
     let inlineResult: InlineResult;
     try {
       enforceTargetBytes(content, filePath, options);
       inlineResult = dispatchInline(filePath, content, catalog, options);
     } catch (err) {
-      if (options.signal?.aborted) throwIfAborted(options.signal);
+      if (options.signal?.aborted) {
+        if (hasCommitted) {
+          const abortDiag = makeDiagnostic(
+            'FILESYSTEM_ERROR',
+            String(options.signal.reason ?? new DOMException('Aborted', 'AbortError')),
+            filePath,
+          );
+          results.push(makeErrorFileResult(filePath, content, [abortDiag]));
+          continue;
+        }
+        throwIfAborted(options.signal);
+      }
       const code = ((err as { code?: string })?.code ??
         (err instanceof ParseError
           ? 'PARSE_ERROR'
@@ -965,16 +1103,62 @@ export function inlineFilesSync(options: InlineFilesOptions): readonly InlineFil
             ? 'RESOURCE_LIMIT'
             : 'RESOLVE_ERROR')) as import('./types.ts').DiagnosticCode;
       const diag = makeDiagnostic(code, err instanceof Error ? err.message : String(err), filePath);
-      results.push(makeErrorFileResult(filePath, content, [diag]));
+      // AIH-03: never retain an over-limit body in the error result (see async path).
+      const bounded = code === 'RESOURCE_LIMIT' ? '' : content;
+      results.push(makeErrorFileResult(filePath, bounded, [diag]));
       continue;
     }
-    throwIfAborted(options.signal);
-    if (write && inlineResult.modified) throwIfAborted(options.signal);
+    if (options.signal?.aborted) {
+      if (hasCommitted) {
+        const abortDiag = makeDiagnostic(
+          'FILESYSTEM_ERROR',
+          String(options.signal.reason ?? new DOMException('Aborted', 'AbortError')),
+          filePath,
+        );
+        const abortDiagnostics = Object.freeze([...inlineResult.diagnostics, abortDiag] as readonly AssetDiagnostic[]);
+        results.push(makeInlineFileResult(filePath, { ...inlineResult, diagnostics: abortDiagnostics }, [], false));
+        continue;
+      }
+      throwIfAborted(options.signal);
+    }
+    if (write && inlineResult.modified) {
+      if (options.signal?.aborted) {
+        if (hasCommitted) {
+          const abortDiag = makeDiagnostic(
+            'FILESYSTEM_ERROR',
+            String(options.signal.reason ?? new DOMException('Aborted', 'AbortError')),
+            filePath,
+          );
+          const abortDiagnostics = Object.freeze([
+            ...inlineResult.diagnostics,
+            abortDiag,
+          ] as readonly AssetDiagnostic[]);
+          results.push(makeInlineFileResult(filePath, { ...inlineResult, diagnostics: abortDiagnostics }, [], false));
+          continue;
+        }
+        throwIfAborted(options.signal);
+      }
+    }
 
     let written = false;
     let finalDiagnostics: readonly AssetDiagnostic[] = inlineResult.diagnostics;
     if (write && inlineResult.modified) {
-      throwIfAborted(options.signal);
+      if (options.signal?.aborted) {
+        if (hasCommitted) {
+          const abortDiag = makeDiagnostic(
+            'FILESYSTEM_ERROR',
+            String(options.signal.reason ?? new DOMException('Aborted', 'AbortError')),
+            filePath,
+          );
+          const abortDiagnostics = Object.freeze([
+            ...inlineResult.diagnostics,
+            abortDiag,
+          ] as readonly AssetDiagnostic[]);
+          results.push(makeInlineFileResult(filePath, { ...inlineResult, diagnostics: abortDiagnostics }, [], false));
+          continue;
+        }
+        throwIfAborted(options.signal);
+      }
       try {
         writeAtomicSync(filePath, inlineResult.content, options.signal);
         written = true;

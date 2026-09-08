@@ -8,8 +8,32 @@ import { OPTIONS_METADATA } from '../constants';
 
 type OptionMetadata = { optionKey: string | symbol; propertyKey: string | symbol };
 
-function createOptionDecorator(optionKey?: string | symbol): PropertyDecorator {
+/**
+ * Instance-only property contract.
+ *
+ * Option property decorators (`@Option`, `@GlobalOption`, `@ModelOption`,
+ * `@DefaultModelOption`) target **instance properties only**. Static
+ * properties (`typeof target === 'function'`, i.e. the decorator was applied
+ * to the constructor rather than the prototype) throw before any metadata
+ * write.
+ *
+ * Compatibility impact: previously a static property compiled and received
+ * `OPTIONS_METADATA` on the constructor, but bootstrap reads options from the
+ * instance prototype chain, so the value silently never applied. Static
+ * declarations now fail fast at decoration time. Valid instance properties —
+ * including inherited ones — are unaffected.
+ */
+function assertInstancePropertyTarget(target: object, propertyKey: string | symbol, decoratorName: string) {
+  if (typeof target === 'function') {
+    throw new Error(
+      `Invalid @${decoratorName} target: static properties are not supported (property "${String(propertyKey)}"); decorate an instance property. Static option metadata was written to the constructor and never applied, so this fails fast instead of being silently dropped.`,
+    );
+  }
+}
+
+function createOptionDecorator(optionKey?: string | symbol, decoratorName = 'Option'): PropertyDecorator {
   return (target: object, propertyKey: string | symbol): void => {
+    assertInstancePropertyTarget(target, propertyKey, decoratorName);
     const opts = (Reflect.getOwnMetadata(OPTIONS_METADATA, target) || []) as OptionMetadata[];
     const nextOptionKey = optionKey || propertyKey;
     Reflect.defineMetadata(
@@ -41,7 +65,7 @@ export function Option(optionKey?: string): PropertyDecorator {
 export function GlobalOption<K extends Extract<keyof GlobalOptions, string | symbol>>(
   optionKey?: K,
 ): PropertyDecorator {
-  return createOptionDecorator(optionKey);
+  return createOptionDecorator(optionKey, 'GlobalOption');
 }
 
 /**
@@ -53,7 +77,7 @@ export function GlobalOption<K extends Extract<keyof GlobalOptions, string | sym
 export function ModelOption<K extends Extract<keyof ExtendedModelRouterOptions, string | symbol>>(
   optionKey?: K,
 ): PropertyDecorator {
-  return createOptionDecorator(optionKey);
+  return createOptionDecorator(optionKey, 'ModelOption');
 }
 
 /**
@@ -65,5 +89,5 @@ export function ModelOption<K extends Extract<keyof ExtendedModelRouterOptions, 
 export function DefaultModelOption<K extends Extract<keyof ExtendedDefaultModelRouterOptions, string | symbol>>(
   optionKey?: K,
 ): PropertyDecorator {
-  return createOptionDecorator(optionKey);
+  return createOptionDecorator(optionKey, 'DefaultModelOption');
 }

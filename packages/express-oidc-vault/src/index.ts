@@ -36,9 +36,16 @@ import {
 } from './origins';
 import type { TrustedOrigins } from './origins';
 import type { OidcProviderMetadata } from './provider-client';
-import { fetchUserInfo, requestToken, resolveProviderMetadata, validateTokenResponse } from './provider-client';
+import {
+  fetchUserInfo,
+  requestToken,
+  resolveProviderMetadata,
+  validateCallbackTokenResponse,
+  validateRefreshTokenResponse,
+} from './provider-client';
 import {
   assertUserInfoSubject,
+  composeRefreshedUserProfile,
   mergeUserProfile,
   verifyBackchannelLogoutToken,
   verifyIdToken,
@@ -84,6 +91,36 @@ export function normalizeOidcVaultBasePath(value?: string): string {
 
 const getNow = (options: OidcVaultOptions): number => (options.now ?? Date.now)();
 
+/**
+ * Credential-response cache policy (BOV-16).
+ *
+ * Every vault route response carries `Cache-Control: no-store` so shared and
+ * private caches do not retain session/access credentials, one-time exchange
+ * codes, or authorization/logout redirects. The policy is applied once at the
+ * vault `baseRouter` boundary plus defensively in both error emitters, so
+ * success, redirect, and error paths share one contract without touching
+ * route logic (BOV-10 ordering preserved).
+ *
+ * Deliberately not emitted: legacy `Pragma: no-cache` / `Expires` headers.
+ * `no-store` is the authoritative RFC 9111 directive; the legacy headers add
+ * no retention protection once `no-store` is present and would widen the
+ * contract without evidence. Deliberately not emitted: `Referrer-Policy`.
+ * Redirect targets (`Location`) intentionally expose protocol-required values
+ * (provider authorization URL, frontend `?code=`, upstream `id_token_hint`)
+ * to the navigation target; a referrer policy cannot hide that target and
+ * subsequent-navigation referrer behavior belongs to frontend/provider pages.
+ *
+ * Non-goals (not claimed): these headers do not clear browser history,
+ * disable reverse-proxy request logging, strip `?code=` from frontend URLs
+ * or history (frontend must still clean up the callback URL), or hide the
+ * intentional provider redirect exposure described above.
+ */
+const CREDENTIAL_RESPONSE_CACHE_CONTROL = 'no-store';
+
+const applyCredentialResponseCachePolicy = (res: Response): void => {
+  res.setHeader('Cache-Control', CREDENTIAL_RESPONSE_CACHE_CONTROL);
+};
+
 const createOpaqueId = (prefix: string): string => `${prefix}_${randomBytes(16).toString('base64url')}`;
 
 const createPkceVerifier = (): string => randomBytes(32).toString('base64url');
@@ -95,12 +132,17 @@ const getCallbackUri = (backendOrigin: string, basePath: string): string =>
 
 const validateOidcVaultOptions = (
   options: OidcVaultOptions,
-): { backendOrigin: string; config: OidcVaultResolvedConfig; trustedOrigins: TrustedOrigins } => {
+): {
+  backendOrigin: string;
+  config: OidcVaultResolvedConfig;
+  trustedOrigins: TrustedOrigins;
+  resolvedOptions: OidcVaultOptions;
+} => {
   const backendOrigin = resolveBackendOrigin(options);
   const frontendRedirectUri = normalizeFrontendRedirectUri(options);
   validatePostLogoutRedirectUri(options);
   validateCookieOptions(options);
-  const config = resolveOidcVaultConfig(options.config);
+  const config = resolveOidcVaultConfig(options.config ? { ...options.config } : undefined);
   const configuredTrustedOrigins = resolveTrustedOrigins(options);
 
   if (usesCrossSiteCookieTransport(options) && configuredTrustedOrigins.size === 0) {
@@ -110,11 +152,22 @@ const validateOidcVaultOptions = (
   const trustedOrigins = new Set(configuredTrustedOrigins);
   trustedOrigins.add(backendOrigin);
 
-  if (frontendRedirectUri) {
-    options.frontendRedirectUri = frontendRedirectUri;
-  }
+  // Internal resolved snapshot (BOV-15): never mutate the caller object so
+  // frozen inputs work and reused inputs cannot cross-contaminate instances.
+  // Plain-data containers are shallow-copied for stable behavior; service
+  // references (storeProvider, hooks, tokenIssuer, now) are retained by
+  // reference and never deep-cloned. Post-construction mutation or
+  // replacement of the caller object (including its cookie/trustedOrigins/
+  // config containers) has no effect on this instance.
+  const resolvedOptions: OidcVaultOptions = {
+    ...options,
+    ...(frontendRedirectUri !== undefined ? { frontendRedirectUri } : {}),
+    ...(options.trustedOrigins ? { trustedOrigins: [...options.trustedOrigins] } : {}),
+    ...(options.cookie ? { cookie: { ...options.cookie } } : {}),
+    ...(options.config ? { config: { ...options.config } } : {}),
+  };
 
-  return { backendOrigin, config, trustedOrigins };
+  return { backendOrigin, config, trustedOrigins, resolvedOptions };
 };
 
 const isStoreConflictError = (error: unknown): error is OidcVaultStoreConflictError =>
@@ -196,6 +249,44 @@ const getLogoutTokenFromRequest = (req: Request): string => {
     'Backchannel logout request is missing logout_token.',
     'OIDC_VAULT_MISSING_LOGOUT_TOKEN',
   );
+};
+
+/**
+ * Build the replay-reservation key for a backchannel logout token.
+ *
+ * The key namespaces the raw logout-token `jti` by issuer and client ID so
+ * two middleware instances (or two providers) that share one store cannot
+ * suppress each other's revocations when they happen to issue the same `jti`.
+ * Components are base64url-encoded so the `:` separator cannot collide with
+ * URL or client-ID characters. The `v2:` prefix distinguishes these keys from
+ * pre-BOV-01 raw-`jti` records, which expire naturally with the logout-token
+ * `exp` and are never matched by the new keys.
+ *
+ * Retry-safe delivery policy (BOV-01):
+ *
+ * - Verification runs before any durable work, so invalid or expired tokens
+ *   never allocate replay state.
+ * - The first request to present a namespaced key atomically reserves it
+ *   (single-key `consumeBackchannelLogoutTokenJti`, the smallest enforceable
+ *   store boundary) and becomes the revocation owner: it performs the
+ *   idempotent session deletion and always emits `onLogout`.
+ * - Duplicate presentations of a valid token perform silent idempotent
+ *   catch-up deletion of the same `sid`/`sub` target (scoped by issuer and
+ *   client ID) without emitting `onLogout`, unless the catch-up actually
+ *   removed sessions. A duplicate that removes at least one session emits
+ *   `onLogout` so a retry after an owner-side deletion failure still delivers
+ *   the hook (at-least-once under failure/concurrency).
+ * - A sequential replay after completed revocation deletes zero sessions and
+ *   emits no hook (`revokedSessions: 0`).
+ * - Crash between durable deletion and hook delivery can lose that delivery:
+ *   a later duplicate finds no remaining sessions and stays silent. Hooks are
+ *   therefore at-most-once across that narrow crash window and at-least-once
+ *   otherwise; never exactly-once under concurrency.
+ */
+const buildBackchannelLogoutReplayKey = (input: { issuer?: string; clientId?: string; jti: string }): string => {
+  const encode = (value: string): string => Buffer.from(value, 'utf8').toString('base64url');
+
+  return `v2:${encode(input.issuer ?? '')}:${encode(input.clientId ?? '')}:${encode(input.jti)}`;
 };
 
 const createHookContext = (
@@ -343,6 +434,7 @@ async function handleRouteError(
     return;
   }
 
+  applyCredentialResponseCachePolicy(res);
   const payload = toErrorPayload(error);
   res.status(payload.status).json({
     code: payload.code,
@@ -371,6 +463,7 @@ function createBodyParserErrorHandler(): express.ErrorRequestHandler {
       return;
     }
 
+    applyCredentialResponseCachePolicy(res);
     const payload = toBodyParserErrorPayload(error);
     res.status(payload.status).json({
       code: payload.code,
@@ -436,6 +529,15 @@ const createCallbackHandler = (
       throw new OidcVaultHttpError(400, 'OIDC_VAULT_INVALID_STATE', 'OIDC state is invalid or expired.');
     }
 
+    // BOV-10: validate the callback destination before any provider call or
+    // durable state change. Resolving the frontend target late (after session
+    // and exchange-code creation) would strand credentials when neither the
+    // transaction returnTo nor frontendRedirectUri is configured. The option
+    // stays optional at middleware creation because non-callback routes
+    // (refresh/logout/backchannel) do not need it; the callback fails fast
+    // here with 500 OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI instead.
+    const frontendDestination = resolveFrontendRedirectUri(transaction, options);
+
     const metadata = await resolveProviderMetadata(config, options);
     const tokenResponse = await requestToken(
       metadata,
@@ -447,19 +549,10 @@ const createCallbackHandler = (
       },
       options,
     );
-    validateTokenResponse(tokenResponse);
-
-    if (!isString(tokenResponse.id_token)) {
-      throw new OidcVaultHttpError(502, 'OIDC_VAULT_MISSING_ID_TOKEN', 'OIDC token response is missing id_token.');
-    }
-
-    if (!isString(tokenResponse.refresh_token)) {
-      throw new OidcVaultHttpError(
-        502,
-        'OIDC_VAULT_MISSING_REFRESH_TOKEN',
-        'OIDC token response is missing refresh_token.',
-      );
-    }
+    // Callback requires id_token + refresh_token; wrong-type present fields
+    // are rejected by the validator, never treated as omissions. No session
+    // is persisted below until all provider checks pass.
+    validateCallbackTokenResponse(tokenResponse);
 
     await callHook('callback', options.hooks?.onCallbackTokens, req, res, undefined, {
       hasAccessToken: Boolean(tokenResponse.access_token),
@@ -467,18 +560,18 @@ const createCallbackHandler = (
       hasIdToken: true,
     });
 
-    const claims = await verifyIdToken(metadata, tokenResponse.id_token, transaction.nonce, options);
+    const claims = await verifyIdToken(metadata, tokenResponse.id_token as string, transaction.nonce, options);
     const subject = getRequiredString(claims.sub, 'OIDC id_token is missing sub.', 'OIDC_VAULT_INVALID_ID_TOKEN', 502);
     const userInfo =
       shouldFetchUserInfo(options, metadata) && isString(tokenResponse.access_token)
         ? await fetchUserInfo(metadata, tokenResponse.access_token, options)
         : undefined;
 
-    if (userInfo) {
+    if (userInfo !== undefined) {
       assertUserInfoSubject(userInfo, subject);
     }
 
-    if (userInfo) {
+    if (userInfo !== undefined) {
       await callHook('callback', options.hooks?.onUserInfo, req, res, undefined, { subject });
     }
 
@@ -493,8 +586,8 @@ const createCallbackHandler = (
         issuer: metadata.issuer ?? (typeof claims.iss === 'string' ? claims.iss : undefined),
         clientId: metadata.clientId,
       },
-      refreshToken: tokenResponse.refresh_token,
-      idToken: tokenResponse.id_token,
+      refreshToken: tokenResponse.refresh_token as string,
+      idToken: tokenResponse.id_token as string,
       accessToken: isString(tokenResponse.access_token) ? tokenResponse.access_token : undefined,
       scope: typeof tokenResponse.scope === 'string' ? tokenResponse.scope : metadata.scopes,
       createdAt: now,
@@ -530,7 +623,7 @@ const createCallbackHandler = (
       subject,
     });
 
-    res.redirect(302, appendCodeToRedirectUri(resolveFrontendRedirectUri(transaction, options), exchangeCode));
+    res.redirect(302, appendCodeToRedirectUri(frontendDestination, exchangeCode));
   });
 
 const createExchangeHandler = (options: OidcVaultOptions): RequestHandler =>
@@ -601,15 +694,20 @@ const createRefreshHandler = (
       },
       options,
     );
-    validateTokenResponse(tokenResponse);
+    // Refresh allows every credential field to be omitted (documented
+    // retention behavior); present fields were type-checked above so a
+    // malformed value cannot silently retain the old credential. No rotation
+    // happens until all provider checks pass.
+    validateRefreshTokenResponse(tokenResponse);
 
     const newIdToken = isString(tokenResponse.id_token) ? tokenResponse.id_token : undefined;
+    // The stored ID token is never revalidated: without a new ID token it
+    // serves only as previously verified identity evidence while the retained
+    // profile is kept verbatim.
     const idToken = newIdToken ?? currentSession.idToken;
-    const claims = newIdToken
-      ? await verifyIdToken(metadata, newIdToken, undefined, options)
-      : (currentSession.user ?? { sub: currentSession.subject });
-    const subject = newIdToken
-      ? getRequiredString(claims.sub, 'OIDC id_token is missing sub.', 'OIDC_VAULT_INVALID_ID_TOKEN', 502)
+    const freshClaims = newIdToken ? await verifyIdToken(metadata, newIdToken, undefined, options) : undefined;
+    const subject = freshClaims
+      ? getRequiredString(freshClaims.sub, 'OIDC id_token is missing sub.', 'OIDC_VAULT_INVALID_ID_TOKEN', 502)
       : currentSession.subject;
 
     if (newIdToken && subject !== currentSession.subject) {
@@ -621,7 +719,7 @@ const createRefreshHandler = (
         ? await fetchUserInfo(metadata, tokenResponse.access_token, options)
         : undefined;
 
-    if (userInfo) {
+    if (userInfo !== undefined) {
       assertUserInfoSubject(userInfo, subject);
     }
 
@@ -632,14 +730,15 @@ const createRefreshHandler = (
       sessionId: createOpaqueId('sess'),
       logicalSessionId,
       subject,
-      providerSessionId: typeof claims.sid === 'string' ? claims.sid : currentSession.providerSessionId,
+      providerSessionId:
+        freshClaims && typeof freshClaims.sid === 'string' ? freshClaims.sid : currentSession.providerSessionId,
       refreshToken: isString(tokenResponse.refresh_token) ? tokenResponse.refresh_token : currentSession.refreshToken,
       idToken,
       accessToken: isString(tokenResponse.access_token) ? tokenResponse.access_token : currentSession.accessToken,
       scope: typeof tokenResponse.scope === 'string' ? tokenResponse.scope : currentSession.scope,
       expiresAt: currentSession.expiresAt,
       updatedAt: now,
-      user: mergeUserProfile(subject, claims, userInfo ?? currentSession.user),
+      user: composeRefreshedUserProfile(subject, currentSession.user, freshClaims, userInfo),
     };
 
     let rotatedSession: OidcVaultSession;
@@ -722,10 +821,38 @@ const createLogoutHandler = (
       clearSessionCookie(res, options);
     }
 
-    const metadata = await resolveProviderMetadata(config, options);
-    const upstreamLogoutUrl = metadata.endSessionEndpoint
-      ? buildLogoutUrl(metadata.endSessionEndpoint, session.idToken, options.postLogoutRedirectUri)
-      : undefined;
+    // BOV-10: local logout is independent of provider discovery. The durable
+    // revocation above is committed before any upstream work; discovery (and
+    // URL building) only runs for redirected logout and its failure never
+    // undoes the revocation or skips the onLogout notification. A redirected
+    // logout whose upstream metadata/endpoint is unavailable falls back to the
+    // local 200 success so the response reports the local durable state
+    // accurately; the upstream failure is surfaced via onError only.
+    if (!redirect) {
+      await callPostCommitHook('logout', options, options.hooks?.onLogout, req, res, session);
+
+      res.status(200).json({ loggedOut: true } satisfies OidcVaultLogoutResult);
+      return;
+    }
+
+    let upstreamLogoutUrl: string | undefined;
+
+    try {
+      const metadata = await resolveProviderMetadata(config, options);
+
+      upstreamLogoutUrl = metadata.endSessionEndpoint
+        ? buildLogoutUrl(metadata.endSessionEndpoint, session.idToken, options.postLogoutRedirectUri)
+        : undefined;
+    } catch (error) {
+      try {
+        await options.hooks?.onError?.({
+          ...createHookContext('logout', req, res, session),
+          error,
+        });
+      } catch {
+        // Prefer the committed local logout outcome over observer failures.
+      }
+    }
 
     await callPostCommitHook('logout', options, options.hooks?.onLogout, req, res, session);
 
@@ -744,30 +871,48 @@ const createBackchannelLogoutHandler = (options: OidcVaultOptions, config: OidcV
     const metadata = await resolveProviderMetadata(config, options);
     const logoutToken = getLogoutTokenFromRequest(req);
     const claims = await verifyBackchannelLogoutToken(metadata, logoutToken, options);
-    const firstUse = await options.storeProvider.consumeBackchannelLogoutTokenJti({
+    const replayKey = buildBackchannelLogoutReplayKey({
+      issuer: metadata.issuer,
+      clientId: metadata.clientId,
       jti: claims.jti as string,
+    });
+    const firstUse = await options.storeProvider.consumeBackchannelLogoutTokenJti({
+      jti: replayKey,
       expiresAt: (claims.exp as number) * 1000,
     });
 
+    const revokeMatchingSessions = (): Promise<number> =>
+      isString(claims.sid)
+        ? options.storeProvider.deleteSessionsByProviderSessionId({
+            providerSessionId: claims.sid,
+            issuer: metadata.issuer,
+            clientId: metadata.clientId,
+          })
+        : options.storeProvider.deleteSessionsBySubject({
+            subject: String(claims.sub),
+            issuer: metadata.issuer,
+            clientId: metadata.clientId,
+          });
+
     if (!firstUse) {
+      const catchUpRevokedSessions = await revokeMatchingSessions();
+
+      if (catchUpRevokedSessions > 0) {
+        await callPostCommitHook('backchannel-logout', options, options.hooks?.onLogout, req, res, undefined, {
+          providerSessionId: claims.sid,
+          subject: claims.sub,
+          revokedSessions: catchUpRevokedSessions,
+        });
+      }
+
       res.status(200).json({
         loggedOut: true,
-        revokedSessions: 0,
+        revokedSessions: catchUpRevokedSessions,
       } satisfies OidcVaultBackchannelLogoutResult);
       return;
     }
 
-    const revokedSessions = isString(claims.sid)
-      ? await options.storeProvider.deleteSessionsByProviderSessionId({
-          providerSessionId: claims.sid,
-          issuer: metadata.issuer,
-          clientId: metadata.clientId,
-        })
-      : await options.storeProvider.deleteSessionsBySubject({
-          subject: String(claims.sub),
-          issuer: metadata.issuer,
-          clientId: metadata.clientId,
-        });
+    const revokedSessions = await revokeMatchingSessions();
 
     await callPostCommitHook('backchannel-logout', options, options.hooks?.onLogout, req, res, undefined, {
       providerSessionId: claims.sid,
@@ -799,15 +944,33 @@ function registerRoutes(
 
 /**
  * Create the core OIDC vault middleware.
+ *
+ * Construction takes an internal resolved snapshot of `options` without
+ * mutating the caller object: normalized values (such as
+ * `frontendRedirectUri`) are stored on the snapshot, plain-data containers
+ * (`cookie`, `trustedOrigins`, `config`) are shallow-copied, and service
+ * references (`storeProvider`, `hooks`, `tokenIssuer`, `now`) are retained
+ * by reference, never deep-cloned. Mutating or replacing the caller options
+ * after this call has no effect on the created router. Post-commit hooks
+ * (`onSessionCreated`, `onSessionRefreshed`, `onLogout`) are notifications
+ * whose failures are reported to `onError` without undoing committed state;
+ * other hooks run pre-commit and can veto the operation by throwing.
  */
 export function createOidcVaultMiddleware(options: OidcVaultOptions): Router {
-  const { backendOrigin, config, trustedOrigins } = validateOidcVaultOptions(options);
+  const { backendOrigin, config, trustedOrigins, resolvedOptions } = validateOidcVaultOptions(options);
   const rootRouter = express.Router();
   const baseRouter = express.Router();
-  const basePath = normalizeOidcVaultBasePath(options.basePath);
+  const basePath = normalizeOidcVaultBasePath(resolvedOptions.basePath);
 
-  const requestBodyLimit = options.requestBodyLimit ?? DEFAULT_OIDC_VAULT_REQUEST_BODY_LIMIT;
+  const requestBodyLimit = resolvedOptions.requestBodyLimit ?? DEFAULT_OIDC_VAULT_REQUEST_BODY_LIMIT;
 
+  // BOV-16: smallest shared credential-response boundary. Setting no-store
+  // here covers every vault success/redirect response; the error emitters
+  // above re-apply it defensively so error JSON shares the same contract.
+  baseRouter.use((_req, res, next) => {
+    applyCredentialResponseCachePolicy(res);
+    next();
+  });
   baseRouter.use(express.json({ limit: requestBodyLimit }));
   baseRouter.use(
     express.urlencoded({
@@ -817,7 +980,7 @@ export function createOidcVaultMiddleware(options: OidcVaultOptions): Router {
     }),
   );
   baseRouter.use(createBodyParserErrorHandler());
-  registerRoutes(baseRouter, options, config, trustedOrigins, backendOrigin, basePath);
+  registerRoutes(baseRouter, resolvedOptions, config, trustedOrigins, backendOrigin, basePath);
   rootRouter.use(basePath, baseRouter);
 
   return rootRouter;

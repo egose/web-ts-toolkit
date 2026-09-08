@@ -81,7 +81,7 @@ export async function runExpressDevCommand(args: DevArgs): Promise<void> {
   await runDevCommand<Express>(args, {
     load: loadApp,
     start: (app, options) => {
-      startLocalServer(app, options);
+      return startLocalServer(app, options);
     },
   });
 }

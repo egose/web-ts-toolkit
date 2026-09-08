@@ -64,7 +64,8 @@ function OrganizationList() {
 
   return (
     <div>
-      <button disabled={isPending} onClick={() => mutate({ name: 'Northwind Labs' })}>
+      {/* Hook error state (createError) still surfaces the failure; the catch only avoids an unhandled rejection. */}
+      <button disabled={isPending} onClick={() => void mutate({ name: 'Northwind Labs' }).catch(() => undefined)}>
         Create
       </button>
       {createError && <p role="alert">Create failed: {createError.message}</p>}
@@ -279,17 +280,23 @@ function Save() {
   const { mutate, isPending } = useUpdate({ advanced: true, select: ['name'] as const });
 
   const saveTwice = async () => {
-    const [firstResult, secondResult] = await Promise.all([
-      mutate('org_1', { name: 'A' }),
-      mutate('org_1', { name: 'B' }),
-    ]);
-    // Promise.all preserves invocation order. Hook state still follows the latest invocation.
-    console.log(firstResult.data?.name, secondResult.data?.name);
-    return secondResult.data;
+    try {
+      const [firstResult, secondResult] = await Promise.all([
+        mutate('org_1', { name: 'A' }),
+        mutate('org_1', { name: 'B' }),
+      ]);
+      // Promise.all preserves invocation order. Hook state still follows the latest invocation.
+      console.log(firstResult.data?.name, secondResult.data?.name);
+      return secondResult.data;
+    } catch (error) {
+      // Hook error state still surfaces the failure; handling here avoids an unhandled rejection.
+      console.error('Save failed', error);
+      return undefined;
+    }
   };
 
   return (
-    <button disabled={isPending} onClick={saveTwice}>
+    <button disabled={isPending} onClick={() => void saveTwice().catch(() => undefined)}>
       Save twice
     </button>
   );
@@ -323,6 +330,8 @@ select: { name: 1, age: -1 },              // projection-shaped object
 ```
 
 The narrowing is applied uniformly to `data`, `onSuccess(result)`/`onSettled(result, …)` callbacks, manual `query()`/`refetch()` response payloads, and mutation `mutate()` return promises — via the public `ProjectedShape`, `ProjectedShapeArray`, `ProjectedModelResponse`, and `ProjectedListModelResponse` helpers, which reuse the client's `SelectedKeys` utility.
+
+Only an omitted `select` keeps the full required model. A supplied-but-indeterminable `select` (a broad `string`/`string[]` variable or an exclusion-only object such as `{ status: -1 }`) marks every field optional, and a union `select` (e.g. `readonly ['name'] | readonly ['status']`) keeps each alternative's own required/optional contract instead of merging keys — required access to an omitted or uncertain field fails to compile.
 
 A literal `select` requires `advanced: true` to actually reach the server's narrowing code path; the basic `read`/`list`/`create`/etc. APIs do not forward `select`. The type still narrows when you supply a literal `select` without `advanced`, but the wire payload is unchanged — you opt into the narrowed type and accept responsibility for forwarding it down the advanced path.
 

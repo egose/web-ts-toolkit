@@ -18,31 +18,51 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.ts",
+        "default": "./dist/index.d.ts"
+      },
       "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./types": {
-      "types": "./dist/public-types.d.ts",
+      "types": {
+        "import": "./dist/public-types.d.mts",
+        "require": "./dist/public-types.d.ts",
+        "default": "./dist/public-types.d.ts"
+      },
       "import": "./dist/public-types.mjs",
       "require": "./dist/public-types.js",
       "default": "./dist/public-types.js"
     },
     "./responses": {
-      "types": "./dist/responses/index.d.ts",
+      "types": {
+        "import": "./dist/responses/index.d.mts",
+        "require": "./dist/responses/index.d.ts",
+        "default": "./dist/responses/index.d.ts"
+      },
       "import": "./dist/responses/index.mjs",
       "require": "./dist/responses/index.js",
       "default": "./dist/responses/index.js"
     },
     "./responses/csv": {
-      "types": "./dist/responses/csv.d.ts",
+      "types": {
+        "import": "./dist/responses/csv.d.mts",
+        "require": "./dist/responses/csv.d.ts",
+        "default": "./dist/responses/csv.d.ts"
+      },
       "import": "./dist/responses/csv.mjs",
       "require": "./dist/responses/csv.js",
       "default": "./dist/responses/csv.js"
     },
     "./responses/success": {
-      "types": "./dist/responses/success.d.ts",
+      "types": {
+        "import": "./dist/responses/success.d.mts",
+        "require": "./dist/responses/success.d.ts",
+        "default": "./dist/responses/success.d.ts"
+      },
       "import": "./dist/responses/success.mjs",
       "require": "./dist/responses/success.js",
       "default": "./dist/responses/success.js"

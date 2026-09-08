@@ -125,6 +125,17 @@ export class OptionsManager<T1 extends object, T2 extends object> {
         _this.listeners[keystr] && _this.listeners[keystr].call(_this, value, keystr, target, oldvalue);
         return true;
       },
+      defineProperty(target, key: string | symbol, descriptor: PropertyDescriptor): boolean {
+        // `set()` from @web-ts-toolkit/utils writes via Object.defineProperty
+        // (UTILS-02 hardening), which bypasses the `set` trap. Mirror it so
+        // `onchange` listeners (e.g. permissionSchema metadata refresh) still fire.
+        const keystr = String(key);
+        const oldvalue = (target as Record<string, unknown>)[keystr];
+        const result = Reflect.defineProperty(target, key, descriptor);
+        const newValue = (target as Record<string, unknown>)[keystr];
+        _this.listeners[keystr] && _this.listeners[keystr].call(_this, newValue, keystr, target, oldvalue);
+        return result;
+      },
     });
   }
 

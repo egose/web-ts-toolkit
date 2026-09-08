@@ -39,17 +39,52 @@ type AfterPersistDecoratorHook<TModel = unknown> = Extract<ModelDocumentHook<TMo
 type DecorateDecoratorHook<TModel = unknown> = Extract<ModelHook<TModel>, Function>;
 type DecorateAllDecoratorHook<TModel = unknown> = Extract<ModelListHook<TModel>, Function>;
 
+/**
+ * Instance-only decorator contract (all method hooks in this file).
+ *
+ * These are legacy (experimental) TypeScript method decorators for **instance
+ * methods only**. At decoration time each decorator rejects:
+ *
+ * - static methods (`typeof target === 'function'`, i.e. the decorator was
+ *   applied to the constructor rather than the prototype);
+ * - missing/invalid operations for operation-bearing hooks (`undefined`,
+ *   empty, wrong-type, or unsupported values), validated against
+ *   `HOOK_DEFINITIONS` even when the caller passes no argument from
+ *   JavaScript.
+ *
+ * Compatibility impact: previously a static hook (e.g. `@RouteGuard('read')`
+ * on `static guard()`) compiled and received metadata but instance-prototype
+ * discovery never registered it, so a deny guard silently disappeared;
+ * likewise `BaseFilter()` with no operation wrote unsuffixed metadata that
+ * bootstrap silently skipped. Both now throw at decoration time before any
+ * metadata is written, so no watermark/operation keys are left behind. Valid
+ * instance methods — including inherited and symbol-keyed ones — and
+ * operationless hooks (`@GlobalPermissions`, `@Identifier`, `@BeforeDelete`,
+ * `@AfterDelete`) are unaffected.
+ */
+const assertInstanceMethodTarget = (definition: HookDefinition, target: object) => {
+  if (typeof target === 'function') {
+    throw new Error(
+      `Invalid @${definition.optionKey} target: static methods are not supported; decorate an instance method (not "static"). Static hooks are never registered because discovery scans instance prototypes, so this fails fast instead of silently dropping the hook.`,
+    );
+  }
+};
+
+const assertValidOperation = (definition: HookDefinition, operation: unknown) => {
+  const allowed = definition.operations as readonly string[] | null;
+  if (allowed === null) return;
+  if (typeof operation !== 'string' || !allowed.includes(operation)) {
+    throw new Error(
+      `Invalid @${definition.optionKey} operation "${String(operation)}": expected one of ${allowed.join(', ')}`,
+    );
+  }
+};
+
 const setMethodMetadata = <THook extends Function>(definition: HookDefinition, operation?: string) => {
   return (target: object, key: string | symbol, descriptor: TypedPropertyDescriptor<THook>) => {
+    assertInstanceMethodTarget(definition, target);
+    assertValidOperation(definition, operation);
     if (descriptor.value === undefined) return;
-    if (operation !== undefined) {
-      const allowed = definition.operations as readonly string[] | null;
-      if (allowed && !allowed.includes(operation)) {
-        throw new Error(
-          `Invalid @${definition.optionKey} operation "${operation}": expected one of ${allowed.join(', ')}`,
-        );
-      }
-    }
     Reflect.defineMetadata(definition.watermark, true, descriptor.value);
     const compositeKey = operation ? `${definition.optionKey}.${operation}` : definition.optionKey;
     Reflect.defineMetadata(compositeKey, true, descriptor.value);
@@ -83,7 +118,9 @@ export function GlobalPermissions(): HookDecorator<MaybePromise<GlobalPermission
  *
  * Valid class roles: `@Router(Model)` (model router) and `@RouterOptions(Model)` (model-specific options). Not valid on `@Module`, root routers, or default options.
  * Valid operations: `default`, `create`, `update`, `list`, `read` — one operation per decorator; scalar hook rejects duplicate `docPermissions.<op>` on the same class.
- * Result contract: `MaybePromise<Record<string, unknown>>` — per-document permission map; empty map denies.
+ * Result contract: `MaybePromise<Record<string, unknown>>` — per-document permission map combined with global grants via OR.
+ * A field is visible when the global permission OR the document permission grants it (`permissions.has(key) || docPermissions[key]`),
+ * so an empty map grants nothing by itself and never revokes a global grant; it is not a universal deny mechanism.
  * Parameter injection is explicit: use `@Document()` for the document, `@Permissions()` for resolved permissions, `@Context()` for `ModelHookContext`, optional `@Request()` for the request. `this` is the class instance.
  *
  * @param optionKey - operation name (`default` applies to `create`+`update`, `list`/`read`/`create`/`update` are operation-specific).
@@ -91,7 +128,9 @@ export function GlobalPermissions(): HookDecorator<MaybePromise<GlobalPermission
 export function DocPermissions(
   optionKey: HookOperation<'docPermissions'>,
 ): HookDecorator<ReturnType<DocPermissionsDecoratorHook>> {
-  return setMethodMetadata(hook('docPermissions'), optionKey);
+  const definition = hook('docPermissions');
+  assertValidOperation(definition, optionKey);
+  return setMethodMetadata(definition, optionKey);
 }
 
 /**
@@ -99,13 +138,17 @@ export function DocPermissions(
  *
  * Valid class roles: `@Router(Model)` and `@RouterOptions(Model)`. Not on `@Module` / root / default options.
  * Valid operations: `default`, `update`, `list`, `read`, `delete`; scalar — duplicate `baseFilter.<op>` on same class is rejected.
- * Result contract: `MaybePromise<Filter | true | null | undefined>` — filter object restricts query, `true` means unrestricted, `null`/`false` denies.
+ * Result contract: `MaybePromise<Filter | true | null | undefined>` — filter object restricts the query; `true` means unrestricted.
+ * Only `false` denies (effective result `false`). `null` / `undefined` / `true` / empty `{}` add no base restriction:
+ * they normalize to no restriction, so the incoming filter (or `{}` when absent) passes through unchanged.
  * Parameter injection explicit: use `@Permissions()` for resolved permissions, optional `@Request()`. `this` is the class instance.
  *
  * @param optionKey - operation to scope the base filter.
  */
 export function BaseFilter(optionKey: HookOperation<'baseFilter'>): HookDecorator<ReturnType<BaseFilterDecoratorHook>> {
-  return setMethodMetadata(hook('baseFilter'), optionKey);
+  const definition = hook('baseFilter');
+  assertValidOperation(definition, optionKey);
+  return setMethodMetadata(definition, optionKey);
 }
 
 /**
@@ -121,7 +164,9 @@ export function BaseFilter(optionKey: HookOperation<'baseFilter'>): HookDecorato
 export function OverrideFilter(
   optionKey: HookOperation<'overrideFilter'>,
 ): HookDecorator<ReturnType<OverrideFilterDecoratorHook>> {
-  return setMethodMetadata(hook('overrideFilter'), optionKey);
+  const definition = hook('overrideFilter');
+  assertValidOperation(definition, optionKey);
+  return setMethodMetadata(definition, optionKey);
 }
 
 /**
@@ -135,7 +180,9 @@ export function OverrideFilter(
  * @param optionKey - operation to scope validation.
  */
 export function Validate(optionKey: HookOperation<'validate'>): HookDecorator<ReturnType<ValidateDecoratorHook>> {
-  return setMethodMetadata(hook('validate'), optionKey);
+  const definition = hook('validate');
+  assertValidOperation(definition, optionKey);
+  return setMethodMetadata(definition, optionKey);
 }
 
 /**
@@ -151,7 +198,9 @@ export function Validate(optionKey: HookOperation<'validate'>): HookDecorator<Re
 export function Prepare<TModel = unknown>(
   optionKey: HookOperation<'prepare'>,
 ): HookDecorator<ReturnType<PrepareDecoratorHook<TModel>>> {
-  return setMethodMetadata(hook('prepare'), optionKey);
+  const definition = hook('prepare');
+  assertValidOperation(definition, optionKey);
+  return setMethodMetadata(definition, optionKey);
 }
 
 /**
@@ -167,7 +216,9 @@ export function Prepare<TModel = unknown>(
 export function Transform<TModel = unknown>(
   optionKey: HookOperation<'transform'>,
 ): HookDecorator<ReturnType<TransformDecoratorHook<TModel>>> {
-  return setMethodMetadata(hook('transform'), optionKey);
+  const definition = hook('transform');
+  assertValidOperation(definition, optionKey);
+  return setMethodMetadata(definition, optionKey);
 }
 
 /**
@@ -183,7 +234,9 @@ export function Transform<TModel = unknown>(
 export function AfterPersist<TModel = unknown>(
   optionKey: HookOperation<'afterPersist'>,
 ): HookDecorator<ReturnType<AfterPersistDecoratorHook<TModel>>> {
-  return setMethodMetadata(hook('afterPersist'), optionKey);
+  const definition = hook('afterPersist');
+  assertValidOperation(definition, optionKey);
+  return setMethodMetadata(definition, optionKey);
 }
 
 /**
@@ -199,7 +252,9 @@ export function AfterPersist<TModel = unknown>(
 export function Decorate<TModel = unknown>(
   optionKey: HookOperation<'decorate'>,
 ): HookDecorator<ReturnType<DecorateDecoratorHook<TModel>>> {
-  return setMethodMetadata(hook('decorate'), optionKey);
+  const definition = hook('decorate');
+  assertValidOperation(definition, optionKey);
+  return setMethodMetadata(definition, optionKey);
 }
 
 /**
@@ -215,7 +270,9 @@ export function Decorate<TModel = unknown>(
 export function DecorateAll<TModel = unknown>(
   optionKey: HookOperation<'decorateAll'>,
 ): HookDecorator<ReturnType<DecorateAllDecoratorHook<TModel>>> {
-  return setMethodMetadata(hook('decorateAll'), optionKey);
+  const definition = hook('decorateAll');
+  assertValidOperation(definition, optionKey);
+  return setMethodMetadata(definition, optionKey);
 }
 
 /**
@@ -229,11 +286,9 @@ export function DecorateAll<TModel = unknown>(
  * @param optionKey - scalar guard operation.
  */
 export function RouteGuard(optionKey: RouteGuardOperationKey): HookDecorator<ReturnType<GuardHook>> {
-  const allowed = hook('routeGuard').operations as readonly string[];
-  if (!allowed.includes(optionKey as string)) {
-    throw new Error(`Invalid @routeGuard operation "${String(optionKey)}": expected one of ${allowed.join(', ')}`);
-  }
-  return setMethodMetadata(hook('routeGuard'), optionKey);
+  const definition = hook('routeGuard');
+  assertValidOperation(definition, optionKey);
+  return setMethodMetadata(definition, optionKey);
 }
 
 /**
@@ -242,7 +297,9 @@ export function RouteGuard(optionKey: RouteGuardOperationKey): HookDecorator<Ret
  * Valid class roles: `@Router(Model)`, `@RouterOptions(Model)`, and default model options (`@RouterOptions` without model) — maps to `resolveIdFilter`.
  * Operations: none — scalar hook, one per class (duplicate rejected).
  * Result contract: `MaybePromise<Filter<TValue>>` — filter selecting the document by id.
- * Parameter injection explicit: use `@Id()` for the route identifier string. `this` is the request object for identifier hooks? Actually wrapped via `wrapMethod` as `class instance` — consistent with other hooks (`this` = class instance; use `@Request()` / `@Id()` for values). Validated across all hook families.
+ * Parameter injection explicit: use `@Id()` for the route identifier string, optional `@Request()` for the request.
+ * `this` is the decorated class instance — the same binding as every other hook in this file (wired via `wrapMethod`);
+ * it is never the request object.
  * No operation param.
  */
 export function Identifier<TModel = unknown>(): HookDecorator<ReturnType<IdentifierDecoratorHook<TModel>>> {

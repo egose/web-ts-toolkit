@@ -30,17 +30,23 @@ const { useUpdate } = createModelHooks({ modelService: organizationService });
     const { mutate, isPending } = useUpdate({ advanced: true, select: ['name'] as const });
 
     const saveTwice = async () => {
-      const [firstResult, secondResult] = await Promise.all([
-        mutate('org_1', { name: 'A' }),
-        mutate('org_1', { name: 'B' }),
-      ]);
-      // Promise.all preserves invocation order. Hook state still follows the latest invocation.
-      console.log(firstResult.data?.name, secondResult.data?.name);
-      return secondResult.data;
+      try {
+        const [firstResult, secondResult] = await Promise.all([
+          mutate('org_1', { name: 'A' }),
+          mutate('org_1', { name: 'B' }),
+        ]);
+        // Promise.all preserves invocation order. Hook state still follows the latest invocation.
+        console.log(firstResult.data?.name, secondResult.data?.name);
+        return secondResult.data;
+      } catch (error) {
+        // Hook error state still surfaces the failure; handling here avoids an unhandled rejection.
+        console.error('Save failed', error);
+        return undefined;
+      }
     };
 
     return (
-      <button disabled={isPending} onClick={saveTwice}>
+      <button disabled={isPending} onClick={() => void saveTwice().catch(() => undefined)}>
         Save twice
       </button>
     );
@@ -56,17 +62,23 @@ const { useUpdate } = createModelHooks({ modelService: organizationService });
     const { mutate, isPending } = useUpdate({ advanced: true, select: ['name'] as const });
 
     const saveTwice = async () => {
-      const [firstResult, secondResult] = await Promise.all([
-        mutate('org_1', { name: 'A' }),
-        mutate('org_1', { name: 'B' }),
-      ]);
-      // Promise.all preserves invocation order. Hook state still follows the latest invocation.
-      console.log(firstResult.data?.name, secondResult.data?.name);
-      return secondResult.data;
+      try {
+        const [firstResult, secondResult] = await Promise.all([
+          mutate('org_1', { name: 'A' }),
+          mutate('org_1', { name: 'B' }),
+        ]);
+        // Promise.all preserves invocation order. Hook state still follows the latest invocation.
+        console.log(firstResult.data?.name, secondResult.data?.name);
+        return secondResult.data;
+      } catch (error) {
+        // Hook error state still surfaces the failure; handling here avoids an unhandled rejection.
+        console.error('Save failed', error);
+        return undefined;
+      }
     };
 
     return (
-      <button disabled={isPending} onClick={saveTwice}>
+      <button disabled={isPending} onClick={() => void saveTwice().catch(() => undefined)}>
         Save twice
       </button>
     );

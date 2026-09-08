@@ -84,8 +84,10 @@ export const getMethodMetadataKeysStartWith = (obj: object, method: MethodKey, s
  * Contract:
  * - Symbol methods are supported via `Reflect.ownKeys`; they are never silently ignored.
  * - Inheritance order for distinct methods is base-to-derived so base normalization hooks
- *   run before child specialization. This is the execution order used for array hooks
- *   (`prepare`, `transform`, `afterPersist`, `decorate`, `decorateAll`, `validate` chains).
+ *   run before child specialization. This is the execution order used for composing
+ *   array hooks (`prepare`, `transform`, `afterPersist`, `decorate`, `decorateAll`).
+ *   `validate` is not a chain: duplicate `validate.<op>` entries are rejected by the
+ *   factory duplicate policy, so validators never compose across base/child.
  * - Overridden methods replace the base definition: a key present on a derived prototype
  *   suppresses the same key on any ancestor and is yielded at the derived level (where
  *   the effective hook and parameter metadata live). This avoids stale base metadata.

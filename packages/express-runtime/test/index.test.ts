@@ -19,6 +19,7 @@ import {
   type ListenerSnapshot,
 } from './support/process-listeners';
 import { createRequestBarrier } from './support/server';
+import { runSubprocess } from './support/subprocess';
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -505,6 +506,55 @@ describe('defaultRequestHook', () => {
     expect(Buffer.isBuffer(req.body)).toBe(true);
     expect(logger.error).not.toHaveBeenCalled();
   });
+
+  it('ERT-B16: readable JSON performs no unused UTF-8 conversion (deferred decode)', () => {
+    const buf = Buffer.from(JSON.stringify({ hi: 1 }));
+    let conversions = 0;
+    const originalToString = buf.toString;
+    (buf as Buffer).toString = ((...args: unknown[]) => {
+      conversions += 1;
+      return (originalToString as (...a: never[]) => string).apply(buf, args as never[]);
+    }) as typeof buf.toString;
+    // Minimal readable shape: pipe/on/read functions (isReadableRequest duck-type).
+    const req = {
+      body: buf,
+      headers: { 'content-type': 'application/json' },
+      pipe: () => {},
+      on: () => {},
+      read: () => {},
+    };
+    defaultRequestHook(req);
+    expect(conversions).toBe(0);
+    expect(Buffer.isBuffer(req.body)).toBe(true);
+  });
+
+  it('ERT-B16: plain JSON still parses (conversion only when needed)', () => {
+    const buf = Buffer.from(JSON.stringify({ hi: 1 }));
+    let conversions = 0;
+    const originalToString = buf.toString;
+    (buf as Buffer).toString = ((...args: unknown[]) => {
+      conversions += 1;
+      return (originalToString as (...a: never[]) => string).apply(buf, args as never[]);
+    }) as typeof buf.toString;
+    const req = { body: buf, headers: { 'content-type': 'application/json' } };
+    defaultRequestHook(req);
+    expect(req.body).toEqual({ hi: 1 });
+    expect(conversions).toBe(1);
+  });
+
+  it('ERT-B16: plain text still converts exactly once', () => {
+    const buf = Buffer.from('plain text');
+    let conversions = 0;
+    const originalToString = buf.toString;
+    (buf as Buffer).toString = ((...args: unknown[]) => {
+      conversions += 1;
+      return (originalToString as (...a: never[]) => string).apply(buf, args as never[]);
+    }) as typeof buf.toString;
+    const req = { body: buf, headers: { 'content-type': 'text/plain' } };
+    defaultRequestHook(req);
+    expect(req.body).toBe('plain text');
+    expect(conversions).toBe(1);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -657,6 +707,55 @@ describe('startLocalServer', () => {
     expect(local.server.listening).toBe(true);
   });
 
+  it('ERT-B11 validates shutdownTimeout against the Node timer limit', async () => {
+    const app = createExpressApp();
+    // 0 is explicit: no drain wait, shutdown still resolves.
+    const zero = startLocalServer(app, { port: 0, host: '127.0.0.1', signals: false, shutdownTimeout: 0 });
+    servers.push(zero.server);
+    await expect(zero.ready).resolves.toBeUndefined();
+    await expect(zero.shutdown()).resolves.toBeUndefined();
+
+    // 2147483647 is the largest safe Node timer delay.
+    const max = startLocalServer(app, {
+      port: 0,
+      host: '127.0.0.1',
+      signals: false,
+      shutdownTimeout: 2147483647,
+    });
+    servers.push(max.server);
+    await expect(max.ready).resolves.toBeUndefined();
+
+    // Timer injection: shutdown must schedule exactly 2147483647 without
+    // overflow and without waiting for it (close resolves first).
+    const seen: number[] = [];
+    const originalSetTimeout = globalThis.setTimeout;
+    const spy = ((fn: (...args: unknown[]) => void, ms?: number, ...rest: unknown[]) => {
+      if (typeof ms === 'number') seen.push(ms);
+      return (originalSetTimeout as unknown as (...a: unknown[]) => unknown)(fn, ms, ...rest) as ReturnType<
+        typeof setTimeout
+      >;
+    }) as unknown as typeof setTimeout;
+    vi.stubGlobal('setTimeout', spy);
+    try {
+      await expect(max.shutdown()).resolves.toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(seen).toContain(2147483647);
+
+    // 2147483648+ is rejected synchronously before resource creation.
+    for (const bad of [2147483648, Number.MAX_SAFE_INTEGER]) {
+      expect(() =>
+        startLocalServer(createExpressApp(), {
+          port: 0,
+          host: '127.0.0.1',
+          signals: false,
+          shutdownTimeout: bad,
+        }),
+      ).toThrow('Invalid shutdownTimeout');
+    }
+  });
+
   it('rejects ready on init failure without an unhandled rejection', async () => {
     const unhandled: unknown[] = [];
     const onUnhandled = (reason: unknown) => {
@@ -796,6 +895,87 @@ describe('startLocalServer', () => {
     expect(onShutdown).toHaveBeenCalledOnce();
     expect(logs.some((line) => line.includes('onShutdown hook failed:'))).toBe(true);
   });
+
+  it.each([
+    ['undefined', undefined],
+    ['null', null],
+    ['false', false],
+    ['zero', 0],
+    ['empty string', ''],
+    ['Error', new Error('ERT-B12 cleanup failed')],
+  ] as Array<[string, unknown]>)(
+    'ERT-B12 rejects programmatic shutdown for falsy onShutdown reason (%s)',
+    async (_label, reason) => {
+      const logs: string[] = [];
+      const logger: Logger = {
+        log: (...args) => logs.push(args.join(' ')),
+        error: (...args) => logs.push(args.map(String).join(' ')),
+      };
+      const app = createExpressApp();
+      const onShutdown = vi.fn(async (): Promise<void> => {
+        throw reason;
+      });
+
+      const local = startLocalServer(app, { port: 0, host: '127.0.0.1', signals: false, onShutdown, logger });
+      servers.push(local.server);
+
+      await waitForListening(local.server);
+      const outcome = await local.shutdown().then(
+        () => ({ rejected: false, reason: undefined as unknown }),
+        (err: unknown) => ({ rejected: true, reason: err }),
+      );
+      expect(outcome.rejected).toBe(true);
+      expect(outcome.reason).toBe(reason);
+
+      expect(onShutdown).toHaveBeenCalledOnce();
+      expect(logs.some((line) => line.includes('onShutdown hook failed:'))).toBe(true);
+    },
+  );
+
+  it('ERT-B12 concurrent failing shutdowns execute cleanup once and all reject with the original falsy reason', async () => {
+    const reason = 0;
+    const shutdownEntered = createDeferred<void>();
+    const releaseShutdown = createDeferred<void>();
+    const onShutdown = vi.fn(async (): Promise<void> => {
+      shutdownEntered.resolve();
+      await releaseShutdown.promise;
+      throw reason;
+    });
+    const app = createExpressApp();
+    const local = startLocalServer(app, { port: 0, host: '127.0.0.1', signals: false, onShutdown });
+    servers.push(local.server);
+    await local.ready;
+
+    const shutdownA = local.shutdown();
+    const shutdownB = local.shutdown();
+    await shutdownEntered.promise;
+    expect(onShutdown).toHaveBeenCalledOnce();
+    releaseShutdown.resolve();
+
+    await expect(shutdownA).rejects.toBe(reason);
+    await expect(shutdownB).rejects.toBe(reason);
+    expect(onShutdown).toHaveBeenCalledOnce();
+  });
+
+  it('ERT-B12 subprocess exits nonzero when onShutdown rejects with no argument', async () => {
+    const distIndexUrl = new URL('../dist/index.mjs', import.meta.url).href;
+    const script =
+      `import { createExpressApp, startLocalServer } from ${JSON.stringify(distIndexUrl)};\n` +
+      `const app = createExpressApp();\n` +
+      `const local = startLocalServer(app, { port: 0, host: '127.0.0.1', signals: false, exitAfterShutdown: true, onShutdown: () => Promise.reject() });\n` +
+      `await local.ready;\n` +
+      `await local.shutdown();\n` +
+      `console.log('ERT-B12-SHUTDOWN-RESOLVED-UNEXPECTEDLY');\n`;
+
+    const result = await runSubprocess(process.execPath, ['--input-type=module', '-e', script], {
+      timeoutMs: 15000,
+    });
+
+    expect(result.timedOut).toBe(false);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).not.toContain('ERT-B12-SHUTDOWN-RESOLVED-UNEXPECTEDLY');
+    expect(result.stderr).toContain('onShutdown hook failed:');
+  }, 20000);
 
   it('drains in-flight requests during graceful shutdown', async () => {
     const app = createExpressApp();
@@ -1004,6 +1184,92 @@ describe('startLocalServer', () => {
     // No removeAllListeners: afterEach will restore via snapshot. Verify sentinel still present now.
     expect(process.listeners('SIGINT')).toContain(sentinelSIGINT);
     expect(process.listeners('SIGTERM')).toContain(sentinelSIGTERM);
+  });
+
+  it('ERT-B13 duplicate custom signals register once and leave no leaked listener after shutdown', async () => {
+    const before = process.listenerCount('SIGUSR2');
+    const sentinel = () => {};
+    process.on('SIGUSR2', sentinel);
+    const app = createExpressApp();
+    const local = startLocalServer(app, {
+      port: 0,
+      host: '127.0.0.1',
+      signals: ['SIGUSR2', 'SIGUSR2'],
+    });
+    servers.push(local.server);
+    try {
+      await local.ready;
+      // Exactly one owned registration on top of baseline + sentinel.
+      expect(process.listenerCount('SIGUSR2')).toBe(before + 2);
+      await local.shutdown();
+      expect(process.listenerCount('SIGUSR2')).toBe(before + 1);
+      expect(process.listeners('SIGUSR2')).toContain(sentinel);
+    } finally {
+      process.removeListener('SIGUSR2', sentinel);
+      // Guard against regressions leaking an owned listener into other tests
+      // (afterEach only snapshots SIGINT/SIGTERM); the assertions above run first.
+      for (const fn of process.listeners('SIGUSR2').slice(before)) {
+        process.removeListener('SIGUSR2', fn as (...args: unknown[]) => void);
+      }
+      expect(process.listenerCount('SIGUSR2')).toBe(before);
+    }
+  });
+
+  it('ERT-B13 duplicate default signals restore the exact baseline after shutdown with single-flight hooks', async () => {
+    const onShutdown = vi.fn();
+    const app = createExpressApp();
+    const local = startLocalServer(app, {
+      port: 0,
+      host: '127.0.0.1',
+      signals: ['SIGINT', 'SIGINT', 'SIGTERM', 'SIGTERM'],
+      onShutdown,
+    });
+    servers.push(local.server);
+    await local.ready;
+
+    expect(process.listenerCount('SIGINT')).toBe(baselineCounts.SIGINT + 1);
+    expect(process.listenerCount('SIGTERM')).toBe(baselineCounts.SIGTERM + 1);
+
+    // Duplicate owned handlers coalesce: two real signals still run cleanup once.
+    process.emit('SIGINT', 'SIGINT');
+    process.emit('SIGTERM', 'SIGTERM');
+    await local.shutdown();
+    await local.shutdown();
+
+    expect(onShutdown).toHaveBeenCalledOnce();
+    expect(getListenerCounts(['SIGINT', 'SIGTERM'])).toEqual(baselineCounts);
+    expect(process.listeners('SIGINT')).toContain(sentinelSIGINT);
+    expect(process.listeners('SIGTERM')).toContain(sentinelSIGTERM);
+  });
+
+  it('ERT-B13 duplicate signals leave the baseline after startup failure', async () => {
+    const before = process.listenerCount('SIGUSR2');
+    const initError = new Error('ERT-B13 init failed');
+    const onError = vi.fn();
+    const app = createExpressApp();
+    const local = startLocalServer(app, {
+      port: 0,
+      host: '127.0.0.1',
+      signals: ['SIGUSR2', 'SIGUSR2'],
+      init: async () => {
+        throw initError;
+      },
+      onError,
+    });
+    servers.push(local.server);
+    try {
+      await expect(local.ready).rejects.toBe(initError);
+      await waitForImmediate();
+      expect(onError).toHaveBeenCalledOnce();
+      expect(process.listenerCount('SIGUSR2')).toBe(before);
+    } finally {
+      const leaked = process.listenerCount('SIGUSR2') - before;
+      if (leaked > 0) {
+        for (const fn of process.listeners('SIGUSR2').slice(before)) {
+          process.removeListener('SIGUSR2', fn as (...args: unknown[]) => void);
+        }
+      }
+    }
   });
 
   it('calls process.exit when exitAfterShutdown is true', async () => {

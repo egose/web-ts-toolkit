@@ -1,5 +1,15 @@
 export const MAX_INTEGER_OPTION_VALUE = Number.MAX_SAFE_INTEGER;
 
+/**
+ * Maximum duration (ms) accepted for Node.js timers (`setTimeout`).
+ * Node clamps larger values with a `TimeoutOverflowWarning` (e.g. 2147483648
+ * becomes 1 ms), so timer-backed options reject anything above this bound
+ * before scheduling. `0` disables waiting; `2147483647` is the largest safe
+ * delay (~24.8 days). Byte limits such as `--max-body-bytes` intentionally
+ * keep the wider `MAX_INTEGER_OPTION_VALUE` range and must not use this bound.
+ */
+export const MAX_TIMER_DURATION_MS = 2147483647;
+
 export interface FiniteIntegerValidationOptions {
   name: string;
   min?: number;
@@ -36,4 +46,13 @@ export function parsePortValue(value: number | string, name: string): number | s
     throw new Error(`Invalid ${name}: ${value}. Numeric ports must be canonical decimal integers in 0..65535.`);
   }
   return value;
+}
+
+/**
+ * Validate a timer duration in milliseconds against Node's signed-32-bit
+ * `setTimeout` limit. Accepts `0..2147483647`; rejects larger safe integers
+ * that would otherwise overflow into near-immediate timers.
+ */
+export function validateTimerDuration(value: unknown, name: string): number {
+  return validateFiniteInteger(value, { name, min: 0, max: MAX_TIMER_DURATION_MS });
 }

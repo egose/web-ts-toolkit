@@ -416,7 +416,8 @@ if (Reflect.getMetadata(Symbol.for('@web-ts-toolkit/access-router-deco:module.ro
     path.resolve(consumerDir, 'consumer.nodenext.mts'),
     `import express from 'express';
 import mongoose from 'mongoose';
-import { BaseFilter, EgoseFactoryStatic, Module, Permissions, Router, type BootstrapResult } from '@web-ts-toolkit/access-router-deco';
+import type { Model } from 'mongoose';
+import { BaseFilter, EgoseFactoryStatic, Module, Permissions, Router, RouterOptions, type BootstrapResult, type RouterModel } from '@web-ts-toolkit/access-router-deco';
 
 type User = { name: string; public: boolean };
 mongoose.model<User>('PackedTypeUser', new mongoose.Schema<User>({ name: String, public: Boolean }));
@@ -435,13 +436,38 @@ class AppModule {}
 const app = express();
 const result: BootstrapResult = EgoseFactoryStatic.create().bootstrap(AppModule, app);
 void result;
+
+// BDECO-08: typed models and union-valued config compile through root public imports.
+type PackedTypedUser = { name: string };
+const PackedTypedUserModel = mongoose.model<PackedTypedUser>('PackedTypedUser', new mongoose.Schema<PackedTypedUser>({ name: String }));
+
+@Router(PackedTypedUserModel, { basePath: '/typed-users' })
+class TypedUserRouter {}
+
+@RouterOptions(PackedTypedUserModel, { idParam: 'typedUserId' })
+class TypedUserOptions {}
+
+const typedAlias: RouterModel<PackedTypedUser> = PackedTypedUserModel;
+
+function registerPackedUnion(value: RouterModel) {
+  Router(value, { basePath: '/union-users' })(TypedUserRouter);
+  RouterOptions(value, { idParam: 'unionUserId' })(TypedUserOptions);
+}
+
+function registerPackedStringOrModel(value: string | Model<PackedTypedUser>) {
+  Router(value)(TypedUserRouter);
+  RouterOptions(value)(TypedUserOptions);
+}
+
+void [TypedUserRouter, TypedUserOptions, typedAlias, registerPackedUnion, registerPackedStringOrModel];
 `,
   );
   writeFileSync(
     path.resolve(consumerDir, 'consumer.nodenext.cts'),
     `import express from 'express';
 import mongoose from 'mongoose';
-import { BaseFilter, EgoseFactoryStatic, Module, Permissions, Router, type BootstrapResult } from '@web-ts-toolkit/access-router-deco';
+import type { Model } from 'mongoose';
+import { BaseFilter, EgoseFactoryStatic, Module, Permissions, Router, RouterOptions, type BootstrapResult, type RouterModel } from '@web-ts-toolkit/access-router-deco';
 
 type User = { active: boolean };
 mongoose.model<User>('PackedCtsUser', new mongoose.Schema<User>({ active: Boolean }));
@@ -459,13 +485,36 @@ class AppModule {}
 
 const result: BootstrapResult = EgoseFactoryStatic.create().bootstrap(AppModule, express());
 void result;
+
+// BDECO-08: typed models and union-valued config compile through root public imports (CJS NodeNext).
+type PackedCtsTypedUser = { active: boolean };
+const PackedCtsTypedUserModel = mongoose.model<PackedCtsTypedUser>('PackedCtsTypedUser', new mongoose.Schema<PackedCtsTypedUser>({ active: Boolean }));
+
+@Router(PackedCtsTypedUserModel, { basePath: '/typed-users' })
+class CtsTypedUserRouter {}
+
+@RouterOptions(PackedCtsTypedUserModel, { idParam: 'ctsTypedUserId' })
+class CtsTypedUserOptions {}
+
+function registerCtsUnion(value: RouterModel) {
+  Router(value)(CtsTypedUserRouter);
+  RouterOptions(value)(CtsTypedUserOptions);
+}
+
+function registerCtsStringOrModel(value: string | Model<PackedCtsTypedUser>) {
+  Router(value, { basePath: '/cts-union-users' })(CtsTypedUserRouter);
+  RouterOptions(value, { idParam: 'ctsUnionUserId' })(CtsTypedUserOptions);
+}
+
+void [CtsTypedUserRouter, CtsTypedUserOptions, registerCtsUnion, registerCtsStringOrModel];
 `,
   );
   writeFileSync(
     path.resolve(consumerDir, 'consumer.bundler.ts'),
     `import express from 'express';
 import mongoose from 'mongoose';
-import { EgoseFactoryStatic, Filter, Module, OverrideFilter, Router } from '@web-ts-toolkit/access-router-deco';
+import type { Model } from 'mongoose';
+import { EgoseFactoryStatic, Filter, Module, OverrideFilter, Router, RouterOptions, type RouterModel } from '@web-ts-toolkit/access-router-deco';
 
 type User = { name: string };
 mongoose.model<User>('PackedBundlerUser', new mongoose.Schema<User>({ name: String }));
@@ -482,6 +531,28 @@ class UserRouter {
 class AppModule {}
 
 void EgoseFactoryStatic.create().bootstrap(AppModule, express());
+
+// BDECO-08: typed models and union-valued config compile through root public imports (Bundler).
+type PackedBundlerTypedUser = { name: string };
+const PackedBundlerTypedUserModel = mongoose.model<PackedBundlerTypedUser>('PackedBundlerTypedUser', new mongoose.Schema<PackedBundlerTypedUser>({ name: String }));
+
+@Router(PackedBundlerTypedUserModel, { basePath: '/bundler-typed-users' })
+class BundlerTypedUserRouter {}
+
+@RouterOptions(PackedBundlerTypedUserModel, { idParam: 'bundlerTypedUserId' })
+class BundlerTypedUserOptions {}
+
+function registerBundlerUnion(value: RouterModel) {
+  Router(value)(BundlerTypedUserRouter);
+  RouterOptions(value)(BundlerTypedUserOptions);
+}
+
+function registerBundlerStringOrModel(value: string | Model<PackedBundlerTypedUser>) {
+  Router(value, { basePath: '/bundler-union-users' })(BundlerTypedUserRouter);
+  RouterOptions(value, { queryRouteSegment: 'search' })(BundlerTypedUserOptions);
+}
+
+void [BundlerTypedUserRouter, BundlerTypedUserOptions, registerBundlerUnion, registerBundlerStringOrModel];
 `,
   );
   writeFileSync(

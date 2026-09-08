@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import crypto from 'node:crypto';
 import { inlineFiles, inlineFilesSync, createAssetCatalogSync } from '../src/index.ts';
 
 const FIXTURE_IMAGE = path.resolve(
@@ -426,6 +427,73 @@ describe('AINL2-03: cancellation fail-closed', () => {
       expect(result[0].diagnostics.some((d: any) => d.code === 'ENOENT')).toBe(false);
       readSpy.mockRestore();
     } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+      vi.restoreAllMocks();
+    }
+  });
+});
+
+describe('AIH-04: exclusive-create collision never deletes unowned temp', () => {
+  const FIXED_RANDOM = Buffer.from([1, 2, 3, 4, 5, 6]);
+  const SENTINEL = 'SENTINEL-unowned-temp';
+
+  function stubRandom() {
+    const orig = crypto.randomBytes.bind(crypto);
+    return vi.spyOn(crypto, 'randomBytes').mockImplementation(((size: any, ...rest: any[]) => {
+      if (size === 6 && rest.length === 0) return FIXED_RANDOM;
+      return (orig as any)(size, ...rest);
+    }) as any);
+  }
+
+  function expectedTempPath(dir: string, base: string): string {
+    return path.join(dir, `.tmp.asset-inliner.${FIXED_RANDOM.toString('hex')}.${base}.tmp`);
+  }
+
+  it('async: EEXIST collision leaves pre-existing temp and target untouched', async () => {
+    const tmp = mkTmp('aih04-async-');
+    const randSpy = stubRandom();
+    try {
+      const asset = path.join(tmp, 'apple.png');
+      fs.copyFileSync(FIXTURE_IMAGE, asset);
+      const target = path.join(tmp, 'a.css');
+      const original = `.a{background:url('./apple.png')}`;
+      writeFile(target, original);
+      const tempPath = expectedTempPath(tmp, 'a.css');
+      fs.writeFileSync(tempPath, SENTINEL, 'utf8');
+      const result = await inlineFiles({ targets: target, assets: asset, write: true });
+      expect(result).toHaveLength(1);
+      expect(result[0].written).toBe(false);
+      expect(result[0].diagnostics.some((d: any) => d.code === 'FILESYSTEM_ERROR')).toBe(true);
+      expect(fs.readFileSync(tempPath, 'utf8')).toBe(SENTINEL);
+      expect(fs.readFileSync(target, 'utf8')).toBe(original);
+    } finally {
+      randSpy.mockRestore();
+      fs.rmSync(tmp, { recursive: true, force: true });
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('sync: EEXIST collision leaves pre-existing temp and target untouched', () => {
+    const tmp = mkTmp('aih04-sync-');
+    const randSpy = stubRandom();
+    try {
+      const asset = path.join(tmp, 'apple.png');
+      fs.copyFileSync(FIXTURE_IMAGE, asset);
+      const catalog = createAssetCatalogSync(asset);
+      // Build catalog before relying on stubbed naming; stub stays active for the write.
+      const target = path.join(tmp, 'a.css');
+      const original = `.a{background:url('./apple.png')}`;
+      writeFile(target, original);
+      const tempPath = expectedTempPath(tmp, 'a.css');
+      fs.writeFileSync(tempPath, SENTINEL, 'utf8');
+      const result = inlineFilesSync({ targets: target, catalog, write: true } as any);
+      expect(result).toHaveLength(1);
+      expect(result[0].written).toBe(false);
+      expect(result[0].diagnostics.some((d: any) => d.code === 'FILESYSTEM_ERROR')).toBe(true);
+      expect(fs.readFileSync(tempPath, 'utf8')).toBe(SENTINEL);
+      expect(fs.readFileSync(target, 'utf8')).toBe(original);
+    } finally {
+      randSpy.mockRestore();
       fs.rmSync(tmp, { recursive: true, force: true });
       vi.restoreAllMocks();
     }

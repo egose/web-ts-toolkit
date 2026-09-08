@@ -14,7 +14,7 @@ The compile gate reads this tab-separated inventory. `source` plus `ordinal` ide
 # source	ordinal	sha256	classification	fixture-or--
 packages/access-router-react/README.md	1	3f85d0411ebd32fff2c28f7e1c98523e0f618edf139f3a3bca616ba2d851b12b	scaffolded	factory-readme.ts
 packages/access-router-react/README.md	2	103f93b02b78ddbe83c0f69cf29aa56df867c3ff43a07296fe3f4955bdaa8436	exact	organization.ts
-packages/access-router-react/README.md	3	31d975ab96f74cf8c51881d8fbee852ee27c97440fa4e2d1fae8323cb7ed1560	scaffolded	quickstart.tsx
+packages/access-router-react/README.md	3	a4ce3315f7a88dbf91278dec94ba67391f1e4d87c76af11e9d8a5bdafcf6dca2	scaffolded	quickstart.tsx
 packages/access-router-react/README.md	4	abbc3ce00c20659be9699bd84c81b95e4c1b5eab1b491f4d0ee9f9872b981eb4	scaffolded	query-hooks.tsx
 packages/access-router-react/README.md	5	72b56bda55fa60bc743673acca2633e705b55d27166841042c0b303883ea9ba6	scaffolded	query-hooks.tsx
 packages/access-router-react/README.md	6	f98b55a3f78d72e343570a0a70e243ce3332a09806b5327c2865af34211beb9a	scaffolded	query-hooks.tsx
@@ -25,7 +25,7 @@ packages/access-router-react/README.md	10	37ab3fd2b666d1ab3ecd4cf7ab2770e4b0a1bd
 packages/access-router-react/README.md	11	646f6b1c2953479033272f9f371441a5546c99fc84289fc2482b6e5fc3f6399c	scaffolded	mutations.tsx
 packages/access-router-react/README.md	12	67b1249e4536f95b23df42796e823fc4d779ceb7fe3e4105bc843868da3424e7	scaffolded	failure.tsx
 packages/access-router-react/README.md	13	9ebc423cb275e446c8aedae5e20e3f6b537d65ab0f78b6c47398c72be2bd778b	scaffolded	cancellation.tsx
-packages/access-router-react/README.md	14	c55b9d17d9ac9d808e61a4b2e683aee8902059b674ad86ddc644e558de74a417	scaffolded	concurrent-mutations.tsx
+packages/access-router-react/README.md	14	a8262f1cfbcd8aac5cb5a273db334959039f4fe58f116568d3af81e21ac14158	scaffolded	concurrent-mutations.tsx
 packages/access-router-react/README.md	15	fd59d785f866d38db79c551c9ec5cc18b7f7e5632e84e696b1b6c596c22980d8	scaffolded	projection.tsx
 packages/access-router-react/README.md	16	44a257c400ccafb0c44cd1bfd299f8f0ec86e411a775c974a0c0ee9698cf3368	partial	setup.ts
 packages/access-router-react/README.md	17	381dcf30c0442245177fa62682062cc48b2dd14de618cb30a2c9439486376642	exact	request-key.ts
@@ -40,7 +40,7 @@ website/docs/packages/access-router-react.md	8	59c0e1b34fb928835d34384676bfc699d
 website/docs/packages/access-router-react.md	9	37ab3fd2b666d1ab3ecd4cf7ab2770e4b0a1bd31f53582b901d387a3921b88bf	scaffolded	mutations.tsx
 website/docs/packages/access-router-react.md	10	646f6b1c2953479033272f9f371441a5546c99fc84289fc2482b6e5fc3f6399c	scaffolded	mutations.tsx
 website/docs/packages/access-router-react.md	11	9ebc423cb275e446c8aedae5e20e3f6b537d65ab0f78b6c47398c72be2bd778b	scaffolded	cancellation.tsx
-website/docs/packages/access-router-react.md	12	c55b9d17d9ac9d808e61a4b2e683aee8902059b674ad86ddc644e558de74a417	scaffolded	concurrent-mutations.tsx
+website/docs/packages/access-router-react.md	12	a8262f1cfbcd8aac5cb5a273db334959039f4fe58f116568d3af81e21ac14158	scaffolded	concurrent-mutations.tsx
 website/docs/packages/access-router-react.md	13	989103c6aa7aa8b0c34c183621f54f9c3857898180385e454c2befb1d93be15d	partial	projection.tsx
 website/docs/packages/access-router-react.md	14	381dcf30c0442245177fa62682062cc48b2dd14de618cb30a2c9439486376642	exact	request-key.ts
 website/docs/packages/access-router-react.md	15	0524d8b7734516cb7e2ade1f3927e772756fcba2cf1dd7221120d2e10e40c1c5	scaffolded	active-record.tsx

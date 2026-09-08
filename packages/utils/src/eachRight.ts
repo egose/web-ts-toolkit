@@ -29,7 +29,9 @@ export default function eachRight<T>(
   const keys = Object.keys(collection);
   for (let index = keys.length - 1; index >= 0; index--) {
     const key = keys[index];
-    if (callback(collection[key], key, collection) === false) {
+    // UTILS-09 strict gate: index through a Record view so a generic object
+    // type is not indexed directly by a string. Behavior unchanged.
+    if (callback((collection as Record<string, unknown>)[key], key, collection) === false) {
       break;
     }
   }

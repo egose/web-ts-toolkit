@@ -1323,6 +1323,161 @@ describe('Express next control flow', () => {
   });
 });
 
+describe('Request ownership boundaries (B-ERH-01)', () => {
+  it('ignores a second explicit next(error) after transfer', async () => {
+    const localApp = express();
+    const handler = createHandler();
+    const messages: string[] = [];
+
+    localApp.get(
+      '/duplicate-next-error',
+      handler.handleResponse((_req, _res, next) => {
+        next(new Error('first-error'));
+        next(new Error('second-error'));
+      }),
+    );
+    localApp.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+      void next;
+      messages.push(err instanceof Error ? err.message : String(err));
+      res.status(500).json({ message: messages.at(-1) });
+    });
+
+    const response = await request(localApp).get('/duplicate-next-error').expect(500);
+
+    expect(response.body).toEqual({ message: 'first-error' });
+    expect(messages).toEqual(['first-error']);
+  });
+
+  it('ignores a late sync throw after next() transferred ownership with committed headers', async () => {
+    const localApp = express();
+    const handler = createHandler();
+    const errors: unknown[] = [];
+
+    localApp.get(
+      '/sync-throw-after-next-partial',
+      handler.handleResponse((_req, res, next) => {
+        res.write('partial-');
+        next();
+        throw new Error('late-sync-error');
+      }),
+      (_req, res) => {
+        res.end('downstream');
+      },
+    );
+    localApp.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+      void next;
+      errors.push(err);
+      if (!res.headersSent) {
+        res.status(500).json({ message: 'unexpected-error' });
+      }
+    });
+
+    const response = await request(localApp).get('/sync-throw-after-next-partial').expect(200);
+
+    expect(response.text).toBe('partial-downstream');
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(errors).toHaveLength(0);
+  });
+
+  it('ignores a promise rejection after downstream headers committed', async () => {
+    const localApp = express();
+    const handler = createHandler();
+    const errors: unknown[] = [];
+    let rejectLate: (err: unknown) => void = () => undefined;
+
+    localApp.get(
+      '/rejection-after-downstream-headers',
+      handler.handleResponse((_req, _res, next) => {
+        next();
+        return new Promise((_resolve, reject) => {
+          rejectLate = reject;
+        });
+      }),
+      (_req, res) => {
+        res.json({ continued: true });
+      },
+    );
+    localApp.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+      void next;
+      errors.push(err);
+      if (!res.headersSent) {
+        res.status(500).json({ message: 'unexpected-error' });
+      }
+    });
+
+    const response = await request(localApp).get('/rejection-after-downstream-headers').expect(200);
+
+    expect(response.body).toEqual({ continued: true });
+    rejectLate(new Error('late-rejection'));
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(errors).toHaveLength(0);
+  });
+
+  it('ignores an explicit next(error) after automatic send won', async () => {
+    const localApp = express();
+    const handler = createHandler();
+    const errors: unknown[] = [];
+    let storedNext: ((err: unknown) => void) | undefined;
+
+    localApp.get(
+      '/auto-send-then-next-error',
+      handler.handleResponse((_req, _res, next) => {
+        storedNext = (err: unknown) => next(err);
+        return 'auto-value';
+      }),
+    );
+    localApp.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+      void next;
+      errors.push(err);
+      if (!res.headersSent) {
+        res.status(500).json({ message: 'unexpected-error' });
+      }
+    });
+
+    const response = await request(localApp).get('/auto-send-then-next-error').expect(200);
+
+    expect(response.body).toBe('auto-value');
+    expect(storedNext).toBeDefined();
+    storedNext?.(new Error('delayed-error'));
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(errors).toHaveLength(0);
+  });
+
+  it('ignores a downstream partial write followed by a stale rejection', async () => {
+    const localApp = express();
+    const handler = createHandler();
+    const errors: unknown[] = [];
+    let rejectLate: (err: unknown) => void = () => undefined;
+
+    localApp.get(
+      '/partial-write-then-stale-rejection',
+      handler.handleResponse((_req, _res, next) => {
+        next(new Error('first-error'));
+        return new Promise((_resolve, reject) => {
+          rejectLate = reject;
+        });
+      }),
+    );
+    localApp.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+      void next;
+      errors.push(err);
+      res.write('partial-');
+      res.end('handled');
+    });
+
+    const response = await request(localApp).get('/partial-write-then-stale-rejection').expect(200);
+
+    expect(response.text).toBe('partial-handled');
+    expect(errors).toEqual([expect.objectContaining({ message: 'first-error' })]);
+    rejectLate(new Error('stale-error'));
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(errors).toHaveLength(1);
+  });
+});
+
 function fnApple() {
   return 'apple';
 }
