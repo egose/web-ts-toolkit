@@ -49,16 +49,29 @@ export const defaultJwtClaimsMapper = (claims: Record<string, unknown>): OidcVau
   };
 };
 
-export const assertUserInfoSubject = (userInfo: Record<string, unknown>, subject: string): void => {
-  if (!isString(userInfo.sub)) {
+export const assertUserInfoSubject = (userInfo: unknown, subject: string): void => {
+  // JSON `null` must not bypass the matching-sub check: it is an invalid
+  // UserInfo response, not an absent one. Arrays are rejected the same way.
+  if (typeof userInfo !== 'object' || userInfo === null || Array.isArray(userInfo)) {
+    throw new OidcVaultHttpError(502, 'OIDC_VAULT_INVALID_USERINFO', 'OIDC userinfo response is invalid.');
+  }
+
+  if (!isString((userInfo as Record<string, unknown>).sub)) {
     throw new OidcVaultHttpError(502, 'OIDC_VAULT_INVALID_USERINFO', 'OIDC userinfo response is missing sub.');
   }
 
-  if (userInfo.sub !== subject) {
+  if ((userInfo as Record<string, unknown>).sub !== subject) {
     throw new OidcVaultHttpError(502, 'OIDC_VAULT_INVALID_USERINFO', 'OIDC userinfo sub does not match id_token sub.');
   }
 };
 
+/**
+ * Compose a fresh session profile from freshly verified sources only.
+ *
+ * Precedence: freshly fetched matching UserInfo overlays fresh verified ID
+ * claims; `sub` is always enforced. Retained stored profile data must never
+ * be passed here as `userInfo` — retained values are not fresh UserInfo.
+ */
 export const mergeUserProfile = (
   sub: string,
   idTokenClaims: Record<string, unknown>,
@@ -68,6 +81,35 @@ export const mergeUserProfile = (
   ...(userInfo ?? {}),
   sub,
 });
+
+/**
+ * Refresh profile precedence (BOV-07).
+ *
+ * - `freshIdClaims` (verified from a new `id_token`) is the base when
+ *   present; the retained profile is NOT merged in, so fresh changed claims
+ *   win and removed provider claims (or application-added `user` keys) are
+ *   dropped rather than preserved forever. Applications must keep custom
+ *   attributes in `session.metadata`, not in `user`.
+ * - `freshUserInfo` (freshly fetched with a matching `sub`) overlays
+ *   whichever base applies.
+ * - With no new `id_token`, the retained profile is kept verbatim (refresh
+ *   without a new ID token); a freshly fetched matching UserInfo still
+ *   overlays the retained base per key. The stored `idToken` string itself is
+ *   never revalidated — an expired stored token serves only as previously
+ *   verified identity evidence.
+ */
+export const composeRefreshedUserProfile = (
+  sub: string,
+  currentUser: OidcVaultUserProfile | undefined,
+  freshIdClaims?: Record<string, unknown>,
+  freshUserInfo?: Record<string, unknown>,
+): OidcVaultUserProfile => {
+  if (freshIdClaims === undefined) {
+    return mergeUserProfile(sub, { ...(currentUser ?? { sub }) }, freshUserInfo);
+  }
+
+  return mergeUserProfile(sub, { ...freshIdClaims }, freshUserInfo);
+};
 
 export async function verifyIdToken(
   metadata: OidcProviderMetadata,

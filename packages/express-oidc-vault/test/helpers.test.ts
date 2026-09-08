@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { parseCookieHeader, resolveCookieOptions, serializeCookie } from '../src/cookies';
+import { resolveOidcVaultConfig } from '../src/config';
 import { OidcVaultHttpError } from '../src/errors';
 import { resolveBackendOrigin, resolveTrustedOrigins, validatePostLogoutRedirectUri } from '../src/origins';
 import {
@@ -131,11 +132,11 @@ describe('provider client resource bounds', () => {
       return createDiscoveryResponse(issuer);
     }) as typeof fetch;
 
-    await expect(
-      resolveProviderMetadata({ mode: 'discovery', issuer, clientId: 'client_1', scopes: 'openid' }),
-    ).rejects.toThrow(OidcVaultHttpError);
-    await resolveProviderMetadata({ mode: 'discovery', issuer, clientId: 'client_1', scopes: 'openid' });
-    await resolveProviderMetadata({ mode: 'discovery', issuer, clientId: 'client_1', scopes: 'openid' });
+    await expect(resolveProviderMetadata(resolveOidcVaultConfig({ issuer, clientId: 'client_1' }))).rejects.toThrow(
+      OidcVaultHttpError,
+    );
+    await resolveProviderMetadata(resolveOidcVaultConfig({ issuer, clientId: 'client_1' }));
+    await resolveProviderMetadata(resolveOidcVaultConfig({ issuer, clientId: 'client_1' }));
 
     expect(discoveryRequests).toBe(2);
   });
@@ -156,13 +157,13 @@ describe('provider client resource bounds', () => {
     }) as typeof fetch;
 
     await expect(
-      resolveProviderMetadata({ mode: 'discovery', issuer, clientId: 'client_1', scopes: 'openid' }),
+      resolveProviderMetadata(resolveOidcVaultConfig({ issuer, clientId: 'client_1' })),
     ).rejects.toMatchObject({
       code: 'OIDC_VAULT_DISCOVERY_INVALID',
       message: 'OIDC discovery response token_endpoint must be an absolute HTTP(S) URL.',
     });
     await expect(
-      resolveProviderMetadata({ mode: 'discovery', issuer, clientId: 'client_1', scopes: 'openid' }),
+      resolveProviderMetadata(resolveOidcVaultConfig({ issuer, clientId: 'client_1' })),
     ).rejects.toMatchObject({
       code: 'OIDC_VAULT_DISCOVERY_INVALID',
     });
@@ -179,7 +180,7 @@ describe('provider client resource bounds', () => {
 
     for (let index = 0; index < 40; index += 1) {
       const issuer = `https://issuer-${index}.example.com`;
-      await resolveProviderMetadata({ mode: 'discovery', issuer, clientId: 'client_1', scopes: 'openid' });
+      await resolveProviderMetadata(resolveOidcVaultConfig({ issuer, clientId: 'client_1' }));
       resolveJwks(`${issuer}/jwks`);
     }
 

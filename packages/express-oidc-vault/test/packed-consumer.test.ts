@@ -208,7 +208,9 @@ function copyConsumerSources(consumerDir: string): void {
     'consumer.cjs',
     'consumer.mjs',
     'consumer-types.ts',
+    'consumer-types.cts',
     'tsconfig-nodenext.json',
+    'tsconfig-nodenext-cts.json',
     'tsconfig-bundler.json',
   ]) {
     cpSync(path.resolve(consumerSourceDir, file), path.resolve(consumerDir, file));
@@ -254,6 +256,7 @@ describe('OIDC-11 packed-package consumer compatibility', () => {
     expect(packedManifest.sideEffects).toBe(false);
     expect(packedManifest.peerDependencies).toEqual({ express: '>=5.0.0' });
     expect(packedManifest.dependencies).toEqual({ jose: '^6.1.0' });
+    expect(packedManifest.engines).toEqual({ node: '>=22.12.0' });
     expect(packedManifest.devDependencies).toBeUndefined();
     expect(packedManifest.scripts).toBeUndefined();
     expect(containsDisallowedPublishedValue(packedManifest)).toBe(false);
@@ -288,14 +291,34 @@ describe('OIDC-11 packed-package consumer compatibility', () => {
     expect(entry.entryCount).toBe(expectedFiles.length);
   });
 
-  it('installs the staged tarball and runs CJS, ESM, NodeNext, and Bundler consumers', () => {
+  it('installs the staged tarball and runs CJS, ESM, NodeNext, NodeNext-CJS, and Bundler consumers', () => {
     const consumerDir = installPackedConsumer();
     copyConsumerSources(consumerDir);
 
     run('node', ['consumer.cjs'], consumerDir);
     run('node', ['consumer.mjs'], consumerDir);
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext.json'], consumerDir);
+    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext-cts.json'], consumerDir);
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-bundler.json'], consumerDir);
+
+    const nodenextTrace = run(
+      'pnpm',
+      ['exec', 'tsc', '-p', 'tsconfig-nodenext.json', '--traceResolution'],
+      consumerDir,
+    );
+    expect(nodenextTrace).toMatch(/Resolving module '@web-ts-toolkit\/express-oidc-vault'/);
+    expect(nodenextTrace).toMatch(
+      /Resolving in ESM mode with conditions 'import'[\s\S]*?express-oidc-vault\/index\.d\.mts'/,
+    );
+    const nodenextCtsTrace = run(
+      'pnpm',
+      ['exec', 'tsc', '-p', 'tsconfig-nodenext-cts.json', '--traceResolution'],
+      consumerDir,
+    );
+    expect(nodenextCtsTrace).toMatch(/Resolving module '@web-ts-toolkit\/express-oidc-vault'/);
+    expect(nodenextCtsTrace).toMatch(
+      /Resolving in CJS mode with conditions 'require'[\s\S]*?express-oidc-vault\/index\.d\.ts'/,
+    );
 
     const installedPackageDir = path.resolve(consumerDir, 'node_modules', '@web-ts-toolkit', 'express-oidc-vault');
     const installedManifest = JSON.parse(

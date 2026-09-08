@@ -50,6 +50,48 @@ const normalizeHttpUrl = (value: string | undefined, optionName: string): string
   return url.toString();
 };
 
+/**
+ * Validate issuer identifier syntax without normalizing its string form.
+ *
+ * The trimmed input is preserved verbatim so a slashless root issuer such as
+ * `https://issuer.example.com` stays slashless and path variants such as
+ * `/tenant`, `/tenant/`, and `/tenant//` remain distinct identifiers for
+ * exact discovery comparison and JOSE `issuer` binding. `URL` is used only
+ * for syntax validation. Surrounding whitespace is trimmed before validation
+ * by the caller (`normalizeOptionalString`); discovered issuers are compared
+ * exactly with no additional normalization.
+ *
+ * `http` is intentionally accepted for local-test providers; query,
+ * fragment, and userinfo components are always rejected.
+ */
+const normalizeIssuerIdentifier = (value: string | undefined, optionName: string): string | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  let url: URL;
+
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${optionName} must be an absolute HTTP(S) URL.`);
+  }
+
+  if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.origin === 'null') {
+    throw new Error(`${optionName} must use http or https.`);
+  }
+
+  if (url.username !== '' || url.password !== '') {
+    throw new Error(`${optionName} must not include userinfo.`);
+  }
+
+  if (url.search !== '' || url.hash !== '') {
+    throw new Error(`${optionName} must not include query or fragment.`);
+  }
+
+  return value;
+};
+
 const withOptionalValue = <Key extends keyof OidcVaultResolvedConfig>(
   target: Partial<OidcVaultResolvedConfig>,
   key: Key,
@@ -61,11 +103,22 @@ const withOptionalValue = <Key extends keyof OidcVaultResolvedConfig>(
 };
 
 /**
- * Resolve OIDC configuration from application input. If an issuer URL is
- * present, explicit endpoint fields are ignored and discovery mode wins.
+ * Resolve OIDC configuration from application input.
+ *
+ * Issuer discovery mode is selected only when an issuer is configured without
+ * any manual endpoint fields. When any manual endpoint field is present,
+ * manual mode is selected: discovery is not used and the configured endpoints
+ * are used directly. `issuer` remains required in manual mode so ID tokens
+ * and logout tokens stay issuer-bound.
+ *
+ * The issuer identifier is syntax-validated (absolute http/https URL without
+ * userinfo, query, or fragment) but otherwise preserved exactly as configured
+ * after surrounding-whitespace trimming: no trailing slash is added and path
+ * variants such as `/tenant`, `/tenant/`, and `/tenant//` remain distinct.
+ * Endpoint URLs are normalized separately with `URL.toString()`.
  */
 export function resolveOidcVaultConfig(config: OidcVaultConfig = {}): OidcVaultResolvedConfig {
-  const issuer = normalizeHttpUrl(normalizeOptionalString(config.issuer), 'config.issuer');
+  const issuer = normalizeIssuerIdentifier(normalizeOptionalString(config.issuer), 'config.issuer');
   const clientId = normalizeOptionalString(config.clientId);
   const clientSecret = normalizeOptionalString(config.clientSecret);
   const scopes = normalizeOptionalString(config.scopes) ?? DEFAULT_OIDC_SCOPES;
