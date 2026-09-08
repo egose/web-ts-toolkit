@@ -4,6 +4,8 @@ Created: 2026-08-13 12:58:34 PDT
 
 Package: `packages/express-oidc-vault`
 
+Post-remediation follow-up: `docs/tasks/20260908-070811-express-oidc-vault-boundary-review.md` records a new boundary review, narrower residual findings, and executable follow-up tasks. Historical findings and completion evidence below are preserved.
+
 ## Objective
 
 Remediate confirmed security hardening, request-boundary, token-validation, architecture, documentation, and testability gaps in `@web-ts-toolkit/express-oidc-vault`. Preserve the current public route surface and store-provider contract unless a task explicitly states a contract change.

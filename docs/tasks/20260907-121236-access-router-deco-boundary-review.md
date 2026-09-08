@@ -40,8 +40,6 @@ Shared-file sequencing:
 
 ## Shared Verification
 
-Working directory for all commands: `/home/jahn/projects/_web-ts-toolkit`.
-
 Prerequisites: workspace dependencies installed with `pnpm install`, supported Node >=22, and registry/network or cached dependencies for packed consumers. Use the repository's package manager/tool versions.
 
 - V1: After a fix, build current sources once with `pnpm --filter @web-ts-toolkit/access-router-deco... build`, then run `pnpm --filter @web-ts-toolkit/access-router-deco exec vitest run --config vitest.config.ts test/<affected-file>.test.ts` with the actual test filename. Include a before-fix failure where feasible; do not run tests against stale `dist`.
