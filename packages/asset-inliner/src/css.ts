@@ -9,6 +9,7 @@ import * as valueParserModule from 'postcss-value-parser';
 import type { InlineOptions, InlineResult, AssetReplacement, AssetDiagnostic } from './types.ts';
 import { InvalidOptionsError, ParseError, ResourceLimitError } from './errors.ts';
 import { classifyUrl, resolveAssetReferenceSync } from './resolve.ts';
+import { assertSafeDataUrl, escapeCssSingleQuoteString } from './format.ts';
 import {
   validatePolicyOptions,
   DEFAULT_MAX_TARGET_BYTES,
@@ -312,7 +313,16 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
         const n = node as { type: string; value: string; nodes?: unknown[] };
         if (n.type !== 'function' || n.value.toLowerCase() !== 'url') return;
 
-        // Extract inner URL string and its local offset inside decl.value
+        // Extract the COMPLETE inner URL for every accepted function casing.
+        // postcss-value-parser applies its special unquoted-url tokenization only
+        // to the exact lowercase `url` spelling: there `apple.png/other.png` stays
+        // a single word node. Any other casing (`URL`, `Url`, ...) is tokenized as
+        // a generic function, so `URL(apple.png/other.png)` yields
+        // [word, div, word] and `URL(../images/apple.png)` yields
+        // [word, div, word, div, word]. Consuming only the first node would
+        // resolve a mere prefix while the replacement below discards the
+        // remainder — a wrong-asset substitution. Always consume the complete
+        // inner content; malformed shapes stay unchanged with a diagnostic.
         let originalUrl!: string;
         // eslint-disable-next-line no-useless-assignment
         let contentStartLocal = -1;
@@ -321,35 +331,62 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
           // empty url() — treat as empty reference, skip
           return;
         }
-        const first = inner[0] as { type: string; value: string; sourceIndex?: number };
-        if (first.type === 'string') {
-          originalUrl = first.value;
-          const si = typeof first.sourceIndex === 'number' ? first.sourceIndex : -1;
-          contentStartLocal = si >= 0 ? si + 1 : -1;
-        } else if (first.type === 'word') {
-          originalUrl = first.value;
-          const si = typeof first.sourceIndex === 'number' ? first.sourceIndex : -1;
-          contentStartLocal = si >= 0 ? si : -1;
-        } else if (first.type === 'function') {
-          // unusual nested; stringify
-          originalUrl = parseValue.stringify(first as unknown as import('postcss-value-parser').Node);
-          const si =
-            typeof (first as unknown as { sourceIndex?: number }).sourceIndex === 'number'
-              ? (first as unknown as { sourceIndex: number }).sourceIndex
-              : -1;
-          contentStartLocal =
-            si >= 0
-              ? si
-              : typeof (n as unknown as { sourceIndex?: number }).sourceIndex === 'number'
-                ? (n as unknown as { sourceIndex: number }).sourceIndex
-                : -1;
+        type InnerNode = { type: string; value: string; sourceIndex?: number };
+        const innerNodes = inner as InnerNode[];
+        // Whitespace and comments carry no URL content for shape detection (CSS
+        // treats comments as nothing). They need no preservation work here
+        // because the multi-node paths below never mutate on failure.
+        const meaningful = innerNodes.filter((nd) => nd.type !== 'space' && nd.type !== 'comment');
+        if (meaningful.length === 0) {
+          // whitespace/comment-only url() — treat as empty reference, skip
+          return;
+        }
+        const startOf = (nd: InnerNode, insideString: boolean): number => {
+          const si = typeof nd.sourceIndex === 'number' ? nd.sourceIndex : -1;
+          return si >= 0 ? si + (insideString ? 1 : 0) : -1;
+        };
+        if (meaningful.length === 1) {
+          const only = meaningful[0] as InnerNode;
+          if (only.type === 'string') {
+            originalUrl = only.value;
+            contentStartLocal = startOf(only, true);
+          } else if (only.type === 'word') {
+            originalUrl = only.value;
+            contentStartLocal = startOf(only, false);
+          } else if (only.type === 'function') {
+            // unusual nested; stringify
+            originalUrl = parseValue.stringify(only as unknown as import('postcss-value-parser').Node);
+            contentStartLocal = startOf(only, false);
+            if (contentStartLocal < 0) {
+              const outer = (n as unknown as { sourceIndex?: number }).sourceIndex;
+              contentStartLocal = typeof outer === 'number' ? outer : -1;
+            }
+          } else {
+            // fallback: stringify complete inner content, never a prefix
+            originalUrl = parseValue.stringify(inner as unknown as import('postcss-value-parser').Node[]);
+            contentStartLocal = startOf(only, false);
+          }
         } else {
-          // fallback: stringify inner
-          originalUrl = (inner as unknown[])
-            .map((x) => parseValue.stringify(x as import('postcss-value-parser').Node))
-            .join('');
-          const si = typeof first.sourceIndex === 'number' ? first.sourceIndex : -1;
-          contentStartLocal = si >= 0 ? si : -1;
+          const hasQuotedOrNested = meaningful.some((nd) => nd.type === 'string' || nd.type === 'function');
+          if (hasQuotedOrNested) {
+            // Malformed: e.g. url('a' 'b') or URL(a'b') — more than one quoted
+            // or nested value where a single URL is required. Leave the
+            // function unchanged with a controlled diagnostic.
+            const raw = parseValue.stringify(inner as unknown as import('postcss-value-parser').Node[]);
+            diagnostics.push({
+              code: 'PARSE_ERROR',
+              message: `Malformed url() reference "${raw}": expected a single quoted or unquoted URL`,
+              originalUrl: raw,
+              severity: 'error',
+              filePath: documentPath,
+            } as AssetDiagnostic);
+            return;
+          }
+          // Unquoted multi-node form from generic-function tokenization of
+          // non-lowercase spellings (words, `/`/`:`/`,` divs, ...): the complete
+          // URL is the full inner text, never the first segment alone.
+          originalUrl = parseValue.stringify(inner as unknown as import('postcss-value-parser').Node[]);
+          contentStartLocal = startOf(meaningful[0] as InnerNode, false);
         }
 
         // If parser index missing, fallback to decl-local indexOf search for originalUrl inside rawValue
@@ -498,6 +535,18 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
       const asset = res.asset as import('./types.ts').EncodedAsset;
       const resolvedPath = res.resolvedPath ?? asset.sourcePath ?? asset.filename ?? originalUrl;
 
+      // Shared structural boundary: catalog-supplied assets use the same
+      // contract as resolver returns. Fail closed before limits/mutation so a
+      // delimiter-bearing dataUrl can never reach the url() word insertion.
+      try {
+        assertSafeDataUrl(asset.dataUrl);
+      } catch (err) {
+        throw new InvalidOptionsError(
+          `Invalid resolver asset dataUrl for "${originalUrl}" — must match "data:<type>/<subtype>;base64,<base64>" with a safe media type and strict Base64 payload`,
+          { cause: err },
+        );
+      }
+
       // Selective inlining policy — distinct from hard resource limits.
       // Assets exceeding maxInlineBytes or rejected by shouldInline predicate
       // remain external with a structured INLINE_SKIPPED diagnostic (warn, not error).
@@ -545,8 +594,14 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
         isFontFaceSrc &&
         asset.kind === 'font' &&
         typeof asset.fontFormat === 'string' &&
-        asset.fontFormat.length > 0 &&
+        asset.fontFormat.trim().length > 0 &&
         !hasFollowingFormat(nodes as readonly unknown[], index);
+      // Shared serialization with formatFontSource: trim, then escape for the
+      // single-quoted CSS string context (quotes, backslashes, line breaks).
+      // Whitespace-only hints add no descriptor — matching formatFontSource's
+      // rejection of empty hints without throwing from the transform path.
+      const trimmedHint = typeof asset.fontFormat === 'string' ? asset.fontFormat.trim() : '';
+      const escapedHint = needsFormat ? escapeCssSingleQuoteString(trimmedHint) : '';
 
       // Enforce replacement and projected-output bounds BEFORE inserting each data URL
       const nextCount = addSafe(replacements.length + pending.length, 1, maxReplacements, documentPath);
@@ -567,8 +622,8 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
         });
       }
       let delta = subSafe(dataUrlBytes, origBytes, documentPath);
-      if (needsFormat && asset.fontFormat) {
-        const formatStr = ` format('${asset.fontFormat}')`;
+      if (needsFormat) {
+        const formatStr = ` format('${escapedHint}')`;
         const formatBytes = byteLengthUtf8(formatStr);
         delta = addSafe(delta, formatBytes, maxOutputBytes, documentPath);
       }
@@ -585,16 +640,16 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
       }
       projectedBytes = nextProjected;
 
-      if (needsFormat && asset.fontFormat) {
+      if (needsFormat) {
         // Replace url inner with dataUrl
         urlNode.nodes = [{ type: 'word', value: asset.dataUrl } as unknown as import('postcss-value-parser').Node];
-        // Insert a space + format('...') after the url node
+        // Insert a space + format('...') after the url node. The string node
+        // value is serialized verbatim by postcss-value-parser, so it must
+        // carry the already-escaped hint (shared with formatFontSource).
         const formatNode = {
           type: 'function',
           value: 'format',
-          nodes: [
-            { type: 'string', value: asset.fontFormat, quote: "'" } as unknown as import('postcss-value-parser').Node,
-          ],
+          nodes: [{ type: 'string', value: escapedHint, quote: "'" } as unknown as import('postcss-value-parser').Node],
           before: '',
           after: '',
         } as unknown as import('postcss-value-parser').Node;

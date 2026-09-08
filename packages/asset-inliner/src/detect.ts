@@ -110,6 +110,50 @@ export interface ResolvedMeta {
   readonly fontFormat?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Detector MIME aliases (AIH-10)
+//
+// Narrow documented set of legitimate detector aliases. `file-type` reports
+// ICO/CUR bytes as `image/x-icon` while the canonical registry metadata is
+// `image/vnd.microsoft.icon` (current IANA type). The alias is normalized to
+// the canonical form before consistency/verification checks so real ICO/CUR
+// detection succeeds; canonical registry metadata is preserved and genuine
+// mismatches (e.g. PNG vs JPEG) still reject. Explicit caller-supplied
+// `mediaType` values are never aliased.
+// ---------------------------------------------------------------------------
+
+/** Detector-reported MIME (already normalized) → canonical registry MIME. */
+const DETECTOR_MIME_ALIASES: Readonly<Record<string, string>> = Object.freeze({
+  'image/x-icon': 'image/vnd.microsoft.icon',
+});
+
+/** Map a normalized detector MIME to its canonical registry form. */
+function canonicalDetectorMime(normalizedMime: string): string {
+  return DETECTOR_MIME_ALIASES[normalizedMime] ?? normalizedMime;
+}
+
+/**
+ * Look up a registry definition by detector MIME, preferring an exact
+ * normalized match and falling back to the canonical alias target. Exact
+ * matches win so an explicit custom registry entry for an alias string keeps
+ * precedence over the built-in canonical entry.
+ */
+function findDefinitionByDetectorMime(
+  normalizedMime: string,
+  registry: AssetDefinitionRegistry,
+): import('./types.ts').AssetTypeDefinition | undefined {
+  for (const def of registry.definitions) {
+    if (def.mediaType === normalizedMime) return def;
+  }
+  const canonical = canonicalDetectorMime(normalizedMime);
+  if (canonical !== normalizedMime) {
+    for (const def of registry.definitions) {
+      if (def.mediaType === canonical) return def;
+    }
+  }
+  return undefined;
+}
+
 function freezeMeta(meta: ResolvedMeta): ResolvedMeta {
   return Object.freeze({ ...meta }) as ResolvedMeta;
 }
@@ -130,13 +174,10 @@ function validateDetectorResult(result: DetectorResult, registry: AssetDefinitio
     throw new InvalidOptionsError(`Detector mime "${result.mime}" is malformed`, { cause: e as Error });
   }
   const byExt = safeGet(registry, `.${ext}`);
-  let byMime: import('./types.ts').AssetTypeDefinition | undefined;
-  for (const def of registry.definitions) {
-    if (def.mediaType === normalizedMime) {
-      byMime = def;
-      break;
-    }
-  }
+  const byMime = findDefinitionByDetectorMime(normalizedMime, registry);
+  // Compare on the canonical alias target so `image/x-icon` (detector) agrees
+  // with `image/vnd.microsoft.icon` (registry) without mutating metadata.
+  const canonicalMime = canonicalDetectorMime(normalizedMime);
   if (byExt && byMime && byExt.mediaType !== byMime.mediaType) {
     throw new InvalidOptionsError(
       `Detector result inconsistent: ext ".${ext}" maps to "${byExt.mediaType}" but mime "${normalizedMime}" maps to "${byMime.mediaType}"`,
@@ -144,7 +185,9 @@ function validateDetectorResult(result: DetectorResult, registry: AssetDefinitio
   }
   if (byExt && !byMime) {
     // ext known but mime unknown to registry — treat as inconsistent unless mime matches ext's mediaType case-insensitively
-    if (byExt.mediaType !== normalizedMime) {
+    // The alias target counts as a match (ICO/CUR): detector `image/x-icon`
+    // satisfies registry `image/vnd.microsoft.icon`.
+    if (byExt.mediaType !== normalizedMime && byExt.mediaType !== canonicalMime) {
       throw new InvalidOptionsError(
         `Detector result inconsistent: ext ".${ext}" maps to "${byExt.mediaType}" but mime "${normalizedMime}" is not in registry for that extension`,
       );
@@ -172,17 +215,14 @@ function findDefinitionForDetected(
   const extKey = `.${result.ext.toLowerCase()}`;
   const byExt = safeGet(registry, extKey);
   if (byExt) return byExt;
-  // Fallback scan by mediaType
+  // Fallback scan by mediaType (exact first, then canonical alias target)
   let normalizedMime: string;
   try {
     normalizedMime = normalizeMediaType(result.mime);
   } catch {
     return undefined;
   }
-  for (const def of registry.definitions) {
-    if (def.mediaType === normalizedMime) return def;
-  }
-  return undefined;
+  return findDefinitionByDetectorMime(normalizedMime, registry);
 }
 
 // ---------------------------------------------------------------------------
@@ -343,7 +383,8 @@ export async function resolveWithDetector(opts: {
       mismatch = detectedMediaType !== expected.mediaType;
     } else {
       try {
-        detectedMediaType = normalizeMediaType(detected.mime);
+        const normalized = normalizeMediaType(detected.mime);
+        detectedMediaType = canonicalDetectorMime(normalized);
       } catch {
         detectedMediaType = detected.mime.toLowerCase();
       }

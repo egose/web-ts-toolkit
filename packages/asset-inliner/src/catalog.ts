@@ -9,7 +9,8 @@
  */
 
 import path from 'node:path';
-import { stat } from 'node:fs/promises';
+import fs from 'node:fs';
+import { stat, realpath as realpathAsync } from 'node:fs/promises';
 import type { AssetCatalog, AssetInput, CatalogOptions, EncodedAsset, AssetTypeDefinition } from './types.ts';
 import { createDefinitionRegistry } from './definitions.ts';
 import type { AssetDefinitionRegistry } from './definitions.ts';
@@ -17,7 +18,7 @@ import { encodeAsset, encodeAssetSync } from './encode.ts';
 import { discoverAssets, discoverAssetsSync } from './discovery.ts';
 import type { DiscoverOptions } from './discovery.ts';
 import { AmbiguousAssetError, InvalidOptionsError, ResourceLimitError } from './errors.ts';
-import { validatePolicyOptions, DEFAULT_MAX_TOTAL_BYTES } from './policy.ts';
+import { validatePolicyOptions, DEFAULT_MAX_TOTAL_BYTES, DEFAULT_MAX_FILES } from './policy.ts';
 
 function normalizeAbsolute(p: string): string {
   return path.resolve(p);
@@ -128,6 +129,46 @@ function discoveryOptionsFromCatalog(options: CatalogOptions, registry: AssetDef
 // Build ordered per-root discovery groups once so mixed path/byte inputs retain order without duplicate traversal.
 // Each distinct normalized root is discovered at most once (cache) and global file dedupe respects first occurrence.
 // Pure ordering logic; I/O is isolated to discoverAssets calls.
+//
+// Operation-wide `maxFiles` budget (AIH-05): discovery enforces `maxFiles` per
+// invocation only, so the catalog enforces one catalog-wide unique-file budget
+// while building the queue — before any asset-body encoding/reads. Unique
+// files are identified by canonical (`realpath`) identity with a lexical
+// fallback when canonicalization fails, so overlapping roots, duplicate inputs,
+// and canonical aliases (e.g. symlinked paths to the same file) do not
+// double-count. Byte (`{ data }`) inputs are NOT counted toward `maxFiles`:
+// `maxFiles` remains a file-only discovery policy and in-memory byte inputs
+// stay outside it (their bytes are still bounded by `maxAssetBytes` /
+// `maxTotalBytes`). Per-file `realpath` probes add no repeated directory
+// traversal; each distinct root is still discovered at most once.
+
+function effectiveMaxFiles(discoverOpts: DiscoverOptions): number {
+  return discoverOpts.maxFiles ?? DEFAULT_MAX_FILES;
+}
+
+function throwFileBudgetOverflow(limit: number, actual: number, logical: string): never {
+  throw new ResourceLimitError(`Discovered file count ${actual} exceeds maxFiles ${limit}`, {
+    limit,
+    actual,
+    path: logical,
+  });
+}
+
+async function canonicalIdentityAsync(logical: string): Promise<string> {
+  try {
+    return await realpathAsync(logical);
+  } catch {
+    return normalizeAbsolute(logical);
+  }
+}
+
+function canonicalIdentitySync(logical: string): string {
+  try {
+    return fs.realpathSync(logical);
+  } catch {
+    return normalizeAbsolute(logical);
+  }
+}
 
 async function buildOrderedQueueAsync(
   inputOrder: InputOrderEntry[],
@@ -136,6 +177,7 @@ async function buildOrderedQueueAsync(
   const cache = new Map<string, readonly string[]>();
   const globalSeen = new Set<string>();
   const queue: QueueItem[] = [];
+  const maxFiles = effectiveMaxFiles(discoverOpts);
   for (const entry of inputOrder) {
     throwIfAborted(discoverOpts.signal);
     if (entry.kind === 'byte') {
@@ -148,10 +190,13 @@ async function buildOrderedQueueAsync(
         cache.set(normRoot, files);
       }
       for (const f of files) {
-        const norm = normalizeAbsolute(f);
-        if (globalSeen.has(norm)) continue;
-        globalSeen.add(norm);
-        queue.push({ type: 'file', path: norm });
+        const canonical = await canonicalIdentityAsync(f);
+        if (globalSeen.has(canonical)) continue;
+        if (globalSeen.size >= maxFiles) {
+          throwFileBudgetOverflow(maxFiles, globalSeen.size + 1, f);
+        }
+        globalSeen.add(canonical);
+        queue.push({ type: 'file', path: normalizeAbsolute(f) });
       }
     }
   }
@@ -162,6 +207,7 @@ function buildOrderedQueueSync(inputOrder: InputOrderEntry[], discoverOpts: Disc
   const cache = new Map<string, readonly string[]>();
   const globalSeen = new Set<string>();
   const queue: QueueItem[] = [];
+  const maxFiles = effectiveMaxFiles(discoverOpts);
   for (const entry of inputOrder) {
     throwIfAborted(discoverOpts.signal);
     if (entry.kind === 'byte') {
@@ -174,10 +220,13 @@ function buildOrderedQueueSync(inputOrder: InputOrderEntry[], discoverOpts: Disc
         cache.set(normRoot, files);
       }
       for (const f of files) {
-        const norm = normalizeAbsolute(f);
-        if (globalSeen.has(norm)) continue;
-        globalSeen.add(norm);
-        queue.push({ type: 'file', path: norm });
+        const canonical = canonicalIdentitySync(f);
+        if (globalSeen.has(canonical)) continue;
+        if (globalSeen.size >= maxFiles) {
+          throwFileBudgetOverflow(maxFiles, globalSeen.size + 1, f);
+        }
+        globalSeen.add(canonical);
+        queue.push({ type: 'file', path: normalizeAbsolute(f) });
       }
     }
   }
@@ -348,6 +397,11 @@ function createImmutableCatalog(
  * - Discovery is deterministic lexical order, deduplicated, caller-order preserved.
  * - Encoding is bounded, honors `AbortSignal`, and preserves input order regardless of async timing.
  * - Exact path matching is default; basename compatibility mode is opt-in and throws `AmbiguousAssetError` on duplicates.
+ * - `maxFiles` is one catalog-wide file-only budget enforced during queue
+ *   construction before any asset-body encoding/reads. Overlapping roots,
+ *   duplicate inputs, and canonical (`realpath`) aliases share the budget and
+ *   do not double-count. In-memory byte (`{ data }`) inputs are outside this
+ *   file-only policy and never count toward `maxFiles`.
  */
 export async function createAssetCatalog(
   inputs: readonly AssetInput[] | AssetInput,
@@ -431,6 +485,9 @@ export async function createAssetCatalog(
 /**
  * Synchronous variant of `createAssetCatalog`. Rejects async detection modes (`content`, `verify`) immediately,
  * never blocks a promise, and uses sync I/O throughout.
+ * `maxFiles` is one catalog-wide file-only budget enforced during queue
+ * construction before any asset-body encoding/reads; byte (`{ data }`) inputs
+ * stay outside it (see async variant).
  */
 export function createAssetCatalogSync(
   inputs: readonly AssetInput[] | AssetInput,

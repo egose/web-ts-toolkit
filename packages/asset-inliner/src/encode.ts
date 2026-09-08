@@ -17,6 +17,7 @@ import type { AssetDefinitionRegistry } from './definitions.ts';
 import { InvalidOptionsError, ResourceLimitError, FilesystemError } from './errors.ts';
 import { resolveByExtension, resolveWithDetector, defaultDetector } from './detect.ts';
 import type { AssetDetector } from './detect.ts';
+import { assertSafeDataUrl } from './format.ts';
 import { validatePolicyOptions, DEFAULT_MAX_ASSET_BYTES, DEFAULT_MAX_TOTAL_BYTES } from './policy.ts';
 
 // ---------------------------------------------------------------------------
@@ -241,6 +242,16 @@ async function encodeOneAsync(
 
   assertNotAborted(options.signal);
 
+  // Serialization boundary (AIH-10): canonical `meta.mediaType` metadata is
+  // kept verbatim on the result, but the data URL must satisfy the shared
+  // AIH-06 structural contract. Media types with URL-significant characters
+  // (`#`, `&`, `$`, whitespace, delimiters) would otherwise interpolate into
+  // a fragment/query and produce an undecodable URL, so they are rejected
+  // here with a controlled `INVALID_OPTIONS` error before Base64 allocation.
+  // An empty payload is valid per the contract, so probing with one isolates
+  // the media-type check.
+  assertSafeDataUrl(`data:${meta.mediaType};base64,`);
+
   const base64 = toBase64(bytes);
   const dataUrl = `data:${meta.mediaType};base64,${base64}`;
 
@@ -323,6 +334,10 @@ function encodeOneSync(
     registry,
   });
 
+  // Same AIH-10 serialization boundary as the async path: reject
+  // URL-unsafe media types with controlled `INVALID_OPTIONS` before encoding.
+  assertSafeDataUrl(`data:${meta.mediaType};base64,`);
+
   const base64 = toBase64(bytes);
   const dataUrl = `data:${meta.mediaType};base64,${base64}`;
 
@@ -359,6 +374,8 @@ function encodeOneSync(
  * @throws {UnsupportedAssetError} for unknown extension/media type
  * @throws {ResourceLimitError} when per-asset or total byte limits exceeded
  * @throws {InvalidOptionsError} for malformed options or sync misuse of async detection
+ * @throws {InvalidOptionsError} when the resolved media type is URL-unsafe for data-URL
+ *   serialization (e.g. `#`, `&`, `$` per the shared AIH-06 structural validator)
  * @throws {DetectionMismatchError} when `detection: 'verify'` detects a mismatch
  */
 export async function encodeAsset(input: AssetInput, options: EncodeOptions = {}): Promise<EncodedAsset> {

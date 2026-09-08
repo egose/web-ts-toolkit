@@ -44,14 +44,23 @@ function normalizeAbsolute(p: string): string {
   return path.resolve(p);
 }
 
-function isWithinRoot(candidate: string, root: string): boolean {
-  const rel = path.relative(root, candidate);
-  // '' means same as root, otherwise should not start with '..' + sep or be '..' alone
+type PathContainmentImpl = Pick<typeof path, 'relative' | 'isAbsolute' | 'sep'>;
+
+/**
+ * Shared canonical containment predicate.
+ *
+ * Invariant: `candidate` is within `root` iff `relative(root, candidate)` is
+ * the empty string (exact root) or a non-empty relative descendent path. Any
+ * parent-relative result (`..` or `../..` prefixed) or any absolute result
+ * (cross-drive / cross-UNC-server on Windows, where `relative` returns the
+ * absolute target) is outside the root and must be rejected.
+ */
+export function isWithinRoot(candidate: string, root: string, pathImpl: PathContainmentImpl = path): boolean {
+  const rel = pathImpl.relative(root, candidate);
   if (rel === '') return true;
-  if (rel.startsWith('..' + path.sep) || rel === '..') return false;
-  // On POSIX, relative that is absolute? but path.relative handles.
-  // Also prevent escaping via absolute path outside root: rel starts with ..
-  return !path.isAbsolute(rel) || !rel.startsWith('..');
+  if (rel === '..' || rel.startsWith(`..${pathImpl.sep}`)) return false;
+  if (pathImpl.isAbsolute(rel)) return false;
+  return true;
 }
 
 // Determine whether extension passes filters before expensive reads.

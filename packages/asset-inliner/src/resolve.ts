@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { AssetCatalog, ResolverInput, AssetResolverAsync, AssetResolverSync } from './types.ts';
 import type { EncodedAsset } from './types.ts';
 import { InvalidOptionsError } from './errors.ts';
+import { assertSafeDataUrl } from './format.ts';
 
 // ---------------------------------------------------------------------------
 // Resolver helpers — thenable detection and structural validation
@@ -29,9 +30,23 @@ function validateResolverAsset(asset: unknown): asserts asset is EncodedAsset {
     );
   }
   const dataUrl = a['dataUrl'];
-  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:') || !dataUrl.includes(';base64,')) {
+  // Shared structural boundary (see format.ts): strict Base64 data-URL
+  // contract. Stricter than a prefix/substring check — charset/parameters,
+  // whitespace, quotes, parens, extra delimiters, and non-Base64 payloads are
+  // rejected here before any HTML/CSS serialization. Release impact: custom
+  // resolvers returning such values now fail with INVALID_OPTIONS instead of
+  // being inlined (note for AIH-11).
+  if (typeof dataUrl !== 'string') {
     throw new InvalidOptionsError(
       `Invalid resolver asset: dataUrl must be a string starting with "data:" and containing ";base64," (got ${String(dataUrl)})`,
+    );
+  }
+  try {
+    assertSafeDataUrl(dataUrl);
+  } catch (err) {
+    throw new InvalidOptionsError(
+      `Invalid resolver asset: dataUrl must match "data:<type>/<subtype>;base64,<base64>" with a safe media type and strict Base64 payload (got ${dataUrl.slice(0, 64)})`,
+      { cause: err },
     );
   }
   const kind = a['kind'];

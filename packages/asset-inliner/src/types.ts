@@ -130,7 +130,16 @@ export interface InlineResult {
   readonly diagnostics: readonly AssetDiagnostic[];
 }
 
-/** Result for a single target file processed by `inlineFiles`. */
+/** Result for a single target file processed by `inlineFiles`.
+ *
+ * Bounded error-result content contract (AIH-03): when a target is rejected
+ * by `maxTargetBytes` — either by the regular-file metadata preflight (body
+ * never read) or by the post-read actual-bytes check (growth race) — the
+ * result carries `content: ''`, `modified: false`, `written: false`, and a
+ * `RESOURCE_LIMIT` diagnostic. Rejected bodies are never loaded just to fill
+ * the result. Other failures (parse/resolver/filesystem) retain the read
+ * body in `content` where one was read.
+ */
 export interface InlineFileResult extends InlineResult {
   /** Absolute path of the target file. */
   readonly filePath: string;
@@ -347,6 +356,11 @@ export interface InlineFilesOptions extends CatalogOptions {
   /**
    * Maximum target input bytes (UTF-8) per file. Finite positive safe integer.
    * Default `5242880` (5 MiB). Enforced before parser invocation; per-target `RESOURCE_LIMIT` diagnostic with `written:false`, no partial write.
+   * Regular files get a `stat` metadata preflight so oversized bodies are
+   * rejected before reading/decoding (result `content: ''`); a post-read
+   * actual-bytes check still rejects growth races and also discards the body.
+   * Reads are metadata-preflight only, not strictly bounded. Async body reads
+   * receive the operation `AbortSignal`.
    */
   readonly maxTargetBytes?: number;
   /**
