@@ -40,6 +40,7 @@ import type {
 import {
   useAbortManager,
   requestKeyFor,
+  sortKeyFor,
   RequestKeyError,
   useMountRef,
   composeAbortSignals,
@@ -179,8 +180,12 @@ function reportObserverError(error: unknown) {
   });
 }
 
-function runObserverSequence(invocations: Array<() => void>) {
+// Invariant (ARR-B04): each observer runs only while mounted. A sync
+// unmount inside one observer stops later observers; a throw still
+// proceeds to the next observer while mounted.
+function runObserverSequence(invocations: Array<() => void>, isAlive?: () => boolean) {
   for (const invoke of invocations) {
+    if (isAlive && !isAlive()) return;
     try {
       invoke();
     } catch (error) {
@@ -274,13 +279,15 @@ interface AutoQueryConfig<R> {
  *   never reaches `error` or `onError` because the catch path branches on
  *   `signal.aborted`, not on `instanceof DOMException`.
  *
- * Callback observers (ARR-H05):
+ * Callback observers (ARR-H05, ARR-B04):
  *   `onSuccess`/`onError`/`onSettled` are isolated observers attempted in
  *   deterministic order. A thrown callback is rethrown asynchronously via
  *   `queueMicrotask` so it surfaces as an uncaught microtask error without
  *   converting a successful request into a request failure or mutating
  *   hook-level `error`. The promise returned by `query()`/`refetch()`
  *   resolves/rejects based on the request, not on whether a callback threw.
+ *   Owner-internal writes (including `onFailed`) run before app observers;
+ *   mount is rechecked between observers so a sync unmount skips the rest.
  */
 function useAutoQuery<R>({
   doFetch,
@@ -336,15 +343,19 @@ function useAutoQuery<R>({
     [manager, getRequestSignal],
   );
 
+  // Invariant (ARR-B04): observers run only while mounted; a sync
+  // unmount in the first observer skips the second. A throw still
+  // proceeds to the next observer while mounted.
   const fireCallbacksSafely = useCallback(
     (settle: { result: R } | { error: ServiceError }) => {
+      const isAlive = () => mountRef.current;
       if ('result' in settle) {
-        runObserverSequence([() => onSuccess?.(settle.result), () => onSettled?.(settle.result, null)]);
+        runObserverSequence([() => onSuccess?.(settle.result), () => onSettled?.(settle.result, null)], isAlive);
         return;
       }
-      runObserverSequence([() => onError?.(settle.error), () => onSettled?.(null, settle.error)]);
+      runObserverSequence([() => onError?.(settle.error), () => onSettled?.(null, settle.error)], isAlive);
     },
-    [onSuccess, onError, onSettled],
+    [onSuccess, onError, onSettled, mountRef],
   );
 
   /**
@@ -392,13 +403,15 @@ function useAutoQuery<R>({
           if (mountRef.current) {
             if (!hasDataRef.current) setIsLoading(false);
             setIsFetching(false);
-            // ARR-08 req 1: ancillary state captured at request start
-            // (e.g. `useList.previousData`) must be cleared on the cancel
-            // terminal path too, not just on success.
+            // Invariant (ARR-B04): internal ancillary clear runs before
+            // any app observer; there are no app observers on this path.
             onAborted?.();
           }
           return res;
         }
+        // Invariant (ARR-B04): no state writes or observers after unmount;
+        // the promise still settles with the request result.
+        if (!mountRef.current) return res;
         applyResult(res);
         hasDataRef.current = true;
         setIsLoading(false);
@@ -429,14 +442,16 @@ function useAutoQuery<R>({
           }
           throw err;
         }
+        // Invariant (ARR-B04): no state writes or observers after unmount;
+        // the promise still rejects with the request error.
+        if (!mountRef.current) throw err;
         setError(err as ServiceError);
         if (!hasDataRef.current) setIsLoading(false);
         setIsFetching(false);
-        fireCallbacksSafely({ error: err as ServiceError });
-        // ARR-08 req 1: ancillary state captured at request start
-        // (e.g. `useList.previousData`) must be cleared on the failure
-        // terminal path, mirroring the `applyResult` clear on success.
+        // Invariant (ARR-B04): owner-internal clear runs before app
+        // observers so a retry started in `onError` keeps its snapshot.
         onFailed?.();
+        fireCallbacksSafely({ error: err as ServiceError });
         throw err;
       } finally {
         release();
@@ -447,13 +462,35 @@ function useAutoQuery<R>({
 
   useEffect(() => {
     if (!shouldFetch) {
-      // Disabled / id-removed / Nothing-to-fetch path: no controller and
-      // no `runWithCallbacks` invocation. Converge loading/fetching flags
-      // synchronously for this hook so a previously in-flight auto-fetch
+      // Disabled / id-removed / Nothing-to-fetch path (ARR-B01): no
+      // controller and no `runWithCallbacks` invocation. Invalidate the
+      // current request owner regardless of its entry path (auto effect
+      // vs manual `query()` / `refetch()`) and abort the manager's
+      // current controller, then converge loading/fetching flags
+      // synchronously for this hook so a previously in-flight request
       // does not leave `isLoading`/`isFetching` pinned to true when the
       // request settles only after the transport observes the abort
       // (ARR-04 req 2). `setState(false)` is idempotent; the writes are
       // coalesced into the current render batch.
+      //
+      // Why both steps are needed: the previous effect's cleanup aborts
+      // only the captured automatic scope, while `query()`/`refetch()`
+      // replace that scope via `manager.replace`. Aborting the manager's
+      // current controller delivers the abort to the transport
+      // (forwarded-signal assertion); bumping `ownerIdRef` makes the
+      // in-flight invocation stale so its late success / normalized
+      // failure / rejection takes the replaced branch in
+      // `runWithCallbacks` and cannot publish data/error/observers.
+      //
+      // The same branch covers a structural request-context change while
+      // auto-fetch remains disabled (e.g. a new `filter` while
+      // `enabled === false`): stale work from the old context is
+      // invalidated and cannot settle into the new context. A manual
+      // request explicitly started AFTER this branch runs takes a newer
+      // owner id and remains authoritative, so manual-while-disabled
+      // still works.
+      ownerIdRef.current += 1;
+      manager.abort();
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(false);
       setIsFetching(false);
@@ -638,11 +675,10 @@ function useAutoQuery<R>({
  *     pending mutation completes; a newer invocation does NOT abort
  *     an older one and they settle independently.
  *
- * Mount safety (Task ARR-04 req 4): every state write and callback
- * invocation is gated on `mountRef.current`. A mutation settling after
- * unmount neither calls callbacks nor writes state, matching the
- * documented post-unmount contract enforcement shared with the query
- * hooks.
+ * Mount safety (ARR-B04): mount is checked before observers, between
+ *   observers, and before state writes. A sync unmount in one observer
+ *   skips later observers and state writes; the per-invocation promise
+ *   still settles with its own result.
  *
  * @typeParam A  Tuple of mutation arguments (`[createData]`,
  *   `[updateId, updateData]`, ...).
@@ -708,34 +744,25 @@ function useMutation<A extends unknown[], R, D>(
       }
       try {
         const result = await execute(...args);
-        if (mountRef.current) {
-          // Per-invocation observers always fire, regardless of
-          // latest-invocation claim (Task ARR-07 req 3). Observer
-          // failures are reported asynchronously without changing the
-          // request result or skipping later observers.
-          runObserverSequence([() => onSuccess?.(result), () => onSettled?.(result, null)]);
-          // Latest-invocation-wins for the state write (Task ARR-07
-          // req 2). `myId === latestIdRef.current` is the gate: a
-          // stale invocation that settled after a newer one started
-          // has a token smaller than the current latest and skips the
-          // `setData`. The newer invocation's `data` is preserved.
-          // Assert here is omitted to keep the runtime slim; the
-          // gate is the spec.
-          if (myId === latestIdRef.current) {
-            setData(applyData(result));
-          }
+        // Invariant (ARR-B04): per-invocation observers fire only while
+        // mounted (sync unmount skips the rest); the latest-write gate is
+        // rechecked after observers so a follow-up started in an observer
+        // keeps its claim. Throws stay isolated without changing the
+        // per-invocation promise.
+        if (!mountRef.current) return result;
+        runObserverSequence([() => onSuccess?.(result), () => onSettled?.(result, null)], () => mountRef.current);
+        if (!mountRef.current) return result;
+        if (myId === latestIdRef.current) {
+          setData(applyData(result));
         }
         return result;
       } catch (err) {
         const svcErr = err as ServiceError;
-        if (mountRef.current) {
-          // Per-invocation observers fire from the shared mutation
-          // lifecycle too, so create/update/upsert/delete share the same
-          // ordering, mount gate, and isolation boundary.
-          runObserverSequence([() => onError?.(svcErr), () => onSettled?.(null, svcErr)]);
-          if (myId === latestIdRef.current) {
-            setError(svcErr);
-          }
+        if (!mountRef.current) throw svcErr;
+        runObserverSequence([() => onError?.(svcErr), () => onSettled?.(null, svcErr)], () => mountRef.current);
+        if (!mountRef.current) throw svcErr;
+        if (myId === latestIdRef.current) {
+          setError(svcErr);
         }
         throw svcErr;
       } finally {
@@ -880,12 +907,16 @@ export function createModelHooks<
     // propagates synchronously from render — handled by React's error
     // boundary the same way any synchronous render failure is — so the
     // package never silently collides or recurses indefinitely.
+    // ARR-B02: `sort` keeps compound-field wire precedence via
+    // `sortKeyFor` (insertion-order-preserving); the remaining inputs
+    // stay insertion-order-insensitive via `requestKeyFor`.
     let requestKey: string;
+    let sortKey: string;
     try {
+      sortKey = sortKeyFor(sort);
       requestKey = requestKeyFor({
         select,
         populate,
-        sort,
         include,
         tasks,
         basicOptions,
@@ -894,12 +925,12 @@ export function createModelHooks<
       });
     } catch (e) {
       if (e instanceof RequestKeyError) {
-        // Wrap in a ServiceError so the caller's React error boundary
-        // (or the hook-level error surface, depending on integration)
-        // receives the documented `ServiceError` payload type rather
-        // than a bare `RequestKeyError`. The thrown error interrupts
-        // the render so the auto-effect never runs with an unsound key.
-        // `cause` preserves the original `RequestKeyError` for debugging.
+        // Throw a plain `Error` (not a `ServiceError`) so the caller's
+        // React error boundary receives a render-time failure rather
+        // than a hook-level `ServiceError` payload. The thrown error
+        // interrupts the render so the auto-effect never runs with an
+        // unsound key. `cause` preserves the original `RequestKeyError`
+        // for debugging.
         throw new Error(`useRead: ${e.message}`, { cause: e });
       }
       throw e;
@@ -938,12 +969,13 @@ export function createModelHooks<
       // objects, the key is unchanged and `doFetchById` keeps the same
       // identity — the auto-effect's `deps` therefore stays identical
       // and the network request is not retried. The `requestKey` is a
-      // structural digest of `select/populate/sort/include/tasks/
-      // basicOptions/advancedOptions/requestConfig`; the lint rule can-
+      // structural digest of `select/populate/include/tasks/
+      // basicOptions/advancedOptions/requestConfig`; `sortKey` is the
+      // order-preserving digest of `sort` (ARR-B02). The lint rule can-
       // not see that derivation, so the missing-deps warning is
       // silenced here intentionally.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [modelService, advanced, requestKey],
+      [modelService, advanced, requestKey, sortKey],
     );
 
     const doFetch = useCallback(
@@ -983,7 +1015,7 @@ export function createModelHooks<
       doFetch,
       applyResult,
       shouldFetch,
-      deps: [id, enabled, advanced, requestKey],
+      deps: [id, enabled, advanced, requestKey, sortKey],
       getRequestSignal,
       onSuccess: onSuccessStable,
       onError: onErrorStable,
@@ -1042,40 +1074,33 @@ export function createModelHooks<
     // `DataArray` is the public `data`/`previousData` array shape.
     type ResL = ProjectedListModelResponse<T, TSelect>;
     type DataArray = ProjectedShapeArray<T, TSelect>;
-    const [data, setData] = useState<DataArray>((initialData as DataArray | undefined) ?? []);
+    const [data, setData] = useState<DataArray>((initialData as DataArray | undefined) ?? ([] as unknown as DataArray));
     const requestConfigRef = useLatestRef(requestConfig);
     const [previousData, setPreviousData] = useState<DataArray | undefined>(undefined);
     const [totalCount, setTotalCount] = useState(0);
     const latestDataRef = useRef(data);
-    // ARR-08 req 1: mirror `data` into a ref on every render so the async
-    // `baseFetch` closure captures the freshest settled data at request
-    // start for `previousData`. This MUST happen during render, not in a
-    // `useEffect`: `useAutoQuery`'s post-commit refetch effects fire
-    // (child-first, declaration-order) before this hook's own commit
-    // effects, so a post-commit sync would let the refetch capture the
-    // prior-but-not-yet-mirrored data. Writing a read-only mirror into a
-    // ref during render is the React-blessed escape hatch when an async
-    // callback needs the latest committed value without subscribing to
-    // state changes.
+    // Invariant (ARR-B04): authoritative settled page. Updated
+    // synchronously in `applyResult`/`reset` so a follow-up started in an
+    // observer sees the just-settled page; the render assignment keeps it
+    // aligned for prop-driven changes.
     // eslint-disable-next-line react-hooks/refs
     latestDataRef.current = data;
-    // `hasSettledRef` records whether `applyResult` has run for this hook
-    // instance (i.e. the hook has produced at least one settled list
-    // response). ARR-08 req 1: `previousData` exposes the prior settled
-    // data while a replacement request is active, so the FIRST request
-    // (no prior settlement) must NOT set `previousData` — there is
-    // nothing to preserve. The ref is updated inside `applyResult` on
-    // success, so a synchronous read after `applyResult` reflects the
-    // new "has settled" state for the subsequent request's capture.
+    // Invariant: true once `applyResult` has run; gates `previousData`
+    // capture so the first settlement (and first post-reset) stays
+    // `undefined` unless a follow-up starts after settlement.
     const hasSettledRef = useRef(false);
 
+    // Invariant (ARR-B04): owner-internal apply runs before app observers;
+    // the settled ref is written here so an observer-started follow-up
+    // captures the just-settled page.
     const applyResult = useCallback((res: ResL) => {
-      setData(res.data as DataArray);
+      const next = res.data as DataArray;
+      latestDataRef.current = next;
+      setData(next);
       setTotalCount(res.totalCount);
       setPreviousData(undefined);
       hasSettledRef.current = true;
     }, []);
-
     // ARR-08 req 1: `previousData` must be cleared on the failure,
     // cancellation, and disable terminal paths too, not only on
     // success. The shared `useAutoQuery` lifecycle invokes these hooks
@@ -1100,11 +1125,14 @@ export function createModelHooks<
     // `select`/`populate`/`include`/`tasks`/`basicOptions`/`advancedOptions`/`requestConfig`
     // objects does NOT force a refetch (the historical bug class).
     //
-    // `requestKeyFor` throws `RequestKeyError` deterministically on
-    // cycles, BigInt, functions, symbols, accessor properties, and
-    // unsupported built-in instances (Date IS supported). The thrown
-    // error interrupts render — same path a synchronous render failure
-    // takes — so the auto-effect never runs with an unsound key.
+    // `requestKeyFor`/`sortKeyFor` throw `RequestKeyError`
+    // deterministically on cycles, BigInt, functions, symbols, accessor
+    // properties, and unsupported built-in instances (Date IS
+    // supported). `sortKeyFor` (ARR-B02) preserves compound-sort field
+    // precedence; every other axis stays insertion-order-insensitive.
+    // The thrown error interrupts render — same path a synchronous
+    // render failure takes — so the auto-effect never runs with an
+    // unsound key.
     let listParamsKey: string;
     let filterKey: string;
     let sortKey: string;
@@ -1112,7 +1140,7 @@ export function createModelHooks<
     try {
       listParamsKey = requestKeyFor(listParams);
       filterKey = requestKeyFor(filter);
-      sortKey = requestKeyFor(sort);
+      sortKey = sortKeyFor(sort);
       requestKey = requestKeyFor({
         select,
         populate,
@@ -1131,18 +1159,10 @@ export function createModelHooks<
 
     const baseFetch = useCallback(
       async (args: ListArgs | undefined, signal?: AbortSignal): Promise<ResL> => {
-        // ARR-08 req 1: capture the prior settled data while a replacement
-        // list request is ACTIVE. The capture happens at request start so
-        // `previousData` is meaningful during the pending request, then it
-        // is cleared on every terminal path (success / failure /
-        // cancellation / disable / reset) — see `clearPreviousData` and
-        // the `onFailed`/`onAborted`/`onDisabled` lifecycle hooks wired
-        // into `useAutoQuery` below. The first request (no prior
-        // settlement) does NOT set `previousData`: there is nothing to
-        // preserve, matching the spec ("prior settled data"). Only set
-        // when `keepPreviousData` is enabled — the legacy opt-in flag —
-        // so a consumer that does not want prior-data surface keeps a
-        // stable `undefined` value.
+        // Invariant (ARR-B04): capture at request start from the
+        // authoritative settled ref; cleared on every terminal path via
+        // the `onFailed`/`onAborted`/`onDisabled` hooks below. First
+        // settlement captures nothing.
         if (keepPreviousData && hasSettledRef.current) {
           setPreviousData(latestDataRef.current);
         }
@@ -1182,7 +1202,8 @@ export function createModelHooks<
       // `previousData` (ARR-08 req 1) but not in the memo identity.
       // `filterKey`, `sortKey`, `requestKey` are structural digests of
       // `filter`/`sort`/`{select, populate, include, tasks,
-      // basicOptions, advancedOptions, requestConfig}`; the lint rule
+      // basicOptions, advancedOptions, requestConfig}` (`sortKey` via
+      // order-preserving `sortKeyFor`, ARR-B02); the lint rule
       // cannot see that derivation, so the missing-deps warning is
       // silenced here intentionally.
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1250,15 +1271,14 @@ export function createModelHooks<
     );
 
     const reset = useCallback(() => {
-      setData((initialData as DataArray | undefined) ?? []);
+      const next = (initialData as DataArray | undefined) ?? ([] as unknown as DataArray);
+      // Invariant (ARR-B04): reset the authoritative settled page
+      // synchronously with state so an immediate follow-up cannot capture
+      // stale pre-reset data; the next settlement is first again.
+      latestDataRef.current = next;
+      setData(next);
       setPreviousData(undefined);
       setTotalCount(0);
-      // ARR-08 req 1: after reset, the next request is again the FIRST
-      // settling request, so it must NOT capture `previousData` from
-      // whatever stale state remains. Clearing the settled flag keeps
-      // the first-post-reset pending request's `previousData` at
-      // `undefined` and only sets it on the SECOND successful response
-      // onward.
       hasSettledRef.current = false;
       resetError();
       resetLoading();

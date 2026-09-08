@@ -29,62 +29,63 @@ function setupModel(runtime: any, modelName: string) {
 }
 
 /**
- * Instrumentation regression for ARDECO-09:
- * Descriptor/metadata lookup must grow linearly with effective methods + prototype count,
- * not O(methods * hooks * prototypes). Previously compileRegistrationPlan filtered
- * every hook definition via isHookMethod which re-traversed prototype chain per hook.
- * Now it fetches owner/descriptor once per effective method and checks watermarks
- * directly on the function value (bootstrap-local, no global cache).
+ * Registration-plan instrumentation (ARDECO-09 follow-up).
+ *
+ * Deterministic `Reflect.getOwnPropertyDescriptor` call counts are the work
+ * counter — no wall-clock timing, so no CI flakiness from machine speed.
+ *
+ * Measured bound: descriptor lookups during bootstrap scale as
+ * O(methods x depth) — one prototype-owner traversal plus a constant number of
+ * descriptor reads per effective method — NOT
+ * O(methods x hook-definitions x depth). The previous implementation filtered
+ * every hook definition via `isHookMethod`, re-walking the prototype chain once
+ * per (method, hook) pair. The claim is deliberately NOT "linear in methods
+ * plus depth": per-method cost grows with depth (owner walk), so depth appears
+ * as a factor, and method scaling is measured at fixed depth while depth
+ * scaling is measured at fixed methods-per-level.
+ *
+ * Baseline evidence (deterministic counts, not timed): 50 `Prepare` methods
+ * over depth 5 bootstraps with ~700 lookups. The old per-hook shape would cost
+ * ~50 x 13 hook definitions x 5 = 3250, so the 2000 tripwire below catches a
+ * per-hook regression while the methods x (depth + const) bound pins the
+ * current shape. Registration semantics are preserved via the composed
+ * `prepare.create` chain-length assertions in each scenario.
  */
 describe('registration-plan instrumentation', () => {
-  it('descriptor lookup scales linearly with methods+prototypes, not methods*hooks*prototypes', async () => {
-    const modelName = 'InstrumentationLinear';
-    const depth = 5;
-    const methodsPerLevel = 10;
-    const totalMethods = depth * methodsPerLevel;
-
-    // Build chain Base -> L1 -> L2 -> L3 -> L4 -> L5 (depth=5 levels)
-    // Each level defines `methodsPerLevel` distinct array-hook methods (Prepare create)
-    // so duplicate detection does not trigger (array hooks compose).
-    const classes: any[] = [];
-    class Base {}
-    classes.push(Base);
-    for (let i = 0; i < methodsPerLevel; i++) {
-      const name = `base_${i}`;
-      Object.defineProperty(Base.prototype, name, {
-        value: function (doc: any) {
-          return doc;
-        },
-        writable: true,
-        configurable: true,
-      });
-      applyMethodDecorator(Prepare('create') as any, Base.prototype, name);
-      applyParameterDecorator(Document(), Base.prototype as any, name as any, 0);
-    }
-
-    let Current = Base;
-    for (let level = 1; level < depth; level++) {
-      const Prev = Current;
-      class Next extends Prev {}
-      // give distinct class name for diagnostics (not required)
-      Object.defineProperty(Next, 'name', { value: `Level${level}` });
+  function buildHookHierarchy(depth: number, methodsPerLevel: number, prefix: string) {
+    const defineHookMethods = (proto: object, level: string) => {
       for (let i = 0; i < methodsPerLevel; i++) {
-        const name = `lvl${level}_${i}`;
-        Object.defineProperty(Next.prototype, name, {
+        const name = `${prefix}_${level}_${i}`;
+        Object.defineProperty(proto, name, {
           value: function (doc: any) {
             return doc;
           },
           writable: true,
           configurable: true,
         });
-        applyMethodDecorator(Prepare('create') as any, Next.prototype, name);
-        applyParameterDecorator(Document(), Next.prototype as any, name as any, 0);
+        applyMethodDecorator(Prepare('create') as any, proto, name);
+        applyParameterDecorator(Document(), proto as any, name as any, 0);
       }
-      classes.push(Next);
+    };
+
+    // Build chain Base -> L1 -> ... (depth levels). Each level defines
+    // `methodsPerLevel` distinct array-hook methods (Prepare create) so
+    // duplicate detection does not trigger (array hooks compose).
+    class Base {}
+    defineHookMethods(Base.prototype, 'base');
+    let Current: any = Base;
+    for (let level = 1; level < depth; level++) {
+      const Prev = Current;
+      class Next extends Prev {}
+      // give distinct class name for diagnostics (not required)
+      Object.defineProperty(Next, 'name', { value: `${prefix}_Level${level}` });
+      defineHookMethods(Next.prototype, `lvl${level}`);
       Current = Next;
     }
+    return Current;
+  }
 
-    const Leaf = Current;
+  function bootstrapAndCount(modelName: string, Leaf: any) {
     Router(modelName)(Leaf as any);
     class TestModule {}
     Module({ routers: [Leaf as any] })(TestModule);
@@ -93,82 +94,76 @@ describe('registration-plan instrumentation', () => {
     setupModel(factory.runtime, modelName);
 
     const spy = vi.spyOn(Reflect, 'getOwnPropertyDescriptor');
-    const before = spy.mock.calls.length; // usually 0
-
     factory.bootstrap(TestModule as any, createMockExpressApp());
-
-    const calls = spy.mock.calls.length - before;
+    const calls = spy.mock.calls.length;
     spy.mockRestore();
 
-    // Verify hook chain length equals total distinct methods (50)
     const chain = factory.runtime.getModelOption(modelName, 'prepare.create') as Function[];
-    expect(Array.isArray(chain)).toBe(true);
-    expect(chain).toHaveLength(totalMethods);
+    return { calls, chain };
+  }
 
-    // Old O(methods*hooks*prototypes) would be ~ methods*13*depth ≈ 50*13*5 = 3250
-    // Optimized linear is roughly methods*depth + enumeration overhead ≈ 50*5 + 50 ≈ 300
-    // Measured ~700 with current instrumentation (includes enumeration + owner traversal).
-    // Allow generous upper bound to avoid flakiness but still catch regression.
+  it('method count scales linearly at fixed inheritance depth', () => {
+    const depth = 5;
+    const methodsPerLevel = 10;
+    const totalMethods = depth * methodsPerLevel;
+
+    const full = bootstrapAndCount('InstrumentationLinear', buildHookHierarchy(depth, methodsPerLevel, 'm'));
+
+    // Registration semantics preserved: hook chain holds every distinct method.
+    expect(Array.isArray(full.chain)).toBe(true);
+    expect(full.chain).toHaveLength(totalMethods);
+
+    // Old O(methods*hooks*depth) would be ~ methods*13*depth = 50*13*5 = 3250.
+    // Current O(methods*depth) shape: methods*(depth + enumeration constant),
+    // with a 2x slack factor to avoid environment flakiness.
     const maxLinear = totalMethods * (depth + 3) * 2; // 50*8*2=800
-    const minExpected = totalMethods; // at least one per method
+    const minExpected = totalMethods; // at least one lookup per method
 
-    expect(calls).toBeGreaterThanOrEqual(minExpected);
-    expect(calls).toBeLessThanOrEqual(maxLinear);
+    expect(full.calls).toBeGreaterThanOrEqual(minExpected);
+    expect(full.calls).toBeLessThanOrEqual(maxLinear);
 
-    // Diagnostic: if someone reintroduces per-hook descriptor traversal, this will be >2000
-    expect(calls).toBeLessThan(2000);
+    // Diagnostic tripwire: reintroducing per-hook descriptor traversal lands
+    // near ~3250, well above this line; baseline is ~700 (see header).
+    expect(full.calls).toBeLessThan(2000);
 
-    // Second check: linear growth – half the methods should be roughly half the calls
-    // Build a smaller hierarchy (depth 5, 5 methods per level =25) and compare ratio.
+    // Linear growth at fixed depth: half the methods cost roughly half the
+    // lookups (depth 5, 5 methods per level = 25 total).
     const smallMethodsPerLevel = 5;
     const smallTotal = depth * smallMethodsPerLevel;
-    class SmallBase {}
-    for (let i = 0; i < smallMethodsPerLevel; i++) {
-      const name = `s_base_${i}`;
-      Object.defineProperty(SmallBase.prototype, name, {
-        value: function (doc: any) {
-          return doc;
-        },
-        writable: true,
-        configurable: true,
-      });
-      applyMethodDecorator(Prepare('create') as any, SmallBase.prototype, name);
-      applyParameterDecorator(Document(), SmallBase.prototype as any, name as any, 0);
-    }
-    let SmallCurrent: any = SmallBase;
-    for (let level = 1; level < depth; level++) {
-      const Prev = SmallCurrent;
-      class Next extends Prev {}
-      for (let i = 0; i < smallMethodsPerLevel; i++) {
-        const name = `s_lvl${level}_${i}`;
-        Object.defineProperty(Next.prototype, name, {
-          value: function (doc: any) {
-            return doc;
-          },
-          writable: true,
-          configurable: true,
-        });
-        applyMethodDecorator(Prepare('create') as any, Next.prototype, name);
-        applyParameterDecorator(Document(), Next.prototype as any, name as any, 0);
-      }
-      SmallCurrent = Next;
-    }
-    const smallLeaf = SmallCurrent;
-    const smallModel = `${modelName}Small`;
-    Router(smallModel)(smallLeaf as any);
-    class SmallModule {}
-    Module({ routers: [smallLeaf as any] })(SmallModule);
-    const smallFactory = EgoseFactoryStatic.create();
-    setupModel(smallFactory.runtime, smallModel);
-    const spy2 = vi.spyOn(Reflect, 'getOwnPropertyDescriptor');
-    smallFactory.bootstrap(SmallModule as any, createMockExpressApp());
-    const smallCalls = spy2.mock.calls.length;
-    spy2.mockRestore();
+    const small = bootstrapAndCount('InstrumentationLinearSmall', buildHookHierarchy(depth, smallMethodsPerLevel, 's'));
+    expect(small.chain).toHaveLength(smallTotal);
 
-    // Linear growth: smallCalls ≈ calls * (smallTotal/totalMethods) within factor 2
-    const ratio = calls / smallCalls;
+    const ratio = full.calls / small.calls;
     const expectedRatio = totalMethods / smallTotal; // 2
     expect(ratio).toBeGreaterThan(expectedRatio * 0.5);
     expect(ratio).toBeLessThan(expectedRatio * 2.5);
+  });
+
+  it('per-method lookup cost grows at most linearly with inheritance depth', () => {
+    // Fixed methods-per-level, varying depth: depth 5 (50 methods) vs depth 2
+    // (20 methods). Same bound shape evaluated at each depth pins the depth
+    // factor; the per-method comparison shows depth contributes linearly
+    // (owner walk), not multiplied by the 13 hook definitions.
+    const methodsPerLevel = 10;
+    const deepDepth = 5;
+    const shallowDepth = 2;
+
+    const deep = bootstrapAndCount('InstrumentationDepthDeep', buildHookHierarchy(deepDepth, methodsPerLevel, 'd'));
+    const shallow = bootstrapAndCount(
+      'InstrumentationDepthShallow',
+      buildHookHierarchy(shallowDepth, methodsPerLevel, 'p'),
+    );
+    expect(deep.chain).toHaveLength(deepDepth * methodsPerLevel);
+    expect(shallow.chain).toHaveLength(shallowDepth * methodsPerLevel);
+
+    expect(deep.calls).toBeLessThanOrEqual(deepDepth * methodsPerLevel * (deepDepth + 3) * 2);
+    expect(shallow.calls).toBeLessThanOrEqual(shallowDepth * methodsPerLevel * (shallowDepth + 3) * 2);
+
+    const deepPerMethod = deep.calls / (deepDepth * methodsPerLevel);
+    const shallowPerMethod = shallow.calls / (shallowDepth * methodsPerLevel);
+    // Deeper hierarchies cost more per method, but only by the depth ratio —
+    // a hooks-multiplied regression would widen the gap ~13x instead.
+    expect(deepPerMethod).toBeGreaterThanOrEqual(shallowPerMethod * 0.5);
+    expect(deepPerMethod).toBeLessThanOrEqual(shallowPerMethod * (deepDepth / shallowDepth) * 2);
   });
 });

@@ -6,6 +6,8 @@ Package: `packages/access-router-deco`
 
 Related completed plan: `docs/tasks/20260813-162608-access-router-deco-review-remediation.md`
 
+Subsequent boundary review: `docs/tasks/20260907-121236-access-router-deco-boundary-review.md`. It records newly demonstrated residual cases and investigations after this plan's completion; historical completion evidence below is preserved.
+
 Authoritative runtime contract: `packages/access-router`
 
 ## Objective

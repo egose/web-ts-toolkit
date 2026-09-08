@@ -9,6 +9,7 @@ import {
   collectBody,
   parseArgs,
   printHelp,
+  toServerlessEvent,
 } from '../src/cli-utils';
 
 describe('adapter body limit — bounded memory and 413', () => {
@@ -282,6 +283,61 @@ describe('adapter body limit — bounded memory and 413', () => {
     expect(stream.listenerCount('close')).toBe(0);
   });
 
+  it('concat failure rejects promptly with original error and releases listeners (ERT-B06)', async () => {
+    const stream = new PassThrough() as unknown as import('express').Request;
+    (stream as unknown as Record<string, unknown>).headers = {};
+    const boom = new Error('concat boom');
+    const originalConcat = Buffer.concat;
+    const spy = vi.spyOn(Buffer, 'concat').mockImplementation(((list: readonly Uint8Array[], total?: number) => {
+      const items = list as unknown as Buffer[];
+      if (items.length === 1 && Buffer.isBuffer(items[0]) && (items[0] as Buffer).toString() === 'ert-b06-fault') {
+        throw boom;
+      }
+      return (originalConcat as (...args: unknown[]) => Buffer)(list, total);
+    }) as typeof Buffer.concat);
+    try {
+      const promise = collectBody(stream as unknown as import('express').Request, 100);
+      stream.write('ert-b06-fault');
+      stream.end();
+      await expect(promise).rejects.toBe(boom);
+      // Owned listeners removed; late events are no-ops (exactly-once settlement).
+      expect(stream.listenerCount('data')).toBe(0);
+      expect(stream.listenerCount('end')).toBe(0);
+      expect(stream.listenerCount('error')).toBe(0);
+      expect(stream.listenerCount('close')).toBe(0);
+      stream.emit('end');
+      await expect(promise).rejects.toBe(boom);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('concat failure yields controlled adapter 500 without invoking handler (ERT-B06)', async () => {
+    const handler = vi.fn().mockResolvedValue({ statusCode: 200, body: 'ok' });
+    const app = createServerlessAdapterApp(handler, { maxBodyBytes: 1000 });
+    const boom = new Error('concat boom adapter');
+    const originalConcat = Buffer.concat;
+    const concatSpy = vi.spyOn(Buffer, 'concat').mockImplementation(((list: readonly Uint8Array[], total?: number) => {
+      const items = list as unknown as Buffer[];
+      if (items.length === 1 && Buffer.isBuffer(items[0]) && (items[0] as Buffer).toString() === 'ert-b06-adapter') {
+        throw boom;
+      }
+      return (originalConcat as (...args: unknown[]) => Buffer)(list, total);
+    }) as typeof Buffer.concat);
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const res = await request(app).post('/x').set('Content-Type', 'text/plain').send('ert-b06-adapter');
+      expect(res.status).toBe(500);
+      expect(handler).not.toHaveBeenCalled();
+      // Adapter still serves the next request (no leaked state).
+      const res2 = await request(app).post('/x').set('Content-Type', 'text/plain').send('ok');
+      expect(res2.status).toBe(200);
+      expect(handler).toHaveBeenCalledTimes(1);
+    } finally {
+      concatSpy.mockRestore();
+      errSpy.mockRestore();
+    }
+  });
   it('retained body memory bounded: does not retain chunks after limit and response stays 413', async () => {
     const handler = vi.fn().mockResolvedValue({ statusCode: 200, body: 'ok' });
     const limit = 1024;
@@ -294,6 +350,45 @@ describe('adapter body limit — bounded memory and 413', () => {
     // After huge payload, next small request still succeeds
     const small = await request(app).post('/x').set('Content-Type', 'text/plain').send('hi');
     expect(small.status).toBe(200);
+  });
+
+  it('ERT-B16: at-limit body phases show concat + base64 transient costs (O(limit), not an exact ceiling)', async () => {
+    const limit = 1024;
+    // Phase 1: collection retains O(limit) — exactly the accepted bytes.
+    const stream = new PassThrough() as unknown as import('express').Request;
+    (stream as unknown as Record<string, unknown>).headers = {};
+    const promise = collectBody(stream as unknown as import('express').Request, limit);
+    const payload = Buffer.alloc(limit, 'a');
+    stream.write(payload.subarray(0, 400));
+    stream.write(payload.subarray(400));
+    stream.end();
+    const body = await promise;
+    expect(body.length).toBe(limit);
+    // Phase 2: Buffer.concat output equals the accepted size (chunks + one output retained transiently).
+    expect(Buffer.byteLength(body)).toBe(limit);
+    // Phase 3: event translation adds a transient base64 copy (~4/3 expansion).
+    const event = toServerlessEvent('POST', '/x', { 'content-type': 'text/plain' }, body);
+    expect(event.isBase64Encoded).toBe(true);
+    expect(event.body.length).toBe(4 * Math.ceil(limit / 3));
+    expect(Buffer.from(event.body, 'base64').length).toBe(limit);
+  });
+
+  it('ERT-B16: concurrent at-limit collections settle independently (no shared retention)', async () => {
+    const limit = 512;
+    const concurrency = 8;
+    const results = await Promise.all(
+      Array.from({ length: concurrency }, () => {
+        const stream = new PassThrough() as unknown as import('express').Request;
+        (stream as unknown as Record<string, unknown>).headers = {};
+        const promise = collectBody(stream as unknown as import('express').Request, limit);
+        stream.end(Buffer.alloc(limit, 'b'));
+        return promise;
+      }),
+    );
+    expect(results).toHaveLength(concurrency);
+    for (const body of results) {
+      expect(body.length).toBe(limit);
+    }
   });
 
   it('help output mentions --max-body-bytes', () => {

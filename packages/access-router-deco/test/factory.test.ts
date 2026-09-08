@@ -101,6 +101,49 @@ describe('EgoseFactory', () => {
       expect(() => factory.bootstrap(TestModule, app)).toThrow(/already called/);
     });
 
+    it('should reject reentrant bootstrap for the same module and app before nested publication', () => {
+      const factory = EgoseFactoryStatic.create();
+      const app = createMockExpressApp();
+      let allowReentry = true;
+      let reentryAttempts = 0;
+      let nestedError: unknown = null;
+
+      class ReentrantRouter {}
+      Router('User')(ReentrantRouter);
+      const ReentrantModule = class {
+        constructor() {
+          if (allowReentry && reentryAttempts === 0) {
+            reentryAttempts++;
+            try {
+              factory.bootstrap(TestModule, app);
+            } catch (err) {
+              nestedError = err;
+              throw err;
+            }
+          }
+        }
+      };
+      const TestModule = ReentrantModule;
+      Module({ routers: [ReentrantRouter] })(TestModule);
+
+      expect(() => factory.bootstrap(TestModule, app)).toThrow(/in progress|reentrant/i);
+      expect(String((nestedError as Error)?.message ?? nestedError)).toMatch(/in progress|reentrant/i);
+      expect(app.use).not.toHaveBeenCalled();
+
+      // Independent tuple still works.
+      const OtherModule = class {};
+      Module({ routers: [] })(OtherModule);
+      const otherApp = createMockExpressApp();
+      expect(() => factory.bootstrap(OtherModule, otherApp)).not.toThrow();
+      expect(otherApp.use).toHaveBeenCalled();
+
+      // Failed tuple is retryable once reentry is disabled.
+      allowReentry = false;
+      expect(() => factory.bootstrap(TestModule, app)).not.toThrow();
+      expect(app.use).toHaveBeenCalled();
+      expect(() => factory.bootstrap(TestModule, app)).toThrow(/already called/);
+    });
+
     it('should allow retrying the same module and app after validation fails before mounting', () => {
       class UserRouter {
         handler(value: any) {
@@ -803,6 +846,182 @@ describe('EgoseFactory', () => {
       expect(result.doc).toBe(mockDoc);
       expect(result.perms).toBe(mockPerms);
       expect(result.ctx).toBe(mockCtx);
+    });
+
+    describe('sparse parameter positions (BDECO-06)', () => {
+      it('should inject at a trailing declared index preserving a leading hole', () => {
+        class UserRouter {
+          guard(unused: any, perms: any) {
+            return { unused, perms };
+          }
+        }
+        applyMethodDecorator(RouteGuard('read'), UserRouter.prototype, 'guard');
+        applyParameterDecorator(Permissions(), UserRouter.prototype, 'guard', 1);
+        Router('User')(UserRouter);
+
+        const TestModule = class {};
+        Module({ routers: [UserRouter] })(TestModule);
+
+        EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+
+        const registeredFn = mockAcl.setModelOption.mock.calls.find(
+          (call) => call[0] === 'User' && call[1] === 'operationAccess.read',
+        )?.[2] as Function;
+
+        expect(registeredFn).toBeDefined();
+        const mockPerms = { read: true };
+        const result = registeredFn.call({}, mockPerms);
+
+        expect(result.unused).toBeUndefined();
+        expect(result.perms).toBe(mockPerms);
+      });
+
+      it('should preserve an interior hole between decorated arguments', () => {
+        class UserRouter {
+          check(doc: any, unused: any, ctx: any) {
+            return { doc, unused, ctx };
+          }
+        }
+        applyMethodDecorator(Validate('create'), UserRouter.prototype, 'check');
+        applyParameterDecorator(Document(), UserRouter.prototype, 'check', 0);
+        applyParameterDecorator(Context(), UserRouter.prototype, 'check', 2);
+        Router('User')(UserRouter);
+
+        const TestModule = class {};
+        Module({ routers: [UserRouter] })(TestModule);
+
+        EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+
+        const registeredFn = mockAcl.setModelOption.mock.calls.find(
+          (call) => call[0] === 'User' && call[1] === 'validate.create',
+        )?.[2] as Function;
+
+        expect(registeredFn).toBeDefined();
+        const mockDoc = { name: 'doc' };
+        const mockPerms = { admin: true };
+        const mockCtx = { operation: 'create' };
+        const result = registeredFn.call({}, mockDoc, mockPerms, mockCtx);
+
+        expect(result.doc).toBe(mockDoc);
+        expect(result.unused).toBeUndefined();
+        expect(result.ctx).toBe(mockCtx);
+      });
+
+      it('should leave undecorated leading args undefined so defaults apply', () => {
+        class UserRouter {
+          guard(label = 'fallback', perms: any) {
+            return { label, perms };
+          }
+        }
+        applyMethodDecorator(RouteGuard('read'), UserRouter.prototype, 'guard');
+        applyParameterDecorator(Permissions(), UserRouter.prototype, 'guard', 1);
+        Router('User')(UserRouter);
+
+        const TestModule = class {};
+        Module({ routers: [UserRouter] })(TestModule);
+
+        EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+
+        const registeredFn = mockAcl.setModelOption.mock.calls.find(
+          (call) => call[0] === 'User' && call[1] === 'operationAccess.read',
+        )?.[2] as Function;
+
+        expect(registeredFn).toBeDefined();
+        const mockPerms = { read: true };
+        const result = registeredFn.call({}, mockPerms);
+
+        expect(result.label).toBe('fallback');
+        expect(result.perms).toBe(mockPerms);
+      });
+
+      it('should inject @Request() at a nonzero index without moving other args', () => {
+        class UserRouter {
+          guard(unused: any, req: any, perms: any) {
+            return { unused, req, perms, classThis: this };
+          }
+        }
+        applyMethodDecorator(RouteGuard('read'), UserRouter.prototype, 'guard');
+        applyParameterDecorator(Request(), UserRouter.prototype, 'guard', 1);
+        applyParameterDecorator(Permissions(), UserRouter.prototype, 'guard', 2);
+        Router('User')(UserRouter);
+
+        const TestModule = class {};
+        Module({ routers: [UserRouter] })(TestModule);
+
+        EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+
+        const registeredFn = mockAcl.setModelOption.mock.calls.find(
+          (call) => call[0] === 'User' && call[1] === 'operationAccess.read',
+        )?.[2] as Function;
+
+        expect(registeredFn).toBeDefined();
+        const mockThis = { id: 'request-context' };
+        const mockPerms = { read: true };
+        const result = registeredFn.call(mockThis, mockPerms);
+
+        expect(result.unused).toBeUndefined();
+        expect(result.req).toBe(mockThis);
+        expect(result.perms).toBe(mockPerms);
+        expect(result.classThis).toBeInstanceOf(UserRouter);
+        expect(result.classThis).not.toBe(mockThis);
+      });
+
+      it('should preserve sparse positions for inherited hooks', () => {
+        class BaseRouter {
+          guard(unused: any, perms: any) {
+            return { unused, perms };
+          }
+        }
+        applyMethodDecorator(RouteGuard('read'), BaseRouter.prototype, 'guard');
+        applyParameterDecorator(Permissions(), BaseRouter.prototype, 'guard', 1);
+
+        class ChildRouter extends BaseRouter {}
+        Router('User')(ChildRouter);
+
+        const TestModule = class {};
+        Module({ routers: [ChildRouter] })(TestModule);
+
+        EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+
+        const registeredFn = mockAcl.setModelOption.mock.calls.find(
+          (call) => call[0] === 'User' && call[1] === 'operationAccess.read',
+        )?.[2] as Function;
+
+        expect(registeredFn).toBeDefined();
+        const mockPerms = { read: true };
+        const result = registeredFn.call({}, mockPerms);
+
+        expect(result.unused).toBeUndefined();
+        expect(result.perms).toBe(mockPerms);
+      });
+
+      it('should preserve sparse positions for symbol hooks', () => {
+        const sym = Symbol('sparseGuard');
+        class UserRouter {
+          [sym](unused: any, perms: any) {
+            return { unused, perms };
+          }
+        }
+        applyMethodDecorator(RouteGuard('read'), UserRouter.prototype, sym);
+        applyParameterDecorator(Permissions(), UserRouter.prototype, sym, 1);
+        Router('User')(UserRouter);
+
+        const TestModule = class {};
+        Module({ routers: [UserRouter] })(TestModule);
+
+        EgoseFactory.bootstrap(TestModule, createMockExpressApp());
+
+        const registeredFn = mockAcl.setModelOption.mock.calls.find(
+          (call) => call[0] === 'User' && call[1] === 'operationAccess.read',
+        )?.[2] as Function;
+
+        expect(registeredFn).toBeDefined();
+        const mockPerms = { read: true };
+        const result = registeredFn.call({}, mockPerms);
+
+        expect(result.unused).toBeUndefined();
+        expect(result.perms).toBe(mockPerms);
+      });
     });
   });
 

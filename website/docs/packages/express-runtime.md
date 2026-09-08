@@ -183,6 +183,14 @@ npx wtt-express-runtime start ./dist/app.js --port 9000 --env .env
 npx wtt-express-runtime build-serverless ./src/app.ts --out-dir netlify/functions
 ```
 
+`express` and `@web-ts-toolkit/express-runtime` (imported by the generated
+entry) are always external; other dependencies are bundled unless marked
+external via `--external`. Deploy the bundle with both mandatory externals
+installed — `npm install express @web-ts-toolkit/express-runtime`
+(`serverless-http` ships with the runtime package). A bundle executed without
+the runtime package installed fails to load with a missing-module error. The
+same externals apply to `build` output.
+
 ### Start a built serverless bundle locally
 
 ```bash
@@ -195,11 +203,11 @@ Override the adapter body limit (default 1 MiB, `0` = empty bodies only):
 npx wtt-express-runtime start-serverless ./netlify/functions/handler.js --max-body-bytes 2097152
 ```
 
-The adapter bounds memory per request to the configured limit plus at most one chunk; declared `Content-Length` exceeding the limit is rejected with `413` before buffering, and oversized chunked bodies are drained after the limit without invoking the handler.
+The adapter bounds memory per request to the configured limit plus at most one chunk; declared `Content-Length` exceeding the limit is rejected with `413` before buffering, and oversized chunked bodies are drained after the limit without invoking the handler. Chunk retention is `O(limit)` — appending stops once the running total would exceed the limit. `Buffer.concat` then holds the chunks plus one output Buffer, and event translation adds a transient base64 copy (~4/3 of the body), so peak transient memory is a small multiple of the limit rather than an exact ceiling.
 
 The local `start-serverless` adapter emulates exactly one provider shape: **AWS API Gateway REST API v1 / Lambda proxy integration**. It emits pathname-only `path`, single-value and multi-value header maps, single-value and multi-value query maps, string `body`, `isBase64Encoded`, and only the minimal `requestContext.identity.sourceIp` field required by `serverless-http`. It does not emulate Netlify, Vercel, HTTP API v2, ALB, cookies arrays, authorizers, stage variables, full request context, or a trusted source IP.
 
-Query keys and values are decoded once from percent-encoding. Duplicate keys are preserved in `multiValueQueryStringParameters`, empty values remain `''`, literal `+` signs remain `+`, and encoded delimiters such as `%26` and `%3D` become part of the value rather than splitting the query. Non-empty request bodies are base64-encoded to preserve arbitrary bytes. Handler results are validated before any response data is written; `multiValueHeaders` wins over `headers` on collisions, preserving repeated `Set-Cookie` values.
+Query keys and values are decoded once from percent-encoding. Origin-form paths are preserved verbatim (no dot-segment resolution, slash collapsing, or percent-decoding); absolute-form targets are supported by stripping scheme and authority; asterisk-form (`*`) yields path `*`; other shapes are rejected with a 500 before the handler runs. Duplicate keys are preserved in `multiValueQueryStringParameters`, empty values remain `''`, literal `+` signs remain `+`, and encoded delimiters such as `%26` and `%3D` become part of the value rather than splitting the query. Non-empty request bodies are base64-encoded to preserve arbitrary bytes. Handler results are validated before any response data is written; `multiValueHeaders` wins over `headers` on collisions, preserving repeated `Set-Cookie` values.
 
 ### Command summary
 
@@ -217,15 +225,18 @@ Common options worth knowing:
 - `--require <module>` preloads modules before loading the app
 - `--watch <paths>` restarts the `dev` command on file changes with one supervised child process
 - `--out-dir <path>` and `--out-name <name>` control build output paths
-- `--external <pkg>` keeps dependencies external during bundling
+- `--external <pkg>` keeps dependencies external during bundling (`express` and `@web-ts-toolkit/express-runtime` are always external)
 - `--max-body-bytes <bytes>` bounds adapter request bodies for `start-serverless` (default `1048576`, `0` allows empty bodies only)
 
 Use `--` to stop option parsing when a module path starts with a dash, for
 example `wtt-express-runtime dev -- --app.js`. Numeric values are validated
 before env files, preload modules, app modules, watchers, or servers are opened:
 ports must be canonical decimal integers in `0..65535` or nonnumeric named-pipe
-paths, and timeout, delay, and body-limit values must be finite integers in
-`0..9007199254740991`.
+paths, timer durations (`--shutdown-timeout`, `--delay`) must be finite integers
+in `0..2147483647` (Node's `setTimeout` limit — larger values are rejected
+instead of overflowing into near-immediate timers; `0` means no wait and
+`2147483647` is the largest safe delay), and body-limit values
+(`--max-body-bytes`) keep the wider `0..9007199254740991` range.
 
 ## `createExpressApp(options?)`
 
@@ -295,7 +306,7 @@ const app = createExpressApp({
 
 ## `createServerlessHandler(app, options?)`
 
-Wraps an Express app into a `serverless-http` handler. Configure provider-specific deployment behavior through `serverlessOptions`; the local `start-serverless` adapter emulates AWS API Gateway REST API v1 / Lambda proxy only.
+Wraps an Express app into a `serverless-http` handler. Configure the supported provider behavior through `serverlessOptions` (`provider: 'aws' | 'azure'`); the local `start-serverless` adapter emulates AWS API Gateway REST API v1 / Lambda proxy only.
 
 Notable behavior:
 
@@ -332,10 +343,10 @@ Hook types are generic over provider event and context:
 runtime calls: `(request, event, context)` before Express and
 `(response, event, context)` after Express.
 
-Netlify-style example:
+Serverless deployment example (export the `ServerlessHandler` as-is with its
+inferred type):
 
 ```ts
-import type { Handler } from '@netlify/functions';
 import express from 'express';
 import { createExpressApp, createServerlessHandler } from '@web-ts-toolkit/express-runtime';
 
@@ -347,12 +358,20 @@ const app = createExpressApp({
   routers: [{ path: () => '/.netlify/functions/main', handler: myRouter }],
 });
 
-export const handler: Handler = createServerlessHandler(app, {
+export const handler = createServerlessHandler(app, {
   init: async () => {
     await connectDatabase();
   },
 });
 ```
+
+Do not annotate the export with the platform's `Handler` type (e.g. from
+`@netlify/functions`): the handler resolves
+`Promise<object>` for the event shapes `serverless-http` supports
+(`aws`/`azure` providers), which is not assignable to Netlify's
+`HandlerResponse` (`statusCode` is required there), so such an annotation fails
+strict compilation. No platform-specific adapter is shipped; the local
+`start-serverless` command emulates AWS API Gateway REST API v1 only.
 
 ## `startLocalServer(app, options?)`
 
@@ -362,7 +381,7 @@ Starts the app with friendly local-server behavior:
 - awaitable `ready` promise that resolves on listening and rejects on init/listen failure
 - explicit lifecycle state machine: `initializing` → `listening` → `stopping` → `stopped`, or `initializing` → `failed`
 - graceful `SIGINT` and `SIGTERM` shutdown by default (single-flight, owned handlers only)
-- deterministic shutdown order: stop accepting → drain (up to `shutdownTimeout`) → `onShutdown` (the timeout covers draining only; `onShutdown` errors are logged and fail shutdown)
+- deterministic shutdown order: stop accepting → drain (up to `shutdownTimeout`, a finite integer in `0..2147483647`) → `onShutdown` (the timeout covers draining only; `onShutdown` errors are logged and fail shutdown)
 - optional `init`, `onShutdown`, `onListening`, and `onError` hooks
 
 Example with readiness and shutdown hooks:

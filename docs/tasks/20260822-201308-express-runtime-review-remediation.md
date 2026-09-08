@@ -4,6 +4,8 @@ Created: 2026-08-22 20:13:08 PDT
 
 Package: `packages/express-runtime`
 
+Follow-up review: [20260907-181731-express-runtime-boundary-review.md](20260907-181731-express-runtime-boundary-review.md) records new boundary counterexamples and reconciles remaining architectural scope after this plan's recorded completion. Historical findings and verification below are preserved.
+
 ## Objective
 
 Remediate confirmed security, correctness, lifecycle, serverless-emulation, packaging, and maintainability gaps in `@web-ts-toolkit/express-runtime`. The end state must bound request-controlled memory, avoid destructive build staging, provide deterministic server and watcher lifecycles, accurately emulate the documented serverless request/response contract, and make source exports, declarations, CLI behavior, documentation, and release-staged artifacts agree.

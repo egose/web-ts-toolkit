@@ -281,14 +281,23 @@ const app = createExpressApp(options);
 const handler = createServerlessHandler(app, { init: async () => undefined });
 handler.reset();
 
-const adapter = createServerlessAdapterApp(async (event: unknown) => {
-  const typed = event as ApiGatewayRestEvent;
-  return { statusCode: 200, headers: { 'content-type': 'text/plain' }, body: typed.path };
+// ERT-B14: cast-free root-to-CLI composition against the real packed types.
+const composed = createServerlessAdapterApp(handler);
+const direct = createServerlessAdapterApp(createServerlessHandler(app));
+// @ts-expect-error - adapter supplies ApiGatewayRestEvent, not arbitrary provider events
+const badEvent = createServerlessAdapterApp(async (event: { custom: string }) => {
+  return { statusCode: 200, headers: { 'content-type': 'text/plain' }, body: event.custom };
 });
+const badContext = createServerlessAdapterApp(
+  // @ts-expect-error - adapter supplies an empty record context, not rich provider contexts
+  async (event: ApiGatewayRestEvent, context: { functionName: string }) => {
+    return { statusCode: 200, headers: { 'content-type': 'text/plain' }, body: context.functionName + event.path };
+  },
+);
 const parsed = parseArgs(['dev', './app.js']);
 const serverOptions: LocalServerOptions = { port: 0, signals: false };
 
-void [adapter, parsed, serverOptions];
+void [composed, direct, badEvent, badContext, parsed, serverOptions];
 `,
   );
 
@@ -301,8 +310,10 @@ const app = runtime.createExpressApp({ routers: [] });
 const parsed = cli.parseArgs(['start', './dist/app.js']);
 const adapterOptions: cli.ServerlessAdapterOptions = { maxBodyBytes: 1024 };
 const localOptions: runtime.LocalServerOptions = { port: 0, signals: false };
+// ERT-B14: cast-free root-to-CLI composition in the NodeNext CJS fixture.
+const composed = cli.createServerlessAdapterApp(runtime.createServerlessHandler(app));
 
-void [app, parsed, adapterOptions, localOptions];
+void [app, parsed, adapterOptions, localOptions, composed];
 `,
   );
 
@@ -310,15 +321,23 @@ void [app, parsed, adapterOptions, localOptions];
     path.resolve(consumerDir, 'consumer-bundler.ts'),
     `import express from 'express';
 import { createExpressApp, createServerlessHandler } from '@web-ts-toolkit/express-runtime';
-import { parseArgs, type ServerlessResult } from '@web-ts-toolkit/express-runtime/cli';
+import { createServerlessAdapterApp, parseArgs, type ApiGatewayRestEvent, type ServerlessResult } from '@web-ts-toolkit/express-runtime/cli';
 
 const router = express.Router();
 const app = createExpressApp({ routers: [{ path: () => '/api', handler: router }] });
 const handler = createServerlessHandler(app);
 const parsed = parseArgs(['build', './src/app.ts']);
 const result: ServerlessResult = { statusCode: 204, body: '' };
+// ERT-B14: cast-free root-to-CLI composition in the Bundler fixture.
+const composed = createServerlessAdapterApp(handler);
+const direct = createServerlessAdapterApp(createServerlessHandler(app));
+// @ts-expect-error - adapter supplies ApiGatewayRestEvent, not arbitrary provider events
+const bad = createServerlessAdapterApp(async (event: { custom: string }) => {
+  const _event: ApiGatewayRestEvent | { custom: string } = event;
+  return { statusCode: 200, body: '' };
+});
 
-void [handler, parsed, result];
+void [handler, parsed, result, composed, direct, bad];
 `,
   );
 

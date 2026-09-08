@@ -64,6 +64,7 @@ describe('access-router-deco strict consumer types', () => {
         }
         Router('StrictDecoUser', { basePath: '/by-name' })(UserRouter);
         Router(userModel, { basePath: '/by-instance' })(UserRouter);
+        Router(userModel, { permissionSchema: { name: { read: true } } })(UserRouter);
 
         class UserOptions {
           @DefaultModelOption('idParam')
@@ -83,7 +84,29 @@ describe('access-router-deco strict consumer types', () => {
         }
 
         const fromString: RouterModel = 'StrictDecoUser';
-        const fromModel: RouterModel = userModel as Model<unknown>;
+        const fromModel: RouterModel = userModel;
+        const genericModel: RouterModel<User> = userModel;
+
+        function registerRouterModelUnion(value: RouterModel) {
+          Router(value)(UserRouter);
+          Router(value, { basePath: '/by-union' })(UserRouter);
+          RouterOptions(value)(UserOptions);
+          RouterOptions(value, { idParam: 'userId' })(UserOptions);
+        }
+
+        function registerTypedUnion(value: RouterModel<User>) {
+          Router(value)(UserRouter);
+          Router(value, { basePath: '/by-typed-union' })(UserRouter);
+          RouterOptions(value)(UserOptions);
+          RouterOptions(value, { queryRouteSegment: 'search' })(UserOptions);
+        }
+
+        function registerStringOrModel(value: string | Model<User>) {
+          Router(value)(UserRouter);
+          Router(value, { basePath: '/by-string-or-model' })(UserRouter);
+          RouterOptions(value)(UserOptions);
+        }
+
         const routeGuardOperation: RouteGuardOperationKey = 'upsert';
         const metadata: ModuleMetadata = { routers: [UserRouter], routerOptions: [UserOptions] };
         class AppModule {}
@@ -100,6 +123,9 @@ describe('access-router-deco strict consumer types', () => {
         // @ts-expect-error model overload requires a Mongoose model, not a model-like object
         Router({ modelName: 'StrictDecoUser' }, {});
 
+        // @ts-expect-error typed model options stay keyed by model fields
+        Router(userModel, { permissionSchema: { notAUserField: { read: true } } })(UserRouter);
+
         // @ts-expect-error model-specific options require a model name or Mongoose model
         RouterOptions(123, {});
 
@@ -114,6 +140,35 @@ describe('access-router-deco strict consumer types', () => {
 
         // @ts-expect-error global options do not include model router options
         GlobalOption('listHardLimit');
+
+        // BDECO-09 evidence: inferred keys bypass scoped-key checking and
+        // property value types are unchecked — all of the below compile today.
+        class InferredScopeBypass {
+          @GlobalOption()
+          operationAcess = true;
+
+          @ModelOption()
+          notARealKey = 123;
+
+          @DefaultModelOption()
+          whatever = 'x';
+        }
+
+        class UncheckedPropertyValues {
+          @ModelOption('listHardLimit')
+          limit = 'not-a-number';
+
+          @GlobalOption('requestPermissionField')
+          field = 12345;
+        }
+
+        class LegacyOptionTypo {
+          @Option('operationAcess')
+          typo = true;
+
+          @Option()
+          inferredTypo = true;
+        }
 
         class InvalidHooks {
            // @ts-expect-error base filters must return an access-router filter, true, null, undefined, or a promise
@@ -222,7 +277,7 @@ describe('access-router-deco strict consumer types', () => {
           }
         }
 
-        void [fromString, fromModel, AppModule, GlobalOptionsFixture, InvalidHooks, InvalidRouteGuardHooks, ValidRouteGuardHooks, InvalidValidateHooks, ValidValidateHooks, Option];
+        void [fromString, fromModel, genericModel, registerRouterModelUnion, registerTypedUnion, registerStringOrModel, AppModule, GlobalOptionsFixture, InvalidHooks, InvalidRouteGuardHooks, ValidRouteGuardHooks, InvalidValidateHooks, ValidValidateHooks, Option, InferredScopeBypass, UncheckedPropertyValues, LegacyOptionTypo];
       `,
     );
     writeFileSync(

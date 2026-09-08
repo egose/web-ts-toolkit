@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ModelService, Document as ARDocument, Model } from '@web-ts-toolkit/access-router-client';
+import type { ModelService, Document as ARDocument, Model, Projection } from '@web-ts-toolkit/access-router-client';
 import { createModelHooks } from '../src';
 import type {
   UseBaseOptions,
@@ -241,19 +241,29 @@ describe('access-router-react public export contract (ARR-10)', () => {
       void ({} as _Recursed);
     });
 
-    it('`ProjectedModelResponse<T, never>` is the documented full-model response when no projection is supplied', () => {
+    it('`ProjectedModelResponse<T, Projection>` is the documented full-model response when no projection is supplied (ARR-B03: `never` is conservative)', () => {
       interface Pet extends ARDocument {
         _id?: string;
         name: string;
       }
-      // `Projection` is the lower bound of the no-projection default; the
-      // `SelectedKeys<T, never> extends never` branch keeps
-      // `ModelResponse<T>` so the public response surface is the legacy
-      // full-model shape. The consumer-facing contract asserts this:
-      type _Default = ProjectedModelResponse<Pet, never>;
+      // The no-projection default is the broad `Projection` sentinel, which
+      // keeps `ModelResponse<T>` so the public response surface is the
+      // legacy full-model shape. The consumer-facing contract asserts this:
+      type _Default = ProjectedModelResponse<Pet, Projection>;
       const probeResponse = {} as _Default;
       if (probeResponse.success) {
         expectTypeAssignableTo<Model<Pet> & Pet>(probeResponse.data);
+      }
+      // ARR-B03 declaration tightening: an explicitly supplied but
+      // indeterminable selection (`never` here as the degenerate case)
+      // must NOT fall back to the full required model. Every field is
+      // optional via `ModelResponse<T, Partial<T>>`.
+      type _NeverConservative = ProjectedModelResponse<Pet, never>;
+      const neverResponse = {} as _NeverConservative;
+      if (neverResponse.success) {
+        // @ts-expect-error ARR-B03: `never` selection is indeterminable, so `name` is optional.
+        expectTypeAssignableTo<string>(neverResponse.data.name);
+        expectTypeAssignableTo<string | undefined>(neverResponse.data.name);
       }
     });
   });

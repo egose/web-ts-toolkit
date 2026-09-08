@@ -399,6 +399,106 @@ describe('ARDECO-06 cross-path hook and router integration', () => {
     });
   });
 
+  describe('BDECO-07 effective authorization semantics (docs only, no runtime change)', () => {
+    it('decorated base filters resolve to effective deny/unrestricted/restricted results via resolveAccessFilter', async () => {
+      const { Cache } = await import('../../access-router/src/cache');
+      const { resolveAccessFilter } = await import('../../access-router/src/core-shared');
+      const { default: Permission } = await import('../../access-router/src/permission');
+
+      const cases: Array<{ label: string; value: unknown; denied: boolean; expected: unknown }> = [
+        { label: 'false', value: false, denied: true, expected: false },
+        { label: 'null', value: null, denied: false, expected: {} },
+        { label: 'undefined', value: undefined, denied: false, expected: {} },
+        { label: 'true', value: true, denied: false, expected: {} },
+        { label: 'empty', value: {}, denied: false, expected: {} },
+        { label: 'restrictive', value: { tenant: 'a' }, denied: false, expected: { tenant: 'a' } },
+      ];
+
+      for (let i = 0; i < cases.length; i++) {
+        const c = cases[i];
+        const modelName = `DecoCrossBdeco07Filter${i}`;
+        const ret = c.value;
+        class FilterRouter {
+          filter() {
+            return ret;
+          }
+        }
+        applyMethodDecorator(BaseFilter('read'), FilterRouter.prototype, 'filter');
+        Router(modelName)(FilterRouter);
+        const factory = EgoseFactoryStatic.create();
+        factory.runtime.registerModelInstance(modelName, dummyModel(modelName));
+        class TestMod {}
+        Module({ routers: [FilterRouter] })(TestMod);
+        factory.bootstrap(TestMod, express());
+
+        const hook = factory.runtime.getModelOption(modelName, 'baseFilter.read') as any;
+        expect(typeof hook).toBe('function');
+        // raw decorated hook returns the declared value
+        expect(await hook.call({}, new Permission({}))).toEqual(c.value);
+        // effective result through real filter resolution distinguishes denial from no-restriction
+        const result = await resolveAccessFilter({
+          req: {} as any,
+          permissions: new Permission({}) as any,
+          cache: new Cache<string, unknown>(),
+          cacheKey: `bdeco07:${i}`,
+          access: 'read',
+          filter: null,
+          getOption: (key: string) => factory.runtime.getModelOption(modelName, key as any),
+        });
+        if (c.denied) expect(result).toBe(false);
+        else expect(result).toEqual(c.expected);
+      }
+    });
+
+    it('empty document grants do not revoke global grants (OR combination)', async () => {
+      const modelName = 'DecoCrossBdeco07DocPerm';
+      mongoose.model(modelName, new mongoose.Schema({ secret: String }, { bufferCommands: false }));
+      class DocRouter {
+        perms() {
+          return {};
+        }
+      }
+      applyMethodDecorator(DocPermissions('read'), DocRouter.prototype, 'perms');
+      Router(modelName, { permissionSchema: { secret: 'admin' }, operationAccess: true })(DocRouter); // pragma: allowlist secret
+      const factory = EgoseFactoryStatic.create();
+      class TestMod {}
+      Module({ routers: [DocRouter] })(TestMod);
+      factory.bootstrap(TestMod, express());
+
+      const { collectAllowedFieldsForRequest } = await import('../../access-router/src/acl/select-resolution');
+      const { default: Permission } = await import('../../access-router/src/permission');
+      const hook = factory.runtime.getModelOption(modelName, 'docPermissions.read') as any;
+      expect(typeof hook).toBe('function');
+      // decorated hook really returns the empty map (not a deny sentinel)
+      const raw = await hook.call({}, {}, new Permission({ admin: true }) as any, { operation: 'read' });
+      expect(raw).toEqual({});
+
+      // Real field-access resolution: Core.genAllowedFields delegates to
+      // collectAllowedFieldsForRequest with
+      // hasPermission = (key) => permissions.has(key) || Boolean(docPermissions[key])
+      // (see packages/access-router/src/core.ts). Feed the decorated hook's real
+      // output through it with and without a global grant.
+      const permissionSchema = { secret: 'admin' } as Record<string, unknown>; // pragma: allowlist secret
+      const resolveFields = (globalPermissions: any) =>
+        collectAllowedFieldsForRequest({
+          req: {} as any,
+          permissionSchema,
+          access: 'read',
+          baseFields: [],
+          hasPermission: (key: string) => globalPermissions.has(key) || Boolean((raw as Record<string, unknown>)[key]),
+          functionArgs: [],
+        });
+
+      // with a global grant, the empty document map does not revoke field access
+      const fieldsGrant = await resolveFields(new Permission({ admin: true }));
+      expect(fieldsGrant).toContain('secret');
+
+      // without the global grant, the same empty document map grants nothing
+      const fieldsNoGrant = await resolveFields(new Permission({}));
+      expect(fieldsNoGrant).not.toContain('secret');
+    });
+  });
+
   describe('root-only and mixed root/model modules', () => {
     it('root-only module mounts root routes and is reachable via supertest', async () => {
       class HealthRouter {}
@@ -723,11 +823,21 @@ describe('ARDECO-06 cross-path hook and router integration', () => {
       // routes are mounted on separate apps but share runtime state; composition is supported for distinct models
       // Verify isolation note: shared runtime accumulates both models - documented as supported for distinct models
       expect(shared.getModelNames().sort()).toEqual([mA, mB].sort());
-      // Each app should have its own router but shared runtime; requests work
-      await request(appA)
-        .get(`/${mA.toLowerCase()}s/new`)
-        .expect(200)
-        .catch(() => {}); // best-effort; basePath may be pluralized
+      // Each app serves its own model's `/new` template through the shared
+      // runtime. Default `operationAccess: false` denies the template with
+      // 401: the route exists (not 404) and authorization denies (not 200),
+      // so a broken mount or a broken guard fails this test (no swallowed
+      // rejection). `basePath` is read from the runtime instead of guessed so
+      // a pluralization change fails loudly instead of probing a wrong path.
+      const baseA = shared.getModelOption(mA, 'basePath') as string;
+      const baseB = shared.getModelOption(mB, 'basePath') as string;
+      expect(typeof baseA).toBe('string');
+      expect(typeof baseB).toBe('string');
+      await request(appA).get(`${baseA}/new`).expect(401);
+      await request(appB).get(`${baseB}/new`).expect(401);
+      // Routers stay separate: neither app serves the other's model path.
+      await request(appB).get(`${baseA}/new`).expect(404);
+      await request(appA).get(`${baseB}/new`).expect(404);
       expect(getAppStackLength(appA)).toBeGreaterThanOrEqual(2);
       expect(getAppStackLength(appB)).toBeGreaterThanOrEqual(2);
     });
@@ -753,6 +863,162 @@ describe('ARDECO-06 cross-path hook and router integration', () => {
       // If implementation changes to reject shared-runtime composition outright, this test will fail
       // and must be updated with new documented policy.
       expect(true).toBe(true);
+    });
+  });
+
+  describe('BDECO-10 module-mount versus OpenAPI path composition (current-behavior evidence)', () => {
+    // Investigation evidence for BDECO-10. Each case asserts CURRENT behavior:
+    // the module `basePath` applies only at Express mounting
+    // (`factory.ts:381 expressApp.use(basePath, expressRouter)`), while OpenAPI
+    // paths are registered as `parentPath + basePath` (model, via
+    // `ModelRouter.fullBasePath`) or plain `basename` (root). Implementation
+    // follow-up BDECO-10-F01 owns changing the OpenAPI side; live Express
+    // route matching is intentionally NOT changed by these tests.
+    const openApiPaths = (factory: EgoseFactoryStatic): string[] =>
+      (factory.runtime as any).runtime.getOpenApiRoutes().map((r: any) => `${r.method.toUpperCase()} ${r.path}`);
+
+    it('P1 root: nonempty module prefix is reachable but missing from OpenAPI', async () => {
+      class HealthRouter {}
+      Router({ basePath: '/health', operationAccess: true })(HealthRouter);
+      class TestMod {}
+      Module({ routers: [HealthRouter], options: { basePath: '/api' } })(TestMod);
+      const app = express();
+      app.use(express.json());
+      const factory = EgoseFactoryStatic.create();
+      factory.bootstrap(TestMod, app);
+      await request(app).post('/api/health').send([]).expect(200);
+      await request(app).post('/health').send([]).expect(404);
+      expect(openApiPaths(factory)).toContain('POST /health');
+      expect(openApiPaths(factory).some((p) => p === 'POST /api/health')).toBe(false);
+    });
+
+    it('P2 root: empty module prefixes agree with OpenAPI', async () => {
+      for (const moduleBase of ['/', ''] as const) {
+        class HealthRouter {}
+        Router({ basePath: '/health', operationAccess: true })(HealthRouter);
+        class TestMod {}
+        Module({ routers: [HealthRouter], options: { basePath: moduleBase } })(TestMod);
+        const app = express();
+        app.use(express.json());
+        const factory = EgoseFactoryStatic.create();
+        factory.bootstrap(TestMod, app);
+        await request(app).post('/health').send([]).expect(200);
+        expect(openApiPaths(factory)).toContain('POST /health');
+      }
+    });
+
+    it('P3 model: nonempty module prefix is reachable but missing from OpenAPI (empty parent)', async () => {
+      const modelName = 'DecoCrossB10ModelApi';
+      mongoose.model(modelName, new mongoose.Schema({ title: String }));
+      class UserRouter {}
+      Router(modelName, { basePath: '/users', operationAccess: true })(UserRouter);
+      class TestMod {}
+      Module({ routers: [UserRouter], options: { basePath: '/api' } })(TestMod);
+      const app = express();
+      app.use(express.json());
+      const factory = EgoseFactoryStatic.create();
+      factory.bootstrap(TestMod, app);
+      await request(app).get('/api/users/new').expect(200);
+      await request(app).get('/users/new').expect(404);
+      expect(openApiPaths(factory)).toContain('GET /users/new');
+      expect(openApiPaths(factory).some((p) => p === 'GET /api/users/new')).toBe(false);
+    });
+
+    it('P4 model: explicit parent prefix decorates OpenAPI only, never reachable routes', async () => {
+      const modelName = 'DecoCrossB10ModelTenant';
+      mongoose.model(modelName, new mongoose.Schema({ title: String }));
+      class UserRouter {}
+      Router(modelName, { basePath: '/users', parentPath: '/tenant', operationAccess: true })(UserRouter);
+      class TestMod {}
+      Module({ routers: [UserRouter], options: { basePath: '/api' } })(TestMod);
+      const app = express();
+      app.use(express.json());
+      const factory = EgoseFactoryStatic.create();
+      const result = factory.bootstrap(TestMod, app);
+      expect(result.runtime.getModelOptions(modelName).parentPath).toBe('/tenant');
+      // Reachable ignores parentPath entirely (Express mount uses basePath only).
+      await request(app).get('/api/users/new').expect(200);
+      await request(app).get('/tenant/users/new').expect(404);
+      // OpenAPI composes parentPath + basePath, still without the module mount.
+      expect(openApiPaths(factory)).toContain('GET /tenant/users/new');
+      expect(openApiPaths(factory).some((p) => p === 'GET /api/tenant/users/new')).toBe(false);
+    });
+
+    it('P5 model: default mount agrees only when parent is also empty/default', async () => {
+      const plain = 'DecoCrossB10ModelPlain';
+      mongoose.model(plain, new mongoose.Schema({ title: String }));
+      class PlainRouter {}
+      Router(plain, { basePath: '/users', operationAccess: true })(PlainRouter);
+      class PlainMod {}
+      Module({ routers: [PlainRouter] })(PlainMod);
+      const plainApp = express();
+      plainApp.use(express.json());
+      const plainFactory = EgoseFactoryStatic.create();
+      plainFactory.bootstrap(PlainMod, plainApp);
+      await request(plainApp).get('/users/new').expect(200);
+      expect(openApiPaths(plainFactory)).toContain('GET /users/new');
+
+      const tenant = 'DecoCrossB10ModelTenantRoot';
+      mongoose.model(tenant, new mongoose.Schema({ title: String }));
+      class TenantRouter {}
+      Router(tenant, { basePath: '/users', parentPath: '/tenant', operationAccess: true })(TenantRouter);
+      class TenantMod {}
+      Module({ routers: [TenantRouter] })(TenantMod);
+      const tenantApp = express();
+      tenantApp.use(express.json());
+      const tenantFactory = EgoseFactoryStatic.create();
+      tenantFactory.bootstrap(TenantMod, tenantApp);
+      await request(tenantApp).get('/users/new').expect(200);
+      await request(tenantApp).get('/tenant/users/new').expect(404);
+      expect(openApiPaths(tenantFactory)).toContain('GET /tenant/users/new');
+    });
+
+    it('P6 two differently mounted modules: reachable differs per mount, OpenAPI is mount-agnostic', async () => {
+      const mA = 'DecoCrossB10TwoA';
+      const mB = 'DecoCrossB10TwoB';
+      mongoose.model(mA, new mongoose.Schema({ x: String }));
+      mongoose.model(mB, new mongoose.Schema({ x: String }));
+      class RA {}
+      Router(mA, { basePath: '/widgets', operationAccess: true })(RA);
+      class ModA {}
+      Module({ routers: [RA], options: { basePath: '/api' } })(ModA);
+      class RB {}
+      Router(mB, { basePath: '/widgets', operationAccess: true })(RB);
+      class ModB {}
+      Module({ routers: [RB], options: { basePath: '/internal' } })(ModB);
+      const app = express();
+      app.use(express.json());
+      const fA = EgoseFactoryStatic.create();
+      const fB = EgoseFactoryStatic.create();
+      fA.bootstrap(ModA, app);
+      fB.bootstrap(ModB, app);
+      await request(app).get('/api/widgets/new').expect(200);
+      await request(app).get('/internal/widgets/new').expect(200);
+      // Neither runtime's OpenAPI carries its module mount.
+      expect(openApiPaths(fA)).toContain('GET /widgets/new');
+      expect(openApiPaths(fB)).toContain('GET /widgets/new');
+      expect(openApiPaths(fA).some((p) => p.includes('/api/'))).toBe(false);
+      expect(openApiPaths(fB).some((p) => p.includes('/internal/'))).toBe(false);
+    });
+
+    it('P7 external reverse-proxy prefix composes outside Express and outside OpenAPI paths', async () => {
+      const modelName = 'DecoCrossB10ModelProxy';
+      mongoose.model(modelName, new mongoose.Schema({ x: String }));
+      class UserRouter {}
+      Router(modelName, { basePath: '/users', operationAccess: true })(UserRouter);
+      class TestMod {}
+      Module({ routers: [UserRouter], options: { basePath: '/api' } })(TestMod);
+      const inner = express();
+      inner.use(express.json());
+      const factory = EgoseFactoryStatic.create();
+      factory.bootstrap(TestMod, inner);
+      const outer = express();
+      outer.use('/ext', inner);
+      await request(outer).get('/ext/api/users/new').expect(200);
+      await request(outer).get('/api/users/new').expect(404);
+      // The factory registers no servers[] entry and no path prefix for /ext.
+      expect(openApiPaths(factory)).toContain('GET /users/new');
+      expect(openApiPaths(factory).some((p) => p.includes('/ext/'))).toBe(false);
     });
   });
 });

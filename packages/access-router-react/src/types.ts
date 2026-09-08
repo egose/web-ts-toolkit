@@ -6,7 +6,6 @@ import type {
   FilterQuery,
   Projection,
   ResolvedSelectedShape,
-  SelectedKeys,
   ListArgs,
   ListAdvancedArgs,
   ListOptions,
@@ -44,25 +43,56 @@ export interface QueryCallOptions {
   signal?: AbortSignal;
 }
 
-// ── Projection-aware result shapes (Task ARR-09) ──
+// ── Projection-aware result shapes (Task ARR-09, tightened by ARR-B03) ──
+
+/**
+ * True exactly when the consumer did NOT supply a projection — i.e.
+ * `TSelect` is still the broad `Projection` default sentinel
+ * (`UseReadQueryOptions<T>` with no `select`). Because `TSelect` is
+ * constrained to `extends Projection`, `[Projection] extends [TSelect]`
+ * holds only for `TSelect = Projection` itself: every narrower
+ * supplied selection (a literal tuple/string/object, a broad `string`
+ * or `string[]` variable, an exclusion-only object, or a union of
+ * alternatives) fails the check and takes the conservative path below.
+ * This distinguishes "selection really absent" (safe full-model
+ * inference) from "selection supplied but indeterminable" (must NOT
+ * fall back to the full model).
+ */
+type IsAbsentProjection<TSelect extends Projection> = [Projection] extends [TSelect] ? true : false;
+
+/**
+ * Conservative narrowed element shape for ONE supplied (non-absent)
+ * selection branch. Reuses the client's
+ * `ResolvedSelectedShape<T, S, never>` (= `SelectedShape<T, S>` =
+ * `Pick<T, SelectedKeys<T, S>> & Partial<T>`): every determinable
+ * selected key stays definitely-present, every other model key is
+ * `T[key] | undefined`. When the supplied selection is indeterminable
+ * — broad `string` / `string[]`, exclusion-only `{ status: -1 }`, or
+ * any other shape for which `SelectedKeys<T, S>` is `never` — the
+ * resolved shape is `Partial<T>`, so ALL fields become optional rather
+ * than falling back to the full required model. No casts and no
+ * blanket full-model fallback are used on this path.
+ */
+type NarrowedDataShape<T extends Document, S extends Projection> = Model<T, ResolvedSelectedShape<T, S, never>> &
+  ResolvedSelectedShape<T, S, never>;
 
 /**
  * Narrowed success-wrapper data shape returned by the projection-aware
- * React hooks (Task ARR-09). Reuses the client's exported
- * {@link SelectedKeys} utility (no divergent React approximation) to
- * decide whether the consumer supplied a *literal* projection
- * (`readonly ['name'] as const`, `'name'`, or `{ name: 1 }`). When no
- * literal projection was supplied — i.e. `TSelect` is the default
- * broad `Projection` sentinel, for which `SelectedKeys<T, TSelect>` is
- * `never` — the full model shape `Model<T> & T` is preserved so
+ * React hooks (Task ARR-09, conservative-union semantics by ARR-B03).
+ * When no projection was supplied (`TSelect` is the broad `Projection`
+ * default) the full model shape `Model<T> & T` is preserved so
  * ergonomic read/list defaults (no `select` or `advanced === false`)
- * keep full-model typing. When a literal `select` was supplied, the
- * shape collapses to `Model<T, ResolvedSelectedShape<T, TSelect, never>>`
- * intersected with the computed selected shape: every key the
- * consumer asked for stays definitely-present, every other model key
- * becomes `T[keyof T] | undefined` via the client's
- * `Pick<T, SelectedKeys<T, TSelect>> & Partial<T>` definition. A
- * consumer that selects only `['name']` will see `data.status` typed
+ * keep full-model typing. When a selection WAS supplied, the shape
+ * distributes over a union `TSelect` (`S extends unknown ? ...`) so
+ * each alternative keeps its own required/optional contract instead of
+ * merging keys into one overly-required shape: a consumer selecting
+ * `readonly ['name'] | readonly ['status']` sees
+ * `Shape<['name']> | Shape<['status']>`, and required access to either
+ * field alone fails to compile. Supplied-but-indeterminable selections
+ * (broad `string`, `string[]`, exclusion-only objects) resolve to
+ * `Model<T, Partial<T>> & Partial<T>` — every field optional.
+ *
+ * A consumer that selects only `['name']` will see `data.status` typed
  * as `string | undefined` (so `data.status.toUpperCase()` requires a
  * guard or non-null assertion), eliminating the historical "consumer
  * accesses a server-omitted field as definitely present" defect.
@@ -76,9 +106,9 @@ export interface QueryCallOptions {
  *
  * `TSelect` defaults to the broad `Projection` sentinel so a consumer
  * that calls `useRead({ id: '1' })` (no `select` — the default) keeps
- * the historical full-model shape. A consumer that supplies a literal
- * projection supplies a literal `TSelect` (TypeScript infers it from
- * the `select?: TSelect` field on the hook options) and the narrow
+ * the historical full-model shape. A consumer that supplies a
+ * projection supplies a `TSelect` (TypeScript infers it from the
+ * `select?: TSelect` field on the hook options) and the narrow
  * shape is computed automatically.
  *
  * Note: this is a *static* narrowing — the runtime promise is whatever
@@ -86,41 +116,63 @@ export interface QueryCallOptions {
  * forwarded to the server (the basic `read`/`list`/`create`/etc. do
  * not accept a `select` argument) so the server returns a full model
  * and the client response is a full `T`. The type still has the
- * provided `TSelect` (if any) applied; supplying a literal `select`
+ * provided `TSelect` (if any) applied; supplying a `select`
  * without `advanced: true` produces a tighter type than the wire
  * payload really justifies. The package treats this as a documented
  * consumer contract — narrow types only when the consumer opted into
- * a literal projection and accepts responsibility for forwarding it
+ * a projection and accepts responsibility for forwarding it
  * down a path that honors it (the `advanced` paths).
+ *
+ * Declaration tightening (ARR-B03): dynamic, exclusion-only, and union
+ * selections no longer resolve to the full required model. Consumers
+ * relying on the old fallback must narrow with guards or supply a
+ * literal projection.
  */
-export type ProjectedShape<T extends Document, TSelect extends Projection> = [SelectedKeys<T, TSelect>] extends [never]
-  ? Model<T> & T
-  : Model<T, ResolvedSelectedShape<T, TSelect, never>> & ResolvedSelectedShape<T, TSelect, never>;
+export type ProjectedShape<T extends Document, TSelect extends Projection> =
+  IsAbsentProjection<TSelect> extends true
+    ? Model<T> & T
+    : [TSelect] extends [never]
+      ? NarrowedDataShape<T, TSelect>
+      : TSelect extends unknown
+        ? NarrowedDataShape<T, TSelect>
+        : never;
 
 /**
  * Array variant of {@link ProjectedShape} used by `useList` — the
  * projection-narrowed single-element shape lifts to an array of the
  * same wrapped shape, matching the client's `ArrayModelResponse` /
- * `ListModelResponse` data payload type.
+ * `ListModelResponse` data payload type. Absent selection keeps
+ * `(Model<T> & T)[]`; supplied selections (including unions, which
+ * distribute to a union of arrays) use the same conservative
+ * per-branch element shape as {@link ProjectedShape}.
  */
-export type ProjectedShapeArray<T extends Document, TSelect extends Projection> = [SelectedKeys<T, TSelect>] extends [
-  never,
-]
-  ? (Model<T> & T)[]
-  : (Model<T, ResolvedSelectedShape<T, TSelect, never>> & ResolvedSelectedShape<T, TSelect, never>)[];
+export type ProjectedShapeArray<T extends Document, TSelect extends Projection> =
+  IsAbsentProjection<TSelect> extends true
+    ? (Model<T> & T)[]
+    : [TSelect] extends [never]
+      ? NarrowedDataShape<T, TSelect>[]
+      : TSelect extends unknown
+        ? NarrowedDataShape<T, TSelect>[]
+        : never;
 
 /**
  * Response alias that picks the client's `ModelResponse<T, S>` (single
- * model) when the consumer supplied a literal `select`, otherwise
+ * model) when the consumer supplied a `select`, otherwise
  * `ModelResponse<T>` (full-T) for the ergonomically default case. Used
  * by read/create/update/upsert React hooks' `query()`/`refetch()`/
  * `mutate()` return promises and `onSuccess`/`onSettled` callbacks.
+ * Supplied selections distribute over unions and fall back to
+ * `ModelResponse<T, Partial<T>>` (all fields optional) when the fields
+ * cannot be determined — never to the full required model.
  */
-export type ProjectedModelResponse<T extends Document, TSelect extends Projection> = [
-  SelectedKeys<T, TSelect>,
-] extends [never]
-  ? ModelResponse<T>
-  : ModelResponse<T, ResolvedSelectedShape<T, TSelect, never>>;
+export type ProjectedModelResponse<T extends Document, TSelect extends Projection> =
+  IsAbsentProjection<TSelect> extends true
+    ? ModelResponse<T>
+    : [TSelect] extends [never]
+      ? ModelResponse<T, ResolvedSelectedShape<T, TSelect, never>>
+      : TSelect extends unknown
+        ? ModelResponse<T, ResolvedSelectedShape<T, TSelect, never>>
+        : never;
 
 /**
  * Response alias for `useList` — full-T `ListModelResponse<T>` when no
@@ -128,13 +180,18 @@ export type ProjectedModelResponse<T extends Document, TSelect extends Projectio
  * otherwise. Threads the projection generic through `query()`/
  * `refetch()` and the `onSuccess`/`onSettled` callbacks so a consumer
  * selecting `['name'] as const` sees the same narrowed element shape
- * on the callback result type as on `data`.
+ * on the callback result type as on `data`. Union selections
+ * distribute to a union of list responses; indeterminable selections
+ * resolve to `ListModelResponse<T, Partial<T>>`.
  */
-export type ProjectedListModelResponse<T extends Document, TSelect extends Projection> = [
-  SelectedKeys<T, TSelect>,
-] extends [never]
-  ? ListModelResponse<T>
-  : ListModelResponse<T, ResolvedSelectedShape<T, TSelect, never>>;
+export type ProjectedListModelResponse<T extends Document, TSelect extends Projection> =
+  IsAbsentProjection<TSelect> extends true
+    ? ListModelResponse<T>
+    : [TSelect] extends [never]
+      ? ListModelResponse<T, ResolvedSelectedShape<T, TSelect, never>>
+      : TSelect extends unknown
+        ? ListModelResponse<T, ResolvedSelectedShape<T, TSelect, never>>
+        : never;
 
 // ── Shared ──
 

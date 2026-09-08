@@ -1,6 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import {
   dirname,
+  basename,
   resolve as pathResolve,
   extname,
   join as pathJoin,
@@ -24,7 +25,13 @@ import { fork, type ChildProcess } from 'node:child_process';
 import { validateHeaderName, validateHeaderValue } from 'node:http';
 import type { Express, Request, Response } from 'express';
 import { createExpressApp, type LocalServerOptions } from './index';
-import { MAX_INTEGER_OPTION_VALUE, parsePortValue, validateFiniteInteger } from './numeric-validation';
+import {
+  MAX_INTEGER_OPTION_VALUE,
+  MAX_TIMER_DURATION_MS,
+  parsePortValue,
+  validateFiniteInteger,
+  validateTimerDuration,
+} from './numeric-validation';
 
 function readPackageVersion(candidatePath: string): string | undefined {
   try {
@@ -83,6 +90,13 @@ function parseIntegerFlag(raw: string, name: string, min = 0, max = MAX_INTEGER_
   return validateFiniteInteger(Number(raw), { name, min, max });
 }
 
+function parseTimerFlag(raw: string, name: string): number {
+  if (!/^(0|[1-9]\d*)$/.test(raw)) {
+    throw new Error(`Invalid ${name}: ${raw}. Must be a finite integer in 0..${MAX_TIMER_DURATION_MS}.`);
+  }
+  return validateTimerDuration(Number(raw), name);
+}
+
 function parsePortFlag(raw: string, name = '--port'): number | string {
   try {
     return parsePortValue(raw, name);
@@ -126,7 +140,7 @@ export interface DevArgs {
   watch: string[];
   /** File extensions to watch (default: ts,js,mjs,cjs,json). */
   watchExt: string[];
-  /** Debounce delay (ms) before restarting on file change (default: 500). */
+  /** Debounce delay (ms) before restarting on file change (default: 500). Must be a finite integer in `0..2147483647` (Node timer limit); `0` restarts without debouncing. */
   watchDelay: number;
 }
 
@@ -205,13 +219,13 @@ Dev options:
   --port <number>               Port or named pipe (default: process.env.PORT or 8080)
   --host <hostname>             Hostname to bind (default: process.env.HOST or 0.0.0.0)
   --no-signals                  Disable SIGINT/SIGTERM handler registration
-  --shutdown-timeout <ms>       Max ms to wait for in-flight requests (default: 5000)
+  --shutdown-timeout <ms>       Max ms to wait for in-flight requests (default: 5000; 0..2147483647)
   --require <module>            Module(s) to preload before app load (repeatable)
   --env <path>                  Env file(s) to load (repeatable; existing env vars are not overridden)
   --tsconfig <path>             Tsconfig used by config-aware consumers for TS path resolution
   --watch <paths>               Comma-separated paths to watch for restart (repeatable; dev only)
   --ext <extensions>            Comma-separated extensions to watch (default: ts,js,mjs,cjs,json)
-  --delay <ms>                  Debounce ms before restarting on change (default: 500)
+  --delay <ms>                  Debounce ms before restarting on change (default: 500; 0..2147483647)
 
 Build options:
   --init <path>                 Init hook module (default export, async function)
@@ -220,14 +234,14 @@ Build options:
   --out-name <name>             Output filename without extension (default: app)
   --format <cjs|esm>            Output format (default: cjs)
   --target <target>             Compilation target (default: node22)
-  --external <pkg>              Mark package as external (repeatable; express always external)
+  --external <pkg>              Mark package as external (repeatable; express and @web-ts-toolkit/express-runtime always external)
   --no-clean                    Don't clean the output directory before building
 
 Start options:
   --port <number>               Port or named pipe (default: process.env.PORT or 8080)
   --host <hostname>             Hostname to bind (default: process.env.HOST or 0.0.0.0)
   --no-signals                  Disable SIGINT/SIGTERM handler registration
-  --shutdown-timeout <ms>       Max ms to wait for in-flight requests (default: 5000)
+  --shutdown-timeout <ms>       Max ms to wait for in-flight requests (default: 5000; 0..2147483647)
   --require <module>            Module(s) to preload before app load (repeatable)
   --env <path>                  Env file(s) to load (repeatable; existing env vars are not overridden)
 
@@ -238,14 +252,14 @@ Build-serverless options:
   --out-name <name>             Output filename without extension (default: handler)
   --format <cjs|esm>            Output format (default: cjs)
   --target <target>             Compilation target (default: node22)
-  --external <pkg>              Mark package as external (repeatable; express always external)
+  --external <pkg>              Mark package as external (repeatable; express and @web-ts-toolkit/express-runtime always external)
   --no-clean                    Don't clean the output directory before building
 
 Start-serverless options:
   --port <number>               Port or named pipe (default: process.env.PORT or 8080)
   --host <hostname>             Hostname to bind (default: process.env.HOST or 0.0.0.0)
   --no-signals                  Disable SIGINT/SIGTERM handler registration
-  --shutdown-timeout <ms>       Max ms to wait for in-flight requests (default: 5000)
+  --shutdown-timeout <ms>       Max ms to wait for in-flight requests (default: 5000; 0..2147483647)
   --max-body-bytes <bytes>      Max request body bytes for adapter (default: 1048576; 0 disallows bodies)
   --require <module>            Module(s) to preload before handler load (repeatable)
   --env <path>                  Env file(s) to load (repeatable; existing env vars are not overridden)
@@ -275,7 +289,7 @@ Notes:
   - --watch forks one child process running the same CLI without --watch. File changes
     are serialized into one restart at a time: SIGTERM, SIGKILL after 5000 ms if needed,
     then respawn after the debounce delay. Shutdown closes owned watchers and signal handlers.
-  - In build/build-serverless mode, express is always external. Add more externals with --external.
+  - In build/build-serverless mode, express and @web-ts-toolkit/express-runtime are always external. Add more externals with --external.
   - In start mode, the bundled app file must default-export an Express app (or export it as "app").
     If the bundle exports "init", it runs before the server starts listening.
   - In start-serverless mode, the bundled handler file must be a JS/CJS module whose
@@ -383,12 +397,12 @@ function parseDevArgs(argv: string[]): DevArgs {
     }
 
     if (arg === '--shutdown-timeout') {
-      options.shutdownTimeout = parseIntegerFlag(readValue(argv, index, arg), '--shutdown-timeout');
+      options.shutdownTimeout = parseTimerFlag(readValue(argv, index, arg), '--shutdown-timeout');
       index += 1;
       continue;
     }
     if (arg.startsWith('--shutdown-timeout=')) {
-      options.shutdownTimeout = parseIntegerFlag(
+      options.shutdownTimeout = parseTimerFlag(
         readInlineValue(arg, '--shutdown-timeout=', '--shutdown-timeout'),
         '--shutdown-timeout',
       );
@@ -444,12 +458,12 @@ function parseDevArgs(argv: string[]): DevArgs {
     }
 
     if (arg === '--delay') {
-      watchDelay = parseIntegerFlag(readValue(argv, index, arg), '--delay');
+      watchDelay = parseTimerFlag(readValue(argv, index, arg), '--delay');
       index += 1;
       continue;
     }
     if (arg.startsWith('--delay=')) {
-      watchDelay = parseIntegerFlag(readInlineValue(arg, '--delay=', '--delay'), '--delay');
+      watchDelay = parseTimerFlag(readInlineValue(arg, '--delay=', '--delay'), '--delay');
       continue;
     }
 
@@ -835,21 +849,27 @@ export function loadEnvFiles(paths: string[]): void {
   }
 }
 
-const moduleRequire: NodeRequire = createRequire(
-  pathToFileURL(pathResolve(process.cwd(), '__wtt_runtime_preload__.js')),
-);
-
 /**
  * Preload modules (e.g. `tsconfig-paths/register`, `dotenv/config`) before
  * loading the app module. Each module is `require()`-ed, running its
  * side effects (registering hooks, loading configs, etc.).
  *
+ * Resolution uses the current working directory captured when preloading
+ * starts, so programmatic consumers that change cwd between invocations
+ * resolve relative preloads (and bare dependencies) against the current
+ * invocation — consistent with call-time `loadEnvFiles`/`loadApp` — rather
+ * than the directory that was current when this module was first evaluated.
+ * Preloads run sequentially in list order. No sandbox is applied.
+ *
  * Public helper for programmatic CLI integrations that need the same preload
  * behavior as the binary before loading an app or handler module.
  */
 export async function preloadModules(modules: string[]): Promise<void> {
+  const invocationRequire: NodeRequire = createRequire(
+    pathToFileURL(pathResolve(process.cwd(), '__wtt_runtime_preload__.js')),
+  );
   for (const mod of modules) {
-    moduleRequire(mod);
+    invocationRequire(mod);
   }
 }
 
@@ -867,6 +887,7 @@ export interface WatchSupervisorDeps {
   watch?: typeof watch;
   existsSync?: typeof existsSync;
   logger?: Pick<Console, 'error'>;
+  /** Ms before SIGTERM escalates to SIGKILL. Must be a finite integer in `0..2147483647` (Node timer limit). */
   killTimeoutMs?: number;
   setTimeout?: typeof setTimeout;
   clearTimeout?: typeof clearTimeout;
@@ -900,6 +921,19 @@ function toDiagnosticMessage(prefix: string, error: unknown): string {
 }
 
 /**
+ * True when the child process is confirmed gone (exited or never spawned).
+ * A live child retains a pid with no exit/signal code yet. Fake/legacy
+ * handles without exitCode fields fall back to the pid check so live-child
+ * `error` events and failed kills do not silently drop ownership.
+ */
+function isChildGone(proc: ChildProcess): boolean {
+  const exitCode = (proc as unknown as { exitCode?: number | null }).exitCode;
+  const signalCode = (proc as unknown as { signalCode?: NodeJS.Signals | null }).signalCode;
+  if (exitCode != null || signalCode != null) return true;
+  return proc.pid === undefined;
+}
+
+/**
  * Create a watch supervisor with injectable dependencies.
  * This is the test-observable seam; production `runWithWatch` delegates here
  * with real `fork`/`watch`.
@@ -912,6 +946,14 @@ export function createWatchSupervisor(args: DevArgs, deps: WatchSupervisorDeps =
   const setTimeoutImpl = deps.setTimeout ?? setTimeout;
   const clearTimeoutImpl = deps.clearTimeout ?? clearTimeout;
   const killTimeoutMs = deps.killTimeoutMs ?? DEFAULT_WATCH_KILL_TIMEOUT_MS;
+  // Reject overflowing timer durations before creating watchers, children, or
+  // timers: Node would otherwise clamp them with a TimeoutOverflowWarning
+  // (e.g. 2147483648 becomes 1 ms) and restart/terminate near-immediately.
+  validateTimerDuration(args.watchDelay, '--delay');
+  validateTimerDuration(killTimeoutMs, 'killTimeoutMs');
+  if (args.options.shutdownTimeout !== undefined) {
+    validateTimerDuration(args.options.shutdownTimeout, '--shutdown-timeout');
+  }
 
   const cliPath = process.argv[1];
   const childArgv = buildChildArgs(args);
@@ -977,7 +1019,10 @@ export function createWatchSupervisor(args: DevArgs, deps: WatchSupervisorDeps =
 
     child = nextChild;
     nextChild.once('error', (error) => {
-      if (child === nextChild) {
+      // Distinguish spawn failure (confirmed gone, no pid/exit) from errors on
+      // a live child. A live child keeps ownership so shutdown can terminate
+      // it; only a confirmed-gone process releases ownership here.
+      if (isChildGone(nextChild) && child === nextChild) {
         child = null;
       }
       fail(toDiagnosticMessage('Watch child process error', error));
@@ -1009,10 +1054,18 @@ export function createWatchSupervisor(args: DevArgs, deps: WatchSupervisorDeps =
         clearKillTimer();
         target.removeListener('exit', onExit);
         target.removeListener('error', onError);
-        if (child === target) child = null;
-        if (terminatingChild === target) terminatingChild = null;
-        if (error) reject(error);
-        else resolve();
+        if (error) {
+          // Failed kill: retain ownership of a live child so shutdown/restarts
+          // can retry and diagnostics do not pretend success. Clear only the
+          // termination intent; keep `child` unless absence is confirmed.
+          if (terminatingChild === target) terminatingChild = null;
+          if (child === target && isChildGone(target)) child = null;
+          reject(error);
+        } else {
+          if (child === target) child = null;
+          if (terminatingChild === target) terminatingChild = null;
+          resolve();
+        }
       };
       const onExit = (): void => settle();
       const onError = (error: Error): void => settle(error);
@@ -1161,11 +1214,16 @@ export function createWatchSupervisor(args: DevArgs, deps: WatchSupervisorDeps =
  * Reconstruct the argv for the child process, stripping --watch/--ext/--delay
  * flags (the child runs without watch mode).
  *
+ * Generated options are placed before `--`, with the positional app module
+ * after it, so leading-dash module paths (e.g. `--app.js`, `--help`) parsed
+ * via `dev --watch ./src -- --app.js` keep their `--` protection and are not
+ * reinterpreted as flags (or help/version requests) by the child parser.
+ *
  * Public helper for CLI wrappers that supervise watch mode themselves and need
  * the same child argv reconstruction as `runWithWatch`.
  */
 export function buildChildArgs(args: DevArgs): string[] {
-  const result: string[] = ['dev', args.appPath];
+  const result: string[] = ['dev'];
   if (args.options.port !== undefined) result.push('--port', String(args.options.port));
   if (args.options.host !== undefined) result.push('--host', args.options.host);
   if (args.options.signals === false) result.push('--no-signals');
@@ -1174,6 +1232,7 @@ export function buildChildArgs(args: DevArgs): string[] {
   if (args.tsconfigPath !== undefined) result.push('--tsconfig', args.tsconfigPath);
   for (const r of args.require) result.push('--require', r);
   for (const e of args.env) result.push('--env', e);
+  result.push('--', args.appPath);
   return result;
 }
 
@@ -1191,11 +1250,18 @@ export function runWithWatch(args: DevArgs, deps: WatchSupervisorDeps = {}): Wat
   const usingInjectedDeps = Object.keys(deps).length > 0;
   const installSignalHandlers = deps.installSignalHandlers ?? !usingInjectedDeps;
   const exitImpl = deps.exit ?? (usingInjectedDeps ? undefined : (code: number) => process.exit(code));
+  // Single-flight exit: controller failures already exit nonzero via `fail`;
+  // the signal path must not override that with a second exit(0).
+  let exited = false;
+  const exitOnce = (code: number): void => {
+    if (exited) return;
+    exited = true;
+    exitImpl?.(code);
+  };
   const controller = createWatchSupervisor(args, {
     ...deps,
-    exit: exitImpl,
+    exit: exitOnce,
   });
-  let shutdownStarted = false;
   const ownedHandlers: Array<[NodeJS.Signals, () => void]> = [];
   const removeOwnedHandlers = (): void => {
     for (const [signal, handler] of ownedHandlers.splice(0)) {
@@ -1203,8 +1269,14 @@ export function runWithWatch(args: DevArgs, deps: WatchSupervisorDeps = {}): Wat
     }
   };
   const shutdown = async (): Promise<void> => {
-    removeOwnedHandlers();
-    await controller.shutdown();
+    // Keep guarded signal handling until cleanup settles so a second OS
+    // signal cannot restore Node's default terminate action mid-escalation.
+    // Only owned listeners are removed, and only after settle.
+    try {
+      await controller.shutdown();
+    } finally {
+      removeOwnedHandlers();
+    }
   };
   const wrappedController: WatchSupervisorController = {
     shutdown,
@@ -1215,15 +1287,49 @@ export function runWithWatch(args: DevArgs, deps: WatchSupervisorDeps = {}): Wat
 
   // In injected test mode, caller manages shutdown unless it explicitly opts in
   // to signal handlers. In production, exit after child terminates.
+  //
+  // Bounded repeated-signal policy (handlers stay installed until shutdown
+  // settles, so Node's default action is never restored mid-cleanup):
+  // - 1st signal starts single-flight graceful shutdown (SIGTERM, then SIGKILL
+  //   after the kill timeout via the supervisor);
+  // - 2nd signal while shutdown is pending best-effort escalates the live
+  //   child to SIGKILL immediately and otherwise keeps waiting;
+  // - further signals are coalesced (counted, no new shutdown, no forced
+  //   default termination) until cleanup settles.
   if (installSignalHandlers) {
-    const shutdownAndExit = (): void => {
-      if (shutdownStarted) return;
-      shutdownStarted = true;
-      void shutdown().then(() => exitImpl?.(0));
+    let signalCount = 0;
+    const shutdownAndExit = (signal: NodeJS.Signals): void => {
+      signalCount += 1;
+      if (signalCount === 1) {
+        void shutdown().then(
+          () => exitOnce(0),
+          () => exitOnce(1),
+        );
+        return;
+      }
+      if (signalCount === 2) {
+        try {
+          const live = controller.getChild();
+          if (live?.pid) {
+            try {
+              live.kill('SIGKILL');
+            } catch (_error) {
+              void _error;
+            }
+          }
+        } catch (_error) {
+          void _error;
+        }
+        void signal;
+        return;
+      }
+      // signalCount >= 3: coalesced; remain guarded until shutdown settles.
     };
-    ownedHandlers.push(['SIGINT', shutdownAndExit], ['SIGTERM', shutdownAndExit]);
-    process.on('SIGINT', shutdownAndExit);
-    process.on('SIGTERM', shutdownAndExit);
+    const onSigint = (): void => shutdownAndExit('SIGINT');
+    const onSigterm = (): void => shutdownAndExit('SIGTERM');
+    ownedHandlers.push(['SIGINT', onSigint], ['SIGTERM', onSigterm]);
+    process.on('SIGINT', onSigint);
+    process.on('SIGTERM', onSigterm);
   }
 
   return wrappedController;
@@ -1303,68 +1409,169 @@ export function generateRuntimeEntry(appPath: string, initPath?: string): string
  * Public safety check for programmatic build integrations before invoking
  * `buildBundleFromEntryContent()` with `clean: true`.
  */
+/**
+ * Validate that `outDir` is safe to clean before invoking tsup.
+ * Prevents destructive `clean: true` combinations:
+ *  - filesystem root (physical)
+ *  - project cwd itself (physical)
+ *  - ancestors of the project cwd (physical, through symlinked aliases)
+ *  - symlinked output directories
+ *  - output that physically contains input files (appPath/initPath), or is
+ *    physically nested inside an input path
+ *
+ * Physical comparison canonicalizes cwd, outDir (via its nearest existing
+ * ancestor when it does not exist yet), and supplied input paths with
+ * `realpath`. Unexpected filesystem errors fail closed. Only `clean: false`
+ * skips validation.
+ *
+ * Public safety check for programmatic build integrations before invoking
+ * `buildBundleFromEntryContent()` with `clean: true`.
+ */
 export function validateOutDirForClean(outDir: string, clean: boolean, appPath?: string, initPath?: string): void {
   if (!clean) return;
   const cwd = process.cwd();
+  const canonicalCwd = canonicalizeCwd(cwd);
   const outAbs = pathResolve(cwd, outDir);
-  const normalized = pathNormalize(outAbs);
-  const root = pathParse(normalized).root;
-  if (normalized === root) {
-    throw new Error(`Refusing to clean filesystem root: ${outDir} resolves to ${normalized}`);
+  const canonicalOut = canonicalizePhysicalPath(outAbs, 'outDir');
+  const root = pathParse(canonicalOut).root;
+  if (canonicalOut === root) {
+    throw new Error(`Refusing to clean filesystem root: ${outDir} resolves to ${canonicalOut}`);
   }
-  if (normalized === pathNormalize(cwd)) {
+  if (canonicalOut === canonicalCwd) {
     throw new Error(`Refusing to clean project directory: ${outDir} resolves to cwd ${cwd}`);
   }
-  // Forbid cleaning an ancestor of cwd (e.g. outDir = ".." cleaning parent)
-  if (cwd !== root && (cwd === normalized || cwd.startsWith(normalized + pathSep))) {
+  // Forbid cleaning an ancestor of cwd (e.g. outDir = ".." cleaning parent),
+  // compared physically so symlinked aliases of cwd/parents are also rejected.
+  if (canonicalCwd === canonicalOut || canonicalCwd.startsWith(canonicalOut + pathSep)) {
     throw new Error(
-      `Refusing to clean ancestor of project directory: ${outDir} resolves to ${normalized} which contains cwd ${cwd}`,
+      `Refusing to clean ancestor of project directory: ${outDir} resolves to ${canonicalOut} which contains cwd ${cwd}`,
     );
   }
-  // Symlinked output directory
+  // Symlinked output directory: fail closed on unexpected inspection errors,
+  // allow only confirmed-missing paths to proceed.
   try {
-    if (existsSync(outAbs)) {
-      const st = lstatSync(outAbs);
-      if (st.isSymbolicLink()) {
-        throw new Error(`Refusing to clean symlinked outDir: ${outDir} resolves to symlink ${outAbs}`);
-      }
-      // Also check realpath differs dangerously (e.g. symlink inside)
-      // We already rejected direct symlink; realpath check for nested symlink is best-effort
+    const st = lstatSync(outAbs);
+    if (st.isSymbolicLink()) {
+      throw new Error(`Refusing to clean symlinked outDir: ${outDir} resolves to symlink ${outAbs}`);
     }
   } catch (e) {
     if ((e as Error).message.startsWith('Refusing to clean')) throw e;
-    // otherwise ignore lstat errors (file may not exist yet)
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+      throw new Error(
+        `Refusing to clean outDir with unresolvable state: ${outDir} (${outAbs}): ${(e as Error).message}`,
+        { cause: e },
+      );
+    }
+    // Missing path: safe to proceed to canonical checks already performed.
   }
-  // Input overlap: appPath or initPath inside outDir
+  // Input overlap: appPath or initPath physically inside outDir (or equal),
+  // or outDir physically nested inside an input path. Both directions fail
+  // closed so symlinked input directories cannot be cleaned.
   const checkOverlap = (inputPath: string | undefined, label: string) => {
     if (!inputPath) return;
     const inputAbs = pathResolve(cwd, inputPath);
-    const inputNorm = pathNormalize(inputAbs);
-    if (inputNorm === normalized) {
+    const canonicalInput = canonicalizePhysicalPath(inputAbs, label);
+    if (canonicalInput === canonicalOut) {
       throw new Error(`Refusing to clean outDir that is the same as ${label}: ${outDir} == ${inputPath}`);
     }
-    if (inputNorm.startsWith(normalized + pathSep)) {
+    if (canonicalInput.startsWith(canonicalOut + pathSep)) {
       throw new Error(`Refusing to clean outDir that contains ${label}: ${outDir} contains ${inputPath}`);
+    }
+    if (canonicalOut.startsWith(canonicalInput + pathSep)) {
+      throw new Error(`Refusing to clean outDir inside ${label}: ${outDir} is inside ${inputPath}`);
     }
   };
   checkOverlap(appPath, 'appPath');
   checkOverlap(initPath, 'initPath');
 }
 
-function createUniqueStagingDir(): string {
+/**
+ * Resolve the canonical physical path for validation: `realpath` of the
+ * nearest existing ancestor joined with any non-existent trailing segments.
+ * `ENOENT`/`ENOTDIR` walks upward; every other filesystem error fails closed.
+ */
+function canonicalizePhysicalPath(absPath: string, label: string): string {
+  const normalizedStart = pathNormalize(absPath);
+  let current = normalizedStart;
+  const suffixParts: string[] = [];
+  while (true) {
+    try {
+      const real = realpathSync(current);
+      if (suffixParts.length === 0) return pathNormalize(real);
+      return pathNormalize(pathJoin(real, ...suffixParts.slice().reverse()));
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT' || code === 'ENOTDIR') {
+        const parent = dirname(current);
+        if (parent === current) {
+          throw new Error(`Refusing to clean ${label}: unable to resolve existing ancestor of ${absPath}`, {
+            cause: error,
+          });
+        }
+        suffixParts.push(basename(current));
+        current = parent;
+        continue;
+      }
+      throw new Error(`Refusing to clean ${label}: unable to resolve ${absPath}: ${(error as Error).message}`, {
+        cause: error,
+      });
+    }
+  }
+}
+
+/** Canonicalize cwd via `realpath`; any failure fails closed. */
+function canonicalizeCwd(cwd: string): string {
+  try {
+    return pathNormalize(realpathSync(cwd));
+  } catch (error) {
+    throw new Error(`Refusing to clean: unable to resolve project directory ${cwd}: ${(error as Error).message}`, {
+      cause: error,
+    });
+  }
+}
+
+/** Injectable filesystem/build seams for deterministic staging-failure tests. */
+export interface BuildStagingDeps {
+  mkdtempSyncImpl?: typeof mkdtempSync;
+  lstatSyncImpl?: typeof lstatSync;
+  writeFileSyncImpl?: typeof writeFileSync;
+  rmSyncImpl?: typeof rmSync;
+  buildImpl?: (options: {
+    config: false;
+    entry: Record<string, string>;
+    tsconfig?: string;
+    format: string[];
+    target: string;
+    outDir: string;
+    clean: boolean;
+    external: string[];
+    sourcemap: boolean;
+    dts: boolean;
+    splitting: boolean;
+  }) => Promise<void>;
+}
+
+function createUniqueStagingDir(deps: BuildStagingDeps = {}): string {
   const cwd = process.cwd();
   const prefix = pathJoin(cwd, STAGING_DIR_PREFIX);
-  const dir = mkdtempSync(prefix);
-  // Ensure private permissions and not a symlink
+  const mkdtemp = deps.mkdtempSyncImpl ?? mkdtempSync;
+  const lstat = deps.lstatSyncImpl ?? lstatSync;
+  const rm = deps.rmSyncImpl ?? rmSync;
+  const dir = mkdtemp(prefix);
+  // Ensure private staging is not a symlink; any post-acquisition failure
+  // removes the owned directory so callers never leak it.
   try {
-    const st = lstatSync(dir);
+    const st = lstat(dir);
     if (st.isSymbolicLink()) {
-      rmSync(dir, { recursive: true, force: true });
       throw new Error(`Staging directory is a symlink: ${dir}`);
     }
   } catch (e) {
-    if ((e as Error).message.includes('Staging directory is a symlink')) throw e;
-    // lstat failure is unexpected but rethrow
+    try {
+      rm(dir, { recursive: true, force: true });
+    } catch {
+      /* best-effort cleanup */
+    }
     throw e;
   }
   try {
@@ -1375,51 +1582,77 @@ function createUniqueStagingDir(): string {
   return dir;
 }
 
-function writeStagingEntry(dir: string, content: string): string {
+function writeStagingEntry(dir: string, content: string, deps: BuildStagingDeps = {}): string {
   const entryPath = pathJoin(dir, 'entry.ts');
-  // Defensive: ensure entryPath is not a symlink and doesn't exist
+  const lstat = deps.lstatSyncImpl ?? lstatSync;
+  const writeFile = deps.writeFileSyncImpl ?? writeFileSync;
+  const rm = deps.rmSyncImpl ?? rmSync;
+  // Defensive: ensure entryPath is not a symlink and doesn't exist. Only a
+  // confirmed-missing path proceeds; unexpected inspection errors fail closed.
   try {
-    if (existsSync(entryPath)) {
-      const st = lstatSync(entryPath);
-      if (st.isSymbolicLink()) {
-        throw new Error(`Refusing to overwrite symlink at staging path: ${entryPath}`);
-      }
-      throw new Error(`Staging file already exists: ${entryPath}`);
+    const st = lstat(entryPath);
+    if (st.isSymbolicLink()) {
+      throw new Error(`Refusing to overwrite symlink at staging path: ${entryPath}`);
     }
+    throw new Error(`Staging file already exists: ${entryPath}`);
   } catch (e) {
-    if (
-      (e as Error).message.startsWith('Refusing to') ||
-      (e as Error).message.startsWith('Staging file already exists')
-    )
-      throw e;
-    // existsSync false or lstat failure for non-existent is fine
+    const message = (e as Error).message;
+    if (message.startsWith('Refusing to') || message.startsWith('Staging file already exists')) throw e;
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+      throw new Error(`Refusing to use staging path with unresolvable state: ${entryPath}: ${message}`, {
+        cause: e,
+      });
+    }
+    // Confirmed missing: proceed to exclusive creation.
   }
   // Exclusive creation (wx), private perms 0600
-  writeFileSync(entryPath, content, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
-  // Verify not symlink after write
+  writeFile(entryPath, content, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+  // Verify not symlink after write; any inspection failure fails closed and
+  // removes the entry best-effort (the caller still removes the staging dir).
   try {
-    const st = lstatSync(entryPath);
+    const st = lstat(entryPath);
     if (st.isSymbolicLink()) {
-      rmSync(entryPath, { force: true });
+      try {
+        rm(entryPath, { force: true });
+      } catch {
+        /* best-effort cleanup */
+      }
       throw new Error(`Staging file is a symlink after write: ${entryPath}`);
     }
   } catch (e) {
     if ((e as Error).message.includes('Staging file is a symlink')) throw e;
+    try {
+      rm(entryPath, { force: true });
+    } catch {
+      /* best-effort cleanup */
+    }
+    throw new Error(`Refusing to use staging file with unresolvable state: ${entryPath}: ${(e as Error).message}`, {
+      cause: e,
+    });
   }
   return entryPath;
 }
 
-export async function buildBundleFromEntryContent(args: BuildEntryContentArgs): Promise<void> {
+export async function buildBundleFromEntryContent(
+  args: BuildEntryContentArgs,
+  deps: BuildStagingDeps = {},
+): Promise<void> {
   // Validate outDir early when clean is true; without appPath we only check root/cwd/symlink
   validateOutDirForClean(args.outDir, args.clean);
-  const tsupModule: typeof import('tsup') = await import('tsup');
-  const { build } = tsupModule;
-  const stagingDir = createUniqueStagingDir();
-  const tempEntryPath = writeStagingEntry(stagingDir, args.entryContent);
-  const absOutDir = pathResolve(process.cwd(), args.outDir);
-
+  // Lazy-load the bundler only for real builds so validation/mocked-build
+  // assertions in temporary cwds never pull bundler cwd state into the process.
+  const buildImpl = deps.buildImpl ?? ((await import('tsup')).build as NonNullable<BuildStagingDeps['buildImpl']>);
+  const rm = deps.rmSyncImpl ?? rmSync;
+  // Every operation after staging acquisition (entry write, inspection, and
+  // the bundled build itself) runs inside the protected region so an
+  // injected or real failure cannot leak the owned staging directory.
+  const stagingDir = createUniqueStagingDir(deps);
   try {
-    await build({
+    const tempEntryPath = writeStagingEntry(stagingDir, args.entryContent, deps);
+    const absOutDir = pathResolve(process.cwd(), args.outDir);
+
+    await buildImpl({
       config: false,
       entry: { [args.outName]: tempEntryPath },
       tsconfig: args.tsconfigPath,
@@ -1433,13 +1666,21 @@ export async function buildBundleFromEntryContent(args: BuildEntryContentArgs): 
       splitting: false,
     });
   } finally {
-    rmSync(stagingDir, { recursive: true, force: true });
+    try {
+      rm(stagingDir, { recursive: true, force: true });
+    } catch {
+      /* best-effort cleanup must not mask the original error */
+    }
   }
 }
 
 /**
  * Bundle an Express app as a local runtime module. The output default-exports
  * the app and may additionally export an `init` hook for the `start` command.
+ *
+ * `express` and `@web-ts-toolkit/express-runtime` are always external, so the
+ * bundle must be deployed with both packages installed (`express` is a peer
+ * dependency). Additional externals can be passed via `BuildArgs.external`.
  */
 export async function buildRuntime(args: BuildArgs): Promise<void> {
   const { runBuildEntryCommand } = await import('./cli-api');
@@ -1453,8 +1694,11 @@ export async function buildRuntime(args: BuildArgs): Promise<void> {
  * to the user's cwd (for node_modules resolution), lazy-loads the bundled
  * build tool, then cleans up.
  *
- * `express` is always external; additional externals can be passed via
- * `BuildArgs.external`.
+ * `express` and `@web-ts-toolkit/express-runtime` (imported by the generated
+ * entry) are always external; additional externals can be passed via
+ * `BuildArgs.external`. Deploy the bundle together with both packages
+ * installed (`express` is a peer dependency; `serverless-http` ships with the
+ * runtime package).
  */
 export async function buildServerless(args: BuildArgs): Promise<void> {
   const { runBuildEntryCommand } = await import('./cli-api');
@@ -1468,13 +1712,29 @@ export async function buildServerless(args: BuildArgs): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
- * A platform-agnostic serverless handler function (the output of
- * `build-serverless`).
+ * A serverless handler callable as invoked by the local `start-serverless`
+ * adapter. The adapter supplies an AWS API Gateway REST API v1 event (see
+ * `ApiGatewayRestEvent`) and an empty record context (`{}`), then validates
+ * the unknown result via `applyServerlessResult`.
+ *
+ * Keep the parameters narrow: handlers requiring provider-specific event
+ * fields or rich Lambda-like contexts must not typecheck here, since the
+ * local adapter cannot supply them. The default
+ * `ServerlessHandler<Record<string, unknown>, Record<string, unknown>>` from
+ * `createServerlessHandler(app)` remains assignable, so cast-free
+ * `createServerlessAdapterApp(createServerlessHandler(app))` composition
+ * compiles.
  */
-export type GenericHandler = (event: unknown, context: unknown) => Promise<unknown>;
+export type GenericHandler = (event: ApiGatewayRestEvent, context: Record<string, unknown>) => Promise<unknown>;
 
-/** AWS API Gateway REST API v1 / Lambda proxy event shape emitted by the local adapter. */
-export interface ApiGatewayRestEvent {
+/**
+ * AWS API Gateway REST API v1 / Lambda proxy event shape emitted by the local adapter.
+ *
+ * Declared as a type alias (not an interface) so the implicit index signature
+ * lets the default provider-generic `ServerlessHandler` (`Record<string,
+ * unknown>` event) accept it without casts.
+ */
+export type ApiGatewayRestEvent = {
   httpMethod: string;
   path: string;
   headers: Record<string, string>;
@@ -1488,7 +1748,7 @@ export interface ApiGatewayRestEvent {
       sourceIp: string;
     };
   };
-}
+};
 
 /**
  * AWS API Gateway REST API v1 / Lambda proxy result shape returned by `serverless-http`.
@@ -1508,7 +1768,12 @@ export interface ServerlessAdapterOptions {
    * Maximum bytes to buffer for a single request body.
    * Default: 1048576 (1 MiB). Must be a finite non-negative integer.
    * When `0`, no body is allowed — any non-empty body receives `413`.
-   * The adapter never retains more than this limit plus at most one incoming chunk.
+   * Collection retains O(limit) chunk bytes: appending stops once the running
+   * total would exceed the limit (at most one chunk over the limit is observed
+   * before rejection). `Buffer.concat` then holds the chunks plus one output
+   * Buffer, and event translation adds a transient base64 copy (~4/3 of the
+   * body), so peak transient memory is a small multiple of the limit rather
+   * than an exact limit-plus-chunk ceiling.
    */
   maxBodyBytes?: number;
 }
@@ -1536,6 +1801,13 @@ export function validateMaxBodyBytes(value: unknown): number {
  * bodies with a `LIMIT_EXCEEDED` error (413), stops retaining chunks after the limit,
  * removes owned listeners, and drains the request.
  * Distinguishes client aborts (`CLIENT_ABORT`) and stream errors from oversize.
+ *
+ * Memory phases (no unmeasured total-memory ceiling is claimed): chunk
+ * retention is O(limit) — appending stops once the running total would exceed
+ * `maxBytes`, so at most one chunk over the limit is observed before
+ * rejection; `Buffer.concat` then retains the chunks plus one output Buffer of
+ * the accepted size; `toServerlessEvent` adds a transient base64 copy (~4/3 of
+ * the body). Peak transient memory is therefore a small multiple of the limit.
  */
 export function collectBody(req: Request, maxBytes: number): Promise<Buffer> {
   validateMaxBodyBytes(maxBytes);
@@ -1615,11 +1887,16 @@ export function collectBody(req: Request, maxBytes: number): Promise<Buffer> {
       if (finished) return;
       finished = true;
       cleanup();
+      let body: Buffer;
       try {
-        resolve(Buffer.concat(chunks, total));
+        body = Buffer.concat(chunks, total);
       } catch (e) {
-        fail(e as Error);
+        // Finalization failure: `finished` is already set and owned listeners
+        // are removed, so reject directly (fail() would early-return).
+        reject(e as Error);
+        return;
       }
+      resolve(body);
     };
 
     const onError = (err: Error): void => {
@@ -1650,6 +1927,56 @@ export function collectBody(req: Request, maxBytes: number): Promise<Buffer> {
 /**
  * Build an AWS API Gateway REST API v1 / Lambda proxy event from HTTP request components.
  *
+ * Path contract (origin-form request targets are preserved verbatim):
+ *
+ * - `url` is normally the raw origin-form target from `req.url`
+ *   (`/path?query`). The path is everything before the first literal `?`
+ *   (or `#`); it is never dot-segment-resolved, slash-collapsed, or
+ *   percent-decoded. `//admin/users`, `/a/../private`, `/a/./b`,
+ *   `/%2E%2E/private`, and `/a%2Fb` all reach the handler unchanged, so
+ *   wrapped routing sees the same target the client sent. Query splitting
+ *   and single-decode semantics are unchanged, and only a literal `?`
+ *   starts the query (an encoded `%3F` stays in the path).
+ * - A `#fragment`, never part of a real HTTP request target, is stripped
+ *   when present.
+ * - Absolute-form targets (`scheme://authority/path?query`, as sent to
+ *   proxies) are supported by stripping the scheme and authority and
+ *   preserving the raw path remainder (`http://h//a/../b?x=1` yields path
+ *   `//a/../b`); a missing remainder maps to `/`. Userinfo, host, and port
+ *   are ignored, not validated.
+ * - Asterisk-form (`*`, used by `OPTIONS *`) is supported with path `*`.
+ * - The empty string maps to `/` for backwards compatibility. Any other
+ *   target that is neither origin-form, absolute-form, nor asterisk-form
+ *   (e.g. `foo/bar`) is rejected with an `Error` (the local adapter turns
+ *   this into a 500 without invoking the handler).
+ *
+ * Intentional behavior change: this helper previously split the target via
+ * the WHATWG `URL` parser, which rewrote origin-form paths before routing
+ * (`//admin/users` was parsed as host `admin` plus path `/users`,
+ * `/a/../private` resolved to `/private`, and even encoded `%2E%2E` was
+ * decoded and then resolved). Those rewrites silently selected a different
+ * route; they are no longer performed.
+ *
+ * Header contract (HTTP boundary fidelity):
+ *
+ * - When the Node `rawHeaders` list (`[name, value, ...]` from
+ *   `IncomingMessage.rawHeaders`, optionally passed as the fifth argument)
+ *   is available, both header maps are derived from it. Names are
+ *   lowercased (HTTP names are case-insensitive, so `X-Repeat` and
+ *   `x-repeat` merge); values are preserved verbatim in wire order and
+ *   never split on commas (`"one, with comma"` stays one entry).
+ * - Otherwise the `headers` map (e.g. `req.headers` or `headersDistinct`)
+ *   is used as-is: array values are preserved entry-wise, string values
+ *   become single entries, and commas inside values are never split. Note
+ *   that `req.headers` has already joined duplicates (`"one, two"`), so
+ *   callers at the real HTTP boundary should pass `rawHeaders` (the local
+ *   adapter does) to keep repeated headers distinct.
+ * - The single-value map joins each multi-value entry with `", "`; the
+ *   multi-value map keeps every value in order. Response `set-cookie`
+ *   handling is unchanged (`applyServerlessResult` still emits each
+ *   `set-cookie` value as its own header and joins other multi-values
+ *   with `","`).
+ *
  * Public helper for adapters that need the same AWS REST API v1 event shape as
  * the `start-serverless` command.
  */
@@ -1658,14 +1985,15 @@ export function toServerlessEvent(
   url: string,
   headers: Record<string, string | string[] | undefined>,
   body: Buffer,
+  rawHeaders?: unknown,
 ): ApiGatewayRestEvent {
-  const parsedUrl = new URL(url, 'http://localhost');
-  const { queryStringParameters, multiValueQueryStringParameters } = parseAwsRestQuery(parsedUrl.search);
-  const { singleValueHeaders, multiValueHeaders } = normalizeAwsRestHeaders(headers);
+  const { path, search } = splitRequestTarget(url);
+  const { queryStringParameters, multiValueQueryStringParameters } = parseAwsRestQuery(search);
+  const { singleValueHeaders, multiValueHeaders } = buildAwsRestHeaders(headers, rawHeaders);
 
   return {
     httpMethod: method,
-    path: parsedUrl.pathname,
+    path,
     headers: singleValueHeaders,
     multiValueHeaders,
     queryStringParameters,
@@ -1681,6 +2009,53 @@ export function toServerlessEvent(
   };
 }
 
+/**
+ * Split an HTTP request target into a verbatim path and a `?`-prefixed
+ * search string without WHATWG normalization. See `toServerlessEvent` for
+ * the supported forms and contract.
+ */
+function splitRequestTarget(target: string): { path: string; search: string } {
+  if (target === '') {
+    return { path: '/', search: '' };
+  }
+
+  let remainder = target;
+  const absoluteMatch = remainder.match(/^([A-Za-z][A-Za-z0-9+.-]*):\/\//);
+  if (absoluteMatch) {
+    const afterScheme = remainder.slice(absoluteMatch[0].length);
+    const boundary = afterScheme.search(/[/?#]/);
+    if (boundary === -1) {
+      return { path: '/', search: '' };
+    }
+    remainder = afterScheme.slice(boundary);
+    if (remainder.startsWith('?') || remainder.startsWith('#')) {
+      // Absolute URI without a path, e.g. `http://host?x=1`.
+      remainder = `/${remainder}`;
+    }
+  } else if (remainder === '*' || remainder.startsWith('*?') || remainder.startsWith('*#')) {
+    remainder = remainder.slice(1);
+    if (remainder === '') {
+      return { path: '*', search: '' };
+    }
+    // remainder now starts with `?` or `#`; fall through to fragment/query split.
+    const hashIndex = remainder.indexOf('#');
+    const withoutFragment = hashIndex === -1 ? remainder : remainder.slice(0, hashIndex);
+    return { path: '*', search: withoutFragment };
+  } else if (!remainder.startsWith('/')) {
+    throw new Error(
+      `Unsupported request target: ${JSON.stringify(target)}. Expected an origin-form path ("/path?query"), an absolute-form URI ("scheme://authority/path?query"), or "*"`,
+    );
+  }
+
+  const hashIndex = remainder.indexOf('#');
+  const withoutFragment = hashIndex === -1 ? remainder : remainder.slice(0, hashIndex);
+  const queryIndex = withoutFragment.indexOf('?');
+  if (queryIndex === -1) {
+    return { path: withoutFragment, search: '' };
+  }
+  return { path: withoutFragment.slice(0, queryIndex), search: withoutFragment.slice(queryIndex) };
+}
+
 function parseAwsRestQuery(
   search: string,
 ): Pick<ApiGatewayRestEvent, 'queryStringParameters' | 'multiValueQueryStringParameters'> {
@@ -1688,8 +2063,12 @@ function parseAwsRestQuery(
     return { queryStringParameters: null, multiValueQueryStringParameters: null };
   }
 
-  const single: Record<string, string> = {};
-  const multi: Record<string, string[]> = {};
+  // Null-prototype dictionaries so request-controlled keys such as
+  // `constructor`, `toString`, or `__proto__` are stored as own keys instead
+  // of colliding with inherited members. This is a local key-safety boundary;
+  // it makes no claim about global prototype pollution.
+  const single: Record<string, string> = Object.create(null);
+  const multi: Record<string, string[]> = Object.create(null);
   const query = search.startsWith('?') ? search.slice(1) : search;
   for (const pair of query.split('&')) {
     if (pair === '') continue;
@@ -1699,7 +2078,11 @@ function parseAwsRestQuery(
     const key = decodeQueryComponent(rawKey);
     const value = decodeQueryComponent(rawValue);
     single[key] = value;
-    (multi[key] ??= []).push(value);
+    if (Object.prototype.hasOwnProperty.call(multi, key)) {
+      (multi[key] as string[]).push(value);
+    } else {
+      multi[key] = [value];
+    }
   }
 
   return {
@@ -1721,8 +2104,10 @@ function normalizeAwsRestHeaders(headers: Record<string, string | string[] | und
   singleValueHeaders: Record<string, string>;
   multiValueHeaders: Record<string, string[]>;
 } {
-  const singleValueHeaders: Record<string, string> = {};
-  const multiValueHeaders: Record<string, string[]> = {};
+  // Null-prototype maps: header names are request-controlled at this shared
+  // boundary, so avoid inherited-key collisions the same way as query maps.
+  const singleValueHeaders: Record<string, string> = Object.create(null);
+  const multiValueHeaders: Record<string, string[]> = Object.create(null);
 
   for (const [key, value] of Object.entries(headers)) {
     if (value === undefined) continue;
@@ -1735,9 +2120,65 @@ function normalizeAwsRestHeaders(headers: Record<string, string | string[] | und
 }
 
 /**
+ * Derive AWS REST v1 header maps, preferring the verbatim `rawHeaders` wire
+ * list when one is supplied. Never splits values on commas; repeated headers
+ * stay distinct in `multiValueHeaders` while `headers` joins them with `", "`.
+ */
+function buildAwsRestHeaders(
+  headers: Record<string, string | string[] | undefined>,
+  rawHeaders: unknown,
+): { singleValueHeaders: Record<string, string>; multiValueHeaders: Record<string, string[]> } {
+  const fromRaw = headersFromRawHeadersList(rawHeaders);
+  if (fromRaw) return fromRaw;
+  if (isPlainRecord(rawHeaders)) {
+    // Accept a `headersDistinct`-shaped map when supplied as the fifth
+    // argument; it already keeps duplicates as arrays.
+    return normalizeAwsRestHeaders(rawHeaders as Record<string, string | string[] | undefined>);
+  }
+  return normalizeAwsRestHeaders(headers);
+}
+
+/**
+ * Group a Node `rawHeaders` flat list (`[name, value, ...]`) into
+ * single/multi header maps. Names are lowercased so differently cased
+ * repeats merge; values are kept verbatim in wire order. Returns `null`
+ * when the input is not a usable raw list so callers fall back to the
+ * merged headers map.
+ */
+function headersFromRawHeadersList(rawHeaders: unknown): {
+  singleValueHeaders: Record<string, string>;
+  multiValueHeaders: Record<string, string[]>;
+} | null {
+  if (!Array.isArray(rawHeaders)) return null;
+  if (rawHeaders.length % 2 !== 0) return null;
+  for (const entry of rawHeaders) {
+    if (typeof entry !== 'string') return null;
+  }
+  const singleValueHeaders: Record<string, string> = Object.create(null);
+  const multiValueHeaders: Record<string, string[]> = Object.create(null);
+  for (let index = 0; index < rawHeaders.length; index += 2) {
+    const name = (rawHeaders[index] as string).toLowerCase();
+    const value = rawHeaders[index + 1] as string;
+    if (Object.prototype.hasOwnProperty.call(multiValueHeaders, name)) {
+      (multiValueHeaders[name] as string[]).push(value);
+    } else {
+      multiValueHeaders[name] = [value];
+    }
+  }
+  for (const key of Object.keys(multiValueHeaders)) {
+    singleValueHeaders[key] = (multiValueHeaders[key] as string[]).join(', ');
+  }
+  return { singleValueHeaders, multiValueHeaders };
+}
+
+/**
  * Write a serverless handler result to an Express response.
  * Validates the complete AWS API Gateway REST API v1 / Lambda proxy result before writing anything.
  * `multiValueHeaders` wins over `headers` when the same header appears in both maps.
+ * An empty `multiValueHeaders` array is omitted (no header is emitted), but its
+ * name is still validated so invalid names fail closed even with zero values.
+ * If header/body application fails before headers are sent, any headers staged
+ * by this call are removed before the error propagates so a fallback 500 stays clean.
  *
  * Public helper for adapters that need the same AWS REST API v1 result-to-HTTP
  * translation as the `start-serverless` command.
@@ -1747,21 +2188,62 @@ export function applyServerlessResult(result: unknown, res: Response): void {
 
   res.status(response.statusCode);
 
-  for (const [key, value] of Object.entries(response.headers)) {
-    res.setHeader(key, value);
+  // Snapshot pre-existing headers so a mid-application failure can roll back
+  // to a clean response instead of leaking a partially staged 200 framing.
+  let baseline: Set<string> | undefined;
+  try {
+    baseline = new Set(Object.keys(res.getHeaders()).map((name) => name.toLowerCase()));
+  } catch (_e) {
+    void _e;
+    baseline = undefined;
   }
-  for (const [key, values] of Object.entries(response.multiValueHeaders)) {
-    if (key.toLowerCase() === 'set-cookie') {
-      res.setHeader(key, values);
-    } else {
-      res.setHeader(key, values.join(','));
+  try {
+    for (const [key, value] of Object.entries(response.headers)) {
+      res.setHeader(key, value);
     }
-  }
+    for (const [key, values] of Object.entries(response.multiValueHeaders)) {
+      if (key.toLowerCase() === 'set-cookie') {
+        res.setHeader(key, values);
+      } else {
+        res.setHeader(key, values.join(','));
+      }
+    }
 
-  if (response.isBase64Encoded) {
-    res.end(response.decodedBody);
-  } else {
-    res.end(response.body);
+    if (response.isBase64Encoded) {
+      res.end(response.decodedBody);
+    } else {
+      res.end(response.body);
+    }
+  } catch (error) {
+    if (!res.headersSent) {
+      try {
+        if (baseline !== undefined) {
+          for (const name of Object.keys(res.getHeaders())) {
+            if (!baseline.has(name.toLowerCase())) {
+              res.removeHeader(name);
+            }
+          }
+        } else {
+          for (const [key] of Object.entries(response.headers)) {
+            try {
+              res.removeHeader(key);
+            } catch (_e) {
+              void _e;
+            }
+          }
+          for (const [key] of Object.entries(response.multiValueHeaders)) {
+            try {
+              res.removeHeader(key);
+            } catch (_e) {
+              void _e;
+            }
+          }
+        }
+      } catch (_e) {
+        void _e;
+      }
+    }
+    throw error;
   }
 }
 
@@ -1834,7 +2316,7 @@ function validateSingleValueHeaders(value: unknown, name: string): Record<string
     throw new Error(`Invalid serverless result ${name}: expected an object of string header values.`);
   }
 
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = Object.create(null);
   for (const [key, headerValue] of Object.entries(value)) {
     if (headerValue === undefined) continue;
     if (typeof headerValue !== 'string') {
@@ -1852,11 +2334,18 @@ function validateMultiValueHeaders(value: unknown, name: string): Record<string,
     throw new Error(`Invalid serverless result ${name}: expected an object of string-array header values.`);
   }
 
-  const headers: Record<string, string[]> = {};
+  const headers: Record<string, string[]> = Object.create(null);
   for (const [key, headerValue] of Object.entries(value)) {
     if (headerValue === undefined) continue;
     if (!Array.isArray(headerValue) || headerValue.some((entry) => typeof entry !== 'string')) {
       throw new Error(`Invalid serverless result ${name}.${key}: expected an array of string header values.`);
+    }
+    if (headerValue.length === 0) {
+      // Empty arrays emit no header, but the name is still validated so an
+      // invalid name fails closed instead of leaking earlier headers at
+      // `setHeader` time. Omitted empties also do not shadow `headers`.
+      validateServerlessHeaderName(key, `${name}.${key}`);
+      continue;
     }
     for (const entry of headerValue) {
       validateServerlessHeader(key, entry, `${name}.${key}`);
@@ -1864,6 +2353,14 @@ function validateMultiValueHeaders(value: unknown, name: string): Record<string,
     headers[key] = headerValue;
   }
   return headers;
+}
+
+function validateServerlessHeaderName(key: string, label: string): void {
+  try {
+    validateHeaderName(key);
+  } catch (error) {
+    throw new Error(`Invalid serverless result header ${label}: ${(error as Error).message}`, { cause: error });
+  }
 }
 
 function validateServerlessHeader(key: string, value: string, label: string): void {
@@ -1888,14 +2385,22 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 /**
  * Create an Express app that proxies all requests to a serverless handler.
  * Each HTTP request is translated into a serverless event, the handler is
- * invoked, and the result is written back to the response.
+ * invoked as `handler(event, {})` where `event` is an `ApiGatewayRestEvent`
+ * and the context is an empty record, and the result is written back to the
+ * response.
  *
- * Express body parsers are disabled; the raw request body is read directly
- * from the stream and passed as a Buffer (so the serverless handler's request
- * hook — including the #305 workaround — works identically to production).
+ * Express body parsers are disabled; the raw request body is buffered with
+ * `collectBody` and then base64-encoded into the AWS v1 string `body` field
+ * (`isBase64Encoded` is true for non-empty bodies, false with `body: ''` for
+ * empty ones), so `serverless-http` replays the decoded bytes through the
+ * Express request stream identically to production.
  * Bodies exceeding `maxBodyBytes` (default 1 MiB, 0 = empty bodies only) receive
  * `413 Payload Too Large` without invoking the handler; the request is drained
- * and retained memory is bounded to the limit plus at most one chunk.
+ * and chunk retention is O(limit) — appending stops once the running total
+ * would exceed the limit, so at most one chunk over the limit is observed
+ * before rejection. `Buffer.concat` retains the chunks plus one output Buffer
+ * and event translation adds a transient base64 copy (~4/3 of the body), so
+ * peak transient memory is a small multiple of the limit.
  */
 export function createServerlessAdapterApp(handler: GenericHandler, options: ServerlessAdapterOptions = {}): Express {
   const maxBytes = options.maxBodyBytes ?? DEFAULT_ADAPTER_MAX_BODY_BYTES;
@@ -1941,18 +2446,50 @@ export function createServerlessAdapterApp(handler: GenericHandler, options: Ser
         }
         let result: unknown;
         try {
-          const event = toServerlessEvent(req.method, req.url, req.headers, body);
+          // Pass the verbatim wire list so repeated headers stay distinct in
+          // `multiValueHeaders` (req.headers has already joined them); fall
+          // back to headersDistinct when rawHeaders is unavailable.
+          const raw =
+            (req as { rawHeaders?: unknown }).rawHeaders ?? (req as { headersDistinct?: unknown }).headersDistinct;
+          const event = toServerlessEvent(req.method, req.url, req.headers, body, raw);
           result = await handler(event, {});
         } catch (e) {
           console.error('Serverless adapter error:', e);
           if (!res.headersSent && !res.writableEnded) res.status(500).end('Internal server error');
           return;
         }
+        let baselineHeaders: Set<string> | undefined;
+        try {
+          baselineHeaders = new Set(Object.keys(res.getHeaders()).map((name) => name.toLowerCase()));
+        } catch (_e) {
+          void _e;
+          baselineHeaders = undefined;
+        }
         try {
           applyServerlessResult(result, res);
         } catch (e) {
           console.error('Invalid serverless handler result:', e);
-          if (!res.headersSent && !res.writableEnded) res.status(500).end('Internal server error');
+          if (!res.headersSent && !res.writableEnded) {
+            // Defense in depth: `applyServerlessResult` already rolls back
+            // headers it staged, but clear anything still staged so the
+            // fallback 500 never carries a partial 200 framing. Baseline
+            // headers (e.g. Express defaults) are preserved.
+            try {
+              for (const name of Object.keys(res.getHeaders())) {
+                const lower = name.toLowerCase();
+                if (lower === 'content-length') continue;
+                if (baselineHeaders !== undefined && baselineHeaders.has(lower)) continue;
+                try {
+                  res.removeHeader(name);
+                } catch (_e) {
+                  void _e;
+                }
+              }
+            } catch (_e) {
+              void _e;
+            }
+            res.status(500).end('Internal server error');
+          }
         }
       });
     },

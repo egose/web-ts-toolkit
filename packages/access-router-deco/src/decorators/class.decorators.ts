@@ -71,7 +71,13 @@ function createModelRouter(model: RouterModel, options?: ModelRouterOptions): Cl
  * Must be listed in `@Module({ routers: [...] })`. Duplicate effective model per module is rejected; distinct root and distinct model routers are allowed.
  * This decorator only writes metadata; `EgoseFactoryStatic.create().bootstrap()` performs registration. Decorated hook methods run with `this` bound to the class instance — use `@Request()` for request data.
  *
- * @param modelNameOrOptions - model name string, Mongoose model instance, or `RootRouterOptions` object for a root router.
+ * Model configuration composes through `RouterModel<TModel>`: pass a name
+ * string, a typed model instance (options infer as
+ * `ModelRouterOptions<TModel>`), or a `string | Model<TModel>` union held in
+ * a variable or function parameter. The bare `RouterModel` alias accepts any
+ * model type; prefer `RouterModel<TModel>` when the model type is known.
+ *
+ * @param modelNameOrOptions - model name string, Mongoose model instance, `RouterModel<TModel>` union, or `RootRouterOptions` object for a root router.
  * @param options - optional `ModelRouterOptions` when the first argument is a model.
  */
 export const Router = function Router(
@@ -94,6 +100,7 @@ export const Router = function Router(
 } as {
   (modelName: string, options?: ModelRouterOptions): ClassDecorator;
   <TModel>(model: import('mongoose').Model<TModel>, options?: ModelRouterOptions<TModel>): ClassDecorator;
+  <TModel>(model: RouterModel<TModel>, options?: ModelRouterOptions<TModel>): ClassDecorator;
   (options: RootRouterOptions): ClassDecorator;
 };
 
@@ -122,7 +129,12 @@ function createModelRouterOptions(model: RouterModel, options?: ModelRouterOptio
  * Applied before route construction in precedence: default → model-specific `@RouterOptions` → `@Router` options → `@Option` / decorated hooks on the same class. May carry `@ModelOption`/`@DefaultModelOption`/`@Option` properties and model hooks (`@RouteGuard`, `@Identifier`, etc.) per `HOOK_DEFINITIONS.defaultModelOptions`.
  * This decorator only writes metadata; bootstrap performs `setDefaultModelOptions` / `setModelOptions`. `this` on hook methods is the class instance.
  *
- * @param modelNameOrOptions - model name/Mongoose model for per-model options, or `DefaultModelRouterOptions` for shared defaults.
+ * Model configuration composes through `RouterModel<TModel>` just like
+ * `@Router`: a name string, a typed model instance (options infer as
+ * `ModelRouterOptions<TModel>`), or a `string | Model<TModel>` union held in
+ * a variable or function parameter.
+ *
+ * @param modelNameOrOptions - model name/Mongoose model/`RouterModel<TModel>` union for per-model options, or `DefaultModelRouterOptions` for shared defaults.
  * @param options - optional `ModelRouterOptions` when the first argument is a model.
  */
 export const RouterOptions = function RouterOptions(
@@ -147,5 +159,6 @@ export const RouterOptions = function RouterOptions(
 } as {
   (modelName: string, options?: ModelRouterOptions): ClassDecorator;
   <TModel>(model: import('mongoose').Model<TModel>, options?: ModelRouterOptions<TModel>): ClassDecorator;
+  <TModel>(model: RouterModel<TModel>, options?: ModelRouterOptions<TModel>): ClassDecorator;
   (options: DefaultModelRouterOptions): ClassDecorator;
 };

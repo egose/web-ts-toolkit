@@ -36,7 +36,8 @@ function OrganizationList() {
 
   return (
     <div>
-      <button disabled={isPending} onClick={() => mutate({ name: 'Northwind Labs' })}>
+      {/* Hook error state (createError) still surfaces the failure; the catch only avoids an unhandled rejection. */}
+      <button disabled={isPending} onClick={() => void mutate({ name: 'Northwind Labs' }).catch(() => undefined)}>
         Create
       </button>
       {createError && <p role="alert">Create failed: {createError.message}</p>}

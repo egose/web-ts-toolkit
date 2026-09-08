@@ -361,4 +361,347 @@ describe('real access-router hook adapter contract', () => {
       }),
     ).toThrow(/Invalid hook chain for prepare\.create/);
   });
+
+  describe('root validate shorthand preservation (BDECO-01)', () => {
+    it.each([
+      { label: 'root false', modelSuffix: 'RootFalse', rootValue: false },
+      {
+        label: 'root issue array',
+        modelSuffix: 'RootIssueArray',
+        rootValue: [{ path: 'name', message: 'required' }],
+      },
+      {
+        label: 'root callback',
+        modelSuffix: 'RootCallback',
+        rootValue: function rootValidate() {
+          return false;
+        },
+      },
+    ])('rejects decorated Validate(create) over $label without erasing root', ({ modelSuffix, rootValue }) => {
+      const modelName = `DecoHookAdapterContractValidate${modelSuffix}`;
+
+      class UserRouter {
+        validate() {
+          return true;
+        }
+      }
+      applyMethodDecorator(Validate('create'), UserRouter.prototype, 'validate');
+      Router(modelName)(UserRouter);
+
+      let runtime: AccessRuntimeApi | undefined;
+      expect(() => {
+        bootstrap(UserRouter, modelName, (configuredRuntime) => {
+          runtime = configuredRuntime;
+          configuredRuntime.setModelOption(modelName, 'validate' as any, rootValue as any);
+        });
+      }).toThrow(/Duplicate decorated validator for validate\.create/);
+      expect(runtime?.getModelOption(modelName, 'validate' as any)).toStrictEqual(rootValue);
+    });
+
+    it('allows sibling validate operations while keeping both validators', async () => {
+      const modelName = 'DecoHookAdapterContractValidateSiblingOps';
+
+      class UserRouter {
+        checkCreate(doc: { valid: boolean }) {
+          return doc.valid ? true : false;
+        }
+
+        checkUpdate(doc: { valid: boolean }) {
+          return doc.valid ? true : [{ path: 'name', message: 'stale' }];
+        }
+      }
+      applyMethodDecorator(Validate('create'), UserRouter.prototype, 'checkCreate');
+      applyParameterDecorator(Document(), UserRouter.prototype, 'checkCreate', 0);
+      applyMethodDecorator(Validate('update'), UserRouter.prototype, 'checkUpdate');
+      applyParameterDecorator(Document(), UserRouter.prototype, 'checkUpdate', 0);
+      Router(modelName)(UserRouter);
+
+      const runtime = bootstrap(UserRouter, modelName);
+      const createValidate = runtime.getModelOption(modelName, 'validate.create') as Function;
+      const updateValidate = runtime.getModelOption(modelName, 'validate.update') as Function;
+
+      expect(await createValidate.call({}, { valid: true }, {}, {})).toBe(true);
+      expect(await createValidate.call({}, { valid: false }, {}, {})).toBe(false);
+      expect(await updateValidate.call({}, { valid: true }, {}, {})).toBe(true);
+      expect(await updateValidate.call({}, { valid: false }, {}, {})).toEqual([{ path: 'name', message: 'stale' }]);
+    });
+  });
+
+  describe('sibling and default operation chains (BDECO-01)', () => {
+    const siblingFamilies = [
+      {
+        family: 'prepare',
+        make: (op: 'create' | 'update' | 'default') => Prepare(op),
+        base: 'prepare',
+        pairs: [
+          { first: 'create', second: 'update' },
+          { first: 'default', second: 'create' },
+        ],
+      },
+      {
+        family: 'transform',
+        make: (op: 'default' | 'update') => Transform(op),
+        base: 'transform',
+        pairs: [{ first: 'default', second: 'update' }],
+      },
+      {
+        family: 'afterPersist',
+        make: (op: 'create' | 'update' | 'default') => AfterPersist(op),
+        base: 'afterPersist',
+        pairs: [
+          { first: 'create', second: 'update' },
+          { first: 'default', second: 'update' },
+        ],
+      },
+      {
+        family: 'decorate',
+        make: (op: 'create' | 'update' | 'default' | 'list' | 'read') => Decorate(op),
+        base: 'decorate',
+        pairs: [
+          { first: 'create', second: 'update' },
+          { first: 'default', second: 'read' },
+        ],
+      },
+      {
+        family: 'decorateAll',
+        make: (op: 'default' | 'list') => DecorateAll(op),
+        base: 'decorateAll',
+        pairs: [{ first: 'default', second: 'list' }],
+      },
+    ] as const;
+
+    for (const entry of siblingFamilies) {
+      for (const pair of entry.pairs) {
+        for (const order of ['forward', 'reverse'] as const) {
+          it(`${entry.family} ${pair.first}+${pair.second} bootstraps in ${order} declaration order`, async () => {
+            const firstOp = order === 'forward' ? pair.first : pair.second;
+            const secondOp = order === 'forward' ? pair.second : pair.first;
+            const modelName = `DecoHookAdapterSibling${entry.base}${pair.first}${pair.second}${order}`;
+
+            class UserRouter {
+              first(doc: { steps: string[] }) {
+                return { ...doc, steps: [...doc.steps, `first-${firstOp}`] };
+              }
+
+              second(doc: { steps: string[] }) {
+                return { ...doc, steps: [...doc.steps, `second-${secondOp}`] };
+              }
+            }
+            applyMethodDecorator((entry.make as any)(firstOp), UserRouter.prototype, 'first');
+            applyParameterDecorator(Document(), UserRouter.prototype, 'first', 0);
+            applyMethodDecorator((entry.make as any)(secondOp), UserRouter.prototype, 'second');
+            applyParameterDecorator(Document(), UserRouter.prototype, 'second', 0);
+            Router(modelName)(UserRouter);
+
+            const runtime = bootstrap(UserRouter, modelName);
+
+            const firstChain = runtime.getModelOption(modelName, `${entry.base}.${firstOp}` as any) as Function[];
+            const secondChain = runtime.getModelOption(modelName, `${entry.base}.${secondOp}` as any) as Function[];
+            expect(firstChain).toHaveLength(1);
+            expect(secondChain).toHaveLength(1);
+
+            let firstDoc = { steps: [] as string[] };
+            for (const hook of firstChain) {
+              firstDoc = await hook.call({}, firstDoc, {}, {});
+            }
+            expect(firstDoc.steps).toEqual([`first-${firstOp}`]);
+
+            let secondDoc = { steps: [] as string[] };
+            for (const hook of secondChain) {
+              secondDoc = await hook.call({}, secondDoc, {}, {});
+            }
+            expect(secondDoc.steps).toEqual([`second-${secondOp}`]);
+          });
+        }
+      }
+    }
+
+    it('prepare create+update in reverse order keeps chains isolated (explicit)', async () => {
+      const modelName = 'DecoHookAdapterPrepareReverseExplicit';
+
+      class UserRouter {
+        forUpdate(doc: { steps: string[] }) {
+          return { ...doc, steps: [...doc.steps, 'update'] };
+        }
+
+        forCreate(doc: { steps: string[] }) {
+          return { ...doc, steps: [...doc.steps, 'create'] };
+        }
+      }
+      applyMethodDecorator(Prepare('update'), UserRouter.prototype, 'forUpdate');
+      applyParameterDecorator(Document(), UserRouter.prototype, 'forUpdate', 0);
+      applyMethodDecorator(Prepare('create'), UserRouter.prototype, 'forCreate');
+      applyParameterDecorator(Document(), UserRouter.prototype, 'forCreate', 0);
+      Router(modelName)(UserRouter);
+
+      const runtime = bootstrap(UserRouter, modelName);
+      const createChain = runtime.getModelOption(modelName, 'prepare.create') as Function[];
+      const updateChain = runtime.getModelOption(modelName, 'prepare.update') as Function[];
+      expect(createChain).toHaveLength(1);
+      expect(updateChain).toHaveLength(1);
+
+      let doc = { steps: [] as string[] };
+      for (const hook of createChain) doc = await hook.call({}, doc, {}, {});
+      expect(doc.steps).toEqual(['create']);
+      doc = { steps: [] as string[] };
+      for (const hook of updateChain) doc = await hook.call({}, doc, {}, {});
+      expect(doc.steps).toEqual(['update']);
+    });
+  });
+
+  describe('sparse parameter positions (BDECO-06)', () => {
+    it('injects at a trailing declared index preserving a leading hole', async () => {
+      const modelName = 'DecoHookAdapterSparseLeadingHole';
+      const request = { requestId: 'sparse-leading' };
+      const permissions = { read: true };
+      const seen: Record<string, unknown> = {};
+
+      class UserRouter {
+        check(unused: unknown, perms: unknown) {
+          seen.classThis = this;
+          seen.unused = unused;
+          seen.perms = perms;
+          return true;
+        }
+      }
+      applyMethodDecorator(Validate('create'), UserRouter.prototype, 'check');
+      applyParameterDecorator(Permissions(), UserRouter.prototype, 'check', 1);
+      Router(modelName)(UserRouter);
+
+      const runtime = bootstrap(UserRouter, modelName);
+      const validate = runtime.getModelOption(modelName, 'validate.create') as Function;
+      const doc = { name: 'Ada' };
+      const result = await validate.call(request, doc, permissions, { operation: 'create' });
+
+      expect(result).toBe(true);
+      expect(seen.unused).toBeUndefined();
+      expect(seen.perms).toBe(permissions);
+      expect(seen.classThis).toBeInstanceOf(UserRouter);
+    });
+
+    it('preserves an interior hole between decorated arguments', async () => {
+      const modelName = 'DecoHookAdapterSparseInteriorHole';
+      const seen: Record<string, unknown> = {};
+
+      class UserRouter {
+        check(doc: unknown, unused: unknown, ctx: unknown) {
+          seen.doc = doc;
+          seen.unused = unused;
+          seen.ctx = ctx;
+          return true;
+        }
+      }
+      applyMethodDecorator(Validate('create'), UserRouter.prototype, 'check');
+      applyParameterDecorator(Document(), UserRouter.prototype, 'check', 0);
+      applyParameterDecorator(Context(), UserRouter.prototype, 'check', 2);
+      Router(modelName)(UserRouter);
+
+      const runtime = bootstrap(UserRouter, modelName);
+      const validate = runtime.getModelOption(modelName, 'validate.create') as Function;
+      const doc = { name: 'Ada' };
+      const context = { operation: 'create' };
+      const result = await validate.call({}, doc, { admin: true }, context);
+
+      expect(result).toBe(true);
+      expect(seen.doc).toBe(doc);
+      expect(seen.unused).toBeUndefined();
+      expect(seen.ctx).toBe(context);
+    });
+
+    it('leaves undecorated leading args undefined so defaults apply', async () => {
+      const modelName = 'DecoHookAdapterSparseDefaultArg';
+
+      class UserRouter {
+        prepare(label = 'fallback', doc: { tag?: string }) {
+          return { ...doc, tag: label };
+        }
+      }
+      applyMethodDecorator(Prepare('create'), UserRouter.prototype, 'prepare');
+      applyParameterDecorator(Document(), UserRouter.prototype, 'prepare', 1);
+      Router(modelName)(UserRouter);
+
+      const runtime = bootstrap(UserRouter, modelName);
+      const chain = runtime.getModelOption(modelName, 'prepare.create') as Function[];
+      expect(chain).toHaveLength(1);
+      const result = await chain[0].call({}, { name: 'Ada' }, {}, { operation: 'create' });
+
+      expect(result.tag).toBe('fallback');
+    });
+
+    it('injects @Request() at a nonzero index without moving other args', async () => {
+      const modelName = 'DecoHookAdapterSparseNonzeroRequest';
+      const request = { requestId: 'sparse-request' };
+      const permissions = { read: true };
+      const seen: Record<string, unknown> = {};
+
+      class UserRouter {
+        check(unused: unknown, req: unknown, perms: unknown) {
+          seen.classThis = this;
+          seen.unused = unused;
+          seen.req = req;
+          seen.perms = perms;
+          return true;
+        }
+      }
+      applyMethodDecorator(Validate('create'), UserRouter.prototype, 'check');
+      applyParameterDecorator(Request(), UserRouter.prototype, 'check', 1);
+      applyParameterDecorator(Permissions(), UserRouter.prototype, 'check', 2);
+      Router(modelName)(UserRouter);
+
+      const runtime = bootstrap(UserRouter, modelName);
+      const validate = runtime.getModelOption(modelName, 'validate.create') as Function;
+      const result = await validate.call(request, { name: 'Ada' }, permissions, { operation: 'create' });
+
+      expect(result).toBe(true);
+      expect(seen.unused).toBeUndefined();
+      expect(seen.req).toBe(request);
+      expect(seen.perms).toBe(permissions);
+      expect(seen.classThis).toBeInstanceOf(UserRouter);
+    });
+
+    it('preserves sparse positions for inherited hooks', async () => {
+      const modelName = 'DecoHookAdapterSparseInherited';
+
+      class BaseRouter {
+        check(unused: unknown, perms: unknown) {
+          return { unused, perms };
+        }
+      }
+      applyMethodDecorator(Validate('create'), BaseRouter.prototype, 'check');
+      applyParameterDecorator(Permissions(), BaseRouter.prototype, 'check', 1);
+
+      class ChildRouter extends BaseRouter {}
+      Router(modelName)(ChildRouter);
+
+      const runtime = bootstrap(ChildRouter, modelName);
+      const validate = runtime.getModelOption(modelName, 'validate.create') as Function;
+      const permissions = { read: true };
+      const result = await validate.call({}, { name: 'Ada' }, permissions, { operation: 'create' });
+
+      expect(result.unused).toBeUndefined();
+      expect(result.perms).toBe(permissions);
+    });
+
+    it('preserves sparse positions for symbol hooks', async () => {
+      const modelName = 'DecoHookAdapterSparseSymbol';
+      const sym = Symbol('sparseCheck');
+
+      class UserRouter {
+        [sym](unused: unknown, perms: unknown) {
+          return { unused, perms };
+        }
+      }
+      applyMethodDecorator(Validate('create'), UserRouter.prototype, sym);
+      applyParameterDecorator(Permissions(), UserRouter.prototype, sym, 1);
+      Router(modelName)(UserRouter);
+
+      const runtime = bootstrap(UserRouter, modelName);
+      const validate = runtime.getModelOption(modelName, 'validate.create') as Function;
+      const permissions = { read: true };
+      const result = await validate.call({}, { name: 'Ada' }, permissions, { operation: 'create' });
+
+      expect(result.unused).toBeUndefined();
+      expect(result.perms).toBe(permissions);
+    });
+  });
 });

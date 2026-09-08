@@ -171,8 +171,9 @@ This produces `dist/app.js` (configurable via `--out-name`) that default-exports
 the Express app and, when `--init` is used, also exports `init` for the `start`
 command to run before listening.
 
-> `express` is always external; additional externals can be added via
-> `--external`.
+> `express` and `@web-ts-toolkit/express-runtime` are always external;
+> additional externals can be added via `--external`. Deploy the bundle with
+> both packages installed (`express` is a peer dependency).
 
 ### CLI — start (run a bundled app locally)
 
@@ -202,8 +203,10 @@ npx wtt-express-runtime build-serverless ./src/app.ts --init ./src/init.ts --out
 ```
 
 This produces `netlify/functions/handler.js` (configurable via `--out-name`)
-that exports a `handler` function using `serverless-http`. Choose provider
-options in `createServerlessHandler()` for the deployment platform you run on.
+that exports a `handler` function using `serverless-http`. Configure the
+supported `serverless-http` provider options via `serverlessOptions`
+(`provider: 'aws' | 'azure'`); other platform shapes are not emulated locally
+(see the `start-serverless` adapter contract below).
 
 ### CLI — start-serverless (run a bundled handler locally)
 
@@ -232,6 +235,13 @@ npx wtt-express-runtime start-serverless ./dist/handler.js --port 9000 --env .en
 > IP.
 >
 > The incoming URL query is split from the path before the handler is invoked.
+> Origin-form paths are preserved verbatim — never dot-segment-resolved,
+> slash-collapsed, or percent-decoded — so `//admin/users`, `/a/../private`,
+> and `/%2E%2E/private` reach wrapped routing exactly as sent. Absolute-form
+> targets (`scheme://authority/path?query`, as sent to proxies) are supported
+> by stripping the scheme and authority; asterisk-form (`*`) yields path `*`;
+> the empty string maps to `/`. Any other target shape is rejected with a 500
+> before the handler runs.
 > Query keys and values are decoded once from percent-encoding, duplicate keys are
 > preserved in `multiValueQueryStringParameters`, empty values are preserved as
 > `''`, literal `+` signs remain `+`, and encoded delimiters such as `%26` and
@@ -253,8 +263,12 @@ npx wtt-express-runtime start-serverless ./dist/handler.js --port 9000 --env .en
 > chunked bodies are checked incrementally and stop retaining chunks after the
 > limit — the request is drained and a `413 Payload Too Large` is returned without
 > invoking the handler. Client aborts and stream errors release listeners and do
-> not produce an unhandled rejection. Memory retained is at most the limit plus
-> one incoming chunk.
+> not produce an unhandled rejection. Chunk retention is `O(limit)` — appending
+> stops once the running total would exceed the limit, so at most one chunk over
+> the limit is observed. `Buffer.concat` then holds the chunks plus one output
+> Buffer, and event translation adds a transient base64 copy (~4/3 of the body),
+> so peak transient memory is a small multiple of the limit rather than an exact
+> limit-plus-chunk ceiling.
 >
 > Override the limit intentionally:
 >
@@ -374,18 +388,26 @@ runtime calls, which pass `(request, event, context)` before Express and
 `Record<string, unknown>` for both arguments; provide provider-specific event and
 context types when you need typed access in hooks.
 
-#### Netlify example
+#### Serverless deployment example
 
 ```ts
 import { createExpressApp, createServerlessHandler } from '@web-ts-toolkit/express-runtime';
-import { Handler } from '@netlify/functions';
 
 const app = createExpressApp({
   routers: [{ path: () => '/.netlify/functions/main', handler: myRouter }],
 });
 
-export const handler: Handler = createServerlessHandler(app, { init: startDB });
+export const handler = createServerlessHandler(app, { init: startDB });
 ```
+
+Export the `ServerlessHandler` as-is with its inferred type. Do not annotate
+it with the platform's `Handler` type (e.g. from `@netlify/functions`): the
+handler resolves `Promise<object>` for the event shapes `serverless-http`
+supports (`aws`/`azure` providers), which is not assignable to Netlify's
+`HandlerResponse` (`statusCode` is required there), so such an annotation fails
+strict compilation. If the platform requires its own handler type, add an
+explicit adapter in the app. No platform-specific adapter is shipped; the local
+`start-serverless` command emulates AWS API Gateway REST API v1 only.
 
 ### `startLocalServer(app, options?): LocalServer`
 
@@ -398,18 +420,18 @@ Shutdown order and timeout policy: on `shutdown()`, the server first stops accep
 
 Port `0` logs the actual bound port (e.g. `Server running at http://127.0.0.1:54321/ (port 54321)`).
 
-| Option              | Type                          | Default                       | Description                                                                                 |
-| ------------------- | ----------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------- |
-| `port`              | `number \| string`            | `process.env.PORT ?? 8080`    | Port number or named-pipe path (use `0` for an ephemeral port; actual port is logged)       |
-| `host`              | `string`                      | `process.env.HOST ?? 0.0.0.0` | Hostname (ignored for named pipes)                                                          |
-| `init`              | `() => Promise<void>`         | —                             | Called once before listening; rejection rejects `ready` and skips listening                 |
-| `onShutdown`        | `() => Promise<void> \| void` | —                             | Called **after** draining; rejection is logged and fails shutdown                           |
-| `onListening`       | `() => void`                  | —                             | Called when listening (after actual-port log)                                               |
-| `onError`           | `(error) => void`             | logs + exits                  | Called on listen errors and init failures (init failures are not `listen` syscall errors)   |
-| `signals`           | `boolean \| NodeJS.Signals[]` | `true` (`SIGINT`, `SIGTERM`)  | Signal handlers to register (owned handlers removed on shutdown/terminal failure)           |
-| `shutdownTimeout`   | `number`                      | `5000`                        | Max ms to wait for in-flight requests before force-closing (covers draining only)           |
-| `exitAfterShutdown` | `boolean`                     | `false`                       | Call `process.exit(0)` after successful shutdown or `process.exit(1)` after cleanup failure |
-| `logger`            | `Logger`                      | `console`                     | Logger used internally                                                                      |
+| Option              | Type                          | Default                       | Description                                                                                                                      |
+| ------------------- | ----------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `port`              | `number \| string`            | `process.env.PORT ?? 8080`    | Port number or named-pipe path (use `0` for an ephemeral port; actual port is logged)                                            |
+| `host`              | `string`                      | `process.env.HOST ?? 0.0.0.0` | Hostname (ignored for named pipes)                                                                                               |
+| `init`              | `() => Promise<void>`         | —                             | Called once before listening; rejection rejects `ready` and skips listening                                                      |
+| `onShutdown`        | `() => Promise<void> \| void` | —                             | Called **after** draining; rejection is logged and fails shutdown                                                                |
+| `onListening`       | `() => void`                  | —                             | Called when listening (after actual-port log)                                                                                    |
+| `onError`           | `(error) => void`             | logs + exits                  | Called on listen errors and init failures (init failures are not `listen` syscall errors)                                        |
+| `signals`           | `boolean \| NodeJS.Signals[]` | `true` (`SIGINT`, `SIGTERM`)  | Signal handlers to register (owned handlers removed on shutdown/terminal failure)                                                |
+| `shutdownTimeout`   | `number`                      | `5000`                        | Max ms to wait for in-flight requests before force-closing (covers draining only; `0..2147483647`, `0` force-closes immediately) |
+| `exitAfterShutdown` | `boolean`                     | `false`                       | Call `process.exit(0)` after successful shutdown or `process.exit(1)` after cleanup failure                                      |
+| `logger`            | `Logger`                      | `console`                     | Logger used internally                                                                                                           |
 
 #### `LocalServer`
 
@@ -509,25 +531,25 @@ Omitting `<command>` defaults to `dev` for backward compatibility.
 | `--port <number>`         | Port or named pipe (default: `process.env.PORT` or `8080`)                                |
 | `--host <hostname>`       | Hostname to bind (default: `process.env.HOST` or `0.0.0.0`)                               |
 | `--no-signals`            | Disable `SIGINT` / `SIGTERM` handler registration                                         |
-| `--shutdown-timeout <ms>` | Max ms to wait for in-flight requests (default: `5000`)                                   |
+| `--shutdown-timeout <ms>` | Max ms to wait for in-flight requests (default: `5000`; `0..2147483647`)                  |
 | `--require <module>`      | Module(s) to preload before app load (repeatable; comma-separated values supported)       |
 | `--env <path>`            | Env file(s) to load before app load (repeatable; existing env vars are not overridden)    |
 | `--watch <paths>`         | Comma-separated paths to watch for restart (repeatable; forks a child process)            |
 | `--ext <extensions>`      | Comma-separated extensions to watch (default: `ts,js,mjs,cjs,json`)                       |
-| `--delay <ms>`            | Debounce ms before restarting on change (default: `500`)                                  |
+| `--delay <ms>`            | Debounce ms before restarting on change (default: `500`; `0..2147483647`)                 |
 
 #### build options
 
-| Option                | Description                                                                      |
-| --------------------- | -------------------------------------------------------------------------------- |
-| `<app-module>`        | Module path whose **default export** is an Express app (sync, not async factory) |
-| `--init <path>`       | Init hook module (default export, async function) called once per cold start     |
-| `--out-dir <path>`    | Output directory (default: `dist`)                                               |
-| `--out-name <name>`   | Output filename without extension (default: `app`)                               |
-| `--format <cjs\|esm>` | Output format (default: `cjs`)                                                   |
-| `--target <target>`   | Compilation target (default: `node22`)                                           |
-| `--external <pkg>`    | Mark package as external (repeatable; `express` is always external)              |
-| `--no-clean`          | Don't clean the output directory before building                                 |
+| Option                | Description                                                                                                |
+| --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `<app-module>`        | Module path whose **default export** is an Express app (sync, not async factory)                           |
+| `--init <path>`       | Init hook module (default export, async function) called once per cold start                               |
+| `--out-dir <path>`    | Output directory (default: `dist`)                                                                         |
+| `--out-name <name>`   | Output filename without extension (default: `app`)                                                         |
+| `--format <cjs\|esm>` | Output format (default: `cjs`)                                                                             |
+| `--target <target>`   | Compilation target (default: `node22`)                                                                     |
+| `--external <pkg>`    | Mark package as external (repeatable; `express` and `@web-ts-toolkit/express-runtime` are always external) |
+| `--no-clean`          | Don't clean the output directory before building                                                           |
 
 #### start options
 
@@ -537,22 +559,22 @@ Omitting `<command>` defaults to `dev` for backward compatibility.
 | `--port <number>`         | Port or named pipe (default: `process.env.PORT` or `8080`)                                       |
 | `--host <hostname>`       | Hostname to bind (default: `process.env.HOST` or `0.0.0.0`)                                      |
 | `--no-signals`            | Disable `SIGINT` / `SIGTERM` handler registration                                                |
-| `--shutdown-timeout <ms>` | Max ms to wait for in-flight requests (default: `5000`)                                          |
+| `--shutdown-timeout <ms>` | Max ms to wait for in-flight requests (default: `5000`; `0..2147483647`)                         |
 | `--require <module>`      | Module(s) to preload before app load (repeatable; comma-separated values supported)              |
 | `--env <path>`            | Env file(s) to load before app load (repeatable; existing env vars are not overridden)           |
 
 #### build-serverless options
 
-| Option                | Description                                                                      |
-| --------------------- | -------------------------------------------------------------------------------- |
-| `<app-module>`        | Module path whose **default export** is an Express app (sync, not async factory) |
-| `--init <path>`       | Init hook module (default export, async function) called once per cold start     |
-| `--out-dir <path>`    | Output directory (default: `dist`)                                               |
-| `--out-name <name>`   | Output filename without extension (default: `handler`)                           |
-| `--format <cjs\|esm>` | Output format (default: `cjs`)                                                   |
-| `--target <target>`   | Compilation target (default: `node22`)                                           |
-| `--external <pkg>`    | Mark package as external (repeatable; `express` is always external)              |
-| `--no-clean`          | Don't clean the output directory before building                                 |
+| Option                | Description                                                                                                |
+| --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `<app-module>`        | Module path whose **default export** is an Express app (sync, not async factory)                           |
+| `--init <path>`       | Init hook module (default export, async function) called once per cold start                               |
+| `--out-dir <path>`    | Output directory (default: `dist`)                                                                         |
+| `--out-name <name>`   | Output filename without extension (default: `handler`)                                                     |
+| `--format <cjs\|esm>` | Output format (default: `cjs`)                                                                             |
+| `--target <target>`   | Compilation target (default: `node22`)                                                                     |
+| `--external <pkg>`    | Mark package as external (repeatable; `express` and `@web-ts-toolkit/express-runtime` are always external) |
+| `--no-clean`          | Don't clean the output directory before building                                                           |
 
 #### start-serverless options
 
@@ -562,7 +584,7 @@ Omitting `<command>` defaults to `dev` for backward compatibility.
 | `--port <number>`          | Port or named pipe (default: `process.env.PORT` or `8080`)                                   |
 | `--host <hostname>`        | Hostname to bind (default: `process.env.HOST` or `0.0.0.0`)                                  |
 | `--no-signals`             | Disable `SIGINT` / `SIGTERM` handler registration                                            |
-| `--shutdown-timeout <ms>`  | Max ms to wait for in-flight requests (default: `5000`)                                      |
+| `--shutdown-timeout <ms>`  | Max ms to wait for in-flight requests (default: `5000`; `0..2147483647`)                     |
 | `--max-body-bytes <bytes>` | Max request body bytes for adapter (default: `1048576`; `0` allows empty bodies only)        |
 | `--require <module>`       | Module(s) to preload before handler load (repeatable; comma-separated values supported)      |
 | `--env <path>`             | Env file(s) to load before handler load (repeatable; existing env vars are not overridden)   |
@@ -578,8 +600,11 @@ Use `--` to stop option parsing when a positional module path starts with a
 dash, for example `wtt-express-runtime dev -- --app.js`. Numeric CLI values are
 validated before env files, preload modules, app modules, watchers, or servers
 are opened. Ports must be canonical decimal integers in `0..65535` or explicit
-nonnumeric named-pipe paths; timeout, delay, and adapter body-limit values must
-be finite integers in `0..9007199254740991`.
+nonnumeric named-pipe paths; timer durations (`--shutdown-timeout`, `--delay`)
+must be finite integers in `0..2147483647` (Node's `setTimeout` limit — larger
+values are rejected instead of overflowing into near-immediate timers; `0`
+means no wait and `2147483647` is the largest safe delay). Adapter body-limit
+values (`--max-body-bytes`) keep the wider `0..9007199254740991` range.
 
 The `dev` command sets `exitAfterShutdown: true` so `SIGINT` / `SIGTERM` cleanly
 exit the process after the server drains. TypeScript app modules require a TS
@@ -594,9 +619,14 @@ starts.
 The `build` command generates a temporary entry file that re-exports the app
 module and optional `init` hook, then produces a local runtime bundle. The
 `build-serverless` command instead wraps the app with `createServerlessHandler`
-and bundles the serverless runtime. `express` is always external; all other
-dependencies are bundled into the output unless marked external via
-`--external`.
+and bundles the serverless runtime. `express` and
+`@web-ts-toolkit/express-runtime` (imported by the generated entry) are always
+external; all other dependencies are bundled into the output unless marked
+external via `--external`. Deploy the bundle with both mandatory externals
+installed — `pnpm add express @web-ts-toolkit/express-runtime`
+(`serverless-http` ships with the runtime package, so no extra install is
+needed for it). A bundle executed without the runtime package installed fails
+to load with a missing-module error for `@web-ts-toolkit/express-runtime`.
 
 ## License
 
