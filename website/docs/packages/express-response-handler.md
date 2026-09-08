@@ -11,8 +11,22 @@ Instead of calling `res.json(...)` in every route, return a value. This package 
 
 ## Installation
 
+Requires Node.js `>=22` and Express `^5` (peer dependency, installed separately).
+
 ```bash npm2yarn
-npm install @web-ts-toolkit/express-response-handler
+npm install @web-ts-toolkit/express-response-handler @web-ts-toolkit/http-errors express
+```
+
+The quickstart below imports `express` and `@web-ts-toolkit/http-errors`
+directly, so both must be direct dependencies. `@web-ts-toolkit/http-errors`
+is also a transitive dependency of this package, but transitive packages are
+not importable from an isolated consumer (pnpm), so listing it directly is
+required when route code throws typed errors.
+
+For TypeScript consumers:
+
+```bash npm2yarn
+npm install -D typescript @types/express @types/node
 ```
 
 ## Quick Start
@@ -207,6 +221,8 @@ CSV download filenames are emitted as standards-compliant attachment headers wit
 
 CSV sources can be arrays, synchronous iterables, or async iterables. Arrays keep automatic header inference from the first row. Lazy iterable sources are consumed once during response streaming and must pass an explicit `headers` option because the handler will not peek and buffer a row just to infer headers. If the client disconnects or CSV formatting fails, the active iterator's `return()` method is called so generators can release database cursors, files, or other resources.
 
+Direct `CSVResponse.streamCsv(res)` keeps its optional error-owner callback (no breaking change). A pre-output failure with an owner invokes it exactly once and the owner terminates the destination; the handler owner renders one redacted JSON error through the bounded fallback lifecycle. A throwing owner is contained and the destination is destroyed with the original failure. Without an owner the destination is destroyed with the normalized failure, observable via `error` + `close`. Failures after output starts always destroy the destination.
+
 `CSVResponse` writes cell values exactly as supplied. It does not automatically neutralize spreadsheet formulas such as values beginning with `=`, `+`, `-`, or `@` because some exports intentionally include formulas. If user-controlled cells may be opened in spreadsheet software, neutralize them with the `processor` option:
 
 ```ts
@@ -266,13 +282,13 @@ apiHandler.preError = async function (err) {
 };
 ```
 
-`preJson` runs before a non-`undefined` success value is serialized. This includes plain JSON values, `HttpResponse` wrappers, and CSV responses. If the wrapped handler returns `undefined`, the library assumes the handler owns the response and does not run `postJson`.
+`preJson` runs before a non-`undefined` success value is serialized. This includes plain JSON values, `HttpResponse` wrappers, and CSV responses. It is skipped when the handler returns `undefined` or has already taken manual response ownership (for example a synchronous `res.*` write that committed headers). Manual sync/callback responses get no success hooks and no unsolicited `500`.
 
-`postJson` runs after the HTTP response emits `finish` for a successful response. It does not run on client `close`, CSV/JSON serialization failure, or any path that never successfully finishes a response.
+`postJson` runs after the HTTP response emits `finish` for a successful response. It does not run on client `close`, on manual `undefined` responses, on fallback JSON errors, or on any path that never successfully finishes a response. A failed CSV attempt never runs `postJson` on its fallback JSON error's finish.
 
-`preError` runs before an error response is serialized. `postError` runs after the HTTP response emits `finish` for an error response, and it receives the original error value observed by `preError`.
+`preError` runs before an error response is serialized, including success-path fallback errors (circular/BigInt serialization, rejected `preJson`, CSV-before-output failures). It always observes the original failure value. `postError` runs after the HTTP response emits `finish` for an error response, including fallback errors, and it receives the same failure that was sent (the original, or the `preError` failure when `preError` itself fails).
 
-If a pre-hook throws or rejects before headers are sent, the failure is routed through the normal error response path. If a post-hook throws or rejects, the response has already completed, so the failure is passed to Express with `next(err)` for logging/observability and no second response is sent.
+If a pre-hook throws or rejects before headers are sent, the failure goes through one bounded error lifecycle: one `preError`, one redacted error body, and one finish-timed `postError`, without re-entering a failing `preError`/provider and without running `postJson`. When headers are already committed (partial write), the owned failure is delegated to Express error middleware with `next(err)` and no second body. If a post-hook throws or rejects, the response has already completed, so the failure is passed to Express with `next(err)` for logging/observability and no second response is sent.
 
 The default export is a mutable process-wide singleton. Assigning `apiHandler.preJson`, `apiHandler.postJson`, `apiHandler.preError`, `apiHandler.postError`, or `apiHandler.errorMessageProvider` affects every route using that singleton after assignment. Use `createHandler()` for isolated hook and error-provider state.
 

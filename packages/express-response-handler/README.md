@@ -4,8 +4,22 @@ FastAPI-style return-value responses for Express.
 
 ## Installation
 
+Requires Node.js `>=22` and Express `^5` (peer dependency, installed separately).
+
 ```sh
-pnpm add @web-ts-toolkit/express-response-handler
+pnpm add @web-ts-toolkit/express-response-handler @web-ts-toolkit/http-errors express
+```
+
+The quickstart below imports `express` and `@web-ts-toolkit/http-errors`
+directly, so both must be direct dependencies. `@web-ts-toolkit/http-errors`
+is also a transitive dependency of this package, but transitive packages are
+not importable from an isolated consumer (pnpm), so listing it directly is
+required when route code throws typed errors.
+
+For TypeScript consumers:
+
+```sh
+pnpm add -D typescript @types/express @types/node
 ```
 
 ## Highlights
@@ -108,20 +122,23 @@ import { handleResponse, HttpResponse } from '@web-ts-toolkit/express-response-h
 
 ## Documentation
 
-Full package documentation lives in `website/docs/packages/express-response-handler.md`.
+Full package documentation: https://web-ts-toolkit.pages.dev/docs/packages/express-response-handler
 
+- source: `website/docs/packages/express-response-handler.md` in the repository
 - live docs: https://web-ts-toolkit.pages.dev/docs/packages/express-response-handler
 
 ## Hooks
 
 Hooks are observational side effects. They receive the value or error being handled, may return `void` or `Promise<void>`, and returned values never transform the response payload.
 
-- `preJson` runs before a non-`undefined` success value is serialized.
-- `postJson` runs after the HTTP response emits `finish` for a successful JSON, `HttpResponse`, or CSV response.
-- `preError` runs before an error response is serialized.
-- `postError` runs after the HTTP response emits `finish` for an error response.
+- `preJson` runs before a non-`undefined` success value is serialized. It is skipped when the handler returns `undefined` or has already taken manual response ownership (for example a synchronous `res.*` write that committed headers).
+- `postJson` runs after the HTTP response emits `finish` for a successful JSON, `HttpResponse`, or CSV response. It never runs for fallback JSON errors (circular/BigInt serialization, rejected `preJson`, CSV-before-output failures) or for manual `undefined` responses.
+- `preError` runs before an error response is serialized, including success-path fallback errors. It always observes the original failure value.
+- `postError` runs after the HTTP response emits `finish` for an error response, including fallback JSON errors. It receives the same failure that was sent (the original, or the `preError` failure when `preError` itself fails).
 
-If a handler returns `undefined`, the library assumes the handler owns the response and does not run `postJson`. `postJson` and `postError` do not run on client `close` or failed serialization paths that never emit `finish`.
+If a handler returns `undefined`, the library assumes the handler owns the response and runs no success hooks (`preJson`/`postJson`) and emits no unsolicited `500`. `postJson` and `postError` do not run on client `close` or on partial responses that never successfully finish an error body.
+
+Success-path serialization, `preJson`, and CSV-before-output failures go through one bounded error lifecycle: one `preError`, one redacted error body, and one finish-timed `postError`. A failing `preError`/provider is never re-entered. When headers are already committed (partial write), the owned failure is delegated to Express error middleware with `next(err)` and no second body.
 
 Pre-hook failures are routed through the normal error response path. Post-hook failures happen after the response has completed, so they are passed to Express with `next(err)` for server-side logging/observability without creating a second client response.
 
@@ -158,4 +175,8 @@ return new CSVResponse(rows, {
 });
 ```
 
-See `ERH-12.md` for the root import measurement and CSV formula-injection policy rationale.
+See the root import measurement and CSV formula-injection policy rationale in
+[`ERH-12.md`](https://github.com/egose/web-ts-toolkit/blob/main/packages/express-response-handler/ERH-12.md)
+in the repository (dev note, not shipped in the published package).
+
+Direct `CSVResponse.streamCsv(res)` error ownership (no breaking change): pre-output failures (invalid filename, failed first read, first-row processor throw) with an `onBeforeOutputError` callback invoke it exactly once and the owner terminates `res` (the handler owner renders one redacted JSON error); a throwing owner is contained and `res` is destroyed with the original failure. Without a callback the destination is destroyed with the normalized failure (observable via `error` + `close`). Post-output failures always destroy the destination. Non-`Error` failures are wrapped with the original as `cause`.

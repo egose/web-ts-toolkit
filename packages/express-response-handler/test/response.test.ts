@@ -1,7 +1,7 @@
 import express from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import apiHandler from '../dist/index.mjs';
+import apiHandler, { HttpResponse } from '../dist/index.mjs';
 import { Response, responseBrand } from '../dist/responses/index.mjs';
 import {
   OK,
@@ -201,5 +201,102 @@ describe('Response lifecycle regression', () => {
     } finally {
       dispose();
     }
+  });
+});
+
+describe('Handler call shapes (B-ERH-07)', () => {
+  const fnA = (): string => 'a';
+  const fnB = (_req: unknown, _res: unknown, next: (err?: unknown) => void): string => {
+    next();
+    return 'b';
+  };
+
+  it('single function returns a single middleware', () => {
+    const result = handleResponse(fnA);
+
+    expect(typeof result).toBe('function');
+    expect(Array.isArray(result)).toBe(false);
+  });
+
+  it('singleton array returns a single middleware (length-dependent runtime)', () => {
+    const result = handleResponse([fnA]);
+
+    expect(typeof result).toBe('function');
+    expect(Array.isArray(result)).toBe(false);
+  });
+
+  it('multi array returns an array of middlewares', () => {
+    const result = handleResponse([fnA, fnB]);
+
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toHaveLength(2);
+    for (const entry of result as unknown[]) {
+      expect(typeof entry).toBe('function');
+    }
+  });
+
+  it('variadic multi returns an array of middlewares', () => {
+    const result = handleResponse(fnA, fnB);
+
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toHaveLength(2);
+  });
+
+  it('empty array and empty variadic reject at runtime', () => {
+    expect(() => handleResponse([] as never)).toThrow('at least one middleware handler is required');
+    expect(() => (handleResponse as (...args: never[]) => unknown)()).toThrow(
+      'at least one middleware handler is required',
+    );
+  });
+
+  it('variable-length spread resolves by runtime length without a compile-time guarantee', () => {
+    const singleton: Array<typeof fnA> = [fnA];
+    const pair: Array<typeof fnA> = [fnA, fnA];
+
+    const one = handleResponse(...singleton);
+    expect(typeof one).toBe('function');
+    expect(Array.isArray(one)).toBe(false);
+
+    const two = handleResponse(...pair);
+    expect(Array.isArray(two)).toBe(true);
+
+    const dynamic: Array<typeof fnA> = [fnA];
+    const viaArray = handleResponse(dynamic);
+    expect(Array.isArray(viaArray)).toBe(false);
+
+    const dynamicPair: Array<typeof fnA> = [fnA, fnA];
+    expect(Array.isArray(handleResponse(dynamicPair))).toBe(true);
+    expect(() => handleResponse([] as Array<typeof fnA>)).toThrow('at least one middleware handler is required');
+  });
+
+  it('singleton-array middleware serves traffic', async () => {
+    const app = express();
+
+    app.get('/singleton-array', handleResponse([() => new OK('single')]));
+
+    await request(app).get('/singleton-array').expect(200, '"single"');
+  });
+
+  it('payload-bearing factories retain payload data at runtime', async () => {
+    const app = express();
+
+    app.get(
+      '/factory-ok',
+      handleResponse(() => HttpResponse.ok({ id: 'user_1' })),
+    );
+    app.get(
+      '/factory-json',
+      handleResponse(() => HttpResponse.json({ id: 'user_2' })),
+    );
+    app.get(
+      '/factory-created',
+      handleResponse(() => HttpResponse.created({ id: 'user_3' })),
+    );
+
+    await request(app).get('/factory-ok').expect(200, { id: 'user_1' });
+    await request(app).get('/factory-json').expect(200, { id: 'user_2' });
+    await request(app).get('/factory-created').expect(201, { id: 'user_3' });
+    expect(HttpResponse.ok({ id: 'user_1' }).statusCode).toBe(200);
+    expect(HttpResponse.json({ id: 'user_2' }).statusCode).toBe(200);
   });
 });

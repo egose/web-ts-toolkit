@@ -42,17 +42,16 @@ import {
 } from '@web-ts-toolkit/http-errors';
 
 export const HttpResponse = {
-  ok: (...args: ConstructorParameters<typeof OK>) => new OK(...args),
-  created: (...args: ConstructorParameters<typeof Created>) => new Created(...args),
-  accepted: (...args: ConstructorParameters<typeof Accepted>) => new Accepted(...args),
-  nonAuthoritativeInfo: (...args: ConstructorParameters<typeof NonAuthoritativeInfo>) =>
-    new NonAuthoritativeInfo(...args),
+  ok: <T>(data: T) => new OK<T>(data),
+  created: <T>(data: T) => new Created<T>(data),
+  accepted: <T>(data: T) => new Accepted<T>(data),
+  nonAuthoritativeInfo: <T>(data: T) => new NonAuthoritativeInfo<T>(data),
   noContent: (...args: ConstructorParameters<typeof NoContent>) => new NoContent(...args),
-  resetContent: (...args: ConstructorParameters<typeof ResetContent>) => new ResetContent(...args),
-  partialContent: (...args: ConstructorParameters<typeof PartialContent>) => new PartialContent(...args),
-  multiStatus: (...args: ConstructorParameters<typeof MultiStatus>) => new MultiStatus(...args),
-  alreadyReported: (...args: ConstructorParameters<typeof AlreadyReported>) => new AlreadyReported(...args),
-  imUsed: (...args: ConstructorParameters<typeof IMUsed>) => new IMUsed(...args),
+  resetContent: <T>(data: T) => new ResetContent<T>(data),
+  partialContent: <T>(data: T) => new PartialContent<T>(data),
+  multiStatus: <T>(data: T) => new MultiStatus<T>(data),
+  alreadyReported: <T>(data: T) => new AlreadyReported<T>(data),
+  imUsed: <T>(data: T) => new IMUsed<T>(data),
   badRequest: (...args: ConstructorParameters<typeof BadRequestError>) => new BadRequestError(...args),
   unauthorized: (...args: ConstructorParameters<typeof UnauthorizedError>) => new UnauthorizedError(...args),
   forbidden: (...args: ConstructorParameters<typeof ForbiddenError>) => new ForbiddenError(...args),
@@ -92,7 +91,7 @@ export const HttpResponse = {
     new RequestHeaderFieldsTooLargeError(...args),
   unavailableForLegalReasons: (...args: ConstructorParameters<typeof UnavailableForLegalReasonsError>) =>
     new UnavailableForLegalReasonsError(...args),
-  json: (...args: ConstructorParameters<typeof OK>) => new OK(...args),
+  json: <T>(data: T) => new OK<T>(data),
   csv: (...args: ConstructorParameters<typeof CSVResponse>) => new CSVResponse(...args),
 };
 
