@@ -891,7 +891,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-tsx",
-        children: "function Save() {\n  const { mutate, isPending } = useUpdate({ advanced: true, select: ['name'] as const });\n\n  const saveTwice = async () => {\n    const [firstResult, secondResult] = await Promise.all([\n      mutate('org_1', { name: 'A' }),\n      mutate('org_1', { name: 'B' }),\n    ]);\n    // Promise.all preserves invocation order. Hook state still follows the latest invocation.\n    console.log(firstResult.data?.name, secondResult.data?.name);\n    return secondResult.data;\n  };\n\n  return (\n    <button disabled={isPending} onClick={saveTwice}>\n      Save twice\n    </button>\n  );\n}\n"
+        children: "function Save() {\n  const { mutate, isPending } = useUpdate({ advanced: true, select: ['name'] as const });\n\n  const saveTwice = async () => {\n    try {\n      const [firstResult, secondResult] = await Promise.all([\n        mutate('org_1', { name: 'A' }),\n        mutate('org_1', { name: 'B' }),\n      ]);\n      // Promise.all preserves invocation order. Hook state still follows the latest invocation.\n      console.log(firstResult.data?.name, secondResult.data?.name);\n      return secondResult.data;\n    } catch (error) {\n      // Hook error state still surfaces the failure; handling here avoids an unhandled rejection.\n      console.error('Save failed', error);\n      return undefined;\n    }\n  };\n\n  return (\n    <button disabled={isPending} onClick={() => void saveTwice().catch(() => undefined)}>\n      Save twice\n    </button>\n  );\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "projection-typing",
@@ -953,6 +953,22 @@ function _createMdxContent(props) {
       }), "/etc. APIs do not forward ", (0,jsx_runtime.jsx)(_components.code, {
         children: "select"
       }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Only an omitted ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "select"
+      }), " keeps the full required model. A supplied-but-indeterminable ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "select"
+      }), " (a broad ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "string"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "string[]"
+      }), " variable or an exclusion-only object such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ status: -1 }"
+      }), ") marks every field optional, and a union ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "select"
+      }), " (e.g. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "readonly ['name'] | readonly ['status']"
+      }), ") keeps each alternative's own required/optional contract instead of merging keys — required access to an omitted or uncertain field fails to compile."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "dependency-key-policy",
       children: "Dependency-Key Policy"

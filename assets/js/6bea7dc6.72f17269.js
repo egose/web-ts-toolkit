@@ -383,6 +383,20 @@ function _createMdxContent(props) {
         className: "language-bash",
         children: "npx wtt-express-runtime build-serverless ./src/app.ts --out-dir netlify/functions\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "express"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/express-runtime"
+      }), " (imported by the generated\nentry) are always external; other dependencies are bundled unless marked\nexternal via ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--external"
+      }), ". Deploy the bundle with both mandatory externals\ninstalled — ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "npm install express @web-ts-toolkit/express-runtime"
+      }), "\n(", (0,jsx_runtime.jsx)(_components.code, {
+        children: "serverless-http"
+      }), " ships with the runtime package). A bundle executed without\nthe runtime package installed fails to load with a missing-module error. The\nsame externals apply to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "build"
+      }), " output."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "start-a-built-serverless-bundle-locally",
       children: "Start a built serverless bundle locally"
@@ -405,7 +419,11 @@ function _createMdxContent(props) {
         children: "Content-Length"
       }), " exceeding the limit is rejected with ", (0,jsx_runtime.jsx)(_components.code, {
         children: "413"
-      }), " before buffering, and oversized chunked bodies are drained after the limit without invoking the handler."]
+      }), " before buffering, and oversized chunked bodies are drained after the limit without invoking the handler. Chunk retention is ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "O(limit)"
+      }), " — appending stops once the running total would exceed the limit. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Buffer.concat"
+      }), " then holds the chunks plus one output Buffer, and event translation adds a transient base64 copy (~4/3 of the body), so peak transient memory is a small multiple of the limit rather than an exact ceiling."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The local ", (0,jsx_runtime.jsx)(_components.code, {
         children: "start-serverless"
@@ -423,7 +441,11 @@ function _createMdxContent(props) {
         children: "serverless-http"
       }), ". It does not emulate Netlify, Vercel, HTTP API v2, ALB, cookies arrays, authorizers, stage variables, full request context, or a trusted source IP."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Query keys and values are decoded once from percent-encoding. Duplicate keys are preserved in ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Query keys and values are decoded once from percent-encoding. Origin-form paths are preserved verbatim (no dot-segment resolution, slash collapsing, or percent-decoding); absolute-form targets are supported by stripping scheme and authority; asterisk-form (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "*"
+      }), ") yields path ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "*"
+      }), "; other shapes are rejected with a 500 before the handler runs. Duplicate keys are preserved in ", (0,jsx_runtime.jsx)(_components.code, {
         children: "multiValueQueryStringParameters"
       }), ", empty values remain ", (0,jsx_runtime.jsx)(_components.code, {
         children: "''"
@@ -523,7 +545,11 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "--external <pkg>"
-        }), " keeps dependencies external during bundling"]
+        }), " keeps dependencies external during bundling (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "express"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/express-runtime"
+        }), " are always external)"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "--max-body-bytes <bytes>"
@@ -542,9 +568,23 @@ function _createMdxContent(props) {
         children: "wtt-express-runtime dev -- --app.js"
       }), ". Numeric values are validated\nbefore env files, preload modules, app modules, watchers, or servers are opened:\nports must be canonical decimal integers in ", (0,jsx_runtime.jsx)(_components.code, {
         children: "0..65535"
-      }), " or nonnumeric named-pipe\npaths, and timeout, delay, and body-limit values must be finite integers in\n", (0,jsx_runtime.jsx)(_components.code, {
+      }), " or nonnumeric named-pipe\npaths, timer durations (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--shutdown-timeout"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--delay"
+      }), ") must be finite integers\nin ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "0..2147483647"
+      }), " (Node's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "setTimeout"
+      }), " limit — larger values are rejected\ninstead of overflowing into near-immediate timers; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "0"
+      }), " means no wait and\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "2147483647"
+      }), " is the largest safe delay), and body-limit values\n(", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--max-body-bytes"
+      }), ") keep the wider ", (0,jsx_runtime.jsx)(_components.code, {
         children: "0..9007199254740991"
-      }), "."]
+      }), " range."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "createexpressappoptions",
       children: (0,jsx_runtime.jsx)(_components.code, {
@@ -715,9 +755,11 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Wraps an Express app into a ", (0,jsx_runtime.jsx)(_components.code, {
         children: "serverless-http"
-      }), " handler. Configure provider-specific deployment behavior through ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " handler. Configure the supported provider behavior through ", (0,jsx_runtime.jsx)(_components.code, {
         children: "serverlessOptions"
-      }), "; the local ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "provider: 'aws' | 'azure'"
+      }), "); the local ", (0,jsx_runtime.jsx)(_components.code, {
         children: "start-serverless"
       }), " adapter emulates AWS API Gateway REST API v1 / Lambda proxy only."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
@@ -820,13 +862,35 @@ function _createMdxContent(props) {
       }), " before Express and\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "(response, event, context)"
       }), " after Express."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Netlify-style example:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Serverless deployment example (export the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ServerlessHandler"
+      }), " as-is with its\ninferred type):"]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import type { Handler } from '@netlify/functions';\nimport express from 'express';\nimport { createExpressApp, createServerlessHandler } from '@web-ts-toolkit/express-runtime';\n\nconst myRouter = express.Router();\n\nasync function connectDatabase(): Promise<void> {}\n\nconst app = createExpressApp({\n  routers: [{ path: () => '/.netlify/functions/main', handler: myRouter }],\n});\n\nexport const handler: Handler = createServerlessHandler(app, {\n  init: async () => {\n    await connectDatabase();\n  },\n});\n"
+        children: "import express from 'express';\nimport { createExpressApp, createServerlessHandler } from '@web-ts-toolkit/express-runtime';\n\nconst myRouter = express.Router();\n\nasync function connectDatabase(): Promise<void> {}\n\nconst app = createExpressApp({\n  routers: [{ path: () => '/.netlify/functions/main', handler: myRouter }],\n});\n\nexport const handler = createServerlessHandler(app, {\n  init: async () => {\n    await connectDatabase();\n  },\n});\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Do not annotate the export with the platform's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Handler"
+      }), " type (e.g. from\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@netlify/functions"
+      }), "): the handler resolves\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Promise<object>"
+      }), " for the event shapes ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "serverless-http"
+      }), " supports\n(", (0,jsx_runtime.jsx)(_components.code, {
+        children: "aws"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "azure"
+      }), " providers), which is not assignable to Netlify's\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "HandlerResponse"
+      }), " (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "statusCode"
+      }), " is required there), so such an annotation fails\nstrict compilation. No platform-specific adapter is shipped; the local\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "start-serverless"
+      }), " command emulates AWS API Gateway REST API v1 only."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "startlocalserverapp-options",
       children: (0,jsx_runtime.jsx)(_components.code, {
@@ -866,6 +930,8 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["deterministic shutdown order: stop accepting → drain (up to ", (0,jsx_runtime.jsx)(_components.code, {
           children: "shutdownTimeout"
+        }), ", a finite integer in ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "0..2147483647"
         }), ") → ", (0,jsx_runtime.jsx)(_components.code, {
           children: "onShutdown"
         }), " (the timeout covers draining only; ", (0,jsx_runtime.jsx)(_components.code, {

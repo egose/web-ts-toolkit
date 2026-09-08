@@ -498,6 +498,23 @@ function _createMdxContent(props) {
       }), " registers the supplied model instance with the factory's bound runtime before route creation. This keeps same-name models from separate Mongoose connections isolated when each module uses its own ", (0,jsx_runtime.jsx)(_components.code, {
         children: "EgoseFactoryStatic.create()"
       }), " runtime."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Typed models compose through the exported ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "RouterModel<TModel>"
+      }), " alias without casts, and decorator overloads keep model-specific option inference (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelRouterOptions<TModel>"
+      }), "):"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import type { Model } from 'mongoose';\nimport type { RouterModel } from '@web-ts-toolkit/access-router-deco';\n\ntype User = { name: string };\ndeclare const UserModel: Model<User>;\n\nconst modelRef: RouterModel = UserModel;\nconst typedRef: RouterModel<User> = UserModel;\n\nfunction registerModel(value: RouterModel<User>) {\n  Router(value, { basePath: '/users' })(UserRouter);\n  RouterOptions(value, { idParam: 'userId' })(UserOptions);\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["A ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "string | Model<TModel>"
+      }), " union held in a variable or function parameter is accepted wherever a model name or instance is. Option objects still infer from the model type (e.g. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "permissionSchema"
+      }), " keys), and model-like objects or non-model values are still rejected."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "mental-model",
       children: "Mental Model"
@@ -701,6 +718,10 @@ function _createMdxContent(props) {
       }), " for request data) and uses ", (0,jsx_runtime.jsx)(_components.strong, {
         children: "explicit parameter injection"
       }), " — undecorated parameters receive no value."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Migration note (BDECO-05 — fail-fast decorator targets): hook, parameter, and property decorators are instance-only and reject unsupported targets at decoration time before writing metadata. Static methods/properties/parameters, constructor parameters, and missing/invalid operations (including zero-argument JavaScript calls like ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "BaseFilter()"
+      }), ") now throw instead of being silently skipped. Previously such declarations compiled but never registered, so a deny guard or filter could silently disappear. If you relied on static decorators, move the hook to an instance method."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
       children: [(0,jsx_runtime.jsx)(_components.thead, {
         children: (0,jsx_runtime.jsxs)(_components.tr, {
@@ -768,10 +789,10 @@ function _createMdxContent(props) {
             }), ", ", (0,jsx_runtime.jsx)(_components.code, {
               children: "read"
             })]
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "Record<string,unknown>"
-            })
+            }), " — per-document map, OR-combined with global grants; empty map grants nothing and never revokes a global grant"]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
@@ -800,10 +821,20 @@ function _createMdxContent(props) {
             }), ", ", (0,jsx_runtime.jsx)(_components.code, {
               children: "delete"
             })]
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: (0,jsx_runtime.jsx)(_components.code, {
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
               children: "Filter | true | null | undefined"
-            })
+            }), " — filter restricts; only ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "false"
+            }), " denies; ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "null"
+            }), "/", (0,jsx_runtime.jsx)(_components.code, {
+              children: "undefined"
+            }), "/", (0,jsx_runtime.jsx)(_components.code, {
+              children: "true"
+            }), "/", (0,jsx_runtime.jsx)(_components.code, {
+              children: "{}"
+            }), " add no base restriction"]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
@@ -1175,6 +1206,46 @@ function _createMdxContent(props) {
       }), " on invalid input — do not ", (0,jsx_runtime.jsx)(_components.code, {
         children: "throw"
       }), " for expected invalid input nor return the document, and the typed hook now fails to compile if you return a document."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Security / migration note (BDECO-07 — previously misleading guidance, runtime semantics unchanged): earlier docs said a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@BaseFilter"
+      }), " returning ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " denies and a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@DocPermissions"
+      }), " returning ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{}"
+      }), " denies. The runtime never behaved that way — only a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), " filter denies (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "true"
+      }), "/empty ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{}"
+      }), " normalize to no restriction and pass the incoming filter through), and document permissions combine with global grants via OR (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "permissions.has(key) || docPermissions[key]"
+      }), "), so an empty document map cannot revoke a global grant. If you relied on ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " filters or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{}"
+      }), " document maps to deny, return ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), " from the filter hook or gate the route with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@RouteGuard(op)"
+      }), " returning ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), " instead. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Identifier()"
+      }), " hooks run with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "this"
+      }), " bound to the decorated class instance like every other hook (never the request object); use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Request()"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Id()"
+      }), " for request values."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "parameter-decorators",
       children: "Parameter Decorators"

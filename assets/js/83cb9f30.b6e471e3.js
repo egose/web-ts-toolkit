@@ -147,6 +147,12 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
       children: "Installation"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Requires Node.js ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ">=22"
+      }), " and Express ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "^5"
+      }), " (peer dependency, installed separately)."]
     }), "\n", (0,jsx_runtime.jsxs)(Tabs/* default */.A, {
       groupId: "npm2yarn",
       children: [(0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -154,7 +160,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @web-ts-toolkit/express-response-handler\n"
+            children: "npm install @web-ts-toolkit/express-response-handler @web-ts-toolkit/http-errors express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -163,7 +169,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @web-ts-toolkit/express-response-handler\n"
+            children: "yarn add @web-ts-toolkit/express-response-handler @web-ts-toolkit/http-errors express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -172,7 +178,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @web-ts-toolkit/express-response-handler\n"
+            children: "pnpm add @web-ts-toolkit/express-response-handler @web-ts-toolkit/http-errors express\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -181,7 +187,55 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @web-ts-toolkit/express-response-handler\n"
+            children: "bun add @web-ts-toolkit/express-response-handler @web-ts-toolkit/http-errors express\n"
+          })
+        })
+      })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The quickstart below imports ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "express"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/http-errors"
+      }), "\ndirectly, so both must be direct dependencies. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/http-errors"
+      }), "\nis also a transitive dependency of this package, but transitive packages are\nnot importable from an isolated consumer (pnpm), so listing it directly is\nrequired when route code throws typed errors."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "For TypeScript consumers:"
+    }), "\n", (0,jsx_runtime.jsxs)(Tabs/* default */.A, {
+      groupId: "npm2yarn",
+      children: [(0,jsx_runtime.jsx)(TabItem/* default */.A, {
+        value: "npm",
+        children: (0,jsx_runtime.jsx)(_components.pre, {
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            className: "language-bash",
+            children: "npm install -D typescript @types/express @types/node\n"
+          })
+        })
+      }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
+        value: "yarn",
+        label: "Yarn",
+        children: (0,jsx_runtime.jsx)(_components.pre, {
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            className: "language-bash",
+            children: "yarn add --dev typescript @types/express @types/node\n"
+          })
+        })
+      }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
+        value: "pnpm",
+        label: "pnpm",
+        children: (0,jsx_runtime.jsx)(_components.pre, {
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            className: "language-bash",
+            children: "pnpm add -D typescript @types/express @types/node\n"
+          })
+        })
+      }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
+        value: "bun",
+        label: "Bun",
+        children: (0,jsx_runtime.jsx)(_components.pre, {
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            className: "language-bash",
+            children: "bun add --dev typescript @types/express @types/node\n"
           })
         })
       })]
@@ -379,6 +433,14 @@ function _createMdxContent(props) {
         children: "return()"
       }), " method is called so generators can release database cursors, files, or other resources."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Direct ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "CSVResponse.streamCsv(res)"
+      }), " keeps its optional error-owner callback (no breaking change). A pre-output failure with an owner invokes it exactly once and the owner terminates the destination; the handler owner renders one redacted JSON error through the bounded fallback lifecycle. A throwing owner is contained and the destination is destroyed with the original failure. Without an owner the destination is destroyed with the normalized failure, observable via ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "error"
+      }), " + ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "close"
+      }), ". Failures after output starts always destroy the destination."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "CSVResponse"
       }), " writes cell values exactly as supplied. It does not automatically neutralize spreadsheet formulas such as values beginning with ", (0,jsx_runtime.jsx)(_components.code, {
@@ -456,10 +518,12 @@ function _createMdxContent(props) {
         children: "undefined"
       }), " success value is serialized. This includes plain JSON values, ", (0,jsx_runtime.jsx)(_components.code, {
         children: "HttpResponse"
-      }), " wrappers, and CSV responses. If the wrapped handler returns ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " wrappers, and CSV responses. It is skipped when the handler returns ", (0,jsx_runtime.jsx)(_components.code, {
         children: "undefined"
-      }), ", the library assumes the handler owns the response and does not run ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "postJson"
+      }), " or has already taken manual response ownership (for example a synchronous ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "res.*"
+      }), " write that committed headers). Manual sync/callback responses get no success hooks and no unsolicited ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "500"
       }), "."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
@@ -468,19 +532,37 @@ function _createMdxContent(props) {
         children: "finish"
       }), " for a successful response. It does not run on client ", (0,jsx_runtime.jsx)(_components.code, {
         children: "close"
-      }), ", CSV/JSON serialization failure, or any path that never successfully finishes a response."]
+      }), ", on manual ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), " responses, on fallback JSON errors, or on any path that never successfully finishes a response. A failed CSV attempt never runs ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "postJson"
+      }), " on its fallback JSON error's finish."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "preError"
-      }), " runs before an error response is serialized. ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " runs before an error response is serialized, including success-path fallback errors (circular/BigInt serialization, rejected ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "preJson"
+      }), ", CSV-before-output failures). It always observes the original failure value. ", (0,jsx_runtime.jsx)(_components.code, {
         children: "postError"
       }), " runs after the HTTP response emits ", (0,jsx_runtime.jsx)(_components.code, {
         children: "finish"
-      }), " for an error response, and it receives the original error value observed by ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " for an error response, including fallback errors, and it receives the same failure that was sent (the original, or the ", (0,jsx_runtime.jsx)(_components.code, {
         children: "preError"
-      }), "."]
+      }), " failure when ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "preError"
+      }), " itself fails)."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["If a pre-hook throws or rejects before headers are sent, the failure is routed through the normal error response path. If a post-hook throws or rejects, the response has already completed, so the failure is passed to Express with ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["If a pre-hook throws or rejects before headers are sent, the failure goes through one bounded error lifecycle: one ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "preError"
+      }), ", one redacted error body, and one finish-timed ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "postError"
+      }), ", without re-entering a failing ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "preError"
+      }), "/provider and without running ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "postJson"
+      }), ". When headers are already committed (partial write), the owned failure is delegated to Express error middleware with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "next(err)"
+      }), " and no second body. If a post-hook throws or rejects, the response has already completed, so the failure is passed to Express with ", (0,jsx_runtime.jsx)(_components.code, {
         children: "next(err)"
       }), " for logging/observability and no second response is sent."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {

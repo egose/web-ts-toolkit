@@ -120,12 +120,12 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { encodeAsset, formatCssUrl } from '@web-ts-toolkit/asset-inliner';\nconst asset = await encodeAsset('./assets/logo.png');\nformatCssUrl(asset); // url(data:image/png;base64,...)\n"
+        children: "import { encodeAsset, formatCssUrl } from '@web-ts-toolkit/asset-inliner';\nconst asset = await encodeAsset('test/fixtures/legacy/images/apple.png');\nformatCssUrl(asset); // url(data:image/png;base64,...)\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { createAssetCatalog, inlineCss } from '@web-ts-toolkit/asset-inliner';\nconst catalog = await createAssetCatalog(['./assets']);\nconst result = inlineCss('a { background: url(\"./assets/logo.png\") }', { catalog, documentPath: '/project/src/a.css' });\n"
+        children: "import { createAssetCatalog, inlineCss } from '@web-ts-toolkit/asset-inliner';\n// Runnable from the package root: catalog paths and documentPath share one fixture tree.\nconst catalog = await createAssetCatalog(['test/fixtures/legacy/images/apple.png']);\nconst result = inlineCss('.hero { background: url(\"../images/apple.png\") }', {\n  catalog,\n  documentPath: 'test/fixtures/legacy/css/site.css',\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
@@ -232,6 +232,28 @@ function _createMdxContent(props) {
         }), ") remain fail-closed (", (0,jsx_runtime.jsx)(_components.code, {
           children: "ResourceLimitError"
         }), ") and cannot be downgraded, with deterministic order and no implicit heuristics."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.strong, {
+          children: "Changed contracts:"
+        }), " ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "maxFiles"
+        }), " is one catalog-wide budget across roots (byte ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ data }"
+        }), " inputs sit outside it); oversized targets rejected by ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "maxTargetBytes"
+        }), " return ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "content: ''"
+        }), " with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "written: false"
+        }), " (metadata preflight only, not a strict allocation bound); resolver/catalog/formatter data URLs must match ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "data:<type>/<subtype>;base64,<strict-base64>"
+        }), " or fail with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "INVALID_OPTIONS"
+        }), "; ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "image/x-icon"
+        }), " detections normalize to canonical ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "image/vnd.microsoft.icon"
+        }), "."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "migration-note",

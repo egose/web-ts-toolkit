@@ -53,6 +53,10 @@ const toc = [{
   "id": "installation",
   "level": 2
 }, {
+  "value": "Requirements",
+  "id": "requirements",
+  "level": 2
+}, {
   "value": "What It Exposes",
   "id": "what-it-exposes",
   "level": 2
@@ -307,6 +311,59 @@ function _createMdxContent(props) {
         })
       })]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "requirements",
+      children: "Requirements"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Node.js ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ">=22.12.0"
+        }), ". The published CJS entry (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "dist/index.js"
+        }), ") synchronously requires the ESM-only ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "jose"
+        }), " dependency, which needs Node's ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "require(esm)"
+        }), " support. That support is enabled by default starting with Node ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "22.12.0"
+        }), "; earlier Node 22 releases fail to load the CJS root with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ERR_REQUIRE_ESM"
+        }), " unless an experimental flag is passed. Both the CJS (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "require"
+        }), ") and ESM (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "import"
+        }), ") roots load without experimental flags on every verified runtime (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "22.12.0"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "22.18.0"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "22.20.0"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "24.x"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "26.x"
+        }), ")."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["TypeScript consumers typecheck with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "skipLibCheck: false"
+        }), " under strict ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "NodeNext"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Bundler"
+        }), " settings. ESM consumers resolve the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "import"
+        }), " declaration condition (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "dist/index.d.mts"
+        }), "); CommonJS (", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".cts"
+        }), ") consumers resolve the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "require"
+        }), " condition (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "dist/index.d.ts"
+        }), "). Both include the public Express ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "req.auth"
+        }), " augmentation."]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "what-it-exposes",
       children: "What It Exposes"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
@@ -530,7 +587,79 @@ function _createMdxContent(props) {
         children: "httpOnly: false"
       }), " and unsafe cookie names, domains, or paths so untrusted values cannot be serialized into ", (0,jsx_runtime.jsx)(_components.code, {
         children: "Set-Cookie"
-      }), " headers."]
+      }), " headers. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "__Secure-"
+      }), " names require an effectively ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Secure"
+      }), " cookie; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "__Host-"
+      }), " names additionally require no ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "cookie.domain"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "cookie.path: '/'"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Default cookie behavior:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "name"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "oidc_vault_session"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "path"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "/"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "httpOnly"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "true"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "deploymentMode"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "same-origin"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "sameSite"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "lax"
+        }), " unless ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "deploymentMode"
+        }), " is ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "cross-site"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "secure"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "true"
+        }), " for HTTPS ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "backendOrigin"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sameSite: 'none'"
+        }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "deploymentMode: 'cross-site'"
+        }), "; otherwise ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "false"
+        }), " as an intentional HTTP local-development policy (set ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "secure: true"
+        }), " explicitly when terminating TLS upstream of an ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "http"
+        }), " origin, or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "secure: false"
+        }), " explicitly to opt out on HTTPS)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "SameSite=None"
+        }), " is always serialized with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Secure"
+        }), " because browsers reject ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "SameSite=None"
+        }), " without it, even with explicit ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "secure: false"
+        })]
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Cookie-authenticated ", (0,jsx_runtime.jsx)(_components.code, {
         children: "refresh"
@@ -649,7 +778,65 @@ function _createMdxContent(props) {
         children: "postLogoutRedirectUri"
       }), " is optional. When configured, it must be an absolute HTTP(S) URL registered with the OIDC provider for post-logout redirects. It may be hosted on a different origin from ", (0,jsx_runtime.jsx)(_components.code, {
         children: "frontendRedirectUri"
-      }), " when that exact URL is provider-registered."]
+      }), " when that exact URL is provider-registered. It is only consulted for redirected logout (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "redirect: true"
+      }), ")."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Local logout (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "redirect"
+      }), " unset or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), ") never contacts the provider: it revokes the local session lineage, clears the session cookie under cookie transport, delivers ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onLogout"
+      }), ", and returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "200 { loggedOut: true }"
+      }), ". Redirected logout (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "redirect: true"
+      }), ") treats the upstream end-session redirect as best-effort: the local revocation, cookie clearing, and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onLogout"
+      }), " notification still commit when provider discovery fails or no ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "endSessionEndpoint"
+      }), " is available, the route still returns the local ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "200 { loggedOut: true }"
+      }), " success, and the upstream failure is reported via ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onError"
+      }), " only."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Every vault route response carries ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Cache-Control: no-store"
+      }), " (login/callback/logout redirects, exchange/refresh/logout/backchannel JSON, and error JSON including body-parser errors) so caches do not retain session/access credentials, one-time exchange codes, or authorization redirects. Only ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "no-store"
+      }), " is emitted: legacy ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Pragma"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Expires"
+      }), " add no protection once ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "no-store"
+      }), " is present, and no ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Referrer-Policy"
+      }), " is set because redirect targets intentionally expose protocol-required values (provider authorization URL, frontend ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "?code="
+      }), ", upstream ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "id_token_hint"
+      }), ") to the navigation target. This does not clear browser history, disable reverse-proxy request logging, strip ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "?code="
+      }), " from frontend URLs/history (the frontend must still clean up the callback URL, e.g. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "history.replaceState"
+      }), "), or hide intentional provider redirect exposure. Verify with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "curl -i"
+      }), " (expect ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Cache-Control: no-store"
+      }), " on ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "GET /auth/oidc/login"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "POST /auth/oidc/exchange"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "POST /auth/oidc/refresh"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "POST /auth/oidc/logout"
+      }), ") or assert ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "response.headers['cache-control'] === 'no-store'"
+      }), " in integration tests under both transports."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "public-options-and-defaults",
       children: "Public Options And Defaults"
@@ -719,6 +906,8 @@ function _createMdxContent(props) {
           }), (0,jsx_runtime.jsxs)(_components.td, {
             children: ["Default browser return target after backend callback completion. Required if login accepts custom ", (0,jsx_runtime.jsx)(_components.code, {
               children: "returnTo"
+            }), ". Validated before durable callback state; missing destination fails the callback with ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "500 OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI"
             }), "."]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
@@ -728,8 +917,14 @@ function _createMdxContent(props) {
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: "unset"
-          }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Optional provider-registered HTTP(S) URL used in the upstream end-session redirect."
+          }), (0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Optional provider-registered HTTP(S) URL used in the upstream end-session redirect. Only consulted for redirected logout (", (0,jsx_runtime.jsx)(_components.code, {
+              children: "redirect: true"
+            }), "); upstream failures fall back to local ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "200 { loggedOut: true }"
+            }), " with ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "onError"
+            }), "."]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
@@ -799,7 +994,11 @@ function _createMdxContent(props) {
               children: "httpOnly"
             }), " is always enforced as ", (0,jsx_runtime.jsx)(_components.code, {
               children: "true"
-            }), "; unsafe names, paths, and domains are rejected."]
+            }), "; unsafe names, paths, domains, and ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "__Secure-"
+            }), "/", (0,jsx_runtime.jsx)(_components.code, {
+              children: "__Host-"
+            }), " prefix violations are rejected."]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
@@ -841,7 +1040,7 @@ function _createMdxContent(props) {
               children: "5000"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Timeout for discovery, token, UserInfo, and remote JWKS requests. Must be a positive finite integer."
+            children: "Overall deadline per provider HTTP exchange (headers plus complete body and cleanup) for discovery, token, UserInfo, and remote JWKS requests. Must be a positive finite integer; validated before cache lookup."
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
@@ -871,6 +1070,22 @@ function _createMdxContent(props) {
           })]
         })]
       })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Construction takes an internal resolved snapshot of the options object without mutating it: normalized values are stored on the snapshot, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "cookie"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "trustedOrigins"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "config"
+      }), " containers are shallow-copied, and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "storeProvider"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "hooks"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "tokenIssuer"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "now"
+      }), " service references are retained live (never deep-cloned). Frozen inputs work, reused inputs are not mutated, and mutating or replacing the caller object after creation has no effect on the created router."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "frontend-integration-example",
       children: "Frontend Integration Example"
@@ -989,9 +1204,23 @@ function _createMdxContent(props) {
         children: "typ"
       }), " remain accepted for provider compatibility. Each ", (0,jsx_runtime.jsx)(_components.code, {
         children: "jti"
-      }), " is consumed once and remembered until the token ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " is reserved once per issuer/client ID (replay keys namespace the raw ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "jti"
+      }), ", so independent issuers sharing a store and reusing a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "jti"
+      }), " do not suppress each other) and remembered until the token ", (0,jsx_runtime.jsx)(_components.code, {
         children: "exp"
-      }), ", so replaying the same valid token returns a successful no-op response without repeating revocation hooks."]
+      }), ". The first presentation performs the idempotent session deletion and emits ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onLogout"
+      }), "; a duplicate presentation repeats the same idempotent deletion without emitting ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onLogout"
+      }), " unless the catch-up actually removed sessions (retry after a deletion failure still revokes and still delivers the hook). A sequential replay after completed revocation returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "revokedSessions: 0"
+      }), " without a hook. Hooks are therefore at-least-once under failure/concurrency, except a crash between durable deletion and hook delivery can lose that delivery. Pre-upgrade raw-", (0,jsx_runtime.jsx)(_components.code, {
+        children: "jti"
+      }), " replay records expire naturally with their token ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "exp"
+      }), " and are never matched by namespaced keys."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Example request:"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
@@ -1049,8 +1278,14 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { createClient } from 'redis';\nimport { createRedisOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-redis-store';\n\nconst redis = createClient({ url: process.env.REDIS_URL });\nawait redis.connect();\n\ncreateOidcVaultMiddleware({\n  basePath: '/auth/oidc',\n  backendOrigin: 'https://api.example.com',\n  config: {\n    issuer: process.env.OIDC_ISSUER,\n    clientId: process.env.OIDC_CLIENT_ID,\n    clientSecret: process.env.OIDC_CLIENT_SECRET,\n  },\n  frontendRedirectUri: 'https://frontend.example.com/callback',\n  postLogoutRedirectUri: 'https://frontend.example.com/logged-out',\n  sessionTransport: 'cookie',\n  cookie: {\n    deploymentMode: 'same-site',\n    domain: '.example.com',\n    secure: true,\n  },\n  trustedOrigins: ['https://frontend.example.com'],\n  storeProvider: createRedisOidcVaultStore({\n    client: redis,\n    keyPrefix: 'oidc-vault',\n  }),\n});\n"
+        children: "import { createClient } from 'redis';\nimport { createRedisOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-redis-store';\n\nconst redis = createClient({ url: process.env.REDIS_URL });\nawait redis.connect();\n\ncreateOidcVaultMiddleware({\n  basePath: '/auth/oidc',\n  backendOrigin: 'https://api.example.com',\n  config: {\n    issuer: process.env.OIDC_ISSUER,\n    clientId: process.env.OIDC_CLIENT_ID,\n    clientSecret: process.env.OIDC_CLIENT_SECRET,\n  },\n  frontendRedirectUri: 'https://frontend.example.com/callback',\n  postLogoutRedirectUri: 'https://frontend.example.com/logged-out',\n  sessionTransport: 'cookie',\n  cookie: {\n    // Host-only (no `domain`): the browser scopes the cookie to\n    // `api.example.com` and still sends it on credentialed cross-origin\n    // requests from `https://frontend.example.com`.\n    deploymentMode: 'same-site',\n    secure: true,\n  },\n  trustedOrigins: ['https://frontend.example.com'],\n  storeProvider: createRedisOidcVaultStore({\n    client: redis,\n    keyPrefix: 'oidc-vault',\n  }),\n});\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Only set ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "cookie.domain"
+      }), " (for example ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".example.com"
+      }), ") as an advanced expansion when sibling subdomains must share the credential. Sharing widens the credential trust boundary and is not required for normal cross-origin API requests."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "config-modes",
       children: "Config Modes"
@@ -1062,17 +1297,27 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["If only ", (0,jsx_runtime.jsx)(_components.code, {
         children: "OIDC_ISSUER"
-      }), " is set, discovery mode resolves the provider endpoints. The discovered issuer must match the configured issuer, after normal trailing-slash normalization."]
+      }), " is set, discovery mode resolves the provider endpoints. The issuer identifier is preserved exactly after surrounding-whitespace trimming (no trailing slash is added; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/tenant"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/tenant/"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/tenant//"
+      }), " are distinct) and the discovered issuer must exactly equal the configured issuer. Issuers must be absolute http(s) URLs without userinfo, query, or fragment; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "http"
+      }), " is accepted for local-test providers."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Provider discovery metadata and remote JWKS resolvers are cached in bounded process-wide maps keyed by configured issuer URL and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "jwks_uri"
-      }), ". These keys are intended to come from static middleware configuration, not request input. Successful discovery entries are reused for up to 10 minutes and both discovery and JWKS resolver maps retain at most 32 entries with oldest-entry eviction. Failed discovery requests are removed from the cache so a later request can retry."]
+      children: ["Provider discovery metadata and remote JWKS resolvers are cached in bounded process-wide maps. Discovery fetches are isolated by ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "(issuer, providerRequestTimeoutMs)"
+      }), " so differing instance policies never inherit each other's deadline, while settled successful metadata is additionally shared across timeouts for reuse. JWKS resolvers are isolated by ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "(jwks_uri, providerRequestTimeoutMs)"
+      }), " because JOSE fixes the fetch timeout at creation. These keys are intended to come from static middleware configuration, not request input. Successful discovery entries are reused for up to 10 minutes and both discovery and JWKS resolver maps retain at most 32 entries with oldest-entry eviction. Failed discovery requests evict only the owning policy entry so a later request can retry. Timeout options are validated before any cache lookup, so cached entries cannot bypass option validation."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Discovery, token, UserInfo, and remote JWKS HTTP requests use a 5 second default timeout and manual redirect handling. Set ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Discovery, token, UserInfo, and remote JWKS HTTP requests use a 5 second default overall deadline covering response headers plus complete success/error body consumption and stream cleanup; stalled or slow bodies fail with sanitized endpoint-specific timeout errors. Upstream redirects are never followed (manual handling). Set ", (0,jsx_runtime.jsx)(_components.code, {
         children: "providerRequestTimeoutMs"
       }), " on ", (0,jsx_runtime.jsx)(_components.code, {
         children: "createOidcVaultMiddleware(...)"
-      }), " to a positive integer number of milliseconds if your provider needs a different bound. Provider response parse errors return sanitized client messages; oversized or malformed provider bodies are not returned to callers."]
+      }), " to a positive integer number of milliseconds if your provider needs a different bound. JWKS documents fetched through the JOSE resolver additionally enforce package bounds of 1 MiB and 100 keys, which JOSE itself leaves unbounded. Provider response parse errors return sanitized client messages; oversized or malformed provider bodies are not returned to callers."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
@@ -1107,9 +1352,9 @@ function _createMdxContent(props) {
       id: "manual-mode",
       children: "Manual mode"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["If your provider metadata is not discoverable, configure the endpoints directly. ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["If your provider metadata is not discoverable, configure the endpoints directly. Manual mode uses the configured endpoints and does not perform discovery; ", (0,jsx_runtime.jsx)(_components.code, {
         children: "issuer"
-      }), " is still required so ID and logout tokens are verified against the expected issuer."]
+      }), " is still required so ID and logout tokens are verified against the exact expected issuer."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
@@ -1151,6 +1396,30 @@ function _createMdxContent(props) {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "expires_in"
         }), ", when present, must be a finite non-negative integer."]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Discovery, token, and UserInfo JSON bodies must be non-null, non-array objects; valid non-object JSON is a controlled 502 provider error."
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Non-success token/UserInfo responses always surface 502 with a stable code/message regardless of JSON versus HTML bodies, without leaking body content or the upstream status; rejected upstream redirects never become browser-facing 3xx."
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Present ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access_token"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "id_token"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "refresh_token"
+        }), " fields must be non-empty strings and a present ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "scope"
+        }), " must be a string; malformed present fields are rejected rather than treated as omissions. Callback responses additionally require ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "id_token"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "refresh_token"
+        }), ", and no session is persisted until all provider checks pass. The callback destination (transaction ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "returnTo"
+        }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "frontendRedirectUri"
+        }), ") is validated before any provider call or durable session/code creation and fails with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "500 OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI"
+        }), " when neither is configured, so a missing destination cannot strand credentials."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["Upstream OAuth ", (0,jsx_runtime.jsx)(_components.code, {
           children: "expires_in"
@@ -1176,17 +1445,39 @@ function _createMdxContent(props) {
           children: "clientId"
         }), " when present and is required for multi-audience ID tokens."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["UserInfo responses must include a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ["UserInfo responses must be objects including a ", (0,jsx_runtime.jsx)(_components.code, {
           children: "sub"
-        }), " matching the verified ID-token subject before claims are merged."]
+        }), " matching the verified ID-token subject before claims are merged; JSON ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "null"
+        }), " never bypasses the subject check."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["Refresh responses may omit ", (0,jsx_runtime.jsx)(_components.code, {
           children: "id_token"
-        }), "; in that case, the existing verified identity claims are retained. If refresh returns a new ", (0,jsx_runtime.jsx)(_components.code, {
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "refresh_token"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "access_token"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "scope"
+        }), "; omitted fields retain their current session values (an omitted ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "id_token"
+        }), " keeps the existing verified identity without revalidating the stored token). If refresh returns a new ", (0,jsx_runtime.jsx)(_components.code, {
           children: "id_token"
         }), ", its ", (0,jsx_runtime.jsx)(_components.code, {
           children: "sub"
-        }), " must match the current session subject."]
+        }), " must match the current session subject, and no rotation happens until all provider checks pass."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Refresh profile precedence: fresh verified ID claims are the base when a new ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "id_token"
+        }), " is present, freshly fetched matching UserInfo overlays whichever base applies, and the retained profile is used only when no new ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "id_token"
+        }), " arrives (fresh UserInfo still overlays the retained base per key). Retained values are never merged over fresh claims and are never treated as fresh UserInfo. Claims absent from the fresh sources are dropped when fresh identity arrives, so removed provider claims disappear; keep application custom attributes in ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "session.metadata"
+        }), ", not in ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "user"
+        }), ", because application-added ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "user"
+        }), " keys are not carried forward across a fresh identity refresh."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "local-access-token-example",
@@ -1202,7 +1493,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { SignJWT } from 'jose';\n\nconst jwtSecret = new TextEncoder().encode(process.env.APP_JWT_SECRET ?? 'dev-secret-change-me');\n\ncreateOidcVaultMiddleware({\n  basePath: '/auth/oidc',\n  backendOrigin: 'https://api.example.com',\n  config: {\n    issuer: process.env.OIDC_ISSUER,\n    clientId: process.env.OIDC_CLIENT_ID,\n    clientSecret: process.env.OIDC_CLIENT_SECRET,\n  },\n  frontendRedirectUri: 'https://frontend.example.com/callback',\n  storeProvider: createMemoryOidcVaultStore(),\n  tokenIssuer: {\n    async issue({ session }) {\n      const accessToken = await new SignJWT({\n        sub: session.subject,\n        sid: session.sessionId,\n        scope: session.scope,\n      })\n        .setProtectedHeader({ alg: 'HS256' })\n        .setIssuedAt()\n        .setExpirationTime('15m')\n        .sign(jwtSecret);\n\n      return {\n        accessToken,\n        expiresIn: 900,\n        tokenType: 'Bearer',\n      };\n    },\n  },\n});\n"
+        children: "import { SignJWT } from 'jose';\n\n// Fail startup when no suitably strong signing key is configured. There is no\n// public fallback: `APP_JWT_SECRET` must be a strong random value that encodes\n// to at least 32 bytes for HS256.\nconst requireSigningKey = (raw: string | undefined): Uint8Array => {\n  if (!raw) {\n    throw new Error('APP_JWT_SECRET must be set to a strong random value at least 32 bytes long.');\n  }\n\n  const key = new TextEncoder().encode(raw);\n\n  if (key.length < 32) {\n    throw new Error('APP_JWT_SECRET must decode to at least 32 bytes for HS256 local access tokens.');\n  }\n\n  return key;\n};\n\nconst jwtSecret = requireSigningKey(process.env.APP_JWT_SECRET);\nconst localTokenIssuer = 'https://api.example.com';\nconst localTokenAudience = 'api-audience';\n\ncreateOidcVaultMiddleware({\n  basePath: '/auth/oidc',\n  backendOrigin: 'https://api.example.com',\n  config: {\n    issuer: process.env.OIDC_ISSUER,\n    clientId: process.env.OIDC_CLIENT_ID,\n    clientSecret: process.env.OIDC_CLIENT_SECRET,\n  },\n  frontendRedirectUri: 'https://frontend.example.com/callback',\n  storeProvider: createMemoryOidcVaultStore(),\n  tokenIssuer: {\n    async issue({ session }) {\n      const accessToken = await new SignJWT({\n        sub: session.subject,\n        sid: session.sessionId,\n        scope: session.scope,\n      })\n        .setProtectedHeader({ alg: 'HS256' })\n        .setIssuer(localTokenIssuer)\n        .setAudience(localTokenAudience)\n        .setIssuedAt()\n        .setExpirationTime('15m')\n        .sign(jwtSecret);\n\n      return {\n        accessToken,\n        expiresIn: 900,\n        tokenType: 'Bearer',\n      };\n    },\n  },\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "That local access token is separate from the upstream IdP token. The upstream refresh token stays only in the server-side vault."
@@ -1214,7 +1505,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import express from 'express';\nimport { createOidcVaultAccessTokenMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { jwtVerify } from 'jose';\n\nconst app = express();\nconst jwtSecret = new TextEncoder().encode(process.env.APP_JWT_SECRET ?? 'dev-secret-change-me');\n\napp.get(\n  '/api/me',\n  createOidcVaultAccessTokenMiddleware({\n    validator: {\n      async validate(token) {\n        const result = await jwtVerify(token, jwtSecret, {\n          algorithms: ['HS256'],\n        });\n\n        return {\n          subject: String(result.payload.sub),\n          sessionId: typeof result.payload.sid === 'string' ? result.payload.sid : undefined,\n          scope: typeof result.payload.scope === 'string' ? result.payload.scope : undefined,\n          claims: result.payload as Record<string, unknown>,\n        };\n      },\n    },\n  }),\n  (req, res) => {\n    res.json({\n      subject: req.auth?.subject,\n      sessionId: req.auth?.sessionId,\n      scope: req.auth?.scope,\n    });\n  },\n);\n"
+        children: "import express from 'express';\nimport { createOidcVaultAccessTokenMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { jwtVerify } from 'jose';\n\nconst app = express();\n\n// Fail startup when no suitably strong signing key is configured. There is no\n// public fallback: `APP_JWT_SECRET` must be a strong random value that encodes\n// to at least 32 bytes for HS256.\nconst requireSigningKey = (raw: string | undefined): Uint8Array => {\n  if (!raw) {\n    throw new Error('APP_JWT_SECRET must be set to a strong random value at least 32 bytes long.');\n  }\n\n  const key = new TextEncoder().encode(raw);\n\n  if (key.length < 32) {\n    throw new Error('APP_JWT_SECRET must decode to at least 32 bytes for HS256 local access tokens.');\n  }\n\n  return key;\n};\n\nconst jwtSecret = requireSigningKey(process.env.APP_JWT_SECRET);\nconst localTokenIssuer = 'https://api.example.com';\nconst localTokenAudience = 'api-audience';\n\napp.get(\n  '/api/me',\n  createOidcVaultAccessTokenMiddleware({\n    validator: {\n      async validate(token) {\n        const result = await jwtVerify(token, jwtSecret, {\n          issuer: localTokenIssuer,\n          audience: localTokenAudience,\n          algorithms: ['HS256'],\n        });\n\n        return {\n          subject: String(result.payload.sub),\n          sessionId: typeof result.payload.sid === 'string' ? result.payload.sid : undefined,\n          scope: typeof result.payload.scope === 'string' ? result.payload.scope : undefined,\n          claims: result.payload as Record<string, unknown>,\n        };\n      },\n    },\n  }),\n  (req, res) => {\n    res.json({\n      subject: req.auth?.subject,\n      sessionId: req.auth?.sessionId,\n      scope: req.auth?.scope,\n    });\n  },\n);\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "This middleware:"
@@ -1237,6 +1528,26 @@ function _createMdxContent(props) {
         })]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "onAuthContext"
+      }), " is a pre-", (0,jsx_runtime.jsx)(_components.code, {
+        children: "next()"
+      }), " veto hook, not a post-commit notification:\nwhen it throws, downstream middleware never runs and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "req.auth"
+      }), " is detached\nbefore the error response is sent. A valid token plus a failing hook never\nsurfaces as an invalid-token ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "401"
+      }), ": an ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultHttpError"
+      }), " from the hook keeps\nits own status/code/client message (only a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "401"
+      }), " veto carries the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Bearer"
+      }), "\nchallenge), while any other hook error becomes a sanitized ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "500 OIDC_VAULT_AUTH_CONTEXT_FAILED"
+      }), " without leaking the original message. Pass\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onError"
+      }), " to observe the original bearer error object (extraction, validator,\nor hook failure) for private server-side logs; it never affects the sanitized\nclient response."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The package augments Express request typing so ", (0,jsx_runtime.jsx)(_components.code, {
         children: "req.auth"
       }), " is available without casting in TypeScript route handlers."]
@@ -1250,7 +1561,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import {\n  createOidcVaultAccessTokenMiddleware,\n  createOidcVaultJwtAccessTokenValidator,\n} from '@web-ts-toolkit/express-oidc-vault';\n\nconst jwtSecret = new TextEncoder().encode(process.env.APP_JWT_SECRET ?? 'dev-secret-change-me');\n\napp.get(\n  '/api/me',\n  createOidcVaultAccessTokenMiddleware({\n    validator: createOidcVaultJwtAccessTokenValidator({\n      key: jwtSecret,\n      issuer: 'https://api.example.com',\n      audience: 'api-audience',\n      algorithms: ['HS256'],\n    }),\n  }),\n  (req, res) => {\n    res.json({\n      subject: req.auth?.subject,\n      sessionId: req.auth?.sessionId,\n      scope: req.auth?.scope,\n    });\n  },\n);\n"
+        children: "import {\n  createOidcVaultAccessTokenMiddleware,\n  createOidcVaultJwtAccessTokenValidator,\n} from '@web-ts-toolkit/express-oidc-vault';\n\nconst requireSigningKey = (raw: string | undefined): Uint8Array => {\n  if (!raw) {\n    throw new Error('APP_JWT_SECRET must be set to a strong random value at least 32 bytes long.');\n  }\n\n  const key = new TextEncoder().encode(raw);\n\n  if (key.length < 32) {\n    throw new Error('APP_JWT_SECRET must decode to at least 32 bytes for HS256 local access tokens.');\n  }\n\n  return key;\n};\n\nconst jwtSecret = requireSigningKey(process.env.APP_JWT_SECRET);\n\napp.get(\n  '/api/me',\n  createOidcVaultAccessTokenMiddleware({\n    validator: createOidcVaultJwtAccessTokenValidator({\n      key: jwtSecret,\n      issuer: 'https://api.example.com',\n      audience: 'api-audience',\n      algorithms: ['HS256'],\n    }),\n  }),\n  (req, res) => {\n    res.json({\n      subject: req.auth?.subject,\n      sessionId: req.auth?.sessionId,\n      scope: req.auth?.scope,\n    });\n  },\n);\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Default JWT claim mapping:"
@@ -1286,7 +1597,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "createOidcVaultMiddleware({\n  basePath: '/auth/oidc',\n  backendOrigin: 'https://api.example.com',\n  config: {\n    issuer: process.env.OIDC_ISSUER,\n    clientId: process.env.OIDC_CLIENT_ID,\n    clientSecret: process.env.OIDC_CLIENT_SECRET,\n  },\n  frontendRedirectUri: 'https://frontend.example.com/callback',\n  storeProvider: createMemoryOidcVaultStore(),\n  hooks: {\n    async onLoginStart({ req }) {\n      console.log('OIDC login started', {\n        ip: req.ip,\n        userAgent: req.get('user-agent'),\n      });\n    },\n    async onSessionCreated({ session }) {\n      if (!session?.user) {\n        return;\n      }\n\n      await upsertLocalUser({\n        oidcSubject: session.subject,\n        email: typeof session.user.email === 'string' ? session.user.email : undefined,\n        displayName: typeof session.user.name === 'string' ? session.user.name : undefined,\n      });\n    },\n    async onSessionRefreshed({ session, metadata }) {\n      console.log('OIDC session rotated', {\n        previousSessionId: metadata?.previousSessionId,\n        nextSessionId: session?.sessionId,\n      });\n    },\n    async onLogout({ session, metadata }) {\n      console.log('OIDC logout completed', {\n        subject: session?.subject,\n        revokedSessions: metadata?.revokedSessions,\n      });\n    },\n    async onError({ error, route, req }) {\n      console.error('OIDC vault error', {\n        route,\n        path: req.originalUrl,\n        error,\n      });\n    },\n  },\n});\n\nasync function upsertLocalUser(input: { oidcSubject: string; email?: string; displayName?: string }): Promise<void> {\n  console.log('upsertLocalUser', input);\n}\n"
+        children: "import { createHmac } from 'node:crypto';\n\nconst auditKey = new TextEncoder().encode(process.env.APP_AUDIT_KEY ?? '');\n\n// Purpose-specific keyed fingerprint for audit logs. Never log the raw\n// refresh-session ID: it is a credential that redeems a new session.\nconst fingerprintSessionId = (sessionId: string | undefined): string | undefined => {\n  if (!sessionId || auditKey.length === 0) {\n    return undefined;\n  }\n\n  return createHmac('sha256', auditKey).update(sessionId, 'utf8').digest('hex').slice(0, 16);\n};\n\n// Query-free route label. Never log `req.originalUrl`: callback and frontend\n// URLs can carry `code`, `state`, or tokens in the query string.\nconst queryFreeRoute = (req: { method?: string; path?: string }): string =>\n  `${req.method ?? 'UNKNOWN'} ${req.path ?? 'unknown'}`;\n\n// Selected sanitized error fields. Never log the arbitrary error object or its\n// message: provider, store, and hook errors may carry secrets or token bodies.\nconst sanitizeErrorForLog = (error: unknown): { code: string; status?: number } => {\n  if (typeof error === 'object' && error !== null && 'code' in error) {\n    const { code, status } = error as { code?: unknown; status?: unknown };\n\n    return {\n      code: typeof code === 'string' ? code : 'UNKNOWN',\n      ...(typeof status === 'number' ? { status } : {}),\n    };\n  }\n\n  return { code: 'UNKNOWN' };\n};\n\ncreateOidcVaultMiddleware({\n  basePath: '/auth/oidc',\n  backendOrigin: 'https://api.example.com',\n  config: {\n    issuer: process.env.OIDC_ISSUER,\n    clientId: process.env.OIDC_CLIENT_ID,\n    clientSecret: process.env.OIDC_CLIENT_SECRET,\n  },\n  frontendRedirectUri: 'https://frontend.example.com/callback',\n  storeProvider: createMemoryOidcVaultStore(),\n  hooks: {\n    async onLoginStart({ req }) {\n      console.log('OIDC login started', {\n        ip: req.ip,\n        userAgent: req.get('user-agent'),\n      });\n    },\n    async onSessionCreated({ session }) {\n      if (!session?.user) {\n        return;\n      }\n\n      await upsertLocalUser({\n        oidcSubject: session.subject,\n        email: typeof session.user.email === 'string' ? session.user.email : undefined,\n        displayName: typeof session.user.name === 'string' ? session.user.name : undefined,\n      });\n    },\n    async onSessionRefreshed({ session, metadata }) {\n      console.log('OIDC session rotated', {\n        previousSession: fingerprintSessionId(\n          typeof metadata?.previousSessionId === 'string' ? metadata.previousSessionId : undefined,\n        ),\n        nextSession: fingerprintSessionId(session?.sessionId),\n      });\n    },\n    async onLogout({ session, metadata }) {\n      console.log('OIDC logout completed', {\n        subject: session?.subject,\n        revokedSessions: metadata?.revokedSessions,\n      });\n    },\n    async onError({ error, route, req }) {\n      console.error('OIDC vault error', {\n        route,\n        path: queryFreeRoute(req),\n        ...sanitizeErrorForLog(error),\n      });\n    },\n  },\n});\n\nasync function upsertLocalUser(input: { oidcSubject: string; email?: string; displayName?: string }): Promise<void> {\n  console.log('upsertLocalUser', input);\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Recommended hook usage:"
@@ -1320,7 +1631,9 @@ function _createMdxContent(props) {
           children: "{ code, message }"
         }), " shape and intentionally avoid returning raw provider, store, hook, token issuer, or access-token validator details. Use ", (0,jsx_runtime.jsx)(_components.code, {
           children: "onError"
-        }), " to observe the original error object for private server-side logs."]
+        }), " to observe the original error object for private server-side logs. The separate bearer middleware reports its original extraction/validator/hook errors through its own ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "onError"
+        }), " option."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "security-checklist",

@@ -73,6 +73,22 @@ const toc = [{
   "id": "boolean-query-parsing",
   "level": 3
 }, {
+  "value": "Object-path rules",
+  "id": "object-path-rules",
+  "level": 3
+}, {
+  "value": "Clone and comparison domains",
+  "id": "clone-and-comparison-domains",
+  "level": 3
+}, {
+  "value": "Async contracts",
+  "id": "async-contracts",
+  "level": 3
+}, {
+  "value": "Stable collections and guards",
+  "id": "stable-collections-and-guards",
+  "level": 3
+}, {
   "value": "Stable collection sorting",
   "id": "stable-collection-sorting",
   "level": 3
@@ -329,27 +345,163 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "import { normalizeUrlPath } from '@web-ts-toolkit/utils';\n\nnormalizeUrlPath('api//users');\n// '/api/users'\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "normalizeUrlPath"
+      }), " composes route-path fragments: it collapses every run\nof slashes and prepends a leading slash. Inputs must be path fragments —\nno scheme/host, query string, or fragment. Full URLs are out of domain\nand are mangled rather than normalized\n(", (0,jsx_runtime.jsx)(_components.code, {
+        children: "normalizeUrlPath('https://example.com//a')"
+      }), " yields\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "'/https:/example.com/a'"
+      }), "). This is route-path composition, not WHATWG\nURL normalization and not a security sanitizer."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "boolean-query-parsing",
       children: "Boolean query parsing"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { parseBooleanString } from '@web-ts-toolkit/utils';\n\nparseBooleanString('true');\nparseBooleanString('false');\nparseBooleanString(undefined, true);\n"
+        children: "import { parseBooleanString } from '@web-ts-toolkit/utils';\n\nparseBooleanString('true');\nparseBooleanString('false');\nparseBooleanString('');\nparseBooleanString(undefined, true);\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "parseBooleanString(str, defaultValue)"
       }), " returns ", (0,jsx_runtime.jsx)(_components.code, {
         children: "true"
-      }), " only for the exact string ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " only for the exact\nstring ", (0,jsx_runtime.jsx)(_components.code, {
         children: "'true'"
       }), ", returns ", (0,jsx_runtime.jsx)(_components.code, {
         children: "false"
-      }), " for any other defined string, and falls back to ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " for any other non-empty string, and falls\nback to ", (0,jsx_runtime.jsx)(_components.code, {
         children: "defaultValue"
-      }), " when the input is ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " (which is ", (0,jsx_runtime.jsx)(_components.code, {
         children: "undefined"
+      }), " when omitted) when the input\nis ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), " or the empty string ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "''"
+      }), ". Note that an Express-style ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "?flag="
+      }), "\nquery value parses to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "''"
+      }), " and therefore yields the default, not ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "object-path-rules",
+      children: "Object-path rules"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "get"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pick"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "omit"
+      }), " accept dot segments (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "'a.b'"
+      }), "), bare\nbrackets (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "'a[0]'"
+      }), "), quoted brackets (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "'a[\"b.c\"]'"
+      }), "), or segment arrays\n(", (0,jsx_runtime.jsx)(_components.code, {
+        children: "['a', 'b']"
+      }), "). Key identity is literal (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "'01'"
+      }), " ≠ ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "'1'"
+      }), "); only canonical\nindices address array slots. Mutation segments ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "__proto__"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "constructor"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "prototype"
+      }), " are rejected before any write. Reads follow\nthe prototype chain; writes never traverse inherited containers (an\ninherited member is shadowed with a new own container). In ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pick"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "omit"
+      }), ",\na flat string array is a list of paths — pass a nested array for a single\nsegmented path (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pick(o, [['a', 'b']])"
+      }), ")."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "set"
+      }), " mutates its target in place and returns it. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "omit"
+      }), " never mutates its\ninput: it deep-clones first, then deletes from the clone. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "assign"
+      }), " is a\nthin wrapper over native ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Object.assign"
+      }), ", not a hardened sanitizer."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "clone-and-comparison-domains",
+      children: "Clone and comparison domains"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "cloneDeep"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "isEqual"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "isMatch"
+      }), " share one bounded domain: primitives,\nplain objects (plus ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Object.create"
+      }), " graphs over plain ancestors),\narrays, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Date"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "RegExp"
+      }), ". Functions and exotic values (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Map"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Set"
+      }), ",\nclass instances) are opaque — nested occurrences are shared by reference\nand distinct references are never equal; a top-level exotic root passed to\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "cloneDeep"
+      }), " throws ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "TypeError"
+      }), ". Comparison uses own keys only\n(", (0,jsx_runtime.jsx)(_components.code, {
+        children: "isMatch({}, { a: undefined })"
+      }), " is ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), ")."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "async-contracts",
+      children: "Async contracts"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "toAsyncFn"
+      }), " lifts sync results into a promise but is not a full\nasync-function boundary: synchronous throws escape synchronously and\nthenables pass through with identity preserved. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "mapValuesAsync"
+      }), " runs all\ncallbacks eagerly with unbounded parallelism (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Promise.all"
+      }), ") — one\nrejection rejects the whole call, with no concurrency limit or\ncancellation."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "stable-collections-and-guards",
+      children: "Stable collections and guards"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "orderBy"
+      }), " is stable and never mutates its input; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "uniq"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "uniqBy"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "difference"
+      }), ", and the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "intersection"
+      }), " family keep first occurrences without\nmutating. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "isBoolean"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "isNumber"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "isString"
+      }), " accept primitives only (boxed\ninstances return ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), "). ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "flattenDeep"
+      }), " takes ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "unknown"
+      }), " (a non-array\nyields ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "[]"
+      }), "); cyclic arrays throw ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "TypeError"
       }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "stable-collection-sorting",
