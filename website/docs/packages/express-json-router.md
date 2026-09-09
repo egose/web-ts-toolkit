@@ -78,7 +78,14 @@ Those middleware functions run before the final JSON-aware handler on each regis
 
 ### Chained route registration
 
-Use `router.route(path)` when you want grouped handlers for the same path.
+`router.route(path)` is independent-registration sugar: each builder call is
+exactly equivalent to a direct `router.METHOD(path, ...)` call with its own
+native route, response-handler wrapper (including constructor-middleware
+copies), and `getEndpoints()` entry. It is not native
+`express.Router().route(path)` grouping: an `.all()` guard calling
+`next('route')` does not skip a later builder registration, HEAD requests fall
+back to the separately registered GET handler, and constructor middleware
+re-runs for each chained registration crossed by `next()`.
 
 ```ts
 async function getUser(id: string) {
@@ -144,7 +151,7 @@ router.get('/users', () => {
 });
 ```
 
-The static hook properties such as `JsonRouter.preJson` and `JsonRouter.errorMessageProvider` still proxy the shared default handler. When you pass a custom handler instance, configure that handler directly before giving it to the router.
+The static hook properties such as `JsonRouter.preJson` and `JsonRouter.errorMessageProvider` are process-wide defaults snapshotted for future routers, not a proxy to a shared mutable handler instance. Each `new JsonRouter(...)` captures a fresh handler from the current static defaults; existing routers keep the handler they captured during construction. Mutating a handler retrieved via `JsonRouter.defaultHandler` does not reconfigure existing routers or change future defaults — set the static properties for future defaults, or configure an explicit handler directly before passing it to the router constructor. When you pass a custom handler instance, configure that handler directly before giving it to the router.
 
 ### Handler defaults vs isolated handlers
 
@@ -180,10 +187,11 @@ const adminRouter = new JsonRouter('/admin', undefined, handler);
 - Route handlers can return plain values, promises, `JsonRouter.HttpResponse.*` helpers, or throw `JsonRouter.clientErrors.*` errors.
 - Router-level middleware can be passed as a single function or an array in the constructor.
 - A custom response-handler instance can be passed as the third constructor argument when you need `aip193` or `rfc9457` error formatting.
-- `router.route(path)` supports the same JSON-aware handler behavior as `router.get(path, ...)`, `router.post(path, ...)`, and the other Express router methods exposed by the instance.
+- `router.route(path)` supports the same JSON-aware handler behavior as `router.get(path, ...)`, `router.post(path, ...)`, and the other Express router methods exposed by the instance, as independent per-call registrations (see chained registration above).
 - `basePath`, route method paths, and `router.route(path)` intentionally accept string paths only. Express `RegExp` paths and path pattern arrays are rejected with a package-level `TypeError` before registration because `getEndpoints()` returns string metadata.
-- `router.getEndpoints()` returns a snapshot of the registered endpoints in registration order.
-- `router.use(...)` and `router.param(...)` are still available on the instance when you need normal Express router behavior.
+- `router.getEndpoints()` returns a snapshot of the registered endpoints in registration order. One entry is recorded per builder call in call order; native `use`/`param` registrations are never recorded.
+- `router.use(...)` and `router.param(...)` delegate directly to the underlying native router (`router.original`): callbacks are native Express middleware, `basePath` is not prepended, and chaining continues with native registration. Write separate `router.get(...)` statements for JSON routes. See `Native Middleware And Error Boundaries` in the installed README for the full boundary table.
+- Thrown or rejected JSON callbacks are JSON-formatted by the router's response handler and never reach application error middleware; explicit `next(error)` instead delegates to native Express error middleware, which owns the response.
 
 ## Hooks
 
@@ -219,15 +227,15 @@ Returns the underlying Express router so it can be mounted with `app.use(...)`.
 
 `router.route(path)`
 
-Builds chained route registrations such as `router.route('/users').get(...).post(...)`. Paths must be strings; Express `RegExp` paths and path pattern arrays are intentionally not supported because endpoint introspection returns `{ method, path: string }` metadata. Non-string route paths fail synchronously with `TypeError: JsonRouter route path must be a string path` before Express registration or endpoint recording.
+Builds chained route registrations such as `router.route('/users').get(...).post(...)`. Each builder call is an independent registration equivalent to a direct `router.METHOD(path, ...)` call (separate native route, own wrapper and endpoint entry), not native route grouping. Paths must be strings; Express `RegExp` paths and path pattern arrays are intentionally not supported because endpoint introspection returns `{ method, path: string }` metadata. Non-string route paths fail synchronously with `TypeError: JsonRouter route path must be a string path` before Express registration or endpoint recording.
 
 `router.use(...)` and `router.param(...)`
 
-Forward directly to the underlying Express router for compatibility with normal Express middleware and param handling.
+Forward directly to the underlying Express router for compatibility with normal Express middleware and param handling. Callbacks are native (failures reach application error middleware, not the JSON formatter), `basePath` is not prepended, both methods return `router.original` so further chaining is native, and nothing registered here appears in `getEndpoints()`.
 
 `router.getEndpoints()`
 
-Returns `{ method, path }[]` for the routes registered through `JsonRouter`.
+Returns `{ method, path }[]` for the routes registered through `JsonRouter`. Native `use`/`param` registrations are not recorded.
 
 `JsonRouter.clientErrors`
 
@@ -243,7 +251,7 @@ Exposes helper constructors such as `JsonRouter.HttpResponse.ok(...)` and `JsonR
 
 `JsonRouter.defaultHandler`
 
-Returns a newly configured response-handler instance using the current static defaults. Existing routers keep the handler instance captured during construction.
+Returns a newly configured response-handler instance using the current static defaults. Existing routers keep the handler instance captured during construction. Mutating a retrieved handler does not reconfigure existing routers or future defaults.
 
 `JsonRouter.ErrorFormats`
 
@@ -259,7 +267,7 @@ Overrides the error-to-payload mapping used for non-HTTP errors.
 
 `JsonRouter.preJson`, `JsonRouter.postJson`, `JsonRouter.preError`, `JsonRouter.postError`
 
-Expose the shared serialization and error hooks from `@web-ts-toolkit/express-response-handler`.
+Expose process-wide default serialization and error hooks snapshotted for future routers and newly read `defaultHandler` instances, sourced from `@web-ts-toolkit/express-response-handler`.
 
 ## Related Packages
 

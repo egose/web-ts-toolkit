@@ -1,5 +1,6 @@
 import { JsonFrameValidationError } from '../errors';
 import { exportColumns, exportIndex, exportRecords, exportSplit, exportTable, exportValues } from '../export/payload';
+import { assertJsonCompatible } from '../json';
 import type {
   ColumnInfo,
   ColumnsPayload,
@@ -19,13 +20,7 @@ import type {
   ToTableOptions,
   ValuesPayload,
 } from '../types';
-import {
-  createFrameStateFromRebuiltData,
-  getStoredColumnValue,
-  materializeFrameData,
-  rebuildStoredColumn,
-  type FrameState,
-} from './column';
+import { createFrameStateFromRebuiltData, getStoredColumnValue, rebuildStoredColumn, type FrameState } from './column';
 
 const hasOwn = Object.prototype.hasOwnProperty;
 const frameStateByInstance = new WeakMap<object, FrameState>();
@@ -73,6 +68,84 @@ type RowComparator<TRow extends JsonCompatibleRow<TRow>> = (
   rightPosition: number,
 ) => number;
 
+const partitionSchemaFields = (
+  state: FrameState,
+): {
+  readonly indexTemplate: TableSchemaField | undefined;
+  readonly dataByColumn: ReadonlyMap<string, TableSchemaField>;
+  readonly dataInColumnOrder: readonly TableSchemaField[];
+} => {
+  const empty = {
+    indexTemplate: undefined,
+    dataByColumn: new Map<string, TableSchemaField>(),
+    dataInColumnOrder: [] as const,
+  };
+  if (state.tableSchema === undefined) {
+    return empty;
+  }
+
+  const fields = state.tableSchema.fields;
+  if (state.tableIndexField === undefined) {
+    const byName = new Map(fields.map((field) => [field.name, field]));
+    const ordered = state.columns
+      .map((column) => byName.get(column))
+      .filter((field): field is TableSchemaField => field !== undefined);
+    return {
+      indexTemplate: undefined,
+      dataByColumn: new Map(ordered.map((field, index) => [state.columns[index]!, field] as const)),
+      dataInColumnOrder: ordered,
+    };
+  }
+
+  const names = fields.map((field) => field.name);
+  const unique = new Set(names).size === names.length;
+  if (unique) {
+    const byName = new Map(fields.map((field) => [field.name, field]));
+    const indexTemplate = byName.get(state.tableIndexField);
+    const ordered = state.columns
+      .map((column) => byName.get(column))
+      .filter((field): field is TableSchemaField => field !== undefined);
+    return {
+      indexTemplate,
+      dataByColumn: new Map(ordered.map((field, index) => [state.columns[index]!, field] as const)),
+      dataInColumnOrder: ordered,
+    };
+  }
+
+  // Duplicate field names only arise from a data-column rename colliding with
+  // the retained index-field name. Transforms below always emit canonical
+  // order ([index, ...data in column order]) in that case, so the first field
+  // is the index identity and the remainder align positionally to columns.
+  let indexTemplate: TableSchemaField | undefined;
+  let dataSlice: readonly TableSchemaField[];
+  if (fields.length === state.columns.length + 1 && fields[0]!.name === state.tableIndexField) {
+    indexTemplate = fields[0];
+    dataSlice = fields.slice(1);
+  } else {
+    const indexPosition = fields.findIndex((field) => field.name === state.tableIndexField);
+    indexTemplate = indexPosition === -1 ? undefined : fields[indexPosition];
+    dataSlice = indexPosition === -1 ? fields : [...fields.slice(0, indexPosition), ...fields.slice(indexPosition + 1)];
+  }
+
+  const dataByName = new Map(dataSlice.map((field) => [field.name, field]));
+  const ordered = state.columns
+    .map((column) => dataByName.get(column))
+    .filter((field): field is TableSchemaField => field !== undefined);
+  // If name lookup within the data partition fails (unexpected order), fall
+  // back to positional alignment for canonical-length states.
+  const dataInColumnOrder =
+    ordered.length === state.columns.length
+      ? ordered
+      : dataSlice.length === state.columns.length
+        ? [...dataSlice]
+        : ordered;
+  return {
+    indexTemplate,
+    dataByColumn: new Map(dataInColumnOrder.map((field, index) => [state.columns[index]!, field] as const)),
+    dataInColumnOrder,
+  };
+};
+
 type TransformSchema = {
   readonly tableSchema?: TableSchema;
   readonly tableIndexField?: string;
@@ -112,43 +185,82 @@ export class DataFrame<TRow extends JsonCompatibleRow<TRow> = RowRecord> {
   }
 
   toRecords(): RecordsPayload {
-    return exportRecords(this.#state, this.#materializedData());
+    return exportRecords(this.#state);
   }
 
   toIndex(): IndexPayload {
-    return exportIndex(this.#state, this.#materializedData());
+    return exportIndex(this.#state);
   }
 
   toColumns(): ColumnsPayload {
-    return exportColumns(this.#state, this.#materializedData());
+    return exportColumns(this.#state);
   }
 
   toValues(): ValuesPayload {
-    return exportValues(this.#state, this.#materializedData());
+    return exportValues(this.#state);
   }
 
   toSplit(): SplitPayload {
-    return exportSplit(this.#state, this.#materializedData());
+    return exportSplit(this.#state);
   }
 
   toTable(options?: ToTableOptions): TablePayload {
-    return exportTable(this.#state, this.#materializedData(), this.#state.columnInfo, options);
+    return exportTable(this.#state, this.#state.columnInfo, options);
   }
 
+  /**
+   * Serialize the selected orient after validating the complete exported
+   * payload with the shared bounded traversal.
+   *
+   * Depth is measured from the exported payload root, including orient
+   * wrappers (`split`/`table` nest cells one level deeper than
+   * `records`/`values`/`index`/`columns`). A cell accepted at ingestion may be
+   * rejected here when a deeper output layout pushes it past
+   * `JSON_FRAME_MAX_DEPTH`. Cycles, over-depth containers, sparse arrays, and
+   * non-JSON values introduced through caller-mutable nested cells fail with
+   * path-bearing `JsonFrameValidationError` carrying the selected orient.
+   *
+   * Validation performs one full traversal without cloning, then native
+   * serialization performs a second pass. Repeated references are visited per
+   * occurrence (detached semantics), so both passes expand aliases exactly as
+   * `JSON.stringify()` does; no breadth/work budget is enforced. Validation
+   * reads own enumerable properties and array elements, invoking
+   * caller-installed getters/`Proxy` traps, and native serialization may
+   * additionally invoke `toJSON` hooks. Hooks are caller responsibility; the
+   * package does not sandbox arbitrary JavaScript.
+   */
   toJSONString(orient: ResolvedOrient, options?: ToJSONStringOptions): string {
     switch (orient) {
-      case 'records':
-        return JSON.stringify(this.toRecords());
-      case 'index':
-        return JSON.stringify(this.toIndex());
-      case 'columns':
-        return JSON.stringify(this.toColumns());
-      case 'values':
-        return JSON.stringify(this.toValues());
-      case 'split':
-        return JSON.stringify(this.toSplit());
-      case 'table':
-        return JSON.stringify(this.toTable(options));
+      case 'records': {
+        const payload = this.toRecords();
+        assertJsonCompatible(payload, orient);
+        return JSON.stringify(payload);
+      }
+      case 'index': {
+        const payload = this.toIndex();
+        assertJsonCompatible(payload, orient);
+        return JSON.stringify(payload);
+      }
+      case 'columns': {
+        const payload = this.toColumns();
+        assertJsonCompatible(payload, orient);
+        return JSON.stringify(payload);
+      }
+      case 'values': {
+        const payload = this.toValues();
+        assertJsonCompatible(payload, orient);
+        return JSON.stringify(payload);
+      }
+      case 'split': {
+        const payload = this.toSplit();
+        assertJsonCompatible(payload, orient);
+        return JSON.stringify(payload);
+      }
+      case 'table': {
+        const payload = this.toTable(options);
+        assertJsonCompatible(payload, orient);
+        return JSON.stringify(payload);
+      }
       default: {
         const exhaustive: never = orient;
         throw new JsonFrameValidationError('Unsupported export orient.', { value: exhaustive });
@@ -329,10 +441,6 @@ export class DataFrame<TRow extends JsonCompatibleRow<TRow> = RowRecord> {
     }
   }
 
-  #materializedData(): ReadonlyMap<string, readonly JsonValue[]> {
-    return materializeFrameData(this.#state.columns, this.#state.data);
-  }
-
   #createRow(position: number): Readonly<TRow> {
     const row = Object.create(null) as RowRecord;
 
@@ -425,18 +533,15 @@ export class DataFrame<TRow extends JsonCompatibleRow<TRow> = RowRecord> {
       return {};
     }
 
-    const fieldByName = new Map(this.#state.tableSchema.fields.map((field) => [field.name, field]));
+    const { indexTemplate, dataByColumn } = partitionSchemaFields(this.#state);
     const fields: TableSchemaField[] = [];
 
-    if (this.#state.tableIndexField !== undefined) {
-      const indexField = fieldByName.get(this.#state.tableIndexField);
-      if (indexField !== undefined) {
-        fields.push(cloneField(indexField));
-      }
+    if (this.#state.tableIndexField !== undefined && indexTemplate !== undefined) {
+      fields.push(cloneField(indexTemplate));
     }
 
     for (const column of columns) {
-      const field = fieldByName.get(column);
+      const field = dataByColumn.get(column);
       if (field !== undefined) {
         fields.push(cloneField(field));
       }
@@ -453,12 +558,38 @@ export class DataFrame<TRow extends JsonCompatibleRow<TRow> = RowRecord> {
       return {};
     }
 
-    const fields = this.#state.tableSchema.fields.map((field) => {
-      if (!this.#state.columns.includes(field.name)) {
-        return cloneField(field);
-      }
+    const names = this.#state.tableSchema.fields.map((field) => field.name);
+    if (new Set(names).size === names.length) {
+      // Unique names: index name cannot collide with a data column, so the
+      // order-preserving name check keeps the index identity untouched.
+      const columnNames = new Set(this.#state.columns);
+      const fields = this.#state.tableSchema.fields.map((field) => {
+        if (!columnNames.has(field.name)) {
+          return cloneField(field);
+        }
 
-      return cloneField(field, hasOwn.call(mapping, field.name) ? mapping[field.name]! : field.name);
+        return cloneField(field, hasOwn.call(mapping, field.name) ? mapping[field.name]! : field.name);
+      });
+
+      return {
+        tableSchema: cloneSchema(this.#state.tableSchema, fields, this.#state.tableSchema.primaryKey),
+        ...(this.#state.tableIndexField === undefined ? {} : { tableIndexField: this.#state.tableIndexField }),
+      };
+    }
+
+    const { indexTemplate, dataInColumnOrder } = partitionSchemaFields(this.#state);
+    // Duplicate names: data templates align to the pre-rename columns; the
+    // index identity is never renamed even when a data column takes its name.
+    const fields: TableSchemaField[] = [];
+    if (this.#state.tableIndexField !== undefined && indexTemplate !== undefined) {
+      fields.push(cloneField(indexTemplate));
+    }
+    this.#state.columns.forEach((column, position) => {
+      const template = dataInColumnOrder[position];
+      if (template === undefined) {
+        return;
+      }
+      fields.push(cloneField(template, hasOwn.call(mapping, column) ? mapping[column]! : column));
     });
 
     return {
@@ -481,9 +612,15 @@ export class DataFrame<TRow extends JsonCompatibleRow<TRow> = RowRecord> {
       };
     }
 
-    const fields = this.#state.tableSchema.fields
-      .filter((field) => field.name !== this.#state.tableIndexField)
-      .map((field) => cloneField(field));
+    // Drop only the index identity; a colliding data field with the same name
+    // survives in column order.
+    const { dataInColumnOrder } = partitionSchemaFields(this.#state);
+    const fields =
+      dataInColumnOrder.length === this.#state.columns.length
+        ? dataInColumnOrder.map((field) => cloneField(field))
+        : this.#state.tableSchema.fields
+            .filter((field) => field.name !== this.#state.tableIndexField)
+            .map((field) => cloneField(field));
 
     return {
       tableSchema: cloneSchema(this.#state.tableSchema, fields),

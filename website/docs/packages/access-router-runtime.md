@@ -114,6 +114,8 @@ The runtime CLI mirrors the `express-runtime` commands, but starts from a config
 wtt-access-router-runtime dev ./src/access-router.config.ts --env .env --port 3000
 ```
 
+Watch supervision uses only explicit CLI flags (`--watch`, `--ext`, `--delay`); bare `--watch` defaults to `.`. The supervisor never loads the access-router-runtime config in the parent process, so config `dev` metadata does not affect supervisor scope, extensions, or delay. Pass watch options on the CLI, for example `wtt-access-router-runtime dev ./src/access-router.config.ts --watch ./src --ext ts,js --delay 500`.
+
 ### Build a local runtime bundle
 
 ```bash
@@ -186,7 +188,7 @@ export const handler = runtime.createServerlessHandler();
 
 `runtime.models`, `runtime.modelRouters`, and `runtime.dataRouters` are readonly snapshots of the registries used during app assembly. Inspect them when you need access to generated models or routers, but do not treat them as extension points after construction. `runtime.config` is also a readonly inspection snapshot; DB URL/options and lifecycle hooks are captured at construction time, so later mutation of the caller-owned config object does not change `runtime.init()` or `runtime.shutdown()` behavior.
 
-`createAccessRouterRuntimeApp(config)` exists for simple lifecycle-free configs only. It rejects configs that define `db`, `init`, or `shutdown` because it returns only the Express app and has no way to execute database connection or cleanup hooks. If the config has any of those fields, use `createAccessRouterRuntime(config).app` and call the runtime lifecycle methods through your server or serverless integration.
+`createAccessRouterRuntimeApp(config)` exists for simple lifecycle-free configs only. It rejects configs that define `db`, `init`, or `shutdown` because it returns only the Express app and has no way to execute database connection or cleanup hooks. It also rejects schema-backed models (`models[].schema`) because they allocate a runtime-owned connection with no disposal handle; use `createAccessRouterRuntime(config)` with `init()`/`shutdown()` for those configs. If the config has any of those fields, use `createAccessRouterRuntime(config).app` and call the runtime lifecycle methods through your server or serverless integration.
 
 Serverless creation is generic over provider event/context types:
 
@@ -281,7 +283,7 @@ Each model definition must use exactly one form. Existing-model definitions reso
 
 `db.url` and `db.connection` are mutually exclusive. When `db.url` is configured, the runtime creates an independent Mongoose connection, opens it during `runtime.init()`, and closes only that owned connection during `runtime.shutdown()` unless `disconnectOnShutdown: false` is set. When `db.connection` is supplied, schema-backed models are registered on that connection, but the runtime does not open or close the externally owned connection.
 
-If neither `db.url` nor `db.connection` is configured, schema-backed models are registered on a runtime-local disconnected connection. Existing supplied `model` values keep using the connection they were created on. Existing supplied models cannot be combined with `db.url`; with `db.connection`, they must belong to that same connection. Runtime-generated model registrations are removed during `runtime.shutdown()`, while existing supplied models are never deleted by the runtime.
+If neither `db.url` nor `db.connection` is configured, schema-backed models are registered on a runtime-local disconnected connection. Existing supplied `model` values keep using the connection they were created on. Existing supplied models cannot be combined with `db.url`; with `db.connection`, they must belong to that same connection. Runtime-generated model registrations are removed during `runtime.shutdown()` only when the registry still holds the exact model constructor created by that runtime; externally replaced registrations are left intact. Reusing the same name/schema on a shared external connection is borrower semantics (only the creating runtime deletes, reused handles are never deleted), so overlapping borrowers must shut down before the creator; sequential reuse after shutdown remains supported. Existing supplied models are never deleted by the runtime.
 
 The runtime never uses `mongoose.connect()`, `mongoose.model()`, `mongoose.models`, or `mongoose.disconnect()` for generated models or lifecycle, so unrelated global Mongoose state is not silently reused or disconnected.
 
@@ -291,19 +293,23 @@ Runtime lifecycle uses deterministic private states. Concurrent `runtime.init()`
 
 Startup failure rolls back resources acquired by that attempt. If startup and rollback both fail, the rejection is an `AggregateError` with the primary startup failure first in `errors`, followed by rollback failures. Shutdown runs caller shutdown, config shutdown, and mandatory database cleanup independently where applicable; one cleanup failure is thrown directly, and multiple cleanup failures are surfaced as an `AggregateError`.
 
-Programmatic context collections are readonly snapshots, and lifecycle-sensitive config is captured during runtime construction. Mutate config before calling `createAccessRouterRuntime(...)`; do not rely on post-construction config mutation to change database or lifecycle behavior.
+Adapter ownership: `runtime.shutdown()` is terminal for the runtime instance. It waits for pending adapter startup (including caller `init` hooks) before running config shutdown and database disposal, but it does not close HTTP servers. Use `local.shutdown()` to drain HTTP (stop accepting, drain in-flight up to `shutdownTimeout`, preserving signal ownership) and then run caller `onShutdown` plus `runtime.shutdown()` exactly once. A failed `local.ready` (for example an occupied port) rolls back caller and runtime resources with the original readiness error preserved, so a subsequent `local.shutdown()` does not clean twice. Serverless cold start memoizes runtime plus caller init until `reset()`; after terminal shutdown, pending and later invocations reject without dispatching. No reference counting is provided: multiple adapters share one terminal runtime, so prefer one runtime per independent lifecycle.
 
-`createAccessRouterRuntimeApp(...)` rejects configs with `db`, `init`, or `shutdown`. Use the full runtime when lifecycle work is required.
+Programmatic context collections are readonly snapshots, and lifecycle-sensitive config is captured during runtime construction. Mutate config before calling `createAccessRouterRuntime(...)`; do not rely on post-construction config mutation to change database or lifecycle behavior. `runtime.models` keeps supplied model typing: literal `name` values are inferred without `as const` via `defineRuntimeConfig`, known keys return their own model type, and widened-`string`/omitted-`name` lookups return the union of all model types plus `undefined`, so check for absence first.
 
-Data definitions must not duplicate `data[].name` or the resolved `data[].router.dataName`. Dev defaults are validated at load time: `dev.watch` and `dev.ext` must be arrays of strings, and `dev.delay` must be a finite integer in `0..Number.MAX_SAFE_INTEGER`.
+`createAccessRouterRuntimeApp(...)` rejects configs with `db`, `init`, `shutdown`, or schema-backed models. Use the full runtime when lifecycle work is required.
 
-Migration note: configs that previously relied on promises/async factories, array/date exports, unrelated-only named exports, ambiguous model definitions, duplicate names, existing-model `collection`, non-integer/out-of-range `dev.delay` values, or global Mongoose connection/model reuse must be changed to the validated forms above.
+Data definitions must not duplicate `data[].name` or the resolved `data[].router.dataName`. `dev` (`watch`/`ext`/`delay`) is ignored deprecated metadata: when provided, `dev.watch`/`dev.ext` must be arrays of strings and `dev.delay` must be a finite integer in `0..Number.MAX_SAFE_INTEGER`, but these values never affect the watch supervisor. Migration: pass `--watch`, `--ext`, and `--delay` explicitly on the CLI and remove `dev` from configs when convenient; `dev` remains accepted without a breaking removal.
+
+Migration note: configs that previously relied on promises/async factories, array/date exports, unrelated-only named exports, ambiguous model definitions, duplicate names, existing-model `collection`, non-integer/out-of-range `dev.delay` values, or global Mongoose connection/model reuse must be changed to the validated forms above. Configs that set `dev.watch`/`dev.ext`/`dev.delay` expecting supervisor defaults must move those values to explicit CLI flags instead. Type-level migration: heterogeneous registries no longer intersect every model under every key; dynamic/`string` or omitted-`name` lookups are `union | undefined` and need an absence check, while known literal keys keep their exact model type.
 
 Model definitions can also include `customRoutes` when you need model-specific endpoints alongside the generated CRUD routes.
 
 - `customRoutes[].path` is relative to the model router `basePath`
 - `customRoutes[].method` supports `all`, `get`, `post`, `put`, `patch`, `delete`, `head`, and `options`
 - `customRoutes[].handler` uses `@web-ts-toolkit/express-json-router` semantics, so returning plain data works
+- `customRoutes[].handler` receives an `AccessRouterRuntimeCustomRouteRequest` (the delegated `ModelRequest` from `@web-ts-toolkit/access-router/advanced`), so `req.macl` (`isAllowed`, `getService`, `getPublicService`) is available without casts
+- Request-core setup is not authorization: custom routes do not inherit any generated CRUD operation guard, and arbitrary methods/paths are never mapped onto CRUD permissions. Every custom route must enforce its own guard; generated-route guards are unchanged.
 
 Example:
 
@@ -318,6 +324,26 @@ customRoutes: [
 ```
 
 With `basePath: '/api/users'`, that route mounts at `/api/users/:id/profile`.
+
+Guarded example (required for any custom route that needs authorization):
+
+```ts
+customRoutes: [
+  {
+    method: 'get',
+    path: '/:id/profile',
+    handler: async (req, res) => {
+      // No automatic authorization: enforce the caller-supplied guard here.
+      const allowed = await req.macl.isAllowed('User', 'read');
+      if (!allowed) {
+        res.status(403).json({ denied: true });
+        return;
+      }
+      return { id: req.params.id, profile: true };
+    },
+  },
+];
+```
 
 ## In-Repo Example
 

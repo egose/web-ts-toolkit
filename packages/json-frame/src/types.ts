@@ -11,8 +11,10 @@ export interface JsonObject {
 
 /**
  * Any JSON-compatible value accepted by `fromOrient` payloads and exporters.
- * Arrays/objects may nest up to `JSON_FRAME_MAX_DEPTH` levels from the parsed
- * root value; deeper containers fail with `JsonFrameValidationError`.
+ * Arrays/objects may nest up to `JSON_FRAME_MAX_DEPTH` levels from the
+ * validated root value; deeper containers fail with `JsonFrameValidationError`.
+ * For serialization the root is the exported payload including orient
+ * wrappers, so a deeper output layout may reject a cell accepted at ingestion.
  */
 export type JsonValue = JsonPrimitive | JsonArray | JsonObject;
 
@@ -213,7 +215,23 @@ export interface DataFrame<TRow extends JsonCompatibleRow<TRow> = JsonRow> {
   toSplit(): SplitPayload;
   /** Exports Table Schema JSON; source index labels must be unique primary-key values. */
   toTable(options?: ToTableOptions): TablePayload;
-  /** Serializes an exported orient, including table metadata, within `JSON_FRAME_MAX_DEPTH`. */
+  /**
+   * Serializes an exported orient within `JSON_FRAME_MAX_DEPTH`.
+   *
+   * Depth is measured from the exported payload root including orient
+   * wrappers; `split`/`table` nest cells one level deeper than
+   * `records`/`values`/`index`/`columns`, so an input accepted at its own
+   * depth limit may be rejected in a deeper output layout. The complete
+   * selected output is validated before native serialization: cycles,
+   * over-depth containers, sparse arrays, and non-JSON values introduced
+   * through caller-mutable nested cells fail with path-bearing
+   * `JsonFrameValidationError` carrying the selected orient. Validation is one
+   * allocation-free traversal pass followed by native stringification; both
+   * passes expand repeated references per occurrence with no breadth/work
+   * budget. Property getters/`Proxy` traps run during traversal and `toJSON`
+   * hooks may run during stringification; hooks are caller responsibility and
+   * are not sandboxed.
+   */
   toJSONString(orient: ResolvedOrient, options?: ToJSONStringOptions): string;
   row(position: number): Readonly<TRow>;
   rows(): readonly Readonly<TRow>[];

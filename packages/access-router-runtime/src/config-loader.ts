@@ -58,12 +58,36 @@ function isModuleNamespace(value: unknown): value is Record<string, unknown> {
   return isRecord(value) && Object.prototype.toString.call(value) === '[object Module]';
 }
 
+// Observe an already-created native promise rejection without making
+// normalization async. Only `instanceof Promise` is handled here so arbitrary
+// thenables are never invoked for cleanup; their `then` body must not run.
+function observeNativePromiseRejection(value: unknown): void {
+  if (value instanceof Promise) {
+    void value.then(undefined, () => {});
+  }
+}
+
+// Identify async factories without invoking them. Checking the constructor
+// name plus the object tag avoids executing user code to discover asynchrony.
+function isAsyncFactory(value: unknown): boolean {
+  if (typeof value !== 'function') {
+    return false;
+  }
+  const constructorName = (value as { constructor?: { name?: unknown } }).constructor?.name;
+  if (constructorName === 'AsyncFunction' || constructorName === 'AsyncGeneratorFunction') {
+    return true;
+  }
+  const tag = Object.prototype.toString.call(value);
+  return tag === '[object AsyncFunction]' || tag === '[object AsyncGeneratorFunction]';
+}
+
 function configError(configPath: string, message: string): Error {
   return new Error(`Invalid access-router-runtime config "${configPath}": ${message}`);
 }
 
 function assertPlainConfigObject(value: unknown, configPath: string): asserts value is AccessRouterRuntimeConfig {
   if (isThenable(value)) {
+    observeNativePromiseRejection(value);
     throw configError(configPath, 'config export must be a synchronous object, not a promise or thenable.');
   }
 
@@ -88,6 +112,9 @@ function normalizeStringArray(value: unknown, configPath: string, field: string)
 }
 
 function validateDevConfig(config: Record<string, unknown>, configPath: string): void {
+  // `dev` is ignored deprecated metadata: shape-validated for backward
+  // compatibility but never consumed by the `dev` watch supervisor, which
+  // uses only explicit CLI flags. The supervisor never loads config here.
   const dev = config.dev;
   if (dev === undefined) {
     return;
@@ -135,8 +162,18 @@ function validateDbConfig(config: Record<string, unknown>, configPath: string): 
   }
 }
 
+function assertRouterContainer(
+  router: unknown,
+  configPath: string,
+  parentField: string,
+): asserts router is Record<string, unknown> {
+  if (!isPlainObject(router)) {
+    throw configError(configPath, `field "${parentField}.router" must be a plain object.`);
+  }
+}
+
 function getRouterName(router: unknown, field: string, configPath: string, parentField: string): string | undefined {
-  if (router === undefined || router === null || typeof router !== 'object') {
+  if (router === undefined || router === null || typeof router !== 'object' || Array.isArray(router)) {
     return undefined;
   }
 
@@ -145,6 +182,30 @@ function getRouterName(router: unknown, field: string, configPath: string, paren
     throw configError(configPath, `field "${parentField}.router.${field}" must be a string when provided.`);
   }
   return value;
+}
+
+// Explicit collection precedence: a definition-level `collection` overrides the
+// schema-configured collection (`schema.get('collection')` / `schema.options.collection`).
+// Boundary: implicit Mongoose pluralized collection names are not inferred here, and
+// collections on different/external connections are not treated as a cross-database
+// policy — this check only rejects duplicate explicitly resolved names within one config.
+function getSchemaOptionCollection(schema: mongoose.Schema): string | undefined {
+  try {
+    const getter = (schema as unknown as { get?: unknown }).get;
+    if (typeof getter === 'function') {
+      const viaGet = (schema as unknown as { get: (key: string) => unknown }).get('collection');
+      if (typeof viaGet === 'string' && viaGet.length > 0) {
+        return viaGet;
+      }
+    }
+  } catch {
+    // Fall through to schema.options below.
+  }
+  const viaOptions = (schema as unknown as { options?: { collection?: unknown } }).options?.collection;
+  if (typeof viaOptions === 'string' && viaOptions.length > 0) {
+    return viaOptions;
+  }
+  return undefined;
 }
 
 function validateModelDefinitions(config: Record<string, unknown>, configPath: string): void {
@@ -176,6 +237,7 @@ function validateModelDefinitions(config: Record<string, unknown>, configPath: s
       throw configError(configPath, `field "${field}.name" must be a non-empty string when provided.`);
     }
 
+    assertRouterContainer(definition.router, configPath, field);
     const routerModelName = getRouterName(definition.router, 'modelName', configPath, field);
     let resolvedName: string;
     let collectionName: string | undefined;
@@ -209,7 +271,11 @@ function validateModelDefinitions(config: Record<string, unknown>, configPath: s
         throw configError(configPath, `field "${field}.collection" must be a string when provided.`);
       }
       resolvedName = name;
-      collectionName = definition.collection;
+      if (typeof definition.collection === 'string' && definition.collection.length > 0) {
+        collectionName = definition.collection;
+      } else {
+        collectionName = getSchemaOptionCollection(definition.schema as mongoose.Schema);
+      }
     }
 
     if (routerModelName !== undefined && routerModelName !== resolvedName) {
@@ -251,6 +317,7 @@ function validateDataDefinitions(config: Record<string, unknown>, configPath: st
       throw configError(configPath, `field "${field}.name" must be a non-empty string.`);
     }
 
+    assertRouterContainer(definition.router, configPath, field);
     const routerDataName = getRouterName(definition.router, 'dataName', configPath, field);
     const resolvedRouterName = routerDataName ?? definition.name;
 
@@ -287,12 +354,17 @@ function createConfigJiti(options: AccessRouterRuntimeConfigLoadOptions = {}) {
 
 export function normalizeAccessRouterRuntimeConfigExport(raw: unknown, configPath: string): AccessRouterRuntimeConfig {
   if (isThenable(raw)) {
+    observeNativePromiseRejection(raw);
     throw configError(configPath, 'module export must not be a promise or thenable.');
   }
 
   let exported: unknown = raw;
   if (typeof raw === 'function') {
-    exported = raw();
+    if (isAsyncFactory(raw)) {
+      throw configError(configPath, 'config export must be a synchronous object, not a promise or thenable.');
+    }
+    exported = (raw as () => unknown)();
+    observeNativePromiseRejection(exported);
   } else if (isRecord(raw) && (isModuleNamespace(raw) || hasOwn(raw, 'default') || hasOwn(raw, 'config'))) {
     const moduleValue = raw as ConfigModule & Record<string, unknown>;
     const hasDefault = hasOwn(moduleValue, 'default');
@@ -316,7 +388,11 @@ export function normalizeAccessRouterRuntimeConfigExport(raw: unknown, configPat
       throw configError(configPath, 'named "config" export must be an object, not a factory function.');
     }
     if (hasDefault && typeof exported === 'function') {
-      exported = exported();
+      if (isAsyncFactory(exported)) {
+        throw configError(configPath, 'config export must be a synchronous object, not a promise or thenable.');
+      }
+      exported = (exported as () => unknown)();
+      observeNativePromiseRejection(exported);
     }
   }
 

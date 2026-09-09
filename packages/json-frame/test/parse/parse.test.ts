@@ -873,3 +873,140 @@ describe('parseInput validation failures', () => {
     expect(toSnapshot(indexFrame).data).toEqual({ city: ['NYC', null], temp: [null, 80] });
   });
 });
+
+describe('JFB-02 malformed index and column containers', () => {
+  const malformedIndexes: readonly unknown[] = ['row-id', 42, null, true, { label: 'r0' }];
+
+  it.each(malformedIndexes)('rejects explicit split with present non-array index %p (raw and parsed)', (index) => {
+    const options = normalizeFromOrientOptions({ orient: 'split' });
+    const parsedPayload = { columns: ['a'], index, data: [[1]] };
+    const rawPayload = JSON.stringify({ columns: ['a'], index, data: [[1]] });
+
+    for (const input of [parsedPayload, rawPayload] as const) {
+      try {
+        parseInput(input as unknown as JsonValue, options);
+        throw new Error('expected malformed split index to throw');
+      } catch (error) {
+        expect(error).toMatchObject({ name: 'JsonFrameValidationError', orient: 'split', path: '$.index' });
+      }
+    }
+  });
+
+  it('preserves omitted-index synthetic behavior and valid array controls (raw and parsed)', () => {
+    const options = normalizeFromOrientOptions({ orient: 'split' });
+
+    for (const input of [
+      { columns: ['a'], data: [[1], [2]] },
+      JSON.stringify({ columns: ['a'], data: [[1], [2]] }),
+      { columns: ['a'], index: ['r0', 'r1'], data: [[1], [2]] },
+      JSON.stringify({ columns: ['a'], index: ['r0', 'r1'], data: [[1], [2]] }),
+    ] as const) {
+      const frame = parseInput(input as unknown as JsonValue, options);
+      expect(frame.columns).toEqual(['a']);
+    }
+
+    const omitted = parseInput({ columns: ['a'], data: [[1], [2]] }, options);
+    expect([...omitted.index]).toEqual([0, 1]);
+    expect(omitted.indexKind).toBe('synthetic');
+
+    const sourced = parseInput({ columns: ['a'], index: ['r0', 'r1'], data: [[1], [2]] }, options);
+    expect([...sourced.index]).toEqual(['r0', 'r1']);
+    expect(sourced.indexKind).toBe('source');
+  });
+
+  it('does not silently accept malformed split index in auto mode', () => {
+    const malformed = { columns: ['a'], index: 'row-id', data: [[1]] };
+
+    for (const input of [malformed, JSON.stringify(malformed)] as const) {
+      try {
+        parseInput(input as unknown as JsonValue, normalizeFromOrientOptions());
+        throw new Error('expected auto malformed split to throw');
+      } catch (error) {
+        expect(error).toMatchObject({ name: expect.any(String) });
+        expect((error as Error).message).not.toBe('expected auto malformed split to throw');
+      }
+    }
+  });
+
+  it('rejects single/multiple-hole columns for empty and non-empty values payloads', () => {
+    const holes = [
+      // eslint-disable-next-line no-sparse-arrays
+      ['a', , 'c'],
+      new Array(1),
+      new Array(3),
+    ] as unknown as string[][];
+
+    for (const columns of holes) {
+      try {
+        normalizeFromOrientOptions({ orient: 'values', columns });
+        throw new Error('expected sparse columns to throw');
+      } catch (error) {
+        expect(error).toMatchObject({ name: 'JsonFrameOptionError', option: 'columns' });
+      }
+    }
+
+    const valid = normalizeFromOrientOptions({ orient: 'values', columns: ['a'] });
+    expect(toSnapshot(parseInput([], valid)).data).toEqual({ a: [] });
+    expect(toSnapshot(parseInput([[1]], valid)).data).toEqual({ a: [1] });
+    for (const bad of [
+      ['a', 1],
+      ['a', 'a'],
+    ] as unknown as string[][]) {
+      try {
+        normalizeFromOrientOptions({ orient: 'values', columns: bad });
+        throw new Error('expected dense invalid columns to throw');
+      } catch (error) {
+        expect(error).toMatchObject({ name: 'JsonFrameOptionError', option: 'columns' });
+      }
+    }
+  });
+
+  it('keeps prototype-sensitive labels working for values and split', () => {
+    const valuesFrame = parseInput([['x']], normalizeFromOrientOptions({ orient: 'values', columns: ['__proto__'] }));
+    expect(valuesFrame.columns).toEqual(['__proto__']);
+
+    const splitFrame = parseInput(
+      { columns: ['__proto__'], index: ['constructor'], data: [['x']] },
+      normalizeFromOrientOptions({ orient: 'split' }),
+    );
+    expect(splitFrame.columns).toEqual(['__proto__']);
+    expect([...splitFrame.index]).toEqual(['constructor']);
+  });
+
+  it('includes explicit records orient and path in JSON compatibility errors, keeps auto honest', () => {
+    const explicit = normalizeFromOrientOptions({ orient: 'records' });
+    const auto = normalizeFromOrientOptions();
+
+    const cases: Array<{ readonly input: unknown; readonly path: string }> = [
+      { input: [{ v: Number.NaN }], path: '$[0].v' },
+      { input: [{ v: Number.POSITIVE_INFINITY }], path: '$[0].v' },
+      {
+        input: (() => {
+          const cyclic: Record<string, unknown> = { v: 1 };
+          cyclic.self = cyclic;
+          return [{ v: cyclic }];
+        })(),
+        path: '$[0].v.self',
+      },
+      { input: [{ v: nestedArrays(JSON_FRAME_MAX_DEPTH) }], path: '$[0].v' },
+    ];
+
+    for (const { input, path: errorPath } of cases) {
+      try {
+        parseInput(input as JsonValue, explicit);
+        throw new Error('expected explicit records input to throw');
+      } catch (error) {
+        expect(error).toMatchObject({ name: 'JsonFrameValidationError', orient: 'records' });
+        expect((error as JsonFrameValidationError).path?.startsWith(errorPath)).toBe(true);
+      }
+
+      try {
+        parseInput(input as JsonValue, auto);
+        throw new Error('expected auto input to throw');
+      } catch (error) {
+        expect(error).toMatchObject({ name: 'JsonFrameValidationError' });
+        expect((error as JsonFrameValidationError).orient).toBeUndefined();
+      }
+    }
+  });
+});

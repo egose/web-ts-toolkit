@@ -174,6 +174,7 @@ function instrumentedColdStartProbeScript(kind: 'local' | 'serverless', sourceDi
 
 export async function probeRelocatedAccessRouterArtifacts(
   cliPath: string,
+  options: { configArgStyle?: 'relative' | 'absolute' } = {},
 ): Promise<RelocatedAccessRouterArtifactProbeResult> {
   const packageDir = resolve(dirname(cliPath), '..');
   const source = createTempProject('access router runtime artifact source é-');
@@ -193,14 +194,19 @@ export async function probeRelocatedAccessRouterArtifacts(
 
   writeFixtureProject(source.dir, configRelativePath, 'original');
 
+  // Absolute CLI targets must still bundle (absolute import for resolution)
+  // without retaining the build-machine directory in the diagnostic label.
+  const configArg = options.configArgStyle === 'absolute' ? configPath : `./${configRelativePath}`;
+  const tsconfigArg = options.configArgStyle === 'absolute' ? tsconfigPath : './tsconfig runtime.json';
+
   const localBuildResult = await runSubprocess(
     process.execPath,
     [
       cliPath,
       'build',
-      `./${configRelativePath}`,
+      configArg,
       '--tsconfig',
-      './tsconfig runtime.json',
+      tsconfigArg,
       '--out-dir',
       './dist-local',
       '--out-name',
@@ -217,9 +223,9 @@ export async function probeRelocatedAccessRouterArtifacts(
     [
       cliPath,
       'build-serverless',
-      `./${configRelativePath}`,
+      configArg,
       '--tsconfig',
-      './tsconfig runtime.json',
+      tsconfigArg,
       '--out-dir',
       './dist-serverless',
       '--out-name',

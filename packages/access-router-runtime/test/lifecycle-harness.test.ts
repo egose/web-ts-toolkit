@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
+import { createServer } from 'node:net';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createAccessRouterRuntime } from '../src/index';
+import { createDeferred } from './support/deferred';
 import { createDeferredLifecycleHarness } from './support/lifecycle';
 import {
   captureListenerSnapshot,
@@ -338,6 +340,229 @@ describe('lifecycle harness', () => {
     expect(connection.openUri).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps shutdown authoritative across deferred failed-init rollback', async () => {
+    const harness = createDeferredLifecycleHarness(mongoose);
+    const runtime = createAccessRouterRuntime({
+      db: { url: 'mongodb://127.0.0.1:27017/access-router-runtime-failed-rollback-shutdown' },
+      init: harness.initHook,
+      shutdown: harness.shutdownHook,
+    });
+    const primary = new Error('primary init failed');
+
+    const initErrorPromise = runtime.init().catch((error: unknown) => error);
+    await harness.connectStarted.promise;
+    harness.allowConnect.resolve();
+    await harness.initStarted.promise;
+    harness.allowInit.reject(primary);
+    await harness.shutdownStarted.promise;
+
+    let shutdownSettled = false;
+    const shutdownErrorPromise = runtime
+      .shutdown()
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+      .then((result) => {
+        shutdownSettled = true;
+        return result;
+      });
+    await expect(runtime.init()).rejects.toThrow(/stopping/);
+    expect(harness.connectSpy).toHaveBeenCalledTimes(1);
+    expect(shutdownSettled).toBe(false);
+
+    harness.allowShutdown.resolve();
+    await harness.disconnectStarted.promise;
+    await Promise.resolve();
+    expect(shutdownSettled).toBe(false);
+    expect(harness.connectSpy).toHaveBeenCalledTimes(1);
+    expect(harness.events.filter((event) => event === 'connect:start')).toHaveLength(1);
+    expect(harness.events.filter((event) => event === 'init:start')).toHaveLength(1);
+
+    harness.allowDisconnect.resolve();
+    const [initError, shutdownError] = await Promise.all([initErrorPromise, shutdownErrorPromise]);
+    expect(initError).toBe(primary);
+    expect(shutdownError).toBe(primary);
+    expect(shutdownSettled).toBe(true);
+    expect(harness.connectSpy).toHaveBeenCalledTimes(1);
+    await expect(runtime.init()).rejects.toThrow(/stopped/);
+  });
+
+  it.each([
+    ['undefined', undefined],
+    ['null', null],
+    ['false', false],
+    ['zero', 0],
+    ['empty-string', ''],
+  ])('preserves falsy init rejection identity for %s', async (_label, reason) => {
+    const connection = {
+      readyState: 0,
+      models: {},
+      openUri: vi.fn(async () => {
+        connection.readyState = 1;
+        return connection;
+      }),
+      close: vi.fn(async () => {
+        connection.readyState = 0;
+        return connection;
+      }),
+    } as unknown as mongoose.Connection;
+    vi.spyOn(mongoose, 'createConnection').mockReturnValue(connection);
+    const runtime = createAccessRouterRuntime({
+      db: { url: 'mongodb://127.0.0.1:27017/access-router-runtime-falsy-init' },
+      init: () => Promise.reject(reason),
+    });
+
+    const error = await runtime.init().then(
+      () => {
+        throw new Error('init should reject');
+      },
+      (caught: unknown) => caught,
+    );
+    expect(Object.is(error, reason)).toBe(true);
+  });
+
+  it.each([
+    ['undefined', undefined],
+    ['null', null],
+    ['false', false],
+    ['zero', 0],
+    ['empty-string', ''],
+  ])('aggregates falsy init primary first when rollback also fails for %s', async (_label, reason) => {
+    const rollbackFailure = new Error('rollback cleanup failed');
+    const connection = {
+      readyState: 0,
+      models: {},
+      openUri: vi.fn(async () => {
+        connection.readyState = 1;
+        return connection;
+      }),
+      close: vi.fn(async () => {
+        throw rollbackFailure;
+      }),
+    } as unknown as mongoose.Connection;
+    vi.spyOn(mongoose, 'createConnection').mockReturnValue(connection);
+    const runtime = createAccessRouterRuntime({
+      db: { url: 'mongodb://127.0.0.1:27017/access-router-runtime-falsy-init-agg' },
+      init: () => Promise.reject(reason),
+    });
+
+    const error = await runtime.init().then(
+      () => {
+        throw new Error('init should reject');
+      },
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(AggregateError);
+    const aggregate = error as AggregateError;
+    expect(aggregate.message).toBe('Runtime initialization failed and rollback also failed');
+    expect(aggregate.errors).toHaveLength(2);
+    expect(Object.is(aggregate.errors[0], reason)).toBe(true);
+    expect(aggregate.errors[1]).toBe(rollbackFailure);
+  });
+
+  it.each([
+    ['undefined', undefined],
+    ['null', null],
+    ['false', false],
+    ['zero', 0],
+    ['empty-string', ''],
+  ])('preserves falsy shutdown rejection identity for %s', async (_label, reason) => {
+    const connection = {
+      readyState: 0,
+      models: {},
+      openUri: vi.fn(async () => {
+        connection.readyState = 1;
+        return connection;
+      }),
+      close: vi.fn(async () => {
+        connection.readyState = 0;
+        return connection;
+      }),
+    } as unknown as mongoose.Connection;
+    vi.spyOn(mongoose, 'createConnection').mockReturnValue(connection);
+    const runtime = createAccessRouterRuntime({
+      db: { url: 'mongodb://127.0.0.1:27017/access-router-runtime-falsy-shutdown' },
+      shutdown: () => Promise.reject(reason),
+    });
+
+    await runtime.init();
+    const error = await runtime.shutdown().then(
+      () => {
+        throw new Error('shutdown should reject');
+      },
+      (caught: unknown) => caught,
+    );
+    expect(Object.is(error, reason)).toBe(true);
+  });
+
+  it.each([
+    ['undefined', undefined],
+    ['null', null],
+    ['false', false],
+    ['zero', 0],
+    ['empty-string', ''],
+  ])('aggregates falsy shutdown primary first when disconnect also fails for %s', async (_label, reason) => {
+    const disconnectFailure = new Error('disconnect failed');
+    const connection = {
+      readyState: 0,
+      models: {},
+      openUri: vi.fn(async () => {
+        connection.readyState = 1;
+        return connection;
+      }),
+      close: vi.fn(async () => {
+        throw disconnectFailure;
+      }),
+    } as unknown as mongoose.Connection;
+    vi.spyOn(mongoose, 'createConnection').mockReturnValue(connection);
+    const runtime = createAccessRouterRuntime({
+      db: { url: 'mongodb://127.0.0.1:27017/access-router-runtime-falsy-shutdown-agg' },
+      shutdown: () => Promise.reject(reason),
+    });
+
+    await runtime.init();
+    const error = await runtime.shutdown().then(
+      () => {
+        throw new Error('shutdown should reject');
+      },
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(AggregateError);
+    const aggregate = error as AggregateError;
+    expect(aggregate.message).toBe('Runtime shutdown failed');
+    expect(aggregate.errors).toHaveLength(2);
+    expect(Object.is(aggregate.errors[0], reason)).toBe(true);
+    expect(aggregate.errors[1]).toBe(disconnectFailure);
+  });
+
+  it('does not mistake a user error with the cancellation message for internal cancellation', async () => {
+    const harness = createDeferredLifecycleHarness(mongoose);
+    const userError = new Error('Runtime shutdown requested before initialization completed');
+    const runtime = createAccessRouterRuntime({
+      db: { url: 'mongodb://127.0.0.1:27017/access-router-runtime-user-cancellation-message' },
+      init: harness.initHook,
+      shutdown: harness.shutdownHook,
+    });
+
+    const initErrorPromise = runtime.init().catch((error: unknown) => error);
+    await harness.connectStarted.promise;
+    harness.allowConnect.resolve();
+    await harness.initStarted.promise;
+
+    const shutdownErrorPromise = runtime.shutdown().catch((error: unknown) => error);
+    harness.allowInit.reject(userError);
+    await harness.shutdownStarted.promise;
+    harness.allowShutdown.resolve();
+    await harness.disconnectStarted.promise;
+    harness.allowDisconnect.resolve();
+
+    const [initError, shutdownError] = await Promise.all([initErrorPromise, shutdownErrorPromise]);
+    expect(initError).toBe(userError);
+    expect(shutdownError).toBe(userError);
+    expect(harness.disconnectSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('rolls back serverless caller init failure without retaining an owned connection', async () => {
     const connection = {
       readyState: 0,
@@ -411,6 +636,264 @@ describe('lifecycle harness', () => {
     expect(connection.close).toHaveBeenCalledTimes(1);
     expect(connection.readyState).toBe(0);
     await local.shutdown();
+  });
+
+  it('coordinates deferred caller init with local shutdown without late listen', async () => {
+    const connection = {
+      readyState: 0,
+      models: {},
+      openUri: vi.fn(async () => {
+        connection.readyState = 1;
+        return connection;
+      }),
+      close: vi.fn(async () => {
+        connection.readyState = 0;
+        return connection;
+      }),
+    } as unknown as mongoose.Connection;
+    vi.spyOn(mongoose, 'createConnection').mockReturnValue(connection);
+    const runtime = createAccessRouterRuntime({
+      db: { url: 'mongodb://127.0.0.1:27017/access-router-runtime-deferred-caller-local' },
+    });
+    const callerStarted = createDeferred<void>();
+    const allowCaller = createDeferred<void>();
+    const events: string[] = [];
+    let acquired = false;
+    let cleanupCalls = 0;
+    const local = runtime.startLocalServer({
+      port: 0,
+      signals: false,
+      logger: { log: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      init: async () => {
+        callerStarted.resolve();
+        await allowCaller.promise;
+        acquired = true;
+        events.push('acquire');
+      },
+      onShutdown: async () => {
+        cleanupCalls += 1;
+        events.push('cleanup');
+        expect(acquired).toBe(true);
+      },
+    });
+
+    await callerStarted.promise;
+    let shutdownSettled = false;
+    const shutdownPromise = local
+      .shutdown()
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+      .then((result) => {
+        shutdownSettled = true;
+        return result;
+      });
+    await Promise.resolve();
+    expect(shutdownSettled).toBe(false);
+    expect(local.server.listening).toBe(false);
+
+    allowCaller.resolve();
+    const shutdownResult = await shutdownPromise;
+    expect(shutdownResult).toBe(null);
+    expect(acquired).toBe(true);
+    expect(cleanupCalls).toBe(1);
+    expect(events).toEqual(['acquire', 'cleanup']);
+    expect(connection.close).toHaveBeenCalledTimes(1);
+    await expect(local.ready).rejects.toThrow(/shutdown before listening/i);
+    expect(local.server.listening).toBe(false);
+    await Promise.resolve();
+    expect(local.server.listening).toBe(false);
+
+    await local.shutdown();
+    expect(cleanupCalls).toBe(1);
+    expect(connection.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('prevents serverless dispatch after direct runtime shutdown during caller init', async () => {
+    const connection = {
+      readyState: 0,
+      models: {},
+      openUri: vi.fn(async () => {
+        connection.readyState = 1;
+        return connection;
+      }),
+      close: vi.fn(async () => {
+        connection.readyState = 0;
+        return connection;
+      }),
+    } as unknown as mongoose.Connection;
+    vi.spyOn(mongoose, 'createConnection').mockReturnValue(connection);
+    let dispatched = false;
+    const runtime = createAccessRouterRuntime({
+      db: { url: 'mongodb://127.0.0.1:27017/access-router-runtime-deferred-caller-serverless' },
+      express: {
+        finalize(app) {
+          app.get('/ok', (_req, res) => {
+            dispatched = true;
+            res.json({ ok: true });
+          });
+        },
+      },
+    });
+    const callerStarted = createDeferred<void>();
+    const allowCaller = createDeferred<void>();
+    const handler = runtime.createServerlessHandler({
+      init: async () => {
+        callerStarted.resolve();
+        await allowCaller.promise;
+      },
+    });
+
+    const event = { httpMethod: 'GET', path: '/ok', headers: {} };
+    const invokePromise = handler(event, {}).then(
+      (result) => ({ ok: true as const, result }),
+      (error: unknown) => ({ ok: false as const, error }),
+    );
+    await callerStarted.promise;
+    let shutdownSettled = false;
+    const shutdownPromise = runtime
+      .shutdown()
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+      .then((result) => {
+        shutdownSettled = true;
+        return result;
+      });
+    await Promise.resolve();
+    expect(shutdownSettled).toBe(false);
+
+    allowCaller.resolve();
+    const [invokeResult, shutdownResult] = await Promise.all([invokePromise, shutdownPromise]);
+    expect(shutdownResult).toBe(null);
+    expect(invokeResult.ok).toBe(false);
+    expect(dispatched).toBe(false);
+    expect(connection.close).toHaveBeenCalledTimes(1);
+
+    const second = await handler(event, {}).then(
+      () => 'resolved',
+      (error: unknown) => error,
+    );
+    expect(second).not.toBe('resolved');
+    expect(dispatched).toBe(false);
+  });
+
+  it('rejects a second serverless invocation after caller init failure without dispatch', async () => {
+    const connection = {
+      readyState: 0,
+      models: {},
+      openUri: vi.fn(async () => {
+        connection.readyState = 1;
+        return connection;
+      }),
+      close: vi.fn(async () => {
+        connection.readyState = 0;
+        return connection;
+      }),
+    } as unknown as mongoose.Connection;
+    vi.spyOn(mongoose, 'createConnection').mockReturnValue(connection);
+    let dispatched = false;
+    const runtime = createAccessRouterRuntime({
+      db: { url: 'mongodb://127.0.0.1:27017/access-router-runtime-rejected-caller-nolate' },
+      express: {
+        finalize(app) {
+          app.get('/ok', (_req, res) => {
+            dispatched = true;
+            res.json({ ok: true });
+          });
+        },
+      },
+    });
+    const primary = new Error('rejected caller init');
+    const handler = runtime.createServerlessHandler({
+      init: () => {
+        throw primary;
+      },
+    });
+
+    const event = { httpMethod: 'GET', path: '/ok', headers: {} };
+    const first = await handler(event, {}).then(
+      () => {
+        throw new Error('first invocation should reject');
+      },
+      (caught: unknown) => caught,
+    );
+    expect(first).toBe(primary);
+    expect(dispatched).toBe(false);
+    expect(connection.close).toHaveBeenCalledTimes(1);
+
+    const second = await handler(event, {}).then(
+      () => 'resolved',
+      (caught: unknown) => caught,
+    );
+    expect(second).not.toBe('resolved');
+    expect(dispatched).toBe(false);
+    expect(connection.close).toHaveBeenCalledTimes(1);
+    handler.reset();
+    await expect(handler(event, {})).rejects.toThrow(/stopping|stopped/);
+    expect(dispatched).toBe(false);
+  });
+
+  it('rolls back occupied-port startup with DB and caller resources on subsequent shutdown', async () => {
+    const blocker = createServer();
+    await new Promise<void>((resolve, reject) => {
+      blocker.once('error', reject);
+      blocker.listen(0, '127.0.0.1', () => resolve());
+    });
+    const address = blocker.address();
+    if (address === null || typeof address === 'string') {
+      throw new Error('Expected TCP blocker address');
+    }
+    try {
+      const connection = {
+        readyState: 0,
+        models: {},
+        openUri: vi.fn(async () => {
+          connection.readyState = 1;
+          return connection;
+        }),
+        close: vi.fn(async () => {
+          connection.readyState = 0;
+          return connection;
+        }),
+      } as unknown as mongoose.Connection;
+      vi.spyOn(mongoose, 'createConnection').mockReturnValue(connection);
+      let cleanupCalls = 0;
+      const runtime = createAccessRouterRuntime({
+        db: { url: 'mongodb://127.0.0.1:27017/access-router-runtime-occupied-port' },
+      });
+      const local = runtime.startLocalServer({
+        port: address.port,
+        host: '127.0.0.1',
+        signals: false,
+        logger: { log: vi.fn(), error: vi.fn(), debug: vi.fn() },
+        init: async () => {},
+        onShutdown: async () => {
+          cleanupCalls += 1;
+        },
+      });
+
+      const readinessError = await local.ready.then(
+        () => {
+          throw new Error('readiness should reject on occupied port');
+        },
+        (caught: unknown) => caught,
+      );
+      expect(readinessError).toMatchObject({ code: 'EADDRINUSE' });
+      expect(local.server.listening).toBe(false);
+      expect(connection.close).toHaveBeenCalledTimes(1);
+      expect(connection.readyState).toBe(0);
+      expect(cleanupCalls).toBe(1);
+
+      await local.shutdown();
+      expect(cleanupCalls).toBe(1);
+      expect(connection.close).toHaveBeenCalledTimes(1);
+      expect(local.server.listening).toBe(false);
+    } finally {
+      await new Promise<void>((resolve) => blocker.close(() => resolve()));
+    }
   });
 
   it('preserves pre-existing signal listeners and restores listener counts', () => {

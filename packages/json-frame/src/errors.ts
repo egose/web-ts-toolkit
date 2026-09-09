@@ -1,6 +1,14 @@
 import type { Orient, ResolvedOrient } from './types';
 
-const DIAGNOSTIC_KEY_LIMIT = 5;
+/** Maximum number of object keys retained in a diagnostic object summary. */
+export const JSON_FRAME_DIAGNOSTIC_KEY_LIMIT = 5;
+
+/**
+ * Maximum total characters retained across the `keys` preview of a diagnostic
+ * object summary. Longer key text is truncated to this budget and reported via
+ * `truncated: true`.
+ */
+export const JSON_FRAME_DIAGNOSTIC_KEY_TEXT_BUDGET = 200;
 
 type JsonFrameErrorContext = {
   readonly orient?: Orient;
@@ -10,7 +18,22 @@ type JsonFrameErrorContext = {
   readonly value?: unknown;
 };
 
-/** Bounded value stored on structured errors instead of caller-owned containers. */
+/**
+ * Bounded value stored on structured errors instead of caller-owned containers.
+ *
+ * Container summaries are bounded: object summaries retain at most 5 keys and
+ * at most 200 characters of key-preview text in total. `truncated` is `true`
+ * when either the key count or the key-preview text was shortened. `keyCount`
+ * always reports the full key count. Array summaries retain only `length`.
+ *
+ * Scalar diagnostics are intentionally not bounded by that preview budget:
+ * scalar `string`/`number`/`boolean`/`null` values, plus `orient`, `path`,
+ * `row`, `column`, `option`, `key`, and `labels` fields, can still be
+ * input-sized. Summaries are frozen, never retain caller containers, and never
+ * invoke user `toJSON` hooks. Counting keys uses `Object.keys()`, which visits
+ * every own key, so construction is not constant-space even though the retained
+ * preview is bounded.
+ */
 export type JsonFrameDiagnosticValue =
   | string
   | number
@@ -42,12 +65,31 @@ const summarizeDiagnosticValue = (value: unknown): JsonFrameDiagnosticValue => {
   }
 
   if (typeof value === 'object') {
+    // Object.keys collects every own key to report an accurate keyCount, so
+    // this pass is proportional to the input key count; only the retained
+    // preview below is bounded. Object.keys does not invoke toJSON hooks.
     const keys = Object.keys(value as object);
+    const head = keys.slice(0, JSON_FRAME_DIAGNOSTIC_KEY_LIMIT);
+    const preview: string[] = [];
+    let remaining = JSON_FRAME_DIAGNOSTIC_KEY_TEXT_BUDGET;
+    let textTruncated = false;
+    for (const key of head) {
+      if (key.length <= remaining) {
+        preview.push(key);
+        remaining -= key.length;
+      } else {
+        if (remaining > 0) {
+          preview.push(key.slice(0, remaining));
+        }
+        textTruncated = true;
+        break;
+      }
+    }
     return Object.freeze({
       kind: 'object',
       keyCount: keys.length,
-      keys: freezeCopy(keys.slice(0, DIAGNOSTIC_KEY_LIMIT)),
-      truncated: keys.length > DIAGNOSTIC_KEY_LIMIT,
+      keys: freezeCopy(preview),
+      truncated: keys.length > JSON_FRAME_DIAGNOSTIC_KEY_LIMIT || textTruncated,
     });
   }
 

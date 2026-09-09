@@ -138,6 +138,8 @@ describe('ARRT-09 strict installed-consumer types', () => {
       import type { ServerlessHandler } from '@web-ts-toolkit/express-runtime';
 
       type User = { name: string; role: 'user' | 'admin' };
+      type Org = { slug: string; memberCount: number };
+      type Audit = { event: string };
       type Status = { id: string; healthy: boolean };
       type ProviderEvent = { rawPath: string; headers: Record<string, string> };
       type ProviderContext = { requestId: string };
@@ -146,12 +148,36 @@ describe('ARRT-09 strict installed-consumer types', () => {
         name: { type: String, required: true },
         role: { type: String, required: true },
       });
+      const orgSchema = new mongoose.Schema<Org>({
+        slug: { type: String, required: true },
+        memberCount: { type: Number, required: true },
+      });
+      const auditModel = mongoose.createConnection().model<Audit>(
+        'Audit',
+        new mongoose.Schema<Audit>({ event: { type: String, required: true } }),
+      );
+      const dynamicModelName: string = 'DynamicUser';
 
       const appConfig = defineRuntimeConfig({
         models: [
           {
-            name: 'User' as const,
+            // ARRT-B11: inline literal without assertion; const generic must preserve 'User'.
+            name: 'User',
             schema: userSchema,
+            router: { operationAccess: false },
+          },
+          {
+            name: 'Org' as const,
+            schema: orgSchema,
+            router: { operationAccess: false },
+          },
+          {
+            name: dynamicModelName,
+            schema: userSchema,
+            router: { operationAccess: false },
+          },
+          {
+            model: auditModel,
             router: { operationAccess: false },
           },
         ],
@@ -165,10 +191,31 @@ describe('ARRT-09 strict installed-consumer types', () => {
             },
           },
         ],
-      } satisfies AccessRouterRuntimeAppConfig);
+      });
+      const _appConfigCheck: AccessRouterRuntimeAppConfig = appConfig;
+      void _appConfigCheck;
 
       const runtime = createAccessRouterRuntime(appConfig);
       const userModel: mongoose.Model<User> = runtime.models.User;
+      const orgModel: mongoose.Model<Org> = runtime.models.Org;
+      // @ts-expect-error ARRT-B11: cross-model assignment must be rejected, not accepted via intersection
+      const crossUserToOrg: mongoose.Model<Org> = runtime.models.User;
+      // @ts-expect-error ARRT-B11: cross-model assignment must be rejected in the other direction
+      const crossOrgToUser: mongoose.Model<User> = runtime.models.Org;
+      const dynamicKey: string = 'User';
+      // @ts-expect-error ARRT-B11: dynamic lookup may be absent/ambiguous and requires handling
+      const directDynamic: mongoose.Model<User> = runtime.models[dynamicKey];
+      const maybeDynamic = runtime.models[dynamicKey];
+      if (maybeDynamic !== undefined) {
+        void maybeDynamic;
+      }
+      // @ts-expect-error ARRT-B11: omitted-name lookup falls back to union|undefined and requires handling
+      const directAudit: mongoose.Model<Audit> = runtime.models.Audit;
+      const maybeAudit = runtime.models.Audit;
+      if (maybeAudit !== undefined) {
+        void maybeAudit;
+      }
+      void [orgModel, crossUserToOrg, crossOrgToUser, directDynamic, directAudit];
       const modelRouterName: string = runtime.modelRouters[0]!.modelName;
       const dataRouterName: string = runtime.dataRouters[0]!.dataName;
 

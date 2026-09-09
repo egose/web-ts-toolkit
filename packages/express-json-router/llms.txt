@@ -59,7 +59,10 @@ router.get('/users/:id', readUser);
 - constructor middleware and `getEndpoints()` results are snapshots; mutating caller arrays or returned arrays does not change future route registration or endpoint metadata
 - route-local Express error middleware with four arguments is rejected; mount error middleware with `router.use(...)`
 - static defaults (`errorMessageProvider`, `preJson`, `postJson`, `preError`, `postError`) affect routers created after the change; existing routers keep their constructed response handler
-- `JsonRouter.defaultHandler` returns a newly configured handler each time it is read; pass an explicit handler as the third constructor argument for isolated behavior
+- `JsonRouter.defaultHandler` returns a newly configured handler each time it is read; mutating a retrieved handler does not reconfigure existing routers or future defaults; pass an explicit handler as the third constructor argument for isolated behavior
+- `router.route(path)` is independent-registration sugar (one native route, wrapper, and `getEndpoints()` entry per builder call), not native `express.Router().route(path)` grouping: `next('route')` does not skip later builder calls, HEAD falls back to GET, constructor middleware re-runs per chained registration crossed by `next()`
+- thrown/rejected JSON callbacks are JSON-formatted and never reach app error middleware; explicit `next(error)` delegates to native Express error middleware, which owns the response
+- `router.use(...)`/`router.param(...)` delegate to the native router (`router.original`): native callbacks, `basePath` not prepended, nothing recorded in `getEndpoints()`; write separate `router.get(...)` statements for JSON routes
 - Express is a direct runtime dependency because this package constructs `express.Router()` instances; `@types/express` is installed as a dependency for strict TypeScript consumers
 
 ## Pointers

@@ -89,6 +89,7 @@ These behave as defaults for future `new JsonRouter(...)` instances.
 - Updating a static property affects routers created after that change.
 - Existing routers keep the response-handler instance they were constructed with.
 - `JsonRouter.defaultHandler` returns a newly configured handler each time it is read.
+- Mutating a handler retrieved via `JsonRouter.defaultHandler` does not reconfigure existing routers or future defaults.
 - For fully isolated behavior, pass an explicit handler instance as the third constructor argument.
 
 ```ts
@@ -106,6 +107,80 @@ handler.errorMessageProvider = () => 'custom-error';
 
 const routerUsingCustomHandler = new JsonRouter('/admin', undefined, handler);
 ```
+
+## Native Middleware And Error Boundaries
+
+Thrown or rejected JSON callbacks are JSON-formatted by the router's response
+handler and never reach application error middleware. Explicit `next(error)`
+instead delegates to native Express error middleware, which owns the response:
+
+```ts
+import express from 'express';
+import JsonRouter from '@web-ts-toolkit/express-json-router';
+
+const app = express();
+const router = new JsonRouter('/api');
+
+router.get('/throw', () => {
+  throw new Error('formatted as a JSON 500 by the router');
+});
+
+router.get(
+  '/guarded',
+  (req, res, next) => {
+    next(new Error('owned by the app final handler'));
+    return { unreachable: true };
+  },
+  () => ({ unreachable: true }),
+);
+
+app.use(router.original);
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  res.status(500).json({ ownedBy: 'app-final-handler', message: err.message });
+});
+```
+
+`use` and `param` delegate directly to the underlying native router:
+
+- Callbacks are native Express middleware: sync/async failures reach
+  application error middleware and guarded JSON handlers do not run.
+- Malformed `express.json()` input mounted before the router likewise reaches
+  application error middleware; `JsonRouter` does not sanitize upstream
+  body-parser failures.
+- `basePath` is not prepended to `use`/`param` arguments; pass an explicit
+  mount path for scoped middleware. Broadly mounted `use` middleware runs
+  before JSON routes on the same underlying router in mount order.
+- Both methods return the native router (`router.original`), not the
+  `JsonRouter`, so `.use(...).get(...)` is native registration. Write separate
+  `router.get(...)` statements for JSON routes. Native registrations never
+  appear in `getEndpoints()`.
+
+```ts
+import express from 'express';
+import JsonRouter from '@web-ts-toolkit/express-json-router';
+
+const authMiddleware: express.RequestHandler = (req, res, next) => next();
+const router = new JsonRouter('/api', authMiddleware);
+
+router.param('userId', (req, res, next, id) => next());
+
+router.get('/health', () => ({ ok: true }));
+router.get('/users/:id', () => ({ ok: true }));
+
+router.getEndpoints();
+// [{ method: 'GET', path: '/api/health' }, { method: 'GET', path: '/api/users/:id' }]
+```
+
+## Route Builder Contract
+
+`router.route(path)` is independent-registration sugar: each builder call equals
+a direct `router.METHOD(path, ...)` call with its own native route,
+response-handler wrapper (including constructor-middleware copies), and
+`getEndpoints()` entry. It is not native `express.Router().route(path)`
+grouping: an `.all()` guard calling `next('route')` does not skip a later
+builder registration, HEAD requests fall back to the separately registered GET
+handler, and constructor middleware re-runs for each chained registration
+crossed by `next()`.
 
 ## Documentation
 

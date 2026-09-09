@@ -68,4 +68,34 @@ describe('artifact relocation harness', () => {
     expect(existsSync(probe.sourceDir)).toBe(false);
     expect(existsSync(probe.artifactDir)).toBe(false);
   }, 45_000);
+
+  it('runs relocated artifacts built with an absolute target without retaining the source root', async () => {
+    const cliPath = new URL('../dist/cli.js', import.meta.url).pathname;
+    const probe = await probeRelocatedAccessRouterArtifacts(cliPath, { configArgStyle: 'absolute' });
+
+    try {
+      expect(probe.localAfterSourceRemovalResult).toMatchObject({ exitCode: 0, timedOut: false });
+      expect(parseArtifactProbeJson(probe.localAfterSourceRemovalResult)).toEqual({
+        statusCode: 200,
+        body: { value: 'original' },
+      });
+
+      expect(probe.serverlessAfterSourceRemovalResult).toMatchObject({ exitCode: 0, timedOut: false });
+      expect(parseArtifactProbeJson(probe.serverlessAfterSourceRemovalResult)).toEqual({
+        statusCode: 200,
+        body: { value: 'original' },
+      });
+
+      expect(probe.localOutput).not.toContain(probe.sourceDir);
+      expect(probe.serverlessOutput).not.toContain(probe.sourceDir);
+      expect(`${probe.localOutput}\n${probe.serverlessOutput}`).not.toMatch(
+        /loadAccessRouterRuntimeConfigSync|createConfigJiti|createJiti\(/,
+      );
+    } finally {
+      probe.cleanup();
+    }
+
+    expect(existsSync(probe.sourceDir)).toBe(false);
+    expect(existsSync(probe.artifactDir)).toBe(false);
+  }, 45_000);
 });

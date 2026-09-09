@@ -11,7 +11,20 @@ export interface OidcVaultStoreConformanceContext {
 
 export interface OidcVaultStoreConformanceOptions {
   createContext(testName: string): Promise<OidcVaultStoreConformanceContext> | OidcVaultStoreConformanceContext;
-  sessionCreateMode?: 'create-only' | 'upsert';
+  /**
+   * Declared duplicate-`createSession` mode (SVH-06). There is no default: every
+   * provider must declare `'create-only'` (live duplicates reject with
+   * `OidcVaultStoreConflictError`, originals/indexes preserved) or `'upsert'`
+   * (duplicates replace, scope ownership follows the replacement).
+   */
+  sessionCreateMode: 'create-only' | 'upsert';
+  /**
+   * Whether creating an ID that holds only a stale rotation alias (no live
+   * session) clears that alias. Memory and Redis clear it; MongoDB retains the
+   * stale alias row until its lineage is deleted (FU-SVH-05b). Must be declared
+   * explicitly alongside `sessionCreateMode`.
+   */
+  reusedSessionIdClearsStaleAlias: boolean;
 }
 
 const withContext = async (
@@ -144,6 +157,9 @@ export const defineOidcVaultStoreProviderConformanceSuite = (
         const first = createSessionInput('session_1');
         const second = {
           ...createSessionInput('session_1'),
+          logicalSessionId: 'logical_2',
+          subject: 'user_2',
+          providerSessionId: 'provider_sid_2',
           refreshToken: 'refresh_second',
           metadata: { nested: { value: 'second' }, list: [3, true, null] },
         };
@@ -170,16 +186,96 @@ export const defineOidcVaultStoreProviderConformanceSuite = (
           await expect(store.createSession(second)).rejects.toBeInstanceOf(OidcVaultStoreConflictError);
           expect(await store.getSession('session_1')).toMatchObject({
             sessionId: 'session_1',
+            logicalSessionId: 'logical_1',
+            subject: 'user_1',
+            providerSessionId: 'provider_session_1',
             refreshToken: 'refresh_session_1',
             metadata: { nested: { value: 'session_1' } },
           });
+          expect(
+            await store.deleteSessionsBySubject({
+              subject: 'user_2',
+              issuer: 'https://issuer.example.com',
+              clientId: 'client_1',
+            }),
+          ).toBe(0);
+          expect(
+            await store.deleteSessionsByProviderSessionId({
+              providerSessionId: 'provider_sid_2',
+              issuer: 'https://issuer.example.com',
+              clientId: 'client_1',
+            }),
+          ).toBe(0);
+          expect(await store.deleteSessionsByLogicalSessionId('logical_2')).toBe(0);
+          expect(await store.getSession('session_1')).not.toBeNull();
         } else {
           await store.createSession(second);
           expect(await store.getSession('session_1')).toMatchObject({
             sessionId: 'session_1',
+            logicalSessionId: 'logical_2',
+            subject: 'user_2',
+            providerSessionId: 'provider_sid_2',
             refreshToken: 'refresh_second',
             metadata: { nested: { value: 'second' }, list: [3, true, null] },
           });
+          expect(
+            await store.deleteSessionsBySubject({
+              subject: 'user_1',
+              issuer: 'https://issuer.example.com',
+              clientId: 'client_1',
+            }),
+          ).toBe(0);
+          expect(
+            await store.deleteSessionsBySubject({
+              subject: 'user_2',
+              issuer: 'https://issuer.example.com',
+              clientId: 'client_1',
+            }),
+          ).toBe(1);
+          expect(await store.getSession('session_1')).toBeNull();
+        }
+      });
+    });
+
+    it('documents same-ID reuse alias ownership per declared provider mode', async () => {
+      await withContext(options, 'create-reuse-alias-ownership', async ({ store }) => {
+        await store.createSession({
+          ...createSessionInput('reuse_old'),
+          logicalSessionId: 'lineage_reuse',
+          subject: 'user_reuse',
+        });
+        await store.rotateSession({
+          sessionId: 'reuse_old',
+          nextSession: {
+            ...createSessionInput('reuse_current'),
+            logicalSessionId: undefined,
+            subject: 'user_reuse',
+            updatedAt: 101,
+          },
+        });
+
+        const replacement = await store.createSession({
+          ...createSessionInput('reuse_old'),
+          logicalSessionId: 'lineage_replacement',
+          subject: 'user_replacement',
+          refreshToken: 'refresh_replacement',
+        });
+        expect(replacement).toMatchObject({
+          sessionId: 'reuse_old',
+          logicalSessionId: 'lineage_replacement',
+          subject: 'user_replacement',
+        });
+        expect(await store.getSession('reuse_current')).not.toBeNull();
+
+        await store.deleteSession('reuse_old');
+        expect(await store.getSession('reuse_old')).toBeNull();
+        expect(await store.getSession('reuse_current')).not.toBeNull();
+
+        await store.deleteSession('reuse_old');
+        if (options.reusedSessionIdClearsStaleAlias) {
+          expect(await store.getSession('reuse_current')).not.toBeNull();
+        } else {
+          expect(await store.getSession('reuse_current')).toBeNull();
         }
       });
     });

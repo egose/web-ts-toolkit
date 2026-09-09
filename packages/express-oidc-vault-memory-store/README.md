@@ -78,9 +78,11 @@ The store keeps these record kinds in separate in-process maps:
 - rotated-session aliases, used only so an old public session ID can revoke the current logical session
 - backchannel logout token JTIs, consumed once until their expiry time
 
-`createAuthorizationTransaction`, `createExchangeCode`, and `createSession` are upserts; creating the same key again replaces the old value. Metadata should be structured-clone compatible and JSON-compatible for portability across the memory, Redis, and MongoDB stores. The memory store clones inputs and returned records with `structuredClone`, so callers retain ownership of their objects and later mutations do not update persisted state.
+`createAuthorizationTransaction`, `createExchangeCode`, and `createSession` are upserts; creating the same key again replaces the old value. A `createSession` replacement takes over the session ID with its own subject/logical/provider-session scope, and clears any stale rotation alias held under that ID so the reused ID cannot invoke an old logical-session meaning. Portable callers must still create sessions with a fresh unused ID and handle `OidcVaultStoreConflictError`: reusing a live ID replaces on memory/MongoDB but rejects on Redis, so only fresh-ID creation is portable. Metadata should be structured-clone compatible and JSON-compatible for portability across the memory, Redis, and MongoDB stores. The memory store clones inputs and returned records with `structuredClone`, so callers retain ownership of their objects and later mutations do not update persisted state.
 
 Expiry checks use `expiresAt <= now()` as expired. Cleanup is opportunistic: reads and writes prune expired records in bounded batches or when a specific record is accessed, not on a background timer.
+
+Each same-map sweep inspects at most 64 snapshot slots per operation from a positional cursor, so a late cursor never rescans the map prefix. A key snapshot is rebuilt once per full pass (amortized over that pass's sweeps); keys added mid-pass are picked up on the next pass. Nested rotated-alias/lineage cleanup after session expiry is not batch-bounded: per expired logical lineage it scans live sessions for liveness and live aliases for removal, so that cost grows with lineage populations rather than staying constant.
 
 `deleteSession(...)`, `deleteSessionsByLogicalSessionId(...)`, `deleteSessionsBySubject(...)`, and `deleteSessionsByProviderSessionId(...)` logically revoke live sessions and remove stale rotation aliases when no live session remains in a logical lineage.
 

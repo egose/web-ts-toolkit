@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -72,9 +72,9 @@ const workspacePackages = [
 
 let packedWorkspaceCache: PackedWorkspace | undefined;
 
-function run(command: string, args: string[], cwd: string): string {
+function run(command: string, args: string[], cwd: string, env?: NodeJS.ProcessEnv): string {
   try {
-    return execFileSync(command, args, { cwd, encoding: 'utf8', stdio: 'pipe' });
+    return execFileSync(command, args, { cwd, encoding: 'utf8', stdio: 'pipe', ...(env ? { env } : {}) });
   } catch (err) {
     const error = err as { stdout?: string; stderr?: string; message?: string };
     throw new Error(
@@ -84,6 +84,15 @@ function run(command: string, args: string[], cwd: string): string {
       },
     );
   }
+}
+
+// ARRT-B13: consumer subprocesses must not inherit the test runner's NODE_PATH
+// (vitest points it at the workspace pnpm store). Stripping it proves missing
+// dependency edges fail instead of silently resolving to the workspace.
+function isolatedEnv(): NodeJS.ProcessEnv {
+  const { NODE_PATH: _nodePath, ...rest } = process.env;
+  void _nodePath;
+  return rest;
 }
 
 function seedToolVersions(dir: string): void {
@@ -228,6 +237,130 @@ function installPackedConsumer(mongooseRange: string): string {
   return consumerDir;
 }
 
+// ARRT-B13: minimally provisioned consumer declares only this runtime package
+// plus supported peers and compiler tooling. Tarball overrides are still listed
+// for transitive resolution without declaring overridden packages at the root.
+function installMinimalPackedConsumer(mongooseRange: string): string {
+  const packed = preparePackedWorkspace();
+  const consumerDir = mkdtempSync(path.join(os.tmpdir(), 'access-router-runtime-arrt13-minimal-'));
+  tempRoots.push(consumerDir);
+  seedToolVersions(consumerDir);
+
+  const internalOverrides = Object.fromEntries(
+    workspacePackages.map((pkg) => [pkg.name, `file:${packed.tarballs[pkg.name]}`]),
+  );
+
+  writeFileSync(
+    path.resolve(consumerDir, 'package.json'),
+    JSON.stringify(
+      {
+        name: 'access-router-runtime-minimal-consumer',
+        private: true,
+        type: 'module',
+        dependencies: {
+          '@web-ts-toolkit/access-router-runtime': `file:${packed.tarballs['@web-ts-toolkit/access-router-runtime']}`,
+          express: '^5.2.1',
+          mongoose: mongooseRange,
+        },
+        devDependencies: {
+          '@types/express': '^5.0.6',
+          '@types/node': rootPackageJson.devDependencies['@types/node'],
+          typescript: rootPackageJson.devDependencies.typescript,
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  writeFileSync(
+    path.resolve(consumerDir, 'pnpm-workspace.yaml'),
+    ['packages: []', 'overrides:']
+      .concat(Object.entries(internalOverrides).map(([name, source]) => `  '${name}': ${source}`))
+      .join('\n') + '\n',
+  );
+  run('pnpm', ['install', '--ignore-scripts'], consumerDir, isolatedEnv());
+
+  return consumerDir;
+}
+
+function runMinimalConsumerMatrix(consumerDir: string, expectedMongooseMajor: number): void {
+  // ARRT-B13: same ESM/CJS/strict-tsc coverage as the broad matrix, but every
+  // consumer subprocess runs without the workspace NODE_PATH fallback.
+  const env = isolatedEnv();
+  writeConsumerRuntimeFiles(consumerDir, expectedMongooseMajor);
+  writeConsumerTypeFiles(consumerDir);
+
+  run('node', ['esm.mjs'], consumerDir, env);
+  run('node', ['cjs.cjs'], consumerDir, env);
+  run('node', ['ownership-lifecycle.mjs'], consumerDir, env);
+  run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.json'], consumerDir, env);
+  run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.bundler.json'], consumerDir, env);
+  run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.extends.json'], consumerDir, env);
+}
+
+function assertIsolatedTransitiveResolution(consumerDir: string): void {
+  const consumerManifest = JSON.parse(readFileSync(path.resolve(consumerDir, 'package.json'), 'utf8')) as PackageJson;
+  const declaredDeps = { ...consumerManifest.dependencies };
+  expect(Object.keys(declaredDeps).sort()).toEqual(
+    ['@web-ts-toolkit/access-router-runtime', 'express', 'mongoose'].sort(),
+  );
+  for (const pkg of workspacePackages) {
+    if (pkg.name === '@web-ts-toolkit/access-router-runtime') continue;
+    expect(declaredDeps[pkg.name as string]).toBeUndefined();
+  }
+
+  const runtimePkgPath = path.resolve(consumerDir, 'node_modules/@web-ts-toolkit/access-router-runtime/package.json');
+  expect(existsSync(runtimePkgPath)).toBe(true);
+  const runtimeLinkTarget = realpathSync(
+    path.resolve(consumerDir, 'node_modules/@web-ts-toolkit/access-router-runtime'),
+  );
+  expect(runtimeLinkTarget.startsWith(realpathSync(workspaceRoot))).toBe(false);
+
+  // Resolution evidence must come from a plain-node consumer subprocess: the
+  // vitest module runner resolves workspace bare specifiers itself, so
+  // in-process require.resolve cannot prove consumer isolation.
+  const transitiveNames = ['@web-ts-toolkit/access-router', '@web-ts-toolkit/express-runtime'];
+  const env = isolatedEnv();
+  for (const name of transitiveNames) {
+    // Transitive internals must not be declared/hoisted at the consumer root,
+    // yet must resolve through the installed runtime package edge with no
+    // workspace NODE_PATH fallback.
+    expect(existsSync(path.resolve(consumerDir, `node_modules/${name}`))).toBe(false);
+    const resolvedEntry = run(
+      'node',
+      [
+        '-e',
+        // Resolve through the runtime's real store path: pnpm links the root
+        // entry by symlink, and Node does not realpath custom `paths` entries
+        // before lookup, so the symlinked path alone cannot see the isolated
+        // virtual-store siblings.
+        `console.log(require.resolve(${JSON.stringify(name)}, { paths: [${JSON.stringify(realpathSync(path.dirname(runtimePkgPath)))}] }))`,
+      ],
+      consumerDir,
+      env,
+    ).trim();
+    expect(resolvedEntry.startsWith(workspaceRoot)).toBe(false);
+    expect(realpathSync(resolvedEntry).startsWith(realpathSync(workspaceRoot))).toBe(false);
+    let probeDir = path.dirname(resolvedEntry);
+    let installed: PackageJson | undefined;
+    let installedDir = '';
+    for (let depth = 0; depth < 6; depth += 1) {
+      const candidate = path.resolve(probeDir, 'package.json');
+      if (existsSync(candidate)) {
+        const parsed = JSON.parse(readFileSync(candidate, 'utf8')) as PackageJson;
+        if (parsed.name === name) {
+          installed = parsed;
+          installedDir = probeDir;
+          break;
+        }
+      }
+      probeDir = path.dirname(probeDir);
+    }
+    expect(installed?.version).toBe(testVersion);
+    expect(realpathSync(installedDir).startsWith(realpathSync(workspaceRoot))).toBe(false);
+  }
+}
+
 function writeConsumerRuntimeFiles(consumerDir: string, expectedMongooseMajor: number): void {
   writeFileSync(
     path.resolve(consumerDir, 'esm.mjs'),
@@ -301,6 +434,34 @@ if (connectionB.readyState !== 0) throw new Error('external runtime B connection
 await runtimeB.shutdown();
 if (connectionB.models.SharedUser) throw new Error('runtime B generated model was not cleaned up');
 if (events.join(',') !== 'a:init,b:init,a:shutdown,b:shutdown') throw new Error(\`unexpected lifecycle order: \${events.join(',')}\`);
+
+// ARRT-B03: ordinary owned (schema-only, never opened) runtimes release their
+// mongoose.connections registration on terminal shutdown.
+const ownedBaseline = mongoose.connections.length;
+const ownedRuntime = createAccessRouterRuntime(defineRuntimeConfig({
+  models: [{ name: 'OwnedDisposalUser', schema: new mongoose.Schema({ name: String }), router: { operationAccess: false } }],
+}));
+const ownedConnection = ownedRuntime.models.OwnedDisposalUser.db;
+if (!mongoose.connections.includes(ownedConnection)) throw new Error('owned connection was not registered');
+await ownedRuntime.init();
+await ownedRuntime.shutdown();
+if (mongoose.connections.includes(ownedConnection)) throw new Error('owned connection was not released on shutdown');
+if (ownedConnection.models.OwnedDisposalUser) throw new Error('owned generated model was not cleaned up');
+if (mongoose.connections.length !== ownedBaseline) throw new Error('owned shutdown did not return connections to baseline');
+await ownedRuntime.shutdown();
+if (mongoose.connections.length !== ownedBaseline) throw new Error('repeated owned shutdown was not idempotent');
+
+// ARRT-B03: explicitly retained owned connections survive terminal shutdown.
+const retainedRuntime = createAccessRouterRuntime(defineRuntimeConfig({
+  db: { disconnectOnShutdown: false },
+  models: [{ name: 'RetainedDisposalUser', schema: new mongoose.Schema({ name: String }), router: { operationAccess: false } }],
+}));
+const retainedConnection = retainedRuntime.models.RetainedDisposalUser.db;
+await retainedRuntime.init();
+await retainedRuntime.shutdown();
+if (!mongoose.connections.includes(retainedConnection)) throw new Error('retained connection was destroyed');
+if (retainedConnection.models.RetainedDisposalUser) throw new Error('retained generated model was not cleaned up');
+await retainedConnection.destroy();
 `,
   );
 }
@@ -317,25 +478,132 @@ import {
 } from '@web-ts-toolkit/access-router-runtime';
 
 type User = { name: string };
+type Org = { slug: string; memberCount: number };
+type Audit = { event: string };
 const userSchema = new mongoose.Schema<User>({ name: { type: String, required: true } });
+const orgSchema = new mongoose.Schema<Org>({ slug: { type: String, required: true }, memberCount: { type: Number, required: true } });
+const auditModel = mongoose.createConnection().model<Audit>(
+  'Audit',
+  new mongoose.Schema<Audit>({ event: { type: String, required: true } }),
+);
+const dynamicModelName: string = 'DynamicUser';
 const config = defineRuntimeConfig({
-  models: [{ name: 'User' as const, schema: userSchema, router: { operationAccess: false } }],
-} satisfies AccessRouterRuntimeConfig);
+  models: [
+    {
+      name: 'User',
+      schema: userSchema,
+      router: { operationAccess: false },
+      // ARRT-B12: custom handler observes the delegated ACL contract without casts.
+      customRoutes: [
+        {
+          method: 'get',
+          path: '/:id/profile',
+          handler: async (req, res) => {
+            const allowed: boolean = await req.macl.isAllowed('User', 'read');
+            if (!allowed) {
+              res.status(403).json({ denied: true });
+              return;
+            }
+            return { ok: true };
+          },
+        },
+      ],
+    },
+    { name: 'Org' as const, schema: orgSchema, router: { operationAccess: false } },
+    { name: dynamicModelName, schema: userSchema, router: { operationAccess: false } },
+    { model: auditModel, router: { operationAccess: false } },
+  ],
+});
+const _configCheck: AccessRouterRuntimeConfig = config;
+void _configCheck;
 const runtime: AccessRouterRuntimeInstance<typeof config> = createAccessRouterRuntime(config);
 const userModel: mongoose.Model<User> = runtime.models.User;
-void [runtime, userModel];
+const orgModel: mongoose.Model<Org> = runtime.models.Org;
+// @ts-expect-error ARRT-B11: cross-model assignment must be rejected, not accepted via intersection
+const crossUserToOrg: mongoose.Model<Org> = runtime.models.User;
+// @ts-expect-error ARRT-B11: cross-model assignment must be rejected in the other direction
+const crossOrgToUser: mongoose.Model<User> = runtime.models.Org;
+const dynamicKey: string = 'User';
+// @ts-expect-error ARRT-B11: dynamic lookup may be absent/ambiguous and requires handling
+const directDynamic: mongoose.Model<User> = runtime.models[dynamicKey];
+const maybeDynamic = runtime.models[dynamicKey];
+if (maybeDynamic !== undefined) {
+  void maybeDynamic;
+}
+// @ts-expect-error ARRT-B11: omitted-name lookup falls back to union|undefined and requires handling
+const directAudit: mongoose.Model<Audit> = runtime.models.Audit;
+const maybeAudit = runtime.models.Audit;
+if (maybeAudit !== undefined) {
+  void maybeAudit;
+}
+void [runtime, userModel, orgModel, crossUserToOrg, crossOrgToUser, directDynamic, directAudit];
 `,
   );
   writeFileSync(
     path.resolve(consumerDir, 'consumer.require.cts'),
     `import runtimePackage = require('@web-ts-toolkit/access-router-runtime');
+import mongoose = require('mongoose');
 
+type User = { name: string };
+type Org = { slug: string; memberCount: number };
+type Audit = { event: string };
+const userSchema = new mongoose.Schema<User>({ name: { type: String, required: true } });
+const orgSchema = new mongoose.Schema<Org>({ slug: { type: String, required: true }, memberCount: { type: Number, required: true } });
+const auditModel = mongoose.createConnection().model<Audit>(
+  'Audit',
+  new mongoose.Schema<Audit>({ event: { type: String, required: true } }),
+);
+const dynamicModelName: string = 'DynamicUser';
 const config = runtimePackage.defineRuntimeConfig({
+  models: [
+    {
+      name: 'User',
+      schema: userSchema,
+      router: { operationAccess: false },
+      // ARRT-B12: custom handler observes the delegated ACL contract without casts.
+      customRoutes: [
+        {
+          method: 'get',
+          path: '/:id/profile',
+          handler: async (req, res) => {
+            const allowed: boolean = await req.macl.isAllowed('User', 'read');
+            if (!allowed) {
+              res.status(403).json({ denied: true });
+              return;
+            }
+            return { ok: true };
+          },
+        },
+      ],
+    },
+    { name: 'Org' as const, schema: orgSchema, router: { operationAccess: false } },
+    { name: dynamicModelName, schema: userSchema, router: { operationAccess: false } },
+    { model: auditModel, router: { operationAccess: false } },
+  ],
   data: [{ name: 'status' as const, router: { idField: 'id', operationAccess: false, data: [{ id: 'ok' }] } }],
 });
 const runtime = runtimePackage.createAccessRouterRuntime(config);
+const userModel: mongoose.Model<User> = runtime.models.User;
+const orgModel: mongoose.Model<Org> = runtime.models.Org;
+// @ts-expect-error ARRT-B11: cross-model assignment must be rejected, not accepted via intersection
+const crossUserToOrg: mongoose.Model<Org> = runtime.models.User;
+// @ts-expect-error ARRT-B11: cross-model assignment must be rejected in the other direction
+const crossOrgToUser: mongoose.Model<User> = runtime.models.Org;
+const dynamicKey: string = 'User';
+// @ts-expect-error ARRT-B11: dynamic lookup may be absent/ambiguous and requires handling
+const directDynamic: mongoose.Model<User> = runtime.models[dynamicKey];
+const maybeDynamic = runtime.models[dynamicKey];
+if (maybeDynamic !== undefined) {
+  void maybeDynamic;
+}
+// @ts-expect-error ARRT-B11: omitted-name lookup falls back to union|undefined and requires handling
+const directAudit: mongoose.Model<Audit> = runtime.models.Audit;
+const maybeAudit = runtime.models.Audit;
+if (maybeAudit !== undefined) {
+  void maybeAudit;
+}
 const dataName: string = runtime.dataRouters[0]!.dataName;
-void [runtime, dataName];
+void [runtime, userModel, orgModel, crossUserToOrg, crossOrgToUser, directDynamic, directAudit, dataName];
 `,
   );
   writeFileSync(
@@ -343,12 +611,73 @@ void [runtime, dataName];
     `import mongoose from 'mongoose';
 import { createAccessRouterRuntime, defineRuntimeConfig } from '@web-ts-toolkit/access-router-runtime';
 
-const schema = new mongoose.Schema<{ name: string }>({ name: String });
+type User = { name: string };
+type Org = { slug: string; memberCount: number };
+type Audit = { event: string };
+const userSchema = new mongoose.Schema<User>({ name: { type: String, required: true } });
+const orgSchema = new mongoose.Schema<Org>({ slug: { type: String, required: true }, memberCount: { type: Number, required: true } });
+const auditModel = mongoose.createConnection().model<Audit>(
+  'Audit',
+  new mongoose.Schema<Audit>({ event: { type: String, required: true } }),
+);
+const dynamicModelName: string = 'DynamicUser';
 const runtime = createAccessRouterRuntime(defineRuntimeConfig({
-  models: [{ name: 'User' as const, schema, router: { operationAccess: false } }],
+  models: [
+    {
+      name: 'User',
+      schema: userSchema,
+      router: { operationAccess: false },
+      // ARRT-B12: custom handler observes the delegated ACL contract without casts.
+      customRoutes: [
+        {
+          method: 'get',
+          path: '/:id/profile',
+          handler: async (req, res) => {
+            const allowed: boolean = await req.macl.isAllowed('User', 'read');
+            if (!allowed) {
+              res.status(403).json({ denied: true });
+              return;
+            }
+            return { ok: true };
+          },
+        },
+      ],
+    },
+    { name: 'Org' as const, schema: orgSchema, router: { operationAccess: false } },
+    { name: dynamicModelName, schema: userSchema, router: { operationAccess: false } },
+    { model: auditModel, router: { operationAccess: false } },
+  ],
 }));
-const userModel: mongoose.Model<{ name: string }> = runtime.models.User;
-void [runtime.app, userModel];
+const userModel: mongoose.Model<User> = runtime.models.User;
+const orgModel: mongoose.Model<Org> = runtime.models.Org;
+// @ts-expect-error ARRT-B11: cross-model assignment must be rejected, not accepted via intersection
+const crossUserToOrg: mongoose.Model<Org> = runtime.models.User;
+// @ts-expect-error ARRT-B11: cross-model assignment must be rejected in the other direction
+const crossOrgToUser: mongoose.Model<User> = runtime.models.Org;
+const dynamicKey: string = 'User';
+// @ts-expect-error ARRT-B11: dynamic lookup may be absent/ambiguous and requires handling
+const directDynamic: mongoose.Model<User> = runtime.models[dynamicKey];
+const maybeDynamic = runtime.models[dynamicKey];
+if (maybeDynamic !== undefined) {
+  void maybeDynamic;
+}
+// @ts-expect-error ARRT-B11: omitted-name lookup falls back to union|undefined and requires handling
+const directAudit: mongoose.Model<Audit> = runtime.models.Audit;
+const maybeAudit = runtime.models.Audit;
+if (maybeAudit !== undefined) {
+  void maybeAudit;
+}
+// ARRT-B11: ordinary inline config without pervasive assertions preserves literals via const generics.
+const inlineRuntime = createAccessRouterRuntime({
+  models: [
+    { name: 'User', schema: userSchema, router: { operationAccess: false } },
+    { name: 'Org' as const, schema: orgSchema, router: { operationAccess: false } },
+  ],
+});
+const inlineUser: mongoose.Model<User> = inlineRuntime.models.User;
+// @ts-expect-error ARRT-B11: inline cross-model assignment must be rejected
+const inlineBad: mongoose.Model<Org> = inlineRuntime.models.User;
+void [runtime.app, userModel, orgModel, crossUserToOrg, crossOrgToUser, directDynamic, directAudit, inlineUser, inlineBad];
 `,
   );
   writeFileSync(
@@ -554,5 +883,14 @@ describe('ARRT-10 packed consumers and declarations', () => {
     const consumerDir = installPackedConsumer('^9.0.0');
 
     runCliChecks(consumerDir);
+  }, 120_000);
+
+  // ARRT-B13: single-peer minimal fixture reuses the shared packing cache and
+  // the standard ESM/CJS/strict-tsc matrix helpers to bound new harness cost.
+  it('runs and compiles a minimally provisioned packed consumer', () => {
+    const consumerDir = installMinimalPackedConsumer('^9.0.0');
+
+    runMinimalConsumerMatrix(consumerDir, 9);
+    assertIsolatedTransitiveResolution(consumerDir);
   }, 120_000);
 });

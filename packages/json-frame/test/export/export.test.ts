@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ExportKeyCollisionError, JsonFrameValidationError } from '../../src/errors';
 import { createFrameState, createFrameStateFromData, type FrameState } from '../../src/frame/column';
+import { getColumnOperationCounters, resetColumnOperationCounters } from '../../src/frame/column';
 import { createDataFrame as createInternalDataFrame, DataFrame, getDataFrameState } from '../../src/frame/DataFrame';
 import { JSON_FRAME_MAX_DEPTH } from '../../src/json';
 import { normalizeFromOrientOptions } from '../../src/options';
@@ -445,5 +446,319 @@ describe('DataFrame exporters', () => {
     expect(packed.toValues()).toEqual(unpacked.toValues());
     expect(packed.toSplit()).toEqual(unpacked.toSplit());
     expect(packed.toTable()).toEqual(unpacked.toTable());
+  });
+
+  it('preserves string index metadata through a colliding rename, select, and indexField override', () => {
+    const frame = buildDataFrame(
+      {
+        schema: {
+          fields: [
+            { name: 'pk', type: 'string' },
+            { name: 'value', type: 'integer' },
+          ],
+          primaryKey: ['pk'],
+        },
+        data: [{ pk: 'r0', value: 42 }],
+      },
+      { orient: 'table' },
+    );
+
+    const transformed = frame.rename({ value: 'pk' }).select('pk');
+    expect(() => transformed.toTable()).toThrowError(JsonFrameValidationError);
+
+    const exported = transformed.toTable({ indexField: 'row_id' });
+    expect(exported.data).toEqual([{ row_id: 'r0', pk: 42 }]);
+    expect(exported.schema.fields).toEqual([
+      { name: 'row_id', type: 'string' },
+      { name: 'pk', type: 'integer' },
+    ]);
+    expect(exported.schema.primaryKey).toEqual(['row_id']);
+    expect(new Set(exported.schema.fields.map((field) => field.name)).size).toBe(exported.schema.fields.length);
+  });
+
+  it('keeps colliding data fields alive through second rename, resetIndex, filter, and sort', () => {
+    const frame = buildDataFrame(
+      {
+        schema: {
+          fields: [
+            { name: 'pk', type: 'string', extDtype: 'str' },
+            { name: 'value', type: 'integer' },
+            { name: 'note', type: 'string' },
+          ],
+          primaryKey: ['pk'],
+        },
+        data: [
+          { pk: 'r0', value: 42, note: 'a' },
+          { pk: 'r1', value: 7, note: 'b' },
+        ],
+      },
+      { orient: 'table' },
+    );
+
+    const colliding = frame.rename({ value: 'pk' }).select('pk', 'note');
+    const renamedAgain = colliding.rename({ pk: 'score' });
+    expect(renamedAgain.toTable()).toEqual({
+      schema: {
+        fields: [
+          { name: 'pk', type: 'string', extDtype: 'str' },
+          { name: 'score', type: 'integer' },
+          { name: 'note', type: 'string' },
+        ],
+        primaryKey: ['pk'],
+      },
+      data: [
+        { pk: 'r0', score: 42, note: 'a' },
+        { pk: 'r1', score: 7, note: 'b' },
+      ],
+    });
+
+    const reset = colliding.resetIndex();
+    expect(reset.toTable()).toEqual({
+      schema: {
+        fields: [
+          { name: 'pk', type: 'integer' },
+          { name: 'note', type: 'string' },
+        ],
+      },
+      data: [
+        { pk: 42, note: 'a' },
+        { pk: 7, note: 'b' },
+      ],
+    });
+
+    const filtered = colliding
+      .filter((row) => (row as Record<string, unknown>).note !== 'b')
+      .sort((left, right) =>
+        String((left as Record<string, unknown>).note).localeCompare(String((right as Record<string, unknown>).note)),
+      );
+    expect(filtered.toTable({ indexField: 'row_id' })).toEqual({
+      schema: {
+        fields: [
+          { name: 'row_id', type: 'string', extDtype: 'str' },
+          { name: 'pk', type: 'integer' },
+          { name: 'note', type: 'string' },
+        ],
+        primaryKey: ['row_id'],
+      },
+      data: [{ row_id: 'r0', pk: 42, note: 'a' }],
+    });
+  });
+
+  it('rejects caller-mutated cycles at serialization in all six orients', () => {
+    for (const orient of ['records', 'index', 'columns', 'values', 'split', 'table'] as const) {
+      const frame = buildDataFrame([{ v: { ok: true } }], { orient: 'records' });
+      const cell = (frame.row(0) as unknown as { readonly v: Record<string, unknown> }).v;
+      cell.self = cell;
+
+      try {
+        frame.toJSONString(orient);
+        throw new Error(`expected cycle to throw for orient ${orient}`);
+      } catch (error) {
+        expect(error).toMatchObject({ name: 'JsonFrameValidationError', orient });
+        expect(error).not.toBeInstanceOf(TypeError);
+        expect(typeof (error as JsonFrameValidationError).path).toBe('string');
+        expect((error as JsonFrameValidationError).value).toMatchObject({ kind: 'object' });
+      }
+    }
+  });
+
+  it('rejects caller-mutated over-depth cells at serialization in all six orients', () => {
+    for (const orient of ['records', 'index', 'columns', 'values', 'split', 'table'] as const) {
+      const frame = buildDataFrame([{ v: { ok: true } }], { orient: 'records' });
+      const cell = (frame.row(0) as unknown as { readonly v: Record<string, unknown> }).v;
+      cell.deep = nestedArrays(JSON_FRAME_MAX_DEPTH, 'leaf');
+
+      try {
+        frame.toJSONString(orient);
+        throw new Error(`expected over-depth to throw for orient ${orient}`);
+      } catch (error) {
+        expect(error).toMatchObject({ name: 'JsonFrameValidationError', orient });
+        expect(error).not.toBeInstanceOf(RangeError);
+        expect((error as JsonFrameValidationError).message).toContain(String(JSON_FRAME_MAX_DEPTH));
+        expect(typeof (error as JsonFrameValidationError).path).toBe('string');
+      }
+    }
+  });
+
+  it('enforces exact depth boundaries relative to the final orient layout', () => {
+    const shallowOrints = ['records', 'index', 'columns', 'values'] as const;
+    const deepOrients = ['split', 'table'] as const;
+
+    const boundaryCell = nestedArrays(JSON_FRAME_MAX_DEPTH - 2, 'leaf');
+    const boundaryFrame = buildDataFrame([{ v: boundaryCell }], { orient: 'records' });
+    for (const orient of [...shallowOrints, ...deepOrients] as const) {
+      expect(() => boundaryFrame.toJSONString(orient)).not.toThrow();
+    }
+
+    const oneDeeperCell = nestedArrays(JSON_FRAME_MAX_DEPTH - 1, 'leaf');
+    const oneDeeperFrame = buildDataFrame([{ v: oneDeeperCell }], { orient: 'records' });
+    for (const orient of shallowOrints) {
+      expect(() => oneDeeperFrame.toJSONString(orient)).not.toThrow();
+    }
+    for (const orient of deepOrients) {
+      try {
+        oneDeeperFrame.toJSONString(orient);
+        throw new Error(`expected deeper layout to throw for orient ${orient}`);
+      } catch (error) {
+        expect(error).toMatchObject({ name: 'JsonFrameValidationError', orient });
+        expect(error).not.toBeInstanceOf(RangeError);
+        expect((error as JsonFrameValidationError).message).toContain(String(JSON_FRAME_MAX_DEPTH));
+      }
+    }
+  });
+
+  it('serializes valid nested JSON unchanged and preserves shallow cell identity', () => {
+    const frame = buildDataFrame([{ v: { tags: ['a'] } }], { orient: 'records' });
+    const before = (frame.row(0) as unknown as { readonly v: Record<string, unknown> }).v;
+
+    const json = frame.toJSONString('records');
+    expect(JSON.parse(json)).toEqual([{ v: { tags: ['a'] } }]);
+
+    const after = (frame.row(0) as unknown as { readonly v: Record<string, unknown> }).v;
+    expect(after).toBe(before);
+    expect(frame.toRecords()[0]!.v).toBe(before);
+  });
+
+  it('rejects newly introduced non-JSON and sparse values at serialization', () => {
+    const cases: Array<{ readonly name: string; readonly mutate: (cell: Record<string, unknown>) => void }> = [
+      { name: 'bigint', mutate: (cell) => void ((cell.bad as unknown) = 1n) },
+      { name: 'undefined', mutate: (cell) => void ((cell.bad as unknown) = undefined) },
+      { name: 'non-finite', mutate: (cell) => void ((cell.bad as unknown) = Number.NaN) },
+      {
+        name: 'sparse',
+        mutate: (cell) => {
+          const sparse: unknown[] = [1, 2];
+          delete sparse[1];
+          cell.bad = sparse;
+        },
+      },
+    ];
+
+    for (const { name, mutate } of cases) {
+      for (const orient of ['records', 'index', 'columns', 'values', 'split', 'table'] as const) {
+        const frame = buildDataFrame([{ v: { ok: true } }], { orient: 'records' });
+        mutate((frame.row(0) as unknown as { readonly v: Record<string, unknown> }).v);
+
+        try {
+          frame.toJSONString(orient);
+          throw new Error(`expected ${name} to throw for orient ${orient}`);
+        } catch (error) {
+          expect(error).toMatchObject({ name: 'JsonFrameValidationError', orient });
+          expect(error).not.toBeInstanceOf(TypeError);
+        }
+      }
+    }
+  });
+
+  it('documents hook behavior by serializing plain getters without sandboxing claims', () => {
+    const frame = buildDataFrame([{ v: { ok: true } }], { orient: 'records' });
+    const cell = { ok: true } as Record<string, unknown>;
+    Object.defineProperty(cell, 'derived', {
+      enumerable: true,
+      get: () => 41 + 1,
+    });
+    ((frame.row(0) as unknown as { readonly v: Record<string, unknown> }).v as Record<string, unknown>).hooked = cell;
+
+    expect(JSON.parse(frame.toJSONString('records'))).toEqual([{ v: { ok: true, hooked: { ok: true, derived: 42 } } }]);
+  });
+
+  it('exports from stored columns without full materialization and keeps preflight ahead of cell copies', () => {
+    const packed = buildDataFrame(
+      [
+        [1, 'a'],
+        [2, 'b'],
+      ],
+      { orient: 'values', columns: ['n', 'label'], packThreshold: 1 },
+    );
+
+    for (const operation of ['toRecords', 'toValues', 'toSplit', 'toTable'] as const) {
+      resetColumnOperationCounters();
+      const payload = packed[operation]() as unknown;
+      const counters = getColumnOperationCounters();
+
+      expect(counters.materializeColumnCalls).toBe(0);
+      expect(counters.materializedCells).toBe(0);
+      expect(counters.scalarReads).toBe(packed.length * packed.columns.length);
+      expect(payload).toBeDefined();
+    }
+
+    expect(packed.toRecords()).toEqual([
+      { n: 1, label: 'a' },
+      { n: 2, label: 'b' },
+    ]);
+  });
+
+  it('rejects predictable export failures before materializing or reading cells', () => {
+    const colliding = buildDataFrame(
+      {
+        columns: ['value'],
+        index: [1, '1'],
+        data: [[10], [20]],
+      },
+      { orient: 'split' },
+    );
+
+    for (const operation of ['toIndex', 'toColumns'] as const) {
+      resetColumnOperationCounters();
+      expect(() => colliding[operation]() as unknown).toThrowError(ExportKeyCollisionError);
+      expect(getColumnOperationCounters()).toMatchObject({
+        materializeColumnCalls: 0,
+        materializedCells: 0,
+        scalarReads: 0,
+      });
+    }
+
+    const duplicateIndex = buildDataFrame(
+      {
+        columns: ['city'],
+        index: ['same', 'same'],
+        data: [['NYC'], ['LA']],
+      },
+      { orient: 'split' },
+    );
+    resetColumnOperationCounters();
+    expect(() => duplicateIndex.toTable() as unknown).toThrowError(JsonFrameValidationError);
+    expect(getColumnOperationCounters()).toMatchObject({
+      materializeColumnCalls: 0,
+      materializedCells: 0,
+      scalarReads: 0,
+    });
+
+    const collidingField = buildDataFrame(
+      {
+        columns: ['index', 'city'],
+        index: ['r0', 'r1'],
+        data: [
+          ['A', 'NYC'],
+          ['B', 'LA'],
+        ],
+      },
+      { orient: 'split' },
+    );
+    resetColumnOperationCounters();
+    expect(() => collidingField.toTable() as unknown).toThrowError(JsonFrameValidationError);
+    expect(getColumnOperationCounters()).toMatchObject({
+      materializeColumnCalls: 0,
+      materializedCells: 0,
+      scalarReads: 0,
+    });
+  });
+
+  it('preserves shallow cell identity with fresh structural containers across repeated exports', () => {
+    const frame = buildDataFrame([{ v: { tags: ['a'] } }], { orient: 'records' });
+    const cell = (frame.row(0) as unknown as { readonly v: Record<string, unknown> }).v;
+
+    const first = frame.toRecords();
+    const second = frame.toRecords();
+    expect(first[0]!.v).toBe(cell);
+    expect(second[0]!.v).toBe(cell);
+    expect(first).not.toBe(second);
+    expect(first[0]).not.toBe(second[0]);
+
+    const firstValues = frame.toValues();
+    const secondValues = frame.toValues();
+    expect(firstValues[0]![0]).toBe(cell);
+    expect(firstValues).not.toBe(secondValues);
+    expect(firstValues[0]).not.toBe(secondValues[0]);
   });
 });
