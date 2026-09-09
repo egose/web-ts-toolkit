@@ -298,6 +298,22 @@ function _createMdxContent(props) {
         className: "language-bash",
         children: "wtt-access-router-runtime dev ./src/access-router.config.ts --env .env --port 3000\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Watch supervision uses only explicit CLI flags (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--watch"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--ext"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--delay"
+      }), "); bare ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--watch"
+      }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "."
+      }), ". The supervisor never loads the access-router-runtime config in the parent process, so config ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dev"
+      }), " metadata does not affect supervisor scope, extensions, or delay. Pass watch options on the CLI, for example ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "wtt-access-router-runtime dev ./src/access-router.config.ts --watch ./src --ext ts,js --delay 500"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "build-a-local-runtime-bundle",
       children: "Build a local runtime bundle"
@@ -430,7 +446,15 @@ function _createMdxContent(props) {
         children: "init"
       }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
         children: "shutdown"
-      }), " because it returns only the Express app and has no way to execute database connection or cleanup hooks. If the config has any of those fields, use ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " because it returns only the Express app and has no way to execute database connection or cleanup hooks. It also rejects schema-backed models (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "models[].schema"
+      }), ") because they allocate a runtime-owned connection with no disposal handle; use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createAccessRouterRuntime(config)"
+      }), " with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "init()"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "shutdown()"
+      }), " for those configs. If the config has any of those fields, use ", (0,jsx_runtime.jsx)(_components.code, {
         children: "createAccessRouterRuntime(config).app"
       }), " and call the runtime lifecycle methods through your server or serverless integration."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
@@ -669,7 +693,7 @@ function _createMdxContent(props) {
         children: "db.connection"
       }), ", they must belong to that same connection. Runtime-generated model registrations are removed during ", (0,jsx_runtime.jsx)(_components.code, {
         children: "runtime.shutdown()"
-      }), ", while existing supplied models are never deleted by the runtime."]
+      }), " only when the registry still holds the exact model constructor created by that runtime; externally replaced registrations are left intact. Reusing the same name/schema on a shared external connection is borrower semantics (only the creating runtime deletes, reused handles are never deleted), so overlapping borrowers must shut down before the creator; sequential reuse after shutdown remains supported. Existing supplied models are never deleted by the runtime."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The runtime never uses ", (0,jsx_runtime.jsx)(_components.code, {
         children: "mongoose.connect()"
@@ -701,9 +725,43 @@ function _createMdxContent(props) {
         children: "AggregateError"
       }), "."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Adapter ownership: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "runtime.shutdown()"
+      }), " is terminal for the runtime instance. It waits for pending adapter startup (including caller ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "init"
+      }), " hooks) before running config shutdown and database disposal, but it does not close HTTP servers. Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "local.shutdown()"
+      }), " to drain HTTP (stop accepting, drain in-flight up to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "shutdownTimeout"
+      }), ", preserving signal ownership) and then run caller ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onShutdown"
+      }), " plus ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "runtime.shutdown()"
+      }), " exactly once. A failed ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "local.ready"
+      }), " (for example an occupied port) rolls back caller and runtime resources with the original readiness error preserved, so a subsequent ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "local.shutdown()"
+      }), " does not clean twice. Serverless cold start memoizes runtime plus caller init until ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "reset()"
+      }), "; after terminal shutdown, pending and later invocations reject without dispatching. No reference counting is provided: multiple adapters share one terminal runtime, so prefer one runtime per independent lifecycle."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Programmatic context collections are readonly snapshots, and lifecycle-sensitive config is captured during runtime construction. Mutate config before calling ", (0,jsx_runtime.jsx)(_components.code, {
         children: "createAccessRouterRuntime(...)"
-      }), "; do not rely on post-construction config mutation to change database or lifecycle behavior."]
+      }), "; do not rely on post-construction config mutation to change database or lifecycle behavior. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "runtime.models"
+      }), " keeps supplied model typing: literal ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "name"
+      }), " values are inferred without ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "as const"
+      }), " via ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "defineRuntimeConfig"
+      }), ", known keys return their own model type, and widened-", (0,jsx_runtime.jsx)(_components.code, {
+        children: "string"
+      }), "/omitted-", (0,jsx_runtime.jsx)(_components.code, {
+        children: "name"
+      }), " lookups return the union of all model types plus ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), ", so check for absence first."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "createAccessRouterRuntimeApp(...)"
@@ -711,29 +769,59 @@ function _createMdxContent(props) {
         children: "db"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "init"
-      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "shutdown"
-      }), ". Use the full runtime when lifecycle work is required."]
+      }), ", or schema-backed models. Use the full runtime when lifecycle work is required."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Data definitions must not duplicate ", (0,jsx_runtime.jsx)(_components.code, {
         children: "data[].name"
       }), " or the resolved ", (0,jsx_runtime.jsx)(_components.code, {
         children: "data[].router.dataName"
-      }), ". Dev defaults are validated at load time: ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ". ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dev"
+      }), " (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "watch"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ext"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "delay"
+      }), ") is ignored deprecated metadata: when provided, ", (0,jsx_runtime.jsx)(_components.code, {
         children: "dev.watch"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
         children: "dev.ext"
-      }), " must be arrays of strings, and ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " must be arrays of strings and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "dev.delay"
       }), " must be a finite integer in ", (0,jsx_runtime.jsx)(_components.code, {
         children: "0..Number.MAX_SAFE_INTEGER"
-      }), "."]
+      }), ", but these values never affect the watch supervisor. Migration: pass ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--watch"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--ext"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--delay"
+      }), " explicitly on the CLI and remove ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dev"
+      }), " from configs when convenient; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dev"
+      }), " remains accepted without a breaking removal."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Migration note: configs that previously relied on promises/async factories, array/date exports, unrelated-only named exports, ambiguous model definitions, duplicate names, existing-model ", (0,jsx_runtime.jsx)(_components.code, {
         children: "collection"
       }), ", non-integer/out-of-range ", (0,jsx_runtime.jsx)(_components.code, {
         children: "dev.delay"
-      }), " values, or global Mongoose connection/model reuse must be changed to the validated forms above."]
+      }), " values, or global Mongoose connection/model reuse must be changed to the validated forms above. Configs that set ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dev.watch"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dev.ext"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dev.delay"
+      }), " expecting supervisor defaults must move those values to explicit CLI flags instead. Type-level migration: heterogeneous registries no longer intersect every model under every key; dynamic/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "string"
+      }), " or omitted-", (0,jsx_runtime.jsx)(_components.code, {
+        children: "name"
+      }), " lookups are ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "union | undefined"
+      }), " and need an absence check, while known literal keys keep their exact model type."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Model definitions can also include ", (0,jsx_runtime.jsx)(_components.code, {
         children: "customRoutes"
@@ -771,6 +859,26 @@ function _createMdxContent(props) {
         }), " uses ", (0,jsx_runtime.jsx)(_components.code, {
           children: "@web-ts-toolkit/express-json-router"
         }), " semantics, so returning plain data works"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "customRoutes[].handler"
+        }), " receives an ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "AccessRouterRuntimeCustomRouteRequest"
+        }), " (the delegated ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ModelRequest"
+        }), " from ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "@web-ts-toolkit/access-router/advanced"
+        }), "), so ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "req.macl"
+        }), " (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isAllowed"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "getService"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "getPublicService"
+        }), ") is available without casts"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Request-core setup is not authorization: custom routes do not inherit any generated CRUD operation guard, and arbitrary methods/paths are never mapped onto CRUD permissions. Every custom route must enforce its own guard; generated-route guards are unchanged."
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Example:"
@@ -785,6 +893,13 @@ function _createMdxContent(props) {
       }), ", that route mounts at ", (0,jsx_runtime.jsx)(_components.code, {
         children: "/api/users/:id/profile"
       }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Guarded example (required for any custom route that needs authorization):"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "customRoutes: [\n  {\n    method: 'get',\n    path: '/:id/profile',\n    handler: async (req, res) => {\n      // No automatic authorization: enforce the caller-supplied guard here.\n      const allowed = await req.macl.isAllowed('User', 'read');\n      if (!allowed) {\n        res.status(403).json({ denied: true });\n        return;\n      }\n      return { id: req.params.id, profile: true };\n    },\n  },\n];\n"
+      })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "in-repo-example",
       children: "In-Repo Example"

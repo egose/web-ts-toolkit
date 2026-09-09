@@ -247,9 +247,21 @@ function _createMdxContent(props) {
       id: "chained-route-registration",
       children: "Chained route registration"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "router.route(path)"
-      }), " when you want grouped handlers for the same path."]
+      }), " is independent-registration sugar: each builder call is\nexactly equivalent to a direct ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "router.METHOD(path, ...)"
+      }), " call with its own\nnative route, response-handler wrapper (including constructor-middleware\ncopies), and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "getEndpoints()"
+      }), " entry. It is not native\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "express.Router().route(path)"
+      }), " grouping: an ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".all()"
+      }), " guard calling\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "next('route')"
+      }), " does not skip a later builder registration, HEAD requests fall\nback to the separately registered GET handler, and constructor middleware\nre-runs for each chained registration crossed by ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "next()"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
@@ -284,7 +296,11 @@ function _createMdxContent(props) {
         children: "JsonRouter.preJson"
       }), " and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "JsonRouter.errorMessageProvider"
-      }), " still proxy the shared default handler. When you pass a custom handler instance, configure that handler directly before giving it to the router."]
+      }), " are process-wide defaults snapshotted for future routers, not a proxy to a shared mutable handler instance. Each ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "new JsonRouter(...)"
+      }), " captures a fresh handler from the current static defaults; existing routers keep the handler they captured during construction. Mutating a handler retrieved via ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "JsonRouter.defaultHandler"
+      }), " does not reconfigure existing routers or change future defaults — set the static properties for future defaults, or configure an explicit handler directly before passing it to the router constructor. When you pass a custom handler instance, configure that handler directly before giving it to the router."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "handler-defaults-vs-isolated-handlers",
       children: "Handler defaults vs isolated handlers"
@@ -331,7 +347,7 @@ function _createMdxContent(props) {
           children: "router.get(path, ...)"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "router.post(path, ...)"
-        }), ", and the other Express router methods exposed by the instance."]
+        }), ", and the other Express router methods exposed by the instance, as independent per-call registrations (see chained registration above)."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "basePath"
@@ -347,13 +363,29 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "router.getEndpoints()"
-        }), " returns a snapshot of the registered endpoints in registration order."]
+        }), " returns a snapshot of the registered endpoints in registration order. One entry is recorded per builder call in call order; native ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "use"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "param"
+        }), " registrations are never recorded."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "router.use(...)"
         }), " and ", (0,jsx_runtime.jsx)(_components.code, {
           children: "router.param(...)"
-        }), " are still available on the instance when you need normal Express router behavior."]
+        }), " delegate directly to the underlying native router (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "router.original"
+        }), "): callbacks are native Express middleware, ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "basePath"
+        }), " is not prepended, and chaining continues with native registration. Write separate ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "router.get(...)"
+        }), " statements for JSON routes. See ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Native Middleware And Error Boundaries"
+        }), " in the installed README for the full boundary table."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Thrown or rejected JSON callbacks are JSON-formatted by the router's response handler and never reach application error middleware; explicit ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "next(error)"
+        }), " instead delegates to native Express error middleware, which owns the response."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "hooks",
@@ -429,7 +461,9 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Builds chained route registrations such as ", (0,jsx_runtime.jsx)(_components.code, {
         children: "router.route('/users').get(...).post(...)"
-      }), ". Paths must be strings; Express ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ". Each builder call is an independent registration equivalent to a direct ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "router.METHOD(path, ...)"
+      }), " call (separate native route, own wrapper and endpoint entry), not native route grouping. Paths must be strings; Express ", (0,jsx_runtime.jsx)(_components.code, {
         children: "RegExp"
       }), " paths and path pattern arrays are intentionally not supported because endpoint introspection returns ", (0,jsx_runtime.jsx)(_components.code, {
         children: "{ method, path: string }"
@@ -442,8 +476,14 @@ function _createMdxContent(props) {
       }), " and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "router.param(...)"
       })]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Forward directly to the underlying Express router for compatibility with normal Express middleware and param handling."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Forward directly to the underlying Express router for compatibility with normal Express middleware and param handling. Callbacks are native (failures reach application error middleware, not the JSON formatter), ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "basePath"
+      }), " is not prepended, both methods return ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "router.original"
+      }), " so further chaining is native, and nothing registered here appears in ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "getEndpoints()"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         children: "router.getEndpoints()"
@@ -453,7 +493,11 @@ function _createMdxContent(props) {
         children: "{ method, path }[]"
       }), " for the routes registered through ", (0,jsx_runtime.jsx)(_components.code, {
         children: "JsonRouter"
-      }), "."]
+      }), ". Native ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "use"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "param"
+      }), " registrations are not recorded."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         children: "JsonRouter.clientErrors"
@@ -485,7 +529,7 @@ function _createMdxContent(props) {
         children: "JsonRouter.defaultHandler"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Returns a newly configured response-handler instance using the current static defaults. Existing routers keep the handler instance captured during construction."
+      children: "Returns a newly configured response-handler instance using the current static defaults. Existing routers keep the handler instance captured during construction. Mutating a retrieved handler does not reconfigure existing routers or future defaults."
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         children: "JsonRouter.ErrorFormats"
@@ -521,7 +565,9 @@ function _createMdxContent(props) {
         children: "JsonRouter.postError"
       })]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Expose the shared serialization and error hooks from ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Expose process-wide default serialization and error hooks snapshotted for future routers and newly read ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "defaultHandler"
+      }), " instances, sourced from ", (0,jsx_runtime.jsx)(_components.code, {
         children: "@web-ts-toolkit/express-response-handler"
       }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
