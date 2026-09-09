@@ -123,7 +123,7 @@ export interface ScaffoldServices {
   copyTemplate(source: string, target: string, dryRun: boolean): void;
   rewritePlaceholders(path: string, values: ScaffoldValues): void;
   validateTarget(path: string): void;
-  promptMissing(options: Options): Promise<Options>;
+  promptMissing(options: Options): Promise<Options | undefined>;
   log(message?: string): void;
   writeStdout(message: string): void;
 }
@@ -377,7 +377,10 @@ function replaceManifestToken(path: string, token: string, value: string, option
   if (occurrences !== 1) {
     throw new Error(`Expected exactly one operational placeholder ${token} in ${path}; found ${occurrences}`);
   }
-  writeFileSync(path, content.replace(token, value));
+  writeFileSync(
+    path,
+    content.replace(token, () => value),
+  );
 }
 
 function rewritePlaceholders(dir: string, values: ScaffoldValues): void {
@@ -389,7 +392,7 @@ function rewritePlaceholders(dir: string, values: ScaffoldValues): void {
   manifest.name = values.name;
   let manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
   if (manifestText.includes('{{VERSION}}')) {
-    manifestText = manifestText.replaceAll('{{VERSION}}', values.version);
+    manifestText = manifestText.replaceAll('{{VERSION}}', () => values.version);
   }
   writeFileSync(packageJson, manifestText);
 
@@ -466,7 +469,7 @@ function quoteShellArgument(value: string): string {
 // Interactive prompts
 // ---------------------------------------------------------------------------
 
-async function promptMissing(o: Options): Promise<Options> {
+async function promptMissing(o: Options): Promise<Options | undefined> {
   intro('create-access-router-mongo-starter');
 
   if (!o.targetDir) {
@@ -477,7 +480,7 @@ async function promptMissing(o: Options): Promise<Options> {
     });
     if (isCancel(v)) {
       cancel('Cancelled');
-      process.exit(0);
+      return undefined;
     }
     o.targetDir = (v as string).trim();
   }
@@ -492,7 +495,7 @@ async function promptMissing(o: Options): Promise<Options> {
     });
     if (isCancel(v)) {
       cancel('Cancelled');
-      process.exit(0);
+      return undefined;
     }
     o.name = (v as string).trim() || derived;
   }
@@ -507,23 +510,24 @@ async function promptMissing(o: Options): Promise<Options> {
     });
     if (isCancel(v)) {
       cancel('Cancelled');
-      process.exit(0);
+      return undefined;
     }
     o.title = (v as string).trim() || derived;
   }
 
   if (!o.dbName) {
+    const derived = defaultDatabaseName(o.name!);
     const v = await text({
       message: 'MongoDB database name',
-      placeholder: o.name!,
-      defaultValue: o.name!,
+      placeholder: derived,
+      defaultValue: derived,
       validate: (s) => (s && s.trim() ? undefined : 'Required'),
     });
     if (isCancel(v)) {
       cancel('Cancelled');
-      process.exit(0);
+      return undefined;
     }
-    o.dbName = (v as string).trim() || o.name!;
+    o.dbName = (v as string).trim() || derived;
   }
 
   outro('Scaffolding…');
@@ -565,7 +569,9 @@ export async function runCli(argv: string[], overrides: Partial<ScaffoldServices
   }
 
   if (options.interactive) {
-    options = await services.promptMissing(options);
+    const prompted = await services.promptMissing(options);
+    if (!prompted) return 0;
+    options = prompted;
   }
 
   if (!options.targetDir)
@@ -641,15 +647,19 @@ export async function runCli(argv: string[], overrides: Partial<ScaffoldServices
       }
 
       if (backupTarget) {
+        // Commit point: the new scaffold is live at targetDir. Backup
+        // removal is irreversible cleanup — never roll back from here.
         const completedBackup = backupTarget;
+        backupTarget = undefined;
         try {
           services.removeTarget(completedBackup);
-          backupTarget = undefined;
         } catch (error) {
-          services.removeTarget(targetDir);
-          services.move(completedBackup, targetDir);
-          backupTarget = undefined;
-          throw error;
+          const reason = error instanceof Error ? error.message : String(error);
+          const outcome =
+            `Scaffold complete at ${targetDir}, but backup cleanup failed for ${completedBackup}: ${reason}. ` +
+            `The new scaffold was retained; manually remove the residual backup when safe.`;
+          services.log(outcome);
+          throw new Error(outcome, { cause: error });
         }
       }
     }
@@ -676,7 +686,7 @@ export async function runCli(argv: string[], overrides: Partial<ScaffoldServices
   services.log(
     `  pnpm add -D create-access-router-mongo-starter@${services.scaffolderVersion} netlify-cli  # enable deploy bin`,
   );
-  services.log('  pnpm exec create-access-router-mongo-starter-deploy-netlify -- --help');
+  services.log('  pnpm exec create-access-router-mongo-starter-deploy-netlify --help');
   return 0;
 }
 

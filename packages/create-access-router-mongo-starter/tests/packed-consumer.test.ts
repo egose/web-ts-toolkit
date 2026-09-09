@@ -1,9 +1,22 @@
 // @vitest-environment node
-import { cpSync, existsSync, lstatSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { delimiter } from 'node:path';
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createPackedConsumer } from './support/packed-consumer';
-import { runProcess } from './support/process-harness';
+import { runProcess, writeFakeExecutable } from './support/process-harness';
 import { withTestWorkspace } from './support/temp-workspace';
 
 const packageRoot = resolve(__dirname, '..');
@@ -52,6 +65,7 @@ const expectedPackedFiles = [
   'template/src/pages/home-page.tsx',
   'template/src/pages/todo-form.tsx',
   'template/src/shared/entity-schemas.ts',
+  'template/src/shared/mongo-connection-string.ts',
   'template/src/shared/normalize-api-base-url.ts',
   'template/src/types.ts',
   'template/src/vite-env.d.ts',
@@ -59,6 +73,8 @@ const expectedPackedFiles = [
   'template/tests/api-base-path.integration.test.ts',
   'template/tests/api-contract.test.ts',
   'template/tests/home-page.test.tsx',
+  'template/tests/integrity-transaction.test.ts',
+  'template/tests/readiness-error-boundary.test.ts',
   'template/tests/todo-form.test.tsx',
   'template/tsconfig.app.json',
   'template/tsconfig.json',
@@ -111,8 +127,18 @@ describe('release-like packed consumer', () => {
         expect(result.stdout).toContain('access-router-mongo-starter');
       }
 
+      // The scaffold next-steps line must be the accepted pnpm invocation
+      // (no `--` separator): the deploy parser rejects a bare `--`.
+      const printedDeployHelp = runProcess(
+        'pnpm',
+        ['exec', 'create-access-router-mongo-starter-deploy-netlify', '--help'],
+        { cwd: packed.consumerDir },
+      );
+      expect(printedDeployHelp.status, printedDeployHelp.stderr).toBe(0);
+      expect(printedDeployHelp.stdout).toContain('access-router-mongo-starter');
+
       const generatedDir = resolve(workspace.root, 'generated-app');
-      const generatedTitle = '雪 "quoted" \\ path\n</title><script>alert(1)</script>';
+      const generatedTitle = '雪 "quoted" \\ path\n</title><script>alert(1)</script> $$ $& $` $\'';
       const generatedDbName = 'データ&name';
       const scaffold = runProcess(
         resolve(packed.consumerDir, 'node_modules', '.bin', 'create-access-router-mongo-starter'),
@@ -128,7 +154,7 @@ describe('release-like packed consumer', () => {
         packageManager: string;
       };
       expect(generatedManifest.name).toBe('packed-app');
-      expect(generatedManifest.engines.node).toBe('>=22.12.0');
+      expect(generatedManifest.engines.node).toBe('^22.13.0 || >=24.0.0');
       expect(generatedManifest.packageManager).toBe('pnpm@11.18.0');
       expect(readFileSync(resolve(generatedDir, 'api', 'src', 'config.ts'), 'utf8')).toContain(
         `export const DB_NAME = ${JSON.stringify(generatedDbName)};`,
@@ -190,6 +216,75 @@ describe('release-like packed consumer', () => {
         .map((entry) => readFileSync(resolve(entry.parentPath, entry.name), 'utf8'))
         .join('\n');
       expect(frontendOutput).toContain('/.netlify/functions/main');
+
+      // CARMSF-06: the real producer bundle (`pnpm serverless` with
+      // `--format cjs`) must satisfy `--no-build` reuse; a stale `.js`-only
+      // bundle must not; a stubbed-provider dry run must reuse the same
+      // artifacts without remote mutation. The deploy layout uses
+      // `netlify/functions` (project-mode `api/` is a reserved source tree
+      // per CARMSF-05), so relocate the real bundle output there.
+      const producerBundle = resolve(generatedDir, 'api/functions/main.cjs');
+      expect(existsSync(producerBundle)).toBe(true);
+      expect(statSync(producerBundle).size).toBeGreaterThan(0);
+      const deployFunctionsDir = resolve(generatedDir, 'netlify/functions');
+      mkdirSync(deployFunctionsDir, { recursive: true });
+      copyFileSync(producerBundle, resolve(deployFunctionsDir, 'main.cjs'));
+      const bundlePath = resolve(deployFunctionsDir, 'main.cjs');
+      const deploySharedBin = resolve(
+        packed.consumerDir,
+        'node_modules',
+        '.bin',
+        'create-access-router-mongo-starter-deploy-shared',
+      );
+      const reuseArgs = ['--no-build', '--mongodb-uri', 'mongodb://127.0.0.1:27017/starter-build-test'];
+      const reuse = runProcess(deploySharedBin, reuseArgs, {
+        cwd: generatedDir,
+        env: { CI: 'true' },
+      });
+      expect(reuse.status, `${reuse.stdout}\n${reuse.stderr}`).toBe(0);
+
+      const functionsDir = deployFunctionsDir;
+      renameSync(bundlePath, `${bundlePath}.bak`);
+      writeFileSync(resolve(functionsDir, 'main.js'), 'exports.handler = () => {};');
+      try {
+        const stale = runProcess(deploySharedBin, reuseArgs, {
+          cwd: generatedDir,
+          env: { CI: 'true' },
+        });
+        expect(stale.status).not.toBe(0);
+        expect(`${stale.stdout}\n${stale.stderr}`).toContain('Serverless function artifact');
+      } finally {
+        rmSync(resolve(functionsDir, 'main.js'), { force: true });
+        renameSync(`${bundlePath}.bak`, bundlePath);
+      }
+
+      const shimDir = resolve(workspace.root, 'fake-bin');
+      mkdirSync(shimDir, { recursive: true });
+      writeFakeExecutable(resolve(shimDir, 'netlify'));
+      const deployNetlifyBin = resolve(
+        packed.consumerDir,
+        'node_modules',
+        '.bin',
+        'create-access-router-mongo-starter-deploy-netlify',
+      );
+      const dry = runProcess(
+        deployNetlifyBin,
+        [
+          '--no-build',
+          '--dry-run',
+          '--site',
+          'dummy-site',
+          '--auth-token',
+          'dummy-token',
+          '--mongodb-uri',
+          'mongodb://127.0.0.1:27017/starter-build-test',
+        ],
+        {
+          cwd: generatedDir,
+          env: { CI: 'true', PATH: `${shimDir}${delimiter}${process.env.PATH ?? ''}` },
+        },
+      );
+      expect(dry.status, `${dry.stdout}\n${dry.stderr}`).toBe(0);
     }, 'carms-packed-');
   }, 600_000);
 

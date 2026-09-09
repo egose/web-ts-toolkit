@@ -23,7 +23,7 @@ Use this skill for the frontend data layer and any client-side contract updates.
 ## Critical Contract Rules
 
 - `src/api.ts` configures `createAdapter({ baseURL })` from the single `API_BASE_URL` contract, defaulting to `/api`.
-- `API_BASE_URL` is a path-only prefix. Keep its shared validator aligned across Vite, backend startup, and deploy validation; do not add a frontend-only fallback that can diverge from backend routes.
+- `API_BASE_URL` is a path-only prefix. Keep its shared validator aligned across Vite, backend startup, and deploy validation; do not add a frontend-only fallback that can diverge from backend routes. Each segment may only contain letters, digits, `.`, `_`, `~`, or `-`; route parameters, wildcards, metacharacters, percent-encoded characters, and non-ASCII segments are rejected.
 - Model service `basePath` values are relative to that adapter base URL. They should stay as `todos`, `categories`, and similar relative segments, not `/api/todos`.
 - The server-side routers in `api/src/routers.ts` expose the matching absolute paths under `${API_BASE_URL}/...` (default `/api/...`).
 - If one side changes, the other side must change in the same task.

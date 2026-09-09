@@ -29,8 +29,9 @@ import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSy
 import { delimiter, resolve } from 'node:path';
 import { cancel, confirm, intro, isCancel, password, select, text } from '@clack/prompts';
 import { parse as parseToml, stringify as stringifyToml, type TomlTable } from 'smol-toml';
-import { readRequiredOptionValue } from '../src/shared/arg-parser';
+import { readOptionValue, splitEqualsOption, unknownOptionError } from '../src/shared/arg-parser';
 import {
+  assertShellFreeInvocationSupported,
   bail,
   buildArtifacts,
   cleanupSandbox,
@@ -138,6 +139,11 @@ function resolveNetlifyCli(): NetlifyCli {
         'bundled with this starter to keep the install small.',
     );
   }
+  // Preflight uses the same shell-free invocation contract as the later
+  // deploy spawn: a Windows shim that cannot run with `shell: false` is
+  // rejected here, before any site/env mutation, rather than failing later.
+  // No shell is enabled around deployment arguments as a shortcut.
+  assertShellFreeInvocationSupported(found);
   return { command: found, argsPrefix: [] };
 }
 
@@ -177,6 +183,11 @@ function runCaptureNetlify(
   cwd: string,
   secrets: string[] = [],
 ): string {
+  // Defense in depth: the same shell-free contract enforced at preflight also
+  // guards the later invocation (including injected `resolveCli` results).
+  // Arguments are always passed as an argv array with `shell: false`, never
+  // concatenated into a shell string.
+  assertShellFreeInvocationSupported(cli.command);
   return runCapture(cli.command, [...cli.argsPrefix, ...args], env, dryRun, cwd, secrets);
 }
 
@@ -456,6 +467,19 @@ Options:
       --keep-sandbox          With --ephemeral, keep the sandbox after deploy
       --dry-run              Print the commands without running them
   -h, --help                 Show this help
+
+Exit behavior: 0 on success. 1 when deployment fails (completed remote
+mutations are listed; automatic rollback is not attempted) and also 1 when
+the remote deploy completed but local ephemeral-sandbox cleanup failed —
+in that case the output states the deploy completed, lists the completed
+remote mutations, and directs you to remove the sandbox manually instead
+of retrying the deploy (a re-run creates a new remote deploy).
+
+Platform support: commands are spawned shell-free with an argv array (no
+shell interpretation). Native Windows execution of the 'netlify.cmd' shim
+is unsupported and rejected before any mutation; run from WSL2/Linux/macOS
+or invoke the provider CLI manually. A shell is deliberately not enabled
+around deployment arguments.
 `;
 
 export function collectCliOptions(argv: string[]): NetlifyCollectionResult {
@@ -479,102 +503,167 @@ export function collectCliOptions(argv: string[]): NetlifyCollectionResult {
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    switch (a) {
-      case '--project-root':
-        o.projectRoot = readRequiredOptionValue(argv, i, a);
-        i += 1;
+    const { name, value: equalsValue } = splitEqualsOption(a);
+    const readValue = (): { value: string; advance: number } => readOptionValue(argv, i, name, equalsValue);
+    const rejectEqualsOnFlag = (): void => {
+      if (equalsValue !== undefined) throw unknownOptionError(a, HELP);
+    };
+    // Short flags (-t, -s, -m, -i, -p, -h) accept only space-form values;
+    // `--opt=value` is supported for every long value-taking option below.
+    // Unknown `--opt=value` diagnostics report only the option name.
+    switch (name) {
+      case '--project-root': {
+        const r = readValue();
+        o.projectRoot = r.value;
+        i += r.advance;
         break;
+      }
       case '-i':
       case '--interactive':
+        rejectEqualsOnFlag();
         o.interactive = true;
         break;
       case '-t':
-      case '--auth-token':
-        o.authToken = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      case '--auth-token': {
+        if (name.startsWith('--')) {
+          const r = readValue();
+          o.authToken = r.value;
+          i += r.advance;
+        } else {
+          if (equalsValue !== undefined) throw unknownOptionError(a, HELP);
+          o.authToken = readOptionValue(argv, i, name, undefined).value;
+          i += 1;
+        }
         break;
+      }
       case '-s':
-      case '--site':
-        o.site = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      case '--site': {
+        if (name.startsWith('--')) {
+          const r = readValue();
+          o.site = r.value;
+          i += r.advance;
+        } else {
+          if (equalsValue !== undefined) throw unknownOptionError(a, HELP);
+          o.site = readOptionValue(argv, i, name, undefined).value;
+          i += 1;
+        }
         break;
-      case '--site-name':
-        o.siteName = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      }
+      case '--site-name': {
+        const r = readValue();
+        o.siteName = r.value;
+        i += r.advance;
         break;
-      case '--team':
-        o.team = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      }
+      case '--team': {
+        const r = readValue();
+        o.team = r.value;
+        i += r.advance;
         break;
+      }
       case '-p':
       case '--prod':
+        rejectEqualsOnFlag();
         o.prod = true;
         break;
       case '--paid-tier':
+        rejectEqualsOnFlag();
         o.paidTier = true;
         break;
       case '--acknowledge-public-demo':
+        rejectEqualsOnFlag();
         o.publicDemoAcknowledged = true;
         break;
-      case '--alias':
-        o.alias = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      case '--alias': {
+        const r = readValue();
+        o.alias = r.value;
+        i += r.advance;
         break;
-      case '--branch':
-        o.branch = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      }
+      case '--branch': {
+        const r = readValue();
+        o.branch = r.value;
+        i += r.advance;
         break;
-      case '--context':
-        o.context = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      }
+      case '--context': {
+        const r = readValue();
+        o.context = r.value;
+        i += r.advance;
         break;
-      case '--api-base-url':
-        o.apiBaseUrl = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      }
+      case '--api-base-url': {
+        const r = readValue();
+        o.apiBaseUrl = r.value;
+        i += r.advance;
         o.apiBaseUrlExplicit = true;
         break;
-      case '--mongodb-uri':
-        o.mongodbUri = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      }
+      case '--mongodb-uri': {
+        const r = readValue();
+        o.mongodbUri = r.value;
+        i += r.advance;
         break;
-      case '--dist-dir':
-        o.distDir = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      }
+      case '--dist-dir': {
+        const r = readValue();
+        o.distDir = r.value;
+        i += r.advance;
         break;
-      case '--functions-dir':
-        o.functionsDir = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      }
+      case '--functions-dir': {
+        const r = readValue();
+        o.functionsDir = r.value;
+        i += r.advance;
         break;
-      case '--functions-name':
-        o.functionsName = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      }
+      case '--functions-name': {
+        const r = readValue();
+        o.functionsName = r.value;
+        i += r.advance;
         break;
+      }
       case '-m':
-      case '--message':
-        o.message = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      case '--message': {
+        if (name.startsWith('--')) {
+          const r = readValue();
+          o.message = r.value;
+          i += r.advance;
+        } else {
+          if (equalsValue !== undefined) throw unknownOptionError(a, HELP);
+          o.message = readOptionValue(argv, i, name, undefined).value;
+          i += 1;
+        }
         break;
+      }
       case '--no-build':
+        rejectEqualsOnFlag();
         o.noBuild = true;
         break;
       case '--ephemeral':
+        rejectEqualsOnFlag();
         o.ephemeral = true;
         break;
-      case '--sandbox-dir':
-        o.sandboxDir = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      case '--sandbox-dir': {
+        const r = readValue();
+        o.sandboxDir = r.value;
+        i += r.advance;
         break;
+      }
       case '--keep-sandbox':
+        rejectEqualsOnFlag();
         o.keepSandbox = true;
         break;
       case '--dry-run':
+        rejectEqualsOnFlag();
         o.dryRun = true;
         break;
       case '-h':
       case '--help':
+        rejectEqualsOnFlag();
         return { kind: 'help' };
       default:
-        throw new Error(`Unknown option: ${a}\n\n${HELP}`);
+        throw unknownOptionError(a, HELP);
     }
   }
 
@@ -892,9 +981,20 @@ export async function runDeploy(
 
     // Preflight and local phases complete before any site or environment mutation.
     const cli = services.resolveCli();
+    // Exercise the same shell-free invocation contract used by the later
+    // deploy spawn, including for injected `resolveCli` results: a Windows
+    // shim is rejected here, before mutation, and never sent to a shell.
+    assertShellFreeInvocationSupported(cli.command);
     services.checkBuildTools(options);
-    if (options.noBuild) services.inspectArtifacts(options, paths);
-    else services.buildArtifacts(options, paths);
+    if (options.noBuild) {
+      services.inspectArtifacts(options, paths);
+    } else {
+      services.buildArtifacts(options, paths);
+      // Successful builder exits are not proof of usable artifacts, so
+      // re-inspect newly built output before any site creation or env write.
+      // Dry runs execute no builders, so there is nothing to inspect.
+      if (!options.dryRun) services.inspectArtifacts(options, paths);
+    }
     services.ensureNetlifyToml(options, paths);
 
     let siteRef = options.site ?? linked?.siteId ?? linked?.siteName;
@@ -1045,6 +1145,9 @@ export async function runNetlifyCli(argv: string[], overrides: Partial<NetlifyCl
   const services = { ...DEFAULT_CLI_SERVICES, ...overrides };
   let options: NetlifyOptions | undefined;
   let paths: DeployPaths | undefined;
+  // Retained across local cleanup so a successful DeploymentReport is never
+  // discarded when cleanup throws outside the DeployFailure report path.
+  let report: DeploymentReport | undefined;
 
   try {
     let collected = collectCliOptions(argv);
@@ -1067,8 +1170,42 @@ export async function runNetlifyCli(argv: string[], overrides: Partial<NetlifyCl
 
     options = validateNetlifyOptions(options);
     paths = services.resolvePaths(options);
-    await services.runDeploy(options, paths);
-    services.cleanupSandbox(paths, options.keepSandbox, options.dryRun);
+    report = await services.runDeploy(options, paths);
+    try {
+      services.cleanupSandbox(paths, options.keepSandbox, options.dryRun);
+    } catch (cleanupError) {
+      const detail = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+      const secrets = collectSecrets(
+        options?.authToken ?? process.env.NETLIFY_AUTH_TOKEN,
+        options?.mongodbUri ?? process.env.MONGODB_URI,
+      );
+      // Explicit completed-deployment + local-cleanup diagnostics: the remote
+      // deploy already succeeded, so this must not be reported as a generic
+      // deployment failure. Exit 1 signals local cleanup needs attention.
+      services.error(
+        redactCommand(
+          '\n✓ Deploy completed successfully, but local cleanup failed. ' +
+            'The remote deployment is live; do not retry the deploy to fix local cleanup.',
+          secrets,
+        ),
+      );
+      services.error(redactCommand(`\n✖ Local cleanup failed: ${detail}`, secrets));
+      services.error(
+        '\nRetry implications: remote mutations below already completed. ' +
+          'Manually remove the sandbox directory when safe, then re-run only if a new deploy is intended ' +
+          '(a re-run creates a new remote deploy). Exit 1 reports the local-cleanup failure.',
+      );
+      if (report.remoteMutations.length > 0) {
+        services.error('\nRemote state from the completed deployment (automatic rollback was not attempted):');
+        for (const mutation of report.remoteMutations) {
+          services.error(`  - ${mutation.status}: ${mutation.operation}`);
+        }
+      }
+      // Keep the sandbox location visible for debugging; cleanup safety
+      // checks in cleanupSandbox itself are unchanged.
+      if (paths) services.keepSandboxOnFailure(paths);
+      return 1;
+    }
     services.log('\n✓ Deploy finished.');
     return 0;
   } catch (err) {
@@ -1078,7 +1215,15 @@ export async function runNetlifyCli(argv: string[], overrides: Partial<NetlifyCl
         : err instanceof Error
           ? (err.stack ?? err.message)
           : String(err);
-    services.error(redactCommand(failure, collectSecrets(options?.authToken, options?.mongodbUri)));
+    services.error(
+      redactCommand(
+        failure,
+        collectSecrets(
+          options?.authToken ?? process.env.NETLIFY_AUTH_TOKEN,
+          options?.mongodbUri ?? process.env.MONGODB_URI,
+        ),
+      ),
+    );
 
     if (err instanceof DeployFailure && err.report.remoteMutations.length > 0) {
       services.error('\nRemote state may remain; automatic rollback was not attempted:');

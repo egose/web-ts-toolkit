@@ -18,11 +18,23 @@ export class IntegrityConflictError extends Error {
   }
 }
 
-async function begin(document: IntegrityDocument): Promise<ClientSession> {
-  const session = await document.$model().db.startSession();
-  session.startTransaction();
+async function bindSession(document: IntegrityDocument, session: ClientSession, options?: unknown): Promise<void> {
   sessions.set(document, session);
   document.$session(session);
+  if (typeof options === 'object' && options !== null) {
+    (options as Record<string, unknown>).session = session;
+  }
+}
+
+async function begin(document: IntegrityDocument, options?: unknown): Promise<ClientSession> {
+  const existing = sessions.get(document);
+  if (existing) {
+    await bindSession(document, existing, options);
+    return existing;
+  }
+  const session = await document.$model().db.startSession();
+  session.startTransaction();
+  await bindSession(document, session, options);
   return session;
 }
 
@@ -49,9 +61,9 @@ async function lockCategory(document: IntegrityDocument, categoryId: unknown, se
   if (!category) throw new IntegrityConflictError();
 }
 
-export async function beginTodoIntegrityWrite(document: IntegrityDocument): Promise<void> {
+export async function beginTodoIntegrityWrite(document: IntegrityDocument, options?: unknown): Promise<void> {
   if (document.categoryId == null) return;
-  const session = await begin(document);
+  const session = await begin(document, options);
   try {
     await lockCategory(document, document.categoryId, session);
   } catch (error) {
@@ -60,8 +72,8 @@ export async function beginTodoIntegrityWrite(document: IntegrityDocument): Prom
   }
 }
 
-export async function beginCategoryIntegrityDelete(document: IntegrityDocument): Promise<void> {
-  const session = await begin(document);
+export async function beginCategoryIntegrityDelete(document: IntegrityDocument, options?: unknown): Promise<void> {
+  const session = await begin(document, options);
   try {
     await lockCategory(document, document._id, session);
     const referenced = await document.$model('Todo').exists({ categoryId: document._id }).session(session);

@@ -314,6 +314,65 @@ describe('HomePage', () => {
     });
   });
 
+  it('validates category names against the shared schema without calling the mutation', async () => {
+    renderHomePage();
+    await screen.findByText('No categories yet.');
+    const categoryInput = screen.getByLabelText('New category');
+    const submit = screen.getByRole('button', { name: 'Add category' });
+
+    fireEvent.change(categoryInput, { target: { value: '   ' } });
+    fireEvent.click(submit);
+    expect(await screen.findByText('Name is required')).toBeInTheDocument();
+    expect(categoryInput).toHaveAttribute('aria-invalid', 'true');
+    expect(services.category.create).not.toHaveBeenCalled();
+
+    fireEvent.change(categoryInput, { target: { value: 'x'.repeat(81) } });
+    fireEvent.click(submit);
+    expect(await screen.findByText('Name must be at most 80 characters')).toBeInTheDocument();
+    expect(services.category.create).not.toHaveBeenCalled();
+
+    const validName = 'y'.repeat(80);
+    fireEvent.change(categoryInput, { target: { value: validName } });
+    fireEvent.click(submit);
+    await waitFor(() => expect(services.category.create).toHaveBeenCalledTimes(1));
+    expect(services.category.create).toHaveBeenCalledWith({ name: validName });
+  });
+
+  it('trims category names to match the shared schema before mutating', async () => {
+    renderHomePage();
+    await screen.findByText('No categories yet.');
+    fireEvent.change(screen.getByLabelText('New category'), { target: { value: '  padded  ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add category' }));
+    await waitFor(() => expect(services.category.create).toHaveBeenCalledTimes(1));
+    expect(services.category.create).toHaveBeenCalledWith({ name: 'padded' });
+  });
+
+  it('keeps focus in the correction field after a failed category mutation', async () => {
+    categories = [{ _id: categoryId, name: 'Work', color: '#6366f1' }];
+    services.category.create.mockImplementationOnce(() =>
+      operation(async () => Promise.reject(new Error('E11000 private.categories'))),
+    );
+    const controller = createTestController();
+    const view = render(<HomePage controller={controller} />);
+    await screen.findAllByText('Work');
+    const categoryInput = screen.getByLabelText('New category');
+    fireEvent.change(categoryInput, { target: { value: 'Work' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add category' }));
+
+    const alert = await screen.findByText(/category could not be added.*already exist/i);
+    expect(alert).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveFocus();
+
+    categoryInput.focus();
+    expect(categoryInput).toHaveFocus();
+    fireEvent.change(categoryInput, { target: { value: 'Work!' } });
+    expect(categoryInput).toHaveFocus();
+
+    view.rerender(<HomePage controller={controller} />);
+    expect(categoryInput).toHaveFocus();
+    expect(services.category.create).toHaveBeenCalledTimes(1);
+  });
+
   it('exposes item-specific accessible names and focuses saved delete status', async () => {
     todos = [
       { _id: todoId, title: 'File taxes', completed: false, categoryId: null },

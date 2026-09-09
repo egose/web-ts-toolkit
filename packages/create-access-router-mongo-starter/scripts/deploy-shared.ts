@@ -30,8 +30,9 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
-import { readRequiredOptionValue } from '../src/shared/arg-parser';
+import { readOptionValue, splitEqualsOption, unknownOptionError } from '../src/shared/arg-parser';
 import { bail } from '../src/shared/bail';
+import { isMongoConnectionString } from '../template/src/shared/mongo-connection-string';
 import { normalizeApiBaseURL } from '../template/src/shared/normalize-api-base-url';
 
 export { BailError, bail } from '../src/shared/bail';
@@ -220,6 +221,96 @@ function hasControlCharacters(value: string): boolean {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Destructive-output safety
+// ---------------------------------------------------------------------------
+
+/**
+ * Narrowed destructive-output contract (CARMSF-05).
+ *
+ * Both builders delete before they write (`vite build --emptyOutDir` empties
+ * the frontend directory; the serverless bundler clears its output
+ * directory). Every output therefore must be a disposable directory that is
+ * strictly inside the deploy directory, canonically disjoint from the other
+ * output, and clear of dependency/input/config locations:
+ *
+ * - `node_modules` (or any path beneath it) is never a disposable output.
+ *   In sandbox modes the helper-owned `node_modules` symlink points outside
+ *   the sandbox, so emptying it would delete project dependencies.
+ * - In project mode the deploy directory is the project root itself, so the
+ *   project root, its ancestors, anything outside it, and the reserved
+ *   input/config subtrees (`api`, `src`, `public`, `.git` plus
+ *   `node_modules`) are rejected, including symlink aliases.
+ * - Frontend and functions outputs must be canonically disjoint: equal paths
+ *   or either ancestry direction is rejected so the backend clean cannot
+ *   erase frontend output (or nest functions beneath public static output).
+ * - Anything outside the deploy directory is rejected rather than treated
+ *   as disposable ("external" handling = refuse before any runner runs).
+ */
+export const RESERVED_DEPENDENCY_SEGMENT = 'node_modules';
+
+export const RESERVED_PROJECT_SUBPATHS = ['node_modules', 'api', 'src', 'public', '.git'] as const;
+
+function pathSegments(path: string): string[] {
+  return path.split(/[\\/]+/u).filter((segment) => segment.length > 0);
+}
+
+/**
+ * Canonical destructive-output safety applied in every mode after owned
+ * links exist and before builders run. Uses symlink-aware canonical paths
+ * so aliases (`link -> src`, sandbox `escape` links, and the helper-created
+ * `node_modules` link) cannot bypass the checks.
+ */
+export function assertDestructiveOutputsSafe(
+  deployDir: string,
+  distAbs: string,
+  functionsAbs: string,
+  services: Pick<SharedDeployServices, 'lstat' | 'realpath'> = DEFAULT_SERVICES,
+  projectMode = false,
+): void {
+  const canonicalDeployDir = canonicalProjectedPath(deployDir, services as SharedDeployServices);
+  const checkOutput = (option: '--dist-dir' | '--functions-dir', output: string): string => {
+    const canonicalOutput = canonicalProjectedPath(output, services as SharedDeployServices);
+    if (!isStrictDescendant(canonicalDeployDir, canonicalOutput)) {
+      bail(`${option} must resolve to a path strictly inside the deploy directory.`);
+    }
+    const relativeSegments = pathSegments(relative(canonicalDeployDir, canonicalOutput));
+    if (relativeSegments.includes(RESERVED_DEPENDENCY_SEGMENT)) {
+      bail(`${option} must not target the reserved dependency directory "${RESERVED_DEPENDENCY_SEGMENT}".`);
+    }
+    return canonicalOutput;
+  };
+
+  const canonicalDist = checkOutput('--dist-dir', distAbs);
+  const canonicalFunctions = checkOutput('--functions-dir', functionsAbs);
+
+  if (projectMode) {
+    const canonicalRoot = canonicalDeployDir;
+    for (const option of ['--dist-dir', '--functions-dir'] as const) {
+      const canonicalOutput = option === '--dist-dir' ? canonicalDist : canonicalFunctions;
+      const outputRelative = relative(canonicalRoot, canonicalOutput);
+      for (const reserved of RESERVED_PROJECT_SUBPATHS) {
+        if (reserved === RESERVED_DEPENDENCY_SEGMENT) continue;
+        const canonicalReserved = resolve(canonicalRoot, reserved);
+        if (
+          canonicalOutput === canonicalReserved ||
+          isStrictDescendant(canonicalReserved, canonicalOutput) ||
+          isStrictDescendant(canonicalOutput, canonicalReserved)
+        ) {
+          bail(`${option} must not target the reserved project directory "${reserved}" (got: ${outputRelative}).`);
+        }
+      }
+    }
+  }
+
+  if (canonicalDist === canonicalFunctions) {
+    bail('--dist-dir and --functions-dir must be disjoint directories (they resolve to the same path).');
+  }
+  if (isStrictDescendant(canonicalDist, canonicalFunctions) || isStrictDescendant(canonicalFunctions, canonicalDist)) {
+    bail('--dist-dir and --functions-dir must be disjoint directories (neither may contain the other).');
+  }
+}
+
 function validateSandboxOutputOption(option: '--dist-dir' | '--functions-dir', value: string): void {
   if (!value.trim()) bail(`${option} must be a non-empty relative path in sandbox mode.`);
   if (hasControlCharacters(value)) bail(`${option} must not contain control characters.`);
@@ -228,6 +319,11 @@ function validateSandboxOutputOption(option: '--dist-dir' | '--functions-dir', v
   }
   if (value.split(/[\\/]+/u).includes('..')) {
     bail(`${option} must not contain ".." path segments in sandbox mode.`);
+  }
+  if (value.split(/[\\/]+/u).includes(RESERVED_DEPENDENCY_SEGMENT)) {
+    bail(
+      `${option} must not target the reserved dependency directory "${RESERVED_DEPENDENCY_SEGMENT}" in sandbox mode.`,
+    );
   }
 }
 
@@ -262,18 +358,13 @@ export function validateSharedDeployOptions(options: SharedDeployOptions): Share
   if (!validated.mongodbUri) {
     bail('--mongodb-uri or MONGODB_URI is required because every deployment includes the serverless backend.');
   }
-  try {
-    const parsed = new URL(validated.mongodbUri);
-    if (
-      !['mongodb:', 'mongodb+srv:'].includes(parsed.protocol) ||
-      !parsed.hostname ||
-      parsed.hash ||
-      /\s/u.test(validated.mongodbUri) ||
-      (parsed.protocol === 'mongodb+srv:' && parsed.port)
-    ) {
-      throw new Error('invalid MongoDB URI');
-    }
-  } catch {
+  // WHATWG `new URL` is intentionally not used: it rejects normal multi-host
+  // seed lists (e.g. `mongodb://db-a:27017,db-b:27017/app?replicaSet=rs0`)
+  // required for transaction-capable MongoDB. The grammar lives in the
+  // template's own `src/shared` tree so generated apps never import
+  // scaffolder internals. The diagnostic stays value-free so credentials in a
+  // rejected URI are never echoed.
+  if (!isMongoConnectionString(validated.mongodbUri)) {
     bail('--mongodb-uri or MONGODB_URI must be a valid MongoDB connection string.');
   }
   return validated;
@@ -297,10 +388,17 @@ function resolveSandboxOutputs(
     return output;
   };
 
-  return {
+  const outputs = {
     distAbs: resolveOutput('--dist-dir', options.distDir),
     functionsAbs: resolveOutput('--functions-dir', options.functionsDir),
   };
+  // Canonical post-link check: the helper-owned node_modules symlink (or any
+  // pre-existing escape link) is resolved here, so outputs that alias outside
+  // the sandbox — or collide with each other — are rejected. Callers must
+  // invoke this after ensureSandboxLinks equivalent work (see resolvePaths).
+  assertDestructiveOutputsSafe(deployDir, outputs.distAbs, outputs.functionsAbs, services);
+
+  return outputs;
 }
 
 function directoryIdentity(path: string, services: SharedDeployServices): DirectoryIdentity {
@@ -337,9 +435,14 @@ export function resolvePaths(
     validateSandboxOutputOption('--functions-dir', options.functionsDir);
     const prefix = join(EPHEMERAL_ROOT, 'create-access-router-mongo-starter-deploy-');
     const deployDir = options.dryRun ? `${prefix}<tmp>` : services.mkdtemp(prefix);
+    // Create the helper-owned node_modules link BEFORE resolving outputs so
+    // the canonical containment check sees the same filesystem the builders
+    // will see (a fresh `--dist-dir node_modules` would otherwise pass, then
+    // Vite would follow the new link with --emptyOutDir). Lexical reservation
+    // in validateSandboxOutputOption still covers dry-run placeholders.
+    linkNodeModules(deployDir, projectRoot, options.dryRun, services);
     const outputs = resolveSandboxOutputs(deployDir, options, services);
     const cleanupIdentity = options.dryRun ? undefined : directoryIdentity(deployDir, services);
-    linkNodeModules(deployDir, projectRoot, options.dryRun, services);
     return {
       deployDir,
       ...outputs,
@@ -353,8 +456,9 @@ export function resolvePaths(
     validateSandboxOutputOption('--functions-dir', options.functionsDir);
     const deployDir = resolve(options.sandboxDir);
     if (!options.dryRun) services.mkdir(deployDir);
-    const outputs = resolveSandboxOutputs(deployDir, options, services);
+    // Same post-link ordering as the ephemeral branch (see above).
     linkNodeModules(deployDir, projectRoot, options.dryRun, services);
+    const outputs = resolveSandboxOutputs(deployDir, options, services);
     return {
       deployDir,
       ...outputs,
@@ -362,10 +466,19 @@ export function resolvePaths(
     };
   }
 
+  const distAbs = resolve(projectRoot, options.distDir);
+  const functionsAbs = resolve(projectRoot, options.functionsDir);
+  // Project mode has no sandbox containment by construction, so apply the
+  // same canonical destructive-output safety here: outputs must be strictly
+  // inside the project root (root/ancestor/external rejected), clear of
+  // reserved source/dependency/config subtrees (aliases included), and
+  // mutually disjoint.
+  assertDestructiveOutputsSafe(projectRoot, distAbs, functionsAbs, services, true);
+
   return {
     deployDir: projectRoot,
-    distAbs: resolve(projectRoot, options.distDir),
-    functionsAbs: resolve(projectRoot, options.functionsDir),
+    distAbs,
+    functionsAbs,
     isEphemeral: false,
   };
 }
@@ -407,6 +520,43 @@ function formatCommandLog(cmd: string, args: string[], cwd: string, secrets: str
 }
 
 /**
+ * Whether a resolved command points at a Windows shell shim (`.cmd`, `.bat`,
+ * `.ps1`). Such files cannot be executed by a shell-free `spawnSync`
+ * (`shell: false`) — they require `cmd.exe` — so passing them to the shared
+ * runner would fail after lookup succeeded.
+ *
+ * Exported for tests and provider adapters; not part of the package's public
+ * surface.
+ */
+export function isWindowsShellShimCommand(command: string): boolean {
+  const lower = command.toLowerCase();
+  return lower.endsWith('.cmd') || lower.endsWith('.bat') || lower.endsWith('.ps1');
+}
+
+/**
+ * Narrowed platform contract for shell-free process invocation.
+ *
+ * The shared `run`/`runCapture` helpers always spawn with `shell: false` and
+ * an argv array so arguments are preserved literally (no shell
+ * interpretation). A Windows shell shim cannot run that way; enabling a
+ * shell around arbitrary arguments would be a command-injection shortcut, so
+ * this bails with explicit guidance instead.
+ *
+ * `platform` defaults to `process.platform` so tests can exercise the
+ * Windows branch on any host without mutating globals.
+ */
+export function assertShellFreeInvocationSupported(command: string, platform: string = process.platform): void {
+  if (platform === 'win32' && isWindowsShellShimCommand(command)) {
+    bail(
+      `Windows shell shim "${command}" cannot be executed without a shell. ` +
+        'Native Windows execution is unsupported: run this deploy from WSL2/Linux/macOS, ' +
+        'or run the equivalent provider CLI manually. A shell is deliberately not enabled ' +
+        'around deployment arguments.',
+    );
+  }
+}
+
+/**
  * Run a command. Build commands run from projectRoot (so relative source
  * paths like `./api/access-router.config.ts` resolve); deploy commands run from the provided
  * cwd (the sandbox or repo dir).
@@ -423,6 +573,10 @@ export function run(
   cwd: string = SOURCE_DIR,
   secrets: string[] = [],
 ): void {
+  // Preflight and later invocations share this contract: a Windows shim that
+  // cannot run shell-free is rejected here (before mutation when called from
+  // preflight) and at every later spawn, never silently sent to a shell.
+  assertShellFreeInvocationSupported(cmd);
   console.log(`\n${formatCommandLog(cmd, args, cwd, secrets)}`);
   if (dry) return;
   const r = spawnSync(cmd, args, { stdio: 'inherit', cwd, env, shell: false });
@@ -450,6 +604,8 @@ export function runCapture(
   cwd: string = SOURCE_DIR,
   secrets: string[] = [],
 ): string {
+  // Same contract as `run`: never send a Windows shim to a shell-free spawn.
+  assertShellFreeInvocationSupported(cmd);
   console.log(`\n${formatCommandLog(cmd, args, cwd, secrets)}`);
   if (dry) return '';
   const r = spawnSync(cmd, args, { stdio: ['ignore', 'pipe', 'inherit'], cwd, env, shell: false, encoding: 'utf-8' });
@@ -474,7 +630,8 @@ export function runCapture(
 export function buildArtifacts(
   options: SharedDeployOptions,
   paths: DeployPaths,
-  services: Pick<SharedDeployServices, 'parentEnv' | 'run' | 'log'> = DEFAULT_SERVICES,
+  services: Pick<SharedDeployServices, 'parentEnv' | 'run' | 'log'> &
+    Partial<Pick<SharedDeployServices, 'lstat' | 'realpath'>> = DEFAULT_SERVICES,
 ): PreparedDeployment {
   const frontendEnv = createChildEnvironment(services.parentEnv, {
     API_BASE_URL: options.apiBaseUrl,
@@ -484,6 +641,22 @@ export function buildArtifacts(
     MONGODB_URI: options.mongodbUri,
   });
   const projectRoot = projectRootOf(options);
+
+  // Final canonical check after owned links exist and before any destructive
+  // builder runs. Re-validates here (rather than trusting resolvePaths
+  // callers, which may hand-construct paths) so equal/ancestry outputs and
+  // reserved/external targets reject before a runner is called.
+  const fsServices = {
+    lstat: services.lstat ?? DEFAULT_SERVICES.lstat,
+    realpath: services.realpath ?? DEFAULT_SERVICES.realpath,
+  };
+  assertDestructiveOutputsSafe(
+    paths.deployDir,
+    paths.distAbs,
+    paths.functionsAbs,
+    fsServices,
+    !(options.ephemeral || options.sandboxDir),
+  );
 
   if (options.noBuild) {
     services.log('\n─ Skipping build steps (--no-build) ─');
@@ -547,7 +720,12 @@ export function inspectArtifacts(
   requireNonEmptyDirectory(paths.distAbs, 'Frontend artifact directory');
   requireNonEmptyFile(resolve(paths.distAbs, 'index.html'), 'Frontend entry artifact');
   requireNonEmptyDirectory(paths.functionsAbs, 'Functions artifact directory');
-  requireNonEmptyFile(resolve(paths.functionsAbs, `${options.functionsName}.js`), 'Serverless function artifact');
+  // The backend builder always runs with `--format cjs`, and tsup emits a
+  // `.cjs` file for CJS output when the producer package is `"type": "module"`
+  // (the generated template contract: `pnpm serverless` writes
+  // `api/functions/main.cjs`). Inspect that exact artifact, not a `.js`
+  // assumption that a valid build never produces.
+  requireNonEmptyFile(resolve(paths.functionsAbs, `${options.functionsName}.cjs`), 'Serverless function artifact');
 }
 
 // ---------------------------------------------------------------------------
@@ -612,6 +790,14 @@ Options:
       --functions-dir <path> Serverless output dir (default: "netlify/functions");
                              must be a contained relative path in sandbox modes
       --functions-name <name> Serverless function name (default: "main")
+                             Destructive-output contract (all modes): each output must
+                             resolve strictly inside the deploy directory (project
+                             root in project mode); "node_modules" targets,
+                             reserved project dirs (api, src, public, .git),
+                             external/ancestor/root targets, symlink aliases
+                             outside the deploy dir, and equal/nested
+                             frontend-function outputs are rejected before any
+                             build runs.
       --no-build             Skip builds after verifying existing artifacts
       --ephemeral            Build in a platform temporary directory and
                              remove it on success (keep with --keep-sandbox)
@@ -632,53 +818,77 @@ function parseSharedArgs(argv: string[]): SharedCollectionResult {
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    switch (a) {
-      case '--project-root':
-        o.projectRoot = readRequiredOptionValue(argv, i, a);
-        i += 1;
+    const { name, value: equalsValue } = splitEqualsOption(a);
+    const readValue = (): { value: string; advance: number } => readOptionValue(argv, i, name, equalsValue);
+    const rejectEqualsOnFlag = (): void => {
+      if (equalsValue !== undefined) throw unknownOptionError(a, SHARED_HELP);
+    };
+    switch (name) {
+      case '--project-root': {
+        const r = readValue();
+        o.projectRoot = r.value;
+        i += r.advance;
         break;
-      case '--api-base-url':
-        o.apiBaseUrl = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      }
+      case '--api-base-url': {
+        const r = readValue();
+        o.apiBaseUrl = r.value;
+        i += r.advance;
         o.apiBaseUrlExplicit = true;
         break;
-      case '--mongodb-uri':
-        o.mongodbUri = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      }
+      case '--mongodb-uri': {
+        const r = readValue();
+        o.mongodbUri = r.value;
+        i += r.advance;
         break;
-      case '--dist-dir':
-        o.distDir = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      }
+      case '--dist-dir': {
+        const r = readValue();
+        o.distDir = r.value;
+        i += r.advance;
         break;
-      case '--functions-dir':
-        o.functionsDir = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      }
+      case '--functions-dir': {
+        const r = readValue();
+        o.functionsDir = r.value;
+        i += r.advance;
         break;
-      case '--functions-name':
-        o.functionsName = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      }
+      case '--functions-name': {
+        const r = readValue();
+        o.functionsName = r.value;
+        i += r.advance;
         break;
+      }
       case '--no-build':
+        rejectEqualsOnFlag();
         o.noBuild = true;
         break;
       case '--ephemeral':
+        rejectEqualsOnFlag();
         o.ephemeral = true;
         break;
-      case '--sandbox-dir':
-        o.sandboxDir = readRequiredOptionValue(argv, i, a);
-        i += 1;
+      case '--sandbox-dir': {
+        const r = readValue();
+        o.sandboxDir = r.value;
+        i += r.advance;
         break;
+      }
       case '--keep-sandbox':
+        rejectEqualsOnFlag();
         o.keepSandbox = true;
         break;
       case '--dry-run':
+        rejectEqualsOnFlag();
         o.dryRun = true;
         break;
       case '-h':
       case '--help':
+        rejectEqualsOnFlag();
         return { kind: 'help' };
       default:
-        throw new Error(`Unknown option: ${a}\n\n${SHARED_HELP}`);
+        throw unknownOptionError(a, SHARED_HELP);
     }
   }
   return { kind: 'options', options: o };
@@ -712,15 +922,27 @@ export function runSharedCli(argv: string[], overrides: Partial<SharedCliService
     }
     const options = validateSharedDeployOptions(collected.options);
     const paths = services.resolvePaths(options);
-    if (options.noBuild) services.inspectArtifacts(options, paths);
-    else services.buildArtifacts(options, paths);
+    if (options.noBuild) {
+      services.inspectArtifacts(options, paths);
+    } else {
+      services.buildArtifacts(options, paths);
+      // A successful builder exit does not prove usable artifacts (a fake or
+      // broken builder can exit 0 without writing them). Re-inspect newly
+      // built output before reporting success. Dry runs execute no builders,
+      // so there is nothing to inspect.
+      if (!options.dryRun) services.inspectArtifacts(options, paths);
+    }
     services.cleanupSandbox(paths, options.keepSandbox, options.dryRun);
     services.log('\n✓ Build finished.');
     services.log(`  distAbs:      ${paths.distAbs}`);
     services.log(`  functionsAbs: ${paths.functionsAbs}`);
     return 0;
   } catch (err) {
-    services.error(`\n✖ ${err instanceof Error ? err.message : err}`);
+    // Parse failures occur before option collection, so redact environment
+    // secrets even when no options object exists. Unknown-option diagnostics
+    // themselves are value-free (see unknownOptionError).
+    const raw = `\n✖ ${err instanceof Error ? err.message : err}`;
+    services.error(redactCommand(raw, collectSecrets(process.env.MONGODB_URI)));
     return 1;
   }
 }

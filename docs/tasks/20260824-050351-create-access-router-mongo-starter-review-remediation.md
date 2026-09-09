@@ -4,6 +4,8 @@ Created: 2026-08-24 05:03:51 PDT
 
 Package: `packages/create-access-router-mongo-starter`
 
+Subsequent review: [2026-09-08 boundary follow-up](20260908-230752-create-access-router-mongo-starter-boundary-follow-up.md) records newly identified residual cases in a separate execution phase. Historical completion evidence below is retained unchanged.
+
 ## Objective
 
 Remediate confirmed local-data-loss, credential-handling, packed-template, generated-project, deployment-ordering, API-validation, data-integrity, frontend-reliability, and testability gaps in `create-access-router-mongo-starter`. Preserve the package's role as a small MongoDB CRUD starter while making scaffolding and deployment safe to automate, generated projects reproducible and usable from the installed npm artifact, and the intentionally public demo boundary explicit and bounded.

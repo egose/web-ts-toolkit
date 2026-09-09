@@ -46,6 +46,55 @@ async function waitForListening(server: { listening: boolean; once(event: string
 }
 
 describe('backend route contract', () => {
+  // MongoDB connection-grammar matrix (CARMSF-13). This matrix mirrors the
+  // scaffolder package's `tests/deploy-shared.test.ts` (not shipped in this
+  // template); both validators share the grammar in
+  // `src/shared/mongo-connection-string.ts`, so the two lists must stay
+  // aligned. No case here needs a database connection.
+  const MONGO_ACCEPT = [
+    'mongodb://127.0.0.1:27017/app',
+    'mongodb://db-a:27017,db-b:27017/app?replicaSet=rs0',
+    'mongodb://user:pass@db-a:27017,db-b:27017/app?replicaSet=rs0&authSource=admin', // pragma: allowlist secret
+    'mongodb://[::1]:27017/app',
+    'mongodb://[2001:db8::1]:27017,[2001:db8::2]:27017/app?replicaSet=rs0',
+    'mongodb://localhost/app',
+    'mongodb+srv://cluster.example.test/app',
+    'mongodb+srv://user:pass@cluster.example.test/app?retryWrites=true', // pragma: allowlist secret
+  ];
+  const MONGO_REJECT = [
+    'https://example.test/db',
+    'mongodb://',
+    'mongodb+srv://host:27017/db',
+    'mongodb://host/db name',
+    'mongodb+srv://h1,h2/db',
+    'mongodb://host1,,host2/db',
+    'mongodb://host:99999/db',
+    'mongodb://[::1/db',
+    'mongodb://::1:27017/db',
+    'mongodb://@host/db',
+    'mongodb://host/db?opt#frag',
+    'mongodb://host/db?',
+    'mongodb+srv://[::1]/db',
+  ];
+
+  it.each(MONGO_ACCEPT)('accepts supported Mongo connection grammar without a database: %j', (value) => {
+    expect(requireMongoUri(value)).toBe(value);
+  });
+
+  it.each(MONGO_REJECT)('rejects malformed Mongo configuration without printing URI contents: %j', (value) => {
+    let message = '';
+    try {
+      requireMongoUri(value);
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toBe(
+      'MONGODB_URI must be a nonblank MongoDB connection string using mongodb:// or mongodb+srv://.',
+    );
+    const remainder = value.replace(/^mongodb(\+srv)?:\/\//u, '');
+    if (remainder) expect(message).not.toContain(remainder);
+  });
+
   it.each([undefined, '', '   ', 'https://example.test/db', 'mongodb+srv://host:27017/db', 'mongodb://'])(
     'rejects missing, blank, or malformed Mongo configuration: %j',
     (value) => {

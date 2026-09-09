@@ -24,9 +24,9 @@ Use this skill for access-router runtime wiring, environment-driven behavior, an
 
 - `api/access-router.config.ts` is the single runtime config used by both local dev and serverless bundling.
 - `api/access-router.config.ts` requires `MONGODB_URI` through its `db.url`; there is no silent fallback.
-- `api/src/config.ts` owns the strict path-only `API_BASE_URL`, which defaults to `/api` and is shared with Vite/deploy validation before use by `api/access-router.config.ts` and `api/src/routers.ts`.
-- Backend and emulator bindings are explicit package-script flags (`8000` and `9000`); `PORT` and `HOST` environment variables are intentionally unsupported.
-- Local startup, serverless startup, and every backend deployment require a valid nonblank `mongodb://` or `mongodb+srv://` `MONGODB_URI`.
+- `api/src/config.ts` owns the strict path-only `API_BASE_URL`, which defaults to `/api` and is shared with Vite/deploy validation before use by `api/access-router.config.ts` and `api/src/routers.ts`. Each segment may only contain letters, digits, `.`, `_`, `~`, or `-`; route parameters, wildcards, other route metacharacters, percent-encoded characters, and non-ASCII segments are rejected so the prefix mounts literally.
+- Backend and emulator bindings are explicit package-script flags (`8000` and `9000`); `PORT` and `HOST` environment variables are intentionally unsupported. The backend watch covers both `api/` and `src/shared/`; keep server-imported shared files inside those watched roots.
+- Local startup, serverless startup, and every backend deployment require a valid nonblank `mongodb://` or `mongodb+srv://` `MONGODB_URI`, including multi-host seed lists for transaction-capable replica sets and sharded deployments.
 - Keep API errors sanitized: expected validation/cast failures are stable 4xx responses, duplicate conflicts are `409`, and unknown persistence details stay out of HTTP responses and logs.
 
 ## Workflow

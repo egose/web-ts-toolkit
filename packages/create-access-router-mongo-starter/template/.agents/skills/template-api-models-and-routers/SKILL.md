@@ -38,11 +38,17 @@ Use this skill for persistence and access-router changes under `api/src/`.
 2. Update request schemas, permission schema, and router options in `api/src/routers.ts`.
 3. If auth or permission keys are introduced, update `api/src/access-router.d.ts` and coordinate with `template-backend-runtime` for middleware.
 4. Mirror contract changes in `src/types.ts`, related UI, and forms.
-5. Keep the existing model registration pattern safe for reloads: reuse `mongoose.models.*` when available.
+5. Register models through the runtime-owned `models: [...]` array in
+   `api/access-router.config.ts`. The runtime owns the Mongoose connection
+   (via `db.url`), model registration, and index readiness (`init()` awaits
+   `Model.init()` so the Category unique index is enforced before serving
+   requests). Never bypass it with ad hoc `mongoose.model(...)` calls in app
+   code, and never encourage global `mongoose.models.*` reuse: test files that
+   need isolated models must use unique model names per test.
 
 ## Editing Guidance
 
-- Prefer small changes to the current `createRouters(runtime)` structure.
+- Prefer small changes to the current `todoRouterOptions` / `categoryRouterOptions` structure in `api/src/routers.ts`.
 - Keep request schemas explicit rather than relying on implicit Mongoose coercion.
 - Avoid changing server route prefixes casually; `src/api.ts` depends on `API_BASE_URL` staying aligned.
 - Treat auth as a coordinated change across permissions, request extensions, and runtime middleware, not a one-file tweak.

@@ -75,6 +75,31 @@ function publicError(error: unknown): PublicApiError {
   return new PublicApiError(500, 'Unexpected server error.');
 }
 
+const EXPRESS_PARSER_STATUS: Record<string, number> = {
+  'entity.parse.failed': 400,
+  'entity.parse.invalid-charset': 400,
+  'entity.verify.failed': 400,
+  'entity.too.large': 413,
+};
+
+function expressParserStatus(error: unknown): number | undefined {
+  const record = errorRecord(error);
+  const type = record.type;
+  if (typeof type !== 'string' || !(type in EXPRESS_PARSER_STATUS)) return undefined;
+  const expected = EXPRESS_PARSER_STATUS[type] as number;
+  for (const candidate of [record.status, record.statusCode]) {
+    if (candidate !== undefined && candidate !== expected) return undefined;
+  }
+  return expected;
+}
+
+export function resolveExpressError(error: unknown): PublicApiError {
+  const parserStatus = expressParserStatus(error);
+  if (parserStatus === 400) return new PublicApiError(400, 'Invalid request.');
+  if (parserStatus === 413) return new PublicApiError(413, 'Request too large.');
+  return new PublicApiError(500, 'Unexpected server error.');
+}
+
 export function logServerError(error: unknown, boundary: 'access-router' | 'express'): void {
   console.error(
     JSON.stringify({

@@ -62,9 +62,12 @@ Each release build stamps the repository `VERSION` into the staged template
 manifest and generates `dist/template/pnpm-lock.yaml` from that exact manifest.
 The source template intentionally has no lockfile because its dependency
 versions still contain release placeholders. Generated projects include the
-release lockfile and declare Node `>=22.12.0` with pnpm `11.18.0`; use
+release lockfile and declare Node `^22.13.0 || >=24.0.0` with pnpm `11.18.0`; use
 `pnpm install --frozen-lockfile` to install the dependency set tested for that
-generator release.
+generator release. The Node range follows the resolved release graph (shipped
+jsdom 29 / ESLint 10 require `^20.19.0 || ^22.13.0 || >=24.0.0` while the
+workspace runtime requires Node `>=22`), so Node 22.0–22.12 and Node 23 are
+not supported.
 
 Generated apps expose bounded, schema-validated ordinary CRUD routes. Root
 batching and advanced `__mutation` writes are disabled in the basic starter;
@@ -185,10 +188,12 @@ Use this before releasing `create-access-router-mongo-starter` to npm:
    pnpm --filter create-access-router-mongo-starter test
    ```
 
-3. Dry-run the repo publish flow for this package:
+3. Dry-run the repo publish flow for this package (run from the repository
+   root; the version must match `VERSION` or the wrapper refuses to run —
+   `v$(cat VERSION)` always agrees with the guard):
 
    ```sh
-   pnpm publish-packages -- --version v0.0.0-test --filter create-access-router-mongo-starter --dry-run
+   pnpm publish-packages -- --version v$(cat VERSION) --filter create-access-router-mongo-starter --dry-run
    ```
 
 4. Release through the repo's normal tag-based workflow:
