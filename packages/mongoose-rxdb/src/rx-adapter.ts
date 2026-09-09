@@ -150,19 +150,7 @@ export class RxCollectionAdapter implements RxLikeCollection {
       bulkInsert?: (docs: PersistenceRecord[]) => Promise<{ success?: RxDocument[]; error?: unknown[] }>;
     };
     if (!native.bulkInsert || ordered) return this.insertManySequential(docs, ordered);
-
-    const ids = new Map(docs.map((doc, index) => [doc._id, index]));
-    const result = await native.bulkInsert(docs.map((doc) => cloneRecord(doc)));
-    const records = (result.success ?? []).map((doc) => toPersistenceRecord(doc.toJSON()));
-    const errors = (result.error ?? []).map((error) => ({ index: bulkErrorIndex(error, ids), error }));
-    const bulkResult: BulkInsertResult = {
-      insertedCount: records.length,
-      insertedIds: records.map((record) => record._id),
-      records,
-      errors,
-    };
-    if (errors.length) throw new BulkWritePartialFailureError('insertMany', ordered, bulkResult);
-    return bulkResult;
+    return this.insertManyUnordered(docs);
   }
 
   async modify(id: string, next: PersistenceRecord): Promise<void> {
@@ -184,8 +172,10 @@ export class RxCollectionAdapter implements RxLikeCollection {
   }
 
   async updateOne(compiled: CompiledQuery, updater: AtomicUpdater): Promise<MutationCounts> {
-    const result = await this.updateFirstMatching(compiled, updater);
-    return { matchedCount: result.before ? 1 : 0, modifiedCount: result.modified ? 1 : 0 };
+    const doc = await this.queryOneDoc(compiled);
+    if (!doc) return { matchedCount: 0, modifiedCount: 0 };
+    const result = await this.conditionalModify(doc, compiled.selector, updater);
+    return { matchedCount: result.matched ? 1 : 0, modifiedCount: result.matched && result.modified ? 1 : 0 };
   }
 
   async updateMany(compiled: CompiledQuery, updater: AtomicUpdater): Promise<MutationCounts> {
@@ -194,9 +184,10 @@ export class RxCollectionAdapter implements RxLikeCollection {
     let modifiedCount = 0;
     for (const doc of docs) {
       try {
-        const changed = await this.modifyDocument(doc, updater);
+        const result = await this.conditionalModify(doc, compiled.selector, updater);
+        if (!result.matched) continue;
         matchedCount++;
-        if (changed) modifiedCount++;
+        if (result.modified) modifiedCount++;
       } catch (error) {
         throw new MutationPartialFailureError('updateMany', { matchedCount, modifiedCount }, error);
       }
@@ -205,11 +196,14 @@ export class RxCollectionAdapter implements RxLikeCollection {
   }
 
   async findOneAndUpdate(compiled: CompiledQuery, updater: AtomicUpdater): Promise<FindOneUpdateResult> {
-    const result = await this.updateFirstMatching(compiled, updater);
+    const doc = await this.queryOneDoc(compiled);
+    if (!doc) return { before: null, after: null, matchedCount: 0, modifiedCount: 0 };
+    const result = await this.conditionalModify(doc, compiled.selector, updater);
+    if (!result.matched) return { before: null, after: null, matchedCount: 0, modifiedCount: 0 };
     return {
       before: result.before,
       after: result.after,
-      matchedCount: result.before ? 1 : 0,
+      matchedCount: 1,
       modifiedCount: result.modified ? 1 : 0,
     };
   }
@@ -217,7 +211,7 @@ export class RxCollectionAdapter implements RxLikeCollection {
   async deleteOne(compiled: CompiledQuery): Promise<DeleteCounts> {
     const doc = await this.queryOneDoc(compiled);
     if (!doc) return { deletedCount: 0 };
-    await doc.remove();
+    if (!(await this.removeIfMatches(doc, compiled.selector))) return { deletedCount: 0 };
     return { deletedCount: 1 };
   }
 
@@ -226,8 +220,7 @@ export class RxCollectionAdapter implements RxLikeCollection {
     let deletedCount = 0;
     for (const doc of docs) {
       try {
-        await doc.remove();
-        deletedCount++;
+        if (await this.removeIfMatches(doc, compiled.selector)) deletedCount++;
       } catch (error) {
         throw new MutationPartialFailureError('deleteMany', { deletedCount }, error);
       }
@@ -239,8 +232,9 @@ export class RxCollectionAdapter implements RxLikeCollection {
     const doc = await this.queryOneDoc(compiled);
     if (!doc) return null;
     const before = toPersistenceRecord(doc.toJSON());
-    await doc.remove();
-    return before;
+    if (!matchesSelector(before, compiled.selector)) return null;
+    const removed = await this.removeIfMatches(doc, compiled.selector);
+    return removed ? before : null;
   }
 
   async remove(id: string): Promise<void> {
@@ -251,31 +245,68 @@ export class RxCollectionAdapter implements RxLikeCollection {
     await doc.remove();
   }
 
-  private async updateFirstMatching(
-    compiled: CompiledQuery,
+  /**
+   * BMRX-07 atomic conditional-mutation contract:
+   * - The selector is rechecked against the current record inside the native
+   *   `incrementalModify` retry boundary on every attempt. A doc that no
+   *   longer matches yields no match (matchedCount 0 / null) and is left
+   *   unmodified; the adapter does not retry selection against a different
+   *   document. Callers needing claim semantics should use a single-document
+   *   predicate (e.g. `_id` plus the expected value) and treat no-match as a
+   *   failed claim.
+   * - `before`/`after` are captured from the successful attempt's current
+   *   record inside the retry boundary, so concurrent committed transitions
+   *   report truthful preimages. Counts reflect write-time matching, not
+   *   query-time selection. No multi-record transaction is claimed:
+   *   `updateMany`/`deleteMany` apply per-document conditionally and report
+   *   truthful per-document counts (partial failures throw
+   *   `MutationPartialFailureError` with counts applied so far).
+   * - Deletes are best-effort conditional: the selector is rechecked against
+   *   the latest snapshot immediately before native `remove()`, which has no
+   *   server-side predicate. A concurrent writer can still change the record
+   *   between the recheck and the removal, so delete selection/write races
+   *   cannot be closed fully with the native API (see follow-up note in
+   *   BMRX-07 evidence).
+   */
+  private async conditionalModify(
+    doc: RxDocument,
+    selector: CompiledQuery['selector'],
     updater: AtomicUpdater,
-  ): Promise<{ before: RxLikeDoc | null; after: RxLikeDoc | null; modified: boolean }> {
-    const doc = await this.queryOneDoc(compiled);
-    if (!doc) return { before: null, after: null, modified: false };
-    const before = toPersistenceRecord(doc.toJSON());
-    let after = before;
-    const modified = await this.modifyDocument(doc, async (current) => {
-      const next = await updater(current);
-      after = sanitizeMutationResult(current, next);
-      return after;
-    });
-    return { before, after, modified };
-  }
-
-  private async modifyDocument(doc: RxDocument, updater: AtomicUpdater): Promise<boolean> {
+  ): Promise<{ matched: boolean; modified: boolean; before: RxLikeDoc | null; after: RxLikeDoc | null }> {
+    let matched = false;
     let modified = false;
+    let before: RxLikeDoc | null = null;
+    let after: RxLikeDoc | null = null;
     await doc.incrementalModify(async (currentDoc: any) => {
       const current = toPersistenceRecord(currentDoc);
+      if (!matchesSelector(current, selector)) {
+        matched = false;
+        modified = false;
+        before = null;
+        after = null;
+        return current;
+      }
+      matched = true;
+      before = cloneRecord(current);
       const next = sanitizeMutationResult(current, await updater(cloneRecord(current)));
+      after = cloneRecord(next);
       modified = !recordsEqual(current, next);
       return modified ? next : current;
     });
-    return modified;
+    return { matched, modified, before, after };
+  }
+
+  /**
+   * Best-effort conditional removal: rechecks the selector against the latest
+   * snapshot immediately before native `remove()`. Returns true when the
+   * removal was issued. Native `remove()` carries no predicate, so this
+   * narrows but does not eliminate the selection/write race.
+   */
+  private async removeIfMatches(doc: RxDocument, selector: CompiledQuery['selector']): Promise<boolean> {
+    const latest = toPersistenceRecord(doc.toJSON());
+    if (!matchesSelector(latest, selector)) return false;
+    await doc.remove();
+    return true;
   }
 
   private async queryOneDoc(compiled: CompiledQuery): Promise<RxDocument | null> {
@@ -292,6 +323,83 @@ export class RxCollectionAdapter implements RxLikeCollection {
     let docs: RxDocument[] = await query.exec();
     if (compiled.skip !== undefined && compiled.skip > 0) docs = docs.slice(compiled.skip);
     return docs;
+  }
+
+  /**
+   * BMRX-22 unordered bulk contract: native `bulkInsert` rejects a batch
+   * containing repeated `_id` values with a raw `COL22` error and inserts
+   * nothing, so an unordered batch is partitioned into the minimum number of
+   * passes such that every pass holds unique `_id` values. Passes run in
+   * order and each pass preserves input order, so the first occurrence of a
+   * repeated ID is always attempted first; later occurrences then fail with
+   * the native 409 conflict against the stored winner (or against a
+   * pre-existing record). Each pass is a single native `bulkInsert` call, so
+   * the native call count equals the maximum within-batch ID frequency (1
+   * when all IDs are unique). Errors carry their original input index and
+   * are sorted by index; successes aggregate across passes. A pass whose
+   * native call throws (defensive: partitioned passes hold unique IDs and
+   * should not hit `COL22`) falls back to per-document single inserts for
+   * that pass only, preserving the partial-success contract. Batches with a
+   * non-string `_id` bypass partitioning via sequential unordered inserts so
+   * error attribution never guesses. Ordered mode stays sequential and is
+   * unchanged. No read-before-insert uniqueness check is performed; all
+   * conflicts come from native write errors.
+   */
+  private async insertManyUnordered(docs: PersistenceRecord[]): Promise<BulkInsertResult> {
+    if (!docs.every((doc) => typeof doc?._id === 'string')) {
+      return this.insertManySequential(docs, false);
+    }
+    const passes: Array<{ docs: PersistenceRecord[]; indexes: number[] }> = [];
+    const passIdSets: Array<Set<string>> = [];
+    for (let index = 0; index < docs.length; index++) {
+      const id = (docs[index] as PersistenceRecord)._id;
+      let placed = false;
+      for (let pass = 0; pass < passes.length; pass++) {
+        if (!passIdSets[pass].has(id)) {
+          passes[pass].docs.push(docs[index]);
+          passes[pass].indexes.push(index);
+          passIdSets[pass].add(id);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        passes.push({ docs: [docs[index]], indexes: [index] });
+        passIdSets.push(new Set([id]));
+      }
+    }
+    const native = this.native() as RxCollection<any> & {
+      bulkInsert?: (docs: PersistenceRecord[]) => Promise<{ success?: RxDocument[]; error?: unknown[] }>;
+    };
+    const records: PersistenceRecord[] = [];
+    const errors: Array<{ index: number; error: unknown }> = [];
+    for (const pass of passes) {
+      const ids = new Map<string, number>(pass.docs.map((doc, position) => [doc._id, pass.indexes[position]]));
+      let result: { success?: RxDocument[]; error?: unknown[] };
+      try {
+        result = await native.bulkInsert!(pass.docs.map((doc) => cloneRecord(doc)));
+      } catch {
+        for (let position = 0; position < pass.docs.length; position++) {
+          try {
+            records.push(await this.insert(pass.docs[position]));
+          } catch (singleError) {
+            errors.push({ index: pass.indexes[position], error: singleError });
+          }
+        }
+        continue;
+      }
+      for (const doc of result.success ?? []) records.push(toPersistenceRecord(doc.toJSON()));
+      for (const error of result.error ?? []) errors.push({ index: bulkErrorIndex(error, ids), error });
+    }
+    errors.sort((left, right) => left.index - right.index);
+    const bulkResult: BulkInsertResult = {
+      insertedCount: records.length,
+      insertedIds: records.map((record) => record._id),
+      records,
+      errors,
+    };
+    if (errors.length) throw new BulkWritePartialFailureError('insertMany', false, bulkResult);
+    return bulkResult;
   }
 
   private async insertManySequential(docs: PersistenceRecord[], ordered: boolean): Promise<BulkInsertResult> {
@@ -314,6 +422,169 @@ export class RxCollectionAdapter implements RxLikeCollection {
     if (errors.length) throw new BulkWritePartialFailureError('insertMany', ordered, result);
     return result;
   }
+}
+
+/**
+ * Mango selector matcher used to recheck conditional-mutation predicates
+ * inside the native retry boundary (BMRX-07). Supports the operator surface
+ * produced by `translateFilter` (`$and`/`$or`/`$nor` plus per-field
+ * `$eq`/`$ne`/`$gt`/`$gte`/`$lt`/`$lte`/`$in`/`$nin`/`$exists`); dotted field
+ * paths resolve through own properties only with numeric segments addressing
+ * array indexes. `$regex` never reaches matching (rejected at compile time)
+ * and evaluates to no-match defensively. Plain (non-operator) conditions are
+ * treated as `$eq` for robustness against hand-built selectors.
+ */
+export function matchesSelector(record: PersistenceRecord, selector: Record<string, any> | undefined): boolean {
+  const sel = selector ?? {};
+  for (const [key, condition] of Object.entries(sel)) {
+    if (key === '$and') {
+      if (!Array.isArray(condition)) return false;
+      if (!(condition as any[]).every((sub) => matchesSelector(record, sub))) return false;
+      continue;
+    }
+    if (key === '$or') {
+      if (!Array.isArray(condition)) return false;
+      if (!(condition as any[]).some((sub) => matchesSelector(record, sub))) return false;
+      continue;
+    }
+    if (key === '$nor') {
+      if (!Array.isArray(condition)) return false;
+      if ((condition as any[]).some((sub) => matchesSelector(record, sub))) return false;
+      continue;
+    }
+    if (key.startsWith('$')) return false;
+    if (!matchesFieldCondition(getOwnDottedValue(record, key), hasOwnValue(record, key), condition)) return false;
+  }
+  return true;
+}
+
+function matchesFieldCondition(value: unknown, present: boolean, condition: unknown): boolean {
+  if (
+    condition !== null &&
+    typeof condition === 'object' &&
+    !Array.isArray(condition) &&
+    !(condition instanceof Date)
+  ) {
+    const entries = Object.entries(condition as Record<string, unknown>);
+    if (entries.length === 0) return valueEquals(value, condition);
+    if (!entries.every(([k]) => k.startsWith('$'))) return valueEquals(value, condition);
+    for (const [op, operand] of entries) {
+      switch (op) {
+        case '$eq':
+          if (!valueEquals(value, operand)) return false;
+          break;
+        case '$ne':
+          if (valueEquals(value, operand)) return false;
+          break;
+        case '$gt':
+          if (!(compareValues(value, operand) > 0)) return false;
+          break;
+        case '$gte':
+          if (!(compareValues(value, operand) >= 0)) return false;
+          break;
+        case '$lt':
+          if (!(compareValues(value, operand) < 0)) return false;
+          break;
+        case '$lte':
+          if (!(compareValues(value, operand) <= 0)) return false;
+          break;
+        case '$in':
+          if (!Array.isArray(operand)) return false;
+          if (!(operand as unknown[]).some((entry) => valueEquals(value, entry))) return false;
+          break;
+        case '$nin':
+          if (!Array.isArray(operand)) return false;
+          if ((operand as unknown[]).some((entry) => valueEquals(value, entry))) return false;
+          break;
+        case '$exists':
+          if ((operand === true ? present : !present) !== true) return false;
+          break;
+        case '$regex':
+        case '$options':
+          return false;
+        default:
+          return false;
+      }
+    }
+    return true;
+  }
+  return valueEquals(value, condition);
+}
+
+function getOwnDottedValue(record: Record<string, any>, path: string): unknown {
+  const segments = path.split('.');
+  let cursor: unknown = record;
+  for (const segment of segments) {
+    if (cursor === null || cursor === undefined || typeof cursor !== 'object') return undefined;
+    if (Array.isArray(cursor)) {
+      if (!/^(0|[1-9]\d*)$/.test(segment)) return undefined;
+      const index = Number(segment);
+      if (!Object.prototype.hasOwnProperty.call(cursor, String(index))) return undefined;
+      cursor = (cursor as unknown[])[index];
+      continue;
+    }
+    if (!Object.prototype.hasOwnProperty.call(cursor, segment)) return undefined;
+    cursor = (cursor as Record<string, any>)[segment];
+  }
+  return cursor;
+}
+
+function hasOwnValue(record: Record<string, any>, path: string): boolean {
+  const segments = path.split('.');
+  let cursor: unknown = record;
+  for (const segment of segments) {
+    if (cursor === null || cursor === undefined || typeof cursor !== 'object') return false;
+    if (Array.isArray(cursor)) {
+      if (!/^(0|[1-9]\d*)$/.test(segment)) return false;
+      if (!Object.prototype.hasOwnProperty.call(cursor, String(segment))) return false;
+      cursor = (cursor as unknown[])[Number(segment)];
+      continue;
+    }
+    if (!Object.prototype.hasOwnProperty.call(cursor, segment)) return false;
+    cursor = (cursor as Record<string, any>)[segment];
+  }
+  return true;
+}
+
+function toComparable(value: unknown): number | string | null {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'number') return Number.isNaN(value) ? null : value;
+  if (typeof value === 'string') {
+    const asTime = Date.parse(value);
+    if (!Number.isNaN(asTime) && /^\d{4}-\d{2}-\d{2}/.test(value)) return asTime;
+    return value;
+  }
+  return null;
+}
+
+function compareValues(left: unknown, right: unknown): number {
+  const leftComparable = toComparable(left instanceof Date ? left : left);
+  const rightComparable = toComparable(right instanceof Date ? right : right);
+  if (typeof leftComparable === 'number' && typeof rightComparable === 'number') {
+    return leftComparable < rightComparable ? -1 : leftComparable > rightComparable ? 1 : 0;
+  }
+  if (typeof leftComparable === 'string' && typeof rightComparable === 'string') {
+    return leftComparable < rightComparable ? -1 : leftComparable > rightComparable ? 1 : 0;
+  }
+  return NaN;
+}
+
+function valueEquals(left: unknown, right: unknown): boolean {
+  if (left instanceof Date || right instanceof Date) {
+    const leftTime = left instanceof Date ? left.getTime() : tryParseDate(left);
+    const rightTime = right instanceof Date ? right.getTime() : tryParseDate(right);
+    if (leftTime !== null && rightTime !== null) return leftTime === rightTime;
+    if (left instanceof Date || right instanceof Date) return false;
+  }
+  if (left === right) return true;
+  if (typeof left === 'number' && typeof right === 'number' && Number.isNaN(left) && Number.isNaN(right)) return true;
+  return stableStringify(left) === stableStringify(right);
+}
+
+function tryParseDate(value: unknown): number | null {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(value)) return null;
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? null : time;
 }
 
 function sanitizeMutationResult(current: PersistenceRecord, proposed: any): PersistenceRecord {

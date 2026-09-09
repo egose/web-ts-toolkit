@@ -158,14 +158,17 @@ describe('MRX-04 connection and collection lifecycle', () => {
       const readiness = conn.resolveModelCollection(Model);
       await nextTick();
 
-      await conn.disconnect();
-
+      // BMRX-18: disconnect rejects pending callers promptly but retains
+      // resource ownership until the gated initialization settles.
+      const disconnecting = conn.disconnect();
       await expect(readiness).rejects.toThrow(/connection closed/i);
       expect(Model.collection).toBeNull();
       expect(conn.modelNames()).toEqual([]);
-      expect(close).toHaveBeenCalledTimes(1);
 
       gate.resolve();
+      await disconnecting;
+      expect(close).toHaveBeenCalledTimes(1);
+
       await nextTick();
       expect(Model.collection).toBeNull();
       await expect(Model.find().exec()).rejects.toThrow(

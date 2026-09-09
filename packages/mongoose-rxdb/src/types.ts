@@ -4,6 +4,12 @@ export type AnyDocument = Record<string, unknown>;
 export type DocumentId = { _id?: string };
 export type RawDocument<T extends object = AnyDocument> = Omit<T, '_rev' | '_meta' | '_attachments' | '_deleted'>;
 export type RawDocumentWithId<T extends object = AnyDocument> = RawDocument<T> & DocumentId;
+/**
+ * BMRX-24 documented limitation: projected lean records are still typed as
+ * the full `LeanResult<T>`. Projection exclusion at runtime omits fields, but
+ * the type surface does not narrow to a partial. Do not rely on the type to
+ * prove a projected-out field is absent.
+ */
 export type LeanResult<T extends object = AnyDocument> = RawDocumentWithId<T>;
 export type HydratedDocument<
   T extends object = AnyDocument,
@@ -39,7 +45,14 @@ export interface CompiledSchemaRepresentation {
 
 export interface SchemaTypeOptions<T = any> {
   type?: any;
-  required?: boolean | ((this: any) => boolean) | [boolean, string];
+  /**
+   * BMRX-14: function-valued `required` (including `[fn, message]`) is
+   * evaluated dynamically by document validation against the owning document
+   * (root paths) or subdocument (nested paths). It is intentionally omitted
+   * from static `required` in public JSON Schema and RxDB schemas, which can
+   * only express unconditional requirements.
+   */
+  required?: boolean | ((this: any) => boolean) | [boolean | ((this: any) => boolean), string];
   default?: T | (() => T);
   enum?: T[];
   min?: number;
@@ -63,6 +76,14 @@ export type SchemaDefinitionProperty =
   | SchemaLike
   | SchemaTypeOptions;
 
+/**
+ * BMRX-14: inline nested plain objects (for example
+ * `{ profile: { name: String } }`), dotted path names, and prefixed
+ * `Schema.add(obj, prefix)` are not supported and are rejected with
+ * `SchemaConfigurationError`. Define nested structure with an explicit child
+ * `Schema` (`{ profile: childSchema }` or `{ profile: { type: childSchema } }`)
+ * or explicit mixed (`{ profile: { type: Object } }`).
+ */
 export type SchemaDefinition<T extends object = AnyDocument> = {
   [K in keyof T]?: SchemaDefinitionProperty;
 };
@@ -148,6 +169,15 @@ export interface DeleteOneOptions {
 
 export interface DeleteManyOptions {}
 
+/**
+ * BMRX-24: `lean` is supported at runtime for `findOneAndUpdate` (see
+ * `normalizeOptionsForOperation`/`resultDocument` in `query.ts`) and returns a
+ * plain `LeanResult` record instead of a hydrated document. Verified against
+ * real memory storage: `{ lean: true }` yields no `save` method, omission
+ * yields a hydrated `Document`. `lean` has no effect on `updateOne`,
+ * `updateMany`, `deleteOne`, `deleteMany`, or `countDocuments` results —
+ * those options reject `lean` with `MutationOptionError` at execution time.
+ */
 export interface FindOneAndUpdateOptions {
   sort?: QueryOptions['sort'];
   upsert?: boolean;
@@ -155,8 +185,14 @@ export interface FindOneAndUpdateOptions {
   returnDocument?: 'before' | 'after';
   runValidators?: boolean;
   setDefaultsOnInsert?: boolean;
+  lean?: boolean;
 }
 
+/**
+ * BMRX-24: `lean: true` returns a plain `LeanResult` record (or `null`);
+ * omission/`lean: false` returns a hydrated document (or `null`). Verified
+ * against real memory storage.
+ */
 export interface FindOneAndDeleteOptions {
   sort?: QueryOptions['sort'];
   lean?: boolean;
@@ -173,6 +209,12 @@ type ComparableOps<T> =
   FilterScalar<T> extends Comparable
     ? { $gt?: FilterScalar<T>; $gte?: FilterScalar<T>; $lt?: FilterScalar<T>; $lte?: FilterScalar<T> }
     : {};
+// BMRX-03: request-derived `$regex`/`$options` are rejected at runtime with
+// `QueryFilterError` before any native execution. The members remain on the
+// type surface for BMRX-24 consumer-contract reconciliation (so existing
+// typed call sites keep compiling) but must not be sent; trusted schema
+// validators (`match`, custom `validate`) are unaffected.
+/** @deprecated Request regex filters are rejected at runtime; use equality, range, or membership operators. */
 type RegexOps<T> = FilterScalar<T> extends string ? { $regex?: string | RegExp; $options?: string } : {};
 type FieldOperators<T> = {
   $eq?: FilterScalar<T>;

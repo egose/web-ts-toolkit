@@ -1,11 +1,17 @@
 import api, {
+  BulkWritePartialFailureError,
   Connection,
   Document,
+  MutationPartialFailureError,
   Query,
+  QueryFilterError,
   Schema,
+  WriteNormalizationError,
   type DeleteResult,
   type HydratedDocument,
+  type LeanQueryResult,
   type LeanResult,
+  type UpdateResult,
   ValidationError,
   connect,
   disconnect,
@@ -112,5 +118,64 @@ async function typedModelProbe() {
   return [createdName, methodResult, virtualResult, found, one, byId, leanMany, leanOne, updateResult, deleteResult, adults];
 }
 
+async function leanContractProbe() {
+  // BMRX-24: lean read toggling preserves document vs plain-record typing.
+  const leanMany = await UserModel.find({ age: { $gte: 18 } }).lean(true);
+  const leanEl: LeanResult<User> = leanMany[0];
+  // @ts-expect-error lean records are plain and expose no hydrated methods.
+  leanMany[0].save();
+  const restored = await UserModel.find({ age: { $gte: 18 } }).lean(true).lean(false);
+  const hydratedEl: UserDocument = restored[0];
+  hydratedEl.save();
+  const leanOne: LeanResult<User> | null = await UserModel.findOne({ name: 'Ada' }).lean(true);
+  const restoredOne: UserDocument | null = await UserModel.findOne({ name: 'Ada' }).lean(true).lean(false);
+  void [leanEl, leanOne, restoredOne];
+  // BMRX-24: lean mapping preserves mutation/count result types.
+  const upd: UpdateResult = await UserModel.updateOne({ name: 'Ada' }, { $inc: { age: 1 } }).lean(true);
+  const updMany: UpdateResult = await UserModel.updateMany({ age: { $gte: 18 } }, { $inc: { age: 1 } }).lean(true);
+  const del: DeleteResult = await UserModel.deleteOne({ name: 'Ada' }).lean(true);
+  const counted: number = await UserModel.countDocuments({ age: { $gte: 18 } }).lean(true);
+  const leanMapped: LeanQueryResult<UserDocument[], User> = leanMany;
+  void [upd, updMany, del, counted, leanMapped];
+  // BMRX-24: option-based lean results with nullability.
+  const optLean: LeanResult<User> | null = await UserModel.findOneAndUpdate(
+    { name: 'Ada' },
+    { $inc: { age: 1 } },
+    { lean: true, returnDocument: 'after' },
+  );
+  // @ts-expect-error option-lean records expose no hydrated methods.
+  optLean?.save();
+  const optHydrated: UserDocument | null = await UserModel.findOneAndUpdate(
+    { name: 'Ada' },
+    { $inc: { age: 1 } },
+  );
+  optHydrated?.save();
+  const optDelLean: LeanResult<User> | null = await UserModel.findOneAndDelete({ name: 'Ada' }, { lean: true });
+  // @ts-expect-error option-lean delete records expose no hydrated methods.
+  optDelLean?.save();
+  const optDelHydrated: UserDocument | null = await UserModel.findOneAndDelete({ name: 'Ada' });
+  optDelHydrated?.save();
+  void [optLean, optHydrated, optDelLean, optDelHydrated];
+  // BMRX-24: intentionally public thrown errors narrow from the package root.
+  try {
+    await UserModel.updateOne({ name: 'Ada' }, { $inc: { age: 1 } });
+  } catch (error) {
+    if (error instanceof WriteNormalizationError) {
+      const name: string = error.name;
+      void name;
+    } else if (error instanceof MutationPartialFailureError) {
+      const matched: number = error.matchedCount;
+      void matched;
+    } else if (error instanceof BulkWritePartialFailureError) {
+      const inserted: number = error.insertedCount;
+      void inserted;
+    } else if (error instanceof QueryFilterError) {
+      const message: string = error.message;
+      void message;
+    }
+  }
+}
+
 void [api.Schema, ValidationError, connect, disconnect, model, storageDefault, createMemoryDatabase, SqliteStorageError];
-void [query, doc, filtered, storageInfo, sqliteDbPromise, typedModelProbe];
+void [query, doc, filtered, storageInfo, sqliteDbPromise, typedModelProbe, leanContractProbe];
+void [BulkWritePartialFailureError, MutationPartialFailureError, WriteNormalizationError];

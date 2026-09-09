@@ -129,8 +129,19 @@ Use `Schema<RawDoc, Methods, Statics, Virtuals>` as the source of truth for the 
 
 - `RawDocument<T>` and `LeanResult<T>` contain only domain fields plus the logical `_id`; RxDB metadata fields are not part of the public result surface.
 - Hydrated reads and writes return `HydratedDocument<T, Methods, Virtuals>`, which combines `Document<T>`, raw fields, instance methods, and virtual properties.
-- Lean queries return `LeanResult<T>` records without document methods; hydrated queries return document methods plus raw fields.
+- Lean queries return `LeanResult<T>` records without document methods; hydrated queries return document methods plus raw fields. Lean only transforms document-producing results: `UpdateResult`, `DeleteResult`, and `countDocuments()` numbers pass through unchanged, and `.lean(false)` restores the pre-lean hydrated type so toggling back does not leave a false lean type. `findOneAndUpdate(..., { lean: true })` and `findOneAndDelete(..., { lean: true })` return `LeanResult<T> | null`; omission/`lean: false` returns hydrated documents. Nullable document results preserve `null`.
+- Projected lean records are still typed as the full `LeanResult<T>`; projection exclusion is a documented type limitation, not a narrowed partial.
 - `Query<Result>` is `PromiseLike<Result>`, so `await User.find()` and `await User.findOne()` preserve exact result types without `.exec()`.
+- Intentionally public thrown errors are importable from the package root for `instanceof` narrowing: `WriteNormalizationError`, `MutationPartialFailureError`, and `BulkWritePartialFailureError` (plus `QueryFilterError`, `QueryOptionError`, `MutationOptionError`, `ValidationError`, `SchemaConfigurationError`). Blocked deep imports are not required:
+
+```ts
+import {
+  BulkWritePartialFailureError,
+  MutationPartialFailureError,
+  WriteNormalizationError,
+} from '@web-ts-toolkit/mongoose-rxdb';
+```
+
 - `FilterQuery<T>` is strict for known fields. Use `LooseFilterQuery<T>` only at explicit untrusted-input boundaries such as `sanitizeFilter(req.body.filter)`.
 - Update operators are field-kind aware: numeric operators accept numeric fields, array operators accept array fields and element values, and `_id`/RxDB metadata are not part of the update type surface.
 - `validateSync()` is synchronous and returns `ValidationError | undefined`; use async `validate()` when middleware or async validators must run.
@@ -153,10 +164,15 @@ The package is storage-agnostic. `@web-ts-toolkit/mongoose-rxdb/storage` exports
   To accept data loss explicitly, pass `{ allowMemoryFallback: true }`.
 
   `filePath` semantics are backend-specific: Premium receives it as the exact SQLite database file
-  path (`sqliteDatabasePath`), while RxDB trial backends receive it as `databaseNamePrefix` and may
-  create collection-specific files with additional suffixes. The returned database exposes
-  `sqliteBackend` and `sqliteStorageInfo` so callers can inspect the selected backend, requested
-  path, persistence flag, and fallback causes.
+  path (`sqliteDatabasePath`), while RxDB trial backends receive it as `databaseNamePrefix` and
+  create collection-specific files from that prefix (prefix plus a `_trial_<databaseName>` suffix,
+  so on-disk names differ from the requested path). `filePath` defaults to `':memory:'`, which is
+  volatile-only: it selects genuine in-memory storage when `allowMemoryFallback: true` is passed and
+  is rejected otherwise, because trial SQLite backends would open an ordinary relative file such as
+  `:memory:_trial_<databaseName>` instead of SQLite's special in-memory name. Only the memory
+  backend reports `persistent: false`; every SQLite backend reports `persistent: true`. The returned
+  database exposes `sqliteBackend` and `sqliteStorageInfo` so callers can inspect the selected
+  backend, requested path, persistence flag, and fallback causes.
 
   On success a one-line `[mongoose-rxdb] createSqliteDatabase: using <backend> SQLite at <path>` warning is printed (with the trial caveat for level 2 and 3). For real production SQLite, install `rxdb-premium`.
 
@@ -220,15 +236,17 @@ try {
 ```
 
 Only object filters using `$and` / `$or` / `$nor` (recursed) and the Mango per-field operators
-(`$eq`, `$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in`, `$nin`, `$exists`, `$regex`, `$options`) pass
+(`$eq`, `$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in`, `$nin`, `$exists`) pass
 through. `null` and other non-object filters, invalid top-level operators, unsupported field operators, malformed logical arrays,
 dangerous keys (`__proto__`, `prototype`, `constructor`), excessive nesting, and excessive logical
 array width throw `QueryFilterError`; rejected filters are never broadened to `{}`.
 
-Regex filters are allowed only under a strict bounded policy before adapter execution: pattern text
-must be at most 128 characters, flags may only be `i`, `m`, `s`, or `u`, and duplicate/invalid flags,
-backreferences, lookaround, repeated wildcard scans, quantified alternation, and nested quantified
-groups such as `^(a+)+$` are rejected.
+Request-derived regex is rejected: any `RegExp` value or `$regex` / `$options` operator in a
+request filter throws `QueryFilterError` before any native regex is constructed or executed,
+regardless of pattern simplicity or length. This replaces the previous bounded-policy heuristic,
+which a grouped variant such as `^((a+))+$` bypassed. Trusted schema validators (`match`,
+custom `validate`) are unrelated to this request-filter policy and keep working. The query
+builder's `.regex()` records its intent but fails at `exec()` before any adapter call.
 
 ## `_id`
 
@@ -255,6 +273,20 @@ includes `timestamps`, `versionKey`, path `get` / `set`, `alias`, `select`, `ref
 `expires`, and `unique`. `unique` is not a backend-safe uniqueness guarantee in this package; use
 `index: true` only as a storage-dependent lookup hint, and enforce uniqueness in an application or
 backend layer that can provide an atomic constraint.
+
+Nested structure requires an explicit child `Schema` (`{ profile: childSchema }`,
+`{ profile: { type: childSchema } }`, `[childSchema]` for subdocument arrays). Inline nested
+plain-object definitions (`{ profile: { name: String } }`, `{ profile: { type: { name: String } } }`),
+dotted path names (`{ 'profile.name': String }`), and prefixed `schema.add(obj, prefix)` are rejected
+with `SchemaConfigurationError` before collection creation: they previously compiled to unstructured
+objects or literal dotted fields whose casting, validation, and generated schemas disagreed. Full
+Mongoose nested syntax is intentionally not supported.
+
+Function-valued `required` (including the `[fn, message]` form) is evaluated dynamically by document
+validation — `this` is the owning document for root paths and the plain subdocument for nested paths —
+and is never emitted as an unconditional entry in public JSON Schema or RxDB `required` lists, which
+can only express static requirements. Static `required: true` and `[true, message]` still appear in
+both schemas and agree with validation.
 
 ## Document Snapshots And Dirty Tracking
 

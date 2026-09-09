@@ -52,14 +52,28 @@ describe('schema compilation behavior', () => {
     connections.push(connection);
 
     expect(() => schema.add({ age: Number })).toThrow(SchemaConfigurationError);
-    schema.paths.set('forced', {
-      name: 'forced',
-      type: 'string',
-      options: {},
-      definition: String,
-      nested: false,
-      isArray: false,
-    });
+    // BMRX-12: direct structural mutation of the source schema after
+    // compilation is rejected (not silently isolated).
+    expect(() =>
+      schema.paths.set('forced', {
+        name: 'forced',
+        type: 'string',
+        options: {},
+        definition: String,
+        nested: false,
+        isArray: false,
+      }),
+    ).toThrow(SchemaConfigurationError);
+    expect(() =>
+      Model.schema.paths.set('forced', {
+        name: 'forced',
+        type: 'string',
+        options: {},
+        definition: String,
+        nested: false,
+        isArray: false,
+      }),
+    ).toThrow(SchemaConfigurationError);
 
     const created = await Model.create({ name: 'Ada', forced: 'ignored' } as any);
     expect(created.toObject()).not.toHaveProperty('forced');
@@ -129,5 +143,114 @@ describe('schema compilation behavior', () => {
         SchemaConfigurationError,
       );
     }
+  });
+
+  it('BMRX-12 rejects exposed compiled-schema structural mutation without model effect', async () => {
+    const child = new Schema({ label: { type: String, required: true } });
+    const schema = new Schema({
+      n: { type: Number, required: true },
+      name: { type: String, immutable: true },
+      child,
+      scores: [Number],
+    });
+    const { connection, Model } = await connectedModel(schema, 'ImmutableBoundary');
+    connections.push(connection);
+
+    // Map mutators reject.
+    expect(() =>
+      Model.schema.paths.set('injected', {
+        name: 'injected',
+        type: 'string',
+        options: {},
+        definition: String,
+        nested: false,
+        isArray: false,
+      }),
+    ).toThrow(SchemaConfigurationError);
+    expect(() => Model.schema.paths.delete('n')).toThrow(SchemaConfigurationError);
+    expect(() => Model.schema.paths.clear()).toThrow(SchemaConfigurationError);
+    expect(() => Model.schema.add({ late: Number })).toThrow(SchemaConfigurationError);
+
+    // Path entry and path-options mutation rejects (frozen objects throw TypeError in strict ESM).
+    expect(() => {
+      (Model.schema.path('n') as any).type = 'string';
+    }).toThrow();
+    expect(() => {
+      (Model.schema.path('n') as any).options.required = false;
+    }).toThrow();
+    expect(() => {
+      (Model.schema.options as any).validateBeforeSave = false;
+    }).toThrow();
+    expect(() => {
+      (Model.schema as any).paths = new Map();
+    }).toThrow();
+    expect(() => {
+      (Model.schema as any).options = {};
+    }).toThrow();
+
+    // Nested child schema mutation rejects.
+    const subSchema = Model.schema.path('child')!.subSchema as Schema;
+    expect(() => subSchema.paths.delete('label')).toThrow(SchemaConfigurationError);
+    expect(() => {
+      (subSchema.path('label') as any).options.required = false;
+    }).toThrow();
+
+    // Compiled representation mutation rejects or has no model effect.
+    const compiled = Model.schema.getCompiledSchema();
+    expect(() => (compiled.paths as Map<string, unknown>).set('x', {} as any)).toThrow(SchemaConfigurationError);
+    expect(() => {
+      (compiled.jsonSchema.properties.n as any).type = 'string';
+    }).toThrow();
+    expect(() => {
+      (compiled.required as string[]).push('injected');
+    }).toThrow();
+
+    // toJSONSchema returns a defensive copy: mutating it has no model effect.
+    const publicSchema = Model.schema.toJSONSchema();
+    publicSchema.properties.n.type = 'string';
+    expect(Model.schema.toJSONSchema().properties.n).toEqual({ type: 'number' });
+
+    // Runtime behavior stays consistent: number casting, required validation,
+    // immutable validation, public JSON Schema, and RxDB schema agree.
+    const casted = new (Model as any)({ n: '42', child: { label: 'x' }, name: 'a' });
+    expect(typeof casted.n).toBe('number');
+    expect(casted.n).toBe(42);
+    await expect(new (Model as any)({ child: { label: 'x' } }).validate()).rejects.toBeInstanceOf(ValidationError);
+    const persisted = await Model.create({ n: 1, child: { label: 'y' }, name: 'orig' } as any);
+    await expect(Model.updateOne({ _id: persisted._id }, { $set: { name: 'changed' } })).rejects.toThrow(/immutable/);
+    expect(Model.schema.toJSONSchema().properties.n).toEqual({ type: 'number' });
+    expect(Model.schema.toJSONSchema().required).toContain('n');
+    const rxSchema = convertToRxJsonSchema('immutable_boundary', Model.schema);
+    expect(rxSchema.properties.n).toEqual({ type: 'number' });
+    expect(rxSchema.required).toContain('n');
+    expect(Model.schema.path('injected')).toBeUndefined();
+    expect(Model.schema.path('n')!.type).toBe('number');
+  });
+
+  it('BMRX-12 keeps compiled clones independently editable and preserves hooks', async () => {
+    const schema = new Schema({ n: Number });
+    schema.method('greet', function (this: any) {
+      return `hi:${this.n}`;
+    });
+    const hookCalls: string[] = [];
+    schema.pre('save', function (this: any, next: () => void) {
+      hookCalls.push('pre');
+      next();
+    });
+    const { connection, Model } = await connectedModel(schema, 'ImmutableClone');
+    connections.push(connection);
+
+    // Clone of the compiled model schema stays editable.
+    const clone = Model.schema.clone();
+    clone.add({ extra: String });
+    clone.options.collection = 'clones';
+    expect(clone.path('extra')).toBeDefined();
+    expect(Model.schema.path('extra')).toBeUndefined();
+
+    // Nonstructural method/hook behavior still works on the compiled model.
+    const doc = new (Model as any)({ n: 7 });
+    expect(doc.greet()).toBe('hi:7');
+    await doc.save();
+    expect(hookCalls).toEqual(['pre']);
   });
 });

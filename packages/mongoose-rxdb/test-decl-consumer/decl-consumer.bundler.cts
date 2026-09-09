@@ -47,5 +47,32 @@ async function typedModelProbe() {
   return [one, deleted];
 }
 
+async function leanContractProbe() {
+  // BMRX-24: lean toggling, preserved counts, option-based lean, error narrowing.
+  const leanMany = await UserModel.find({ age: { $gte: 18 } }).lean(true);
+  const leanEl: api.LeanResult<User> = leanMany[0];
+  // @ts-expect-error lean results are plain records.
+  leanEl.save();
+  const restored = await UserModel.find({ age: { $gte: 18 } }).lean(true).lean(false);
+  const hydratedEl: api.HydratedDocument<User, UserMethods, UserVirtuals> = restored[0];
+  hydratedEl.save();
+  const upd: api.UpdateResult = await UserModel.updateOne({ name: 'Ada' }, { $inc: { age: 1 } }).lean(true);
+  const optLean: api.LeanResult<User> | null = await UserModel.findOneAndUpdate(
+    { name: 'Ada' },
+    { $inc: { age: 1 } },
+    { lean: true },
+  );
+  // @ts-expect-error option-lean results are plain records.
+  optLean?.save();
+  try {
+    await UserModel.updateOne({ name: 'Ada' }, { $inc: { age: 1 } });
+  } catch (error) {
+    if (error instanceof api.WriteNormalizationError) void error.message;
+    else if (error instanceof api.MutationPartialFailureError) void error.matchedCount;
+    else if (error instanceof api.BulkWritePartialFailureError) void error.insertedCount;
+  }
+  return [leanMany, restored, upd, optLean];
+}
+
 void [api.default.Schema, UserModel, storage.default, storage.createMemoryDatabase, storage.SqliteStorageError];
-void [sqliteDbPromise, typedModelProbe];
+void [sqliteDbPromise, typedModelProbe, leanContractProbe];

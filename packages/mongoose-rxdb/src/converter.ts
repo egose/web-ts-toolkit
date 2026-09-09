@@ -23,6 +23,30 @@ export type NormalizedUpdateOperation =
   | { operator: '$unset'; path: string }
   | { operator: '$inc' | '$mul' | '$min' | '$max' | '$push' | '$addToSet' | '$pull'; path: string; value: any };
 
+/**
+ * BMRX-11 supported storage domain.
+ *
+ * Storage must be JSON-compatible: `null`, booleans, strings, finite numbers,
+ * `Date` (normalized to ISO strings), plain objects with safe keys, and arrays
+ * of supported values. `undefined`, functions, symbols, bigints, non-finite
+ * numbers, and non-plain objects (class instances, Map/Set, boxed primitives)
+ * are rejected with `WriteNormalizationError` instead of relying on
+ * `JSON.stringify` to silently drop or coerce them.
+ *
+ * Policy:
+ * - Top-level schema fields holding `undefined` are treated as absent (the key
+ *   is omitted) so `toObject()` round-trips stay clean; nested `undefined`
+ *   inside mixed/plain objects or arrays is rejected.
+ * - `Date` inside mixed/plain values is normalized to an ISO string, matching
+ *   typed date storage and BMRX-10 array equality.
+ * - Cyclic references are rejected; recursion is bounded by
+ *   `MAX_STORAGE_DEPTH`/`MAX_STORAGE_NODES` so hostile inputs fail with a
+ *   controlled error instead of a stack overflow. The limits are generous for
+ *   documented data (50 levels, 2000 nodes).
+ */
+export const MAX_STORAGE_DEPTH = 50;
+export const MAX_STORAGE_NODES = 2000;
+
 export interface NormalizedUpdatePlan {
   replacement: boolean;
   operations: NormalizedUpdateOperation[];
@@ -119,9 +143,21 @@ function schemaPropsToRx(schema: SchemaLike): Record<string, any> {
   return out;
 }
 
+/**
+ * BMRX-14 static required policy (mirrors `schema.ts`).
+ *
+ * Function-valued `required` (including `[fn, message]`) is evaluated
+ * dynamically by document validation and must never become an unconditional
+ * RxDB storage requirement.
+ */
 function isPathRequired(path: CompiledPath): boolean {
   const req = path.options.required;
-  if (Array.isArray(req)) return !!req[0];
+  if (Array.isArray(req)) {
+    const first = req[0];
+    if (typeof first === 'function') return false;
+    return !!first;
+  }
+  if (typeof req === 'function') return false;
   return !!req;
 }
 
@@ -140,11 +176,13 @@ export function castDocumentToSchema(doc: any, schema: SchemaLike, opts: { apply
   for (const [name, path] of schema.paths) {
     if (!(name in out)) {
       if (opts.applyDefaults !== false && path.options.default !== undefined) {
-        out[name] = typeof path.options.default === 'function' ? path.options.default() : path.options.default;
+        const rawDefault =
+          typeof path.options.default === 'function' ? path.options.default() : cloneValue(path.options.default);
+        out[name] = castValue(rawDefault, path, opts);
       }
       continue;
     }
-    out[name] = castValue(out[name], path);
+    out[name] = castValue(out[name], path, opts);
   }
   return out;
 }
@@ -162,10 +200,13 @@ export function documentToStorage(
   if (opts.allowId && (doc as any)._id !== undefined) out._id = normalizeId((doc as any)._id);
 
   for (const [name, path] of schema.paths) {
-    if (hasOwn(doc, name)) out[name] = valueToStorage((doc as any)[name], path);
-    else if (opts.applyDefaults && path.options.default !== undefined) {
+    if (hasOwn(doc, name)) {
+      const raw = (doc as any)[name];
+      if (raw === undefined) continue;
+      out[name] = valueToStorage(raw, path, { applyDefaults: opts.applyDefaults });
+    } else if (opts.applyDefaults && path.options.default !== undefined) {
       const value = typeof path.options.default === 'function' ? path.options.default() : path.options.default;
-      out[name] = valueToStorage(value, path);
+      out[name] = valueToStorage(value, path, { applyDefaults: opts.applyDefaults });
     }
   }
   return out;
@@ -182,28 +223,42 @@ export function storageToDocument(doc: any, schema: SchemaLike): any {
   return out;
 }
 
-export function normalizeUpdatePlan(update: any, schema: SchemaLike): NormalizedUpdatePlan {
+export function normalizeUpdatePlan(
+  update: any,
+  schema: SchemaLike,
+  opts: { allowImmutable?: boolean } = {},
+): NormalizedUpdatePlan {
   if (update == null || typeof update !== 'object' || Array.isArray(update)) {
     throw new WriteNormalizationError('Update must be an object');
   }
   const entries = Object.entries(update as Record<string, any>);
   const operatorEntries = entries.filter(([key]) => key.startsWith('$'));
-  if (operatorEntries.length === 0) return normalizeReplacementUpdate(update, schema);
+  if (operatorEntries.length === 0) return normalizeReplacementUpdate(update, schema, opts.allowImmutable === true);
   if (operatorEntries.length !== entries.length) {
     throw new WriteNormalizationError('Update cannot mix operators with replacement fields');
   }
 
+  const allowImmutable = opts.allowImmutable === true;
   const operations: NormalizedUpdateOperation[] = [];
   for (const [operator, rawOperand] of operatorEntries) {
     assertKnownUpdateOperator(operator);
     if (!isPlainObject(rawOperand)) throw new WriteNormalizationError(`${operator} requires an object operand`);
     for (const [rawPath, rawValue] of Object.entries(rawOperand as Record<string, any>)) {
-      const resolved = resolveWritablePath(rawPath, schema, false);
+      const resolved = resolveWritablePath(rawPath, schema, false, allowImmutable);
       switch (operator) {
         case '$set':
-          operations.push({ operator, path: rawPath, value: valueToStorage(rawValue, resolved.path) });
+          operations.push({
+            operator,
+            path: rawPath,
+            value: valueToStorage(rawValue, resolved.path, { applyDefaults: false }),
+          });
           break;
         case '$unset':
+          if (isBareArrayElementPath(rawPath, schema)) {
+            throw new WriteNormalizationError(
+              `$unset for ${rawPath} is not supported on an array index; use $pull to remove elements`,
+            );
+          }
           operations.push({ operator, path: rawPath });
           break;
         case '$inc':
@@ -219,14 +274,23 @@ export function normalizeUpdatePlan(update: any, schema: SchemaLike): Normalized
           if (resolved.path.type !== 'number' && resolved.path.type !== 'date') {
             throw new WriteNormalizationError(`${operator} is only supported for number and date paths: ${rawPath}`);
           }
-          operations.push({ operator, path: rawPath, value: valueToStorage(rawValue, resolved.path) });
+          operations.push({
+            operator,
+            path: rawPath,
+            value: valueToStorage(rawValue, resolved.path, { applyDefaults: false }),
+          });
           break;
         case '$push':
         case '$addToSet':
         case '$pull':
           if (!resolved.path.isArray)
             throw new WriteNormalizationError(`${operator} is only supported for array paths: ${rawPath}`);
-          operations.push({ operator, path: rawPath, value: arrayItemToStorage(rawValue, resolved.path) });
+          assertNoArrayOperatorForm(rawValue, operator, rawPath);
+          operations.push({
+            operator,
+            path: rawPath,
+            value: arrayItemToStorage(rawValue, resolved.path, { applyDefaults: false }),
+          });
           break;
       }
     }
@@ -234,13 +298,20 @@ export function normalizeUpdatePlan(update: any, schema: SchemaLike): Normalized
   return { replacement: false, operations };
 }
 
-export function applyNormalizedUpdate(doc: any, plan: NormalizedUpdatePlan, schema: SchemaLike): any {
+export function applyNormalizedUpdate(
+  doc: any,
+  plan: NormalizedUpdatePlan,
+  schema: SchemaLike,
+  opts: { skipImmutableCheck?: boolean } = {},
+): any {
+  const before = existingStorageToWritableRecord(doc ?? {}, schema);
   const out = existingStorageToWritableRecord(doc ?? {}, schema);
   if (plan.replacement) {
     const replacement = Object.create(null);
     if ((doc as any)?._id !== undefined) replacement._id = normalizeId((doc as any)._id);
     for (const operation of plan.operations)
       if ('value' in operation) setDottedValue(replacement, operation.path, operation.value);
+    if (!opts.skipImmutableCheck) assertImmutablePreserved(before, replacement, schema);
     return replacement;
   }
   for (const operation of plan.operations) {
@@ -252,11 +323,23 @@ export function applyNormalizedUpdate(doc: any, plan: NormalizedUpdatePlan, sche
         unsetDottedValue(out, operation.path);
         break;
       case '$inc':
-        setDottedValue(out, operation.path, (getDottedValue(out, operation.path) ?? 0) + operation.value);
+      case '$mul': {
+        const rawCurrent = getDottedValue(out, operation.path);
+        const base = rawCurrent === undefined || rawCurrent === null ? 0 : rawCurrent;
+        if (typeof base !== 'number' || !Number.isFinite(base)) {
+          throw new WriteNormalizationError(
+            `${operation.operator} for ${operation.path} requires a finite number value`,
+          );
+        }
+        const result = operation.operator === '$inc' ? base + operation.value : base * operation.value;
+        if (!Number.isFinite(result)) {
+          throw new WriteNormalizationError(
+            `${operation.operator} for ${operation.path} overflowed to a non-finite number`,
+          );
+        }
+        setDottedValue(out, operation.path, result);
         break;
-      case '$mul':
-        setDottedValue(out, operation.path, (getDottedValue(out, operation.path) ?? 0) * operation.value);
-        break;
+      }
       case '$min': {
         const current = getDottedValue(out, operation.path);
         if (current === undefined || operation.value < current) setDottedValue(out, operation.path, operation.value);
@@ -278,7 +361,7 @@ export function applyNormalizedUpdate(doc: any, plan: NormalizedUpdatePlan, sche
         setDottedValue(
           out,
           operation.path,
-          arr.some((item) => Object.is(item, operation.value)) ? arr : [...arr, operation.value],
+          arr.some((item) => storageDeepEqual(item, operation.value)) ? arr : [...arr, operation.value],
         );
         break;
       }
@@ -288,12 +371,13 @@ export function applyNormalizedUpdate(doc: any, plan: NormalizedUpdatePlan, sche
           setDottedValue(
             out,
             operation.path,
-            current.filter((item) => !Object.is(item, operation.value)),
+            current.filter((item) => !storageDeepEqual(item, operation.value)),
           );
         break;
       }
     }
   }
+  if (!opts.skipImmutableCheck) assertImmutablePreserved(before, out, schema);
   return out;
 }
 
@@ -301,23 +385,140 @@ function existingStorageToWritableRecord(doc: any, schema: SchemaLike): any {
   const out: any = Object.create(null);
   if ((doc as any)._id !== undefined) out._id = normalizeId((doc as any)._id);
   for (const [name, path] of schema.paths) {
-    if (hasOwn(doc, name)) out[name] = valueToStorage((doc as any)[name], path);
+    if (hasOwn(doc, name)) {
+      const raw = (doc as any)[name];
+      if (raw === undefined) continue;
+      out[name] = valueToStorage(raw, path);
+    }
   }
   return out;
 }
 
-export function castValue(value: any, path: CompiledPath): any {
+/**
+ * BMRX-09 existing-record immutable enforcement.
+ *
+ * Compares the storage-normalized before/after records and rejects any change
+ * to an immutable descendant, including changes smuggled through a parent
+ * `$set`/`$unset`, a plain (replacement-style) update, or a loaded-document
+ * save. Inserts bypass this check (insertion permission): `documentToStorage`
+ * remains insert-permissive and `applyNormalizedUpdate` callers pass
+ * `skipImmutableCheck` only when constructing a brand-new record (upsert
+ * insert fallback). Top-level and directly addressed nested immutable paths
+ * are additionally rejected during normalization; this comparison is the one
+ * consistent enforcement point for parent and plain-update writes.
+ *
+ * Subdocument arrays are compared element-wise: overlapping indexes must keep
+ * immutable descendants equal, appended elements are treated as new-subdocument
+ * initialization and allowed, and removed elements reject when they carried a
+ * defined immutable value.
+ */
+export function assertImmutablePreserved(before: any, after: any, schema: SchemaLike, basePath = ''): void {
+  for (const [name, path] of schema.paths) {
+    const fullPath = basePath ? `${basePath}.${name}` : name;
+    const beforeValue = before?.[name];
+    const afterValue = after?.[name];
+    if (path.options.immutable) {
+      if (!storageDeepEqual(beforeValue, afterValue)) {
+        throw new WriteNormalizationError(`Cannot modify immutable path ${fullPath}`);
+      }
+      continue;
+    }
+    if (!path.subSchema) continue;
+    if (path.isArray) {
+      assertImmutableArrayPreserved(beforeValue, afterValue, path, fullPath);
+      continue;
+    }
+    if (beforeValue === undefined && afterValue === undefined) continue;
+    assertImmutablePreserved(
+      isRecordLike(beforeValue) ? beforeValue : Object.create(null),
+      isRecordLike(afterValue) ? afterValue : Object.create(null),
+      path.subSchema,
+      fullPath,
+    );
+  }
+}
+
+function assertImmutableArrayPreserved(beforeValue: any, afterValue: any, path: CompiledPath, fullPath: string): void {
+  const subSchema = path.subSchema!;
+  const beforeArr = Array.isArray(beforeValue) ? beforeValue : beforeValue === undefined ? [] : [beforeValue];
+  const afterArr = Array.isArray(afterValue) ? afterValue : afterValue === undefined ? [] : [afterValue];
+  const overlap = Math.min(beforeArr.length, afterArr.length);
+  for (let index = 0; index < overlap; index++) {
+    const beforeEntry = beforeArr[index];
+    const afterEntry = afterArr[index];
+    if (storageDeepEqual(beforeEntry, afterEntry)) continue;
+    if (!isRecordLike(beforeEntry) || !isRecordLike(afterEntry)) {
+      throw new WriteNormalizationError(`Cannot modify immutable path ${fullPath}.${index}`);
+    }
+    assertImmutablePreserved(beforeEntry, afterEntry, subSchema, `${fullPath}.${index}`);
+  }
+  for (let index = overlap; index < beforeArr.length; index++) {
+    if (subdocHasImmutableValue(beforeArr[index], subSchema)) {
+      throw new WriteNormalizationError(`Cannot modify immutable path ${fullPath}.${index}`);
+    }
+  }
+}
+
+function subdocHasImmutableValue(value: any, schema: SchemaLike): boolean {
+  if (value === undefined || value === null) return false;
+  for (const [name, path] of schema.paths) {
+    const entry = isRecordLike(value) ? value[name] : undefined;
+    if (path.options.immutable) {
+      if (entry !== undefined) return true;
+      continue;
+    }
+    if (!path.subSchema || entry === undefined || entry === null) continue;
+    if (path.isArray) {
+      const arr = Array.isArray(entry) ? entry : [entry];
+      if (arr.some((item) => subdocHasImmutableValue(item, path.subSchema!))) return true;
+      continue;
+    }
+    if (isRecordLike(entry) && subdocHasImmutableValue(entry, path.subSchema)) return true;
+  }
+  return false;
+}
+
+function isRecordLike(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date);
+}
+
+function storageDeepEqual(left: any, right: any): boolean {
+  if (Object.is(left, right)) return true;
+  if (left instanceof Date || right instanceof Date) {
+    return left instanceof Date && right instanceof Date && left.getTime() === right.getTime();
+  }
+  if (!isRecordLike(left) || !isRecordLike(right)) {
+    if (Array.isArray(left) || Array.isArray(right)) {
+      if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+      return left.every((entry, index) => storageDeepEqual(entry, right[index]));
+    }
+    return false;
+  }
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  if (leftKeys.length !== rightKeys.length) return false;
+  for (let index = 0; index < leftKeys.length; index++) {
+    if (leftKeys[index] !== rightKeys[index] || !storageDeepEqual(left[leftKeys[index]], right[rightKeys[index]])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function castValue(value: any, path: CompiledPath, opts: { applyDefaults?: boolean } = {}): any {
   if (value === undefined || value === null) return value;
   if (path.isArray) {
     if (!Array.isArray(value))
-      return [castValue(value, { ...path, isArray: false, type: path.arrayItemType ?? 'mixed' })];
+      return [castValue(value, { ...path, isArray: false, type: path.arrayItemType ?? 'mixed' }, opts)];
     const itemPath: CompiledPath = {
       ...path,
       name: `${path.name}[]`,
       isArray: false,
       type: path.arrayItemType ?? 'mixed',
     };
-    return value.map((v) => (path.subSchema ? castDocumentToSchema(v, path.subSchema) : castValue(v, itemPath)));
+    return value.map((v) =>
+      path.subSchema ? castDocumentToSchema(v, path.subSchema, opts) : castValue(v, itemPath, opts),
+    );
   }
   switch (path.type) {
     case 'string':
@@ -334,30 +535,49 @@ export function castValue(value: any, path: CompiledPath): any {
     case 'date':
       return value instanceof Date ? value : new Date(value);
     case 'object':
-      if (path.subSchema) return castDocumentToSchema(value, path.subSchema);
+      if (path.subSchema) return castDocumentToSchema(value, path.subSchema, opts);
       return value;
     default:
       return value;
   }
 }
 
-function normalizeReplacementUpdate(update: any, schema: SchemaLike): NormalizedUpdatePlan {
+function normalizeReplacementUpdate(update: any, schema: SchemaLike, allowImmutable: boolean): NormalizedUpdatePlan {
+  for (const key of Object.keys(update)) resolveWritablePath(key, schema, false, allowImmutable);
   const storage = documentToStorage(update, schema, { applyDefaults: false, allowId: false });
   const operations = Object.keys(storage).map((path) => ({ operator: '$set' as const, path, value: storage[path] }));
   return { replacement: false, operations };
 }
 
-function valueToStorage(value: any, path: CompiledPath): any {
-  if (value === undefined || value === null) return value;
+function valueToStorage(value: any, path: CompiledPath, opts: { applyDefaults?: boolean } = {}): any {
+  if (value === null) return null;
+  if (value === undefined) {
+    throw new WriteNormalizationError(`Path ${path.name} does not support undefined; omit the field or use null`);
+  }
+  const nestedDefaults = opts.applyDefaults === true;
   if (path.isArray) {
-    if (!Array.isArray(value)) return [arrayItemToStorage(value, path)];
-    return value.map((entry) => arrayItemToStorage(entry, path));
+    if (!Array.isArray(value)) return [arrayItemToStorage(value, path, { applyDefaults: opts.applyDefaults })];
+    return value.map((entry) => arrayItemToStorage(entry, path, { applyDefaults: opts.applyDefaults }));
   }
   switch (path.type) {
-    case 'string':
-      return typeof value === 'string' ? value : String(value);
+    case 'string': {
+      if (typeof value === 'string') return value;
+      if (typeof value === 'symbol' || typeof value === 'function') {
+        throw new WriteNormalizationError(`Path ${path.name} requires a string-compatible value`);
+      }
+      try {
+        return String(value);
+      } catch {
+        throw new WriteNormalizationError(`Path ${path.name} requires a string-compatible value`);
+      }
+    }
     case 'number': {
-      const n = typeof value === 'number' ? value : Number(value);
+      let n: number;
+      try {
+        n = typeof value === 'number' ? value : Number(value);
+      } catch {
+        throw new WriteNormalizationError(`Path ${path.name} requires a finite number`);
+      }
       if (!Number.isFinite(n)) throw new WriteNormalizationError(`Path ${path.name} requires a finite number`);
       return n;
     }
@@ -369,7 +589,8 @@ function valueToStorage(value: any, path: CompiledPath): any {
     case 'date':
       return dateToStorage(value, path.name);
     case 'object':
-      if (path.subSchema) return documentToStorage(value, path.subSchema, { applyDefaults: true, allowId: false });
+      if (path.subSchema)
+        return documentToStorage(value, path.subSchema, { applyDefaults: nestedDefaults, allowId: false });
       return cloneSafePlain(value, path.name);
     case 'mixed':
       return cloneSafePlain(value, path.name);
@@ -378,15 +599,63 @@ function valueToStorage(value: any, path: CompiledPath): any {
   }
 }
 
-function arrayItemToStorage(value: any, path: CompiledPath): any {
-  if (path.subSchema) return documentToStorage(value, path.subSchema, { applyDefaults: true, allowId: false });
+/**
+ * BMRX-10 array element equality and operand policy.
+ *
+ * `$addToSet` deduplicates and `$pull` removes by `storageDeepEqual` over the
+ * storage-normalized element (primitives by value, Date elements by their ISO
+ * string, plain objects/arrays structurally with key-order-insensitive object
+ * comparison). `$push`/`$addToSet`/`$pull` accept only whole-array paths and a
+ * single literal element; Mongo-style operator/predicate forms (`$each`,
+ * `$elemMatch`, `$position`, `$slice`, `$sort`, positional `$`, etc.) are
+ * rejected explicitly and never interpreted. Object/array operands on primitive
+ * scalar arrays are rejected instead of being stringified.
+ */
+function assertNoArrayOperatorForm(value: any, operator: string, pathName: string): void {
+  if (isPlainObject(value) && Object.keys(value).some((key) => key.startsWith('$'))) {
+    throw new WriteNormalizationError(
+      `${operator} for ${pathName} does not support operator or predicate forms; pass a single literal array element`,
+    );
+  }
+}
+
+function arrayItemToStorage(value: any, path: CompiledPath, opts: { applyDefaults?: boolean } = {}): any {
+  if (path.subSchema) {
+    if (Array.isArray(value)) {
+      throw new WriteNormalizationError(
+        `Array element for ${path.name} must be a single subdocument object, not an array`,
+      );
+    }
+    return documentToStorage(value, path.subSchema, {
+      applyDefaults: opts.applyDefaults === true,
+      allowId: false,
+    });
+  }
+  const itemType = path.arrayItemType ?? 'mixed';
+  if (itemType !== 'mixed' && itemType !== 'object' && itemType !== 'array') {
+    if (value !== null && value !== undefined && typeof value === 'object' && !(value instanceof Date)) {
+      throw new WriteNormalizationError(
+        `Array element for ${path.name} requires a ${itemType} value, not an object or array`,
+      );
+    }
+    if (Array.isArray(value)) {
+      throw new WriteNormalizationError(`Array element for ${path.name} must be a single ${itemType} value`);
+    }
+  }
+  if (Array.isArray(value) && itemType !== 'mixed' && itemType !== 'array') {
+    throw new WriteNormalizationError(`Array element for ${path.name} must be a single value, not an array`);
+  }
   const itemPath: CompiledPath = {
     ...path,
     name: `${path.name}[]`,
     isArray: false,
-    type: path.arrayItemType ?? 'mixed',
+    type: itemType,
   };
-  return valueToStorage(value, itemPath);
+  return valueToStorage(value, itemPath, { applyDefaults: opts.applyDefaults });
+}
+
+function isArrayIndexSegment(segment: string): boolean {
+  return /^(0|[1-9]\d*)$/.test(segment);
 }
 
 function valueFromStorage(value: any, path: CompiledPath): any {
@@ -447,6 +716,9 @@ function resolveWritablePath(
   if (!allowImmutable && root.options.immutable)
     throw new WriteNormalizationError(`Cannot modify immutable path ${segments[0]}`);
   if (segments.length === 1) return { path: root, segments };
+  if (root.isArray) {
+    return resolveArrayTraversal(pathName, segments, root, allowImmutable);
+  }
   if (root.subSchema) {
     const nestedPath = segments.slice(1).join('.');
     const nested = resolveWritablePath(nestedPath, root.subSchema, false, allowImmutable);
@@ -455,6 +727,71 @@ function resolveWritablePath(
   if (root.type === 'object' || root.type === 'mixed')
     return { path: { ...root, name: pathName, type: 'mixed', isArray: false }, segments };
   throw new WriteNormalizationError(`Path ${pathName} is not a nested object path`);
+}
+
+/**
+ * BMRX-10 safe array update paths.
+ *
+ * Ambiguous non-indexed traversal through an array (for example `items.n` on a
+ * subdocument array) is rejected: it cannot name a single element and the old
+ * writer replaced the array with a plain object. Only explicit canonical
+ * indexes (`items.0.n`, `tags.0`) are accepted:
+ * - `arr` addresses the whole array.
+ * - `arr.<index>` addresses one existing element (validated against the item
+ *   type; `$unset` on a bare index is rejected to avoid holes — use `$pull`).
+ * - `arr.<index>.<field...>` addresses a field inside one subdocument element.
+ * Scalar array elements have no deeper fields; anything beyond the index is
+ * rejected. Positional/Mongoose predicate operators (`$`, `$[]`, `$elemMatch`)
+ * are not supported and are rejected as unknown paths/operators, never added
+ * silently.
+ */
+function resolveArrayTraversal(
+  pathName: string,
+  segments: string[],
+  root: CompiledPath,
+  allowImmutable: boolean,
+): { path: CompiledPath; segments: string[] } {
+  const indexSegment = segments[1];
+  if (!isArrayIndexSegment(indexSegment)) {
+    throw new WriteNormalizationError(
+      `Ambiguous array path ${pathName}: use an explicit index such as ${segments[0]}.0` +
+        (segments.length > 1 ? `.${segments.slice(1).join('.')}` : ''),
+    );
+  }
+  if (segments.length === 2) {
+    if (pathName.includes('$')) throw new WriteNormalizationError(`Unsupported array path: ${pathName}`);
+    return { path: arrayElementPath(pathName, root), segments };
+  }
+  if (!root.subSchema) {
+    throw new WriteNormalizationError(`Path ${pathName} does not address a nested field of an array element`);
+  }
+  const nestedPath = segments.slice(2).join('.');
+  const nested = resolveWritablePath(nestedPath, root.subSchema, false, allowImmutable);
+  if (nested.path.isArray) {
+    return { path: { ...nested.path, name: pathName }, segments };
+  }
+  return { path: { ...nested.path, name: pathName }, segments };
+}
+
+function arrayElementPath(pathName: string, root: CompiledPath): CompiledPath {
+  if (root.subSchema) {
+    return {
+      name: pathName,
+      type: 'object',
+      options: {},
+      definition: root.definition,
+      nested: false,
+      isArray: false,
+      subSchema: root.subSchema,
+    };
+  }
+  return {
+    ...root,
+    name: pathName,
+    isArray: false,
+    type: root.arrayItemType ?? 'mixed',
+    subSchema: undefined,
+  };
 }
 
 function assertMutable(
@@ -502,48 +839,243 @@ function assertPathType(pathName: string, path: CompiledPath, type: CompiledPath
     throw new WriteNormalizationError(`${operator} is only supported for ${type} paths: ${pathName}`);
 }
 
+/**
+ * BMRX-10 container-preserving dotted access.
+ *
+ * Traversal never implicitly converts an array into an object or vice versa:
+ * - stepping through an array requires a canonical index segment, otherwise a
+ *   `WriteNormalizationError` is thrown (this is what previously turned
+ *   `items` into `{ n: 3 }`);
+ * - stepping through a missing/primitive container throws on `$set`/arithmetic
+ *   (so typos cannot fabricate structure) and is a no-op read for `$unset`;
+ * - `$set` to an out-of-bounds index throws instead of creating holes;
+ * - `$unset` on a bare array index throws (use `$pull`); unsetting a missing
+ *   nested path is a no-op.
+ */
 function setDottedValue(target: any, pathName: string, value: any): void {
   const segments = splitPath(pathName);
   let cursor = target;
   for (let i = 0; i < segments.length - 1; i++) {
     const segment = segments[i];
-    if (!isPlainObject(cursor[segment])) cursor[segment] = Object.create(null);
-    cursor = cursor[segment];
+    const next = segments[i + 1];
+    if (Array.isArray(cursor)) {
+      if (!isArrayIndexSegment(segment)) {
+        throw new WriteNormalizationError(
+          `Ambiguous array path ${pathName}: use an explicit index instead of ${segment}`,
+        );
+      }
+      const index = Number(segment);
+      if (!hasOwn(cursor, segment) || index >= cursor.length) {
+        throw new WriteNormalizationError(`Array index out of bounds: ${pathName}`);
+      }
+      const child = cursor[index];
+      if (child == null || typeof child !== 'object') {
+        throw new WriteNormalizationError(`Cannot traverse non-object array element: ${pathName}`);
+      }
+      if (Array.isArray(child)) {
+        if (!isArrayIndexSegment(next)) {
+          throw new WriteNormalizationError(
+            `Ambiguous array path ${pathName}: use an explicit index instead of ${next}`,
+          );
+        }
+      } else if (!isPlainObject(child)) {
+        throw new WriteNormalizationError(`Cannot traverse non-object array element: ${pathName}`);
+      }
+      cursor = child;
+      continue;
+    }
+    if (!isPlainObject(cursor)) {
+      throw new WriteNormalizationError(`Cannot traverse non-object value: ${pathName}`);
+    }
+    const child = cursor[segment];
+    if (Array.isArray(child)) {
+      if (!isArrayIndexSegment(next)) {
+        throw new WriteNormalizationError(`Ambiguous array path ${pathName}: use an explicit index instead of ${next}`);
+      }
+      cursor = child;
+      continue;
+    }
+    if (child == null || typeof child !== 'object') {
+      if (child !== undefined && child !== null) {
+        throw new WriteNormalizationError(`Cannot traverse non-object value: ${pathName}`);
+      }
+      cursor[segment] = Object.create(null);
+      cursor = cursor[segment];
+      continue;
+    }
+    if (!isPlainObject(child)) {
+      throw new WriteNormalizationError(`Cannot traverse non-object value: ${pathName}`);
+    }
+    cursor = child;
   }
-  cursor[segments[segments.length - 1]] = value;
+  const last = segments[segments.length - 1];
+  if (Array.isArray(cursor)) {
+    if (!isArrayIndexSegment(last)) {
+      throw new WriteNormalizationError(`Ambiguous array path ${pathName}: use an explicit index instead of ${last}`);
+    }
+    const index = Number(last);
+    if (index > cursor.length) {
+      throw new WriteNormalizationError(`Array index out of bounds: ${pathName}`);
+    }
+    if (index === cursor.length) {
+      cursor.push(value);
+      return;
+    }
+    cursor[index] = value;
+    return;
+  }
+  if (!isPlainObject(cursor)) {
+    throw new WriteNormalizationError(`Cannot write non-object value: ${pathName}`);
+  }
+  cursor[last] = value;
 }
 
 function unsetDottedValue(target: any, pathName: string): void {
   const segments = splitPath(pathName);
   let cursor = target;
   for (let i = 0; i < segments.length - 1; i++) {
-    cursor = cursor[segments[i]];
+    const segment = segments[i];
+    const next = segments[i + 1];
+    if (Array.isArray(cursor)) {
+      if (!isArrayIndexSegment(segment)) {
+        throw new WriteNormalizationError(
+          `Ambiguous array path ${pathName}: use an explicit index instead of ${segment}`,
+        );
+      }
+      const index = Number(segment);
+      if (!hasOwn(cursor, segment) || index >= cursor.length) return;
+      cursor = cursor[index];
+      continue;
+    }
+    if (!isPlainObject(cursor)) return;
+    const child = cursor[segment];
+    if (Array.isArray(child)) {
+      if (!isArrayIndexSegment(next)) {
+        throw new WriteNormalizationError(`Ambiguous array path ${pathName}: use an explicit index instead of ${next}`);
+      }
+      cursor = child;
+      continue;
+    }
+    cursor = child;
+    if (cursor == null || typeof cursor !== 'object' || Array.isArray(cursor)) {
+      if (cursor == null) return;
+      if (Array.isArray(cursor)) continue;
+      return;
+    }
     if (!isPlainObject(cursor)) return;
   }
-  delete cursor[segments[segments.length - 1]];
+  const last = segments[segments.length - 1];
+  if (Array.isArray(cursor)) {
+    throw new WriteNormalizationError(
+      `$unset for ${pathName} is not supported on an array index; use $pull to remove elements`,
+    );
+  }
+  if (!isPlainObject(cursor)) return;
+  delete cursor[last];
 }
 
 function getDottedValue(target: any, pathName: string): any {
   let cursor = target;
   for (const segment of splitPath(pathName)) {
+    if (Array.isArray(cursor)) {
+      if (!isArrayIndexSegment(segment)) {
+        throw new WriteNormalizationError(
+          `Ambiguous array path ${pathName}: use an explicit index instead of ${segment}`,
+        );
+      }
+      const index = Number(segment);
+      if (!hasOwn(cursor, segment) || index >= cursor.length) return undefined;
+      cursor = cursor[index];
+      continue;
+    }
     if (cursor == null || typeof cursor !== 'object') return undefined;
-    cursor = cursor[segment];
+    if (isPlainObject(cursor) || hasOwn(cursor, segment)) {
+      cursor = (cursor as Record<string, any>)[segment];
+      continue;
+    }
+    return undefined;
   }
   return cursor;
 }
 
-function cloneSafePlain(value: any, pathName: string): any {
-  if (value === undefined || value === null || typeof value !== 'object') return value;
+function isBareArrayElementPath(pathName: string, schema: SchemaLike): boolean {
+  let current: SchemaLike | undefined = schema;
+  const segments = splitPath(pathName);
+  let index = 0;
+  while (current && index < segments.length) {
+    const field = segments[index];
+    const defined = current.paths.get(field);
+    if (!defined) return false;
+    if (defined.isArray) {
+      if (index + 1 >= segments.length) return false;
+      if (!isArrayIndexSegment(segments[index + 1])) return false;
+      if (index + 2 === segments.length) return true;
+      if (!defined.subSchema) return false;
+      current = defined.subSchema;
+      index += 2;
+      continue;
+    }
+    if (defined.subSchema) {
+      if (index + 1 === segments.length) return false;
+      current = defined.subSchema;
+      index += 1;
+      continue;
+    }
+    return false;
+  }
+  return false;
+}
+
+function cloneSafePlain(
+  value: any,
+  pathName: string,
+  depth = 0,
+  seen: Set<object> = new Set(),
+  state: { count: number } = { count: 0 },
+): any {
+  state.count += 1;
+  if (state.count > MAX_STORAGE_NODES) {
+    throw new WriteNormalizationError(`Path ${pathName} exceeds the supported storage size limit`);
+  }
+  if (value === undefined) {
+    throw new WriteNormalizationError(`Path ${pathName} does not support undefined; omit the field or use null`);
+  }
+  if (value === null) return null;
+  const valueType = typeof value;
+  if (valueType === 'string' || valueType === 'boolean') return value;
+  if (valueType === 'number') {
+    if (!Number.isFinite(value)) throw new WriteNormalizationError(`Path ${pathName} requires a finite number`);
+    return value;
+  }
+  if (valueType !== 'object') {
+    throw new WriteNormalizationError(`Path ${pathName} requires a JSON-compatible value, not ${valueType}`);
+  }
+  if (depth > MAX_STORAGE_DEPTH) {
+    throw new WriteNormalizationError(`Path ${pathName} exceeds the supported nesting depth`);
+  }
   if (value instanceof Date) return dateToStorage(value, pathName);
-  if (Array.isArray(value)) return value.map((entry, index) => cloneSafePlain(entry, `${pathName}.${index}`));
+  if (seen.has(value)) throw new WriteNormalizationError(`Path ${pathName} contains a cyclic reference`);
+  if (Array.isArray(value)) {
+    seen.add(value);
+    try {
+      return value.map((entry, index) => cloneSafePlain(entry, `${pathName}.${index}`, depth + 1, seen, state));
+    } finally {
+      seen.delete(value);
+    }
+  }
   if (!isPlainObject(value))
     throw new WriteNormalizationError(`Path ${pathName} requires a plain object, array, date, or primitive value`);
-  const out: any = Object.create(null);
-  for (const [key, nested] of Object.entries(value)) {
-    splitPath(key);
-    out[key] = cloneSafePlain(nested, `${pathName}.${key}`);
+  seen.add(value);
+  try {
+    const out: any = Object.create(null);
+    for (const [key, nested] of Object.entries(value)) {
+      splitPath(key);
+      out[key] = cloneSafePlain(nested, `${pathName}.${key}`, depth + 1, seen, state);
+    }
+    return out;
+  } finally {
+    seen.delete(value);
   }
-  return out;
 }
 
 function cloneValue(value: any): any {

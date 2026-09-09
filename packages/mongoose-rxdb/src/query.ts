@@ -1,7 +1,7 @@
 import type { FilterQuery, LeanResult, QueryOptions, UpdateQuery } from './types';
 import type { RxLikeCollection, RxLikeDoc } from './rx-adapter';
 import type { InternalModelRuntime } from './model';
-import { compileQuery } from './query-compiler';
+import { cloneBoundedInput, compileQuery, QueryFilterError } from './query-compiler';
 import { Document, validateObjectAgainstSchema } from './document';
 import { applyNormalizedUpdate, documentToStorage, normalizeUpdatePlan, storageToDocument } from './converter';
 import { Schema } from './schema';
@@ -46,14 +46,26 @@ interface QueryExecutionState<DocType extends object = Record<string, unknown>> 
   readonly update?: UpdateQuery<DocType>;
 }
 
-type LeanQueryResult<Result, Doc extends object> =
-  Result extends ReadonlyArray<unknown>
-    ? LeanResult<Doc>[]
-    : Result extends null
-      ? null
-      : Result extends object | null
-        ? LeanResult<Doc> | Extract<Result, null>
-        : Result;
+/**
+ * BMRX-24: lean only transforms document-producing results.
+ *
+ * Hydrated documents (instances of `Document`) map to `LeanResult<Doc>`;
+ * `UpdateResult`, `DeleteResult`, `number`, and other non-document results
+ * pass through unchanged so `.lean()` cannot corrupt mutation counts.
+ * `null` in a nullable document result is preserved. Projection
+ * partial-result typing remains an explicit documented limitation: a
+ * projected lean record is still typed as the full `LeanResult<Doc>`.
+ */
+export type LeanQueryResult<Result, Doc extends object> =
+  Result extends ReadonlyArray<infer Element>
+    ? Array<LeanDocumentElement<Element, Doc>>
+    : LeanDocumentElement<Result, Doc>;
+
+type LeanDocumentElement<Element, Doc extends object> = Element extends null
+  ? null
+  : Element extends Document<any>
+    ? LeanResult<Doc>
+    : Element;
 
 /**
  * Thenable, chainable query builder returned by model read and mutation methods.
@@ -66,6 +78,7 @@ export class Query<
   ResultType = any,
   DocType extends object = Record<string, unknown>,
   TSchema extends Schema<DocType, any, any, any> = Schema<DocType, any, any, any>,
+  HydratedType = ResultType,
 > implements PromiseLike<ResultType> {
   private filter: FilterQuery<DocType> = {};
   private options: QueryOptions = {};
@@ -86,74 +99,108 @@ export class Query<
   where(field: Extract<keyof DocType, string> | '_id'): this;
   where(field: FilterQuery<DocType>): this;
   where(field: Extract<keyof DocType, string> | '_id' | FilterQuery<DocType>): this {
-    if (typeof field === 'object') Object.assign(this.filter, clonePlain(field));
-    else this.currentField = field;
+    if (field === null) {
+      throw new QueryFilterError(
+        'filter must be a plain object; explicit null is rejected — omit the filter or pass {} for match-all',
+      );
+    }
+    if (typeof field === 'object') {
+      const cloned = cloneBoundedInput(field) as Record<string, any>;
+      for (const [key, value] of Object.entries(cloned)) {
+        const existing = (this.filter as any)[key];
+        if (isFieldOperatorMap(existing) && isFieldOperatorMap(value)) {
+          (this.filter as any)[key] = { ...existing, ...value };
+        } else {
+          (this.filter as any)[key] = value;
+        }
+      }
+    } else this.currentField = field;
     return this;
   }
 
+  /**
+   * Builder filter-merging contract (BMRX-06):
+   * - Different compatible field operators accumulate
+   *   (`.where('n').gte(3).lte(7)` → `{ n: { $gte: 3, $lte: 7 } }`).
+   * - A repeated operator replaces only that operator key
+   *   (`.gt(1).gt(2)` → `{ $gt: 2 }`, other keys retained).
+   * - `equals()` replaces the whole field condition with the cloned value.
+   * - All mutable operands are snapshotted with `cloneBoundedInput`
+   *   (BMRX-04 budget), so later caller mutation cannot change the query.
+   */
   equals(value: any): this {
-    if (this.currentField) this.filter[this.currentField as keyof FilterQuery<DocType>] = value;
+    if (this.currentField) this.filter[this.currentField as keyof FilterQuery<DocType>] = cloneBoundedInput(value);
     return this;
   }
 
   gt(value: any): this {
-    if (this.currentField) (this.filter as any)[this.currentField] = { $gt: value };
+    if (this.currentField) setFieldOperator(this.filter as Record<string, any>, this.currentField, '$gt', value);
     return this;
   }
 
   gte(value: any): this {
-    if (this.currentField) (this.filter as any)[this.currentField] = { $gte: value };
+    if (this.currentField) setFieldOperator(this.filter as Record<string, any>, this.currentField, '$gte', value);
     return this;
   }
 
   lt(value: any): this {
-    if (this.currentField) (this.filter as any)[this.currentField] = { $lt: value };
+    if (this.currentField) setFieldOperator(this.filter as Record<string, any>, this.currentField, '$lt', value);
     return this;
   }
 
   lte(value: any): this {
-    if (this.currentField) (this.filter as any)[this.currentField] = { $lte: value };
+    if (this.currentField) setFieldOperator(this.filter as Record<string, any>, this.currentField, '$lte', value);
     return this;
   }
 
   ne(value: any): this {
-    if (this.currentField) (this.filter as any)[this.currentField] = { $ne: value };
+    if (this.currentField) setFieldOperator(this.filter as Record<string, any>, this.currentField, '$ne', value);
     return this;
   }
 
   in(values: any[]): this {
-    if (this.currentField) (this.filter as any)[this.currentField] = { $in: clonePlain(values) };
+    if (this.currentField) setFieldOperator(this.filter as Record<string, any>, this.currentField, '$in', values);
     return this;
   }
 
   nin(values: any[]): this {
-    if (this.currentField) (this.filter as any)[this.currentField] = { $nin: clonePlain(values) };
+    if (this.currentField) setFieldOperator(this.filter as Record<string, any>, this.currentField, '$nin', values);
     return this;
   }
 
   exists(flag = true): this {
-    if (this.currentField) (this.filter as any)[this.currentField] = { $exists: flag };
+    if (this.currentField)
+      setFieldOperator(this.filter as Record<string, any>, this.currentField, '$exists', cloneBoundedInput(flag));
     return this;
   }
 
+  /**
+   * Request-derived regex filters are rejected at execution time with
+   * `QueryFilterError` (BMRX-03); the builder records the intent but
+   * `exec()` fails before any adapter call. Use equality, range, or
+   * membership operators for request filters instead.
+   */
   regex(pattern: RegExp): this {
-    if (this.currentField)
-      (this.filter as any)[this.currentField] = { $regex: pattern.source, $options: pattern.flags };
+    if (this.currentField) {
+      const target = (this.filter as Record<string, any>)[this.currentField];
+      const next = { $regex: pattern.source, $options: pattern.flags };
+      (this.filter as any)[this.currentField] = isFieldOperatorMap(target) ? { ...target, ...next } : next;
+    }
     return this;
   }
 
   or(conditions: FilterQuery<DocType>[]): this {
-    (this.filter as any).$or = conditions;
+    (this.filter as any).$or = cloneBoundedInput(conditions);
     return this;
   }
 
   and(conditions: FilterQuery<DocType>[]): this {
-    (this.filter as any).$and = conditions;
+    (this.filter as any).$and = cloneBoundedInput(conditions);
     return this;
   }
 
   nor(conditions: FilterQuery<DocType>[]): this {
-    (this.filter as any).$nor = conditions;
+    (this.filter as any).$nor = cloneBoundedInput(conditions);
     return this;
   }
 
@@ -168,21 +215,27 @@ export class Query<
   }
 
   sort(spec: Record<string, 1 | -1 | 'asc' | 'desc'>): this {
-    this.options.sort = clonePlain(spec);
+    this.options.sort = cloneBoundedInput(spec);
     return this;
   }
 
   select(projection: Record<string, 0 | 1> | string): this {
-    this.options.projection = clonePlain(projection);
+    this.options.projection = cloneBoundedInput(projection);
     return this;
   }
 
-  lean(): Query<LeanQueryResult<ResultType, DocType>, DocType, TSchema>;
-  lean(flag: true): Query<LeanQueryResult<ResultType, DocType>, DocType, TSchema>;
-  lean(flag: false): this;
-  lean(flag = true): this | Query<LeanQueryResult<ResultType, DocType>, DocType, TSchema> {
+  /**
+   * BMRX-24: `.lean(true)` maps only document-producing results to
+   * `LeanResult<Doc>`; counts and mutation results are preserved unchanged.
+   * `.lean(false)` restores the pre-lean hydrated result type tracked in
+   * `HydratedType`, so toggling back does not leave a false lean type.
+   */
+  lean(): Query<LeanQueryResult<HydratedType, DocType>, DocType, TSchema, HydratedType>;
+  lean(flag: true): Query<LeanQueryResult<HydratedType, DocType>, DocType, TSchema, HydratedType>;
+  lean(flag: false): Query<HydratedType, DocType, TSchema, HydratedType>;
+  lean(flag = true): Query<any, DocType, TSchema, HydratedType> {
     this.options.lean = flag;
-    return this as this | Query<LeanQueryResult<ResultType, DocType>, DocType, TSchema>;
+    return this as unknown as Query<any, DocType, TSchema, HydratedType>;
   }
 
   setOp(op: QueryOp): this {
@@ -191,16 +244,16 @@ export class Query<
   }
 
   setUpdate(update: UpdateQuery<DocType>): this {
-    this.updateDoc = clonePlain(update);
+    this.updateDoc = cloneBoundedInput(update);
     return this;
   }
 
   setOperationDescriptor(descriptor: QueryOperationDescriptor<DocType>): this {
     const immutable = freezeOperationDescriptor(descriptor);
     this.op = immutable.op;
-    this.filter = clonePlain(immutable.filter ?? {}) as FilterQuery<DocType>;
-    this.options = normalizeOptionsForOperation(immutable.op, clonePlain(immutable.options ?? {}));
-    this.updateDoc = immutable.update === undefined ? undefined : clonePlain(immutable.update);
+    this.filter = cloneBoundedInput(resolveDescriptorFilter(immutable.filter)) as FilterQuery<DocType>;
+    this.options = normalizeOptionsForOperation(immutable.op, cloneBoundedInput(immutable.options ?? {}));
+    this.updateDoc = immutable.update === undefined ? undefined : cloneBoundedInput(immutable.update);
     return this;
   }
 
@@ -216,12 +269,12 @@ export class Query<
     return this.updateDoc;
   }
 
-  clone(): Query<ResultType, DocType, TSchema> {
-    const c = new Query<ResultType, DocType, TSchema>(this.model, this.schema, this.collection);
-    c.filter = clonePlain(this.filter) as FilterQuery<DocType>;
-    c.options = clonePlain(this.options);
+  clone(): Query<ResultType, DocType, TSchema, HydratedType> {
+    const c = new Query<ResultType, DocType, TSchema, HydratedType>(this.model, this.schema, this.collection);
+    c.filter = cloneBoundedInput(this.filter) as FilterQuery<DocType>;
+    c.options = cloneBoundedInput(this.options);
     c.op = this.op;
-    c.updateDoc = clonePlain(this.updateDoc);
+    c.updateDoc = cloneBoundedInput(this.updateDoc);
     c.currentField = this.currentField;
     return c;
   }
@@ -276,9 +329,9 @@ export class Query<
     const op = this.op;
     return {
       op,
-      filter: clonePlain(this.filter) as FilterQuery<DocType>,
-      options: normalizeOptionsForOperation(op, clonePlain(this.options)),
-      update: clonePlain(this.updateDoc),
+      filter: cloneBoundedInput(this.filter) as FilterQuery<DocType>,
+      options: normalizeOptionsForOperation(op, cloneBoundedInput(this.options)),
+      update: cloneBoundedInput(this.updateDoc),
     };
   }
 
@@ -309,7 +362,7 @@ export class Query<
     many: boolean,
     state: QueryExecutionState<DocType>,
   ): Promise<{ matchedCount: number; modifiedCount: number; upsertedCount?: number; upsertedId?: string }> {
-    const plan = normalizeUpdatePlan(state.update, this.schema);
+    const plan = normalizeUpdatePlan(state.update, this.schema, { allowImmutable: state.options.upsert === true });
     const updater = async (doc: RxLikeDoc) => {
       const next = applyNormalizedUpdate(doc, plan, this.schema);
       if (state.options.runValidators) await validateObjectAgainstSchema(next, this.schema);
@@ -333,7 +386,7 @@ export class Query<
     compiled: ReturnType<typeof compileQuery>,
     state: QueryExecutionState<DocType>,
   ): Promise<any | null> {
-    const plan = normalizeUpdatePlan(state.update, this.schema);
+    const plan = normalizeUpdatePlan(state.update, this.schema, { allowImmutable: state.options.upsert === true });
     const result = await this.collection!.findOneAndUpdate(compiled, async (current) => {
       const next = applyNormalizedUpdate(current, plan, this.schema);
       if (state.options.runValidators) await validateObjectAgainstSchema(next, this.schema);
@@ -371,10 +424,14 @@ export class Query<
   ): Promise<RxLikeDoc> {
     const base = equalityFieldsForUpsert(compiled.selector);
     if (!base._id) base._id = createId();
-    const normalized = documentToStorage(applyNormalizedUpdate(base, plan, this.schema), this.schema, {
-      allowId: true,
-      applyDefaults: state.options.setDefaultsOnInsert === true,
-    });
+    const normalized = documentToStorage(
+      applyNormalizedUpdate(base, plan, this.schema, { skipImmutableCheck: true }),
+      this.schema,
+      {
+        allowId: true,
+        applyDefaults: state.options.setDefaultsOnInsert === true,
+      },
+    );
     if (!normalized._id) normalized._id = createId();
     await validateObjectAgainstSchema(normalized, this.schema);
     return this.collection!.insert(normalized);
@@ -425,15 +482,32 @@ function createId(): string {
   return (globalThis.crypto?.randomUUID?.() as string) ?? Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+/**
+ * BMRX-05 direct-boundary policy: an omitted filter (`undefined`) is an
+ * intentional match-all (`{}`), while an explicit `null` filter is rejected
+ * with `QueryFilterError` instead of being silently widened to match-all.
+ */
+function resolveDescriptorFilter<DocType extends object>(filter: QueryOperationDescriptor<DocType>['filter']) {
+  if (filter === undefined) return {};
+  if (filter === null) {
+    throw new QueryFilterError(
+      'filter must be a plain object; explicit null is rejected — omit the filter or pass {} for match-all',
+    );
+  }
+  return filter;
+}
+
 function freezeOperationDescriptor<DocType extends object>(
   descriptor: QueryOperationDescriptor<DocType>,
 ): QueryOperationDescriptor<DocType> {
   return Object.freeze({
     op: descriptor.op,
-    filter: deepFreeze(clonePlain(descriptor.filter ?? {})) as FilterQuery<DocType>,
-    options: deepFreeze(clonePlain(descriptor.options ?? {})) as QueryOptions,
+    filter: deepFreeze(cloneBoundedInput(resolveDescriptorFilter(descriptor.filter))) as FilterQuery<DocType>,
+    options: deepFreeze(cloneBoundedInput(descriptor.options ?? {})) as QueryOptions,
     update:
-      descriptor.update === undefined ? undefined : (deepFreeze(clonePlain(descriptor.update)) as UpdateQuery<DocType>),
+      descriptor.update === undefined
+        ? undefined
+        : (deepFreeze(cloneBoundedInput(descriptor.update)) as UpdateQuery<DocType>),
   });
 }
 
@@ -507,9 +581,25 @@ function equalityFieldsForUpsert(selector: Record<string, any>): Record<string, 
     if (path.startsWith('$')) continue;
     if (!condition || typeof condition !== 'object' || Array.isArray(condition)) continue;
     const keys = Object.keys(condition);
-    if (keys.length === 1 && keys[0] === '$eq') setDottedValue(out, path, clonePlain(condition.$eq));
+    if (keys.length === 1 && keys[0] === '$eq') setDottedValue(out, path, cloneBoundedInput(condition.$eq));
   }
   return out;
+}
+
+function setFieldOperator(target: Record<string, any>, field: string, operator: string, value: any): void {
+  const cloned = cloneBoundedInput(value);
+  const existing = target[field];
+  if (isFieldOperatorMap(existing)) target[field] = { ...existing, [operator]: cloned };
+  else target[field] = { [operator]: cloned };
+}
+
+function isFieldOperatorMap(value: unknown): value is Record<string, any> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (value instanceof Date || value instanceof RegExp) return false;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return false;
+  const keys = Object.keys(value);
+  return keys.length > 0 && keys.every((key) => key.startsWith('$'));
 }
 
 function setDottedValue(target: Record<string, any>, path: string, value: any): void {
@@ -524,20 +614,12 @@ function setDottedValue(target: Record<string, any>, path: string, value: any): 
   cursor[segments[segments.length - 1]] = value;
 }
 
-function clonePlain<T>(value: T): T {
-  if (value === undefined || value === null || typeof value !== 'object') return value;
-  if (value instanceof Date) return new Date(value.getTime()) as T;
-  if (value instanceof RegExp) return new RegExp(value.source, value.flags) as T;
-  if (Array.isArray(value)) return value.map((entry) => clonePlain(entry)) as T;
-  const out: Record<string, any> = Object.create(null);
-  for (const [key, nested] of Object.entries(value as Record<string, any>)) out[key] = clonePlain(nested);
-  return out as T;
-}
-
-function deepFreeze<T>(value: T): T {
+function deepFreeze<T>(value: T, seen: Set<object> = new Set()): T {
   if (!value || typeof value !== 'object' || value instanceof Date || value instanceof RegExp) return value;
+  if (seen.has(value as object)) return value;
+  seen.add(value as object);
   Object.freeze(value);
-  for (const nested of Object.values(value as Record<string, any>)) deepFreeze(nested);
+  for (const nested of Object.values(value as Record<string, any>)) deepFreeze(nested, seen);
   return value;
 }
 

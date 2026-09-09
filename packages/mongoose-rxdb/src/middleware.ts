@@ -39,7 +39,20 @@ export class MiddlewareEngine {
     return acc;
   }
 
-  async runPostError(method: string, target: any, err: Error): Promise<Error> {
+  /**
+   * BMRX-16 error-middleware completion policy (operation-local):
+   * - Each `exec()` invocation runs error hooks at most once, tracked by a
+   *   local completion flag — never by mutating the caller's thrown value.
+   *   Frozen errors, primitive throws, and reused Error instances therefore
+   *   cannot lose handling or suppress a later operation.
+   * - Error-hook return values are ignored (success path is unchanged).
+   * - When an error hook itself throws/rejects, remaining error hooks are
+   *   skipped and the hook failure supersedes as the thrown error. Where the
+   *   hook failure is an extensible object without its own `cause`, the
+   *   original error is attached as `cause` (best effort; frozen/sealed hook
+   *   errors are rethrown unchanged).
+   */
+  async runPostError(method: string, target: any, err: unknown): Promise<unknown> {
     const entries = this.postEntries(method);
     for (const entry of entries) {
       if (entry.options?.errorHandler && typeof entry.fn === 'function') {
@@ -62,14 +75,40 @@ export class MiddlewareEngine {
       if (opts.transformResult) result = opts.transformResult(result);
       result = await this.runPost<T>(method, target, result);
       return result;
-    } catch (e) {
-      await this.runPostError(method, target, e as Error);
-      if (typeof e === 'object' && e !== null) {
-        Object.defineProperty(e, `__mongooseRxdb${method}PostErrorHandled`, { value: true, configurable: true });
+    } catch (original) {
+      // Operation-local completion: run error hooks exactly once for this
+      // exec() invocation without marking the thrown value.
+      try {
+        await this.runPostError(method, target, original);
+      } catch (handlerError) {
+        throw preserveErrorCause(handlerError, original);
       }
-      throw e;
+      throw original;
     }
   }
+}
+
+/**
+ * Best-effort `cause` preservation when error middleware itself fails.
+ * Attaches `original` as `cause` only when the handler failure is an
+ * extensible object without its own `cause`; frozen/sealed objects and
+ * primitives are returned unchanged rather than replaced by a TypeError.
+ */
+export function preserveErrorCause(handlerError: unknown, original: unknown): unknown {
+  if (typeof handlerError === 'object' && handlerError !== null) {
+    try {
+      if ((handlerError as any).cause === undefined && Object.isExtensible(handlerError)) {
+        Object.defineProperty(handlerError, 'cause', {
+          value: original,
+          configurable: true,
+          writable: true,
+        });
+      }
+    } catch {
+      // Frozen/sealed handler errors cannot carry a cause; rethrow as-is.
+    }
+  }
+  return handlerError;
 }
 
 async function invokeSyncOrPromise(

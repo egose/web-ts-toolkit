@@ -4,6 +4,8 @@ Created: 2026-08-23 15:16:58 PDT
 
 Package: `packages/mongoose-rxdb`
 
+Post-completion boundary review: `docs/tasks/20260908-231951-mongoose-rxdb-boundary-follow-up.md` tracks newly reproduced alternate-path gaps. The historical findings and completion evidence below are preserved.
+
 ## Objective
 
 Remediate confirmed data-safety, query-correctness, persistence, concurrency, typing, packaging, performance, and maintainability gaps in `@web-ts-toolkit/mongoose-rxdb`. The end state must fail closed for untrusted filters and requested persistent storage, apply writes atomically through one schema-aware path, expose truthful Mongoose-shaped behavior and TypeScript declarations, isolate RxDB behind a testable persistence boundary, and verify the installed package rather than only repository source imports.

@@ -63,6 +63,44 @@ if (esm.defaultConnection === cjs.defaultConnection) throw new Error('mixed ESM/
   );
 }
 
+function writeLeanErrorContract(consumerDir: string): void {
+  writeProjectFile(
+    consumerDir,
+    'lean-error-contract.mjs',
+    `import { BulkWritePartialFailureError, Connection, MutationPartialFailureError, Schema, WriteNormalizationError } from '@web-ts-toolkit/mongoose-rxdb';
+import { createMemoryDatabase } from '@web-ts-toolkit/mongoose-rxdb/storage';
+
+if (typeof WriteNormalizationError !== 'function') throw new Error('missing WriteNormalizationError root export');
+if (typeof MutationPartialFailureError !== 'function') throw new Error('missing MutationPartialFailureError root export');
+
+const conn = new Connection();
+await conn.connect(() => createMemoryDatabase({ name: 'packed_bmrx24' }));
+const schema = new Schema({ name: String, age: Number });
+const M = conn.model('PackedBmrx24', schema);
+await M.create({ name: 'Ada', age: 36 });
+const lean = await M.find({ name: 'Ada' }).lean(true);
+if (typeof lean[0].save !== 'undefined') throw new Error('packed lean result exposes save');
+const restored = await M.find({ name: 'Ada' }).lean(true).lean(false);
+if (typeof restored[0].save !== 'function') throw new Error('packed lean(false) did not restore hydrated');
+const optLean = await M.findOneAndUpdate({ name: 'Ada' }, { $inc: { age: 1 } }, { lean: true, returnDocument: 'after' });
+if (optLean === null || typeof optLean.save !== 'undefined') throw new Error('packed option-lean result mismatch');
+const missing = await M.findOneAndDelete({ name: 'Nobody' }, { lean: true });
+if (missing !== null) throw new Error('packed option-lean nullability mismatch');
+await M.updateOne({ name: 'Ada' }, { $set: { age: Number.MAX_VALUE } });
+try {
+  await M.updateOne({ name: 'Ada' }, { $inc: { age: Number.MAX_VALUE } });
+  throw new Error('expected overflow rejection did not occur');
+} catch (error) {
+  if (error instanceof Error && error.message === 'expected overflow rejection did not occur') throw error;
+  if (!(error instanceof WriteNormalizationError)) throw new Error('packed WriteNormalizationError narrowing failed');
+}
+if (!(new MutationPartialFailureError('updateMany', {}, new Error('x')) instanceof MutationPartialFailureError)) throw new Error('packed MutationPartialFailureError identity failed');
+if (!(new BulkWritePartialFailureError('insertMany', false, { insertedCount: 0, insertedIds: [], records: [], errors: [] }) instanceof BulkWritePartialFailureError)) throw new Error('packed BulkWritePartialFailureError identity failed');
+await conn.disconnect();
+`,
+  );
+}
+
 function writeReadmeQuickstart(consumerDir: string): void {
   writeProjectFile(
     consumerDir,
@@ -192,10 +230,12 @@ describe('MRX-01 packed consumer harness', () => {
   it('executes root and storage named/default imports in ESM and CommonJS from a clean install', async () => {
     const consumerDir = await installPackedConsumer();
     writeRuntimeConsumers(consumerDir);
+    writeLeanErrorContract(consumerDir);
 
     await runChecked('node', ['consumer.mjs'], { cwd: consumerDir, timeoutMs: 10_000 });
     await runChecked('node', ['consumer.cjs'], { cwd: consumerDir, timeoutMs: 10_000 });
     await runChecked('node', ['mixed-module-contract.mjs'], { cwd: consumerDir, timeoutMs: 10_000 });
+    await runChecked('node', ['lean-error-contract.mjs'], { cwd: consumerDir, timeoutMs: 20_000 });
   }, 90_000);
 
   it('compiles and executes the README quickstart from the packed package', async () => {

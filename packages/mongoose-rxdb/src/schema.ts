@@ -95,6 +95,7 @@ export class Schema<
     this.paths.clear();
     this.childSchemas = [];
     for (const [name, prop] of Object.entries(this.definition as Record<string, any>)) {
+      assertValidPathName(name);
       this.paths.set(name, compilePath(name, prop, this));
     }
     this.compiled = undefined;
@@ -104,11 +105,26 @@ export class Schema<
     return this.paths.get(name);
   }
 
+  /**
+   * Adds top-level paths to the schema.
+   *
+   * BMRX-14: the `prefix` argument is not supported. Prefixed `add()` would
+   * create literal dotted path names (`profile.name`) that disagree across
+   * casting, storage conversion, validation, and generated schemas, so any
+   * non-empty prefix is rejected with `SchemaConfigurationError`. Define
+   * nested structure with an explicit child `Schema` instead.
+   * Dotted keys are likewise rejected; only top-level field names are accepted.
+   */
   add(obj: SchemaDefinition, prefix = ''): this {
     this.assertNotLocked('add paths');
+    if (prefix) {
+      throw new SchemaConfigurationError(
+        'Schema.add() with a prefix is not supported because it creates literal dotted fields that disagree with nested validation and storage. Define nested structure with an explicit child Schema instead.',
+      );
+    }
     for (const [k, v] of Object.entries(obj as Record<string, any>)) {
-      const full = prefix ? `${prefix}.${k}` : k;
-      this.paths.set(full, compilePath(full, v, this));
+      assertValidPathName(k);
+      this.paths.set(k, compilePath(k, v, this));
     }
     this.compiled = undefined;
     return this;
@@ -205,10 +221,21 @@ export class Schema<
   }
 
   compileForModel(): this {
+    // BMRX-12: one authoritative immutable structural representation.
+    // Structural state is paths (including path options/arrayItemOptions),
+    // schema options, definition top level, child schemas/subSchemas, virtuals,
+    // and the cached compiled representation. Freezing both the source and the
+    // snapshot keeps later structural edits rejected (not silently isolated)
+    // while the snapshot stays the runtime authority. Nonstructural behavior
+    // (methods, statics, pre/post hooks, queryHelpers) is intentionally left
+    // mutable so existing hook/method registration keeps working.
     this.locked = true;
+    this.getCompiledSchema();
     const snapshot = this.clone();
     snapshot.locked = true;
     snapshot.getCompiledSchema();
+    freezeStructuralSchema(snapshot);
+    freezeStructuralSchema(this);
     return snapshot;
   }
 
@@ -248,6 +275,17 @@ function compilePath(name: string, prop: any, parent: Schema<any, any, any, any>
     validatePathOptions(name, prop);
     options = prop as SchemaTypeOptions;
     typeDef = prop.type;
+  } else if (isInlineNestedDefinition(prop)) {
+    // BMRX-14: inline nested plain objects (for example
+    // `{ profile: { name: String } }`) would compile to an unstructured
+    // `object` without child casts, required checks, or generated properties,
+    // contradicting validation and storage. Reject early instead of silently
+    // accepting a shape that bypasses child semantics. Use an explicit child
+    // `Schema` (`{ profile: childSchema }` or `{ profile: { type: childSchema } }`)
+    // or explicit mixed (`{ profile: { type: Object } }`).
+    throw new SchemaConfigurationError(
+      `Inline nested definition for schema path "${name}" is not supported. Use an explicit child Schema (for example "{ ${name}: childSchema }") or explicit mixed ("{ ${name}: { type: Object } }").`,
+    );
   }
 
   const { type, arrayItemType, arrayItemOptions, subSchema } = detectType(typeDef, parent);
@@ -293,7 +331,18 @@ function detectType(
   if (typeDef === Boolean) return { type: 'boolean' };
   if (typeDef === Date || typeDef === Date) return { type: 'date' };
   if (typeDef === Object || typeDef === (Object as any)) return { type: 'mixed' };
-  if (typeof typeDef === 'object' && typeDef !== null) return { type: 'object' };
+  if (typeof typeDef === 'object' && typeDef !== null) {
+    // BMRX-14: a plain object in `type` position (for example
+    // `{ profile: { type: { name: String } } }`) has the same unstructured
+    // bypass as an inline nested definition. Reject instead of emitting an
+    // unshaped `object` that skips child casts and required checks.
+    if (isInlineNestedDefinition(typeDef)) {
+      throw new SchemaConfigurationError(
+        'Inline nested definition in schema "type" position is not supported. Use an explicit child Schema or explicit mixed ("{ type: Object }").',
+      );
+    }
+    return { type: 'object' };
+  }
   return { type: 'mixed' };
 }
 
@@ -376,10 +425,41 @@ function primitiveItemSchema(type: PrimitiveType | undefined, target: 'public' |
   }
 }
 
+/**
+ * BMRX-14 static required policy.
+ *
+ * Document validation evaluates `required` functions dynamically against the
+ * owning document (root paths) or subdocument (nested paths), so absence is
+ * allowed whenever the function returns false. A static JSON Schema / RxDB
+ * `required` list cannot represent that condition, so function-valued
+ * `required` (including `[fn, message]` form) is never emitted as an
+ * unconditional storage requirement. Only static truthy requirements appear
+ * in `required`.
+ */
 function isPathRequired(path: CompiledPath): boolean {
   const req = path.options.required;
-  if (Array.isArray(req)) return !!req[0];
-  return typeof req === 'function' ? true : !!req;
+  if (Array.isArray(req)) {
+    const first = req[0];
+    if (typeof first === 'function') return false;
+    return !!first;
+  }
+  if (typeof req === 'function') return false;
+  return !!req;
+}
+
+function isInlineNestedDefinition(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (value instanceof Schema || value instanceof Date || value instanceof RegExp) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function assertValidPathName(name: string): void {
+  if (typeof name !== 'string' || name.length === 0 || name.includes('.')) {
+    throw new SchemaConfigurationError(
+      `Unsupported schema path "${name}": dotted or empty path names are not supported. Define nested structure with an explicit child Schema.`,
+    );
+  }
 }
 
 function validateSchemaOptions(options: Record<string, any>): void {
@@ -438,6 +518,7 @@ function cloneHook<T extends { fn: any; options?: any }>(hook: T): T {
 }
 
 function cloneDefinition<T>(value: T): T {
+  if (value instanceof Date) return new Date(value.getTime()) as T;
   if (value instanceof Schema) return value.clone() as T;
   if (Array.isArray(value)) return value.map(cloneDefinition) as T;
   if (value && typeof value === 'object') {
@@ -450,6 +531,7 @@ function cloneDefinition<T>(value: T): T {
 }
 
 function clonePlain<T>(value: T): T {
+  if (value instanceof Date) return new Date(value.getTime()) as T;
   if (Array.isArray(value)) return value.map(clonePlain) as T;
   if (value && typeof value === 'object') {
     if (value instanceof RegExp) return new RegExp(value.source, value.flags) as T;
@@ -460,11 +542,111 @@ function clonePlain<T>(value: T): T {
   return value;
 }
 
-function deepFreeze<T>(value: T): T {
+function deepFreeze<T>(value: T, seen: Set<object> = new Set()): T {
   if (!value || typeof value !== 'object') return value;
+  if (value instanceof RegExp || value instanceof Date) return value;
+  // BMRX-12: never freeze live Schema instances via the compiled
+  // representation. Structural freezing is owned by freezeStructuralSchema
+  // (which keeps methods/hooks mutable); deepFreeze only handles the plain
+  // JSON-ish compiled payload and must not make schema maps non-extensible
+  // before throwing mutators are installed.
+  if (value instanceof Schema) return value;
+  if (seen.has(value as object)) return value;
+  seen.add(value as object);
+  if (value instanceof Map) {
+    // Live path maps are frozen by freezeStructuralSchema (throwing mutators
+    // + frozen entries). Object.freeze(map) would only make the map
+    // non-extensible and block installing those mutators, so skip it here.
+    return value;
+  }
+  if (value instanceof Set) {
+    Object.freeze(value);
+    for (const v of value as Set<unknown>) deepFreeze(v as unknown, seen);
+    return value;
+  }
   Object.freeze(value);
-  for (const nested of Object.values(value as Record<string, any>)) deepFreeze(nested);
+  for (const nested of Object.values(value as Record<string, any>)) deepFreeze(nested, seen);
   return value;
+}
+
+/**
+ * BMRX-12 structural freeze.
+ *
+ * Makes the compiled (and source-after-compile) schema genuinely immutable
+ * for structure: path entries, path options/enum, array item options,
+ * schema options, definition top level, child schemas, virtuals, and the
+ * paths map mutators. `Object.freeze` alone neither blocks `Map.set/delete`
+ * nor freezes entries, so map mutators are replaced with throwing stubs and
+ * property reassignment (`schema.paths = ...`, `schema.options = ...`) is
+ * locked via non-writable instance properties. Methods, statics, hooks, and
+ * queryHelpers stay mutable as intended nonstructural behavior.
+ */
+function freezeStructuralSchema(schema: Schema<any, any, any, any>, seen: Set<object> = new Set()): void {
+  if (seen.has(schema)) return;
+  seen.add(schema);
+  for (const [, path] of schema.paths) freezeCompiledPath(path, seen);
+  freezeMapMutators(schema.paths, 'schema paths');
+  for (const [, virtual] of schema.virtuals) {
+    if (virtual && typeof virtual === 'object') {
+      if ((virtual as any).options && typeof (virtual as any).options === 'object') {
+        Object.freeze((virtual as any).options);
+      }
+      Object.freeze(virtual);
+    }
+  }
+  freezeMapMutators(schema.virtuals as unknown as Map<string, any>, 'schema virtuals');
+  if (schema.options && typeof schema.options === 'object') Object.freeze(schema.options);
+  if (schema.definition && typeof schema.definition === 'object') Object.freeze(schema.definition);
+  if (Array.isArray(schema.childSchemas)) {
+    for (const entry of schema.childSchemas) {
+      const child = (entry as { schema?: unknown }).schema;
+      if (child instanceof Schema) freezeStructuralSchema(child, seen);
+    }
+    Object.freeze(schema.childSchemas);
+  }
+  if ((schema as unknown as { compiled?: unknown }).compiled)
+    deepFreeze((schema as unknown as { compiled?: unknown }).compiled, seen);
+  lockSchemaProperty(schema, 'paths');
+  lockSchemaProperty(schema, 'options');
+  lockSchemaProperty(schema, 'definition');
+  lockSchemaProperty(schema, 'childSchemas');
+  lockSchemaProperty(schema, 'virtuals');
+  lockSchemaProperty(schema as object, 'compiled');
+}
+
+function freezeCompiledPath(path: CompiledPath, seen: Set<object>): void {
+  if (!path || typeof path !== 'object' || seen.has(path as object)) return;
+  seen.add(path as object);
+  if (path.options && typeof path.options === 'object') {
+    const enumValue = (path.options as { enum?: unknown }).enum;
+    if (Array.isArray(enumValue)) Object.freeze(enumValue);
+    Object.freeze(path.options);
+  }
+  if (path.arrayItemOptions && typeof path.arrayItemOptions === 'object') {
+    const enumValue = (path.arrayItemOptions as { enum?: unknown }).enum;
+    if (Array.isArray(enumValue)) Object.freeze(enumValue);
+    Object.freeze(path.arrayItemOptions);
+  }
+  const sub = (path as { subSchema?: unknown }).subSchema;
+  if (sub instanceof Schema) freezeStructuralSchema(sub, seen);
+  Object.freeze(path);
+}
+
+function freezeMapMutators(map: Map<string, any>, label: string): void {
+  const existing = Object.getOwnPropertyDescriptor(map, 'set');
+  if (existing && existing.configurable === false) return;
+  const reject = () => {
+    throw new SchemaConfigurationError(`Cannot modify ${label} after the schema has been compiled into a model.`);
+  };
+  Object.defineProperty(map, 'set', { value: reject, writable: false, configurable: false, enumerable: false });
+  Object.defineProperty(map, 'delete', { value: reject, writable: false, configurable: false, enumerable: false });
+  Object.defineProperty(map, 'clear', { value: reject, writable: false, configurable: false, enumerable: false });
+}
+
+function lockSchemaProperty(schema: object, prop: string): void {
+  const descriptor = Object.getOwnPropertyDescriptor(schema, prop);
+  if (!descriptor || descriptor.configurable === false) return;
+  Object.defineProperty(schema, prop, { writable: false, configurable: false });
 }
 
 export default Schema;
