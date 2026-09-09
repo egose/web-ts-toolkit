@@ -4,6 +4,8 @@ Created: 2026-08-23 12:39:59 PDT
 
 Package: `packages/access-router-runtime`
 
+Follow-up review: [20260908-141154-access-router-runtime-boundary-follow-up.md](20260908-141154-access-router-runtime-boundary-follow-up.md) records newly identified lifecycle, ownership, config, and public-contract edge cases. The completion evidence below remains the historical result of this remediation phase.
+
 ## Objective
 
 Remediate confirmed portability, startup ordering, database ownership, lifecycle, route composition, validation, packaging, and maintainability gaps in `@web-ts-toolkit/access-router-runtime`. The end state must produce self-contained build artifacts, evaluate trusted config only after CLI validation and environment preparation, isolate resources owned by each runtime, complete mandatory cleanup under failure and concurrency, preserve `express-runtime` middleware semantics, and keep runtime behavior, public types, documentation, and packed output aligned.

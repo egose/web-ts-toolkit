@@ -13,6 +13,7 @@ import {
   type RotateSessionInput,
 } from '@web-ts-toolkit/express-oidc-vault';
 import type { ClientSession, Collection, Db, Filter } from 'mongodb';
+import { isDeepStrictEqual } from 'node:util';
 import {
   authorizationDocumentToRecord,
   authorizationTransactionToDocument,
@@ -49,6 +50,22 @@ const toLogicalSessionDeleteInput = (
 
 const isDuplicateKeyError = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && 'code' in error && error.code === 11000;
+
+const isSameSessionDocumentGeneration = (current: SessionDocument, expected: SessionDocument): boolean =>
+  current._id === expected._id &&
+  (current.logicalSessionId ?? current._id) === (expected.logicalSessionId ?? expected._id) &&
+  current.subject === expected.subject &&
+  current.providerSessionId === expected.providerSessionId &&
+  isDeepStrictEqual(current.provider, expected.provider) &&
+  current.refreshToken === expected.refreshToken &&
+  current.idToken === expected.idToken &&
+  current.accessToken === expected.accessToken &&
+  current.scope === expected.scope &&
+  (current.expiresAt?.getTime() ?? null) === (expected.expiresAt?.getTime() ?? null) &&
+  current.createdAt === expected.createdAt &&
+  current.updatedAt === expected.updatedAt &&
+  isDeepStrictEqual(current.user, expected.user) &&
+  isDeepStrictEqual(current.metadata, expected.metadata);
 
 export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
   private readonly db: Db;
@@ -302,11 +319,22 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
   }
 
   private async rotateSessionWithTransaction(input: RotateSessionInput): Promise<OidcVaultSession> {
+    const { previous, nextSession } = await this.normalizeRotatedSession(input);
+    const expectedSource = sessionToDocument(previous);
     const session = this.db.client.startSession();
-    const nextSession = await this.normalizeRotatedSession(input);
 
     try {
       await session.withTransaction(async () => {
+        const current = await this.sessions.findOne({ _id: input.sessionId }, { session });
+
+        if (!current || isExpired(current, this.now())) {
+          throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
+        }
+
+        if (!isSameSessionDocumentGeneration(current, expectedSource)) {
+          throw new OidcVaultStoreConflictError('OIDC vault session changed before rotation could commit.');
+        }
+
         await this.sessions.insertOne(sessionToDocument(nextSession), { session });
 
         const deleteResult = await this.sessions.deleteOne({ _id: input.sessionId }, { session });
@@ -346,7 +374,9 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
     );
   }
 
-  private async normalizeRotatedSession(input: RotateSessionInput): Promise<OidcVaultSession> {
+  private async normalizeRotatedSession(
+    input: RotateSessionInput,
+  ): Promise<{ previous: OidcVaultSession; nextSession: OidcVaultSession }> {
     const previous = await this.getSession(input.sessionId);
 
     if (!previous) {
@@ -354,8 +384,11 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
     }
 
     return {
-      ...input.nextSession,
-      logicalSessionId: input.nextSession.logicalSessionId ?? previous.logicalSessionId ?? input.sessionId,
+      previous,
+      nextSession: {
+        ...input.nextSession,
+        logicalSessionId: input.nextSession.logicalSessionId ?? previous.logicalSessionId ?? input.sessionId,
+      },
     };
   }
 

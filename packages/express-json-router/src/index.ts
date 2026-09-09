@@ -374,16 +374,55 @@ class JsonRouterBase {
     return this._router;
   }
 
+  /**
+   * Native `param` delegation to the underlying Express router.
+   *
+   * Boundary: `param` callbacks are native Express callbacks, not JSON-wrapped
+   * registrations. Thrown/rejected `param` failures reach application error
+   * middleware; they are not JSON-formatted by this router's response handler.
+   * Returns the underlying native router (`router.original`), not this
+   * `JsonRouter`, so chaining continues with native Express registration.
+   * Nothing registered here appears in `getEndpoints()`.
+   */
   param(...args: Parameters<ExpressRouter['param']>): ReturnType<ExpressRouter['param']> {
     return this._router.param(...args);
   }
 
+  /**
+   * Native `use` delegation to the underlying Express router.
+   *
+   * Boundary: `use` callbacks are native Express middleware, not JSON-wrapped
+   * registrations. Thrown/rejected `use` failures and explicit `next(error)`
+   * reach application error middleware; they are not JSON-formatted by this
+   * router's response handler. `basePath` is not prepended here, so pass an
+   * explicit mount path for scoped middleware. Native middleware mounted
+   * without a path runs before JSON routes on the same underlying router in
+   * mount order. Returns the underlying native router (`router.original`),
+   * not this `JsonRouter`, so `.use(...).get(...)` continues with native
+   * Express registration. Use separate `router.get(...)` statements for JSON
+   * routes. Nothing registered here appears in `getEndpoints()`.
+   *
+   * @example
+   * const router = new JsonRouter('/api');
+   * router.use('/', authMiddleware);
+   * router.get('/health', () => ({ ok: true }));
+   */
   use(...args: Parameters<ExpressRouter['use']>): ReturnType<ExpressRouter['use']> {
     return this._router.use(...args);
   }
 
   /**
    * Starts a fluent route builder for one path.
+   *
+   * Retained contract (independent-registration sugar): each builder method
+   * call is exactly equivalent to a direct `router.METHOD(path, ...)` call.
+   * Every call creates a separate native route with its own response-handler
+   * wrapper (including constructor-middleware copies) and its own
+   * `getEndpoints()` entry in call order. This is not native
+   * `express.Router().route(path)` grouping, so `next('route')` from an
+   * `.all()` guard cannot skip a later builder registration, HEAD requests
+   * fall back to the separately registered GET handler, and constructor
+   * middleware re-runs for each chained registration crossed by `next()`.
    * Registered handlers still pass through this router's response handler.
    */
   route(path: string): JsonRouteBuilder {
@@ -413,7 +452,7 @@ class JsonRouterBase {
     });
   }
 
-  /** Returns a defensive copy of registered endpoint method/path metadata. */
+  /** Returns a defensive copy of registered JSON endpoint method/path metadata. Native `use`/`param`/router registrations are not recorded. */
   getEndpoints(): JsonRouterEndpoint[] {
     return this._endpoints.map((endpoint) => ({ ...endpoint }));
   }

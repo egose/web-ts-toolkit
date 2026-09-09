@@ -22,10 +22,19 @@ describe('access-router-runtime CLI utils', () => {
   });
 
   it('does not embed tsconfig path in the generated local runtime entry', () => {
-    const entry = generateRuntimeEntryFromConfig('./src/access-router.config.ts', './tsconfig.runtime.json');
+    const entry = generateRuntimeEntryFromConfig('./src/access-router.config.ts');
 
     expect(entry).not.toContain('tsconfigPath');
     expect(entry).not.toContain('tsconfig.runtime.json');
+  });
+
+  it('uses an absolute import with a file-name-only diagnostic label for absolute targets', () => {
+    const entry = generateRuntimeEntryFromConfig('/tmp/machine-root/src/access-router.config.ts');
+
+    expect(entry).toContain('import * as configModule from "/tmp/machine-root/src/access-router.config.ts";');
+    expect(entry).toContain('normalizeAccessRouterRuntimeConfigExport(configModule, "access-router.config.ts")');
+    const diagnosticLine = entry.split('\n').find((line) => line.includes('normalizeAccessRouterRuntimeConfigExport'));
+    expect(diagnosticLine).not.toContain('/tmp/machine-root');
   });
 
   it('generates a serverless entry that exports a handler directly from config', () => {
@@ -39,17 +48,27 @@ describe('access-router-runtime CLI utils', () => {
   });
 
   it('does not embed tsconfig path in the generated serverless entry', () => {
-    const entry = generateServerlessEntryFromConfig('./src/access-router.config.ts', './tsconfig.runtime.json');
+    const entry = generateServerlessEntryFromConfig('./src/access-router.config.ts');
 
     expect(entry).not.toContain('tsconfigPath');
     expect(entry).not.toContain('tsconfig.runtime.json');
+  });
+
+  it('uses an absolute import with a file-name-only diagnostic label for absolute serverless targets', () => {
+    const entry = generateServerlessEntryFromConfig('/tmp/machine-root/src/access-router.config.ts');
+
+    expect(entry).toContain('import * as configModule from "/tmp/machine-root/src/access-router.config.ts";');
+    expect(entry).toContain('normalizeAccessRouterRuntimeConfigExport(configModule, "access-router.config.ts")');
+    const diagnosticLine = entry.split('\n').find((line) => line.includes('normalizeAccessRouterRuntimeConfigExport'));
+    expect(diagnosticLine).not.toContain('/tmp/machine-root');
   });
 
   it('safely represents generated static import paths', () => {
     const entry = generateRuntimeEntryFromConfig('./config dir/access config "é".ts');
 
     expect(entry).toContain('access config \\"é\\".ts');
-    expect(entry).toContain('"./config dir/access config \\"é\\".ts"');
+    expect(entry).toContain('/config dir/access config \\"é\\".ts"');
+    expect(entry).toContain('normalizeAccessRouterRuntimeConfigExport(configModule, "access config \\"é\\".ts")');
   });
 
   it('normalizes bare dev --watch to the supervisor default without reading config', () => {
@@ -79,6 +98,25 @@ describe('access-router-runtime CLI utils', () => {
       '--watch',
     ]);
     expect(normalizeAccessRouterRuntimeArgv(['dev', '--', '--watch'])).toEqual(['dev', '--', '--watch']);
+  });
+
+  it('keeps distinctive dev metadata out of CLI watch normalization', async () => {
+    const { normalizeAccessRouterRuntimeConfigExport } = await import('../src/index');
+    // Distinctive config metadata is accepted as ignored metadata ...
+    const config = normalizeAccessRouterRuntimeConfigExport(
+      { default: { dev: { watch: ['./should-not-watch'], ext: ['distinctive-ext'], delay: 12345 } } },
+      'generated-entry.js',
+    );
+    expect(config.dev).toEqual({ watch: ['./should-not-watch'], ext: ['distinctive-ext'], delay: 12345 });
+    // ... while watch supervision comes only from explicit CLI flags.
+    expect(normalizeAccessRouterRuntimeArgv(['dev', './config.ts', '--watch'])).toEqual([
+      'dev',
+      './config.ts',
+      '--watch=.',
+    ]);
+    expect(
+      normalizeAccessRouterRuntimeArgv(['dev', './config.ts', '--watch', './src', '--ext', 'ts', '--delay', '500']),
+    ).toEqual(['dev', './config.ts', '--watch', './src', '--ext', 'ts', '--delay', '500']);
   });
 
   it('publishes a tsconfig subpath export', () => {

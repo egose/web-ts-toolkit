@@ -42,6 +42,52 @@ const isExpiredRecord = (value: ExpirableRecord, now: number): boolean =>
 
 const EXPIRY_SWEEP_BATCH_SIZE = 64;
 
+/**
+ * Positional sweep state for one record map (SVH-04).
+ *
+ * Each opportunistic sweep inspects at most `EXPIRY_SWEEP_BATCH_SIZE`
+ * snapshot slots starting at `position`, so a nominal sweep never walks a
+ * prefix proportional to the cursor. When `position` reaches the end of the
+ * snapshot, the next sweep rebuilds it once from the live map
+ * (`O(map.size)`, amortized over the `ceil(size / batch)` sweeps of a full
+ * pass) and restarts at 0. Snapshot staleness is harmless: deleted keys are
+ * skipped via a live `map.get`, re-inserted keys are still checked, and keys
+ * added after the snapshot was taken are picked up on the next pass, so
+ * expired records are still eventually reclaimed without background timers.
+ */
+type MapSweepState = {
+  keys: string[];
+  position: number;
+};
+
+/**
+ * Aggregate operation counters for sweep work (SVH-04).
+ *
+ * `inspectedKeys` / `staleSnapshotSlots` / `snapshotRebuilds` measure the
+ * same-map batched traversal, while `aliasSessionVisits` /
+ * `aliasEntryVisits` measure the nested alias/lineage cleanup separately.
+ * The nested cleanup is intentionally NOT batch-bounded (see
+ * `removeAliasesForInactiveLogicalSession`); these counters keep that cost
+ * visible instead of letting a capped yield imply constant-time cleanup.
+ */
+type MemoryStoreSweepWork = {
+  inspectedKeys: number;
+  staleSnapshotSlots: number;
+  snapshotRebuilds: number;
+  aliasSessionVisits: number;
+  aliasEntryVisits: number;
+};
+
+const createMapSweepState = (): MapSweepState => ({ keys: [], position: 0 });
+
+const createMemoryStoreSweepWork = (): MemoryStoreSweepWork => ({
+  inspectedKeys: 0,
+  staleSnapshotSlots: 0,
+  snapshotRebuilds: 0,
+  aliasSessionVisits: 0,
+  aliasEntryVisits: 0,
+});
+
 const matchesProviderScope = (
   session: OidcVaultSession,
   input: DeleteSessionsBySubjectInput | DeleteSessionsByProviderSessionIdInput,
@@ -75,11 +121,12 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
   private readonly rotatedSessionAliases = new Map<string, RotatedSessionAlias>();
   private readonly backchannelLogoutTokenJtis = new Map<string, ExpirableRecord>();
   private readonly now: () => number;
-  private authorizationTransactionSweepCursor: string | undefined;
-  private exchangeCodeSweepCursor: string | undefined;
-  private sessionSweepCursor: string | undefined;
-  private rotatedSessionAliasSweepCursor: string | undefined;
-  private backchannelLogoutTokenJtiSweepCursor: string | undefined;
+  private readonly authorizationTransactionSweep = createMapSweepState();
+  private readonly exchangeCodeSweep = createMapSweepState();
+  private readonly sessionSweep = createMapSweepState();
+  private readonly rotatedSessionAliasSweep = createMapSweepState();
+  private readonly backchannelLogoutTokenJtiSweep = createMapSweepState();
+  private readonly sweepWork = createMemoryStoreSweepWork();
 
   constructor(options: MemoryOidcVaultStoreOptions = {}) {
     this.now = options.now ?? (() => Date.now());
@@ -88,21 +135,13 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
   async createAuthorizationTransaction(input: AuthorizationTransactionInput): Promise<void> {
     const now = this.now();
 
-    this.authorizationTransactionSweepCursor = this.pruneMapBatch(
-      this.authorizationTransactions,
-      now,
-      this.authorizationTransactionSweepCursor,
-    );
+    this.pruneMapBatch(this.authorizationTransactions, this.authorizationTransactionSweep, now);
     this.authorizationTransactions.set(input.state, cloneRecord(input));
   }
 
   async consumeAuthorizationTransaction(state: string): Promise<AuthorizationTransaction | null> {
     const now = this.now();
-    this.authorizationTransactionSweepCursor = this.pruneMapBatch(
-      this.authorizationTransactions,
-      now,
-      this.authorizationTransactionSweepCursor,
-    );
+    this.pruneMapBatch(this.authorizationTransactions, this.authorizationTransactionSweep, now);
 
     const record = this.authorizationTransactions.get(state);
 
@@ -122,14 +161,14 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
   async createExchangeCode(input: ExchangeCodeRecordInput): Promise<void> {
     const now = this.now();
 
-    this.exchangeCodeSweepCursor = this.pruneMapBatch(this.exchangeCodes, now, this.exchangeCodeSweepCursor);
+    this.pruneMapBatch(this.exchangeCodes, this.exchangeCodeSweep, now);
     this.exchangeCodes.set(input.code, cloneRecord(input));
   }
 
   async consumeExchangeCode(code: string): Promise<ExchangeCodeRecord | null> {
     const now = this.now();
 
-    this.exchangeCodeSweepCursor = this.pruneMapBatch(this.exchangeCodes, now, this.exchangeCodeSweepCursor);
+    this.pruneMapBatch(this.exchangeCodes, this.exchangeCodeSweep, now);
 
     const record = this.exchangeCodes.get(code);
 
@@ -149,11 +188,7 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
   async createSession(input: OidcVaultSessionInput): Promise<OidcVaultSession> {
     const timestamp = this.now();
     this.pruneSessionsBatch(timestamp);
-    this.rotatedSessionAliasSweepCursor = this.pruneMapBatch(
-      this.rotatedSessionAliases,
-      timestamp,
-      this.rotatedSessionAliasSweepCursor,
-    );
+    this.pruneMapBatch(this.rotatedSessionAliases, this.rotatedSessionAliasSweep, timestamp);
     const session: OidcVaultSession = {
       ...cloneRecord(input),
       logicalSessionId: input.logicalSessionId ?? input.sessionId,
@@ -232,11 +267,7 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
   async deleteSession(sessionId: string): Promise<void> {
     const now = this.now();
     this.pruneSessionsBatch(now);
-    this.rotatedSessionAliasSweepCursor = this.pruneMapBatch(
-      this.rotatedSessionAliases,
-      now,
-      this.rotatedSessionAliasSweepCursor,
-    );
+    this.pruneMapBatch(this.rotatedSessionAliases, this.rotatedSessionAliasSweep, now);
 
     const session = this.sessions.get(sessionId);
 
@@ -288,11 +319,7 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
 
   async consumeBackchannelLogoutTokenJti(input: ConsumeBackchannelLogoutTokenJtiInput): Promise<boolean> {
     const now = this.now();
-    this.backchannelLogoutTokenJtiSweepCursor = this.pruneMapBatch(
-      this.backchannelLogoutTokenJtis,
-      now,
-      this.backchannelLogoutTokenJtiSweepCursor,
-    );
+    this.pruneMapBatch(this.backchannelLogoutTokenJtis, this.backchannelLogoutTokenJtiSweep, now);
 
     if (!Number.isFinite(input.expiresAt) || input.expiresAt <= now) {
       return false;
@@ -362,77 +389,103 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
     return deleted;
   }
 
-  private pruneMapBatch<T extends ExpirableRecord>(
-    map: Map<string, T>,
-    now: number,
-    cursor: string | undefined,
-  ): string | undefined {
-    let inspected = 0;
-    let nextCursor: string | undefined;
+  private pruneMapBatch<T extends ExpirableRecord>(map: Map<string, T>, sweep: MapSweepState, now: number): void {
+    if (map.size === 0) {
+      sweep.keys = [];
+      sweep.position = 0;
+      return;
+    }
 
-    for (const [key, value] of this.entriesAfterCursor(map, cursor)) {
+    if (sweep.position >= sweep.keys.length) {
+      this.rebuildSweepSnapshot(map, sweep);
+    }
+
+    let visited = 0;
+
+    while (visited < EXPIRY_SWEEP_BATCH_SIZE) {
+      if (sweep.position >= sweep.keys.length) {
+        // The snapshot is exhausted but the map grew while it was being
+        // consumed, so unseen keys exist. Rebuild once and keep consuming
+        // within the same batch; otherwise stop until the next operation.
+        // The `visited` cap still bounds this sweep, and revisits after a
+        // rebuild are harmless live `map.get` checks.
+        if (map.size <= sweep.keys.length) {
+          break;
+        }
+
+        this.rebuildSweepSnapshot(map, sweep);
+      }
+
+      const key = sweep.keys[sweep.position] as string;
+      sweep.position += 1;
+      visited += 1;
+
+      const value = map.get(key);
+
+      if (value === undefined) {
+        this.sweepWork.staleSnapshotSlots += 1;
+        continue;
+      }
+
+      this.sweepWork.inspectedKeys += 1;
+
       if (isExpiredRecord(value, now)) {
         map.delete(key);
       }
-
-      inspected += 1;
-      nextCursor = key;
-
-      if (inspected >= EXPIRY_SWEEP_BATCH_SIZE) {
-        return nextCursor;
-      }
     }
+  }
 
-    return undefined;
+  private rebuildSweepSnapshot<T>(map: Map<string, T>, sweep: MapSweepState): void {
+    sweep.keys = Array.from(map.keys());
+    sweep.position = 0;
+    this.sweepWork.snapshotRebuilds += 1;
   }
 
   private pruneSessionsBatch(now: number): void {
-    const expiredLogicalSessionIds = new Set<string>();
-    let inspected = 0;
+    const sweep = this.sessionSweep;
 
-    for (const [sessionId, session] of this.entriesAfterCursor(this.sessions, this.sessionSweepCursor)) {
+    if (this.sessions.size === 0) {
+      sweep.keys = [];
+      sweep.position = 0;
+      return;
+    }
+
+    if (sweep.position >= sweep.keys.length) {
+      this.rebuildSweepSnapshot(this.sessions, sweep);
+    }
+
+    const expiredLogicalSessionIds = new Set<string>();
+    let visited = 0;
+
+    while (visited < EXPIRY_SWEEP_BATCH_SIZE) {
+      if (sweep.position >= sweep.keys.length) {
+        if (this.sessions.size <= sweep.keys.length) {
+          break;
+        }
+
+        this.rebuildSweepSnapshot(this.sessions, sweep);
+      }
+
+      const sessionId = sweep.keys[sweep.position] as string;
+      sweep.position += 1;
+      visited += 1;
+
+      const session = this.sessions.get(sessionId);
+
+      if (session === undefined) {
+        this.sweepWork.staleSnapshotSlots += 1;
+        continue;
+      }
+
+      this.sweepWork.inspectedKeys += 1;
+
       if (isExpiredRecord(session, now)) {
         expiredLogicalSessionIds.add(session.logicalSessionId ?? session.sessionId);
         this.sessions.delete(sessionId);
       }
-
-      inspected += 1;
-      this.sessionSweepCursor = sessionId;
-
-      if (inspected >= EXPIRY_SWEEP_BATCH_SIZE) {
-        this.removeAliasesForInactiveLogicalSessions(expiredLogicalSessionIds);
-        return;
-      }
     }
 
-    this.sessionSweepCursor = undefined;
     this.removeAliasesForInactiveLogicalSessions(expiredLogicalSessionIds);
-  }
-
-  private *entriesAfterCursor<T>(map: Map<string, T>, cursor: string | undefined): IterableIterator<[string, T]> {
-    if (!cursor || !map.has(cursor)) {
-      yield* map.entries();
-      return;
-    }
-
-    let foundCursor = false;
-
-    for (const entry of map.entries()) {
-      if (!foundCursor) {
-        foundCursor = entry[0] === cursor;
-        continue;
-      }
-
-      yield entry;
-    }
-
-    for (const entry of map.entries()) {
-      if (entry[0] === cursor) {
-        return;
-      }
-
-      yield entry;
-    }
   }
 
   private removeAliasesForInactiveLogicalSessions(logicalSessionIds: Iterable<string>): void {
@@ -447,8 +500,17 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
     }
   }
 
+  /**
+   * Residual cost note (SVH-04): liveness is a full scan of `sessions`
+   * (early-out on the first live member), so per expired logical lineage the
+   * cleanup work is proportional to live sessions, not to the 64-entry sweep
+   * batch. Visits are counted in `sweepWork.aliasSessionVisits` so this
+   * nested cost stays measurable and is never implied to be constant-time.
+   */
   private hasLiveSessionForLogicalSession(logicalSessionId: string): boolean {
     for (const session of this.sessions.values()) {
+      this.sweepWork.aliasSessionVisits += 1;
+
       if ((session.logicalSessionId ?? session.sessionId) === logicalSessionId) {
         return true;
       }
@@ -457,8 +519,18 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
     return false;
   }
 
+  /**
+   * Residual cost note (SVH-04): alias removal scans every
+   * `rotatedSessionAliases` entry for the lineage, so per expired lineage the
+   * work is proportional to live aliases. Visits are counted in
+   * `sweepWork.aliasEntryVisits`. Bounding this further would need a
+   * lineage-to-alias index; that was deferred as unjustified complexity for
+   * the measured workloads (see README sweep-bounds note).
+   */
   private removeAliasesForLogicalSession(logicalSessionId: string): void {
     for (const [sessionId, alias] of this.rotatedSessionAliases.entries()) {
+      this.sweepWork.aliasEntryVisits += 1;
+
       if (alias.logicalSessionId === logicalSessionId) {
         this.rotatedSessionAliases.delete(sessionId);
       }

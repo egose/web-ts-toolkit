@@ -27,7 +27,7 @@ async function runConfigAwareCommand(parsedArgs: RuntimeCliCommand): Promise<voi
 
   if (parsedArgs.subcommand === 'build') {
     await runBuildEntryCommand(parsedArgs.build, {
-      generateEntry: (configPath) => generateRuntimeEntryFromConfig(configPath, parsedArgs.build.tsconfigPath),
+      generateEntry: (configPath) => generateRuntimeEntryFromConfig(configPath),
       allowInit: false,
       initErrorMessage: 'build manages the init hook automatically. Remove --init.',
     });
@@ -36,8 +36,7 @@ async function runConfigAwareCommand(parsedArgs: RuntimeCliCommand): Promise<voi
 
   if (parsedArgs.subcommand === 'build-serverless') {
     await runBuildEntryCommand(parsedArgs.buildServerless, {
-      generateEntry: (configPath) =>
-        generateServerlessEntryFromConfig(configPath, parsedArgs.buildServerless.tsconfigPath),
+      generateEntry: (configPath) => generateServerlessEntryFromConfig(configPath),
       allowInit: false,
       initErrorMessage: 'build-serverless manages the init hook automatically. Remove --init.',
     });

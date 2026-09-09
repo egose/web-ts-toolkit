@@ -101,10 +101,12 @@ const storeProvider = createMongoOidcVaultStore({
 - startup readiness creates required indexes and verifies transaction-capable topology; connect the MongoDB client, create the store, await `storeProvider.ready()`, then accept traffic
 - session deletion by subject or provider session ID uses compound scoped indexes on the identity field plus `provider.issuer` and `provider.clientId`; these replace single-field identity indexes because the leading key still supports identity-only deletes while scoped logout deletes avoid scanning every repeated identity across tenants
 - the application owns MongoDB client shutdown; this package does not close the client
-- rotation requires a distinct unused target session ID; missing-source, same-ID, and existing-target rotation conflicts throw `OidcVaultStoreConflictError` without changing source or target records
+- rotation requires a distinct unused target session ID; missing-source, same-ID, existing-target, changed-source, and expired-source rotation conflicts throw `OidcVaultStoreConflictError` without changing source or target records (the source document is re-read inside the transaction and must still match the generation seen before the transaction, including liveness, so a same-ID replacement committed after the rotation's source read aborts instead of being consumed)
 - rotated-session aliases are retained only long enough to bridge in-flight refresh/logout requests; sessions without explicit expiry use a finite 5 minute alias retention window by default, configurable with `rotatedSessionAliasRetentionMs`
 - deleting by current session ID, stale rotated ID, logical session ID, subject, or provider session ID removes aliases for the affected logical sessions
-- `createAuthorizationTransaction`, `createExchangeCode`, and `createSession` are upserts; metadata should be JSON-compatible for portability across store providers
+- `createAuthorizationTransaction`, `createExchangeCode`, and `createSession` are upserts; a `createSession` replacement takes over the session ID with its own subject/logical/provider-session scope
+- unlike memory/Redis, a `createSession` replacement does not clear a stale rotation alias row held under the reused ID; the stale alias is removed only when its lineage is deleted, so portable callers must create sessions with a fresh unused ID and handle `OidcVaultStoreConflictError` (reusing a live ID replaces here but rejects on Redis — only fresh-ID creation is portable; concurrent reuse also races rotation source checks, see SVH-08)
+- session metadata should be JSON-compatible for portability across store providers
 - backchannel logout token JTI records are consumed only when `expiresAt` is finite and greater than the store clock at consume time
 
 ## Security And Operations

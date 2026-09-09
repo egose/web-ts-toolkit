@@ -9,6 +9,7 @@ import {
   createStandaloneHarness,
   createDbWithAdminCommandFailure,
   createDbWithCollectionWriteFailure,
+  withFailCommand,
   MONGO_TIMEOUT,
   type MongoMemoryHarness,
 } from './mongo-memory';
@@ -95,6 +96,91 @@ const createDbWithDeleteOneSpy = (
   };
 };
 
+const createDbWithStartSessionHook = (db: Db, onBeforeTransaction: () => Promise<void>): Db => {
+  const bind = (value: unknown, target: object) =>
+    typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+
+  return new Proxy(db, {
+    get(target, property, receiver) {
+      if (property !== 'client') {
+        return bind(Reflect.get(target, property, receiver), target);
+      }
+
+      const client = Reflect.get(target, property, receiver) as {
+        startSession: (...args: unknown[]) => Record<string, unknown>;
+      };
+      return new Proxy(client, {
+        get(clientTarget, clientProperty, clientReceiver) {
+          if (clientProperty !== 'startSession') {
+            return bind(Reflect.get(clientTarget, clientProperty, clientReceiver), clientTarget);
+          }
+
+          return (...args: unknown[]) => {
+            const startSession = Reflect.get(clientTarget, clientProperty, clientReceiver) as (
+              ...startArgs: unknown[]
+            ) => Record<string, unknown>;
+            const session = startSession.apply(clientTarget, args);
+            const originalWithTransaction = session['withTransaction'] as (
+              fn: (s: unknown) => Promise<unknown>,
+              ...rest: unknown[]
+            ) => Promise<unknown>;
+            let hooked = false;
+            session['withTransaction'] = async (fn: (s: unknown) => Promise<unknown>, ...rest: unknown[]) => {
+              if (!hooked) {
+                hooked = true;
+                await onBeforeTransaction();
+              }
+
+              return originalWithTransaction.call(session, fn, ...rest);
+            };
+            return session;
+          };
+        },
+      });
+    },
+  }) as Db;
+};
+
+const createDbWithSessionLifecycleSpy = (db: Db): { db: Db; counts: () => { started: number; ended: number } } => {
+  let started = 0;
+  let ended = 0;
+  const realClient = (db as unknown as { client: { startSession: (...args: unknown[]) => Record<string, unknown> } })
+    .client;
+  const countingClient = new Proxy(realClient, {
+    get(target, property, receiver) {
+      if (property !== 'startSession') {
+        const value = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+      }
+
+      return (...args: unknown[]) => {
+        started += 1;
+        const session = (target as { startSession: (...startArgs: unknown[]) => Record<string, unknown> }).startSession(
+          ...args,
+        );
+        const originalEndSession = session['endSession'] as (...endArgs: unknown[]) => Promise<unknown>;
+        session['endSession'] = async (...endArgs: unknown[]) => {
+          ended += 1;
+          return originalEndSession.apply(session, endArgs);
+        };
+        return session;
+      };
+    },
+  });
+  const wrappedDb = new Proxy(db, {
+    get(target, property, receiver) {
+      if (property === 'client') {
+        return countingClient;
+      }
+
+      const value = Reflect.get(target, property, receiver);
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+    },
+  }) as Db;
+
+  return { db: wrappedDb, counts: () => ({ started, ended }) };
+};
+
 describe('createMongoOidcVaultStore', () => {
   let standalone: MongoMemoryHarness;
   let replicaSet: MongoMemoryHarness;
@@ -122,6 +208,8 @@ describe('createMongoOidcVaultStore', () => {
         },
       };
     },
+    sessionCreateMode: 'upsert',
+    reusedSessionIdClearsStaleAlias: false,
   });
 
   it('exposes readiness for startup checks before accepting traffic', async () => {
@@ -659,6 +747,169 @@ describe('createMongoOidcVaultStore', () => {
     });
   });
 
+  it('aborts rotation when the source is replaced between the source read and transaction start', async () => {
+    const db = replicaSet.createDb('mongo-store-rotation-source-replaced-test');
+    const baseStore = createMongoOidcVaultStore({ db, now: () => 1000 });
+    const created = await baseStore.createSession({
+      sessionId: 'sess_1',
+      subject: 'user_A',
+      refreshToken: 'refresh_A',
+      idToken: 'id_A',
+      scope: 'openid',
+    });
+
+    let replaced = false;
+    const wrappedDb = createDbWithStartSessionHook(db, async () => {
+      if (!replaced) {
+        replaced = true;
+        await baseStore.createSession({
+          sessionId: 'sess_1',
+          logicalSessionId: 'lineage_NEW',
+          subject: 'user_B',
+          refreshToken: 'refresh_B',
+          idToken: 'id_B',
+          scope: 'openid email',
+        });
+      }
+    });
+    const rotatingStore = createMongoOidcVaultStore({ db: wrappedDb, now: () => 1000 });
+
+    await expect(
+      rotatingStore.rotateSession({
+        sessionId: 'sess_1',
+        nextSession: { ...created, sessionId: 'sess_2', refreshToken: 'refresh_A2', updatedAt: 1001 },
+      }),
+    ).rejects.toThrow('OIDC vault session changed before rotation could commit.');
+
+    expect(replaced).toBe(true);
+    expect(await baseStore.getSession('sess_1')).toMatchObject({
+      subject: 'user_B',
+      logicalSessionId: 'lineage_NEW',
+      refreshToken: 'refresh_B',
+    });
+    expect(await baseStore.getSession('sess_2')).toBeNull();
+    expect(await db.collection('oidc_vault_rotated_session_aliases').countDocuments({ _id: 'sess_1' })).toBe(0);
+
+    await baseStore.deleteSession('sess_1');
+    expect(await baseStore.getSession('sess_1')).toBeNull();
+    expect(await baseStore.getSession('sess_2')).toBeNull();
+  });
+
+  it('aborts rotation when the source expires before the transaction commits', async () => {
+    let now = 100;
+    const db = replicaSet.createDb('mongo-store-rotation-source-expiry-test');
+    const baseStore = createMongoOidcVaultStore({ db, now: () => now });
+    const created = await baseStore.createSession({
+      sessionId: 'sess_e',
+      subject: 'user_A',
+      refreshToken: 'refresh_A',
+      idToken: 'id_A',
+      expiresAt: 200,
+    });
+
+    const wrappedDb = createDbWithStartSessionHook(db, async () => {
+      now = 250;
+    });
+    const rotatingStore = createMongoOidcVaultStore({ db: wrappedDb, now: () => now });
+
+    await expect(
+      rotatingStore.rotateSession({
+        sessionId: 'sess_e',
+        nextSession: { ...created, sessionId: 'sess_e2', refreshToken: 'refresh_A2', updatedAt: 150 },
+      }),
+    ).rejects.toThrow('OIDC vault session no longer exists for rotation.');
+
+    expect(await baseStore.getSession('sess_e2')).toBeNull();
+    expect(await db.collection('oidc_vault_sessions').findOne({ _id: 'sess_e' })).toMatchObject({
+      refreshToken: 'refresh_A',
+      expiresAt: new Date(200),
+    });
+  });
+
+  it(
+    'aborts a retried rotation when the source changes between transaction attempts',
+    async () => {
+      const db = replicaSet.createDb('mongo-store-rotation-retry-source-test');
+      const baseStore = createMongoOidcVaultStore({ db, now: () => 1000 });
+      const created = await baseStore.createSession({
+        sessionId: 'sess_r',
+        subject: 'user_A',
+        refreshToken: 'refresh_A',
+        idToken: 'id_A',
+      });
+
+      let replaced = false;
+      const wrappedDb = new Proxy(db, {
+        get(target, property, receiver) {
+          if (property !== 'collection') {
+            const value = Reflect.get(target, property, receiver);
+            return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+          }
+
+          return (name: string) => {
+            const collection = (target as Db).collection(name);
+
+            if (name !== 'oidc_vault_sessions') {
+              return collection;
+            }
+
+            return new Proxy(collection, {
+              get(collectionTarget, collectionProperty, collectionReceiver) {
+                if (collectionProperty !== 'insertOne') {
+                  return Reflect.get(collectionTarget, collectionProperty, collectionReceiver);
+                }
+
+                return async (...args: unknown[]) => {
+                  if (!replaced) {
+                    replaced = true;
+                    await db.collection('oidc_vault_sessions').replaceOne(
+                      { _id: 'sess_r' },
+                      {
+                        _id: 'sess_r',
+                        logicalSessionId: 'lineage_NEW',
+                        subject: 'user_B',
+                        refreshToken: 'refresh_B',
+                        idToken: 'id_B',
+                        createdAt: 1000,
+                        updatedAt: 1000,
+                      },
+                      { upsert: true },
+                    );
+                  }
+
+                  const insertOne = Reflect.get(collectionTarget, collectionProperty, collectionReceiver) as (
+                    ...insertArgs: unknown[]
+                  ) => Promise<unknown>;
+                  return insertOne.apply(collectionTarget, args);
+                };
+              },
+            });
+          };
+        },
+      }) as Db;
+      const rotatingStore = createMongoOidcVaultStore({ db: wrappedDb, now: () => 1000 });
+
+      await expect(
+        withFailCommand(db, { failCommands: ['insert'], times: 1, errorCode: 112 }, () =>
+          rotatingStore.rotateSession({
+            sessionId: 'sess_r',
+            nextSession: { ...created, sessionId: 'sess_r2', refreshToken: 'refresh_A2', updatedAt: 1001 },
+          }),
+        ),
+      ).rejects.toThrow('OIDC vault session changed before rotation could commit.');
+
+      expect(replaced).toBe(true);
+      expect(await baseStore.getSession('sess_r')).toMatchObject({
+        subject: 'user_B',
+        logicalSessionId: 'lineage_NEW',
+        refreshToken: 'refresh_B',
+      });
+      expect(await baseStore.getSession('sess_r2')).toBeNull();
+      expect(await db.collection('oidc_vault_rotated_session_aliases').countDocuments({ _id: 'sess_r' })).toBe(0);
+    },
+    MONGO_TIMEOUT,
+  );
+
   it('does not issue a second delete after consuming expired authorization transactions or exchange codes', async () => {
     const authorizationDb = replicaSet.createDb('mongo-store-auth-consume-expiry-test');
     const authorizationSpy = createDbWithDeleteOneSpy(authorizationDb, {
@@ -826,6 +1077,156 @@ describe('createMongoOidcVaultStore', () => {
     },
     MONGO_TIMEOUT,
   );
+
+  it('closes every allocated ClientSession exactly once across rotation outcomes', async () => {
+    const db = replicaSet.createDb('mongo-store-session-lifecycle-test');
+    const spy = createDbWithSessionLifecycleSpy(db);
+    const store = createMongoOidcVaultStore({ db: spy.db, now: () => 1000 });
+
+    const created = await store.createSession({
+      sessionId: 'sess_1',
+      subject: 'user_1',
+      refreshToken: 'refresh_1',
+      idToken: 'id_1',
+    });
+
+    const rotated = await store.rotateSession({
+      sessionId: 'sess_1',
+      nextSession: { ...created, sessionId: 'sess_2', refreshToken: 'refresh_2', updatedAt: 1001 },
+    });
+    expect(rotated).toMatchObject({ sessionId: 'sess_2' });
+    expect(spy.counts()).toEqual({ started: 1, ended: 1 });
+
+    await expect(
+      store.rotateSession({
+        sessionId: 'missing',
+        nextSession: { ...created, sessionId: 'missing_next', refreshToken: 'refresh_x', updatedAt: 1002 },
+      }),
+    ).rejects.toBeInstanceOf(OidcVaultStoreConflictError);
+    expect(spy.counts()).toEqual({ started: 1, ended: 1 });
+    expect(await store.getSession('missing_next')).toBeNull();
+
+    await store.createSession({
+      sessionId: 'sess_exp',
+      subject: 'user_1',
+      refreshToken: 'refresh_exp',
+      idToken: 'id_exp',
+      expiresAt: 500,
+    });
+    await expect(
+      store.rotateSession({
+        sessionId: 'sess_exp',
+        nextSession: { ...created, sessionId: 'sess_exp_next', refreshToken: 'refresh_y', updatedAt: 1003 },
+      }),
+    ).rejects.toBeInstanceOf(OidcVaultStoreConflictError);
+    expect(spy.counts()).toEqual({ started: 1, ended: 1 });
+    expect(await store.getSession('sess_exp_next')).toBeNull();
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await expect(
+        store.rotateSession({
+          sessionId: 'missing',
+          nextSession: {
+            ...created,
+            sessionId: `missing_retry_${attempt}`,
+            refreshToken: 'refresh_z',
+            updatedAt: 1004,
+          },
+        }),
+      ).rejects.toBeInstanceOf(OidcVaultStoreConflictError);
+    }
+    expect(spy.counts()).toEqual({ started: 1, ended: 1 });
+    expect(await store.getSession('sess_2')).toMatchObject({ sessionId: 'sess_2' });
+  });
+
+  it('closes the allocated session when source reads and transaction writes fail without committing replacement', async () => {
+    const readDb = replicaSet.createDb('mongo-store-session-lifecycle-read-failure-test');
+    const readSpy = createDbWithSessionLifecycleSpy(readDb);
+    let findOneFailed = false;
+    const readFailingDb = new Proxy(readSpy.db, {
+      get(target, property, receiver) {
+        if (property !== 'collection') {
+          const value = Reflect.get(target, property, receiver);
+          return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+        }
+
+        return (name: string) => {
+          const collection = (target as Db).collection(name);
+
+          if (name !== 'oidc_vault_sessions') {
+            return collection;
+          }
+
+          return new Proxy(collection, {
+            get(collectionTarget, collectionProperty, collectionReceiver) {
+              if (collectionProperty !== 'findOne') {
+                return Reflect.get(collectionTarget, collectionProperty, collectionReceiver);
+              }
+
+              return async (...args: unknown[]) => {
+                if (!findOneFailed) {
+                  findOneFailed = true;
+                  throw new Error('Injected sessions.findOne failure');
+                }
+
+                const method = Reflect.get(collectionTarget, collectionProperty, collectionReceiver) as (
+                  ...methodArgs: unknown[]
+                ) => Promise<unknown>;
+                return method.apply(collectionTarget, args);
+              };
+            },
+          });
+        };
+      },
+    }) as Db;
+    const readStore = createMongoOidcVaultStore({ db: readFailingDb, now: () => 1000 });
+    const readCreated = await readStore.createSession({
+      sessionId: 'sess_1',
+      subject: 'user_1',
+      refreshToken: 'refresh_1',
+      idToken: 'id_1',
+    });
+
+    await expect(
+      readStore.rotateSession({
+        sessionId: 'sess_1',
+        nextSession: { ...readCreated, sessionId: 'sess_2', refreshToken: 'refresh_2', updatedAt: 1001 },
+      }),
+    ).rejects.toThrow('Injected sessions.findOne failure');
+    expect(findOneFailed).toBe(true);
+    expect(readSpy.counts()).toEqual({ started: 0, ended: 0 });
+    expect(await readStore.getSession('sess_2')).toBeNull();
+    expect(await readStore.getSession('sess_1')).toMatchObject({ sessionId: 'sess_1' });
+
+    const writeDb = replicaSet.createDb('mongo-store-session-lifecycle-write-failure-test');
+    const writeSpy = createDbWithSessionLifecycleSpy(writeDb);
+    const writeStore = createMongoOidcVaultStore({
+      db: createDbWithCollectionWriteFailure(writeSpy.db, {
+        collectionName: 'oidc_vault_sessions',
+        methodName: 'insertOne',
+      }),
+      now: () => 1000,
+    });
+    const writeCreated = await writeStore.createSession({
+      sessionId: 'sess_1',
+      subject: 'user_1',
+      refreshToken: 'refresh_1',
+      idToken: 'id_1',
+    });
+
+    await expect(
+      writeStore.rotateSession({
+        sessionId: 'sess_1',
+        nextSession: { ...writeCreated, sessionId: 'sess_2', refreshToken: 'refresh_2', updatedAt: 1001 },
+      }),
+    ).rejects.toThrow();
+    expect(writeSpy.counts()).toEqual({ started: 1, ended: 1 });
+    expect(await writeStore.getSession('sess_1')).toMatchObject({ sessionId: 'sess_1' });
+    expect(await writeStore.getSession('sess_2')).toBeNull();
+    expect(
+      await writeDb.collection('oidc_vault_rotated_session_aliases').countDocuments({ logicalSessionId: 'sess_1' }),
+    ).toBe(0);
+  });
 });
 
 describe('createMongoOidcVaultStore replica set', () => {

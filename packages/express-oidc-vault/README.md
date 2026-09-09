@@ -604,9 +604,10 @@ Only set `cookie.domain` (for example `.example.com`) as an advanced expansion w
 
 ## Store Provider Contract
 
-The built-in memory, Redis, and MongoDB store packages share the same behavioral contract.
+The built-in memory, Redis, and MongoDB store packages share the same behavioral contract, except for the documented duplicate-`createSession` variation below.
 
-- `createAuthorizationTransaction`, `createExchangeCode`, and `createSession` are deliberate upserts keyed by `state`, `code`, and `sessionId`.
+- `createAuthorizationTransaction` and `createExchangeCode` are deliberate upserts keyed by `state` and `code`.
+- `createSession` duplicate-ID behavior is provider-specific: the memory and MongoDB providers replace the existing session (upsert), while the Redis provider rejects a live duplicate with `OidcVaultStoreConflictError` without changing the existing record or indexes (create-only, preserving index ownership). Portable callers must always create sessions with a fresh unused `sessionId` and handle `OidcVaultStoreConflictError`; reusing a live ID is non-portable. See `OidcVaultStoreProvider.createSession` for the full contract.
 - Store metadata is portable when it is JSON-compatible: strings, finite numbers, booleans, null, arrays, and plain objects. Do not rely on functions, symbols, Dates, Maps, Sets, custom prototypes, undefined object properties, or object identity surviving a store round-trip.
 - Store methods return owned values or serialization round-trips. Mutating an input after a create call or mutating a returned value does not mutate persisted state.
 - Expiry timestamps are epoch milliseconds. Records are expired at `expiresAt <= now`; backchannel logout JTI expiry must be finite and in the future or the consume call returns `false` without storing the JTI.

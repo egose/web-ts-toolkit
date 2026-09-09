@@ -32,6 +32,7 @@ import {
   type DeleteSessionScriptScope,
   type RedisScriptRunnerClient,
   RedisScriptRunner,
+  buildCompareAndDeleteCommand,
   buildDeleteSessionCommand,
   buildRotateSessionCommand,
   buildWriteSessionCommand,
@@ -102,6 +103,27 @@ export interface RedisOidcVaultStoreOptions {
 
 const INDEX_CLEANUP_SCAN_COUNT = 100;
 const INDEX_REVOCATION_SCAN_COUNT = 250;
+
+/**
+ * Renders a maintenance failure for operational diagnostics without leaking
+ * bearer-equivalent data. Only the error name/code and a truncated message
+ * are kept; keys, session IDs, and stored record contents are never included
+ * because `cleanupStaleIndexKeys` failures carry no record payloads by
+ * construction and callers must not add any.
+ */
+const sanitizeMaintenanceCause = (error: unknown): string => {
+  if (error instanceof Error) {
+    const name = error.name || 'Error';
+    const message = error.message.slice(0, 200);
+    return message ? `${name}: ${message}` : name;
+  }
+
+  if (typeof error === 'string') {
+    return error.slice(0, 200) || 'unknown maintenance error';
+  }
+
+  return 'unknown maintenance error';
+};
 
 const isRecord = (value: unknown): value is Record<PropertyKey, unknown> => typeof value === 'object' && value !== null;
 
@@ -182,6 +204,20 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     return this.consumeJson(this.keys.exchangeCode(code), 'exchange code', validateExchangeCodeRecord);
   }
 
+  /**
+   * Creates a session record atomically, then runs best-effort index
+   * maintenance.
+   *
+   * Result policy (SVH-02): once `writeSessionRecord` reports success the
+   * session is committed and this method resolves with the session even if
+   * post-commit index maintenance (`SCAN`/`TYPE`/`TIME`/`ZREMRANGEBYSCORE`)
+   * fails. A maintenance failure is reported once via a sanitized
+   * `console.warn` (operation name plus error code/message only; no session
+   * IDs, keys, or token material) and is retried opportunistically by a later
+   * `createSession`/`rotateSession` call. Mutation-command failures (the
+   * atomic write script) still reject, and this method never retries a
+   * committed mutation.
+   */
   async createSession(input: OidcVaultSessionInput): Promise<OidcVaultSession> {
     const timestamp = this.now();
     const session: OidcVaultSession = {
@@ -197,7 +233,7 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
       throw new OidcVaultStoreConflictError('OIDC vault session already exists.');
     }
 
-    await this.cleanupStaleIndexKeys();
+    await this.runPostCommitIndexMaintenance('createSession');
 
     return session;
   }
@@ -228,7 +264,11 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
       throw new OidcVaultStoreConflictError('OIDC vault session no longer exists for rotation.');
     }
 
-    await this.cleanupStaleIndexKeys();
+    // Same post-commit policy as createSession: the atomic source/target
+    // transition is already committed here, so index-maintenance failure must
+    // not reject a successful rotation (the original credential is already
+    // consumed) and must not trigger a retry of this non-idempotent rotation.
+    await this.runPostCommitIndexMaintenance('rotateSession');
 
     return nextSession;
   }
@@ -249,7 +289,13 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
         await this.deleteRotatedSessionAliasesByLogicalSessionId(logicalSessionId);
       }
 
-      await this.client.del(this.keys.session(sessionId));
+      // SVH-03: the session key was observed missing or malformed above. A
+      // fresh same-ID session may have been created since that read (ID reuse
+      // is supported), so never delete unconditionally here. Remove the key
+      // only when it still holds malformed data; a valid replacement belongs
+      // to a new generation (genuine logout of a live ID goes through the
+      // branch below or a scoped logical revocation, never this cleanup).
+      await this.deleteSessionKeyIfMalformed(this.keys.session(sessionId));
       return;
     }
 
@@ -298,11 +344,16 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     validate: (parsed: unknown) => parsed is T,
     options?: { deleteMalformed?: boolean },
   ): Promise<T | null> {
+    const raw = await this.client.get(key);
+
     try {
-      return parseStoredJson(await this.client.get(key), recordKind, validate);
+      return parseStoredJson(raw, recordKind, validate);
     } catch (error) {
-      if (options?.deleteMalformed && error instanceof OidcVaultRedisStoreRecordError) {
-        await this.client.del(key);
+      if (options?.deleteMalformed && error instanceof OidcVaultRedisStoreRecordError && raw !== null) {
+        // SVH-03: delete only the observed malformed payload. The Lua script
+        // compares server-side, so a fresh same-ID value written after this
+        // read is left untouched. Reads still fail closed to `null`.
+        await this.deleteMalformedValueIfUnchanged(key, raw);
         return null;
       }
 
@@ -340,6 +391,48 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     return typeof result === 'number' ? result : Number(result);
   }
 
+  /**
+   * Removes a stored value only when it still equals the malformed payload
+   * observed by a prior read (SVH-03). The equality check runs inside the Lua
+   * script, so a concurrent `createSession` reusing the same ID is never
+   * destroyed by a stale repair.
+   */
+  private async deleteMalformedValueIfUnchanged(key: string, observedRaw: string): Promise<void> {
+    await this.runScript(buildCompareAndDeleteCommand(key, observedRaw));
+  }
+
+  /**
+   * Best-effort cleanup for the missing-session branch of `deleteSession`.
+   * Re-reads the session key and removes it only when it still holds malformed
+   * data. A missing key needs no cleanup and a freshly created valid session
+   * (same-ID reuse after the earlier read) is preserved; genuine logout of a
+   * live session never reaches this branch.
+   */
+  private async deleteSessionKeyIfMalformed(sessionKey: string): Promise<void> {
+    let raw: string | null;
+
+    try {
+      raw = await this.client.get(sessionKey);
+    } catch {
+      return;
+    }
+
+    if (raw === null) {
+      return;
+    }
+
+    try {
+      parseStoredJson(raw, 'session', validateSession);
+    } catch (error) {
+      if (error instanceof OidcVaultRedisStoreRecordError) {
+        await this.deleteMalformedValueIfUnchanged(sessionKey, raw);
+        return;
+      }
+
+      throw error;
+    }
+  }
+
   private async rotateSessionRecord(
     previousSession: OidcVaultSession,
     nextSession: OidcVaultSession,
@@ -359,6 +452,23 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
 
   private async cleanupExpiredIndexMembers(indexKey: string): Promise<void> {
     await this.sendCommand(['ZREMRANGEBYSCORE', indexKey, '-inf', String(await this.redisServerTime())]);
+  }
+
+  /**
+   * Runs optional post-commit index maintenance without letting it masquerade
+   * as a failed mutation. Any failure is reported once via a sanitized
+   * warning and swallowed so the already-committed session result stands; the
+   * next successful create/rotate retries the incremental scan from the
+   * retained cursor. Never retries the committed mutation itself.
+   */
+  private async runPostCommitIndexMaintenance(operation: 'createSession' | 'rotateSession'): Promise<void> {
+    try {
+      await this.cleanupStaleIndexKeys();
+    } catch (error) {
+      console.warn(
+        `OIDC vault Redis index maintenance failed after ${operation} and will retry on a later write. Cause: ${sanitizeMaintenanceCause(error)}`,
+      );
+    }
   }
 
   private async cleanupStaleIndexKeys(): Promise<void> {
@@ -470,8 +580,12 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
         try {
           return typeof value === 'string' ? parseStoredJson(value, 'session', validateSession) : null;
         } catch (error) {
-          if (error instanceof OidcVaultRedisStoreRecordError) {
-            await this.client.del(this.keys.session(sessionIds[index]!));
+          if (error instanceof OidcVaultRedisStoreRecordError && typeof value === 'string') {
+            // SVH-03: batched repair removes only the observed malformed
+            // payload; a fresh same-ID record created after the MGET survives.
+            // The stale index membership is still pruned by the caller and
+            // later valid members are still revoked.
+            await this.deleteMalformedValueIfUnchanged(this.keys.session(sessionIds[index]!), value);
             return null;
           }
 

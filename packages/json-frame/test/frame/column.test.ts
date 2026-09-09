@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { JsonFrameOptionError, JsonFrameValidationError } from '../../src/errors';
 import { createFrameState, materializeColumn, materializeFrameData } from '../../src/frame/column';
-import { normalizeFromOrientOptions } from '../../src/options';
+import { createDataFrame as createInternalDataFrame, getDataFrameState } from '../../src/frame/DataFrame';
+import { DEFAULT_PACK_THRESHOLD, normalizeFromOrientOptions } from '../../src/options';
 import { parseInput } from '../../src/parse';
 import type { ParsedFrame } from '../../src/parse';
 import type { JsonValue, ResolvedOrient } from '../../src/types';
@@ -191,5 +192,213 @@ describe('createFrameState', () => {
     expect(storedColumn).toEqual(['NYC', 'LA', 'SF']);
     expect(storedColumn).not.toBe(parsedColumn);
     expect(materializeColumn(storedColumn!)).toEqual(['NYC', 'LA', 'SF']);
+  });
+});
+
+describe('negative zero packing (JFB-03)', () => {
+  const buildFrame = (input: unknown, options: Parameters<typeof normalizeFromOrientOptions>[0]) => {
+    const normalized = normalizeFromOrientOptions(options);
+    const parsed = parseInput(input, normalized);
+    return createInternalDataFrame(createFrameState(parsed, normalized), normalized.packThreshold);
+  };
+
+  const expectSignedZero = (value: unknown) => {
+    expect(Object.is(value, -0)).toBe(true);
+    expect(1 / (value as number)).toBe(-Infinity);
+  };
+
+  const expectPositiveZero = (value: unknown) => {
+    expect(Object.is(value, 0)).toBe(true);
+    expect(Object.is(value, -0)).toBe(false);
+    expect(1 / (value as number)).toBe(Infinity);
+  };
+
+  it('distinguishes -0 from 0 at thresholds 0, 1, and default', () => {
+    for (const packThreshold of [0, 1, DEFAULT_PACK_THRESHOLD]) {
+      const frame = buildFrame([[-0], [0]], { orient: 'values', columns: ['n'], packThreshold });
+
+      expect(frame.columnInfo.get('n')).toEqual({ type: 'integer', nullable: false });
+      // Integer storage with -0 present must stay unpacked so Int32Array never collapses the sign.
+      expect(Array.isArray(getDataFrameState(frame).data.get('n'))).toBe(true);
+
+      expectSignedZero(frame.row(0).n);
+      expectPositiveZero(frame.row(0 + 1).n);
+      expectSignedZero(frame.rows()[0]!.n);
+      expectSignedZero(frame.toValues()[0]![0]);
+      expectPositiveZero(frame.toValues()[1]![0]);
+      expectSignedZero(frame.toRecords()[0]!.n);
+      expectSignedZero(frame.toSplit().data[0]![0]);
+    }
+  });
+
+  it('preserves signed zero for inferred and explicit integer/float columns', () => {
+    const inferredInteger = buildFrame([[-0], [1], [0]], {
+      orient: 'values',
+      columns: ['n'],
+      packThreshold: 1,
+    });
+    expect(inferredInteger.columnInfo.get('n')).toEqual({ type: 'integer', nullable: false });
+    expect(Array.isArray(getDataFrameState(inferredInteger).data.get('n'))).toBe(true);
+    expectSignedZero(inferredInteger.row(0).n);
+
+    const explicitInteger = buildFrame([[-0], [1]], {
+      orient: 'values',
+      columns: ['n'],
+      columnTypes: { n: 'integer' },
+      packThreshold: 1,
+    });
+    expect(explicitInteger.columnInfo.get('n')).toEqual({ type: 'integer', nullable: false });
+    expect(Array.isArray(getDataFrameState(explicitInteger).data.get('n'))).toBe(true);
+    expectSignedZero(explicitInteger.row(0).n);
+
+    const inferredFloat = buildFrame([[-0], [1.5]], { orient: 'values', columns: ['f'], packThreshold: 1 });
+    expect(inferredFloat.columnInfo.get('f')).toEqual({ type: 'float', nullable: false });
+    expectSignedZero(inferredFloat.row(0).f);
+
+    const explicitFloat = buildFrame([[-0], [2.5]], {
+      orient: 'values',
+      columns: ['f'],
+      columnTypes: { f: 'float' },
+      packThreshold: 1,
+    });
+    expect(explicitFloat.columnInfo.get('f')).toEqual({ type: 'float', nullable: false });
+    // Float64Array preserves -0 natively, so packed float storage still carries the sign.
+    expectSignedZero(explicitFloat.row(0).f);
+    expectSignedZero(explicitFloat.toValues()[0]![0]);
+  });
+
+  it('keeps int32 boundary values while leaving -0 and overflow columns unpacked', () => {
+    const frame = buildFrame([[INT32_MIN], [-0], [INT32_MAX], [0]], {
+      orient: 'values',
+      columns: ['n'],
+      packThreshold: 1,
+    });
+
+    expect(frame.columnInfo.get('n')).toEqual({ type: 'integer', nullable: false });
+    expect(Array.isArray(getDataFrameState(frame).data.get('n'))).toBe(true);
+    expect(frame.row(0).n).toBe(INT32_MIN);
+    expectSignedZero(frame.row(1).n);
+    expect(frame.row(2).n).toBe(INT32_MAX);
+    expectPositiveZero(frame.row(3).n);
+
+    const overflow = buildFrame([[INT32_MAX + 1], [-0]], {
+      orient: 'values',
+      columns: ['n'],
+      packThreshold: 1,
+    });
+    expect(Array.isArray(getDataFrameState(overflow).data.get('n'))).toBe(true);
+    expect(overflow.row(0).n).toBe(INT32_MAX + 1);
+    expectSignedZero(overflow.row(1).n);
+  });
+
+  it('preserves signed zero across null filtering and value-preserving transforms', () => {
+    const frame = buildFrame([[-0], [null], [0], [2]], {
+      orient: 'values',
+      columns: ['n'],
+      packThreshold: 1,
+    });
+    expect(frame.columnInfo.get('n')).toEqual({ type: 'integer', nullable: true });
+
+    const seenInPredicate: unknown[] = [];
+    const filtered = frame.filter((row) => {
+      seenInPredicate.push(row.n);
+      return row.n !== null;
+    });
+    expect(seenInPredicate.some((value) => Object.is(value, -0))).toBe(true);
+
+    expect(filtered.columnInfo.get('n')).toEqual({ type: 'integer', nullable: false });
+    // Repacking after nulls are removed must apply the same -0 eligibility rule.
+    expect(Array.isArray(getDataFrameState(filtered).data.get('n'))).toBe(true);
+    expect(filtered.toValues().map((row) => row[0])).toHaveLength(3);
+    expectSignedZero(filtered.row(0).n);
+    expectPositiveZero(filtered.row(1).n);
+    expect(filtered.row(2).n).toBe(2);
+
+    const seenInSort: unknown[] = [];
+    const sorted = filtered.sort((left, right) => {
+      seenInSort.push(left.n, right.n);
+      return (left.n as number) - (right.n as number);
+    });
+    expect(seenInSort.some((value) => Object.is(value, -0))).toBe(true);
+    expect(
+      sorted
+        .toValues()
+        .flat()
+        .filter((value) => Object.is(value, -0)),
+    ).toHaveLength(1);
+    expect(
+      sorted
+        .toValues()
+        .flat()
+        .filter((value) => Object.is(value, 0) && !Object.is(value, -0)),
+    ).toHaveLength(1);
+
+    const selected = sorted.select('n');
+    expect(selected.columnInfo.get('n')).toEqual({ type: 'integer', nullable: false });
+    expect(
+      selected
+        .toValues()
+        .flat()
+        .filter((value) => Object.is(value, -0)),
+    ).toHaveLength(1);
+
+    const reset = selected.resetIndex();
+    expect(
+      reset
+        .toValues()
+        .flat()
+        .filter((value) => Object.is(value, -0)),
+    ).toHaveLength(1);
+    expectSignedZero(reset.toRecords().find((row) => Object.is(row.n, -0))!.n);
+  });
+
+  it('agrees between packed and unpacked frames across row/callback/exporters', () => {
+    const unpacked = buildFrame([[-0], [0], [3]], {
+      orient: 'values',
+      columns: ['n'],
+      packThreshold: 0,
+    });
+    const repacked = buildFrame([[-0], [0], [3]], {
+      orient: 'values',
+      columns: ['n'],
+      packThreshold: 1,
+    });
+
+    for (const frame of [unpacked, repacked]) {
+      expect(frame.columnInfo.get('n')).toEqual({ type: 'integer', nullable: false });
+      expect(Array.isArray(getDataFrameState(frame).data.get('n'))).toBe(true);
+    }
+
+    const signatures = [unpacked, repacked].map((frame) => ({
+      rows: frame.rows().map((row) => Object.is(row.n, -0)),
+      values: frame.toValues().map((row) => Object.is(row[0], -0)),
+      records: frame.toRecords().map((row) => Object.is(row.n, -0)),
+      split: frame.toSplit().data.map((row) => Object.is(row[0], -0)),
+      columns: [0, 1, 2].map((position) => Object.is(frame.toColumns().n[String(position)], -0)),
+      index: [0, 1, 2].map((position) => Object.is(frame.toIndex()[String(position)]!.n, -0)),
+      table: frame.toTable().data.map((row) => Object.is((row as Record<string, unknown>).n, -0)),
+    }));
+    expect(signatures[1]).toEqual(signatures[0]);
+    expect(signatures[0]).toEqual({
+      rows: [true, false, false],
+      values: [true, false, false],
+      records: [true, false, false],
+      split: [true, false, false],
+      columns: [true, false, false],
+      index: [true, false, false],
+      table: [true, false, false],
+    });
+  });
+
+  it('keeps text JSON semantics distinct from JS payload identity', () => {
+    // Normal JSON text encoding does not preserve the sign; only the live JS payload does.
+    expect(JSON.stringify(-0)).toBe('0');
+
+    const frame = buildFrame([[-0]], { orient: 'values', columns: ['n'], packThreshold: 1 });
+    expectSignedZero(frame.toValues()[0]![0]);
+
+    const parsed = JSON.parse(frame.toJSONString('values')) as unknown[][];
+    expect(Object.is(parsed[0]![0], -0)).toBe(false);
+    expect(Object.is(parsed[0]![0], 0)).toBe(true);
   });
 });

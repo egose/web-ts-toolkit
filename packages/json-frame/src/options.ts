@@ -75,8 +75,23 @@ export const normalizeFromOrientOptions = (options?: FromOrientOptions | null): 
       throw new JsonFrameOptionError('`options.columns` must be an array of strings.', 'columns', options.columns);
     }
 
+    // Tightened contract: every numeric position must hold a unique string label.
+    // Sparse holes are rejected as option errors before payload traversal; dense
+    // non-string and duplicate labels still fail. Labels such as `__proto__`
+    // remain valid because lookup uses a `Set`, never a plain-object map.
     const seen = new Set<string>();
-    columns = options.columns.map((column) => {
+    const validated: ColumnLabel[] = [];
+    const source = options.columns;
+    for (let position = 0; position < source.length; position += 1) {
+      if (!Object.prototype.hasOwnProperty.call(source, position)) {
+        throw new JsonFrameOptionError(
+          '`options.columns` must not contain holes; every position must be a string label.',
+          'columns',
+          source,
+        );
+      }
+
+      const column: unknown = source[position];
       if (typeof column !== 'string') {
         throw new JsonFrameOptionError('`options.columns` must contain only strings.', 'columns', column);
       }
@@ -86,8 +101,9 @@ export const normalizeFromOrientOptions = (options?: FromOrientOptions | null): 
       }
 
       seen.add(column);
-      return column;
-    });
+      validated.push(column);
+    }
+    columns = validated;
   }
 
   let columnTypes: Readonly<Partial<Record<ColumnLabel, ColumnType>>> | undefined;

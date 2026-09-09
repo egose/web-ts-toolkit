@@ -4,9 +4,11 @@ import type { OidcVaultSession } from '@web-ts-toolkit/express-oidc-vault';
 
 import { RedisOidcVaultStoreKeys } from '../src/keys.js';
 import {
+  COMPARE_AND_DELETE_SCRIPT,
   DELETE_SESSION_SCRIPT,
   ROTATE_SESSION_SCRIPT,
   WRITE_SESSION_SCRIPT,
+  buildCompareAndDeleteCommand,
   buildDeleteSessionCommand,
   buildRotateSessionCommand,
   buildWriteSessionCommand,
@@ -122,5 +124,15 @@ describe('Redis OIDC vault script command builders', () => {
       'test:rotated-session-alias-index:',
     ]);
     expect(JSON.parse(contract.args[0]!)).toMatchObject({ sessionId: 'sess_2', refreshToken: 'refresh_2' });
+  });
+
+  it('builds the compare-and-delete repair contract from one typed source', () => {
+    const observed = '{"sessionId":"sess_1"';
+    const command = buildCompareAndDeleteCommand('test:session:sess_1', observed);
+    const contract = splitEvalCommand(command);
+
+    expect(command.slice(0, 3)).toEqual(['EVAL', COMPARE_AND_DELETE_SCRIPT, '1']);
+    expect(contract.keys).toEqual(['test:session:sess_1']);
+    expect(contract.args).toEqual([observed]);
   });
 });

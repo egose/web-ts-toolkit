@@ -22,6 +22,8 @@ defineOidcVaultStoreProviderConformanceSuite('memory', {
       },
     };
   },
+  sessionCreateMode: 'upsert',
+  reusedSessionIdClearsStaleAlias: true,
 });
 
 describe('createMemoryOidcVaultStore', () => {
@@ -767,5 +769,303 @@ describe('createMemoryOidcVaultStore', () => {
     ]);
 
     expect(results.filter(Boolean)).toHaveLength(1);
+  });
+});
+
+describe('memory store sweep traversal bounds (SVH-04)', () => {
+  type SweepStateInternals = {
+    keys: string[];
+    position: number;
+  };
+
+  type SweepWorkInternals = {
+    inspectedKeys: number;
+    staleSnapshotSlots: number;
+    snapshotRebuilds: number;
+    aliasSessionVisits: number;
+    aliasEntryVisits: number;
+  };
+
+  type SweepTestInternals = {
+    authorizationTransactions: Map<string, unknown>;
+    sessions: Map<string, { logicalSessionId?: string; sessionId: string }>;
+    rotatedSessionAliases: Map<string, unknown>;
+    authorizationTransactionSweep: SweepStateInternals;
+    sessionSweep: SweepStateInternals;
+    sweepWork: SweepWorkInternals;
+  };
+
+  const resetSweepWork = (internals: SweepTestInternals): void => {
+    internals.sweepWork.inspectedKeys = 0;
+    internals.sweepWork.staleSnapshotSlots = 0;
+    internals.sweepWork.snapshotRebuilds = 0;
+    internals.sweepWork.aliasSessionVisits = 0;
+    internals.sweepWork.aliasEntryVisits = 0;
+  };
+
+  const sweepVisitedSlots = (internals: SweepTestInternals): number =>
+    internals.sweepWork.inspectedKeys + internals.sweepWork.staleSnapshotSlots;
+
+  const createLiveTransaction = (index: number | string, expiresAt = 10_000) => ({
+    state: `sweep_state_${index}`,
+    nonce: `nonce_${index}`,
+    pkceVerifier: `verifier_${index}`,
+    codeChallenge: `challenge_${index}`,
+    createdAt: 100,
+    expiresAt,
+  });
+
+  it('bounds a nominal late-cursor sweep independently of map size', async () => {
+    const measurements: string[] = [];
+
+    for (const size of [1024, 5120]) {
+      const store = createMemoryOidcVaultStore({ now: () => 100 });
+      const internals = store as unknown as SweepTestInternals;
+
+      for (let i = 0; i < size; i += 1) {
+        await store.createAuthorizationTransaction(createLiveTransaction(i));
+      }
+
+      expect(internals.authorizationTransactions.size).toBe(size);
+
+      // Force a late cursor deterministically: the previous key-cursor design
+      // walked the whole prefix before yielding from here (1,064 visits for
+      // 1,024 records in the SVH-04 baseline experiment).
+      internals.authorizationTransactionSweep.position = internals.authorizationTransactionSweep.keys.length - 1;
+      resetSweepWork(internals);
+
+      const startedAt = performance.now();
+      expect(await store.consumeAuthorizationTransaction('missing_state')).toBeNull();
+      const elapsedMs = performance.now() - startedAt;
+
+      const visited = sweepVisitedSlots(internals);
+      measurements.push(
+        `size=${size} visited=${visited} inspected=${internals.sweepWork.inspectedKeys} ` +
+          `stale=${internals.sweepWork.staleSnapshotSlots} rebuilds=${internals.sweepWork.snapshotRebuilds} ` +
+          `elapsedMs=${elapsedMs.toFixed(2)}`,
+      );
+
+      expect(visited).toBeLessThanOrEqual(64);
+      expect(internals.sweepWork.snapshotRebuilds).toBeLessThanOrEqual(1);
+      expect(internals.authorizationTransactions.size).toBe(size);
+      expect(await store.consumeAuthorizationTransaction('sweep_state_0')).toMatchObject({
+        state: 'sweep_state_0',
+      });
+    }
+
+    console.log(`SVH-04 late-cursor sweep measurements:\n${measurements.join('\n')}`);
+  });
+
+  it('reclaims alternating live/expired entries across wraparound passes', async () => {
+    let now = 100;
+    const store = createMemoryOidcVaultStore({ now: () => now });
+    const internals = store as unknown as SweepTestInternals;
+
+    for (let i = 0; i < 200; i += 1) {
+      await store.createAuthorizationTransaction(createLiveTransaction(i, i % 2 === 0 ? 10_000 : 200));
+    }
+
+    now = 250;
+
+    resetSweepWork(internals);
+    let maxVisitedPerOp = 0;
+    let totalRebuilds = 0;
+
+    for (let op = 0; op < 20; op += 1) {
+      const visitedBefore = sweepVisitedSlots(internals);
+      const rebuildsBefore = internals.sweepWork.snapshotRebuilds;
+      expect(await store.consumeAuthorizationTransaction(`missing_${op}`)).toBeNull();
+      maxVisitedPerOp = Math.max(maxVisitedPerOp, sweepVisitedSlots(internals) - visitedBefore);
+      totalRebuilds += internals.sweepWork.snapshotRebuilds - rebuildsBefore;
+    }
+
+    expect(maxVisitedPerOp).toBeLessThanOrEqual(64);
+    expect(totalRebuilds).toBeGreaterThanOrEqual(1);
+
+    const remaining = [...internals.authorizationTransactions.keys()].sort();
+    expect(remaining).toHaveLength(100);
+    expect(remaining[0]).toBe('sweep_state_0');
+    expect(remaining.every((key) => Number(key.slice('sweep_state_'.length)) % 2 === 0)).toBe(true);
+
+    // Exact-boundary expiry: expiresAt === now counts as expired.
+    await store.createAuthorizationTransaction(createLiveTransaction('boundary', 250));
+    for (let op = 0; op < 10; op += 1) {
+      await store.consumeAuthorizationTransaction(`missing_boundary_${op}`);
+    }
+    expect(internals.authorizationTransactions.has('sweep_state_boundary')).toBe(false);
+    expect(await store.consumeAuthorizationTransaction('sweep_state_2')).toMatchObject({
+      state: 'sweep_state_2',
+    });
+  });
+
+  it('handles deletion of keys around the sweep cursor and reclaims the snapshot', async () => {
+    let now = 100;
+    const store = createMemoryOidcVaultStore({ now: () => now });
+    const internals = store as unknown as SweepTestInternals;
+
+    for (let i = 0; i < 100; i += 1) {
+      await store.createAuthorizationTransaction(createLiveTransaction(i, 200));
+    }
+
+    // Delete half of the keys (including whatever the cursor points near)
+    // through the public consume path while sweeps keep running.
+    for (let i = 0; i < 100; i += 2) {
+      expect(await store.consumeAuthorizationTransaction(`sweep_state_${i}`)).toMatchObject({
+        state: `sweep_state_${i}`,
+      });
+    }
+
+    expect(internals.authorizationTransactions.size).toBe(50);
+
+    now = 250;
+
+    for (let op = 0; op < 10; op += 1) {
+      resetSweepWork(internals);
+      expect(await store.consumeAuthorizationTransaction(`missing_drain_${op}`)).toBeNull();
+      expect(sweepVisitedSlots(internals)).toBeLessThanOrEqual(64);
+    }
+
+    expect(internals.authorizationTransactions.size).toBe(0);
+
+    // One more sweep on the empty map reclaims the snapshot array itself.
+    await store.consumeAuthorizationTransaction('missing_final');
+    expect(internals.authorizationTransactionSweep.keys).toHaveLength(0);
+    expect(internals.authorizationTransactionSweep.position).toBe(0);
+  });
+
+  it('reclaims expired records across repeated lifecycles without snapshot growth', async () => {
+    let now = 100;
+    const store = createMemoryOidcVaultStore({ now: () => now });
+    const internals = store as unknown as SweepTestInternals;
+    const snapshotSizes: number[] = [];
+
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      for (let i = 0; i < 150; i += 1) {
+        await store.createAuthorizationTransaction(createLiveTransaction(`c${cycle}_${i}`, 200));
+      }
+
+      now = 250;
+
+      for (let op = 0; op < 12; op += 1) {
+        await store.consumeAuthorizationTransaction(`missing_cycle_${cycle}_${op}`);
+      }
+
+      expect(internals.authorizationTransactions.size).toBe(0);
+      await store.consumeAuthorizationTransaction(`missing_cycle_${cycle}_final`);
+      snapshotSizes.push(internals.authorizationTransactionSweep.keys.length);
+
+      now = 100;
+    }
+
+    console.log(`SVH-04 lifecycle snapshot sizes after each drain: ${snapshotSizes.join(', ')}`);
+    expect(snapshotSizes).toEqual([0, 0, 0]);
+  });
+
+  it('supports empty-string keys in sweeps', async () => {
+    let now = 100;
+    const store = createMemoryOidcVaultStore({ now: () => now });
+    const internals = store as unknown as SweepTestInternals;
+
+    await store.createAuthorizationTransaction({
+      state: '',
+      nonce: 'nonce_empty',
+      pkceVerifier: 'verifier_empty',
+      codeChallenge: 'challenge_empty',
+      createdAt: 100,
+      expiresAt: 10_000,
+    });
+    await store.createAuthorizationTransaction(createLiveTransaction('expired_empty', 200));
+
+    now = 250;
+    resetSweepWork(internals);
+
+    for (let op = 0; op < 5; op += 1) {
+      await store.consumeAuthorizationTransaction(`missing_empty_${op}`);
+    }
+
+    expect(sweepVisitedSlots(internals)).toBeLessThanOrEqual(64 * 5);
+    expect(internals.authorizationTransactions.has('sweep_state_expired_empty')).toBe(false);
+    expect(await store.consumeAuthorizationTransaction('')).toMatchObject({ state: '' });
+  });
+
+  it('measures nested alias/lineage cleanup separately from same-map sweeps', async () => {
+    let now = 100;
+    const store = createMemoryOidcVaultStore({ now: () => now });
+    const internals = store as unknown as SweepTestInternals;
+
+    const rotateWithExpiry = async (source: string, target: string, logical: string, expiresAt: number) => {
+      await store.createSession({
+        sessionId: source,
+        logicalSessionId: logical,
+        subject: 'user_1',
+        refreshToken: `refresh_${source}`,
+        idToken: `id_${source}`,
+      });
+      await store.rotateSession({
+        sessionId: source,
+        nextSession: {
+          sessionId: target,
+          subject: 'user_1',
+          refreshToken: `refresh_${target}`,
+          idToken: `id_${target}`,
+          expiresAt,
+        },
+      });
+    };
+
+    await rotateWithExpiry('expiring_source', 'expiring_target', 'expiring_logical', 200);
+    await rotateWithExpiry('live_source', 'live_target', 'live_logical', 10_000);
+
+    now = 250;
+    resetSweepWork(internals);
+
+    // getSession performs no batched same-map sweep; all measured work here
+    // is the nested alias/lineage cleanup for the expired lineage.
+    expect(await store.getSession('expiring_target')).toBeNull();
+
+    console.log(
+      `SVH-04 nested cleanup for one expired lineage: aliasSessionVisits=${internals.sweepWork.aliasSessionVisits} ` +
+        `aliasEntryVisits=${internals.sweepWork.aliasEntryVisits} ` +
+        `inspectedKeys=${internals.sweepWork.inspectedKeys}`,
+    );
+
+    expect(internals.sweepWork.inspectedKeys).toBe(0);
+    expect(internals.sweepWork.aliasSessionVisits).toBeGreaterThan(0);
+    expect(internals.sweepWork.aliasEntryVisits).toBeGreaterThan(0);
+    expect(internals.rotatedSessionAliases.has('expiring_source')).toBe(false);
+    expect(internals.rotatedSessionAliases.has('live_source')).toBe(true);
+    expect(await store.getSession('live_target')).toMatchObject({ sessionId: 'live_target' });
+
+    // Session-sweep path: expired sessions across distinct lineages each pay
+    // lineage-proportional nested cleanup; record it instead of bounding it.
+    for (let i = 0; i < 10; i += 1) {
+      await store.createSession({
+        sessionId: `batch_expired_${i}`,
+        logicalSessionId: `batch_logical_${i}`,
+        subject: 'user_1',
+        refreshToken: `refresh_batch_${i}`,
+        idToken: `id_batch_${i}`,
+        expiresAt: 300,
+      });
+    }
+
+    now = 350;
+    resetSweepWork(internals);
+    await store.deleteSession('missing_batch_trigger');
+
+    console.log(
+      `SVH-04 session-sweep nested cleanup for 10 expired lineages: ` +
+        `inspectedKeys=${internals.sweepWork.inspectedKeys} ` +
+        `aliasSessionVisits=${internals.sweepWork.aliasSessionVisits} ` +
+        `aliasEntryVisits=${internals.sweepWork.aliasEntryVisits} ` +
+        `rebuilds=${internals.sweepWork.snapshotRebuilds}`,
+    );
+
+    // One deleteSession runs two bounded same-map sweeps (sessions, then
+    // rotated aliases), so the cap is 2 x 64; nested lineage work is counted
+    // separately above.
+    expect(internals.sweepWork.inspectedKeys).toBeLessThanOrEqual(128);
+    expect([...internals.sessions.keys()].filter((key) => key.startsWith('batch_expired_'))).toHaveLength(0);
+    expect(await store.getSession('live_target')).toMatchObject({ sessionId: 'live_target' });
   });
 });

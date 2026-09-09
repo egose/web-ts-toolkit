@@ -71,7 +71,7 @@ const assertTypedRegistrarGenerics = (router: JsonRouter): void => {
   type ReqQuery = { verbose?: string };
   type Locals = { requestId: string };
 
-  const callback: JsonRouterCallback<Params, ResBody, ReqBody, ReqQuery, Locals> = (req, res) => {
+  const callback: JsonRouterCallback<Params, ResBody, ReqBody, ReqQuery, Locals, ResBody> = (req, res) => {
     const id: string = req.params.id;
     const name: string = req.body.name;
     const verbose: string | undefined = req.query.verbose;
@@ -85,22 +85,44 @@ const assertTypedRegistrarGenerics = (router: JsonRouter): void => {
     return Promise.resolve({ ok: true });
   };
 
-  const promiseLikeCallback: JsonRouterCallback<Params, ResBody, ReqBody, ReqQuery, Locals> = () => ({
-    then: (resolve: (value: { ok: boolean }) => void) => {
-      resolve({ ok: true });
-    },
-  });
+  const manualThenable = <T,>(value: T): PromiseLike<T> => {
+    class ManualThenable<U> implements PromiseLike<U> {
+      constructor(private readonly value: U) {}
 
-  router.get<Params, ResBody, ReqBody, ReqQuery, Locals>('/users/:id', callback, promiseLikeCallback);
-  router.route('/users/:id').post<Params, ResBody, ReqBody, ReqQuery, Locals>(callback);
+      then<TResult1 = U, TResult2 = never>(
+        onfulfilled?: ((value: U) => TResult1 | PromiseLike<TResult1>) | undefined | null,
+        onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | undefined | null,
+      ): PromiseLike<TResult1 | TResult2> {
+        void onrejected;
+
+        if (typeof onfulfilled === 'function') {
+          return Promise.resolve(onfulfilled(this.value));
+        }
+
+        return Promise.resolve(undefined as unknown as TResult1 | TResult2);
+      }
+    }
+
+    return new ManualThenable(value);
+  };
+
+  const promiseLikeCallback: JsonRouterCallback<Params, ResBody, ReqBody, ReqQuery, Locals, ResBody> = () =>
+    manualThenable<ResBody>({ ok: true });
+
+  router.get<Params, ResBody, ReqBody, ReqQuery, Locals, ResBody>('/users/:id', callback, promiseLikeCallback);
+  router.route('/users/:id').post<Params, ResBody, ReqBody, ReqQuery, Locals, ResBody>(promiseLikeCallback);
 
   // @ts-expect-error request params retain the declared shape
   router.get<{ id: string }>('/users/:id', (req) => req.params.missing);
-  const invalidAsyncCallback: JsonRouterCallback<Params, ResBody, ReqBody, ReqQuery, Locals, { ok: boolean }> = () => ({
+  const wrongResolvedCallback: JsonRouterCallback<Params, ResBody, ReqBody, ReqQuery, Locals, ResBody> = () =>
+    // @ts-expect-error incompatible resolved values are rejected
+    Promise.resolve({ wrong: true });
+  const invalidAsyncCallback: JsonRouterCallback<Params, ResBody, ReqBody, ReqQuery, Locals, ResBody> = () => ({
     // @ts-expect-error constrained async returns must be PromiseLike-compatible
     then: 'not-a-function',
   });
 
+  void wrongResolvedCallback;
   void invalidAsyncCallback;
 };
 

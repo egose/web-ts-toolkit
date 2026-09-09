@@ -220,6 +220,97 @@ describe('access-router-runtime', () => {
     expect(Object.isFrozen(runtime.config)).toBe(true);
   });
 
+  it('snapshots nested auth and structured arrays so original mutation cannot change openUri args', async () => {
+    const connection = createFakeConnection('snapshot-nested');
+    vi.spyOn(mongoose, 'createConnection').mockReturnValue(connection);
+    const auth = { username: 'original', password: 'secret' }; // pragma: allowlist secret
+    const readPreferenceTags: Array<Record<string, string>> = [{ dc: 'east' }];
+    const compressors = ['zlib'];
+    const config: AccessRouterRuntimeConfig = {
+      db: {
+        url: 'mongodb://127.0.0.1:27017/nested-original',
+        options: {
+          serverSelectionTimeoutMS: 10,
+          auth,
+          readPreferenceTags,
+          compressors,
+        } as unknown as mongoose.ConnectOptions,
+      },
+    };
+
+    const runtime = createAccessRouterRuntime(config);
+    auth.username = 'mutated';
+    auth.password = 'mutated'; // pragma: allowlist secret
+    readPreferenceTags[0].dc = 'west';
+    readPreferenceTags.push({ dc: 'north' });
+    compressors.push('snappy');
+
+    await runtime.init();
+    await runtime.shutdown();
+
+    expect(connection.openUri).toHaveBeenCalledWith('mongodb://127.0.0.1:27017/nested-original', {
+      serverSelectionTimeoutMS: 10,
+      auth: { username: 'original', password: 'secret' }, // pragma: allowlist secret
+      readPreferenceTags: [{ dc: 'east' }],
+      compressors: ['zlib'],
+    });
+  });
+
+  it('prevents runtime.config mutation from changing captured options and preserves opaque identity', async () => {
+    const connection = createFakeConnection('snapshot-opaque');
+    vi.spyOn(mongoose, 'createConnection').mockReturnValue(connection);
+    class FakePkFactory {
+      createPk(): number {
+        return 1;
+      }
+    }
+    const pkFactory = new FakePkFactory();
+    const hook = (): string => 'hook';
+    const startedAt = new Date('2026-01-02T03:04:05.000Z');
+    const payload = Buffer.from('opaque');
+    const config: AccessRouterRuntimeConfig = {
+      db: {
+        url: 'mongodb://127.0.0.1:27017/opaque-original',
+        options: {
+          serverSelectionTimeoutMS: 10,
+          auth: { username: 'original', password: 'secret' }, // pragma: allowlist secret
+          pkFactory: pkFactory as never,
+          hook,
+          startedAt,
+          payload,
+        } as unknown as mongoose.ConnectOptions,
+      },
+    };
+
+    const runtime = createAccessRouterRuntime(config);
+    const publicOptions = (runtime.config.db as unknown as { options: Record<string, unknown> }).options;
+    expect(publicOptions.pkFactory).toBe(pkFactory);
+    expect(publicOptions.hook).toBe(hook);
+    expect(publicOptions.startedAt).toBe(startedAt);
+    expect(publicOptions.payload).toBe(payload);
+    expect((publicOptions.hook as () => string)()).toBe('hook');
+    expect(publicOptions.startedAt).toBeInstanceOf(Date);
+    expect(Buffer.isBuffer(publicOptions.payload)).toBe(true);
+
+    expect(() => {
+      (publicOptions.auth as Record<string, unknown>).username = 'hacked';
+    }).toThrow(TypeError);
+    expect(() => {
+      (publicOptions.auth as Record<string, unknown>).password = 'hacked'; // pragma: allowlist secret
+    }).toThrow(TypeError);
+
+    await runtime.init();
+    await runtime.shutdown();
+
+    const openUriOptions = connection.openUri.mock.calls[0][1] as Record<string, unknown>;
+    expect(openUriOptions).toMatchObject({ serverSelectionTimeoutMS: 10 });
+    expect(openUriOptions.auth).toEqual({ username: 'original', password: 'secret' }); // pragma: allowlist secret
+    expect(openUriOptions.pkFactory).toBe(pkFactory);
+    expect(openUriOptions.hook).toBe(hook);
+    expect(openUriOptions.startedAt).toBe(startedAt);
+    expect(openUriOptions.payload).toBe(payload);
+  });
+
   it('rejects app-only helper configs with lifecycle requirements before runtime side effects', () => {
     const createConnectionSpy = vi.spyOn(mongoose, 'createConnection');
 
@@ -372,6 +463,94 @@ describe('access-router-runtime', () => {
     expect(externalConnection.model).toHaveBeenCalledTimes(1);
   });
 
+  it('rolls back partial construction when a later model collides with a pre-existing external model', () => {
+    const externalConnection = createFakeConnection('b04-partial', 1);
+    const preExistingSchema = new mongoose.Schema({ label: String });
+    const preExisting = externalConnection.model('AccessRouterRuntimeB04Existing', preExistingSchema);
+    const baselineKeys = Object.keys(externalConnection.models).sort();
+    externalConnection.model.mockClear();
+
+    const schemaA = new mongoose.Schema({ title: String });
+    const incompatibleB = new mongoose.Schema({ other: String });
+
+    expect(() =>
+      createAccessRouterRuntime({
+        db: { connection: externalConnection },
+        models: [
+          { name: 'AccessRouterRuntimeB04ValidA', schema: schemaA, router: { operationAccess: false } },
+          { name: 'AccessRouterRuntimeB04Existing', schema: incompatibleB, router: { operationAccess: false } },
+        ],
+      }),
+    ).toThrow(/conflicts with an existing model on the selected Mongoose connection/);
+
+    expect(Object.keys(externalConnection.models).sort()).toEqual(baselineKeys);
+    expect(externalConnection.models.AccessRouterRuntimeB04Existing).toBe(preExisting);
+    expect(externalConnection.models.AccessRouterRuntimeB04ValidA).toBeUndefined();
+
+    const retry = createAccessRouterRuntime({
+      db: { connection: externalConnection },
+      models: [
+        { name: 'AccessRouterRuntimeB04ValidA', schema: schemaA, router: { operationAccess: false } },
+        { name: 'AccessRouterRuntimeB04Existing', schema: preExistingSchema, router: { operationAccess: false } },
+      ],
+    });
+
+    expect(retry.models.AccessRouterRuntimeB04ValidA).toBeDefined();
+    expect(retry.models.AccessRouterRuntimeB04Existing).toBe(preExisting);
+    expect(externalConnection.models.AccessRouterRuntimeB04ValidA).toBeDefined();
+  });
+
+  it('releases owned models and connections when finalize throws during construction', async () => {
+    const baseline = mongoose.connections.length;
+    const modelName = 'AccessRouterRuntimeB04OwnedFinalize';
+    const rejections: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      rejections.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+      expect(() =>
+        createAccessRouterRuntime({
+          models: [
+            { name: modelName, schema: new mongoose.Schema({ title: String }), router: { operationAccess: false } },
+          ],
+          express: {
+            finalize() {
+              throw new Error('b04 finalize boom');
+            },
+          },
+        }),
+      ).toThrow('b04 finalize boom');
+
+      expect(mongoose.connections.length).toBe(baseline);
+      expect(mongoose.connections.some((connection) => connection.models[modelName])).toBe(false);
+
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(rejections).toEqual([]);
+
+      const retry = createAccessRouterRuntime({
+        models: [
+          { name: modelName, schema: new mongoose.Schema({ title: String }), router: { operationAccess: false } },
+        ],
+      });
+      expect(retry.models[modelName]).toBeDefined();
+      await retry.shutdown();
+      expect(mongoose.connections.length).toBe(baseline);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+      for (const connection of [...mongoose.connections]) {
+        if (connection.models[modelName]) {
+          try {
+            await connection.destroy();
+          } catch {
+            // defensive teardown only; assertions already ran
+          }
+        }
+      }
+    }
+  });
+
   it('cleans runtime-generated models deterministically on shutdown', async () => {
     const externalConnection = createFakeConnection('cleanup', 1);
     const firstRuntime = createAccessRouterRuntime({
@@ -507,6 +686,73 @@ describe('access-router-runtime', () => {
     });
 
     await request(runtime.app).post('/api/members/status').expect(201, { created: true });
+  });
+
+  it('denies an unauthorized custom request through a caller-supplied macl guard', async () => {
+    const runtime = createAccessRouterRuntime({
+      models: [
+        {
+          name: 'AccessRouterRuntimeCustomDenied',
+          schema: new mongoose.Schema({ name: String }),
+          router: {
+            basePath: '/api/custom-denied',
+            operationAccess: false,
+          },
+          customRoutes: [
+            {
+              method: 'get',
+              path: '/:id/profile',
+              handler: async (req, res) => {
+                // ARRT-B12: supported ACL API without casts; custom routes
+                // carry no automatic CRUD authorization.
+                const allowed: boolean = await req.macl.isAllowed('AccessRouterRuntimeCustomDenied', 'read');
+                if (!allowed) {
+                  res.status(403).json({ denied: true });
+                  return;
+                }
+                return { ok: true };
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    await request(runtime.app).get('/api/custom-denied/123/profile').expect(403, { denied: true });
+  });
+
+  it('permits an authorized custom request through a caller-supplied macl guard', async () => {
+    const runtime = createAccessRouterRuntime({
+      models: [
+        {
+          name: 'AccessRouterRuntimeCustomAllowed',
+          schema: new mongoose.Schema({ name: String }),
+          router: {
+            basePath: '/api/custom-allowed',
+            operationAccess: { read: true },
+          },
+          customRoutes: [
+            {
+              method: 'get',
+              path: '/:id/profile',
+              handler: async (req) => {
+                // ARRT-B12: supported ACL API without casts; the caller owns
+                // the guard decision, not a guessed CRUD mapping.
+                const allowed: boolean = await req.macl.isAllowed('AccessRouterRuntimeCustomAllowed', 'read');
+                if (!allowed) {
+                  throw Object.assign(new Error('forbidden'), { statusCode: 403 });
+                }
+                const service = req.macl.getPublicService('AccessRouterRuntimeCustomAllowed');
+                void service;
+                return { ok: true };
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    await request(runtime.app).get('/api/custom-allowed/123/profile').expect(200, { ok: true });
   });
 
   it('creates a serverless handler that preserves caller init hooks', async () => {

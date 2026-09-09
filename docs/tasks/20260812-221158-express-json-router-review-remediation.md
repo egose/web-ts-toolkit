@@ -4,6 +4,8 @@ Created: 2026-08-12 22:11:58 PDT
 
 Package: `packages/express-json-router`
 
+Follow-up review (2026-09-08): [Express JSON Router Boundary Follow-Up](20260908-143145-express-json-router-boundary-follow-up.md) tracks residual builder semantics, runtime/consumer test gaps, and documentation drift. Historical completion evidence below is preserved; use the follow-up for the new review phase.
+
 ## Objective
 
 Remediate confirmed mutation-safety, Express compatibility, encapsulation, public-type, packaging, and documentation gaps in `@web-ts-toolkit/express-json-router`. The end state must preserve the package's return-value routing behavior while making route registration deterministic, endpoint metadata trustworthy, supported Express behavior explicit, and the installed ESM/CJS TypeScript experience independently verifiable.

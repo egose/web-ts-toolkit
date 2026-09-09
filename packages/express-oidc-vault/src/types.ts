@@ -136,17 +136,48 @@ export interface OidcVaultStoreProvider {
   /** Upsert an exchange code record by `code`. */
   createExchangeCode(input: ExchangeCodeRecordInput): Promise<void>;
   consumeExchangeCode(code: string): Promise<ExchangeCodeRecord | null>;
-  /** Upsert a session by `sessionId`, defaulting timestamps and logical lineage when omitted. */
+  /**
+   * Create a session by `sessionId`, defaulting timestamps and logical lineage when omitted.
+   *
+   * Duplicate-ID behavior is provider-specific (SVH-06): the memory and
+   * MongoDB providers replace the existing session (upsert), while the Redis
+   * provider rejects a live duplicate with `OidcVaultStoreConflictError`
+   * without changing the existing record or indexes (create-only, preserving
+   * RVR-02 index ownership). A rejected create preserves the original record
+   * and its subject/logical/provider-session index memberships; an accepted
+   * replacement takes over the ID with its own subject/logical/provider-session
+   * scope. Reusing an ID that holds only a stale rotation alias clears that
+   * alias on memory/Redis, while MongoDB retains the stale alias row until its
+   * lineage is deleted (FU-SVH-05b).
+   *
+   * Portable callers must always create sessions with a fresh unused
+   * `sessionId` and handle `OidcVaultStoreConflictError`: reusing a live ID is
+   * non-portable (it may replace or reject), and concurrent reuse races
+   * rotation source checks (SVH-08). The core middleware only creates fresh
+   * random IDs, so it never depends on duplicate-create behavior.
+   */
   createSession(input: OidcVaultSessionInput): Promise<OidcVaultSession>;
   getSession(sessionId: string): Promise<OidcVaultSession | null>;
   /**
    * Atomically replace an existing session with a distinct unused `nextSession.sessionId`.
    *
    * Providers preserve the existing logical session ID when the next session omits
-   * one, retain the old public session ID as a revocation alias while the lineage
-   * remains live, and throw `OidcVaultStoreConflictError` without changing source
-   * or target data when the source is missing, the target already exists, or the
-   * target ID equals the source ID.
+   * one, retain the old public session ID as a finite in-flight-request
+   * revocation alias (not whole-lineage revocation), and throw
+   * `OidcVaultStoreConflictError` without changing source or target data when
+   * the source is missing, the target already exists, or the target ID equals
+   * the source ID.
+   *
+   * Each alias expires with its immediate successor session's `expiresAt` and is
+   * not extended by later rotations, so an earlier alias can stop working while
+   * the lineage is still live. A rotation that assigns an explicitly different
+   * logical session ID moves the alias to the new lineage; earlier aliases keep
+   * the old lineage. Sessions without `expiresAt` have provider-specific
+   * retention: memory and Redis aliases persist until lineage termination, while
+   * MongoDB applies its finite `rotatedSessionAliasRetentionMs` fallback
+   * (default 5 minutes). Generic callers must treat an expired alias as a hint,
+   * not a revocation channel; core refresh rotates the live session directly and
+   * preserves `expiresAt`, so it does not depend on alias lifetime (SVH-05).
    */
   rotateSession(input: RotateSessionInput): Promise<OidcVaultSession>;
   deleteSession(sessionId: string): Promise<void>;

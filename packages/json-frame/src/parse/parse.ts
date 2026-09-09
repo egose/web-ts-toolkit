@@ -424,6 +424,13 @@ const parseValues = (value: JsonValue, options: NormalizedFromOrientOptions, ori
   });
 };
 
+/**
+ * Tightened split contract: an omitted `index` synthesizes `[0..n)`, while a
+ * present non-array `index` (string, number, null, boolean, or object) is
+ * rejected with `JsonFrameValidationError` at `$.index`. Null-prototype and
+ * prototype-sensitive column/index labels remain valid; only the container
+ * shape of `index` is restricted.
+ */
 const parseSplit = (value: JsonValue, orient: 'split'): ParsedFrame => {
   if (!isPlainObject(value)) {
     throw new JsonFrameValidationError('`split` payloads must be objects.', { orient, path: '$', value });
@@ -447,6 +454,14 @@ const parseSplit = (value: JsonValue, orient: 'split'): ParsedFrame => {
 
   const columns = assertUniqueStringColumns(value.columns as readonly JsonValue[], orient, '$.columns');
   const data = initializeData(columns);
+
+  if (value.index !== undefined && !Array.isArray(value.index)) {
+    throw new JsonFrameValidationError('`split.index` must be an array of index labels when present.', {
+      orient,
+      path: '$.index',
+      value: value.index,
+    });
+  }
 
   const index: IndexLabel[] = [];
   const indexKind: IndexKind = Array.isArray(value.index) ? 'source' : 'synthetic';
@@ -808,7 +823,7 @@ export const parseInput = (input: string | unknown, options: NormalizedFromOrien
     }
   })();
 
-  const jsonValue = cloneJsonCompatible(parsedValue);
+  const jsonValue = cloneJsonCompatible(parsedValue, options.orient === 'auto' ? undefined : options.orient);
   const orient = options.orient === 'auto' ? detectOrient(jsonValue) : options.orient;
 
   switch (orient) {

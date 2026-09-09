@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import type { NextFunction, Request, Response } from 'express';
+import type { NextFunction, Response } from 'express';
 import {
   combineRoutes,
   createAccessRuntime,
@@ -14,6 +14,11 @@ import {
   type RootRouter,
   type RootRouterOptions,
 } from '@web-ts-toolkit/access-router';
+// ARRT-B12: custom-route handlers reuse the delegated public model request
+// type (which carries the request-core `macl` ACL contract) instead of a
+// parallel request API. `ModelRequest` is public through the `advanced`
+// subpath; the import is type-only and erased at runtime.
+import type { ModelRequest } from '@web-ts-toolkit/access-router/advanced';
 import {
   createExpressApp,
   createServerlessHandler as createExpressServerlessHandler,
@@ -55,14 +60,40 @@ type RuntimeModelValue<TDefinition> =
   TDefinition extends AccessRouterRuntimeModelDefinition<infer TModel> ? mongoose.Model<TModel> : RuntimeModel;
 type RuntimeDataValue<TDefinition> =
   TDefinition extends AccessRouterRuntimeDataDefinition<infer TData> ? TData : unknown;
-type AccessRouterRuntimeModelRegistry<TConfig extends AccessRouterRuntimeConfig> = Readonly<
-  UnionToIntersection<
-    RuntimeModelDefinitions<TConfig> extends infer TDefinition
-      ? TDefinition extends unknown
-        ? { [K in RuntimeModelName<TDefinition>]: RuntimeModelValue<TDefinition> }
+// ARRT-B11: sound heterogeneous registry. Known literal names intersect by key;
+// widened/omitted names (name falls back to `string`) never intersect. They
+// contribute a truthful `string` fallback of the union of all model values plus
+// `undefined` for lookup absence, so dynamic lookups cannot claim impossible
+// simultaneous shapes and must handle uncertainty.
+type RuntimeKnownModelRecords<TConfig extends AccessRouterRuntimeConfig> =
+  RuntimeModelDefinitions<TConfig> extends infer TDefinition
+    ? TDefinition extends unknown
+      ? string extends RuntimeModelName<TDefinition>
+        ? never
+        : { [K in RuntimeModelName<TDefinition>]: RuntimeModelValue<TDefinition> }
+      : never
+    : never;
+type RuntimeKnownModelRegistry<TConfig extends AccessRouterRuntimeConfig> = [
+  RuntimeKnownModelRecords<TConfig>,
+] extends [never]
+  ? Record<never, never>
+  : UnionToIntersection<RuntimeKnownModelRecords<TConfig>>;
+type RuntimeDynamicModelValues<TConfig extends AccessRouterRuntimeConfig> =
+  RuntimeModelDefinitions<TConfig> extends infer TDefinition
+    ? TDefinition extends unknown
+      ? string extends RuntimeModelName<TDefinition>
+        ? RuntimeModelValue<TDefinition>
         : never
       : never
-  >
+    : never;
+type RuntimeAllModelValues<TConfig extends AccessRouterRuntimeConfig> = RuntimeModelValue<
+  RuntimeModelDefinitions<TConfig>
+>;
+type AccessRouterRuntimeModelRegistry<TConfig extends AccessRouterRuntimeConfig> = Readonly<
+  RuntimeKnownModelRegistry<TConfig> &
+    ([RuntimeDynamicModelValues<TConfig>] extends [never]
+      ? unknown
+      : { [K in string]: RuntimeAllModelValues<TConfig> | undefined })
 >;
 type AccessRouterRuntimeModelRouters<TConfig extends AccessRouterRuntimeConfig> = ReadonlyArray<
   ModelRouter<
@@ -90,8 +121,20 @@ export type AccessRouterRuntimeCustomRouteMethod =
   | 'post'
   | 'put';
 
+/**
+ * Request observed by model custom-route handlers.
+ *
+ * The model router mounts the shared request-core middleware before custom
+ * routes, so `macl` is set up exactly as for generated CRUD routes. Setting
+ * up the core is not authorization: custom routes do not inherit any
+ * generated-operation guard and must enforce their own via `req.macl`
+ * (for example `isAllowed`/`getPublicService`). Arbitrary methods/paths are
+ * never mapped onto CRUD permissions.
+ */
+export type AccessRouterRuntimeCustomRouteRequest = ModelRequest;
+
 export type AccessRouterRuntimeCustomRouteHandler = (
-  req: Request,
+  req: AccessRouterRuntimeCustomRouteRequest,
   res: Response,
   next: NextFunction,
 ) => unknown | Promise<unknown>;
@@ -152,12 +195,22 @@ export interface AccessRouterRuntimeContext<TConfig extends AccessRouterRuntimeC
   openApiRouter?: ReturnType<AccessRuntimeApi['createOpenApiRouter']>;
 }
 
+/**
+ * Ignored deprecated dev metadata. These fields are validated for shape but
+ * never consumed by the `dev` watch supervisor.
+ *
+ * Watch supervision is controlled only by explicit CLI flags (`--watch`,
+ * `--ext`, `--delay`); bare `--watch` defaults to `.`. The supervisor never
+ * loads the access-router-runtime config in the parent process, so config
+ * `dev` values cannot alter supervisor scope, extensions, or delay. Prefer
+ * CLI flags and remove `dev` from configs when convenient.
+ */
 export interface AccessRouterRuntimeDevOptions {
-  /** Default watch paths for `wtt-access-router-runtime dev`. */
+  /** @deprecated Ignored metadata; pass `--watch <paths>` explicitly instead. */
   watch?: ReadonlyArray<string>;
-  /** Default watch extensions for `wtt-access-router-runtime dev`. */
+  /** @deprecated Ignored metadata; pass `--ext <extensions>` explicitly instead. */
   ext?: ReadonlyArray<string>;
-  /** Default watch debounce delay in ms for `wtt-access-router-runtime dev`. */
+  /** @deprecated Ignored metadata; pass `--delay <ms>` explicitly instead. */
   delay?: number;
 }
 
@@ -198,13 +251,20 @@ export interface AccessRouterRuntimeInstance<
   startLocalServer: (options?: LocalServerOptions) => LocalServer;
 }
 
-export function defineRuntimeConfig<TConfig extends AccessRouterRuntimeConfig>(config: TConfig): TConfig {
+export function defineRuntimeConfig<const TConfig extends AccessRouterRuntimeConfig>(config: TConfig): TConfig {
   return config;
 }
 
 type RuntimeLifecycleState = 'idle' | 'initializing' | 'ready' | 'stopping' | 'stopped' | 'failed';
 
 const shutdownDuringInitMessage = 'Runtime shutdown requested before initialization completed';
+
+class ShutdownDuringInitError extends Error {
+  constructor() {
+    super(shutdownDuringInitMessage);
+    this.name = 'ShutdownDuringInitError';
+  }
+}
 
 function createLifecycleStateError(state: RuntimeLifecycleState): Error {
   if (state === 'stopping') {
@@ -217,7 +277,7 @@ function createLifecycleStateError(state: RuntimeLifecycleState): Error {
 }
 
 function isShutdownDuringInitError(error: unknown): boolean {
-  return error instanceof Error && error.message === shutdownDuringInitMessage;
+  return error instanceof ShutdownDuringInitError;
 }
 
 function combineLifecycleErrors(primary: unknown, secondaryErrors: unknown[], message: string): never {
@@ -239,11 +299,59 @@ function hasOwn(value: object, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 
+function isPlainSnapshotObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+// Snapshot policy for structured `db.options` values (ARRT-B06):
+// clone plain objects/arrays recursively so later caller mutations cannot
+// alter captured lifecycle options. Opaque values (functions, class
+// instances such as driver helpers, Buffers/Dates/Maps/Sets, Mongoose
+// connections/schemas) are kept by reference and never traversed or frozen,
+// so required identity/behavior is preserved. No JSON round-trip is used.
+function cloneSnapshotValue<TValue>(value: TValue): TValue {
+  if (Array.isArray(value)) {
+    return value.map((entry) => cloneSnapshotValue(entry)) as unknown as TValue;
+  }
+  if (isPlainSnapshotObject(value)) {
+    const cloned: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value)) {
+      cloned[key] = cloneSnapshotValue(entry);
+    }
+    return cloned as unknown as TValue;
+  }
+  return value;
+}
+
+// Freeze only the cloned plain structure exposed via `runtime.config`.
+// Opaque references stay shared and unfrozen by design; the public view is
+// therefore not a full deep freeze, only lifecycle-relevant plain structure
+// is immutable.
+function freezePlainSnapshotValue<TValue>(value: TValue): TValue {
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      freezePlainSnapshotValue(entry);
+    }
+    return Object.freeze(value);
+  }
+  if (isPlainSnapshotObject(value)) {
+    for (const entry of Object.values(value)) {
+      freezePlainSnapshotValue(entry);
+    }
+    return Object.freeze(value);
+  }
+  return value;
+}
+
 function snapshotDbConfig(db: AccessRouterRuntimeDbConfig | undefined): AccessRouterRuntimeDbConfig | undefined {
   if (!db) return undefined;
   return {
     ...db,
-    ...(db.options ? { options: { ...db.options } } : {}),
+    ...(db.options ? { options: cloneSnapshotValue(db.options) } : {}),
   };
 }
 
@@ -259,7 +367,11 @@ function createContextConfigSnapshot<TConfig extends AccessRouterRuntimeConfig>(
   const snapshot = { ...config } as Record<string, unknown>;
 
   if (config.db) {
-    snapshot.db = Object.freeze(snapshotDbConfig(config.db) ?? {});
+    const dbSnapshot = snapshotDbConfig(config.db);
+    if (dbSnapshot?.options) {
+      freezePlainSnapshotValue(dbSnapshot.options);
+    }
+    snapshot.db = Object.freeze(dbSnapshot ?? {});
   }
   if (config.models) {
     snapshot.models = freezeReadonlyArraySnapshot(config.models);
@@ -290,6 +402,12 @@ function assertAppOnlyConfigHasNoLifecycleRequirements(config: AccessRouterRunti
       'createAccessRouterRuntimeApp() only accepts lifecycle-free configs. Use createAccessRouterRuntime(config).app when the config defines db, init, or shutdown.',
     );
   }
+  const hasSchemaBackedModels = (config.models ?? []).some((definition) => hasOwn(definition, 'schema'));
+  if (hasSchemaBackedModels) {
+    throw new Error(
+      'createAccessRouterRuntimeApp() does not support schema-backed models because they allocate a runtime-owned connection with no disposal handle. Use createAccessRouterRuntime(config) and call init()/shutdown() to release the connection and generated models.',
+    );
+  }
 }
 
 async function collectLifecycleCleanupErrors(steps: ReadonlyArray<() => Promise<void> | void>): Promise<unknown[]> {
@@ -304,7 +422,7 @@ async function collectLifecycleCleanupErrors(steps: ReadonlyArray<() => Promise<
   return errors;
 }
 
-export function createAccessRouterRuntime<TConfig extends AccessRouterRuntimeConfig>(
+export function createAccessRouterRuntime<const TConfig extends AccessRouterRuntimeConfig>(
   config: TConfig,
 ): AccessRouterRuntimeInstance<TConfig> {
   validateAccessRouterRuntimeConfig(config);
@@ -325,54 +443,81 @@ export function createAccessRouterRuntime<TConfig extends AccessRouterRuntimeCon
   const models: Record<string, RuntimeModel> = {};
   const modelRouters: ModelRouter<unknown>[] = [];
   const dataRouters: DataRouter<unknown>[] = [];
+  let rootRouter: RootRouter | undefined;
+  let openApiRouter: ReturnType<AccessRuntimeApi['createOpenApiRouter']> | undefined;
+  let app!: ReturnType<typeof createExpressApp>;
 
-  for (const definition of config.models ?? []) {
-    const model = database.resolveModel(definition);
-    models[model.modelName] = model;
-    const modelRouter = runtime.createRouter(
-      model,
-      definition.router as ModelRouterOptions<unknown>,
-    ) as ModelRouter<unknown>;
+  try {
+    database.prevalidateModels();
 
-    for (const route of definition.customRoutes ?? []) {
-      modelRouter.router[route.method](route.path, route.handler);
+    for (const definition of config.models ?? []) {
+      const model = database.resolveModel(definition);
+      models[model.modelName] = model;
+      const modelRouter = runtime.createRouter(
+        model,
+        definition.router as ModelRouterOptions<unknown>,
+      ) as ModelRouter<unknown>;
+
+      for (const route of definition.customRoutes ?? []) {
+        // ARRT-B12: adapt the `ModelRequest`-typed custom handler to the
+        // plain-Express `JsonRouter` registrar without changing behavior.
+        // The model router's request-core middleware runs first, so the
+        // `macl` contract the handler observes is always initialized; no
+        // CRUD permission is inferred from the arbitrary method/path.
+        const customHandler = route.handler;
+        modelRouter.router[route.method](route.path, (req, res, next) =>
+          customHandler(req as AccessRouterRuntimeCustomRouteRequest, res, next),
+        );
+      }
+
+      modelRouters.push(modelRouter);
     }
 
-    modelRouters.push(modelRouter);
+    for (const definition of config.data ?? []) {
+      dataRouters.push(
+        runtime.createDataRouter(definition.name, {
+          ...definition.router,
+          dataName: definition.router.dataName ?? definition.name,
+        }) as DataRouter<unknown>,
+      );
+    }
+
+    rootRouter =
+      config.rootRouter === false || !config.rootRouter ? undefined : runtime.createRouter(config.rootRouter);
+    openApiRouter =
+      config.openApi === false || !config.openApi ? undefined : runtime.createOpenApiRouter(config.openApi);
+    const mountedRoutes: CombinedRouteInput[] = [
+      ...modelRouters,
+      ...dataRouters,
+      ...(rootRouter ? [rootRouter] : []),
+      ...(config.extraRoutes ?? []),
+      ...(openApiRouter ? [openApiRouter] : []),
+    ];
+    const combinedRouter = mountedRoutes.length > 0 ? combineRoutes(...mountedRoutes) : undefined;
+
+    const safeExpressOptions = { ...(config.express ?? {}) } as ExpressAppOptions;
+    const userFinalize = safeExpressOptions.finalize;
+    delete safeExpressOptions.finalize;
+    delete safeExpressOptions.router;
+    delete safeExpressOptions.routers;
+    app = createExpressApp({
+      ...safeExpressOptions,
+      ...(combinedRouter ? { routers: [{ path: '/', handler: combinedRouter }] } : {}),
+      finalize: userFinalize,
+    });
+  } catch (constructionError) {
+    const cleanupErrors: unknown[] = [];
+    try {
+      database.rollbackConstruction();
+    } catch (cleanupError) {
+      if (cleanupError instanceof AggregateError) {
+        cleanupErrors.push(...cleanupError.errors);
+      } else {
+        cleanupErrors.push(cleanupError);
+      }
+    }
+    combineLifecycleErrors(constructionError, cleanupErrors, 'Runtime construction failed and cleanup also failed');
   }
-
-  for (const definition of config.data ?? []) {
-    dataRouters.push(
-      runtime.createDataRouter(definition.name, {
-        ...definition.router,
-        dataName: definition.router.dataName ?? definition.name,
-      }) as DataRouter<unknown>,
-    );
-  }
-
-  const rootRouter =
-    config.rootRouter === false || !config.rootRouter ? undefined : runtime.createRouter(config.rootRouter);
-  const openApiRouter =
-    config.openApi === false || !config.openApi ? undefined : runtime.createOpenApiRouter(config.openApi);
-  const mountedRoutes: CombinedRouteInput[] = [
-    ...modelRouters,
-    ...dataRouters,
-    ...(rootRouter ? [rootRouter] : []),
-    ...(config.extraRoutes ?? []),
-    ...(openApiRouter ? [openApiRouter] : []),
-  ];
-  const combinedRouter = mountedRoutes.length > 0 ? combineRoutes(...mountedRoutes) : undefined;
-
-  const safeExpressOptions = { ...(config.express ?? {}) } as ExpressAppOptions;
-  const userFinalize = safeExpressOptions.finalize;
-  delete safeExpressOptions.finalize;
-  delete safeExpressOptions.router;
-  delete safeExpressOptions.routers;
-  const app = createExpressApp({
-    ...safeExpressOptions,
-    ...(combinedRouter ? { routers: [{ path: '/', handler: combinedRouter }] } : {}),
-    finalize: userFinalize,
-  });
 
   const context: AccessRouterRuntimeContext<TConfig> = {
     config: createContextConfigSnapshot(config),
@@ -388,8 +533,22 @@ export function createAccessRouterRuntime<TConfig extends AccessRouterRuntimeCon
   let lifecycleState: RuntimeLifecycleState = 'idle';
   let initPromise: Promise<void> | null = null;
   let shutdownPromise: Promise<void> | null = null;
+  const pendingAdapterInits = new Set<Promise<void>>();
 
   const getLifecycleState = (): RuntimeLifecycleState => lifecycleState;
+
+  const isTerminalShutdown = (): boolean =>
+    shutdownPromise !== null || lifecycleState === 'stopping' || lifecycleState === 'stopped';
+
+  const awaitPendingAdapterInits = async (): Promise<void> => {
+    for (;;) {
+      const pending = [...pendingAdapterInits];
+      if (pending.length === 0) {
+        return;
+      }
+      await Promise.allSettled(pending);
+    }
+  };
 
   const init = async (): Promise<void> => {
     if (lifecycleState === 'ready') {
@@ -397,6 +556,9 @@ export function createAccessRouterRuntime<TConfig extends AccessRouterRuntimeCon
     }
     if (lifecycleState === 'initializing' && initPromise) {
       return initPromise;
+    }
+    if (shutdownPromise) {
+      throw createLifecycleStateError('stopping');
     }
     if (lifecycleState === 'stopping' || lifecycleState === 'stopped') {
       throw createLifecycleStateError(lifecycleState);
@@ -408,12 +570,12 @@ export function createAccessRouterRuntime<TConfig extends AccessRouterRuntimeCon
       try {
         await database.connect();
         if (getLifecycleState() === 'stopping') {
-          throw new Error(shutdownDuringInitMessage);
+          throw new ShutdownDuringInitError();
         }
         configInitStarted = true;
         await lifecycleInit?.(context);
         if (getLifecycleState() === 'stopping') {
-          throw new Error(shutdownDuringInitMessage);
+          throw new ShutdownDuringInitError();
         }
         lifecycleState = 'ready';
       } catch (error) {
@@ -423,8 +585,11 @@ export function createAccessRouterRuntime<TConfig extends AccessRouterRuntimeCon
 
         const cleanupErrors = await collectLifecycleCleanupErrors([
           ...(configInitStarted && lifecycleShutdown ? [() => lifecycleShutdown(context)] : []),
-          () => database.disconnect(),
+          () => database.rollback(),
         ]);
+        if (getLifecycleState() === 'stopping') {
+          combineLifecycleErrors(error, cleanupErrors, 'Runtime initialization failed and rollback also failed');
+        }
         lifecycleState = 'failed';
         combineLifecycleErrors(error, cleanupErrors, 'Runtime initialization failed and rollback also failed');
       } finally {
@@ -446,21 +611,29 @@ export function createAccessRouterRuntime<TConfig extends AccessRouterRuntimeCon
     const pendingInit = lifecycleState === 'initializing' ? initPromise : null;
     lifecycleState = 'stopping';
     shutdownPromise = (async () => {
+      let hasPendingInitError = false;
       let pendingInitError: unknown;
       if (pendingInit) {
         try {
           await pendingInit;
         } catch (error) {
+          hasPendingInitError = true;
           pendingInitError = error;
         }
       }
+
+      // Wait for complete adapter startup (runtime init + caller hooks) so a
+      // deferred caller acquisition cannot settle after teardown. Entries for
+      // a failing adapter are removed before its rollback calls shutdown, so
+      // this cannot deadlock on itself; it joins other pending adapters.
+      await awaitPendingAdapterInits();
 
       const cleanupErrors = await collectLifecycleCleanupErrors([
         ...(lifecycleShutdown ? [() => lifecycleShutdown(context)] : []),
         () => database.disconnect(),
       ]);
 
-      if (pendingInitError && !isShutdownDuringInitError(pendingInitError) && cleanupErrors.length > 0) {
+      if (hasPendingInitError && !isShutdownDuringInitError(pendingInitError) && cleanupErrors.length > 0) {
         lifecycleState = 'failed';
         combineLifecycleErrors(
           pendingInitError,
@@ -475,7 +648,7 @@ export function createAccessRouterRuntime<TConfig extends AccessRouterRuntimeCon
       }
 
       lifecycleState = 'stopped';
-      if (pendingInitError && !isShutdownDuringInitError(pendingInitError)) {
+      if (hasPendingInitError && !isShutdownDuringInitError(pendingInitError)) {
         throw pendingInitError;
       }
     })().finally(() => {
@@ -498,6 +671,10 @@ export function createAccessRouterRuntime<TConfig extends AccessRouterRuntimeCon
   };
 
   const runComposedShutdown = async (callerShutdown?: () => Promise<void> | void): Promise<void> => {
+    // Wait for deferred caller acquisition before running caller cleanup so
+    // cleanup follows acquisition exactly once. Runtime shutdown also waits,
+    // making the second wait a no-op join.
+    await awaitPendingAdapterInits();
     const cleanupErrors = await collectLifecycleCleanupErrors([...(callerShutdown ? [callerShutdown] : []), shutdown]);
     throwCleanupErrors(cleanupErrors, 'Runtime shutdown failed');
   };
@@ -510,38 +687,174 @@ export function createAccessRouterRuntime<TConfig extends AccessRouterRuntimeCon
       TEvent extends object = Record<string, unknown>,
       TContext extends object = Record<string, unknown>,
     >(options: ServerlessHandlerOptions<TEvent, TContext> = {}) {
-      return createExpressServerlessHandler(app, {
-        ...options,
-        init: async () => {
-          await init();
-          try {
-            await options.init?.();
-          } catch (error) {
-            await rollbackCallerInitFailure(error);
-          }
-        },
-      });
+      const { init: callerInit, ...innerOptions } = options;
+      const inner = createExpressServerlessHandler(app, innerOptions);
+      let adapterInit: Promise<void> | null = null;
+      let adapterSettled = false;
+
+      const ensureAdapterInit = (): Promise<void> => {
+        if (!adapterInit) {
+          adapterSettled = false;
+          adapterInit = (async () => {
+            let entryResolve!: () => void;
+            const entry = new Promise<void>((resolve) => {
+              entryResolve = resolve;
+            });
+            pendingAdapterInits.add(entry);
+            let entryReleased = false;
+            const releaseEntry = (): void => {
+              if (!entryReleased) {
+                entryReleased = true;
+                pendingAdapterInits.delete(entry);
+                entryResolve();
+              }
+            };
+            try {
+              await init();
+              try {
+                await callerInit?.();
+              } catch (error) {
+                releaseEntry();
+                await rollbackCallerInitFailure(error);
+              }
+              if (isTerminalShutdown()) {
+                throw new ShutdownDuringInitError();
+              }
+            } finally {
+              releaseEntry();
+            }
+          })().then(
+            () => {
+              adapterSettled = true;
+            },
+            (error: unknown) => {
+              adapterSettled = true;
+              throw error;
+            },
+          );
+        }
+        return adapterInit;
+      };
+
+      const handler = (async (event: TEvent, context: TContext): Promise<object> => {
+        await ensureAdapterInit();
+        if (isTerminalShutdown()) {
+          throw new ShutdownDuringInitError();
+        }
+        return inner(event, context);
+      }) as ServerlessHandler<TEvent, TContext>;
+      handler.reset = () => {
+        if (adapterInit && !adapterSettled) {
+          return;
+        }
+        adapterInit = null;
+        adapterSettled = false;
+        inner.reset();
+      };
+      return handler;
     },
     startLocalServer(options: LocalServerOptions = {}) {
-      return startExpressLocalServer(app, {
+      const callerInit = options.init;
+      const callerShutdown = options.onShutdown;
+      let callerShutdownStarted = false;
+      let callerShutdownPending: Promise<void> | null = null;
+      const callerShutdownOnce = async (): Promise<void> => {
+        if (callerShutdownPending) {
+          return callerShutdownPending;
+        }
+        if (callerShutdownStarted) {
+          return;
+        }
+        callerShutdownStarted = true;
+        callerShutdownPending = (async () => {
+          await callerShutdown?.();
+        })();
+        try {
+          await callerShutdownPending;
+        } finally {
+          callerShutdownPending = null;
+        }
+      };
+
+      const local = startExpressLocalServer(app, {
         ...options,
         init: async () => {
-          await init();
+          let entryResolve!: () => void;
+          const entry = new Promise<void>((resolve) => {
+            entryResolve = resolve;
+          });
+          pendingAdapterInits.add(entry);
+          let entryReleased = false;
+          const releaseEntry = (): void => {
+            if (!entryReleased) {
+              entryReleased = true;
+              pendingAdapterInits.delete(entry);
+              entryResolve();
+            }
+          };
           try {
-            await options.init?.();
-          } catch (error) {
-            await rollbackCallerInitFailure(error, options.onShutdown);
+            await init();
+            try {
+              await callerInit?.();
+            } catch (error) {
+              releaseEntry();
+              await rollbackCallerInitFailure(error, callerShutdownOnce);
+            }
+            if (isTerminalShutdown()) {
+              throw new ShutdownDuringInitError();
+            }
+          } finally {
+            releaseEntry();
           }
         },
         onShutdown: async () => {
-          await runComposedShutdown(options.onShutdown);
+          await runComposedShutdown(callerShutdownOnce);
         },
       });
+
+      const wrappedReady = local.ready.catch(async (listenError: unknown) => {
+        try {
+          await runComposedShutdown(callerShutdownOnce);
+        } catch (rollbackError) {
+          const secondary = rollbackError instanceof AggregateError ? rollbackError.errors : [rollbackError];
+          combineLifecycleErrors(listenError, secondary, 'Runtime local readiness failed and rollback also failed');
+        }
+        throw listenError;
+      });
+      wrappedReady.catch(() => {});
+
+      const wrappedShutdown = async (): Promise<void> => {
+        let localError: unknown;
+        let hasLocalError = false;
+        try {
+          await local.shutdown();
+        } catch (error) {
+          hasLocalError = true;
+          localError = error;
+        }
+        try {
+          await runComposedShutdown(callerShutdownOnce);
+        } catch (composedError) {
+          if (hasLocalError) {
+            throw localError;
+          }
+          throw composedError;
+        }
+        if (hasLocalError) {
+          throw localError;
+        }
+      };
+
+      return {
+        server: local.server,
+        ready: wrappedReady,
+        shutdown: wrappedShutdown,
+      };
     },
   };
 }
 
-export function createAccessRouterRuntimeApp<TConfig extends AccessRouterRuntimeAppConfig>(config: TConfig) {
+export function createAccessRouterRuntimeApp<const TConfig extends AccessRouterRuntimeAppConfig>(config: TConfig) {
   assertAppOnlyConfigHasNoLifecycleRequirements(config);
   return createAccessRouterRuntime(config).app;
 }

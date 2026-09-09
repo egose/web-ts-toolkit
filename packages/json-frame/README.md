@@ -18,7 +18,7 @@ import { fromOrient } from '@web-ts-toolkit/json-frame';
 
 The package exports named values and types from the package root. There is no default export and no supported deep import path.
 
-`JSON_FRAME_MAX_DEPTH` is `1000`. JSON arrays and objects are counted from the parsed root at depth `0`; an array or object reached at depth `1000` is accepted, and one reached at depth `1001` fails with `JsonFrameValidationError` before package traversal can exhaust the JavaScript stack.
+`JSON_FRAME_MAX_DEPTH` is `1000`. JSON arrays and objects are counted from the validated root at depth `0`; an array or object reached at depth `1000` is accepted, and one reached at depth `1001` fails with `JsonFrameValidationError` before package traversal can exhaust the JavaScript stack. For `toJSONString()` the root is the complete exported payload including orient-specific wrappers: `split` and `table` nest cell values one level deeper than `records`, `values`, `index`, and `columns`. A nested cell accepted at ingestion may therefore be rejected when serialized in a deeper output layout.
 
 ## Quick Start
 
@@ -246,6 +246,10 @@ Transform behavior:
 
 Structural immutability is shallow. Frame-owned arrays, row records, exporter containers, table schema records, and internal maps are protected from direct mutation or are freshly allocated. Nested JSON object or array cell values are not deep-frozen or deep-cloned on every read/export; if caller code mutates one of those nested values after obtaining it from `row()`, `rows()`, or an exporter, another read of the same cell may observe that mutation.
 
+`toJSONString(orient, options?)` validates the complete selected output with the shared bounded traversal before native serialization. Cycles, over-depth containers, sparse arrays, and newly introduced non-JSON values (`undefined`, `bigint`, `symbol`, `function`, non-finite numbers, non-plain objects) fail with path-bearing `JsonFrameValidationError` carrying the selected orient instead of native `TypeError`/`RangeError` behavior. Valid nested JSON serializes unchanged and preserves shallow cell identity on subsequent reads.
+
+Validation is one allocation-free traversal pass followed by native `JSON.stringify()`. Only the ancestor chain is tracked, so repeated references to the same acyclic container are visited once per occurrence and expand exactly as stringification expands them (detached semantics). No breadth/work budget is enforced: a compact aliased cell graph still serializes to expanded JSON text, and callers retain their own input-size and trust boundaries. Validation reads own enumerable properties and array elements, which invokes caller-installed getters and `Proxy` traps; native serialization may additionally invoke `toJSON` hooks, including non-enumerable ones invisible to validation. Hooks are caller responsibility; the package does not sandbox arbitrary JavaScript.
+
 ```ts
 import { fromOrient } from '@web-ts-toolkit/json-frame';
 
@@ -311,6 +315,7 @@ Round trips are semantic rather than byte-for-byte.
 - `toTable()` emits valid Table Schema, omits a synthetic index from table output, and rejects duplicate source index labels because emitted table primary keys must be unique
 - table primary-key equality uses JavaScript `Map`/SameValueZero semantics for supported string and finite-number labels, so numeric `1` and string `'1'` are distinct table labels even though object-key exporters reject them as stringification collisions
 - Table Schema metadata is cloned under the same `JSON_FRAME_MAX_DEPTH` policy used while parsing. `toTable()` and `toJSONString('table')` report over-depth metadata as `JsonFrameValidationError`.
+- `toJSONString()` depth is measured from the exported payload root including orient wrappers, not from the stored cell alone. A cell accepted at ingestion at the depth limit can be rejected in a deeper `split`/`table` layout while still serializing in a shallower `records`/`values`/`index`/`columns` layout.
 
 ## Errors
 
@@ -323,7 +328,9 @@ Structured runtime errors are exported from the package root.
 - `UnsupportedFeatureError`: supported contract deliberately excludes the requested pandas feature
 - `ExportKeyCollisionError`: object-key exporters would collapse distinct index labels to the same JSON key
 
-`JsonFrameError` instances expose `orient`, `path`, `row`, `column`, and `value` when relevant. Scalar JSON diagnostic values (`string`, finite or non-finite `number`, `boolean`, `null`) are retained directly. Arrays, objects, functions, symbols, bigints, undefined values, and cyclic containers are replaced with small frozen summaries, so retaining an error does not retain caller-owned payloads and `JSON.stringify(error)` does not invoke user serialization hooks.
+`JsonFrameError` instances expose `orient`, `path`, `row`, `column`, and `value` when relevant. Scalar JSON diagnostic values (`string`, finite or non-finite `number`, `boolean`, `null`) are retained directly and are intentionally not bounded by the container-preview budget below. Arrays, objects, functions, symbols, bigints, undefined values, and cyclic containers are replaced with small frozen summaries, so retaining an error does not retain caller-owned payloads and `JSON.stringify(error)` does not invoke user serialization hooks.
+
+Object summaries retain at most 5 keys and at most 200 characters of key-preview text in total. `truncated` is `true` when either the key count or the key-preview text was shortened; `keyCount` always reports the full own-key count. `truncated: false` therefore means the `keys` preview is complete, not merely that the count fit. This bounds the retained/serialized summary preview, not the complete error size: scalar diagnostic strings, `path`, `column`, `option`, `key`, and `labels` fields can still be input-sized. Error construction never calls caller `toJSON` hooks, and counting keys uses `Object.keys()`, which visits every own key — construction is not constant-space even though the retained preview is bounded.
 
 Diagnostic summary shapes are:
 

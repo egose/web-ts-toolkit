@@ -279,6 +279,37 @@ export const validateColumnValuesForType = ({
   }
 };
 
+export const validateStoredColumnValuesForType = ({
+  column,
+  columnIndex,
+  stored,
+  type,
+  orient,
+  index,
+}: {
+  readonly column: string;
+  readonly columnIndex: number;
+  readonly stored: StoredColumn;
+  readonly type: ColumnType;
+  readonly orient?: ParsedFrame['orient'];
+  readonly index?: readonly IndexLabel[];
+}): void => {
+  for (let rowIndex = 0; rowIndex < stored.length; rowIndex += 1) {
+    const value = stored[rowIndex] as JsonValue;
+    if (isColumnValueCompatible(type, value)) {
+      continue;
+    }
+
+    throw new JsonFrameValidationError('Column cells are incompatible with the declared logical type.', {
+      ...(orient === undefined ? {} : { orient }),
+      path: getColumnCellPath(orient, column, columnIndex, rowIndex, index?.[rowIndex]),
+      row: rowIndex,
+      column,
+      value,
+    });
+  }
+};
+
 const packColumn = (values: readonly JsonValue[], info: ColumnInfo, packThreshold: number): StoredColumn => {
   if (packThreshold === 0 || values.length < packThreshold || info.nullable) {
     return freezeArray(values);
@@ -290,6 +321,16 @@ const packColumn = (values: readonly JsonValue[], info: ColumnInfo, packThreshol
     for (let index = 0; index < values.length; index += 1) {
       const value = values[index];
       if (typeof value !== 'number' || !Number.isInteger(value) || value < INT32_MIN || value > INT32_MAX) {
+        return freezeArray(values);
+      }
+
+      // Int32Array stores +0 for -0, so an integer column containing negative
+      // zero is ineligible for packing. Logical type metadata stays `integer`
+      // and cells are never coerced; the column remains unpacked. Float64Array
+      // below preserves -0 natively and needs no equivalent guard. Note this
+      // is JavaScript payload identity only: JSON.stringify(-0) is "0", so
+      // text JSON still loses the sign.
+      if (Object.is(value, -0)) {
         return freezeArray(values);
       }
 
@@ -357,8 +398,9 @@ const resolveSchemaTypeByColumn = (
   }
 
   const schemaTypes = new Map<string, ColumnType>();
+  const columnNames = new Set(frame.columns);
   for (const field of frame.tableSchema.fields) {
-    if (frame.columns.includes(field.name)) {
+    if (columnNames.has(field.name)) {
       schemaTypes.set(field.name, mapTableSchemaFieldType(field));
     }
   }

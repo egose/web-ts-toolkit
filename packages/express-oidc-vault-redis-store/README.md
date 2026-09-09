@@ -71,7 +71,7 @@ app.use(
 - rotation requires a distinct unused target session ID; missing-source, same-ID, and existing-target rotation conflicts throw `OidcVaultStoreConflictError` without changing source or target records
 - obsolete rotated session IDs are stored as aliases owned by the logical session; revoking the active logical session, or deleting through any obsolete ID, removes all aliases and the reverse alias index
 - creating or rotating into a previously obsolete session ID removes that stale alias ownership first, so a reused ID cannot invoke an old logical-session meaning
-- `createAuthorizationTransaction` and `createExchangeCode` are upserts; `createSession` is create-only and duplicate session IDs throw `OidcVaultStoreConflictError` without changing the existing record or indexes
+- `createAuthorizationTransaction` and `createExchangeCode` are upserts; `createSession` is create-only and duplicate session IDs throw `OidcVaultStoreConflictError` without changing the existing record or indexes. Portable callers must create sessions with a fresh unused ID and handle `OidcVaultStoreConflictError`: reusing a live ID rejects here but replaces on memory/MongoDB, so only fresh-ID creation is portable
 - session metadata should be JSON-compatible for portability across store providers
 - backchannel logout token JTI records are consumed only when `expiresAt` is finite and greater than the store clock at consume time
 - the optional `now` hook controls store-domain timestamps and testable JTI validation only; Redis server time is the authority for Redis key expiry and revocation-index cleanup
@@ -111,6 +111,7 @@ app.use(
 - indexed revocation also checks the primary session key before deleting or returning a session; expired primary values are not returned and missing primary values remove the stale membership encountered during traversal
 - indexed revocation traverses Redis sorted sets with bounded cursor batches and batched record reads; it revokes sessions present in the cursor scan's view, while sessions added to the same index after the scan starts may be revoked by a later indexed revocation call
 - each successful session create or rotation scans up to 100 prefixed keys and removes Redis-expired members from subject, provider-session, and logical-session indexes; Redis deletes empty sorted sets, so unique expired logical-session index keys are eventually removed even without a logout for that logical session
+- post-commit index maintenance is best-effort and never masquerades as a failed write: once the atomic create/rotate script commits, `createSession`/`rotateSession` resolve with the committed session even if the follow-up `SCAN`/`TYPE`/`TIME`/`ZREMRANGEBYSCORE` maintenance fails. The failure is reported once via a sanitized `console.warn` (operation name plus error code/message only; no session IDs, keys, or token material) and the incremental scan retries on a later create/rotate. Mutation-script failures still reject, and a successful rotation is never retried merely because maintenance failed
 - rotated session aliases use the same expiry score as their successor session; non-expiring alias churn is bounded by cleanup on logical-session termination, and malformed stale aliases are deleted when their session ID is reused
 - stale index storage is therefore bounded by active session index entries plus expired entries waiting for Redis expiry and the incremental cleanup scan window; non-expiring sessions use a non-expiring index score and remain until revoked
 
@@ -119,7 +120,8 @@ app.use(
 - stored records are JSON payloads validated structurally on read; see _Stored Data Characteristics_ for the schema-migration and plaintext-storage posture
 - malformed one-time authorization transaction and exchange-code records are consumed atomically and return `null`, preventing reuse while failing closed
 - malformed session records are treated as unreadable, deleted when encountered through session reads or indexed revocation, and never returned as authenticated state
-- indexed revocation removes stale corrupt members and continues processing later valid sessions
+- corruption repair deletes only the observed malformed payload through an atomic server-side compare-and-delete: a fresh same-ID record created after the stale read (session ID reuse is supported) is never destroyed by the repair, and the missing-session logout path applies the same guard instead of an unconditional delete
+- a stale repair observing corruption therefore preserves a concurrent replacement, while genuine logout of a live session (direct delete or scoped logical/subject/provider-session revocation) still deletes it; indexed revocation removes stale corrupt members and continues processing later valid sessions
 - Redis mutation scripts preflight expected key types before writing so wrong-type keys fail without deterministic partial mutation
 - validation errors and script errors are sanitized and do not include stored refresh tokens, ID tokens, authorization transactions, or exchange codes
 

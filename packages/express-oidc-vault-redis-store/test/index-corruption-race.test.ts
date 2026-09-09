@@ -1,16 +1,26 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { execSync } from 'node:child_process';
 
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { defineOidcVaultStoreProviderConformanceSuite } from '../../express-oidc-vault/test/store-provider-conformance';
 import { createRedisOidcVaultStore, type OidcVaultRedisClient } from '../src/index';
 import {
-  DELETE_SESSION_SCRIPT,
   COMPARE_AND_DELETE_SCRIPT,
+  DELETE_SESSION_SCRIPT,
   ROTATE_SESSION_SCRIPT,
   WRITE_SESSION_SCRIPT,
 } from '../src/scripts.js';
+import { createRedisHarness, REDIS_TIMEOUT, type RedisHarness } from './redis-harness';
 
+/**
+ * SVH-03 barrier-controlled race coverage. Each race test pauses inside the
+ * stale-read window (after the corrupt/missing read, before the repair
+ * delete), lets a second client clean the corruption and recreate the same ID
+ * (ID reuse is supported), then resumes: the fresh replacement must survive
+ * while an unchanged malformed record is still removed and later valid members
+ * are still revoked. This distinguishes a stale repair (must preserve) from a
+ * genuine concurrent logout of a live session (must delete).
+ */
 class FakeRedisClient implements OidcVaultRedisClient {
   private readonly records = new Map<string, { value: string; expiresAt?: number }>();
   private readonly sortedIndexes = new Map<string, Map<string, number>>();
@@ -267,9 +277,6 @@ class FakeRedisClient implements OidcVaultRedisClient {
     throw new Error('Unsupported EVAL script.');
   }
 
-  // The runner caches Lua bodies via `SCRIPT LOAD` and dispatches with
-  // `EVALSHA`. Map the digest back to a script body so the fake behaves like a
-  // real Redis script cache, including recovery after `SCRIPT FLUSH`.
   private async handleEvalSha(args: string[]): Promise<number> {
     const [digest, keyCountRaw, ...rest] = args;
 
@@ -378,17 +385,9 @@ class FakeRedisClient implements OidcVaultRedisClient {
     this.records.set(key, { value, expiresAt });
   }
 
-  countSortedIndexKeys(prefix: string): number {
-    return [...this.sortedIndexes.keys()].filter((key) => key.startsWith(prefix)).length;
-  }
-
   hasRecord(key: string): boolean {
     this.pruneExpired(key);
     return this.records.has(key);
-  }
-
-  hasSortedIndexMember(key: string, member: string): boolean {
-    return this.sortedIndexes.get(key)?.has(member) ?? false;
   }
 
   private evalDeleteSession(keys: string[], args: string[]): number {
@@ -660,134 +659,63 @@ class FakeRedisClient implements OidcVaultRedisClient {
   }
 }
 
-defineOidcVaultStoreProviderConformanceSuite('redis', {
-  createContext: () => {
+describe('redis corruption repair compare-and-delete (emulator)', () => {
+  it('removes an unchanged malformed session and never returns it', async () => {
     const client = new FakeRedisClient();
+    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
 
-    return {
-      store: createRedisOidcVaultStore({ client, keyPrefix: `test:${randomUUID()}`, now: () => client.now }),
-      setNow: (nextNow) => {
-        client.now = nextNow;
-      },
+    client.injectRecord('test:session:sess_corrupt', '{"sessionId":"sess_corrupt","refreshToken":"secret_refresh"');
+
+    expect(await store.getSession('sess_corrupt')).toBeNull();
+    expect(client.hasRecord('test:session:sess_corrupt')).toBe(false);
+    expect(await store.getSession('sess_corrupt')).toBeNull();
+  });
+
+  it('preserves a fresh same-ID replacement created after a stale corrupt read (single-key)', async () => {
+    const client = new FakeRedisClient();
+    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
+    const cleaner = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
+    const sessionKey = 'test:session:sess_race';
+
+    client.injectRecord(sessionKey, '{"sessionId":"sess_race","refreshToken":"secret_refresh"');
+
+    let interleaved = false;
+    const rawGet = client.get.bind(client);
+    client.get = async (key) => {
+      const value = await rawGet(key);
+
+      if (!interleaved && key === sessionKey && value !== null) {
+        interleaved = true;
+        // A second client repairs the corruption and reuses the ID before the
+        // stale repair delete runs.
+        expect(await cleaner.getSession('sess_race')).toBeNull();
+        await cleaner.createSession({
+          sessionId: 'sess_race',
+          subject: 'user_new',
+          refreshToken: 'refresh_new',
+          idToken: 'id_new',
+        });
+      }
+
+      return value;
     };
-  },
-  sessionCreateMode: 'create-only',
-  reusedSessionIdClearsStaleAlias: true,
-});
 
-describe('createRedisOidcVaultStore', () => {
-  it('creates, reads, rotates, and deletes sessions', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    const created = await store.createSession({
-      sessionId: 'sess_1',
-      subject: 'user_1',
-      providerSessionId: 'provider_sid_1',
-      refreshToken: 'refresh_1',
-      idToken: 'id_1',
-      scope: 'openid email profile',
+    // Fail-closed: the stale read never returns malformed credentials.
+    expect(await store.getSession('sess_race')).toBeNull();
+    expect(interleaved).toBe(true);
+    // The stale compare-and-delete observed the old payload, so the fresh
+    // replacement survives.
+    expect(await cleaner.getSession('sess_race')).toMatchObject({
+      sessionId: 'sess_race',
+      subject: 'user_new',
+      refreshToken: 'refresh_new',
     });
-
-    expect(created).toMatchObject({ sessionId: 'sess_1', subject: 'user_1' });
-    expect(await store.getSession('sess_1')).toMatchObject({ sessionId: 'sess_1' });
-
-    const rotated = await store.rotateSession({
-      sessionId: 'sess_1',
-      nextSession: {
-        ...created,
-        sessionId: 'sess_2',
-        providerSessionId: 'provider_sid_1',
-        refreshToken: 'refresh_2',
-        idToken: 'id_2',
-        updatedAt: created.updatedAt + 1,
-      },
-    });
-
-    expect(rotated).toMatchObject({ sessionId: 'sess_2', refreshToken: 'refresh_2' });
-    expect(await store.getSession('sess_1')).toBeNull();
-    expect(await store.getSession('sess_2')).toMatchObject({ sessionId: 'sess_2' });
-
-    await store.deleteSession('sess_2');
-    expect(await store.getSession('sess_2')).toBeNull();
-
-    await store.createSession({
-      sessionId: 'sess_3',
-      subject: 'user_1',
-      providerSessionId: 'provider_sid_1',
-      refreshToken: 'refresh_3',
-      idToken: 'id_3',
-    });
-    await store.createSession({
-      sessionId: 'sess_4',
-      subject: 'user_1',
-      refreshToken: 'refresh_4',
-      idToken: 'id_4',
-    });
-
-    expect(
-      await store.deleteSessionsByProviderSessionId({
-        providerSessionId: 'provider_sid_1',
-        issuer: 'https://issuer-a.example.com',
-      }),
-    ).toBe(0);
-    expect(await store.deleteSessionsByProviderSessionId('provider_sid_1')).toBe(1);
-    expect(await store.getSession('sess_3')).toBeNull();
-    expect(await store.getSession('sess_4')).not.toBeNull();
-    expect(
-      await store.deleteSessionsBySubject({
-        subject: 'user_1',
-        clientId: 'client-1',
-      }),
-    ).toBe(0);
-    expect(await store.deleteSessionsBySubject('user_1')).toBe(1);
-    expect(await store.getSession('sess_4')).toBeNull();
   });
 
-  it('consumes transaction records once and respects expiration', async () => {
+  it('preserves a fresh replacement during batched MGET repair while revoking later valid members', async () => {
     const client = new FakeRedisClient();
     const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    await store.createAuthorizationTransaction({
-      state: 'state_1',
-      nonce: 'nonce_1',
-      pkceVerifier: 'verifier_1',
-      codeChallenge: 'challenge_1',
-      createdAt: 100,
-      expiresAt: 200,
-    });
-
-    await store.createExchangeCode({
-      code: 'code_1',
-      sessionId: 'sess_1',
-      createdAt: 100,
-      expiresAt: 200,
-    });
-
-    expect(await store.consumeAuthorizationTransaction('state_1')).toMatchObject({ state: 'state_1' });
-    expect(await store.consumeAuthorizationTransaction('state_1')).toBeNull();
-
-    client.now = 250;
-
-    expect(await store.consumeExchangeCode('code_1')).toBeNull();
-  });
-
-  it('fails closed for malformed one-time records without exposing stored values', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    client.injectRecord('test:txn:state_bad_json', '{"state":"state_bad_json","nonce":"secret_nonce"');
-    client.injectRecord('test:exchange:code_bad_shape', JSON.stringify({ code: 'code_bad_shape', sessionId: 123 }));
-
-    expect(await store.consumeAuthorizationTransaction('state_bad_json')).toBeNull();
-    expect(await store.consumeAuthorizationTransaction('state_bad_json')).toBeNull();
-    expect(await store.consumeExchangeCode('code_bad_shape')).toBeNull();
-    expect(await store.consumeExchangeCode('code_bad_shape')).toBeNull();
-  });
-
-  it('deletes malformed session records and continues indexed revocation', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
+    const cleaner = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
 
     await store.createSession({
       sessionId: 'sess_valid',
@@ -798,290 +726,42 @@ describe('createRedisOidcVaultStore', () => {
     client.injectRecord('test:session:sess_corrupt', '{"sessionId":"sess_corrupt","refreshToken":"secret_refresh"');
     client.injectSortedIndexMember('test:subject:user_1', 'sess_corrupt', -1);
 
-    expect(await store.deleteSessionsBySubject('user_1')).toBe(1);
-    expect(await store.getSession('sess_corrupt')).toBeNull();
-    expect(await store.getSession('sess_valid')).toBeNull();
-  });
-
-  it('enforces explicit session expiry', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    await store.createSession({
-      sessionId: 'sess_1',
-      subject: 'user_1',
-      refreshToken: 'refresh_1',
-      idToken: 'id_1',
-      expiresAt: 200,
-    });
-
-    expect(await store.getSession('sess_1')).toMatchObject({ sessionId: 'sess_1' });
-
-    client.now = 250;
-
-    expect(await store.getSession('sess_1')).toBeNull();
-  });
-
-  it('uses Redis time, not store time, when pruning revocation indexes', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => 10_000 });
-
-    await store.createSession({
-      sessionId: 'sess_1',
-      subject: 'user_1',
-      refreshToken: 'refresh_1',
-      idToken: 'id_1',
-      expiresAt: 5_000,
-    });
-
-    expect(await store.deleteSessionsBySubject('user_1')).toBe(1);
-    expect(await store.getSession('sess_1')).toBeNull();
-  });
-
-  it('incrementally removes expired stale index keys without a targeted logout', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    for (let index = 0; index < 10; index += 1) {
-      await store.createSession({
-        sessionId: `sess_${index}`,
-        logicalSessionId: `logical_${index}`,
-        subject: `user_${index}`,
-        providerSessionId: `provider_sid_${index}`,
-        refreshToken: `refresh_${index}`,
-        idToken: `id_${index}`,
-        expiresAt: 100,
-      });
-    }
-
-    client.now = 200;
-    expect(await store.getSession('sess_0')).toBeNull();
-
-    await store.createSession({
-      sessionId: 'sess_active',
-      logicalSessionId: 'logical_active',
-      subject: 'user_active',
-      providerSessionId: 'provider_sid_active',
-      refreshToken: 'refresh_active',
-      idToken: 'id_active',
-      expiresAt: 1_000,
-    });
-
-    expect(client.countSortedIndexKeys('test:subject:')).toBe(1);
-    expect(client.countSortedIndexKeys('test:provider-session:')).toBe(1);
-    expect(client.countSortedIndexKeys('test:logical-session:')).toBe(1);
-  });
-
-  it('rejects duplicate session creation without changing the existing record or indexes', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    await store.createSession({
-      sessionId: 'sess_1',
-      logicalSessionId: 'logical_1',
-      subject: 'user_1',
-      providerSessionId: 'provider_sid_1',
-      refreshToken: 'refresh_1',
-      idToken: 'id_1',
-    });
-
-    await expect(
-      store.createSession({
-        sessionId: 'sess_1',
-        logicalSessionId: 'logical_2',
-        subject: 'user_2',
-        providerSessionId: 'provider_sid_2',
-        refreshToken: 'refresh_2',
-        idToken: 'id_2',
-      }),
-    ).rejects.toThrow('already exists');
-
-    expect(await store.getSession('sess_1')).toMatchObject({
-      sessionId: 'sess_1',
-      logicalSessionId: 'logical_1',
-      subject: 'user_1',
-      providerSessionId: 'provider_sid_1',
-      refreshToken: 'refresh_1',
-    });
-    expect(await store.deleteSessionsBySubject('user_2')).toBe(0);
-    expect(await store.deleteSessionsByProviderSessionId('provider_sid_2')).toBe(0);
-    expect(await store.getSession('sess_1')).not.toBeNull();
-  });
-
-  it('ignores stale subject and provider-session index memberships that the record does not own', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    await store.createSession({
-      sessionId: 'sess_1',
-      subject: 'user_1',
-      providerSessionId: 'provider_sid_1',
-      refreshToken: 'refresh_1',
-      idToken: 'id_1',
-    });
-
-    client.injectSortedIndexMember('test:subject:user_stale', 'sess_1', 100);
-    client.injectSortedIndexMember('test:provider-session:provider_sid_stale', 'sess_1', 100);
-
-    expect(await store.deleteSessionsBySubject('user_stale')).toBe(0);
-    expect(await store.deleteSessionsByProviderSessionId('provider_sid_stale')).toBe(0);
-    expect(await store.getSession('sess_1')).toMatchObject({ sessionId: 'sess_1' });
-
-    expect(await store.deleteSessionsBySubject('user_1')).toBe(1);
-    expect(await store.getSession('sess_1')).toBeNull();
-  });
-
-  it('rejects same-ID rotation and occupied target rotation without changing records', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    const source = await store.createSession({
-      sessionId: 'sess_1',
-      subject: 'user_1',
-      refreshToken: 'refresh_1',
-      idToken: 'id_1',
-    });
-    const target = await store.createSession({
-      sessionId: 'sess_2',
-      subject: 'user_2',
-      refreshToken: 'refresh_2',
-      idToken: 'id_2',
-    });
-
-    await expect(
-      store.rotateSession({
-        sessionId: 'sess_1',
-        nextSession: { ...source, refreshToken: 'refresh_same_id', updatedAt: source.updatedAt + 1 },
-      }),
-    ).rejects.toThrow('different session ID');
-    expect(await store.getSession('sess_1')).toEqual(source);
-
-    await expect(
-      store.rotateSession({
-        sessionId: 'sess_1',
-        nextSession: {
-          ...source,
-          sessionId: 'sess_2',
-          refreshToken: 'refresh_occupied',
-          updatedAt: source.updatedAt + 1,
-        },
-      }),
-    ).rejects.toThrow('already exists');
-    expect(await store.getSession('sess_1')).toEqual(source);
-    expect(await store.getSession('sess_2')).toEqual(target);
-  });
-
-  it('consumes backchannel logout token jti values once until expiration', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    expect(await store.consumeBackchannelLogoutTokenJti({ jti: 'logout_1', expiresAt: 200 })).toBe(true);
-    expect(await store.consumeBackchannelLogoutTokenJti({ jti: 'logout_1', expiresAt: 200 })).toBe(false);
-
-    client.now = 250;
-
-    expect(await store.consumeBackchannelLogoutTokenJti({ jti: 'logout_1', expiresAt: 350 })).toBe(true);
-  });
-
-  it('rejects rotating a session that was already rotated', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    await store.createSession({
-      sessionId: 'sess_1',
-      subject: 'user_1',
-      refreshToken: 'refresh_1',
-      idToken: 'id_1',
-    });
-
-    await store.rotateSession({
-      sessionId: 'sess_1',
-      nextSession: {
-        sessionId: 'sess_2',
-        subject: 'user_1',
-        refreshToken: 'refresh_2',
-        idToken: 'id_2',
-        createdAt: 0,
-        updatedAt: 1,
-      },
-    });
-
-    await expect(
-      store.rotateSession({
-        sessionId: 'sess_1',
-        nextSession: {
-          sessionId: 'sess_3',
+    let interleaved = false;
+    const rawSendCommand = client.sendCommand.bind(client);
+    client.sendCommand = async (args) => {
+      if (args[0] === 'MGET' && !interleaved) {
+        const response = await rawSendCommand(args);
+        interleaved = true;
+        // Another client repairs and reuses the corrupt ID after the MGET
+        // snapshot but before the stale repair delete.
+        expect(await cleaner.getSession('sess_corrupt')).toBeNull();
+        await cleaner.createSession({
+          sessionId: 'sess_corrupt',
           subject: 'user_1',
-          refreshToken: 'refresh_3',
-          idToken: 'id_3',
-          createdAt: 0,
-          updatedAt: 2,
-        },
-      }),
-    ).rejects.toThrow('rotation');
+          refreshToken: 'refresh_fresh',
+          idToken: 'id_fresh',
+        });
+        return response;
+      }
+
+      return rawSendCommand(args);
+    };
+
+    expect(await store.deleteSessionsBySubject('user_1')).toBe(1);
+    expect(interleaved).toBe(true);
+    // Later valid member revoked; fresh replacement created after the MGET
+    // snapshot survives this call and is revoked by a later call (genuine
+    // logout semantics still apply to live records).
+    expect(await cleaner.getSession('sess_valid')).toBeNull();
+    expect(await cleaner.getSession('sess_corrupt')).toMatchObject({ refreshToken: 'refresh_fresh' });
+    expect(await store.deleteSessionsBySubject('user_1')).toBe(1);
+    expect(await cleaner.getSession('sess_corrupt')).toBeNull();
   });
 
-  it('deletes the current rotated session by logical session ID', async () => {
+  it('preserves a reused session ID through the missing-session logout branch while revoking the old lineage', async () => {
     const client = new FakeRedisClient();
     const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    const created = await store.createSession({
-      sessionId: 'sess_1',
-      subject: 'user_1',
-      refreshToken: 'refresh_1',
-      idToken: 'id_1',
-    });
-
-    await store.rotateSession({
-      sessionId: 'sess_1',
-      nextSession: {
-        ...created,
-        sessionId: 'sess_2',
-        refreshToken: 'refresh_2',
-        updatedAt: created.updatedAt + 1,
-      },
-    });
-
-    expect(await store.deleteSessionsByLogicalSessionId(created.logicalSessionId ?? created.sessionId)).toBe(1);
-    expect(await store.getSession('sess_2')).toBeNull();
-  });
-
-  it('deletes all rotated aliases when revoking through an obsolete session ID', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    const created = await store.createSession({
-      sessionId: 'sess_1',
-      logicalSessionId: 'logical_1',
-      subject: 'user_1',
-      refreshToken: 'refresh_1',
-      idToken: 'id_1',
-    });
-    const rotated = await store.rotateSession({
-      sessionId: 'sess_1',
-      nextSession: { ...created, sessionId: 'sess_2', refreshToken: 'refresh_2', updatedAt: created.updatedAt + 1 },
-    });
-
-    await store.rotateSession({
-      sessionId: 'sess_2',
-      nextSession: { ...rotated, sessionId: 'sess_3', refreshToken: 'refresh_3', updatedAt: rotated.updatedAt + 1 },
-    });
-
-    expect(client.hasRecord('test:rotated-session-alias:sess_1')).toBe(true);
-    expect(client.hasRecord('test:rotated-session-alias:sess_2')).toBe(true);
-
-    await store.deleteSession('sess_1');
-
-    expect(await store.getSession('sess_3')).toBeNull();
-    expect(client.hasRecord('test:rotated-session-alias:sess_1')).toBe(false);
-    expect(client.hasRecord('test:rotated-session-alias:sess_2')).toBe(false);
-    expect(client.hasSortedIndexMember('test:rotated-session-alias-index:logical_1', 'sess_1')).toBe(false);
-    expect(client.hasSortedIndexMember('test:rotated-session-alias-index:logical_1', 'sess_2')).toBe(false);
-  });
-
-  it('removes stale alias ownership when a rotated session ID is reused', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
+    const other = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
 
     const created = await store.createSession({
       sessionId: 'sess_1',
@@ -1090,173 +770,243 @@ describe('createRedisOidcVaultStore', () => {
       refreshToken: 'refresh_1',
       idToken: 'id_1',
     });
-
     await store.rotateSession({
       sessionId: 'sess_1',
       nextSession: { ...created, sessionId: 'sess_2', refreshToken: 'refresh_2', updatedAt: created.updatedAt + 1 },
     });
 
-    await store.createSession({
-      sessionId: 'sess_1',
-      logicalSessionId: 'logical_new',
-      subject: 'user_new',
-      refreshToken: 'refresh_new',
-      idToken: 'id_new',
-    });
-
-    expect(client.hasRecord('test:rotated-session-alias:sess_1')).toBe(false);
-    expect(client.hasSortedIndexMember('test:rotated-session-alias-index:logical_old', 'sess_1')).toBe(false);
-
-    await store.deleteSession('sess_1');
-
-    expect(await store.getSession('sess_1')).toBeNull();
-    expect(await store.getSession('sess_2')).toMatchObject({ logicalSessionId: 'logical_old' });
-  });
-
-  it('does not miss a rotated successor when indexed deletion resumes after a stale lookup', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    const created = await store.createSession({
-      sessionId: 'sess_1',
-      logicalSessionId: 'logical_1',
-      subject: 'user_1',
-      providerSessionId: 'provider_sid_1',
-      refreshToken: 'refresh_1',
-      idToken: 'id_1',
-    });
-    const get = client.get.bind(client);
-    let rotated = false;
-
+    let interleaved = false;
+    const rawGet = client.get.bind(client);
     client.get = async (key) => {
-      const value = await get(key);
+      const value = await rawGet(key);
 
-      if (!rotated && key === 'test:session:sess_1' && value) {
-        rotated = true;
-        await store.rotateSession({
+      if (!interleaved && key === 'test:rotated-session-alias:sess_1' && value !== null) {
+        interleaved = true;
+        // Another client reuses the rotated-away ID after the alias read but
+        // before the stale logout cleanup finishes.
+        await other.createSession({
           sessionId: 'sess_1',
-          nextSession: {
-            ...created,
-            sessionId: 'sess_2',
-            refreshToken: 'refresh_2',
-            updatedAt: created.updatedAt + 1,
-          },
+          logicalSessionId: 'logical_new',
+          subject: 'user_new',
+          refreshToken: 'refresh_new',
+          idToken: 'id_new',
         });
       }
 
       return value;
     };
 
-    expect(await store.deleteSessionsBySubject('user_1')).toBe(1);
-    expect(await store.getSession('sess_1')).toBeNull();
-    expect(await store.getSession('sess_2')).toBeNull();
+    // Stale logout for the old lineage: revokes the old successor but must not
+    // destroy the reused ID, which belongs to a new lineage.
+    await store.deleteSession('sess_1');
+    expect(interleaved).toBe(true);
+    expect(await other.getSession('sess_2')).toBeNull();
+    expect(await other.getSession('sess_1')).toMatchObject({ logicalSessionId: 'logical_new' });
   });
 
-  it('counts only one actual revocation across concurrent indexed deletions', async () => {
+  it('still deletes live sessions on genuine logout', async () => {
     const client = new FakeRedisClient();
     const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
 
     await store.createSession({
-      sessionId: 'sess_1',
-      logicalSessionId: 'logical_1',
-      subject: 'user_1',
-      refreshToken: 'refresh_1',
-      idToken: 'id_1',
+      sessionId: 'sess_live',
+      subject: 'user_live',
+      refreshToken: 'refresh_live',
+      idToken: 'id_live',
     });
 
-    const results = await Promise.all([
-      store.deleteSessionsByLogicalSessionId('logical_1'),
-      store.deleteSessionsBySubject('user_1'),
-    ]);
-
-    expect(results.reduce((total, count) => total + count, 0)).toBe(1);
-    expect(await store.getSession('sess_1')).toBeNull();
-  });
-
-  it('revokes large subject indexes in bounded batches without full-index materialization', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    for (let index = 0; index < 1_000; index += 1) {
-      await store.createSession({
-        sessionId: `sess_${index}`,
-        subject: 'user_large',
-        refreshToken: `refresh_${index}`,
-        idToken: `id_${index}`,
-      });
-    }
-
-    client.commands.length = 0;
-
-    expect(await store.deleteSessionsBySubject('user_large')).toBe(1_000);
-    expect(client.maxZScanMembers).toBeLessThanOrEqual(250);
-    expect(client.commands).toContain('ZSCAN');
-    expect(client.commands).toContain('MGET');
-    expect(client.commands.filter((command) => command === 'GET')).toHaveLength(0);
-    expect(client.commands.filter((command) => command === 'MGET').length).toBeLessThanOrEqual(4);
-  });
-
-  it('keeps bounded revocation command behavior for a 10,000-session index', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    for (let index = 0; index < 10_000; index += 1) {
-      await store.createSession({
-        sessionId: `sess_${index}`,
-        subject: 'user_benchmark',
-        refreshToken: `refresh_${index}`,
-        idToken: `id_${index}`,
-      });
-    }
-
-    client.commands.length = 0;
-    const startedAt = performance.now();
-
-    expect(await store.deleteSessionsBySubject('user_benchmark')).toBe(10_000);
-
-    const elapsedMs = performance.now() - startedAt;
-    const mgetCount = client.commands.filter((command) => command === 'MGET').length;
-
-    expect(client.maxZScanMembers).toBeLessThanOrEqual(250);
-    expect(mgetCount).toBeLessThanOrEqual(40);
-    expect(client.commands.filter((command) => command === 'GET')).toHaveLength(0);
-    expect(elapsedMs).toBeLessThan(10_000);
-  }, 20_000);
-
-  it('applies concurrent indexed revocation to the scan view and leaves later additions for a later call', async () => {
-    const client = new FakeRedisClient();
-    const store = createRedisOidcVaultStore({ client, keyPrefix: 'test', now: () => client.now });
-
-    await store.createSession({
-      sessionId: 'sess_1',
-      subject: 'user_concurrent',
-      refreshToken: 'refresh_1',
-      idToken: 'id_1',
-    });
-
-    const sendCommand = client.sendCommand.bind(client);
-    let added = false;
-
-    client.sendCommand = async (args) => {
-      const result = await sendCommand(args);
-
-      if (!added && args[0] === 'ZSCAN' && args[1] === 'test:subject:user_concurrent') {
-        added = true;
-        await store.createSession({
-          sessionId: 'sess_2',
-          subject: 'user_concurrent',
-          refreshToken: 'refresh_2',
-          idToken: 'id_2',
-        });
-      }
-
-      return result;
-    };
-
-    expect(await store.deleteSessionsBySubject('user_concurrent')).toBe(1);
-    expect(await store.getSession('sess_1')).toBeNull();
-    expect(await store.getSession('sess_2')).toMatchObject({ sessionId: 'sess_2' });
-    expect(await store.deleteSessionsBySubject('user_concurrent')).toBe(1);
-    expect(await store.getSession('sess_2')).toBeNull();
+    await store.deleteSession('sess_live');
+    expect(await store.getSession('sess_live')).toBeNull();
   });
 });
+
+const hasDocker = (() => {
+  try {
+    execSync('docker --version', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
+const REDIS_IMAGES = ['redis:6.2-alpine', 'redis:7.2-alpine'] as const;
+
+const asStoreClient = (harness: RedisHarness): OidcVaultRedisClient =>
+  harness.client as unknown as OidcVaultRedisClient;
+
+if (!hasDocker) {
+  describe.skip('redis corruption repair compare-and-delete (real Redis, docker not available)', () => {
+    it.skip('skipped - docker not available', () => {});
+  });
+} else {
+  describe.each(REDIS_IMAGES)('redis corruption repair compare-and-delete on %s', (image) => {
+    let harness: RedisHarness | undefined;
+
+    beforeAll(async () => {
+      harness = await createRedisHarness(image);
+    }, REDIS_TIMEOUT);
+
+    afterAll(async () => {
+      await harness?.stop();
+    }, REDIS_TIMEOUT);
+
+    it('preserves a fresh same-ID replacement created after a stale corrupt read (single-key)', async (context) => {
+      if (!harness) throw new Error('Redis harness not initialized.');
+      const active: RedisHarness = harness;
+      const keyPrefix = active.createKeyPrefix(`${context.task.name}-${randomUUID()}`);
+      const raw = asStoreClient(active);
+      const cleaner = createRedisOidcVaultStore({ client: raw, keyPrefix, now: Date.now });
+      const sessionKey = `${keyPrefix}:session:sess_race`;
+
+      try {
+        await active.client.set(sessionKey, '{"sessionId":"sess_race","refreshToken":"secret_refresh"');
+
+        let interleaved = false;
+        const rawGet = raw.get.bind(raw);
+        const racingClient: OidcVaultRedisClient = {
+          set: raw.set.bind(raw),
+          del: raw.del.bind(raw),
+          sendCommand: raw.sendCommand.bind(raw),
+          get: async (key) => {
+            const value = await rawGet(key);
+
+            if (!interleaved && key === sessionKey && value !== null) {
+              interleaved = true;
+              expect(await cleaner.getSession('sess_race')).toBeNull();
+              await cleaner.createSession({
+                sessionId: 'sess_race',
+                subject: 'user_new',
+                refreshToken: 'refresh_new',
+                idToken: 'id_new',
+              });
+            }
+
+            return value;
+          },
+        };
+        const store = createRedisOidcVaultStore({ client: racingClient, keyPrefix, now: Date.now });
+
+        expect(await store.getSession('sess_race')).toBeNull();
+        expect(interleaved).toBe(true);
+        expect(await cleaner.getSession('sess_race')).toMatchObject({ subject: 'user_new' });
+      } finally {
+        await active.deleteKeysByPrefix(keyPrefix);
+      }
+    });
+
+    it('preserves a fresh replacement during batched MGET repair while revoking later valid members', async (context) => {
+      if (!harness) throw new Error('Redis harness not initialized.');
+      const active: RedisHarness = harness;
+      const keyPrefix = active.createKeyPrefix(`${context.task.name}-${randomUUID()}`);
+      const raw = asStoreClient(active);
+      const seeder = createRedisOidcVaultStore({ client: raw, keyPrefix, now: Date.now });
+      const cleaner = createRedisOidcVaultStore({ client: raw, keyPrefix, now: Date.now });
+
+      try {
+        await seeder.createSession({
+          sessionId: 'sess_valid',
+          subject: 'user_1',
+          refreshToken: 'refresh_valid',
+          idToken: 'id_valid',
+        });
+        await active.client.set(
+          `${keyPrefix}:session:sess_corrupt`,
+          '{"sessionId":"sess_corrupt","refreshToken":"secret_refresh"',
+        );
+        await active.client.sendCommand(['ZADD', `${keyPrefix}:subject:user_1`, '-1', 'sess_corrupt']);
+
+        let interleaved = false;
+        const rawSendCommand = raw.sendCommand.bind(raw);
+        const racingClient: OidcVaultRedisClient = {
+          set: raw.set.bind(raw),
+          get: raw.get.bind(raw),
+          del: raw.del.bind(raw),
+          sendCommand: async (args) => {
+            if (args[0] === 'MGET' && !interleaved) {
+              const response = await rawSendCommand(args);
+              interleaved = true;
+              expect(await cleaner.getSession('sess_corrupt')).toBeNull();
+              await cleaner.createSession({
+                sessionId: 'sess_corrupt',
+                subject: 'user_1',
+                refreshToken: 'refresh_fresh',
+                idToken: 'id_fresh',
+              });
+              return response;
+            }
+
+            return rawSendCommand(args);
+          },
+        };
+        const store = createRedisOidcVaultStore({ client: racingClient, keyPrefix, now: Date.now });
+
+        expect(await store.deleteSessionsBySubject('user_1')).toBe(1);
+        expect(interleaved).toBe(true);
+        expect(await cleaner.getSession('sess_valid')).toBeNull();
+        expect(await cleaner.getSession('sess_corrupt')).toMatchObject({ refreshToken: 'refresh_fresh' });
+        expect(await seeder.deleteSessionsBySubject('user_1')).toBe(1);
+        expect(await cleaner.getSession('sess_corrupt')).toBeNull();
+      } finally {
+        await active.deleteKeysByPrefix(keyPrefix);
+      }
+    });
+
+    it('preserves a reused session ID through the missing-session logout branch', async (context) => {
+      if (!harness) throw new Error('Redis harness not initialized.');
+      const active: RedisHarness = harness;
+      const keyPrefix = active.createKeyPrefix(`${context.task.name}-${randomUUID()}`);
+      let now = Date.now();
+      const raw = asStoreClient(active);
+      const seeder = createRedisOidcVaultStore({ client: raw, keyPrefix, now: () => now });
+      const other = createRedisOidcVaultStore({ client: raw, keyPrefix, now: () => now });
+
+      try {
+        const created = await seeder.createSession({
+          sessionId: 'sess_1',
+          logicalSessionId: 'logical_old',
+          subject: 'user_old',
+          refreshToken: 'refresh_1',
+          idToken: 'id_1',
+        });
+        now += 1;
+        await seeder.rotateSession({
+          sessionId: 'sess_1',
+          nextSession: { ...created, sessionId: 'sess_2', refreshToken: 'refresh_2', updatedAt: now },
+        });
+
+        let interleaved = false;
+        const rawGet = raw.get.bind(raw);
+        const racingClient: OidcVaultRedisClient = {
+          set: raw.set.bind(raw),
+          del: raw.del.bind(raw),
+          sendCommand: raw.sendCommand.bind(raw),
+          get: async (key) => {
+            const value = await rawGet(key);
+
+            if (!interleaved && key === `${keyPrefix}:rotated-session-alias:sess_1` && value !== null) {
+              interleaved = true;
+              now += 1;
+              await other.createSession({
+                sessionId: 'sess_1',
+                logicalSessionId: 'logical_new',
+                subject: 'user_new',
+                refreshToken: 'refresh_new',
+                idToken: 'id_new',
+              });
+            }
+
+            return value;
+          },
+        };
+        const store = createRedisOidcVaultStore({ client: racingClient, keyPrefix, now: () => now });
+
+        await store.deleteSession('sess_1');
+        expect(interleaved).toBe(true);
+        expect(await other.getSession('sess_2')).toBeNull();
+        expect(await other.getSession('sess_1')).toMatchObject({ logicalSessionId: 'logical_new' });
+      } finally {
+        await active.deleteKeysByPrefix(keyPrefix);
+      }
+    });
+  });
+}

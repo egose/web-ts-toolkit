@@ -356,4 +356,152 @@ describe('DataFrame', () => {
     expect(resetState.tableIndexField).toBeUndefined();
     expect(resetState.indexKind).toBe('synthetic');
   });
+
+  it('preserves index and data identities through colliding renames', () => {
+    const frame = buildDataFrame(
+      {
+        schema: {
+          fields: [
+            { name: 'pk', type: 'string', extDtype: 'str' },
+            { name: 'value', type: 'integer' },
+          ],
+          primaryKey: ['pk'],
+          pandas_version: '1.4.0',
+        },
+        data: [{ pk: 'r0', value: 42 }],
+      },
+      { orient: 'table' },
+    );
+    const sourceState = getDataFrameState(frame);
+    const sourceRows = frame.rows();
+
+    const renamed = frame.rename({ value: 'pk' });
+    const renamedState = getDataFrameState(renamed);
+    expect(renamed.columns).toEqual(['pk']);
+    expect(renamed.index).toEqual(['r0']);
+    expect(renamed.rows()).toEqual([{ pk: 42 }]);
+    // Index identity retains string metadata; data identity retains integer
+    // metadata even though both fields share the name 'pk' internally.
+    expect(renamedState.tableSchema).toEqual({
+      fields: [
+        { name: 'pk', type: 'string', extDtype: 'str' },
+        { name: 'pk', type: 'integer' },
+      ],
+      primaryKey: ['pk'],
+      pandas_version: '1.4.0',
+    });
+    expect(renamedState.tableIndexField).toBe('pk');
+
+    const selected = renamed.select('pk');
+    const selectedState = getDataFrameState(selected);
+    expect(selectedState.tableSchema).toEqual(renamedState.tableSchema);
+    expect(selectedState.tableIndexField).toBe('pk');
+    expect(selected.rows()).toEqual([{ pk: 42 }]);
+
+    const renamedAgain = selected.rename({ pk: 'score' });
+    const renamedAgainState = getDataFrameState(renamedAgain);
+    expect(renamedAgain.columns).toEqual(['score']);
+    expect(renamedAgainState.tableSchema).toEqual({
+      fields: [
+        { name: 'pk', type: 'string', extDtype: 'str' },
+        { name: 'score', type: 'integer' },
+      ],
+      primaryKey: ['pk'],
+      pandas_version: '1.4.0',
+    });
+
+    const reset = selected.resetIndex();
+    const resetState = getDataFrameState(reset);
+    expect(resetState.tableSchema).toEqual({
+      fields: [{ name: 'pk', type: 'integer' }],
+      pandas_version: '1.4.0',
+    });
+    expect(resetState.tableIndexField).toBeUndefined();
+    expect(reset.rows()).toEqual([{ pk: 42 }]);
+
+    const filtered = selected.filter(() => true);
+    expect(getDataFrameState(filtered).tableSchema).toEqual(selectedState.tableSchema);
+    const sorted = selected.sort(() => 0);
+    expect(getDataFrameState(sorted).tableSchema).toEqual(selectedState.tableSchema);
+
+    // Source frame is unchanged.
+    expect(frame.columns).toEqual(['value']);
+    expect(frame.rows()).toEqual(sourceRows);
+    expect(getDataFrameState(frame)).toEqual(sourceState);
+  });
+
+  it('handles empty frames, prototype labels, and non-colliding renames without losing schema identity', () => {
+    const empty = buildDataFrame(
+      {
+        schema: {
+          fields: [
+            { name: 'pk', type: 'string' },
+            { name: 'value', type: 'integer' },
+          ],
+          primaryKey: ['pk'],
+        },
+        data: [],
+      },
+      { orient: 'table' },
+    );
+    const emptyRenamed = empty.rename({ value: 'pk' }).select('pk');
+    expect(emptyRenamed.rows()).toEqual([]);
+    expect(emptyRenamed.toTable({ indexField: 'row_id' })).toEqual({
+      schema: {
+        fields: [
+          { name: 'row_id', type: 'string' },
+          { name: 'pk', type: 'integer' },
+        ],
+        primaryKey: ['row_id'],
+      },
+      data: [],
+    });
+
+    const protoRow = Object.create(null) as Record<string, unknown>;
+    protoRow.__proto__ = 'r0';
+    const protoFrame = buildDataFrame(
+      {
+        schema: {
+          fields: [
+            { name: '__proto__', type: 'string' },
+            { name: 'value', type: 'integer' },
+          ],
+          primaryKey: ['__proto__'],
+        },
+        data: [Object.assign(Object.create(null) as Record<string, unknown>, { value: 42 }, { ['__proto__']: 'r0' })],
+      },
+      { orient: 'table' },
+    );
+    expect(protoRow.__proto__).toBe('r0');
+    const protoMapping = Object.create(null) as Record<string, string>;
+    protoMapping.value = '__proto__';
+    const protoSelected = protoFrame.rename(protoMapping).select('__proto__');
+    const protoExported = protoSelected.toTable({ indexField: 'row_id' });
+    expect(protoExported.schema.fields).toEqual([
+      { name: 'row_id', type: 'string' },
+      { name: '__proto__', type: 'integer' },
+    ]);
+    expect(protoExported.schema.primaryKey).toEqual(['row_id']);
+    expect(protoExported.data.length).toBe(1);
+    expect(Object.hasOwn(protoExported.data[0]!, 'row_id')).toBe(true);
+    expect(Object.hasOwn(protoExported.data[0]!, '__proto__')).toBe(true);
+    expect((protoExported.data[0]! as Record<string, unknown>).row_id).toBe('r0');
+    expect((protoExported.data[0]! as Record<string, unknown>).__proto__).toBe(42);
+
+    const control = buildDataFrame(
+      {
+        schema: {
+          fields: [
+            { name: 'pk', type: 'string' },
+            { name: 'value', type: 'integer' },
+          ],
+          primaryKey: ['pk'],
+        },
+        data: [{ pk: 'r0', value: 42 }],
+      },
+      { orient: 'table' },
+    ).rename({ value: 'score' });
+    expect(getDataFrameState(control).tableSchema?.fields.map((field) => field.name)).toEqual(['pk', 'score']);
+    expect(control.toTable().schema.primaryKey).toEqual(['pk']);
+  });
 });

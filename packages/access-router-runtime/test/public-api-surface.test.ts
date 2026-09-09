@@ -15,6 +15,7 @@ const rootTypeExportNames = [
   'AccessRouterRuntimeCustomRoute',
   'AccessRouterRuntimeCustomRouteHandler',
   'AccessRouterRuntimeCustomRouteMethod',
+  'AccessRouterRuntimeCustomRouteRequest',
   'AccessRouterRuntimeDataDefinition',
   'AccessRouterRuntimeDbConfig',
   'AccessRouterRuntimeDevOptions',

@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import http from 'node:http';
 import path from 'node:path';
 import request from 'supertest';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BadRequestError } from '@web-ts-toolkit/http-errors';
 
 import JsonRouter from '../dist/index.mjs';
@@ -31,19 +31,31 @@ type RequestWithState = express.Request & {
   useValue?: string;
 };
 
-const defaultErrorMessageProvider = (error: unknown) => {
+const rawErrorMessageProvider = (error: unknown) => {
   const errorLike = error as { message?: string; _message?: string };
 
   return errorLike.message || errorLike._message || String(error);
 };
 
-const resetJsonRouter = () => {
-  JsonRouter.errorMessageProvider = defaultErrorMessageProvider;
-  JsonRouter.preJson = null;
-  JsonRouter.postJson = null;
-  JsonRouter.preError = null;
-  JsonRouter.postError = null;
+const initialStaticDefaults = {
+  errorMessageProvider: JsonRouter.errorMessageProvider,
+  preJson: JsonRouter.preJson,
+  postJson: JsonRouter.postJson,
+  preError: JsonRouter.preError,
+  postError: JsonRouter.postError,
 };
+
+const resetJsonRouter = () => {
+  JsonRouter.errorMessageProvider = initialStaticDefaults.errorMessageProvider;
+  JsonRouter.preJson = initialStaticDefaults.preJson;
+  JsonRouter.postJson = initialStaticDefaults.postJson;
+  JsonRouter.preError = initialStaticDefaults.preError;
+  JsonRouter.postError = initialStaticDefaults.postError;
+};
+
+beforeEach(() => {
+  resetJsonRouter();
+});
 
 afterEach(() => {
   resetJsonRouter();
@@ -458,6 +470,9 @@ describe('express-json-router', () => {
 
   it('keeps existing routers isolated from later static default changes', async () => {
     const app = express();
+
+    JsonRouter.errorMessageProvider = rawErrorMessageProvider;
+
     const firstRouter = new JsonRouter();
 
     JsonRouter.errorMessageProvider = () => 'custom-error-message';
@@ -478,10 +493,61 @@ describe('express-json-router', () => {
     await request(app).get('/second-error').expect(500, { message: 'custom-error-message' });
   });
 
+  it('redacts generic errors by default while exposing the original error to hooks (direct registration)', async () => {
+    const app = express();
+    const secret = 'secret-internal-value-direct-7f3a'; // pragma: allowlist secret
+    const seenErrors: unknown[] = [];
+
+    JsonRouter.preError = (error) => {
+      seenErrors.push(error);
+    };
+
+    const router = new JsonRouter();
+
+    router.get('/boom', () => {
+      throw new Error(`failure bearing ${secret}`);
+    });
+
+    app.use(router.original);
+
+    const response = await request(app).get('/boom').expect(500);
+
+    expect(response.body).toEqual({ message: 'Internal Server Error' });
+    expect(JSON.stringify(response.body)).not.toContain(secret);
+    expect(seenErrors).toHaveLength(1);
+    expect((seenErrors[0] as Error).message).toContain(secret);
+  });
+
+  it('redacts generic errors by default while exposing the original error to hooks (builder registration)', async () => {
+    const app = express();
+    const secret = 'secret-internal-value-builder-9c2e'; // pragma: allowlist secret
+    const seenErrors: unknown[] = [];
+
+    JsonRouter.preError = (error) => {
+      seenErrors.push(error);
+    };
+
+    const router = new JsonRouter();
+
+    router.route('/builder-boom').get(() => {
+      throw new Error(`failure bearing ${secret}`);
+    });
+
+    app.use(router.original);
+
+    const response = await request(app).get('/builder-boom').expect(500);
+
+    expect(response.body).toEqual({ message: 'Internal Server Error' });
+    expect(JSON.stringify(response.body)).not.toContain(secret);
+    expect(seenErrors).toHaveLength(1);
+    expect((seenErrors[0] as Error).message).toContain(secret);
+  });
+
   it('applies post-json and error hooks to newly created routers', async () => {
     const app = express();
     const observed: string[] = [];
 
+    JsonRouter.errorMessageProvider = rawErrorMessageProvider;
     JsonRouter.postJson = (value) => {
       observed.push(`post-json:${JSON.stringify(value)}`);
     };
@@ -641,15 +707,29 @@ describe('express-json-router', () => {
         next();
       };
 
-    const router = new JsonRouter('/api', [make('a'), make('b'), make('c')]);
+    const middlewareA = make('a');
+    const middlewareB = make('b');
+    const middlewareC = make('c');
+    const nestedSource: unknown[] = [middlewareB, [middlewareC]];
+    const source: unknown[] = [middlewareA, nestedSource];
+
+    const router = new JsonRouter('/api', source as unknown as express.RequestHandler[]);
 
     router.get('/first', () => ({ ok: true }));
 
-    const source = [make('a'), make('b'), make('c')] as unknown[];
     source.length = 0;
-    source.unshift(make('z'));
+    source.push(make('z'));
+    nestedSource.length = 0;
+    nestedSource.push(make('q'));
+    (router.middlewares as unknown[]).length = 0;
+    (router.middlewares as unknown[]).push(make('x'));
 
     router.get('/second', () => ({ ok: true }));
+
+    expect(router.middlewares[0]).toBe(middlewareA);
+    expect(router.middlewares[1]).toBe(middlewareB);
+    expect(router.middlewares[2]).toBe(middlewareC);
+    expect(router.middlewares).toHaveLength(3);
 
     const app = express();
     app.use(router.original);
@@ -719,6 +799,312 @@ describe('express-json-router', () => {
       { method: 'GET', path: '/users' },
       { method: 'POST', path: '/users' },
     ]);
+  });
+
+  it('formats thrown and rejected JSON callbacks as JSON without reaching the app final error handler', async () => {
+    const app = express();
+    const router = new JsonRouter();
+    const secret = 'secret-thrown-vs-next-4b1d'; // pragma: allowlist secret
+    const finalCalls: string[] = [];
+
+    router.get('/throw-sync', () => {
+      throw new Error(`sync failure bearing ${secret}`);
+    });
+    router.get('/throw-async', async () => {
+      throw new Error(`async failure bearing ${secret}`);
+    });
+
+    app.use(router.original);
+    app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+      void _next;
+      finalCalls.push(err.message);
+      res.status(599).json({ final: err.message });
+    });
+
+    const syncResponse = await request(app).get('/throw-sync').expect(500);
+
+    expect(syncResponse.body).toEqual({ message: 'Internal Server Error' });
+    expect(JSON.stringify(syncResponse.body)).not.toContain(secret);
+
+    const asyncResponse = await request(app).get('/throw-async').expect(500);
+
+    expect(asyncResponse.body).toEqual({ message: 'Internal Server Error' });
+    expect(JSON.stringify(asyncResponse.body)).not.toContain(secret);
+    expect(finalCalls).toEqual([]);
+  });
+
+  it('delegates explicit next(error) from JSON callbacks to the app final error handler', async () => {
+    const app = express();
+    const router = new JsonRouter();
+    const finalCalls: string[] = [];
+    let guardedSync = false;
+    let guardedAsync = false;
+
+    router.get(
+      '/next-sync',
+      (req, res, next) => {
+        next(new Error('sync-next-failure'));
+      },
+      () => {
+        guardedSync = true;
+        return { ok: true };
+      },
+    );
+    router.get(
+      '/next-async',
+      async (req, res, next) => {
+        next(new Error('async-next-failure'));
+      },
+      () => {
+        guardedAsync = true;
+        return { ok: true };
+      },
+    );
+
+    app.use(router.original);
+    app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+      void _next;
+      finalCalls.push(err.message);
+      res.status(599).json({ final: err.message });
+    });
+
+    const syncResponse = await request(app).get('/next-sync').expect(599);
+
+    expect(syncResponse.body).toEqual({ final: 'sync-next-failure' });
+
+    const asyncResponse = await request(app).get('/next-async').expect(599);
+
+    expect(asyncResponse.body).toEqual({ final: 'async-next-failure' });
+    expect(finalCalls).toEqual(['sync-next-failure', 'async-next-failure']);
+    expect(guardedSync).toBe(false);
+    expect(guardedAsync).toBe(false);
+  });
+
+  it('delegates sync and async native use() failures to the app final handler without running guarded JSON handlers', async () => {
+    const check = async (mode: 'sync' | 'async') => {
+      const app = express();
+      const router = new JsonRouter();
+      let guarded = false;
+      const finalCalls: string[] = [];
+
+      if (mode === 'sync') {
+        router.use(() => {
+          throw new Error('use-sync-failure');
+        });
+      } else {
+        router.use(async () => {
+          throw new Error('use-async-failure');
+        });
+      }
+
+      router.get('/guarded', () => {
+        guarded = true;
+        return { ok: true };
+      });
+
+      app.use(router.original);
+      app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+        void _next;
+        finalCalls.push(err.message);
+        res.status(598).json({ final: err.message });
+      });
+
+      const response = await request(app).get('/guarded').expect(598);
+
+      expect(response.body).toEqual({ final: mode === 'sync' ? 'use-sync-failure' : 'use-async-failure' });
+      expect(finalCalls).toHaveLength(1);
+      expect(guarded).toBe(false);
+    };
+
+    await check('sync');
+    await check('async');
+  });
+
+  it('delegates sync and async native param() failures to the app final handler without running guarded JSON handlers', async () => {
+    const check = async (mode: 'sync' | 'async') => {
+      const app = express();
+      const router = new JsonRouter();
+      let guarded = false;
+      const finalCalls: string[] = [];
+
+      if (mode === 'sync') {
+        router.param('userId', () => {
+          throw new Error('param-sync-failure');
+        });
+      } else {
+        router.param('userId', async () => {
+          throw new Error('param-async-failure');
+        });
+      }
+
+      router.get('/users/:userId', () => {
+        guarded = true;
+        return { ok: true };
+      });
+
+      app.use(router.original);
+      app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+        void _next;
+        finalCalls.push(err.message);
+        res.status(597).json({ final: err.message });
+      });
+
+      const response = await request(app).get('/users/42').expect(597);
+
+      expect(response.body).toEqual({ final: mode === 'sync' ? 'param-sync-failure' : 'param-async-failure' });
+      expect(finalCalls).toHaveLength(1);
+      expect(guarded).toBe(false);
+    };
+
+    await check('sync');
+    await check('async');
+  });
+
+  it('does not sanitize malformed express.json() input mounted before the router', async () => {
+    const app = express();
+    const finalCalls: Array<{ status?: number; type?: string }> = [];
+    let guarded = false;
+
+    app.use(express.json());
+
+    const router = new JsonRouter();
+
+    router.post('/data', () => {
+      guarded = true;
+      return { ok: true };
+    });
+
+    app.use(router.original);
+    app.use(
+      (
+        err: Error & { status?: number; type?: string },
+        req: express.Request,
+        res: express.Response,
+        _next: express.NextFunction,
+      ) => {
+        void _next;
+        finalCalls.push({ status: err.status, type: err.type });
+        res.status(err.status ?? 400).json({ final: 'body-parser', type: err.type });
+      },
+    );
+
+    const response = await request(app)
+      .post('/data')
+      .set('Content-Type', 'application/json')
+      .send('{"broken":')
+      .expect(400);
+
+    expect(response.body).toEqual({ final: 'body-parser', type: 'entity.parse.failed' });
+    expect(finalCalls).toEqual([{ status: 400, type: 'entity.parse.failed' }]);
+    expect(guarded).toBe(false);
+  });
+
+  it('pins use()/param() return identity to the native router and keeps native registrations outside getEndpoints()', async () => {
+    const app = express();
+    const order: string[] = [];
+    const router = new JsonRouter('/api');
+
+    const useReturn = router.use((req, res, next) => {
+      order.push('use');
+      next();
+    });
+    const paramReturn = router.param('userId', (req, res, next, userId) => {
+      (req as RequestWithState).userId = userId;
+      next();
+    });
+
+    expect(useReturn).toBe(router.original);
+    expect(paramReturn).toBe(router.original);
+    expect(useReturn).not.toBe(router);
+
+    router.get('/first', () => ({ ok: 'first' }));
+    router.get('/users/:userId', (req) => {
+      order.push('json');
+      return { userId: (req as RequestWithState).userId };
+    });
+
+    router.original.get('/native', (req, res) => {
+      order.push('native');
+      void res.json({ native: true });
+    });
+
+    app.use(router.original);
+
+    expect(router.getEndpoints()).toEqual([
+      { method: 'GET', path: '/api/first' },
+      { method: 'GET', path: '/api/users/:userId' },
+    ]);
+
+    await expectJson(app, 'get', '/api/first', 200, { ok: 'first' });
+
+    order.length = 0;
+    await expectJson(app, 'get', '/api/users/42', 200, { userId: '42' });
+    expect(order).toEqual(['use', 'json']);
+
+    order.length = 0;
+    const nativeResponse = await request(app).get('/native').expect(200);
+
+    expect(nativeResponse.body).toEqual({ native: true });
+    expect(order).toEqual(['use', 'native']);
+
+    await request(app).get('/api/native').expect(404);
+  });
+
+  it('pins the retained builder contract as independent registrations (no native grouping)', async () => {
+    const app = express();
+    const router = new JsonRouter();
+
+    router
+      .route('/head-target')
+      .get((req, res) => {
+        res.set('x-handler', 'get');
+        return { handler: 'get' };
+      })
+      .head((req, res) => {
+        res.set('x-handler', 'head');
+        return { handler: 'head' };
+      });
+
+    router
+      .route('/guard-target')
+      .all((req, res, next) => next('route'))
+      .get(() => ({ ok: true }));
+
+    app.use(router.original);
+    app.use((req, res) => {
+      res.status(404).json({ fallback: true });
+    });
+
+    const headResponse = await request(app).head('/head-target').expect(200);
+
+    expect(headResponse.headers['x-handler']).toBe('get');
+
+    const guardResponse = await request(app).get('/guard-target').expect(200);
+
+    expect(guardResponse.body).toEqual({ ok: true });
+    expect(router.getEndpoints()).toEqual([
+      { method: 'GET', path: '/head-target' },
+      { method: 'HEAD', path: '/head-target' },
+      { method: 'ALL', path: '/guard-target' },
+      { method: 'GET', path: '/guard-target' },
+    ]);
+
+    const chainedApp = express();
+    let constructorMiddlewareRuns = 0;
+    const chainedRouter = new JsonRouter('', (req, res, next) => {
+      constructorMiddlewareRuns += 1;
+      next();
+    });
+
+    chainedRouter
+      .route('/chained')
+      .get((req, res, next) => next())
+      .get(() => ({ ok: true }));
+
+    chainedApp.use(chainedRouter.original);
+
+    await request(chainedApp).get('/chained').expect(200, { ok: true });
+    expect(constructorMiddlewareRuns).toBe(2);
   });
 
   it('keeps route() builders available and ordered after direct attempts to mutate registry state', () => {

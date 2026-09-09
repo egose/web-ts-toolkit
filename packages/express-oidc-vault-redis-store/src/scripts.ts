@@ -474,6 +474,27 @@ export type DeleteSessionScriptScope =
   | { kind: 'subject'; value: string; issuer?: string; clientId?: string }
   | { kind: 'provider-session'; value: string; issuer?: string; clientId?: string };
 
+/**
+ * Deletes `KEYS[1]` only when its current string value still equals the
+ * observed payload in `ARGV[1]` (SVH-03). The comparison runs server-side so a
+ * stale repair read cannot delete a fresh same-ID record created after the
+ * read: when the value changed (or the key is missing), the script returns `0`
+ * and leaves the current value untouched. A missing key compares unequal
+ * (`GET` yields `false` in Lua) and is therefore never "deleted".
+ */
+export const COMPARE_AND_DELETE_SCRIPT = `
+local current = redis.call('GET', KEYS[1])
+
+if current == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+else
+  return 0
+end
+`;
+
+export const buildCompareAndDeleteCommand = (key: string, observedValue: string): string[] =>
+  evalCommand(COMPARE_AND_DELETE_SCRIPT, [key], [observedValue]);
+
 export const buildWriteSessionCommand = (keys: RedisOidcVaultStoreKeys, session: OidcVaultSession): string[] =>
   evalCommand(
     WRITE_SESSION_SCRIPT,

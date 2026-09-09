@@ -230,6 +230,202 @@ function installPackedConsumer(): string {
   return consumerDir;
 }
 
+function installMinimalPackedConsumerWithRouterTarball(routerTarball: string): string {
+  const packed = preparePackedWorkspace();
+  const consumerDir = mkdtempSync(path.join(os.tmpdir(), 'express-json-router-minimal-consumer-'));
+  tempRoots.push(consumerDir);
+  seedToolVersions(consumerDir);
+
+  writeFileSync(
+    path.resolve(consumerDir, 'package.json'),
+    JSON.stringify(
+      {
+        name: 'express-json-router-minimal-consumer',
+        private: true,
+        type: 'module',
+        dependencies: {
+          '@web-ts-toolkit/express-json-router': `file:${routerTarball}`,
+        },
+        devDependencies: {
+          typescript: typescriptVersion,
+          '@types/node': nodeTypesVersion,
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  writeFileSync(
+    path.resolve(consumerDir, 'pnpm-workspace.yaml'),
+    ['packages: []', 'overrides:']
+      .concat(
+        workspacePackages.map((pkg) =>
+          pkg.name === '@web-ts-toolkit/express-json-router'
+            ? `  '${pkg.name}': file:${routerTarball}`
+            : `  '${pkg.name}': file:${packed.tarballs[pkg.name]}`,
+        ),
+      )
+      .join('\n') + '\n',
+  );
+  run('pnpm', ['install'], consumerDir);
+
+  return consumerDir;
+}
+
+function installMinimalPackedConsumer(): string {
+  const packed = preparePackedWorkspace();
+  return installMinimalPackedConsumerWithRouterTarball(packed.tarballs['@web-ts-toolkit/express-json-router']);
+}
+
+const minimalNegativeOmittedDep = '@web-ts-toolkit/express-response-handler';
+
+function prepareBrokenRouterTarball(): { tarballPath: string; omittedDep: string } {
+  const packed = preparePackedWorkspace();
+  const rawManifest = JSON.parse(readFileSync(path.resolve(packageRoot, 'package.json'), 'utf8')) as PackageJson;
+  const manifest = buildPublishedManifest(rawManifest, 'packages/express-json-router');
+  if (!manifest.dependencies?.[minimalNegativeOmittedDep]) {
+    throw new Error(`expected published manifest to declare ${minimalNegativeOmittedDep}`);
+  }
+  delete manifest.dependencies[minimalNegativeOmittedDep];
+
+  const stageDir = path.resolve(packed.tempRoot, 'broken_express-json-router');
+  rmSync(stageDir, { recursive: true, force: true });
+  stagePublishedPackage(stageDir, packageRoot, manifest);
+  const brokenTarballDir = path.resolve(packed.tempRoot, 'broken-tarballs');
+  mkdirSync(brokenTarballDir, { recursive: true });
+  run('pnpm', ['pack', '--pack-destination', brokenTarballDir], stageDir);
+
+  const tarballName = '@web-ts-toolkit/express-json-router'.replace('@web-ts-toolkit/', 'web-ts-toolkit-');
+  const tarballPath = path.resolve(brokenTarballDir, `${tarballName}-${testVersion}.tgz`);
+  if (!existsSync(tarballPath)) {
+    throw new Error(`pnpm pack did not produce expected broken tarball: ${tarballPath}`);
+  }
+
+  return { tarballPath, omittedDep: minimalNegativeOmittedDep };
+}
+
+function writeMinimalConsumerFiles(consumerDir: string): void {
+  writeFileSync(
+    path.resolve(consumerDir, 'minimal-esm.mjs'),
+    `import JsonRouter from '@web-ts-toolkit/express-json-router';
+
+const entry = import.meta.resolve('@web-ts-toolkit/express-json-router');
+const router = new JsonRouter('/api');
+router.get('/health', () => ({ ok: true }));
+router.route('/items').get(() => ({ ok: true })).post(() => ({ ok: true }));
+
+if (!entry.endsWith('/index.mjs')) throw new Error(entry);
+if (typeof JsonRouter !== 'function') throw new Error('missing default export');
+if (router.getEndpoints().length !== 3) throw new Error('endpoint registration failed');
+`,
+  );
+
+  writeFileSync(
+    path.resolve(consumerDir, 'minimal-cjs.cjs'),
+    `const mod = require('@web-ts-toolkit/express-json-router');
+const JsonRouter = mod.default;
+const entry = require.resolve('@web-ts-toolkit/express-json-router');
+const router = new JsonRouter('/api');
+router.get('/health', () => ({ ok: true }));
+router.route('/items').get(() => ({ ok: true })).post(() => ({ ok: true }));
+
+if (!entry.endsWith('/index.js')) throw new Error(entry);
+if (typeof JsonRouter !== 'function') throw new Error('missing default export');
+if (router.getEndpoints().length !== 3) throw new Error('endpoint registration failed');
+`,
+  );
+
+  writeFileSync(
+    path.resolve(consumerDir, 'minimal.nodenext.mts'),
+    `import JsonRouter, { type JsonRouterCallback, type JsonRouterEndpoint } from '@web-ts-toolkit/express-json-router';
+
+const callback: JsonRouterCallback<{ id: string }> = (req) => ({ id: req.params.id });
+const router = new JsonRouter('/api');
+router.get('/users/:id', callback);
+router.route('/items').get(() => ({ ok: true }));
+
+const endpoints: JsonRouterEndpoint[] = router.getEndpoints();
+void endpoints;
+`,
+  );
+
+  writeFileSync(
+    path.resolve(consumerDir, 'minimal.nodenext.cts'),
+    `import JsonRouterModule = require('@web-ts-toolkit/express-json-router');
+import type { JsonRouterCallback, JsonRouterEndpoint } from '@web-ts-toolkit/express-json-router';
+
+const JsonRouter = JsonRouterModule.default;
+const callback: JsonRouterCallback<{ id: string }> = (req) => ({ id: req.params.id });
+const router = new JsonRouter('/api');
+router.get('/users/:id', callback);
+const endpoints: JsonRouterEndpoint[] = router.getEndpoints();
+void endpoints;
+`,
+  );
+
+  writeFileSync(
+    path.resolve(consumerDir, 'minimal.bundler.ts'),
+    `import JsonRouter, { type JsonRouterCallback } from '@web-ts-toolkit/express-json-router';
+
+const router = new JsonRouter('/api');
+const callback: JsonRouterCallback<{ id: string }> = (req) => ({ id: req.params.id });
+router.get('/users/:id', callback);
+router.route('/items').post(() => ({ ok: true }));
+void router.getEndpoints();
+`,
+  );
+
+  writeFileSync(
+    path.resolve(consumerDir, 'tsconfig.minimal.nodenext.json'),
+    JSON.stringify(
+      {
+        compilerOptions: {
+          target: 'ES2022',
+          module: 'NodeNext',
+          moduleResolution: 'NodeNext',
+          strict: true,
+          noEmit: true,
+          skipLibCheck: false,
+          esModuleInterop: true,
+          types: ['node'],
+        },
+        include: ['minimal.nodenext.mts', 'minimal.nodenext.cts'],
+      },
+      null,
+      2,
+    ),
+  );
+
+  writeFileSync(
+    path.resolve(consumerDir, 'tsconfig.minimal.bundler.json'),
+    JSON.stringify(
+      {
+        compilerOptions: {
+          target: 'ES2022',
+          module: 'ESNext',
+          moduleResolution: 'Bundler',
+          strict: true,
+          noEmit: true,
+          skipLibCheck: false,
+          esModuleInterop: true,
+          types: ['node'],
+        },
+        include: ['minimal.bundler.ts'],
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+function runMinimalConsumerSmokeTests(consumerDir: string): void {
+  writeMinimalConsumerFiles(consumerDir);
+  run('node', ['minimal-esm.mjs'], consumerDir);
+  run('node', ['minimal-cjs.cjs'], consumerDir);
+  run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.minimal.nodenext.json'], consumerDir);
+  run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.minimal.bundler.json'], consumerDir);
+}
+
 function writeConsumerFiles(consumerDir: string): void {
   writeFileSync(
     path.resolve(consumerDir, 'esm.mjs'),
@@ -506,5 +702,20 @@ describe('express-json-router packed consumer compatibility', () => {
   it('runs ESM, CJS, NodeNext, and Bundler consumers against installed tarballs', () => {
     const consumerDir = installPackedConsumer();
     runConsumerSmokeTests(consumerDir);
+  }, 60000);
+
+  it('runs a minimal consumer using only the declared dependency graph', () => {
+    const consumerDir = installMinimalPackedConsumer();
+    runMinimalConsumerSmokeTests(consumerDir);
+  }, 60000);
+
+  it('detects a staged-manifest omission of a required dependency in the minimal consumer', () => {
+    const packed = preparePackedWorkspace();
+    expect(
+      packed.manifests['@web-ts-toolkit/express-json-router'].dependencies?.[minimalNegativeOmittedDep],
+    ).toBeDefined();
+    const broken = prepareBrokenRouterTarball();
+    const consumerDir = installMinimalPackedConsumerWithRouterTarball(broken.tarballPath);
+    expect(() => runMinimalConsumerSmokeTests(consumerDir)).toThrow(minimalNegativeOmittedDep);
   }, 60000);
 });

@@ -269,6 +269,34 @@ describe('access-router-runtime CLI subprocess behavior', () => {
     expect(readLines(join(dir, 'child-init.txt'))).toHaveLength(1);
   }, 10_000);
 
+  it('ignores distinctive dev metadata in the watch supervisor', async () => {
+    const { dir } = createTempProject('access-router-runtime-cli-watch-dev-');
+    writeProjectFile(
+      dir,
+      'config.cjs',
+      [
+        "const fs = require('node:fs');",
+        "const supervisor = process.argv.some((arg) => arg.startsWith('--watch'));",
+        "fs.appendFileSync(supervisor ? './supervisor-eval.txt' : './child-eval.txt', `${process.pid}\\n`);",
+        'module.exports = {',
+        "  dev: { watch: ['./should-not-watch'], ext: ['distinctive-ext'], delay: 12345 },",
+        '  init() {',
+        "    fs.appendFileSync(supervisor ? './supervisor-init.txt' : './child-init.txt', `${process.pid}\\n`);",
+        '  },',
+        '};',
+        '',
+      ].join('\n'),
+    );
+
+    const result = await runCli(['dev', './config.cjs', '--watch', '--port', '0', '--no-signals'], dir, 4_000);
+
+    expect(result.timedOut).toBe(true);
+    expect(existsSync(join(dir, 'supervisor-eval.txt'))).toBe(false);
+    expect(existsSync(join(dir, 'supervisor-init.txt'))).toBe(false);
+    expect(readLines(join(dir, 'child-eval.txt'))).toHaveLength(1);
+    expect(readLines(join(dir, 'child-init.txt'))).toHaveLength(1);
+  }, 10_000);
+
   it('exits nonzero in bounded time when config init fails before listen', async () => {
     const { dir } = createTempProject('access-router-runtime-cli-init-fail-');
     writeProjectFile(dir, 'config.cjs', "module.exports = { init() { throw new Error('init exploded'); } };\n");

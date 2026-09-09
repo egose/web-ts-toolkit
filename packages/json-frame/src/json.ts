@@ -3,8 +3,15 @@ import type { JsonObject, JsonValue, ResolvedOrient } from './types';
 
 /**
  * Maximum supported nesting for JSON arrays/objects traversed by the package.
- * The parsed root is depth 0; an array/object at depth 1000 is accepted, while
- * an array/object at depth 1001 fails with `JsonFrameValidationError`.
+ * Depth is measured from the validated root at depth 0; an array/object at
+ * depth 1000 is accepted, while an array/object at depth 1001 fails with
+ * `JsonFrameValidationError`.
+ *
+ * The root is the parsed input for ingestion and the complete exported payload
+ * for serialization, including orient-specific wrappers. A nested cell accepted
+ * at ingestion may therefore be rejected when serialized in a deeper output
+ * layout (for example `split`/`table` wrap cells one level deeper than
+ * `records`/`values`/`index`/`columns`).
  */
 export const JSON_FRAME_MAX_DEPTH = 1000;
 
@@ -154,6 +161,128 @@ const createFrame = (
     value: target as JsonObject,
     frame: { kind: 'object', source: objectSource, target, keys: Object.keys(objectSource), path, depth, index: 0 },
   };
+};
+
+type ValidateFrame =
+  | {
+      readonly kind: 'array';
+      readonly source: readonly unknown[];
+      readonly path: PathNode;
+      readonly depth: number;
+      index: number;
+    }
+  | {
+      readonly kind: 'object';
+      readonly source: Record<string, unknown>;
+      readonly keys: readonly string[];
+      readonly path: PathNode;
+      readonly depth: number;
+      index: number;
+    };
+
+const createValidateFrame = (
+  source: unknown,
+  path: PathNode,
+  depth: number,
+  ancestors: Set<object>,
+  orient: ResolvedOrient | undefined,
+): ValidateFrame | undefined => {
+  const scalar = cloneScalar(source, path, orient);
+  if (scalar !== undefined) {
+    return undefined;
+  }
+
+  if (depth > JSON_FRAME_MAX_DEPTH) {
+    throwValidation(
+      `JSON input exceeds the maximum supported nesting depth of ${JSON_FRAME_MAX_DEPTH}.`,
+      path,
+      source,
+      orient,
+    );
+  }
+
+  if (Array.isArray(source)) {
+    if (ancestors.has(source)) {
+      throwValidation('Input contains a cyclic array.', path, source, orient);
+    }
+
+    ancestors.add(source);
+    return { kind: 'array', source, path, depth, index: 0 };
+  }
+
+  if (!isPlainObject(source)) {
+    throwValidation('Input objects must be plain JSON objects or arrays.', path, source, orient);
+  }
+
+  const objectSource = source as Record<string, unknown>;
+  if (ancestors.has(objectSource)) {
+    throwValidation('Input contains a cyclic object.', path, objectSource, orient);
+  }
+
+  ancestors.add(objectSource);
+  return { kind: 'object', source: objectSource, keys: Object.keys(objectSource), path, depth, index: 0 };
+};
+
+/**
+ * Validate a complete exported payload without cloning it.
+ *
+ * Uses the same bounded iterative traversal, depth limit, cycle/sparse/
+ * non-JSON checks, and path formatting as ingestion. Only the ancestor chain
+ * is tracked, so repeated references to the same acyclic container are visited
+ * once per occurrence (detached semantics): validation work grows with the
+ * expanded output that native `JSON.stringify()` will subsequently produce.
+ * No breadth/work budget is enforced here; see the serialization
+ * documentation for the remaining shared-reference expansion limit.
+ *
+ * Validation reads own enumerable properties and array elements, which invokes
+ * caller-installed getters and `Proxy` traps on reachable values. Native
+ * serialization may additionally invoke `toJSON` hooks, including
+ * non-enumerable ones invisible to this traversal. Hooks are caller
+ * responsibility; the package does not sandbox arbitrary JavaScript.
+ */
+export const assertJsonCompatible = (value: unknown, orient?: ResolvedOrient, path = '$'): void => {
+  const ancestors = new Set<object>();
+  const root = createValidateFrame(value, rootPath(path), 0, ancestors, orient);
+  const stack = root === undefined ? [] : [root];
+
+  while (stack.length > 0) {
+    const frame = stack[stack.length - 1]!;
+
+    if (frame.kind === 'array') {
+      if (frame.index >= frame.source.length) {
+        ancestors.delete(frame.source);
+        stack.pop();
+        continue;
+      }
+
+      const index = frame.index;
+      frame.index += 1;
+      const childPath = childIndexPath(frame.path, index);
+      if (!(index in frame.source)) {
+        throwValidation('Sparse arrays are not valid JSON input.', childPath, frame.source, orient);
+      }
+
+      const child = createValidateFrame(frame.source[index], childPath, frame.depth + 1, ancestors, orient);
+      if (child !== undefined) {
+        stack.push(child);
+      }
+      continue;
+    }
+
+    if (frame.index >= frame.keys.length) {
+      ancestors.delete(frame.source);
+      stack.pop();
+      continue;
+    }
+
+    const key = frame.keys[frame.index]!;
+    frame.index += 1;
+    const childPath = childPropertyPath(frame.path, key);
+    const child = createValidateFrame(frame.source[key], childPath, frame.depth + 1, ancestors, orient);
+    if (child !== undefined) {
+      stack.push(child);
+    }
+  }
 };
 
 export const cloneJsonCompatible = (value: unknown, orient?: ResolvedOrient, path = '$'): JsonValue => {
