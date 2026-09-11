@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import { describe, it, expect } from 'vitest';
@@ -47,6 +47,52 @@ describe('validateSharedDeployOptions', () => {
     );
   });
 
+  // MongoDB connection-grammar matrix (CARMSF-13). This matrix mirrors
+  // `template/tests/api-contract.test.ts`; both validators share the grammar
+  // in `template/src/shared/mongo-connection-string.ts`, so the two lists
+  // must stay aligned. No case here needs a database connection.
+  const MONGO_ACCEPT = [
+    'mongodb://127.0.0.1:27017/app',
+    'mongodb://db-a:27017,db-b:27017/app?replicaSet=rs0',
+    'mongodb://user:pass@db-a:27017,db-b:27017/app?replicaSet=rs0&authSource=admin', // pragma: allowlist secret
+    'mongodb://[::1]:27017/app',
+    'mongodb://[2001:db8::1]:27017,[2001:db8::2]:27017/app?replicaSet=rs0',
+    'mongodb://localhost/app',
+    'mongodb+srv://cluster.example.test/app',
+    'mongodb+srv://user:pass@cluster.example.test/app?retryWrites=true', // pragma: allowlist secret
+  ];
+  const MONGO_REJECT = [
+    'https://example.test/db',
+    'mongodb://',
+    'mongodb+srv://host:27017/db',
+    'mongodb://host/db name',
+    'mongodb+srv://h1,h2/db',
+    'mongodb://host1,,host2/db',
+    'mongodb://host:99999/db',
+    'mongodb://[::1/db',
+    'mongodb://::1:27017/db',
+    'mongodb://@host/db',
+    'mongodb://host/db?opt#frag',
+    'mongodb://host/db?',
+    'mongodb+srv://[::1]/db',
+  ];
+
+  it.each(MONGO_ACCEPT)('accepts supported Mongo connection grammar: %j', (mongodbUri) => {
+    expect(validateSharedDeployOptions(repoOptions({ mongodbUri })).mongodbUri).toBe(mongodbUri);
+  });
+
+  it.each(MONGO_REJECT)('rejects malformed Mongo configuration without echoing it: %j', (mongodbUri) => {
+    let message = '';
+    try {
+      validateSharedDeployOptions(repoOptions({ mongodbUri }));
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toBe('--mongodb-uri or MONGODB_URI must be a valid MongoDB connection string.');
+    const remainder = mongodbUri.replace(/^mongodb(\+srv)?:\/\//u, '');
+    if (remainder) expect(message).not.toContain(remainder);
+  });
+
   it.each(['https://example.test/db', 'mongodb://', 'mongodb+srv://host:27017/db', 'mongodb://host/db name'])(
     'rejects malformed Mongo configuration without echoing it: %j',
     (mongodbUri) => {
@@ -72,6 +118,10 @@ describe('validateSharedDeployOptions', () => {
     '/api\\todos',
     '/api/./todos',
     '/api/../todos',
+    '/api/:version',
+    '/api/*',
+    '/api(x)',
+    '/api%41',
   ])('rejects a non-path-only API base before deployment: %s', (apiBaseUrl) => {
     expect(() => validateSharedDeployOptions(repoOptions({ apiBaseUrl }))).toThrow('--api-base-url');
   });
@@ -233,27 +283,27 @@ describe('bail', () => {
 
 describe('redactCommand', () => {
   it('replaces secret values with [REDACTED]', () => {
-    const cmd = 'netlify deploy --auth secret-token-123 --site my-site';
+    const cmd = 'deploy-netlify --auth secret-token-123 --site my-site';
     const redacted = redactCommand(cmd, ['secret-token-123']);
-    expect(redacted).toBe('netlify deploy --auth [REDACTED] --site my-site');
+    expect(redacted).toBe('deploy-netlify --auth [REDACTED] --site my-site');
   });
 
   it('redacts multiple secrets', () => {
-    const cmd = 'netlify deploy --auth token123 --site abc --mongodb-uri mongodb://user:pass@host'; // pragma: allowlist secret
+    const cmd = 'deploy-netlify --auth token123 --site abc --mongodb-uri mongodb://user:pass@host'; // pragma: allowlist secret
     const redacted = redactCommand(cmd, ['mongodb://user:pass@host', 'token123']);
-    expect(redacted).toBe('netlify deploy --auth [REDACTED] --site abc --mongodb-uri [REDACTED]');
+    expect(redacted).toBe('deploy-netlify --auth [REDACTED] --site abc --mongodb-uri [REDACTED]');
   });
 
   it('does not modify the command when no secrets match', () => {
-    const cmd = 'netlify deploy --site my-site --prod';
+    const cmd = 'deploy-netlify --site my-site --prod';
     const redacted = redactCommand(cmd, ['nonexistent']);
     expect(redacted).toBe(cmd);
   });
 
   it('ignores empty secret strings', () => {
-    const cmd = 'netlify deploy --auth abc --site my-site';
+    const cmd = 'deploy-netlify --auth abc --site my-site';
     const redacted = redactCommand(cmd, ['', 'abc']);
-    expect(redacted).toBe('netlify deploy --auth [REDACTED] --site my-site');
+    expect(redacted).toBe('deploy-netlify --auth [REDACTED] --site my-site');
   });
 
   it('uses a redacted command display in thrown process failures', () => {
@@ -355,10 +405,74 @@ describe('--no-build artifact inspection', () => {
       writeFileSync(join(paths.distAbs, 'index.html'), '');
       expect(() => inspectArtifacts(repoOptions({ noBuild: true }), paths)).toThrow('Frontend entry artifact');
       writeFileSync(join(paths.distAbs, 'index.html'), '<main>ready</main>');
-      writeFileSync(join(paths.functionsAbs, 'main.js'), '');
-      expect(() => inspectArtifacts(repoOptions({ noBuild: true }), paths)).toThrow('Serverless function artifact');
+      // The CJS bundler contract emits `<name>.cjs` (template `pnpm
+      // serverless` writes `main.cjs`); a stale `.js` alone must not pass.
       writeFileSync(join(paths.functionsAbs, 'main.js'), 'exports.handler = () => {};');
+      expect(() => inspectArtifacts(repoOptions({ noBuild: true }), paths)).toThrow('Serverless function artifact');
+      writeFileSync(join(paths.functionsAbs, 'main.cjs'), '');
+      expect(() => inspectArtifacts(repoOptions({ noBuild: true }), paths)).toThrow('Serverless function artifact');
+      writeFileSync(join(paths.functionsAbs, 'main.cjs'), 'exports.handler = () => {};');
       expect(() => inspectArtifacts(repoOptions({ noBuild: true }), paths)).not.toThrow();
+    });
+  });
+
+  it('verifies newly built artifacts before reporting success (CARMSF-06)', async () => {
+    await withTestWorkspace((workspace) => {
+      const distAbs = join(workspace.sandbox, 'dist');
+      const functionsAbs = join(workspace.sandbox, 'functions');
+      const paths = { deployDir: workspace.sandbox, distAbs, functionsAbs, isEphemeral: false };
+      const errors: string[] = [];
+
+      // Fake builder mimics the real bundler layout on success: Vite output
+      // plus the CJS serverless bundle `<functionsName>.cjs`.
+      const writeProducerArtifacts = (): void => {
+        mkdirSync(distAbs, { recursive: true });
+        mkdirSync(functionsAbs, { recursive: true });
+        writeFileSync(join(distAbs, 'index.html'), '<main>ready</main>');
+        writeFileSync(join(functionsAbs, 'main.cjs'), 'exports.handler = () => {};');
+      };
+
+      expect(
+        runSharedCli(['--project-root', workspace.source, '--mongodb-uri', 'mongodb://localhost/app'], {
+          resolvePaths: () => paths,
+          buildArtifacts: () => {
+            writeProducerArtifacts();
+            return { paths, options: repoOptions(), frontendEnv: {}, backendEnv: {} };
+          },
+          inspectArtifacts: (options, inspected) => inspectArtifacts(options, inspected),
+          cleanupSandbox: () => undefined,
+          log: () => undefined,
+          error: (message = '') => errors.push(message),
+        }),
+      ).toBe(0);
+      expect(errors).toEqual([]);
+
+      // Successful builder exit without the required bundle must fail with a
+      // controlled diagnostic instead of reporting success. Use fresh empty
+      // output dirs so leftovers from the success case cannot mask the miss.
+      const missingDist = join(workspace.sandbox, 'missing-dist');
+      const missingFunctions = join(workspace.sandbox, 'missing-functions');
+      mkdirSync(missingDist, { recursive: true });
+      mkdirSync(missingFunctions, { recursive: true });
+      writeFileSync(join(missingDist, 'index.html'), '<main>ready</main>');
+      const missingPaths = {
+        deployDir: workspace.sandbox,
+        distAbs: missingDist,
+        functionsAbs: missingFunctions,
+        isEphemeral: false,
+      };
+      const missingErrors: string[] = [];
+      expect(
+        runSharedCli(['--project-root', workspace.source, '--mongodb-uri', 'mongodb://localhost/app'], {
+          resolvePaths: () => missingPaths,
+          buildArtifacts: () => ({ paths: missingPaths, options: repoOptions(), frontendEnv: {}, backendEnv: {} }),
+          inspectArtifacts: (options, inspected) => inspectArtifacts(options, inspected),
+          cleanupSandbox: () => undefined,
+          log: () => undefined,
+          error: (message = '') => missingErrors.push(message),
+        }),
+      ).toBe(1);
+      expect(missingErrors.join('\n')).toMatch(/Functions artifact directory|Serverless function artifact/);
     });
   });
 
@@ -378,5 +492,162 @@ describe('--no-build artifact inspection', () => {
       }),
     ).toBe(1);
     expect(mutations).toEqual([]);
+  });
+});
+
+describe('destructive output safety (CARMSF-05)', () => {
+  it('rejects node_modules and descendants in a fresh persistent sandbox after the owned link exists', async () => {
+    await withTestWorkspace((workspace) => {
+      const sentinel = join(workspace.target, 'sentinel.txt');
+      writeFileSync(sentinel, 'safe');
+
+      for (const outputKey of ['distDir', 'functionsDir'] as const) {
+        for (const value of ['node_modules', 'node_modules/sub']) {
+          expect(() => resolvePaths(repoOptions({ sandboxDir: workspace.sandbox, [outputKey]: value }))).toThrow(
+            /node_modules|strictly inside/,
+          );
+        }
+      }
+      // Alias proof that the canonical check runs against the post-link
+      // filesystem: `alt` points outside the sandbox yet contains no
+      // reserved segment lexically, so only symlink-aware resolution rejects it.
+      symlinkSync(workspace.target, join(workspace.sandbox, 'alt'), 'dir');
+      expect(() => resolvePaths(repoOptions({ sandboxDir: workspace.sandbox, distDir: 'alt/output' }))).toThrow(
+        /strictly inside/,
+      );
+      expect(readFileSync(sentinel, 'utf8')).toBe('safe');
+    });
+  });
+
+  it('rejects node_modules outputs in ephemeral sandboxes without touching outside data', async () => {
+    await withTestWorkspace((workspace) => {
+      const sentinel = join(workspace.target, 'sentinel.txt');
+      writeFileSync(sentinel, 'safe');
+
+      // Dry-run placeholder path: lexical reservation rejects before creation.
+      expect(() => resolvePaths(repoOptions({ ephemeral: true, dryRun: true, distDir: 'node_modules' }))).toThrow(
+        /node_modules/,
+      );
+
+      // Real ephemeral sandbox: post-link canonical check rejects. Clean up
+      // the temp directory left behind by the pre-resolution mkdtemp.
+      const before = new Set(readdirSync(tmpdir()));
+      expect(() => resolvePaths(repoOptions({ ephemeral: true, distDir: 'node_modules/nested' }))).toThrow(
+        /node_modules|strictly inside/,
+      );
+      for (const entry of readdirSync(tmpdir())) {
+        if (!before.has(entry) && entry.startsWith('create-access-router-mongo-starter-deploy-')) {
+          rmSync(join(tmpdir(), entry), { recursive: true, force: true });
+        }
+      }
+      expect(readFileSync(sentinel, 'utf8')).toBe('safe');
+    });
+  });
+
+  it('rejects reserved dependency/input/config dirs lexically at option validation', () => {
+    expect(() =>
+      validateSharedDeployOptions(repoOptions({ sandboxDir: '/tmp/sandbox', distDir: 'node_modules' })),
+    ).toThrow(/node_modules/);
+    expect(() =>
+      validateSharedDeployOptions(repoOptions({ sandboxDir: '/tmp/sandbox', functionsDir: 'a/node_modules/b' })),
+    ).toThrow(/node_modules/);
+  });
+
+  it('rejects root/ancestor/external/source/dependency targets and aliases in project mode', async () => {
+    await withTestWorkspace((workspace) => {
+      const projectRoot = workspace.source;
+      for (const dir of ['src', 'api', 'node_modules']) mkdirSync(join(projectRoot, dir), { recursive: true });
+      const sentinel = join(workspace.target, 'sentinel.txt');
+      writeFileSync(sentinel, 'safe');
+      symlinkSync(join(projectRoot, 'src'), join(projectRoot, 'alias-src'), 'dir');
+
+      const badDistDirs = [
+        '.',
+        '..',
+        'src',
+        'src/nested',
+        'api',
+        'node_modules',
+        'node_modules/sub',
+        'alias-src',
+        'alias-src/nested',
+        workspace.target,
+        join(workspace.target, 'output'),
+      ];
+      for (const distDir of badDistDirs) {
+        expect(() => resolvePaths(repoOptions({ projectRoot, distDir })), `distDir: ${distDir}`).toThrow(
+          /strictly inside|reserved/,
+        );
+      }
+      expect(() => resolvePaths(repoOptions({ projectRoot, functionsDir: 'api' }))).toThrow(/reserved/);
+      expect(() => resolvePaths(repoOptions({ projectRoot, functionsDir: '.' }))).toThrow(/strictly inside/);
+      expect(readFileSync(sentinel, 'utf8')).toBe('safe');
+    });
+  });
+
+  it('rejects equal and nested frontend/function outputs before any runner runs', async () => {
+    await withTestWorkspace((workspace) => {
+      const sentinel = join(workspace.target, 'sentinel.txt');
+      writeFileSync(sentinel, 'safe');
+
+      // resolvePaths-level rejection in both sandbox and project modes.
+      expect(() =>
+        resolvePaths(repoOptions({ sandboxDir: workspace.sandbox, distDir: 'out', functionsDir: 'out' })),
+      ).toThrow(/disjoint/);
+      expect(() =>
+        resolvePaths(repoOptions({ sandboxDir: workspace.sandbox, distDir: 'out', functionsDir: 'out/nested' })),
+      ).toThrow(/disjoint/);
+      expect(() =>
+        resolvePaths(repoOptions({ projectRoot: workspace.source, distDir: 'out', functionsDir: 'out' })),
+      ).toThrow(/disjoint/);
+
+      // buildArtifacts-level final check with fake runners and sentinels.
+      for (const [distAbs, functionsAbs] of [
+        [join(workspace.sandbox, 'same'), join(workspace.sandbox, 'same')],
+        [join(workspace.sandbox, 'outer'), join(workspace.sandbox, 'outer/inner')],
+        [join(workspace.sandbox, 'outer/inner'), join(workspace.sandbox, 'outer')],
+      ] as const) {
+        const runs: string[] = [];
+        expect(() =>
+          buildArtifacts(
+            repoOptions({ projectRoot: workspace.source }),
+            { deployDir: workspace.sandbox, distAbs, functionsAbs, isEphemeral: false },
+            {
+              parentEnv: {},
+              log: () => undefined,
+              run: (command) => {
+                runs.push(command);
+              },
+            },
+          ),
+        ).toThrow(/disjoint/);
+        expect(runs).toEqual([]);
+      }
+      expect(readFileSync(sentinel, 'utf8')).toBe('safe');
+    });
+  });
+
+  it('still builds disjoint outputs with fake runners', async () => {
+    await withTestWorkspace((workspace) => {
+      const runs: string[] = [];
+      const prepared = buildArtifacts(
+        repoOptions({ projectRoot: workspace.source }),
+        {
+          deployDir: workspace.source,
+          distAbs: join(workspace.source, 'dist'),
+          functionsAbs: join(workspace.source, 'netlify/functions'),
+          isEphemeral: false,
+        },
+        {
+          parentEnv: {},
+          log: () => undefined,
+          run: (command) => {
+            runs.push(command);
+          },
+        },
+      );
+      expect(runs).toEqual(['vite', 'wtt-access-router-runtime']);
+      expect(prepared.paths.distAbs).toBe(join(workspace.source, 'dist'));
+    });
   });
 });

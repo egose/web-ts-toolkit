@@ -15,6 +15,13 @@ describe('normalizeApiBaseURL', () => {
     expect(normalizeApiBaseURL('   ')).toBe('/api');
   });
 
+  it.each(['/api', '/custom/api', '/v1/api', '/api-v2_beta~1.0', '/.netlify/functions/main'])(
+    'accepts a literal nested or dotted prefix: %s',
+    (value) => {
+      expect(normalizeApiBaseURL(value)).toBe(value);
+    },
+  );
+
   it.each([
     'https://example.test/api',
     '//example.test/api',
@@ -28,6 +35,22 @@ describe('normalizeApiBaseURL', () => {
     '/api/%2e%2e/todos',
     '/api/%2Ftodos',
     '/api//todos',
+    '/api/:version',
+    '/api/:version/todos',
+    '/api/*',
+    '/api/todos*',
+    '/api?',
+    '/api+v1',
+    '/api(x)',
+    '/api[0]',
+    '/api{a}',
+    '/api^x',
+    '/api$x',
+    '/api|x',
+    '/api!',
+    '/api%41',
+    '/api/%3Aversion',
+    '/api/%41pi',
   ])('rejects a non-path-prefix value: %s', (value) => {
     expect(() => normalizeApiBaseURL(value)).toThrow(/API_BASE_URL/u);
   });

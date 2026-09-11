@@ -1,4 +1,14 @@
-import api, { Connection, Schema, type HydratedDocument, type Model } from '@web-ts-toolkit/mongoose-rxdb';
+import api, {
+  BulkWritePartialFailureError,
+  Connection,
+  MutationPartialFailureError,
+  Schema,
+  WriteNormalizationError,
+  type HydratedDocument,
+  type LeanResult,
+  type Model,
+  type UpdateResult,
+} from '@web-ts-toolkit/mongoose-rxdb';
 import storageDefault, {
   SqliteStorageError,
   createMemoryDatabase,
@@ -64,4 +74,34 @@ async function typedModelProbe() {
   return [found, lean, updated, adults];
 }
 
-void [api.Schema, UserModel, storageDefault, createMemoryDatabase, SqliteStorageError, sqliteDbPromise, typedModelProbe];
+async function leanContractProbe() {
+  // BMRX-24: lean toggling restores hydrated typing; mutation counts survive lean mapping.
+  const leanMany = await UserModel.find({ age: { $gte: 18 } }).lean(true);
+  const leanEl: LeanResult<User> = leanMany[0];
+  // @ts-expect-error lean records do not expose document methods.
+  leanEl.save();
+  const restored = await UserModel.find({ age: { $gte: 18 } }).lean(true).lean(false);
+  const hydratedEl: UserDocument = restored[0];
+  hydratedEl.save();
+  const upd: UpdateResult = await UserModel.updateMany({ age: { $gte: 18 } }, { $inc: { age: 1 } }).lean(true);
+  const optLean: LeanResult<User> | null = await UserModel.findOneAndUpdate(
+    { name: 'Ada' },
+    { $inc: { age: 1 } },
+    { lean: true },
+  );
+  // @ts-expect-error option-lean records do not expose document methods.
+  optLean?.save();
+  const optDelLean: LeanResult<User> | null = await UserModel.findOneAndDelete({ name: 'Ada' }, { lean: true });
+  // @ts-expect-error option-lean delete records do not expose document methods.
+  optDelLean?.save();
+  try {
+    await UserModel.updateOne({ name: 'Ada' }, { $inc: { age: 1 } });
+  } catch (error) {
+    if (error instanceof WriteNormalizationError) void error.message;
+    else if (error instanceof MutationPartialFailureError) void error.matchedCount;
+    else if (error instanceof BulkWritePartialFailureError) void error.insertedCount;
+  }
+  return [leanMany, restored, upd, optLean, optDelLean];
+}
+
+void [api.Schema, UserModel, storageDefault, createMemoryDatabase, SqliteStorageError, sqliteDbPromise, typedModelProbe, leanContractProbe];

@@ -29,11 +29,15 @@ todoSchema.index({ completed: 1, _id: -1 });
 todoSchema.pre('save', function () {
   return beginTodoIntegrityWrite(this);
 });
-todoSchema.pre('deleteOne', { document: true, query: false }, function () {
-  return beginTodoIntegrityWrite(this);
+todoSchema.pre('deleteOne', { document: true, query: false }, function (doc: unknown, options: unknown) {
+  const target = ((this ?? doc) as never) ?? (doc as never);
+  const deleteOptions = typeof options === 'object' && options !== null ? options : undefined;
+  return beginTodoIntegrityWrite(target, deleteOptions as never);
 });
-categorySchema.pre('deleteOne', { document: true, query: false }, function () {
-  return beginCategoryIntegrityDelete(this);
+categorySchema.pre('deleteOne', { document: true, query: false }, function (doc: unknown, options: unknown) {
+  const target = ((this ?? doc) as never) ?? (doc as never);
+  const deleteOptions = typeof options === 'object' && options !== null ? options : undefined;
+  return beginCategoryIntegrityDelete(target, deleteOptions as never);
 });
 
 for (const schema of [todoSchema, categorySchema]) {

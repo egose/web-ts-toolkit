@@ -89,7 +89,7 @@ The published package stages the template into `dist/template/`, so the CLI work
 
 The scaffold step skips workspace-only output such as `node_modules`, `dist`, and `.env` files. It preserves a release-generated `pnpm-lock.yaml` synchronized with the staged manifest, including the direct `@web-ts-toolkit/access-router-runtime` dependency.
 
-Generated projects declare Node `>=22.12.0` and pnpm `11.18.0`. Install with `pnpm install --frozen-lockfile`; this detects manifest/lock drift instead of silently resolving a different dependency set. The source template has no committed lockfile because its internal dependency versions are placeholders; release staging stamps the release version and generates the lockfile included in the package.
+Generated projects declare Node `^22.13.0 || >=24.0.0` and pnpm `11.18.0`. Install with `pnpm install --frozen-lockfile`; this detects manifest/lock drift instead of silently resolving a different dependency set. The lower bound follows the resolved release graph: the shipped jsdom 29 / ESLint 10 toolchain requires `^20.19.0 || ^22.13.0 || >=24.0.0` while the workspace runtime requires Node `>=22`, so Node 22.0–22.12 and the discontinuous Node 23 line are not supported. The source template has no committed lockfile because its internal dependency versions are placeholders; release staging stamps the release version and generates the lockfile included in the package.
 
 Package names must satisfy npm's lowercase scoped or unscoped naming contract
 and be at most 214 characters. Database names must be 1-63 UTF-8 bytes and
@@ -129,7 +129,10 @@ racing requests, so the MongoDB service must support transactions through a
 replica set or sharded deployment.
 
 The generated runtime requires a valid nonblank `MONGODB_URI` before local
-listen or serverless handling. Its access-router response boundary maps request
+listen or serverless handling. Single-host, authenticated, bracketed-IPv6, and
+multi-host seed-list `mongodb://` / `mongodb+srv://` forms are accepted (so
+transaction-capable replica sets work); malformed values are rejected without
+echoing the URI, and the deploy helper enforces the identical grammar. Its access-router response boundary maps request
 validation and Mongoose cast/validation failures to stable `400` responses,
 duplicate-key conflicts to `409`, and unknown failures to a generic `500`
 without exposing persistence details. Server diagnostics are structured and
@@ -176,16 +179,11 @@ The package also ships helper binaries used by the starter's deployment workflow
 
 Those are mainly for the generated starter's deployment flow rather than day-one scaffolding, but they are packaged so a generated app can install the exact generator version as a dev dependency and run the same released deploy helpers.
 
-### Netlify CLI prerequisite
+### Netlify deploy prerequisites
 
-`create-access-router-mongo-starter-deploy-netlify` shells out to the `netlify` CLI to perform the actual deploy. The `netlify-cli` package is **not** bundled as a runtime dependency (it pulled a ~30k-file transitive tree that bloated the published artifact). Instead the `netlify` binary must be resolvable on `PATH` when you run the deploy helper:
-
-```bash
-npm install -g netlify-cli
-# or, per project: pnpm add -D netlify-cli   (the binary lands in node_modules/.bin)
-```
-
-Verify with `netlify --version` before running the deploy bin. The deploy helper bails with a clear error if `netlify` is missing.
+`create-access-router-mongo-starter-deploy-netlify` deploys via the Netlify
+API directly — no `netlify` binary is required on `PATH`. Only a Netlify auth
+token and a site reference are needed.
 
 ### Credential and child-process boundary
 
@@ -193,14 +191,14 @@ Set `NETLIFY_AUTH_TOKEN` and `MONGODB_URI` through a secure prompt or CI secret
 manager, then invoke the deploy helper without credential arguments:
 
 ```bash
-pnpm add -D create-access-router-mongo-starter@<generator-version> netlify-cli
+pnpm add -D create-access-router-mongo-starter@<generator-version>
 
 export NETLIFY_AUTH_TOKEN
 export MONGODB_URI
 pnpm exec create-access-router-mongo-starter-deploy-netlify --site <name-or-id> --prod --paid-tier --acknowledge-public-demo
 ```
 
-The Netlify CLI receives authentication through `NETLIFY_AUTH_TOKEN`, never an
+The auth token flows to the Netlify API client as an explicit parameter, never an
 `--auth` argument. The frontend build and deploy process receive no Mongo URI;
 only the backend build receives `MONGODB_URI`. Each child starts from a small
 allowlist of platform essentials (`PATH`, Windows system paths, home/temp
@@ -210,7 +208,10 @@ parent environment.
 `API_BASE_URL` is one path-only prefix shared by the frontend, Vite proxy,
 backend routes, Netlify redirects, and serverless runtime. It must begin with
 `/`; schemes, authorities, queries, fragments, backslashes, empty segments, and
-dot segments are rejected. Deploys provide the selected value directly to the
+dot segments are rejected. Each segment may only contain letters, digits, `.`,
+`_`, `~`, or `-`: route parameters, wildcards, other route metacharacters,
+percent-encoded characters, and non-ASCII segments are rejected so the prefix
+always mounts literally. Deploys provide the selected value directly to the
 Vite process, so it takes precedence over a conflicting project `.env` file.
 Generated local scripts bind the frontend to port 3000, backend to 8000, and
 serverless emulator to 9000; they do not expose `PORT` or `HOST` environment

@@ -13,19 +13,23 @@ import {
 } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import {
+  ALLOWED_DOTENV_EXAMPLE_BASENAME,
   GENERATED_LOCKFILE,
   GITIGNORE_FILE,
   GITIGNORE_STAGING_ALIAS,
   PUBLISH_TEMPLATE_POLICY,
+  isPrivateDotenvPath,
   isTemplatePathExcluded,
   normalizeTemplatePath,
 } from '../src/shared/template-policy';
 
 export {
+  ALLOWED_DOTENV_EXAMPLE_BASENAME,
   GENERATED_LOCKFILE,
   GITIGNORE_FILE,
   GITIGNORE_STAGING_ALIAS,
   PUBLISH_TEMPLATE_POLICY,
+  isPrivateDotenvPath,
   isTemplatePathExcluded,
   normalizeTemplatePath,
 };
@@ -60,79 +64,149 @@ export function isExcluded(relativePath: string): boolean {
 }
 
 function generateLockfile(targetDir: string): void {
-  try {
-    execFileSync('pnpm', ['install', '--lockfile-only', '--ignore-scripts'], {
-      cwd: targetDir,
-      stdio: 'inherit',
-    });
-    return;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const manifestPath = resolve(targetDir, 'package.json');
-    let manifestContent: string;
-    try {
-      manifestContent = readFileSync(manifestPath, 'utf8');
-    } catch {
-      throw error;
-    }
-    const versionMatch = manifestContent.match(/"@web-ts-toolkit\/[^"]+":\s*"\^([^"]+)"/);
-    const releaseVersion = versionMatch?.[1];
-    if (!releaseVersion) throw error;
+  // Fail closed: any resolution failure propagates to stageTemplate, which
+  // discards the temporary stage and preserves the previously valid output.
+  // Never fabricate resolution metadata (version substitution or synthetic
+  // lockfiles); a publishable stage requires a real pnpm resolution.
+  execFileSync('pnpm', ['install', '--lockfile-only', '--ignore-scripts'], {
+    cwd: targetDir,
+    stdio: 'inherit',
+  });
+}
 
-    const fallbackCandidates = [
-      resolve(targetDir, '..', 'template', 'pnpm-lock.yaml'),
-      resolve(dirname(targetDir), 'template', 'pnpm-lock.yaml'),
-      resolve(targetDir, '..', '..', 'dist', 'template', 'pnpm-lock.yaml'),
-    ];
-    let referenceLockfile: string | null = null;
-    let referencePath: string | null = null;
-    for (const candidate of fallbackCandidates) {
-      if (existsSync(candidate)) {
-        referenceLockfile = readFileSync(candidate, 'utf8');
-        referencePath = candidate;
-        break;
+interface ParsedImporterSpecifiers {
+  dependencies: Map<string, string>;
+  devDependencies: Map<string, string>;
+  versions: Map<string, string>;
+}
+
+function unquoteLockfileKey(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.length >= 2) {
+    const first = trimmed[0];
+    const last = trimmed[trimmed.length - 1];
+    if ((first === "'" && last === "'") || (first === '"' && last === '"')) {
+      return trimmed.slice(1, -1);
+    }
+  }
+  return trimmed;
+}
+
+function parseImporterSpecifiers(lockfileContent: string): ParsedImporterSpecifiers {
+  const lines = lockfileContent.split('\n');
+  const importersIndex = lines.findIndex((line) => /^importers:\s*$/.test(line));
+  if (importersIndex === -1) {
+    throw new Error('Staged lockfile is malformed: missing top-level `importers:` section.');
+  }
+  const rootImporterIndex = lines.findIndex((line, index) => index > importersIndex && /^ {2}\.:\s*$/.test(line));
+  if (rootImporterIndex === -1) {
+    throw new Error('Staged lockfile is malformed: missing root `.` importer.');
+  }
+  const dependencies = new Map<string, string>();
+  const devDependencies = new Map<string, string>();
+  const versions = new Map<string, string>();
+  let section: 'dependencies' | 'devDependencies' | null = null;
+  let currentPackage: string | null = null;
+  for (let index = rootImporterIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (/^\S/.test(line) || /^ {2}\S/.test(line)) break;
+    const sectionMatch = line.match(/^ {4}(\S+):\s*$/);
+    if (sectionMatch) {
+      section =
+        sectionMatch[1] === 'dependencies'
+          ? 'dependencies'
+          : sectionMatch[1] === 'devDependencies'
+            ? 'devDependencies'
+            : null;
+      currentPackage = null;
+      continue;
+    }
+    const entryMatch = line.match(/^ {6}(\S.*):\s*$/);
+    if (entryMatch && section) {
+      currentPackage = unquoteLockfileKey(entryMatch[1]);
+      continue;
+    }
+    if (section && currentPackage) {
+      const specifierMatch = line.match(/^ {8}specifier:\s*(.+?)\s*$/);
+      if (specifierMatch) {
+        (section === 'dependencies' ? dependencies : devDependencies).set(currentPackage, specifierMatch[1]);
+        continue;
+      }
+      const versionMatch = line.match(/^ {8}version:\s*(.+?)\s*$/);
+      if (versionMatch) {
+        versions.set(`${section}:${currentPackage}`, versionMatch[1]);
       }
     }
-    if (referenceLockfile) {
-      const prevVersionMatch = referenceLockfile.match(/specifier: \^([0-9]+\.[0-9]+\.[0-9]+[^\s]*)/);
-      const prevVersion = prevVersionMatch?.[1];
-      if (prevVersion) {
-        const fallbackLockfile = referenceLockfile.replaceAll(prevVersion, releaseVersion);
-        if (!fallbackLockfile.includes('{{VERSION}}')) {
-          writeFileSync(resolve(targetDir, GENERATED_LOCKFILE), fallbackLockfile);
-          console.warn(
-            `[stage-template] pnpm install failed for ${releaseVersion} (${message.split('\n')[0]}); ` +
-              `generated fallback lockfile from ${referencePath} by replacing ${prevVersion} -> ${releaseVersion}`,
-          );
-          return;
-        }
-      }
-    }
+  }
+  return { dependencies, devDependencies, versions };
+}
 
-    // Synthetic fallback when no reference lockfile is available (e.g. clean CI)
-    try {
-      const manifest = JSON.parse(manifestContent) as { dependencies?: Record<string, string> };
-      const deps = manifest.dependencies ?? {};
-      const depEntries = Object.entries(deps)
-        .map(
-          ([name, spec]) =>
-            `      '${name}':\n        specifier: ${spec}\n        version: ${String(spec).replace('^', '')}`,
-        )
-        .join('\n');
-      const synthetic = `lockfileVersion: '9.0'\n\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\n\nimporters:\n  .:\n    dependencies:\n${depEntries}\n\npackages: {}\n`;
-      if (!synthetic.includes('{{VERSION}}') && synthetic.includes(releaseVersion)) {
-        writeFileSync(resolve(targetDir, GENERATED_LOCKFILE), synthetic);
-        console.warn(
-          `[stage-template] pnpm install failed for ${releaseVersion} (${message.split('\n')[0]}); ` +
-            `generated synthetic fallback lockfile for ${releaseVersion}`,
+function describeSpecifierMismatch(kind: string, details: string): Error {
+  return new Error(
+    `Staged lockfile importer ${kind} does not match the staged manifest (${details}). ` +
+      'Regenerate the stage with a successful pnpm resolution instead of reusing a stale lockfile.',
+  );
+}
+
+/**
+ * Fail-closed validation for a staged `pnpm-lock.yaml`: requires a real pnpm
+ * resolution whose root importer specifiers agree exactly with the staged
+ * manifest and whose `packages:`/`snapshots:` sections carry integrity
+ * metadata. Synthetic or version-substituted lockfiles are rejected.
+ */
+export function validateStagedLockfile(targetDir: string): void {
+  const lockfilePath = resolve(targetDir, GENERATED_LOCKFILE);
+  if (!existsSync(lockfilePath) || !lstatSync(lockfilePath).isFile()) {
+    throw new Error(`Staged lockfile is missing: ${lockfilePath}`);
+  }
+  const content = readFileSync(lockfilePath, 'utf8');
+  if (content.includes('{{VERSION}}')) {
+    throw new Error(`Staged lockfile contains an unresolved {{VERSION}} placeholder: ${lockfilePath}`);
+  }
+  const { dependencies, devDependencies, versions } = parseImporterSpecifiers(content);
+  const manifest = JSON.parse(readFileSync(resolve(targetDir, 'package.json'), 'utf8')) as {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
+  for (const [kind, expected, actual] of [
+    ['dependencies', manifest.dependencies ?? {}, dependencies],
+    ['devDependencies', manifest.devDependencies ?? {}, devDependencies],
+  ] as const) {
+    const expectedEntries = Object.entries(expected).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    const actualEntries = [...actual.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    if (expectedEntries.length !== actualEntries.length) {
+      throw describeSpecifierMismatch(
+        kind,
+        `expected ${expectedEntries.length} entries, found ${actualEntries.length}`,
+      );
+    }
+    for (let i = 0; i < expectedEntries.length; i += 1) {
+      const [expectedName, expectedSpecifier] = expectedEntries[i];
+      const [actualName, actualSpecifier] = actualEntries[i];
+      if (expectedName !== actualName || expectedSpecifier !== actualSpecifier) {
+        throw describeSpecifierMismatch(
+          kind,
+          `'${actualName}: ${actualSpecifier}' !== '${expectedName}: ${expectedSpecifier}'`,
         );
-        return;
       }
-    } catch {
-      // fall through to rethrow
+      if (!versions.get(`${kind}:${actualName}`)) {
+        throw new Error(
+          `Staged lockfile entry '${actualName}' has no resolved version metadata. ` +
+            'Regenerate the stage with a successful pnpm resolution.',
+        );
+      }
     }
-
-    throw error;
+  }
+  if (/^\s*packages:\s*\{\}\s*$/m.test(content)) {
+    throw new Error('Staged lockfile has an empty `packages:` section and no real resolution metadata.');
+  }
+  if (!/^packages:\s*$/m.test(content) || !/^snapshots:\s*$/m.test(content)) {
+    throw new Error('Staged lockfile is missing real resolution metadata (`packages:`/`snapshots:` sections).');
+  }
+  if (!/integrity:\s*sha\d+-[A-Za-z0-9+/=]+/.test(content)) {
+    throw new Error(
+      'Staged lockfile has no package integrity metadata. Regenerate the stage with a successful pnpm resolution.',
+    );
   }
 }
 
@@ -178,6 +252,7 @@ export function stageTemplate(options: StageTemplateOptions): void {
       if (readFileSync(lockfilePath, 'utf8').includes('{{VERSION}}')) {
         throw new Error(`Generated lockfile contains an unresolved {{VERSION}} placeholder: ${lockfilePath}`);
       }
+      validateStagedLockfile(temporaryTarget);
     }
 
     rmSync(targetDir, { recursive: true, force: true });
@@ -189,6 +264,10 @@ export function stageTemplate(options: StageTemplateOptions): void {
 }
 
 export function verifyStagedTemplate(options: VerifyStagedTemplateOptions): StagedTemplateDrift {
+  // Fail closed on fabricated lockfiles even when file-by-file drift is clean:
+  // drift comparison intentionally ignores generated lockfile bytes, so importer
+  // agreement and resolution metadata are established explicitly here.
+  validateStagedLockfile(options.targetDir);
   const expected = collectExpectedPublishedFiles(options.sourceDir, options.releaseVersion);
   const actual = collectActualPublishedFiles(options.targetDir);
 

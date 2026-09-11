@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { Document, MiddlewareEngine, Query, Schema, ValidationError } from '../src/index';
 import { buildModel } from '../src/model';
 import { FakePersistenceAdapter } from './support/fake-adapter';
+import { cleanupTrackedChildren, runSubprocess } from './support/subprocess';
+import { packageRoot } from './support/packed-consumer';
+
+afterAll(async () => {
+  await cleanupTrackedChildren();
+});
 
 function makeModel(adapter: FakePersistenceAdapter, schema: Schema<any>) {
   return {
@@ -340,5 +346,110 @@ describe('MRX-09 retained hook matrix', () => {
     ).rejects.toThrow('init blocked');
 
     expect(calls).toEqual(['insertMany-error:insertMany blocked', 'init-error:init blocked']);
+  });
+});
+
+describe('BMRX-15 repeatable promise-safe validation', () => {
+  it('returns a controlled sync error for rejecting async validators without unhandled rejection', async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      const schema = new Schema({
+        asyncReject: {
+          type: String,
+          validate: async () => {
+            throw new Error('async boom');
+          },
+        },
+        promiseReject: {
+          type: String,
+          // Non-async function returning a rejecting promise.
+          validate: () => Promise.reject(new Error('promise boom')),
+        },
+      });
+      const doc = new Document(
+        { asyncReject: 'a', promiseReject: 'b' },
+        schema,
+        makeModel(new FakePersistenceAdapter(), schema),
+      );
+
+      const error = doc.validateSync();
+
+      expect(error).toBeInstanceOf(ValidationError);
+      expect(Object.keys(error!.errors).sort()).toEqual(['asyncReject', 'promiseReject']);
+      expect(error!.errors.asyncReject.message).toContain('cannot run during validateSync');
+      expect(error!.errors.promiseReject.message).toContain('cannot run during validateSync');
+
+      // Allow any abandoned rejection to surface if the fix regresses.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.removeListener('unhandledRejection', onUnhandled);
+    }
+  });
+
+  it('exits normally in an isolated process for rejecting async validators', async () => {
+    const script = `
+const { Schema, Document, ValidationError } = require('./dist/index.js');
+process.on('unhandledRejection', (reason) => {
+  console.error('unhandledRejection:', reason && reason.stack || reason);
+  process.exit(3);
+});
+const schema = new Schema({
+  asyncReject: { type: String, validate: async () => { throw new Error('async boom'); } },
+  promiseReject: { type: String, validate: () => Promise.reject(new Error('promise boom')) },
+});
+const doc = new Document({ asyncReject: 'a', promiseReject: 'b' }, schema, {});
+const error = doc.validateSync();
+if (!(error instanceof ValidationError)) process.exit(2);
+if (!error.errors.asyncReject || !error.errors.promiseReject) process.exit(2);
+setTimeout(() => process.exit(0), 100);
+`;
+    const result = await runSubprocess(process.execPath, ['-e', script], {
+      cwd: packageRoot,
+      timeoutMs: 10_000,
+    });
+    expect(result.timedOut).toBe(false);
+    expect(result.exitCode).toBe(0);
+  });
+
+  it('repeats sync and async validation deterministically for shared global/sticky regexes', async () => {
+    const globalPattern = /^ab+c$/g;
+    const stickyPattern = /^ab+c$/y;
+    const schema = new Schema({
+      codeGlobal: { type: String, match: globalPattern },
+      codeSticky: { type: String, match: stickyPattern },
+    });
+    const good = new Document(
+      { codeGlobal: 'abbc', codeSticky: 'abbc' },
+      schema,
+      makeModel(new FakePersistenceAdapter(), schema),
+    );
+    const bad = new Document(
+      { codeGlobal: 'ax', codeSticky: 'ax' },
+      schema,
+      makeModel(new FakePersistenceAdapter(), schema),
+    );
+
+    for (let i = 0; i < 10; i += 1) {
+      expect(good.validateSync()).toBeUndefined();
+      expect(bad.validateSync()).toBeInstanceOf(ValidationError);
+      // Alternate documents to prove no shared lastIndex leakage.
+      expect(good.validateSync()).toBeUndefined();
+      await expect(good.validate()).resolves.toBeUndefined();
+      await expect(bad.validate()).rejects.toBeInstanceOf(ValidationError);
+      await expect(good.validate()).resolves.toBeUndefined();
+    }
+
+    // A polluted lastIndex must not affect the next check.
+    globalPattern.lastIndex = 2;
+    stickyPattern.lastIndex = 2;
+    expect(good.validateSync()).toBeUndefined();
+    await expect(good.validate()).resolves.toBeUndefined();
+    expect(bad.validateSync()).toBeInstanceOf(ValidationError);
+    await expect(bad.validate()).rejects.toBeInstanceOf(ValidationError);
   });
 });

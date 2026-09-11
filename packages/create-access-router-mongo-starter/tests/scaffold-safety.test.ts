@@ -1,5 +1,15 @@
 // @vitest-environment node
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join, parse, relative } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -260,6 +270,90 @@ describe('scaffold target safety', () => {
       });
     },
   );
+
+  it('preserves the new scaffold when backup cleanup fails after commit (CARMSF-03)', async () => {
+    await withTestWorkspace(async (workspace) => {
+      writeTemplate(workspace.source);
+      writeFileSync(join(workspace.target, 'old-sentinel.txt'), 'old sentinel');
+      writeFileSync(join(workspace.target, 'old-keep.txt'), 'old keep');
+      let cleanupAttempts = 0;
+
+      await expect(
+        runCli([workspace.target, '--force', '--name', 'new-app'], {
+          templateDir: workspace.source,
+          scaffolderVersion: '1.2.3',
+          cwd: workspace.root,
+          log: () => undefined,
+          removeTarget: (path: string) => {
+            if (path !== workspace.target) {
+              cleanupAttempts += 1;
+              // Simulate a partial recursive delete: one backup sentinel is
+              // removed, then cleanup throws before finishing.
+              unlinkSync(join(path, 'old-sentinel.txt'));
+              throw new Error('simulated backup cleanup failure');
+            }
+            rmSync(path, { recursive: true, force: true });
+          },
+        }),
+      ).rejects.toThrow(/Scaffold complete.*backup cleanup failed.*residual backup/);
+      expect(cleanupAttempts).toBe(1);
+
+      // The complete new scaffold remains live; old content was not restored.
+      expect(JSON.parse(readFileSync(join(workspace.target, 'package.json'), 'utf8'))).toEqual({
+        name: 'new-app',
+        version: '1.2.3',
+      });
+      expect(existsSync(join(workspace.target, 'old-sentinel.txt'))).toBe(false);
+      expect(existsSync(join(workspace.target, 'old-keep.txt'))).toBe(false);
+
+      // The residual backup is retained (not deleted, not restored, not
+      // misrepresented as intact): one sentinel is gone, the rest remains.
+      const leftovers = entriesBeside(workspace.target);
+      expect(leftovers).toHaveLength(1);
+      const backupDir = join(dirname(workspace.target), leftovers[0]);
+      expect(existsSync(join(backupDir, 'old-sentinel.txt'))).toBe(false);
+      expect(readFileSync(join(backupDir, 'old-keep.txt'), 'utf8')).toBe('old keep');
+    });
+  });
+
+  it('inserts all four JS replacement sequences literally (CARMSF-04)', async () => {
+    await withTestWorkspace(async (workspace) => {
+      writeTemplate(workspace.source);
+      const target = join(workspace.root, 'generated');
+      const title = "Lit $$ amp $& tick $` quote $' end";
+
+      await runCli([target, '--name', 'literal-app', '--title', title, '--db-name', 'literaldb'], {
+        templateDir: workspace.source,
+        scaffolderVersion: '1.2.3',
+        cwd: workspace.root,
+        log: () => undefined,
+      });
+
+      // package.json stays valid JSON with exact values.
+      expect(JSON.parse(readFileSync(join(target, 'package.json'), 'utf8'))).toEqual({
+        name: 'literal-app',
+        version: '1.2.3',
+      });
+      // TSX embeds the JSON-serialized title exactly (not replacement-interpreted).
+      const tsx = readFileSync(join(target, 'src', 'pages', 'home-page.tsx'), 'utf8');
+      expect(tsx).toContain(`<h1>{${JSON.stringify(title)}}</h1>`);
+      expect(() => JSON.parse(JSON.stringify(title))).not.toThrow();
+      // HTML escapes markup-significant chars but retains every $ sequence literally.
+      const html = readFileSync(join(target, 'index.html'), 'utf8');
+      expect(html).toContain('Lit $$ amp $&amp; tick $` quote $&#39; end');
+      // Markdown title retains every $ literally (HTML-escaped, then
+      // markdown-escaped: `&` -> `&amp;`, backtick prefixed with `\`).
+      const readme = readFileSync(join(target, 'README.md'), 'utf8');
+      expect(readme).toContain('$$');
+      expect(readme).toContain('$&amp;');
+      expect(readme).toContain('$\\`');
+      expect(readme).toContain('$&\\#39;');
+      // Config serialization stays valid.
+      expect(readFileSync(join(target, 'api', 'src', 'config.ts'), 'utf8')).toContain(
+        `export const DB_NAME = ${JSON.stringify('literaldb')};`,
+      );
+    });
+  });
 
   it('prints a shell-safe cd command for a target with metacharacters', async () => {
     await withTestWorkspace(async (workspace) => {

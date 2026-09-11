@@ -101,7 +101,13 @@ From the `@web-ts-toolkit/mongoose-rxdb/storage` subpath:
   no longer silently creates volatile memory storage when SQLite is unavailable. It rejects with
   `SqliteStorageError`, whose `causes` array preserves backend-specific load/open failures.
   `filePath` is exact for Premium (`sqliteDatabasePath`) and a `databaseNamePrefix` for trial
-  backends. The returned database exposes `sqliteBackend` and `sqliteStorageInfo`.
+  backends (which append a `_trial_<databaseName>` suffix, so on-disk names differ from the
+  requested path). `filePath` defaults to `':memory:'`, which is volatile-only: it selects
+  genuine in-memory storage when `allowMemoryFallback: true` is passed and is rejected otherwise,
+  because trial SQLite backends would open an ordinary relative file such as
+  `:memory:_trial_<databaseName>` instead of SQLite's special in-memory name. Only the memory
+  backend reports `persistent: false`; every SQLite backend reports `persistent: true`.
+  The returned database exposes `sqliteBackend` and `sqliteStorageInfo`.
 
   On success a one-line `[mongoose-rxdb] createSqliteDatabase: using <backend> SQLite at <path>` warning is printed (with the trial caveat for tiers 2 and 3). For real production SQLite, install `rxdb-premium`.
 
@@ -178,7 +184,9 @@ Use `Schema<RawDoc, Methods, Statics, Virtuals>` as the source of truth. `Connec
 - `RawDocument<T>` and `LeanResult<T>` expose only domain fields plus `_id`; RxDB metadata fields (`_rev`, `_meta`, `_attachments`, `_deleted`) are not public result types.
 - Hydrated operations return `HydratedDocument<T, Methods, Virtuals>`, which combines `Document<T>`, raw fields, methods, and virtual properties.
 - `Query<Result>` implements `PromiseLike<Result>`, so `await User.find()` and `await User.findOne()` preserve exact result types. `.catch()` and `.finally()` return typed promises.
-- `.lean(true)` changes query results to `LeanResult<T>` records without document methods.
+- `.lean(true)` changes document-producing results to `LeanResult<T>` records without document methods; `.lean(false)` restores the hydrated type. `UpdateResult`, `DeleteResult`, and `countDocuments()` numbers are preserved unchanged, and nullable document results preserve `null`. `findOneAndUpdate(..., { lean: true })` and `findOneAndDelete(..., { lean: true })` return `LeanResult<T> | null`.
+- Projected lean records remain typed as the full `LeanResult<T>`; projection does not narrow the type to a partial.
+- Intentionally public thrown errors (`WriteNormalizationError`, `MutationPartialFailureError`, `BulkWritePartialFailureError`) are importable from the package root for `instanceof` narrowing; deep imports are not required.
 - `FilterQuery<T>` rejects misspelled fields and incompatible operators. Use `LooseFilterQuery<T>` only as an explicit untrusted-input boundary before `sanitizeFilter()`.
 - `UpdateQuery<T>` is field-kind aware: `$inc`/`$mul` require numeric fields, array operators require array fields and element values, and `_id`/RxDB metadata are excluded from updates.
 - `validateSync()` is synchronous and returns `ValidationError | undefined`; use async `validate()` when middleware or async validators must run.
@@ -200,7 +208,9 @@ const schema = new Schema({
 Supported `SchemaTypeOptions`:
 
 - `type` — `String` | `Number` | `Boolean` | `Date` | `Object` | nested `Schema` | `[ItemType]`
-- `required` — `boolean`, `[boolean, string]`, or a function
+- `required` — `boolean`, `[boolean, string]`, or a function (including `[fn, message]`).
+  Function-valued `required` is evaluated dynamically by validation and is never emitted as an
+  unconditional entry in public JSON Schema or RxDB `required` lists.
 - `default` — a value or a zero-arg function returning a value
 - `enum`, `min`, `max`, `match`
 - `validate` — a function or `{ validator, message }`
@@ -218,6 +228,12 @@ structural `schema.add()` calls are rejected, and direct mutations to the origin
 cannot change that model's casting, validation, public JSON Schema, or RxDB schema. `schema.clone()`
 creates an independent editable copy, including independent paths, child schemas, hooks, virtuals,
 options, and query helpers.
+
+Nested structure requires an explicit child `Schema` (`{ profile: childSchema }`,
+`{ profile: { type: childSchema } }`, `[childSchema]` for subdocument arrays). Inline nested
+plain-object definitions (`{ profile: { name: String } }`), dotted path names, and prefixed
+`schema.add(obj, prefix)` are rejected with `SchemaConfigurationError` before collection creation;
+full Mongoose nested syntax is intentionally not supported.
 
 Helpers:
 
@@ -375,7 +391,7 @@ Read query semantics are intentionally defined for the supported subset:
 - `findOne()` follows the same ordering and skip policy, then returns at most one document after the skipped window.
 - `select()` supports inclusion, exclusion, string projections, and `_id` overrides. Mixed inclusion/exclusion projections are rejected except for `_id`.
 - Projection is applied before hydration; defaults do not recreate projected-out fields.
-- `lean()` returns normalized plain records directly and does not construct `Document` instances or run `init` hooks.
+- `lean()` returns normalized plain records directly and does not construct `Document` instances or run `init` hooks. Lean applies only to document-producing reads; `update`/`delete`/`count` results keep their count shapes, and passing `lean` to those operations rejects with `MutationOptionError`.
 - `countDocuments()` uses the adapter count path, ignores `sort()`, and honors `skip()` / `limit()` by counting the paginated match window.
 
 Query instances are single-use like Mongoose queries. The first execution through `exec()`, `await`,
@@ -450,7 +466,9 @@ Persistent requests fail closed by default. If no SQLite backend can be opened,
 `createSqliteDatabase({ filePath })` rejects with `SqliteStorageError` and does not create a memory
 database. Inspect `error.causes` for backend-specific load/open failures, or inspect
 `db.sqliteStorageInfo` after a successful connection for the selected backend and path semantics.
-`filePath` is exact for Premium and a `databaseNamePrefix` for RxDB trial backends.
+`filePath` is exact for Premium and a `databaseNamePrefix` for RxDB trial backends
+(which append a `_trial_<databaseName>` suffix). It defaults to `':memory:'`, which is
+volatile-only: genuine in-memory storage with `allowMemoryFallback: true`, rejected otherwise.
 
 A shared default connection is also available for simple apps:
 

@@ -15,8 +15,9 @@ backed by MongoDB/Mongoose.
 - **Deploy** (`create-access-router-mongo-starter` bins) — provider-agnostic
   build preparation (`create-access-router-mongo-starter-deploy-shared`) +
   Netlify adapter (`create-access-router-mongo-starter-deploy-netlify`).
-  Install the exact generator version used for this app plus `netlify-cli` as
-  dev dependencies before running deploy commands.
+  Deploys use the Netlify API directly: install the exact generator version
+  used for this app as a dev dependency before running deploy commands —
+  no `netlify` binary is required.
 
 ## Layout
 
@@ -58,8 +59,12 @@ tests/
 
 ## Toolchain and installation
 
-This generated project requires Node `>=22.12.0` and pnpm `11.18.0`, as
-declared in `package.json`. Its `pnpm-lock.yaml` is generated and tested with
+This generated project requires Node `^22.13.0 || >=24.0.0` and pnpm `11.18.0`, as
+declared in `package.json`. The lower bound follows the release dependency
+graph: the shipped `jsdom` 29 / ESLint 10 toolchain requires
+`^20.19.0 || ^22.13.0 || >=24.0.0` while the workspace runtime packages require
+Node `>=22`, so Node 22.0–22.12 and the discontinuous Node 23 line are not
+supported. Its `pnpm-lock.yaml` is generated and tested with
 the matching `create-access-router-mongo-starter` release. Install without
 changing that release snapshot:
 
@@ -77,11 +82,24 @@ pnpm install --frozen-lockfile
 
 Backend startup is rejected before the local server listens, and before a
 serverless request is handled, when `MONGODB_URI` is missing, blank, or not a
-valid `mongodb://` or `mongodb+srv://` connection string.
+valid `mongodb://` or `mongodb+srv://` connection string. Multi-host seed lists
+such as `mongodb://db-a:27017,db-b:27017/app?replicaSet=rs0` are accepted so
+transaction-capable replica sets and sharded deployments can be used; single
+hosts, authenticated URIs, and bracketed IPv6 hosts are accepted, while wrong
+protocols, whitespace, fragments, and malformed seed lists are rejected without
+echoing the URI. The same grammar is enforced by the deploy helper, so a URI
+accepted locally is accepted at deploy time.
 
 `API_BASE_URL` must begin with `/`. Schemes, `//` authorities, whitespace,
 queries, fragments, backslashes, empty segments, and `.` or `..` segments are
-rejected before startup or build. The frontend, backend, and deploy helper all
+rejected before startup or build. Each segment may only contain letters,
+digits, `.`, `_`, `~`, or `-`: route parameters (`:version`), wildcards
+(`*`), other route metacharacters (`? + ( ) [ ] { } ^ $ | !` and similar),
+percent-encoded characters (`%`, including encoded variants such as `%3A` or
+`%2F`), and non-ASCII characters are rejected, so the prefix always mounts
+literally and the pre-router guards compare the identical literal value.
+Nested prefixes such as `/custom/api` and dotted prefixes such as
+`/.netlify/functions/main` remain accepted. The frontend, backend, and deploy helper all
 use this one value. Local ports are intentionally fixed by the package scripts:
 the frontend uses `3000`, the backend uses `8000`, and the serverless emulator
 uses `9000`; `PORT` and `HOST` environment variables are not configuration for
@@ -167,11 +185,12 @@ pnpm serverless:start  # run the handler on http://localhost:9000
 > of this contract.
 
 Netlify deploy is provided by the `create-access-router-mongo-starter` package
-bins. Install the exact generator version used for this app plus `netlify-cli`
-before deploying:
+bins. Install the exact generator version used for this app before deploying
+(no `netlify` binary needed — deploys use the Netlify API with an auth token
+and a site reference only):
 
 ```sh
-pnpm add -D create-access-router-mongo-starter@{{VERSION}} netlify-cli
+pnpm add -D create-access-router-mongo-starter@{{VERSION}}
 
 # Set these through a secure shell prompt or your CI secret manager.
 export NETLIFY_AUTH_TOKEN
@@ -221,7 +240,7 @@ a persistent sandbox:
 pnpm exec create-access-router-mongo-starter-deploy-netlify --ephemeral --site <site> --prod --paid-tier --acknowledge-public-demo
 ```
 
-Run `... -- --help` for the full list of options, or `-i` for interactive
+Run `pnpm exec create-access-router-mongo-starter-deploy-netlify --help` for the full list of options, or `-i` for interactive
 prompts.
 
 ### Deploy to staging / preview

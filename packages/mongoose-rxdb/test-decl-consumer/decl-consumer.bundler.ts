@@ -1,7 +1,11 @@
 import {
+  BulkWritePartialFailureError,
   Connection,
+  MutationPartialFailureError,
   Schema,
+  WriteNormalizationError,
   type HydratedDocument,
+  type LeanResult,
   type Model,
   type UpdateResult,
 } from '@web-ts-toolkit/mongoose-rxdb';
@@ -59,4 +63,29 @@ async function typedModelProbe() {
   return [users, leanOne, update, adults];
 }
 
-void [User, typedModelProbe];
+async function leanContractProbe() {
+  // BMRX-24: lean toggling, preserved counts, option-based lean, error narrowing.
+  const leanMany = await User.find({ age: { $gte: 18 } }).lean(true);
+  const leanEl: LeanResult<User> = leanMany[0];
+  // @ts-expect-error lean records do not expose document methods.
+  leanEl.save();
+  const restored = await User.find({ age: { $gte: 18 } })
+    .lean(true)
+    .lean(false);
+  const hydratedEl: HydratedDocument<User, UserMethods, UserVirtuals> = restored[0];
+  hydratedEl.save();
+  const upd: UpdateResult = await User.updateOne({ name: 'Ada' }, { $inc: { age: 1 } }).lean(true);
+  const optLean: LeanResult<User> | null = await User.findOneAndDelete({ name: 'Ada' }, { lean: true });
+  // @ts-expect-error option-lean records do not expose document methods.
+  optLean?.save();
+  try {
+    await User.updateOne({ name: 'Ada' }, { $inc: { age: 1 } });
+  } catch (error) {
+    if (error instanceof WriteNormalizationError) void error.message;
+    else if (error instanceof MutationPartialFailureError) void error.matchedCount;
+    else if (error instanceof BulkWritePartialFailureError) void error.insertedCount;
+  }
+  return [leanMany, restored, upd, optLean];
+}
+
+void [User, typedModelProbe, leanContractProbe];

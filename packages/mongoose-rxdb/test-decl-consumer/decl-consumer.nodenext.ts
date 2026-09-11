@@ -51,4 +51,36 @@ async function typedModelProbe() {
   return [found, lean, update];
 }
 
-void [api.Schema, User, typedModelProbe];
+async function leanContractProbe() {
+  // BMRX-24: lean toggling restores hydrated typing; counts survive lean mapping.
+  const leanMany = await User.find({ age: { $gte: 18 } }).lean(true);
+  const leanEl: api.LeanResult<User> = leanMany[0];
+  // @ts-expect-error lean results do not expose hydrated document APIs.
+  leanEl.save();
+  const restored = await User.find({ age: { $gte: 18 } })
+    .lean(true)
+    .lean(false);
+  const hydratedEl: api.HydratedDocument<User, UserMethods, UserVirtuals> = restored[0];
+  hydratedEl.save();
+  const upd: api.UpdateResult = await User.updateOne({ name: 'Ada' }, { $inc: { age: 1 } }).lean(true);
+  const optLean: api.LeanResult<User> | null = await User.findOneAndUpdate(
+    { name: 'Ada' },
+    { $inc: { age: 1 } },
+    { lean: true },
+  );
+  // @ts-expect-error option-lean results do not expose hydrated document APIs.
+  optLean?.save();
+  const optDelLean: api.LeanResult<User> | null = await User.findOneAndDelete({ name: 'Ada' }, { lean: true });
+  // @ts-expect-error option-lean delete results do not expose hydrated document APIs.
+  optDelLean?.save();
+  try {
+    await User.updateOne({ name: 'Ada' }, { $inc: { age: 1 } });
+  } catch (error) {
+    if (error instanceof api.WriteNormalizationError) void error.message;
+    else if (error instanceof api.MutationPartialFailureError) void error.matchedCount;
+    else if (error instanceof api.BulkWritePartialFailureError) void error.insertedCount;
+  }
+  return [leanMany, restored, upd, optLean, optDelLean];
+}
+
+void [api.Schema, User, typedModelProbe, leanContractProbe];

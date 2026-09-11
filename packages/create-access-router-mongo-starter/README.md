@@ -42,7 +42,8 @@ npx create-access-router-mongo-starter -i
    [Operational Placeholder Contract](#operational-placeholder-contract).
 3. Prints next steps for local development and Netlify deployment (via the
    `create-access-router-mongo-starter-deploy-netlify` bin after installing the
-   exact scaffolder version plus `netlify-cli` in the generated app).
+   exact scaffolder version in the generated app; API-only, no `netlify`
+   binary needed).
 
 For npm publishing, the package build stages the bundled template into
 `dist/template/` so the released CLI can scaffold without needing the source
@@ -62,9 +63,12 @@ Each release build stamps the repository `VERSION` into the staged template
 manifest and generates `dist/template/pnpm-lock.yaml` from that exact manifest.
 The source template intentionally has no lockfile because its dependency
 versions still contain release placeholders. Generated projects include the
-release lockfile and declare Node `>=22.12.0` with pnpm `11.18.0`; use
+release lockfile and declare Node `^22.13.0 || >=24.0.0` with pnpm `11.18.0`; use
 `pnpm install --frozen-lockfile` to install the dependency set tested for that
-generator release.
+generator release. The Node range follows the resolved release graph (shipped
+jsdom 29 / ESLint 10 require `^20.19.0 || ^22.13.0 || >=24.0.0` while the
+workspace runtime requires Node `>=22`), so Node 22.0–22.12 and Node 23 are
+not supported.
 
 Generated apps expose bounded, schema-validated ordinary CRUD routes. Root
 batching and advanced `__mutation` writes are disabled in the basic starter;
@@ -130,21 +134,22 @@ create-access-router-mongo-starter/
 
 ## Netlify Deploy Prerequisites
 
-The `create-access-router-mongo-starter-deploy-netlify` shell out to the `netlify` CLI to perform the actual deploy. The `netlify-cli` package is **not** bundled as a runtime dependency — it pulls a ~30k-file transitive tree that would bloat the published artifact. Install the CLI separately so it is on `PATH` when you run the deploy helper:
+The `create-access-router-mongo-starter-deploy-netlify` bin deploys via the
+Netlify API (`@netlify/api` runtime dependency) — no `netlify` binary is
+required on `PATH`. All you need is a Netlify auth token and a site reference:
 
 ```sh
-npm install -g netlify-cli     # global
-# or, per project:
-pnpm add -D netlify-cli        # binary lands in node_modules/.bin
+pnpm add -D create-access-router-mongo-starter@<version>  # exact generator version
+export NETLIFY_AUTH_TOKEN
+export MONGODB_URI
+pnpm exec create-access-router-mongo-starter-deploy-netlify --site <name-or-id> --help
 ```
-
-Verify with `netlify --version`. The deploy helper bails with a clear error if `netlify` is missing.
 
 ### Deployment credentials
 
 Provide `NETLIFY_AUTH_TOKEN` and `MONGODB_URI` through a secure shell prompt or
-CI secret manager rather than command arguments. The Netlify child process gets
-the token through `NETLIFY_AUTH_TOKEN`; it never appears in child arguments.
+CI secret manager rather than command arguments. The auth token flows to the
+Netlify API client as an explicit parameter; it never appears in child arguments.
 The frontend build and deploy process do not receive `MONGODB_URI`, while the
 backend build receives the required value. Preview and production deployments
 both require Mongo configuration because every deployment includes the backend.
@@ -185,10 +190,12 @@ Use this before releasing `create-access-router-mongo-starter` to npm:
    pnpm --filter create-access-router-mongo-starter test
    ```
 
-3. Dry-run the repo publish flow for this package:
+3. Dry-run the repo publish flow for this package (run from the repository
+   root; the version must match `VERSION` or the wrapper refuses to run —
+   `v$(cat VERSION)` always agrees with the guard):
 
    ```sh
-   pnpm publish-packages -- --version v0.0.0-test --filter create-access-router-mongo-starter --dry-run
+   pnpm publish-packages -- --version v$(cat VERSION) --filter create-access-router-mongo-starter --dry-run
    ```
 
 4. Release through the repo's normal tag-based workflow:

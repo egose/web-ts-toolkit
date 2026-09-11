@@ -10,14 +10,25 @@
  *   1. **`rxdb-premium`'s `getRxStorageSqlite`** if installed and licensed
  *      (production-grade SQLite: indexed, no doc-limit, fast). Requires
  *      `rxdb-premium` as a peer and its postinstall to succeed with an access token.
+ *      Receives `filePath` as the exact SQLite database file path.
  *   2. **`rxdb`'s free trial `getRxStorageSQLiteTrial`** with the **`node:sqlite`
  *      built-in** driver (Node 22+ ships SQLite natively, driven via
- *      `getSQLiteBasicsNodeNative`). Writes a real file on disk but prints a warning
- *      each load and is limited (no indexes, ~500-doc cap, slower). Fine for
+ *      `getSQLiteBasicsNodeNative`). Receives `filePath` as `databaseNamePrefix`
+ *      and writes real collection-specific files derived from that prefix
+ *      (prefix plus a `_trial_<databaseName>` suffix). Prints a warning each
+ *      load and is limited (no indexes, ~500-doc cap, slower). Fine for
  *      prototypes and small local apps.
  *   3. The same trial but with the **`sqlite3` npm driver** in Node, if that npm
- *      package is installed. Same trial limits apply.
+ *      package is installed. Same trial prefix contract and limits apply.
  *   4. **`getRxStorageMemory`** only when `allowMemoryFallback: true` is passed.
+ *
+ *   `filePath` defaults to `':memory:'`, which is volatile-only: it selects
+ *   genuine in-memory storage when `allowMemoryFallback: true` is passed and
+ *   is rejected otherwise. Trial SQLite backends can never serve `':memory:'`
+ *   (RxDB would open an ordinary relative file such as
+ *   `:memory:_trial_<databaseName>` instead of SQLite's special in-memory
+ *   name), so it is never routed to them. Only the memory backend reports
+ *   `persistent: false`; every SQLite backend reports `persistent: true`.
  *
  * The returned database has `sqliteBackend` and `sqliteStorageInfo` properties so
  * callers can inspect the selected backend and any earlier fallback causes.
@@ -36,6 +47,7 @@
 import { createSqliteDatabaseWithLoaders, type CreateSqliteDatabaseOptions, type SqliteDatabase } from './loader';
 
 export {
+  MEMORY_FILE_PATH,
   SqliteStorageError,
   type CreateSqliteDatabaseOptions,
   type PersistentSqliteBackend,

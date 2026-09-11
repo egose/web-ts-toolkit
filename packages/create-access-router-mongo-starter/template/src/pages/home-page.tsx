@@ -7,6 +7,7 @@ import { Input } from '@egose/shadcn-theme/components/ui/input';
 import { Label } from '@egose/shadcn-theme/components/ui/label';
 import { Separator } from '@egose/shadcn-theme/components/ui/separator';
 import type { Category, Todo } from '../types';
+import { categoryCreateSchema } from '../shared/entity-schemas';
 import { TodoForm, type TodoFormValues } from './todo-form';
 import { defaultHomePageController, type HomePageController } from './home-page-controller';
 
@@ -34,6 +35,7 @@ export function HomePage({ controller = defaultHomePageController }: { controlle
   const [categoryNameError, setCategoryNameError] = useState<string | null>(null);
   const operationLock = useRef(false);
   const alertRef = useRef<HTMLDivElement | null>(null);
+  const lastFocusedOperationError = useRef<string | null>(null);
   const statusRef = useRef<HTMLDivElement | null>(null);
   const editButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const restoreEditFocusId = useRef<string | null>(null);
@@ -67,7 +69,14 @@ export function HomePage({ controller = defaultHomePageController }: { controlle
   const { mutate: deleteCategory } = controller.useDeleteCategory();
 
   useEffect(() => {
-    if (operationError) alertRef.current?.focus();
+    if (operationError) {
+      if (lastFocusedOperationError.current !== operationError) {
+        alertRef.current?.focus();
+        lastFocusedOperationError.current = operationError;
+      }
+    } else {
+      lastFocusedOperationError.current = null;
+    }
   }, [operationError]);
 
   useEffect(() => {
@@ -174,11 +183,12 @@ export function HomePage({ controller = defaultHomePageController }: { controlle
 
   const handleAddCategory = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const name = categoryName.trim();
-    if (!name) {
-      setCategoryNameError('Category name is required.');
+    const parsed = categoryCreateSchema.safeParse({ name: categoryName });
+    if (!parsed.success) {
+      setCategoryNameError(parsed.error.issues[0]?.message ?? 'Category name is invalid.');
       return;
     }
+    const name = parsed.data.name;
     await runMutation({
       mutate: () => createCategory({ name }),
       refresh: () => reloadCategories({ pageSize: listLimit }),
@@ -201,10 +211,7 @@ export function HomePage({ controller = defaultHomePageController }: { controlle
       <p className={mutedClass}>A CRUD starter built on the web-ts-toolkit access-router stack.</p>
       {operationError && (
         <div
-          ref={(node) => {
-            alertRef.current = node;
-            node?.focus();
-          }}
+          ref={alertRef}
           role="alert"
           tabIndex={-1}
           className="mt-4 flex flex-wrap items-center gap-2 text-sm text-red-500"
