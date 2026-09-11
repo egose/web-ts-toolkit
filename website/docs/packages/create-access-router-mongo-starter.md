@@ -179,16 +179,11 @@ The package also ships helper binaries used by the starter's deployment workflow
 
 Those are mainly for the generated starter's deployment flow rather than day-one scaffolding, but they are packaged so a generated app can install the exact generator version as a dev dependency and run the same released deploy helpers.
 
-### Netlify CLI prerequisite
+### Netlify deploy prerequisites
 
-`create-access-router-mongo-starter-deploy-netlify` shells out to the `netlify` CLI to perform the actual deploy. The `netlify-cli` package is **not** bundled as a runtime dependency (it pulled a ~30k-file transitive tree that bloated the published artifact). Instead the `netlify` binary must be resolvable on `PATH` when you run the deploy helper:
-
-```bash
-npm install -g netlify-cli
-# or, per project: pnpm add -D netlify-cli   (the binary lands in node_modules/.bin)
-```
-
-Verify with `netlify --version` before running the deploy bin. The deploy helper bails with a clear error if `netlify` is missing.
+`create-access-router-mongo-starter-deploy-netlify` deploys via the Netlify
+API directly — no `netlify` binary is required on `PATH`. Only a Netlify auth
+token and a site reference are needed.
 
 ### Credential and child-process boundary
 
@@ -196,14 +191,14 @@ Set `NETLIFY_AUTH_TOKEN` and `MONGODB_URI` through a secure prompt or CI secret
 manager, then invoke the deploy helper without credential arguments:
 
 ```bash
-pnpm add -D create-access-router-mongo-starter@<generator-version> netlify-cli
+pnpm add -D create-access-router-mongo-starter@<generator-version>
 
 export NETLIFY_AUTH_TOKEN
 export MONGODB_URI
 pnpm exec create-access-router-mongo-starter-deploy-netlify --site <name-or-id> --prod --paid-tier --acknowledge-public-demo
 ```
 
-The Netlify CLI receives authentication through `NETLIFY_AUTH_TOKEN`, never an
+The auth token flows to the Netlify API client as an explicit parameter, never an
 `--auth` argument. The frontend build and deploy process receive no Mongo URI;
 only the backend build receives `MONGODB_URI`. Each child starts from a small
 allowlist of platform essentials (`PATH`, Windows system paths, home/temp

@@ -3,7 +3,8 @@
  * CARMSF-08 investigation evidence (offline, no network, no live writes).
  *
  * Bound to the pinned toolchain:
- *   - `netlify-cli` 26.2.0 (devDependency of this package)
+ *   - historical reference: `netlify-cli` 26.2.0 deploy algorithm
+ *     (former devDependency, removed in DEPLOY-05; never imported at runtime)
  *   - `@netlify/api` ^15.1.0 via `scripts/netlify-api.ts`
  *
  * Pinned-CLI facts captured offline (`netlify deploy --help`, 26.2.0):
@@ -19,8 +20,8 @@
  *
  * This file therefore reproduces, with stubbed services only:
  *   1. The context/branch/alias/production matrix: which option values reach
- *      the env-write path (`setSiteEnvVar` context) versus the deploy argv
- *      (`--alias` / `--prod`, never `--context` / `--branch`).
+ *      the env-write path (`setSiteEnvVar` context) versus the structured
+ *      deploy args (`alias` / `prod`, never `context` / `branch`).
  *   2. The setter/verifier scope divergence: the free-tier setter preserves
  *      pre-existing Functions-only scopes (no visibility broadening), while
  *      the free-tier verifier expects all scopes — a deterministic
@@ -32,7 +33,12 @@
  * disposable-site live check recorded on CARMSF-08, not guessed here.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { runDeploy, type NetlifyDeployServices, type NetlifyOptions } from '../scripts/deploy-netlify';
+import {
+  runDeploy,
+  type NetlifyDeployServices,
+  type NetlifyOptions,
+  type PerformDeployArgs,
+} from '../scripts/deploy-netlify';
 import { setSiteEnvVar, verifySiteEnvVar, type NetlifyApiClient } from '../scripts/netlify-api';
 import { SHARED_DEFAULTS, type DeployPaths } from '../scripts/deploy-shared';
 
@@ -68,7 +74,7 @@ const probePaths: DeployPaths = {
 
 interface ProbeCapture {
   envCalls: Array<{ key: string; context: string | undefined; paidTier: boolean | undefined }>;
-  deployArgs: string[] | undefined;
+  deployArgs: PerformDeployArgs | undefined;
 }
 
 async function driveDeploy(options: NetlifyOptions): Promise<ProbeCapture> {
@@ -85,10 +91,9 @@ async function driveDeploy(options: NetlifyOptions): Promise<ProbeCapture> {
       capture.envCalls.push({ key, context: opts.context, paidTier: opts.paidTier });
     },
     verifySiteEnvVar: async () => ({ status: 'verified' }),
-    resolveCli: () => ({ command: '/probe/bin/netlify', argsPrefix: [] }),
-    runCapture: (_cli, args) => {
+    performDeploy: async (args) => {
       capture.deployArgs = args;
-      return '{}';
+      return {};
     },
     log: () => undefined,
   };
@@ -107,47 +112,77 @@ function makeMockClient(overrides: Partial<NetlifyApiClient> = {}): NetlifyApiCl
     createEnvVars: vi.fn(overrides.createEnvVars ?? (async () => ({}))),
     updateEnvVar: vi.fn(overrides.updateEnvVar ?? (async () => ({}))),
     setEnvVarValue: vi.fn(overrides.setEnvVarValue ?? (async () => ({}))),
+    // Deploy primitives (unused by these tests; default to loud failure).
+    createSiteDeploy: vi.fn(
+      overrides.createSiteDeploy ??
+        (async () => {
+          throw new Error('unexpected createSiteDeploy call');
+        }),
+    ),
+    uploadDeployFile: vi.fn(
+      overrides.uploadDeployFile ??
+        (async () => {
+          throw new Error('unexpected uploadDeployFile call');
+        }),
+    ),
+    uploadDeployFunction: vi.fn(
+      overrides.uploadDeployFunction ??
+        (async () => {
+          throw new Error('unexpected uploadDeployFunction call');
+        }),
+    ),
+    getSiteDeploy: vi.fn(
+      overrides.getSiteDeploy ??
+        (async () => {
+          throw new Error('unexpected getSiteDeploy call');
+        }),
+    ),
+    cancelSiteDeploy: vi.fn(
+      overrides.cancelSiteDeploy ??
+        (async () => {
+          throw new Error('unexpected cancelSiteDeploy call');
+        }),
+    ),
   };
 }
 
 describe('CARMSF-08 matrix: env-write target vs deploy target (offline, stubbed)', () => {
-  it('default preview: env uses deploy-preview, deploy is a plain draft with no alias/prod/context flags', async () => {
+  it('default preview: env uses deploy-preview, deploy is a plain draft with no alias/prod', async () => {
     const capture = await driveDeploy(baseOptions());
     expect(capture.envCalls.map((c) => c.context)).toEqual(['deploy-preview', 'deploy-preview']);
     expect(capture.deployArgs).toBeDefined();
-    expect(capture.deployArgs).not.toContain('--alias');
-    expect(capture.deployArgs).not.toContain('--prod');
-    // The deploy argv never carries --context/--branch: nothing associates
-    // the deployment itself with the context the env vars were written to.
-    expect(capture.deployArgs).not.toContain('--context');
-    expect(capture.deployArgs).not.toContain('--branch');
+    expect(capture.deployArgs).toMatchObject({ prod: false });
+    expect(capture.deployArgs!.alias).toBeUndefined();
+    // The structured deploy args never carry context/branch: nothing
+    // associates the deployment itself with the context the env vars were
+    // written to (DEPLOY-03: no CLI argv exists anymore).
+    expect(capture.deployArgs).not.toHaveProperty('context');
+    expect(capture.deployArgs).not.toHaveProperty('branch');
   });
 
   it('context-only (--context branch:staging): env targets the branch but the deploy stays a plain draft — DIVERGENT', async () => {
     const capture = await driveDeploy(baseOptions({ context: 'branch:staging' }));
     expect(capture.envCalls.map((c) => c.context)).toEqual(['branch:staging', 'branch:staging']);
-    expect(capture.deployArgs).not.toContain('--alias');
-    expect(capture.deployArgs).not.toContain('--context');
-    expect(capture.deployArgs).not.toContain('--branch');
+    expect(capture.deployArgs!.alias).toBeUndefined();
+    expect(capture.deployArgs).not.toHaveProperty('context');
+    expect(capture.deployArgs).not.toHaveProperty('branch');
   });
 
   it('alias-only (--alias staging): deploy gets a predictable URL but env stays deploy-preview, and alias is not a branch deploy — DIVERGENT', async () => {
     const capture = await driveDeploy(baseOptions({ alias: 'staging' }));
     expect(capture.envCalls.map((c) => c.context)).toEqual(['deploy-preview', 'deploy-preview']);
-    expect(capture.deployArgs).toContain('--alias');
+    expect(capture.deployArgs).toMatchObject({ alias: 'staging', prod: false });
     // Pinned CLI 26.2.0: "alias doesn't create a branch deploy".
-    expect(capture.deployArgs).not.toContain('--branch');
+    expect(capture.deployArgs).not.toHaveProperty('branch');
   });
 
   it('--branch staging: env targets branch:staging but the deploy is still only an alias draft — DIVERGENT, alias is not branch proof', async () => {
     const capture = await driveDeploy(baseOptions({ branch: 'staging' }));
     // applyBranchOverride synthesizes alias + context before any mutation.
     expect(capture.envCalls.map((c) => c.context)).toEqual(['branch:staging', 'branch:staging']);
-    const aliasIndex = capture.deployArgs!.indexOf('--alias');
-    expect(aliasIndex).toBeGreaterThan(-1);
-    expect(capture.deployArgs![aliasIndex + 1]).toBe('staging');
-    expect(capture.deployArgs).not.toContain('--branch');
-    expect(capture.deployArgs).not.toContain('--context');
+    expect(capture.deployArgs).toMatchObject({ alias: 'staging' });
+    expect(capture.deployArgs).not.toHaveProperty('branch');
+    expect(capture.deployArgs).not.toHaveProperty('context');
   });
 
   it('production (--prod): env context is forced to production and the deploy targets production — the only fully-associated combo', async () => {
@@ -155,8 +190,8 @@ describe('CARMSF-08 matrix: env-write target vs deploy target (offline, stubbed)
       baseOptions({ prod: true, publicDemoAcknowledged: true, context: 'branch:staging' }),
     );
     expect(capture.envCalls.map((c) => c.context)).toEqual(['production', 'production']);
-    expect(capture.deployArgs).toContain('--prod');
-    expect(capture.deployArgs).not.toContain('--alias');
+    expect(capture.deployArgs).toMatchObject({ prod: true });
+    expect(capture.deployArgs!.alias).toBeUndefined();
   });
 
   it('rejects --prod combined with --alias/--branch before any mutation', async () => {
@@ -166,7 +201,7 @@ describe('CARMSF-08 matrix: env-write target vs deploy target (offline, stubbed)
         parentEnv: { PATH: '/probe/bin' },
         buildArtifacts: forbidden,
         inspectArtifacts: forbidden,
-        runCapture: forbidden,
+        performDeploy: forbidden,
         log: () => undefined,
       }),
     ).rejects.toThrow('--prod cannot be combined with --alias or --branch');

@@ -15,8 +15,9 @@ backed by MongoDB/Mongoose.
 - **Deploy** (`create-access-router-mongo-starter` bins) — provider-agnostic
   build preparation (`create-access-router-mongo-starter-deploy-shared`) +
   Netlify adapter (`create-access-router-mongo-starter-deploy-netlify`).
-  Install the exact generator version used for this app plus `netlify-cli` as
-  dev dependencies before running deploy commands.
+  Deploys use the Netlify API directly: install the exact generator version
+  used for this app as a dev dependency before running deploy commands —
+  no `netlify` binary is required.
 
 ## Layout
 
@@ -184,11 +185,12 @@ pnpm serverless:start  # run the handler on http://localhost:9000
 > of this contract.
 
 Netlify deploy is provided by the `create-access-router-mongo-starter` package
-bins. Install the exact generator version used for this app plus `netlify-cli`
-before deploying:
+bins. Install the exact generator version used for this app before deploying
+(no `netlify` binary needed — deploys use the Netlify API with an auth token
+and a site reference only):
 
 ```sh
-pnpm add -D create-access-router-mongo-starter@{{VERSION}} netlify-cli
+pnpm add -D create-access-router-mongo-starter@{{VERSION}}
 
 # Set these through a secure shell prompt or your CI secret manager.
 export NETLIFY_AUTH_TOKEN

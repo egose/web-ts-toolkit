@@ -56,6 +56,49 @@ export interface NetlifyApiClient {
   createEnvVars(params: { account_id: string; site_id?: string; body: unknown[] }): Promise<unknown>;
   updateEnvVar(params: { account_id: string; key: string; site_id?: string; body: unknown }): Promise<unknown>;
   setEnvVarValue(params: { account_id: string; key: string; site_id?: string; body: unknown }): Promise<unknown>;
+  // --- Deploy primitives (used by scripts/netlify-deploy-api.ts) ---
+  createSiteDeploy(params: {
+    site_id?: string;
+    siteId?: string;
+    title?: string;
+    body: {
+      files: Record<string, string>;
+      functions: Record<string, string>;
+      draft?: boolean;
+      branch?: string;
+    };
+  }): Promise<NetlifyDeployObject>;
+  uploadDeployFile(params: { deploy_id?: string; deployId?: string; path: string; body: unknown }): Promise<unknown>;
+  uploadDeployFunction(params: {
+    deploy_id?: string;
+    deployId?: string;
+    name: string;
+    body: unknown;
+  }): Promise<unknown>;
+  getSiteDeploy(params: {
+    site_id?: string;
+    siteId?: string;
+    deploy_id?: string;
+    deployId?: string;
+  }): Promise<NetlifyDeployObject>;
+  cancelSiteDeploy(params: { deploy_id?: string; deployId?: string }): Promise<unknown>;
+}
+
+/** Minimal shape of a Netlify deploy object as returned by the deploy endpoints. */
+export interface NetlifyDeployObject {
+  id?: string;
+  deploy_id?: string;
+  state?: string;
+  error_message?: string;
+  required?: string[];
+  required_functions?: Array<string | { sha?: string; name?: string }>;
+  deploy_ssl_url?: string;
+  deploy_url?: string;
+  ssl_url?: string;
+  url?: string;
+  admin_url?: string;
+  logs?: string;
+  links?: { logs?: string };
 }
 
 interface NetlifyEnvVarValue {

@@ -84,24 +84,28 @@ describe('cleanup failure retains the completed deployment report (CARMSF-09)', 
 });
 
 describe('Windows shell-shim contract without a shell (CARMSF-09)', () => {
+  // DEPLOY-04: the `netlify`-binary deploy spawn is gone, but the shared
+  // `run`/`runCapture` build runner in `deploy-shared.ts` still enforces this
+  // shell-free contract (build tools are still spawned processes), so these
+  // unit tests stay relevant.
   it('identifies Windows shell shims by extension', () => {
-    expect(isWindowsShellShimCommand('C:\\tools\\netlify.cmd')).toBe(true);
-    expect(isWindowsShellShimCommand('/opt/netlify.CMD')).toBe(true);
+    expect(isWindowsShellShimCommand('C:\\tools\\vite.cmd')).toBe(true);
+    expect(isWindowsShellShimCommand('/opt/vite.CMD')).toBe(true);
     expect(isWindowsShellShimCommand('deploy.bat')).toBe(true);
     expect(isWindowsShellShimCommand('run.ps1')).toBe(true);
-    expect(isWindowsShellShimCommand('/usr/bin/netlify')).toBe(false);
-    expect(isWindowsShellShimCommand('/usr/bin/netlify.exe')).toBe(false);
+    expect(isWindowsShellShimCommand('/usr/bin/vite')).toBe(false);
+    expect(isWindowsShellShimCommand('/usr/bin/vite.exe')).toBe(false);
   });
 
   it('rejects shims on win32 without enabling a shell, and passes elsewhere', () => {
-    expect(() => assertShellFreeInvocationSupported('/bin/netlify.cmd', 'win32')).toThrow(
+    expect(() => assertShellFreeInvocationSupported('/bin/vite.cmd', 'win32')).toThrow(
       /cannot be executed without a shell/,
     );
-    expect(() => assertShellFreeInvocationSupported('/bin/netlify.cmd', 'linux')).not.toThrow();
-    expect(() => assertShellFreeInvocationSupported('/usr/bin/netlify', 'win32')).not.toThrow();
+    expect(() => assertShellFreeInvocationSupported('/bin/vite.cmd', 'linux')).not.toThrow();
+    expect(() => assertShellFreeInvocationSupported('/usr/bin/vite', 'win32')).not.toThrow();
   });
 
-  it('rejects a win32 shim at deploy preflight before any build or remote work', async () => {
+  it('deploys via the API with no CLI spawn involved', async () => {
     const forbidden = (): never => {
       throw new Error('must not run after preflight rejection');
     };
@@ -111,13 +115,14 @@ describe('Windows shell-shim contract without a shell (CARMSF-09)', () => {
       functionsAbs: '/sandbox/functions',
       isEphemeral: false,
     };
-    // Exercise the same guard runDeploy applies to every injected resolveCli
-    // result, with an explicit win32 platform (Linux hosts cannot trigger the
+    // DEPLOY-04 removed the `resolveCli`/`runCapture` service slots entirely:
+    // the API deploy path performs no spawn, so there is nothing to guard.
+    // The shell-free spawn guard itself still protects the shared build
+    // runner (explicit win32 platform; Linux hosts cannot trigger the
     // platform branch through runDeploy itself).
-    expect(() => assertShellFreeInvocationSupported('/fake/netlify.cmd', 'win32')).toThrow(
+    expect(() => assertShellFreeInvocationSupported('/fake/vite.cmd', 'win32')).toThrow(
       /cannot be executed without a shell/,
     );
-    // A non-shim CLI on the current platform still passes preflight ordering.
     await expect(
       runDeploy(
         {
@@ -140,7 +145,6 @@ describe('Windows shell-shim contract without a shell (CARMSF-09)', () => {
         },
         paths,
         {
-          resolveCli: () => ({ command: '/fake/netlify', argsPrefix: [] }),
           checkBuildTools: () => undefined,
           inspectArtifacts: () => undefined,
           ensureNetlifyToml: () => undefined,
@@ -149,7 +153,7 @@ describe('Windows shell-shim contract without a shell (CARMSF-09)', () => {
           ensureLinkedSite: () => undefined,
           setSiteEnvVar: async () => undefined,
           verifySiteEnvVar: async () => ({ status: 'verified' }),
-          runCapture: () => '{}',
+          performDeploy: async () => ({}),
           log: () => undefined,
         },
       ),

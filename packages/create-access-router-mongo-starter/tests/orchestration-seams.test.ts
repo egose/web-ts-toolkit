@@ -151,7 +151,6 @@ describe('deployment orchestration seams', () => {
       },
       checkBuildTools: () => calls.push('tools:build'),
       ensureNetlifyToml: () => calls.push('fs:toml'),
-      resolveCli: () => ({ command: '/fake/netlify', argsPrefix: [] }),
       ensureLinkedSite: () => calls.push('fs:link'),
       setSiteEnvVar: async (_token, _site, key) => {
         calls.push(`api:set:${key}`);
@@ -160,21 +159,20 @@ describe('deployment orchestration seams', () => {
         calls.push(`api:verify:${key}`);
         return { status: 'verified' };
       },
-      runCapture: (_cli, args, env) => {
-        calls.push('runner');
-        expect(args).toEqual([
-          'deploy',
-          '--no-build',
-          '--dir',
-          '/sandbox/dist',
-          '--functions',
-          '/sandbox/functions',
-          '--site',
-          'site-id',
-          '--json',
-        ]);
-        expect(env).toEqual({ PATH: '/safe/bin', NETLIFY_AUTH_TOKEN: 'token' });
-        return '{}';
+      performDeploy: async (args) => {
+        calls.push('deploy');
+        // Token flows as an explicit param (never a spawned child env), and
+        // the same deploy inputs the old CLI argv carried are now structured.
+        expect(args).toMatchObject({
+          authToken: 'token',
+          siteId: 'site-id',
+          distAbs: '/sandbox/dist',
+          functionsAbs: '/sandbox/functions',
+          prod: false,
+          dryRun: false,
+        });
+        expect(args.alias).toBeUndefined();
+        return {};
       },
       parentEnv: {
         PATH: '/safe/bin',
@@ -197,7 +195,7 @@ describe('deployment orchestration seams', () => {
       'api:verify:API_BASE_URL',
       'api:set:MONGODB_URI',
       'api:verify:MONGODB_URI',
-      'runner',
+      'deploy',
     ]);
   });
 
@@ -208,12 +206,11 @@ describe('deployment orchestration seams', () => {
       buildArtifacts: () => {
         throw new Error('simulated build failure');
       },
-      resolveCli: () => ({ command: '/fake/netlify', argsPrefix: [] }),
       checkBuildTools: () => undefined,
       ensureNetlifyToml: forbiddenMutation,
       ensureLinkedSite: forbiddenMutation,
       setSiteEnvVar: forbiddenMutation,
-      runCapture: forbiddenMutation,
+      performDeploy: forbiddenMutation,
       log: () => undefined,
     };
 
@@ -221,37 +218,40 @@ describe('deployment orchestration seams', () => {
     expect(forbiddenMutation).not.toHaveBeenCalled();
   });
 
-  it('does not build or mutate remotely when the Netlify CLI preflight fails', async () => {
-    const forbiddenMutation = vi.fn();
-    await expect(
-      runDeploy(options(), paths, {
-        resolveCli: () => {
-          throw new Error('missing Netlify CLI');
-        },
-        checkBuildTools: forbiddenMutation,
-        buildArtifacts: forbiddenMutation,
-        resolveSiteId: forbiddenMutation,
-        setSiteEnvVar: forbiddenMutation,
-        runCapture: forbiddenMutation,
-        log: () => undefined,
-      }),
-    ).rejects.toThrow('missing Netlify CLI');
-    expect(forbiddenMutation).not.toHaveBeenCalled();
+  it('needs no CLI binary: the API deploy proceeds without any spawn seam', async () => {
+    // DEPLOY-04 deleted the `resolveCli`/`runCapture` slots entirely: no
+    // `netlify` binary is required and the API deploy performs no spawn.
+    const report = await runDeploy(options(), paths, {
+      checkBuildTools: () => undefined,
+      buildArtifacts: (validated) => ({ paths, options: validated, frontendEnv: {}, backendEnv: {} }),
+      inspectArtifacts: () => undefined,
+      ensureNetlifyToml: () => undefined,
+      resolveSiteId: async () => 'site-id',
+      ensureLinkedSite: () => undefined,
+      setSiteEnvVar: async () => undefined,
+      verifySiteEnvVar: async () => ({ status: 'verified' }),
+      performDeploy: async () => ({}),
+      log: () => undefined,
+    });
+    expect(report.remoteMutations).toContainEqual({
+      operation: 'deploy to site site-id',
+      status: 'completed',
+    });
   });
 
   it('does not mutate remotely when --no-build artifact inspection fails', async () => {
     const forbiddenMutation = vi.fn();
     await expect(
       runDeploy({ ...options(), noBuild: true }, paths, {
-        resolveCli: () => ({ command: '/fake/netlify', argsPrefix: [] }),
         checkBuildTools: () => undefined,
         inspectArtifacts: () => {
           throw new Error('missing frontend artifact');
         },
         ensureNetlifyToml: forbiddenMutation,
         resolveSiteId: forbiddenMutation,
+        resolveSiteTarget: forbiddenMutation,
         setSiteEnvVar: forbiddenMutation,
-        runCapture: forbiddenMutation,
+        performDeploy: forbiddenMutation,
         log: () => undefined,
       }),
     ).rejects.toThrow('missing frontend artifact');
@@ -262,10 +262,6 @@ describe('deployment orchestration seams', () => {
     const calls: string[] = [];
     const deployOptions = { ...options(), site: undefined, siteName: 'new-site' };
     const report = await runDeploy(deployOptions, paths, {
-      resolveCli: () => {
-        calls.push('tools:netlify');
-        return { command: '/fake/netlify', argsPrefix: [] };
-      },
       checkBuildTools: () => calls.push('tools:build'),
       buildArtifacts: (validated) => {
         calls.push('build');
@@ -288,15 +284,14 @@ describe('deployment orchestration seams', () => {
         calls.push('api:set-env');
       },
       verifySiteEnvVar: async () => ({ status: 'verified' }),
-      runCapture: () => {
+      performDeploy: async () => {
         calls.push('deploy');
-        return '{}';
+        return {};
       },
       log: () => undefined,
     });
 
     expect(calls).toEqual([
-      'tools:netlify',
       'tools:build',
       'build',
       'inspect',
@@ -319,7 +314,6 @@ describe('deployment orchestration seams', () => {
   it('uses artifact inspection instead of builds for --no-build', async () => {
     const calls: string[] = [];
     await runDeploy({ ...options(), noBuild: true }, paths, {
-      resolveCli: () => ({ command: '/fake/netlify', argsPrefix: [] }),
       checkBuildTools: () => calls.push('tools:build'),
       inspectArtifacts: () => calls.push('inspect'),
       buildArtifacts: () => {
@@ -330,7 +324,7 @@ describe('deployment orchestration seams', () => {
       ensureLinkedSite: () => undefined,
       setSiteEnvVar: async () => undefined,
       verifySiteEnvVar: async () => ({ status: 'verified' }),
-      runCapture: () => '{}',
+      performDeploy: async () => ({}),
       log: () => undefined,
     });
     expect(calls).toEqual(['tools:build', 'inspect']);
@@ -353,14 +347,13 @@ describe('deployment orchestration seams', () => {
       // deploy before ensureNetlifyToml, site lookup, or env writes.
       await expect(
         runDeploy(options(), localPaths, {
-          resolveCli: () => ({ command: '/fake/netlify', argsPrefix: [] }),
           checkBuildTools: () => undefined,
           buildArtifacts: (validated) => ({ paths: localPaths, options: validated, frontendEnv: {}, backendEnv: {} }),
           ensureNetlifyToml: forbiddenMutation,
           resolveSiteId: forbiddenMutation,
           resolveSiteTarget: forbiddenMutation,
           setSiteEnvVar: forbiddenMutation,
-          runCapture: forbiddenMutation,
+          performDeploy: forbiddenMutation,
           log: () => undefined,
         }),
       ).rejects.toThrow(/Frontend artifact|Serverless function artifact/);
@@ -371,13 +364,12 @@ describe('deployment orchestration seams', () => {
       writeFileSync(join(localPaths.functionsAbs, 'main.cjs'), '');
       await expect(
         runDeploy(options(), localPaths, {
-          resolveCli: () => ({ command: '/fake/netlify', argsPrefix: [] }),
           checkBuildTools: () => undefined,
           buildArtifacts: (validated) => ({ paths: localPaths, options: validated, frontendEnv: {}, backendEnv: {} }),
           ensureNetlifyToml: forbiddenMutation,
           resolveSiteId: forbiddenMutation,
           setSiteEnvVar: forbiddenMutation,
-          runCapture: forbiddenMutation,
+          performDeploy: forbiddenMutation,
           log: () => undefined,
         }),
       ).rejects.toThrow(/must be a non-empty file/);
@@ -389,7 +381,6 @@ describe('deployment orchestration seams', () => {
       writeFileSync(join(localPaths.functionsAbs, 'main.cjs'), 'exports.handler = () => {};');
       const remoteCalls: string[] = [];
       await runDeploy(options(), localPaths, {
-        resolveCli: () => ({ command: '/fake/netlify', argsPrefix: [] }),
         checkBuildTools: () => undefined,
         buildArtifacts: (validated) => ({ paths: localPaths, options: validated, frontendEnv: {}, backendEnv: {} }),
         ensureNetlifyToml: () => remoteCalls.push('fs:toml'),
@@ -402,9 +393,9 @@ describe('deployment orchestration seams', () => {
           remoteCalls.push('api:set-env');
         },
         verifySiteEnvVar: async () => ({ status: 'verified' }),
-        runCapture: () => {
+        performDeploy: async () => {
           remoteCalls.push('deploy');
-          return '{}';
+          return {};
         },
         log: () => undefined,
       });
@@ -416,7 +407,6 @@ describe('deployment orchestration seams', () => {
   it('warns without claiming success when environment metadata evidence is unavailable', async () => {
     const logs: string[] = [];
     await runDeploy(options(), paths, {
-      resolveCli: () => ({ command: '/fake/netlify', argsPrefix: [] }),
       checkBuildTools: () => undefined,
       buildArtifacts: (validated) => ({ paths, options: validated, frontendEnv: {}, backendEnv: {} }),
       inspectArtifacts: () => undefined,
@@ -425,7 +415,7 @@ describe('deployment orchestration seams', () => {
       ensureLinkedSite: () => undefined,
       setSiteEnvVar: async () => undefined,
       verifySiteEnvVar: async () => ({ status: 'unknown', unavailable: ['scope', 'sensitivity'] }),
-      runCapture: () => '{}',
+      performDeploy: async () => ({}),
       log: (message = '') => logs.push(message),
     });
 
@@ -437,7 +427,6 @@ describe('deployment orchestration seams', () => {
     const deploy = vi.fn();
     await expect(
       runDeploy(options(), paths, {
-        resolveCli: () => ({ command: '/fake/netlify', argsPrefix: [] }),
         checkBuildTools: () => undefined,
         buildArtifacts: (validated) => ({ paths, options: validated, frontendEnv: {}, backendEnv: {} }),
         inspectArtifacts: () => undefined,
@@ -446,7 +435,7 @@ describe('deployment orchestration seams', () => {
         ensureLinkedSite: () => undefined,
         setSiteEnvVar: async () => undefined,
         verifySiteEnvVar: async () => ({ status: 'mismatch', mismatches: ['context', 'sensitivity'] }),
-        runCapture: deploy,
+        performDeploy: deploy,
         log: () => undefined,
       }),
     ).rejects.toThrow('API_BASE_URL has mismatched context, sensitivity metadata');
@@ -456,7 +445,6 @@ describe('deployment orchestration seams', () => {
   it('reports completed and uncertain remote mutations when a later mutation fails', async () => {
     const deployOptions = { ...options(), site: undefined, siteName: 'new-site', mongodbUri: 'mongodb://secret' };
     const error = await runDeploy(deployOptions, paths, {
-      resolveCli: () => ({ command: '/fake/netlify', argsPrefix: [] }),
       checkBuildTools: () => undefined,
       buildArtifacts: (validated) => ({ paths, options: validated, frontendEnv: {}, backendEnv: {} }),
       inspectArtifacts: () => undefined,
@@ -468,7 +456,7 @@ describe('deployment orchestration seams', () => {
         if (key === 'MONGODB_URI') throw new Error('env write disconnected');
       },
       verifySiteEnvVar: async () => ({ status: 'verified' }),
-      runCapture: () => '{}',
+      performDeploy: async () => ({}),
       log: () => undefined,
     }).catch((reason: unknown) => reason);
 

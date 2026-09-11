@@ -192,7 +192,8 @@ describe('release-like packed consumer', () => {
 
       const generatedReadme = readFileSync(resolve(generatedDir, 'README.md'), 'utf8');
       expect(generatedReadme).not.toMatch(/\{\{APP_NAME\}\}|\{\{APP_TITLE\}\}|\{\{DB_NAME\}\}|\{\{VERSION\}\}/);
-      expect(generatedReadme).toContain(`pnpm add -D create-access-router-mongo-starter@${releaseVersion} netlify-cli`);
+      expect(generatedReadme).toContain(`pnpm add -D create-access-router-mongo-starter@${releaseVersion}`);
+      expect(generatedReadme).not.toContain('netlify-cli');
       expect(generatedReadme).toContain('| `pnpm test`             | Run Vitest once');
       expect(generatedReadme).toContain('| `pnpm test:watch`       | Run Vitest in watch mode.');
 

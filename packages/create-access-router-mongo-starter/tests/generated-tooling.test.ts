@@ -92,6 +92,8 @@ describe('generated tooling contract (CARMSF-15)', () => {
     expect(generatedReadme).toContain('^22.13.0 || >=24.0.0');
     expect(generatedReadme).toContain('pnpm exec create-access-router-mongo-starter-deploy-netlify --help');
     expect(generatedReadme).not.toContain('-- --help');
+    // DEPLOY-04: API-only deploys need no `netlify` binary.
+    expect(generatedReadme).not.toContain('netlify-cli');
 
     const websiteDoc = readFileSync(
       resolve(workspaceRoot, 'website', 'docs', 'packages', 'create-access-router-mongo-starter.md'),

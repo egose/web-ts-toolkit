@@ -283,27 +283,27 @@ describe('bail', () => {
 
 describe('redactCommand', () => {
   it('replaces secret values with [REDACTED]', () => {
-    const cmd = 'netlify deploy --auth secret-token-123 --site my-site';
+    const cmd = 'deploy-netlify --auth secret-token-123 --site my-site';
     const redacted = redactCommand(cmd, ['secret-token-123']);
-    expect(redacted).toBe('netlify deploy --auth [REDACTED] --site my-site');
+    expect(redacted).toBe('deploy-netlify --auth [REDACTED] --site my-site');
   });
 
   it('redacts multiple secrets', () => {
-    const cmd = 'netlify deploy --auth token123 --site abc --mongodb-uri mongodb://user:pass@host'; // pragma: allowlist secret
+    const cmd = 'deploy-netlify --auth token123 --site abc --mongodb-uri mongodb://user:pass@host'; // pragma: allowlist secret
     const redacted = redactCommand(cmd, ['mongodb://user:pass@host', 'token123']);
-    expect(redacted).toBe('netlify deploy --auth [REDACTED] --site abc --mongodb-uri [REDACTED]');
+    expect(redacted).toBe('deploy-netlify --auth [REDACTED] --site abc --mongodb-uri [REDACTED]');
   });
 
   it('does not modify the command when no secrets match', () => {
-    const cmd = 'netlify deploy --site my-site --prod';
+    const cmd = 'deploy-netlify --site my-site --prod';
     const redacted = redactCommand(cmd, ['nonexistent']);
     expect(redacted).toBe(cmd);
   });
 
   it('ignores empty secret strings', () => {
-    const cmd = 'netlify deploy --auth abc --site my-site';
+    const cmd = 'deploy-netlify --auth abc --site my-site';
     const redacted = redactCommand(cmd, ['', 'abc']);
-    expect(redacted).toBe('netlify deploy --auth [REDACTED] --site my-site');
+    expect(redacted).toBe('deploy-netlify --auth [REDACTED] --site my-site');
   });
 
   it('uses a redacted command display in thrown process failures', () => {

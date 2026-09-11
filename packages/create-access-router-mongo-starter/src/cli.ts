@@ -684,7 +684,7 @@ export async function runCli(argv: string[], overrides: Partial<ScaffoldServices
   services.log('  pnpm server                                   # backend on :8000');
   services.log('  pnpm dev                                      # frontend on :3000');
   services.log(
-    `  pnpm add -D create-access-router-mongo-starter@${services.scaffolderVersion} netlify-cli  # enable deploy bin`,
+    `  pnpm add -D create-access-router-mongo-starter@${services.scaffolderVersion}  # enable deploy bin (API-only, no netlify CLI needed)`,
   );
   services.log('  pnpm exec create-access-router-mongo-starter-deploy-netlify --help');
   return 0;

@@ -42,7 +42,8 @@ npx create-access-router-mongo-starter -i
    [Operational Placeholder Contract](#operational-placeholder-contract).
 3. Prints next steps for local development and Netlify deployment (via the
    `create-access-router-mongo-starter-deploy-netlify` bin after installing the
-   exact scaffolder version plus `netlify-cli` in the generated app).
+   exact scaffolder version in the generated app; API-only, no `netlify`
+   binary needed).
 
 For npm publishing, the package build stages the bundled template into
 `dist/template/` so the released CLI can scaffold without needing the source
@@ -133,21 +134,22 @@ create-access-router-mongo-starter/
 
 ## Netlify Deploy Prerequisites
 
-The `create-access-router-mongo-starter-deploy-netlify` shell out to the `netlify` CLI to perform the actual deploy. The `netlify-cli` package is **not** bundled as a runtime dependency — it pulls a ~30k-file transitive tree that would bloat the published artifact. Install the CLI separately so it is on `PATH` when you run the deploy helper:
+The `create-access-router-mongo-starter-deploy-netlify` bin deploys via the
+Netlify API (`@netlify/api` runtime dependency) — no `netlify` binary is
+required on `PATH`. All you need is a Netlify auth token and a site reference:
 
 ```sh
-npm install -g netlify-cli     # global
-# or, per project:
-pnpm add -D netlify-cli        # binary lands in node_modules/.bin
+pnpm add -D create-access-router-mongo-starter@<version>  # exact generator version
+export NETLIFY_AUTH_TOKEN
+export MONGODB_URI
+pnpm exec create-access-router-mongo-starter-deploy-netlify --site <name-or-id> --help
 ```
-
-Verify with `netlify --version`. The deploy helper bails with a clear error if `netlify` is missing.
 
 ### Deployment credentials
 
 Provide `NETLIFY_AUTH_TOKEN` and `MONGODB_URI` through a secure shell prompt or
-CI secret manager rather than command arguments. The Netlify child process gets
-the token through `NETLIFY_AUTH_TOKEN`; it never appears in child arguments.
+CI secret manager rather than command arguments. The auth token flows to the
+Netlify API client as an explicit parameter; it never appears in child arguments.
 The frontend build and deploy process do not receive `MONGODB_URI`, while the
 backend build receives the required value. Preview and production deployments
 both require Mongo configuration because every deployment includes the backend.

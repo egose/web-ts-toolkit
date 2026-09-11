@@ -4,13 +4,12 @@
  * Consumes the shared build/deploy preparation from `deploy-shared.ts` and
  * adds Netlify-specific concerns:
  *   - site lookup / creation via the `@netlify/api` SDK
- *   - direct `.netlify/state.json` writing (no `netlify link` CLI needed)
+ *   - direct `.netlify/state.json` writing (no linked-site CLI needed)
  *   - minimal `netlify.toml` generation for build/functions settings
- *   - `netlify deploy` CLI invocation (the only remaining CLI usage)
- *     The `netlify` binary must be available on PATH; it is no longer bundled
- *     as a runtime dependency to keep the artifact small. Install it with
- *     `npm install -g netlify-cli` (or via your package manager) before
- *     running this bin.
+ *   - API-only deploys via `netlify-deploy-api.ts` (`performApiDeploy`):
+ *     no `netlify` binary is required on PATH. Only a Netlify auth token
+ *     (`-t / --auth-token` or `NETLIFY_AUTH_TOKEN`) and a site reference
+ *     (`--site` / `--site-name`) are needed.
  *   - runtime env (`API_BASE_URL`, `MONGODB_URI`) management via the
  *     `@netlify/api` SDK
  *
@@ -31,18 +30,15 @@ import { cancel, confirm, intro, isCancel, password, select, text } from '@clack
 import { parse as parseToml, stringify as stringifyToml, type TomlTable } from 'smol-toml';
 import { readOptionValue, splitEqualsOption, unknownOptionError } from '../src/shared/arg-parser';
 import {
-  assertShellFreeInvocationSupported,
   bail,
   buildArtifacts,
   cleanupSandbox,
   collectSecrets,
-  createChildEnvironment,
   inspectArtifacts,
   keepSandboxOnFailure,
   projectRootOf,
   redactCommand,
   resolvePaths,
-  runCapture,
   SHARED_DEFAULTS,
   validateSharedDeployOptions,
   BailError,
@@ -53,33 +49,38 @@ import {
   createSite,
   defaultApiBaseUrl,
   fetchSiteByName,
+  getClient,
   resolveSiteId,
   resolveSiteTarget,
   setSiteEnvVar,
   verifySiteEnvVar,
   validateSiteName,
+  type NetlifyApiClient,
 } from './netlify-api';
+import { performApiDeploy, type ApiDeployUrls } from './netlify-deploy-api';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface NetlifyDeployResultLinks {
-  deploy_url?: string;
-  logs?: string;
-}
-
-interface NetlifyDeployResult {
-  deploy_url?: string;
-  url?: string;
-  ssl_url?: string;
-  logs?: string;
-  links?: NetlifyDeployResultLinks;
-}
-
-export interface NetlifyCli {
-  command: string;
-  argsPrefix: string[];
+/**
+ * Arguments for the injectable deploy step (Task DEPLOY-03).
+ *
+ * The auth token flows as an explicit parameter (resolved to the shared
+ * `@netlify/api` client by the default implementation) — never via a
+ * spawned child environment.
+ */
+export interface PerformDeployArgs {
+  authToken: string;
+  siteId: string;
+  distAbs: string;
+  functionsAbs: string;
+  functionsName: string;
+  prod: boolean;
+  alias?: string;
+  message?: string;
+  dryRun: boolean;
+  log?: (message?: string) => void;
 }
 
 export interface NetlifyDeployServices {
@@ -92,15 +93,11 @@ export interface NetlifyDeployServices {
   resolveSiteTarget: typeof resolveSiteTarget;
   setSiteEnvVar: typeof setSiteEnvVar;
   verifySiteEnvVar: typeof verifySiteEnvVar;
-  runCapture(
-    cli: NetlifyCli,
-    args: string[],
-    env: NodeJS.ProcessEnv,
-    dryRun: boolean,
-    cwd: string,
-    secrets?: string[],
-  ): string;
-  resolveCli(): NetlifyCli;
+  /**
+   * CLI-free deploy step (Task DEPLOY-03). Defaults to
+   * {@link defaultPerformDeploy}; injectable in tests.
+   */
+  performDeploy(args: PerformDeployArgs): Promise<ApiDeployUrls>;
   checkBuildTools(options: NetlifyOptions): void;
   ensureLinkedSite(stateFile: string, siteId: string, dryRun: boolean): void;
   ensureNetlifyToml(options: NetlifyOptions, paths: DeployPaths): void;
@@ -129,27 +126,14 @@ export function planRuntimeSiteEnvVars(
   ];
 }
 
-function resolveNetlifyCli(): NetlifyCli {
-  const binName = process.platform === 'win32' ? 'netlify.cmd' : 'netlify';
-  const found = lookupInPath(binName);
-  if (!found) {
-    bail(
-      'Could not find the `netlify` CLI on PATH. Install it with `npm install -g netlify-cli` ' +
-        '(or your package manager), then re-run this command. The `netlify-cli` package is no longer ' +
-        'bundled with this starter to keep the install small.',
-    );
-  }
-  // Preflight uses the same shell-free invocation contract as the later
-  // deploy spawn: a Windows shim that cannot run with `shell: false` is
-  // rejected here, before any site/env mutation, rather than failing later.
-  // No shell is enabled around deployment arguments as a shortcut.
-  assertShellFreeInvocationSupported(found);
-  return { command: found, argsPrefix: [] };
-}
-
 /**
  * Resolve an executable by name using PATH lookup, mirroring shell semantics.
  * Returns the absolute path if found and executable, otherwise undefined.
+ *
+ * Retained (DEPLOY-04) because `checkBuildTools` still uses it to verify the
+ * `vite` / `wtt-access-router-runtime` build tools are installed — it is no
+ * longer used to resolve a `netlify` binary, which API-only deploys do not
+ * need.
  *
  * Defaults `pathValue` to `process.env.PATH` so callers (and tests) can pass an
  * isolated `PATH` to assert lookup behaviour without mutating the real env.
@@ -175,24 +159,8 @@ export function lookupInPath(binName: string, pathValue: string | undefined = pr
   return undefined;
 }
 
-function runCaptureNetlify(
-  cli: NetlifyCli,
-  args: string[],
-  env: NodeJS.ProcessEnv,
-  dryRun: boolean,
-  cwd: string,
-  secrets: string[] = [],
-): string {
-  // Defense in depth: the same shell-free contract enforced at preflight also
-  // guards the later invocation (including injected `resolveCli` results).
-  // Arguments are always passed as an argv array with `shell: false`, never
-  // concatenated into a shell string.
-  assertShellFreeInvocationSupported(cli.command);
-  return runCapture(cli.command, [...cli.argsPrefix, ...args], env, dryRun, cwd, secrets);
-}
-
 // ---------------------------------------------------------------------------
-// Linked-site state (write directly, no CLI needed)
+// Linked-site state (written directly, no CLI needed)
 // ---------------------------------------------------------------------------
 
 export interface LinkedSite {
@@ -234,11 +202,9 @@ export function readLinkedSite(stateFile: string): LinkedSite | null {
 
 /**
  * Ensure a `.netlify/state.json` exists in the active deploy directory pointing
- * at the resolved site id before running `netlify deploy`, which may fall back
- * to the local link state.
+ * at the resolved site id, which the API deploy path reads as a fallback.
  *
- * Writes the file directly instead of shelling out to `netlify link`, so no
- * CLI subprocess is needed and nothing in the real project root is mutated
+ * Writes the file directly, so nothing in the real project root is mutated
  * when running from a sandbox/ephemeral dir.
  */
 export function ensureLinkedSite(stateFile: string, siteId: string, dryRun: boolean): void {
@@ -413,9 +379,8 @@ Options:
       --project-root <path>   Target app directory (default: current directory)
   -i, --interactive           Prompt for any missing option via @clack/prompts
   -t, --auth-token <token>    Netlify auth token (env: NETLIFY_AUTH_TOKEN)
-  -s, --site <name-or-id>     Existing Netlify site name or id to deploy to.
-                              Passed through to the CLI as --site <ref>.
-                              (env: NETLIFY_SITE_ID)
+  -s, --site <name-or-id>     Existing Netlify site name or id to deploy to
+                               (env: NETLIFY_SITE_ID)
       --site-name <name>      Netlify site name. If it belongs to one of your
                               sites, deploy to it; otherwise attempt to create
                               a new site with that name (bails if the name is
@@ -475,11 +440,11 @@ in that case the output states the deploy completed, lists the completed
 remote mutations, and directs you to remove the sandbox manually instead
 of retrying the deploy (a re-run creates a new remote deploy).
 
-Platform support: commands are spawned shell-free with an argv array (no
-shell interpretation). Native Windows execution of the 'netlify.cmd' shim
-is unsupported and rejected before any mutation; run from WSL2/Linux/macOS
-or invoke the provider CLI manually. A shell is deliberately not enabled
-around deployment arguments.
+Platform support: deploys use the Netlify API directly — no 'netlify'
+binary is required. Only a Netlify auth token and a site reference are
+needed. Build commands are spawned shell-free with an argv array (no
+shell interpretation); a shell is deliberately not enabled around
+deployment arguments.
 `;
 
 export function collectCliOptions(argv: string[]): NetlifyCollectionResult {
@@ -896,6 +861,50 @@ export async function collectInteractiveOptions(
 // Deploy
 // ---------------------------------------------------------------------------
 
+/**
+ * Default {@link NetlifyDeployServices.performDeploy} (Task DEPLOY-03):
+ * thin wrapper around `performApiDeploy` resolving the shared `@netlify/api`
+ * client via `getClient(authToken)`.
+ *
+ * Dry runs skip client resolution entirely (`performApiDeploy` computes +
+ * logs hashes with zero API calls in that mode).
+ *
+ * Deploy-failure cancellation lives ONLY here — `performApiDeploy` never
+ * cancels (see its module header), so there is exactly one cancel site. On
+ * error after the deploy record was created, the draft is best-effort
+ * cancelled via `cancelSiteDeploy` (mirrors the CLI's `cancelDeploy`);
+ * cancel failures are swallowed so the original deploy error surfaces.
+ */
+export async function defaultPerformDeploy(args: PerformDeployArgs): Promise<ApiDeployUrls> {
+  if (args.dryRun) {
+    return performApiDeploy({ ...args, log: args.log });
+  }
+  const client = await getClient(args.authToken);
+  let deployId: string | undefined;
+  const capturingClient: NetlifyApiClient = {
+    ...client,
+    createSiteDeploy: (async (
+      params: Parameters<NetlifyApiClient['createSiteDeploy']>[0],
+    ): Promise<Awaited<ReturnType<NetlifyApiClient['createSiteDeploy']>>> => {
+      const deploy = await client.createSiteDeploy(params);
+      deployId = deploy.id ?? deploy.deploy_id;
+      return deploy;
+    }) as NetlifyApiClient['createSiteDeploy'],
+  };
+  try {
+    return await performApiDeploy({ ...args, log: args.log, client: capturingClient });
+  } catch (error) {
+    if (deployId) {
+      try {
+        await client.cancelSiteDeploy({ deployId });
+      } catch {
+        // Best effort only — the original deploy error is what surfaces.
+      }
+    }
+    throw error;
+  }
+}
+
 const DEFAULT_DEPLOY_SERVICES: NetlifyDeployServices = {
   parentEnv: process.env,
   buildArtifacts,
@@ -906,8 +915,7 @@ const DEFAULT_DEPLOY_SERVICES: NetlifyDeployServices = {
   resolveSiteTarget,
   setSiteEnvVar,
   verifySiteEnvVar,
-  runCapture: runCaptureNetlify,
-  resolveCli: resolveNetlifyCli,
+  performDeploy: defaultPerformDeploy,
   checkBuildTools,
   ensureLinkedSite,
   ensureNetlifyToml,
@@ -980,11 +988,8 @@ export async function runDeploy(
     );
 
     // Preflight and local phases complete before any site or environment mutation.
-    const cli = services.resolveCli();
-    // Exercise the same shell-free invocation contract used by the later
-    // deploy spawn, including for injected `resolveCli` results: a Windows
-    // shim is rejected here, before mutation, and never sent to a shell.
-    assertShellFreeInvocationSupported(cli.command);
+    // No `netlify` binary is required: the deploy step below uses the
+    // `@netlify/api` client.
     services.checkBuildTools(options);
     if (options.noBuild) {
       services.inspectArtifacts(options, paths);
@@ -1030,15 +1035,13 @@ export async function runDeploy(
       if (!resolvedSiteId) {
         bail(
           `Site "${siteRef}" was not found or is not accessible with the provided auth token. ` +
-            `Check --site/--site-name or delete ${stateFile} to start fresh. ` +
-            `(The Netlify CLI itself reports this as "Project not found. Please rerun netlify link".)`,
+            `Check --site/--site-name or delete ${stateFile} to start fresh.`,
         );
       }
       siteRef = resolvedSiteId;
       services.log('  OK — site is accessible.');
     }
 
-    const secrets = collectSecrets(options.authToken, options.mongodbUri);
     if (!options.dryRun && siteRef) services.ensureLinkedSite(stateFile, siteRef, options.dryRun);
 
     if (!options.dryRun && siteRef) {
@@ -1081,35 +1084,38 @@ export async function runDeploy(
       }
     }
 
-    const deployArgs: string[] = ['--no-build', '--dir', paths.distAbs, '--functions', paths.functionsAbs];
-    if (siteRef) deployArgs.push('--site', siteRef);
-    if (options.prod) deployArgs.push('--prod');
-    if (options.alias) deployArgs.push('--alias', options.alias);
-    if (options.message) deployArgs.push('--message', options.message);
-    deployArgs.push('--json');
-
     services.log('\n─ Deploying to Netlify ─');
+    // The deploy mutation completes only after the ready-poll inside
+    // `performDeploy` succeeds. Dry runs record no mutation (matching the
+    // pre-API behavior) and `performDeploy` itself makes zero API calls.
     const deployMutation = options.dryRun ? undefined : pendingMutation(`deploy to site ${siteRef}`);
-    const stdout = services.runCapture(
-      cli,
-      ['deploy', ...deployArgs],
-      createChildEnvironment(services.parentEnv, { NETLIFY_AUTH_TOKEN: options.authToken }),
-      options.dryRun,
-      paths.deployDir,
-      secrets,
-    );
+    // The auth token flows as an explicit parameter (resolved to the shared
+    // API client by the default service) — no NETLIFY_AUTH_TOKEN child
+    // environment is needed since nothing is spawned.
+    const urls = await services.performDeploy({
+      authToken: options.authToken!,
+      siteId: siteRef!,
+      distAbs: paths.distAbs,
+      functionsAbs: paths.functionsAbs,
+      functionsName: options.functionsName,
+      prod: options.prod,
+      alias: options.alias,
+      message: options.message,
+      dryRun: options.dryRun,
+      log: services.log,
+    });
     if (deployMutation) deployMutation.status = 'completed';
 
-    if (!options.dryRun && stdout) {
-      try {
-        const deploy = JSON.parse(stdout) as NetlifyDeployResult;
-        const url = options.alias ? deploy.deploy_url : (deploy.url ?? deploy.deploy_url ?? deploy.ssl_url);
-        if (url) services.log(`\nDeploy URL: ${url}`);
-        const logsUrl = deploy.logs ?? deploy.links?.logs;
-        if (logsUrl) services.log(`Logs:       ${logsUrl}`);
-      } catch {
-        services.log('\n(Could not parse deploy JSON output from Netlify CLI.)');
-      }
+    if (!options.dryRun) {
+      // `performApiDeploy` normalizes the deploy object to
+      // `{ deployUrl, sslUrl, logsUrl }` (`deployUrl = deploy_ssl_url ??
+      // deploy_url`, `sslUrl = ssl_url ?? url`). Prefer the versioned deploy
+      // URL, fall back to the site URL; omit the line when both are absent.
+      // The old CLI alias rule (`alias ? deploy_url : url ?? ...`) is
+      // embodied by this normalization — see DEPLOY-01 impact notes.
+      const url = urls.deployUrl ?? urls.sslUrl;
+      if (url) services.log(`\nDeploy URL: ${url}`);
+      if (urls.logsUrl) services.log(`Logs:       ${urls.logsUrl}`);
     }
     return report;
   } catch (error) {

@@ -34,6 +34,37 @@ function makeMockClient(overrides: Partial<NetlifyApiClient> = {}): NetlifyApiCl
     createEnvVars: vi.fn(overrides.createEnvVars ?? (async () => ({}))),
     updateEnvVar: vi.fn(overrides.updateEnvVar ?? (async () => ({}))),
     setEnvVarValue: vi.fn(overrides.setEnvVarValue ?? (async () => ({}))),
+    // Deploy primitives (unused by these tests; default to loud failure).
+    createSiteDeploy: vi.fn(
+      overrides.createSiteDeploy ??
+        (async () => {
+          throw new Error('unexpected createSiteDeploy call');
+        }),
+    ),
+    uploadDeployFile: vi.fn(
+      overrides.uploadDeployFile ??
+        (async () => {
+          throw new Error('unexpected uploadDeployFile call');
+        }),
+    ),
+    uploadDeployFunction: vi.fn(
+      overrides.uploadDeployFunction ??
+        (async () => {
+          throw new Error('unexpected uploadDeployFunction call');
+        }),
+    ),
+    getSiteDeploy: vi.fn(
+      overrides.getSiteDeploy ??
+        (async () => {
+          throw new Error('unexpected getSiteDeploy call');
+        }),
+    ),
+    cancelSiteDeploy: vi.fn(
+      overrides.cancelSiteDeploy ??
+        (async () => {
+          throw new Error('unexpected cancelSiteDeploy call');
+        }),
+    ),
   };
 }
 
