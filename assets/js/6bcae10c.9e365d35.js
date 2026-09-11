@@ -83,8 +83,8 @@ const toc = [{
   "id": "deployment-helpers",
   "level": 2
 }, {
-  "value": "Netlify CLI prerequisite",
-  "id": "netlify-cli-prerequisite",
+  "value": "Netlify deploy prerequisites",
+  "id": "netlify-deploy-prerequisites",
   "level": 3
 }, {
   "value": "Credential and child-process boundary",
@@ -319,12 +319,16 @@ function _createMdxContent(props) {
       }), " dependency."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Generated projects declare Node ", (0,jsx_runtime.jsx)(_components.code, {
-        children: ">=22.12.0"
+        children: "^22.13.0 || >=24.0.0"
       }), " and pnpm ", (0,jsx_runtime.jsx)(_components.code, {
         children: "11.18.0"
       }), ". Install with ", (0,jsx_runtime.jsx)(_components.code, {
         children: "pnpm install --frozen-lockfile"
-      }), "; this detects manifest/lock drift instead of silently resolving a different dependency set. The source template has no committed lockfile because its internal dependency versions are placeholders; release staging stamps the release version and generates the lockfile included in the package."]
+      }), "; this detects manifest/lock drift instead of silently resolving a different dependency set. The lower bound follows the resolved release graph: the shipped jsdom 29 / ESLint 10 toolchain requires ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "^20.19.0 || ^22.13.0 || >=24.0.0"
+      }), " while the workspace runtime requires Node ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ">=22"
+      }), ", so Node 22.0–22.12 and the discontinuous Node 23 line are not supported. The source template has no committed lockfile because its internal dependency versions are placeholders; release staging stamps the release version and generates the lockfile included in the package."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Package names must satisfy npm's lowercase scoped or unscoped naming contract\nand be at most 214 characters. Database names must be 1-63 UTF-8 bytes and\nexclude MongoDB's forbidden punctuation, spaces, and control characters. A\nscoped package defaults to its unscoped segment for the database name, with\ndots changed to hyphens. Unicode display titles are supported and escaped for\neach output syntax. The CLI rejects unresolved release versions and operational\ntokens before replacing the destination; literal examples in maintainer docs\nare intentionally preserved."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
@@ -357,7 +361,11 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The generated runtime requires a valid nonblank ", (0,jsx_runtime.jsx)(_components.code, {
         children: "MONGODB_URI"
-      }), " before local\nlisten or serverless handling. Its access-router response boundary maps request\nvalidation and Mongoose cast/validation failures to stable ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " before local\nlisten or serverless handling. Single-host, authenticated, bracketed-IPv6, and\nmulti-host seed-list ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "mongodb://"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "mongodb+srv://"
+      }), " forms are accepted (so\ntransaction-capable replica sets work); malformed values are rejected without\nechoing the URI, and the deploy helper enforces the identical grammar. Its access-router response boundary maps request\nvalidation and Mongoose cast/validation failures to stable ", (0,jsx_runtime.jsx)(_components.code, {
         children: "400"
       }), " responses,\nduplicate-key conflicts to ", (0,jsx_runtime.jsx)(_components.code, {
         children: "409"
@@ -416,33 +424,16 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Those are mainly for the generated starter's deployment flow rather than day-one scaffolding, but they are packaged so a generated app can install the exact generator version as a dev dependency and run the same released deploy helpers."
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "netlify-cli-prerequisite",
-      children: "Netlify CLI prerequisite"
+      id: "netlify-deploy-prerequisites",
+      children: "Netlify deploy prerequisites"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "create-access-router-mongo-starter-deploy-netlify"
-      }), " shells out to the ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " deploys via the Netlify\nAPI directly — no ", (0,jsx_runtime.jsx)(_components.code, {
         children: "netlify"
-      }), " CLI to perform the actual deploy. The ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "netlify-cli"
-      }), " package is ", (0,jsx_runtime.jsx)(_components.strong, {
-        children: "not"
-      }), " bundled as a runtime dependency (it pulled a ~30k-file transitive tree that bloated the published artifact). Instead the ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "netlify"
-      }), " binary must be resolvable on ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " binary is required on ", (0,jsx_runtime.jsx)(_components.code, {
         children: "PATH"
-      }), " when you run the deploy helper:"]
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-bash",
-        children: "npm install -g netlify-cli\n# or, per project: pnpm add -D netlify-cli   (the binary lands in node_modules/.bin)\n"
-      })
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Verify with ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "netlify --version"
-      }), " before running the deploy bin. The deploy helper bails with a clear error if ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "netlify"
-      }), " is missing."]
+      }), ". Only a Netlify auth\ntoken and a site reference are needed."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "credential-and-child-process-boundary",
       children: "Credential and child-process boundary"
@@ -455,12 +446,10 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-bash",
-        children: "pnpm add -D create-access-router-mongo-starter@<generator-version> netlify-cli\n\nexport NETLIFY_AUTH_TOKEN\nexport MONGODB_URI\npnpm exec create-access-router-mongo-starter-deploy-netlify --site <name-or-id> --prod --paid-tier --acknowledge-public-demo\n"
+        children: "pnpm add -D create-access-router-mongo-starter@<generator-version>\n\nexport NETLIFY_AUTH_TOKEN\nexport MONGODB_URI\npnpm exec create-access-router-mongo-starter-deploy-netlify --site <name-or-id> --prod --paid-tier --acknowledge-public-demo\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The Netlify CLI receives authentication through ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "NETLIFY_AUTH_TOKEN"
-      }), ", never an\n", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["The auth token flows to the Netlify API client as an explicit parameter, never an\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "--auth"
       }), " argument. The frontend build and deploy process receive no Mongo URI;\nonly the backend build receives ", (0,jsx_runtime.jsx)(_components.code, {
         children: "MONGODB_URI"
@@ -472,7 +461,15 @@ function _createMdxContent(props) {
         children: "API_BASE_URL"
       }), " is one path-only prefix shared by the frontend, Vite proxy,\nbackend routes, Netlify redirects, and serverless runtime. It must begin with\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "/"
-      }), "; schemes, authorities, queries, fragments, backslashes, empty segments, and\ndot segments are rejected. Deploys provide the selected value directly to the\nVite process, so it takes precedence over a conflicting project ", (0,jsx_runtime.jsx)(_components.code, {
+      }), "; schemes, authorities, queries, fragments, backslashes, empty segments, and\ndot segments are rejected. Each segment may only contain letters, digits, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "."
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "~"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "-"
+      }), ": route parameters, wildcards, other route metacharacters,\npercent-encoded characters, and non-ASCII segments are rejected so the prefix\nalways mounts literally. Deploys provide the selected value directly to the\nVite process, so it takes precedence over a conflicting project ", (0,jsx_runtime.jsx)(_components.code, {
         children: ".env"
       }), " file.\nGenerated local scripts bind the frontend to port 3000, backend to 8000, and\nserverless emulator to 9000; they do not expose ", (0,jsx_runtime.jsx)(_components.code, {
         children: "PORT"

@@ -628,7 +628,21 @@ function _createMdxContent(props) {
             children: "sqliteDatabasePath"
           }), ") and a ", (0,jsx_runtime.jsx)(_components.code, {
             children: "databaseNamePrefix"
-          }), " for trial\nbackends. The returned database exposes ", (0,jsx_runtime.jsx)(_components.code, {
+          }), " for trial\nbackends (which append a ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "_trial_<databaseName>"
+          }), " suffix, so on-disk names differ from the\nrequested path). ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "filePath"
+          }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "':memory:'"
+          }), ", which is volatile-only: it selects\ngenuine in-memory storage when ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "allowMemoryFallback: true"
+          }), " is passed and is rejected otherwise,\nbecause trial SQLite backends would open an ordinary relative file such as\n", (0,jsx_runtime.jsx)(_components.code, {
+            children: ":memory:_trial_<databaseName>"
+          }), " instead of SQLite's special in-memory name. Only the memory\nbackend reports ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "persistent: false"
+          }), "; every SQLite backend reports ", (0,jsx_runtime.jsx)(_components.code, {
+            children: "persistent: true"
+          }), ".\nThe returned database exposes ", (0,jsx_runtime.jsx)(_components.code, {
             children: "sqliteBackend"
           }), " and ", (0,jsx_runtime.jsx)(_components.code, {
             children: "sqliteStorageInfo"
@@ -710,9 +724,39 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: ".lean(true)"
-        }), " changes query results to ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " changes document-producing results to ", (0,jsx_runtime.jsx)(_components.code, {
           children: "LeanResult<T>"
-        }), " records without document methods."]
+        }), " records without document methods; ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".lean(false)"
+        }), " restores the hydrated type. ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "UpdateResult"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DeleteResult"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "countDocuments()"
+        }), " numbers are preserved unchanged, and nullable document results preserve ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "null"
+        }), ". ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "findOneAndUpdate(..., { lean: true })"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "findOneAndDelete(..., { lean: true })"
+        }), " return ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "LeanResult<T> | null"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Projected lean records remain typed as the full ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "LeanResult<T>"
+        }), "; projection does not narrow the type to a partial."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Intentionally public thrown errors (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "WriteNormalizationError"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "MutationPartialFailureError"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "BulkWritePartialFailureError"
+        }), ") are importable from the package root for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "instanceof"
+        }), " narrowing; deep imports are not required."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "FilterQuery<T>"
@@ -786,7 +830,13 @@ function _createMdxContent(props) {
           children: "boolean"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "[boolean, string]"
-        }), ", or a function"]
+        }), ", or a function (including ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "[fn, message]"
+        }), ").\nFunction-valued ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "required"
+        }), " is evaluated dynamically by validation and is never emitted as an\nunconditional entry in public JSON Schema or RxDB ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "required"
+        }), " lists."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "default"
@@ -860,6 +910,22 @@ function _createMdxContent(props) {
       }), " calls are rejected, and direct mutations to the original schema's path maps\ncannot change that model's casting, validation, public JSON Schema, or RxDB schema. ", (0,jsx_runtime.jsx)(_components.code, {
         children: "schema.clone()"
       }), "\ncreates an independent editable copy, including independent paths, child schemas, hooks, virtuals,\noptions, and query helpers."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Nested structure requires an explicit child ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Schema"
+      }), " (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ profile: childSchema }"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ profile: { type: childSchema } }"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "[childSchema]"
+      }), " for subdocument arrays). Inline nested\nplain-object definitions (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ profile: { name: String } }"
+      }), "), dotted path names, and prefixed\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "schema.add(obj, prefix)"
+      }), " are rejected with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "SchemaConfigurationError"
+      }), " before collection creation;\nfull Mongoose nested syntax is intentionally not supported."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Helpers:"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
@@ -1235,7 +1301,17 @@ function _createMdxContent(props) {
           children: "Document"
         }), " instances or run ", (0,jsx_runtime.jsx)(_components.code, {
           children: "init"
-        }), " hooks."]
+        }), " hooks. Lean applies only to document-producing reads; ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "update"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "delete"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "count"
+        }), " results keep their count shapes, and passing ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "lean"
+        }), " to those operations rejects with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "MutationOptionError"
+        }), "."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "countDocuments()"
@@ -1462,7 +1538,13 @@ function _createMdxContent(props) {
         children: "filePath"
       }), " is exact for Premium and a ", (0,jsx_runtime.jsx)(_components.code, {
         children: "databaseNamePrefix"
-      }), " for RxDB trial backends."]
+      }), " for RxDB trial backends\n(which append a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_trial_<databaseName>"
+      }), " suffix). It defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "':memory:'"
+      }), ", which is\nvolatile-only: genuine in-memory storage with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "allowMemoryFallback: true"
+      }), ", rejected otherwise."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "A shared default connection is also available for simple apps:"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
