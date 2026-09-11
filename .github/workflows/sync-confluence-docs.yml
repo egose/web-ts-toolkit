@@ -20,7 +20,7 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
     - name: Sync Docs to Confluence
-      uses: egose/actions/confluence@6e49f5129448cff1d901b16032c09445bd49dde1
+      uses: egose/actions/confluence@07bfea5b03e310822963a15dccc885c2d3385284
       with:
         folder: docs
         username: ${{ secrets.CONFLUENCE_USERNAME }}

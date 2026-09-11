@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { spawn, type ChildProcess } from 'node:child_process';
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -179,15 +179,25 @@ describe('generated tooling contract (CARMSF-15)', () => {
           2,
         ),
       );
-      const tsc = resolve(packageRoot, 'node_modules', '.bin', 'tsc');
-      const pristine = runProcess(tsc, ['-p', 'tsconfig.check.json'], { cwd: fixtureDir });
+      // Resolve the compiler via `typescript/bin/tsc` run under Node rather
+      // than `node_modules/.bin/tsc`: the `.bin` shell shim is a transitive,
+      // machine-specific artifact (typescript is not a direct dep of this
+      // package) and is missing/dangling on some install layouts, which
+      // surfaces as `spawnSync` status `null`.
+      const tscCandidates = [
+        resolve(workspaceRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
+        resolve(packageRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
+      ];
+      const tscBin = tscCandidates.find((candidate) => existsSync(candidate));
+      expect(tscBin, `typescript compiler missing; checked ${tscCandidates.join(', ')}`).toBeDefined();
+      const pristine = runProcess(process.execPath, [tscBin!, '-p', 'tsconfig.check.json'], { cwd: fixtureDir });
       expect(pristine.status, `${pristine.stdout}\n${pristine.stderr}`).toBe(0);
 
       writeFileSync(
         join(fixtureDir, 'vitest.config.ts'),
         `${readFileSync(join(fixtureDir, 'vitest.config.ts'), 'utf8')}\nconst invalidFixtureMarker: number = 'must-fail-typecheck';\n`,
       );
-      const corrupted = runProcess(tsc, ['-p', 'tsconfig.check.json'], { cwd: fixtureDir });
+      const corrupted = runProcess(process.execPath, [tscBin!, '-p', 'tsconfig.check.json'], { cwd: fixtureDir });
       expect(corrupted.status).not.toBe(0);
       expect(`${corrupted.stdout}\n${corrupted.stderr}`).toContain('vitest.config.ts');
       expect(`${corrupted.stdout}\n${corrupted.stderr}`).toContain('TS2322');
