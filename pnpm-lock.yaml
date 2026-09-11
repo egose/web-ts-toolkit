@@ -76,7 +76,7 @@ importers:
         version: link:../../packages/mongoose-rxdb
       rxdb:
         specifier: ^17.4.0
-        version: 17.5.0(crossws@0.3.5)(mongodb@7.5.0(socks@2.8.9))(react@19.2.8)(rxjs@7.8.2)(supports-color@10.2.2)
+        version: 17.5.0(crossws@0.3.5)(mongodb@7.6.0(socks@2.8.9))(react@19.2.8)(rxjs@7.8.2)(supports-color@10.2.2)
       rxjs:
         specifier: ^7.8.2
         version: 7.8.2
@@ -110,7 +110,7 @@ importers:
         version: 11.2.0(socks@2.8.9)(supports-color@10.2.2)
       mongoose:
         specifier: ^9.6.2
-        version: 9.9.2(socks@2.8.9)
+        version: 9.10.0(socks@2.8.9)
     devDependencies:
       '@types/express':
         specifier: ^5.0.6
@@ -280,7 +280,7 @@ importers:
         version: 11.2.0(socks@2.8.9)(supports-color@10.2.2)
       mongoose:
         specifier: ^9.6.2
-        version: 9.9.2(socks@2.8.9)
+        version: 9.10.0(socks@2.8.9)
     devDependencies:
       '@types/express':
         specifier: ^5.0.6
@@ -311,7 +311,7 @@ importers:
         version: 6.0.2
       mongoose-schema-jsonschema:
         specifier: ^4.0.1
-        version: 4.0.1(mongoose@9.9.2(socks@2.8.9))
+        version: 4.0.1(mongoose@9.10.0(socks@2.8.9))
       sift:
         specifier: ^17.1.3
         version: 17.1.3
@@ -342,7 +342,7 @@ importers:
         version: 11.2.0(socks@2.8.9)(supports-color@10.2.2)
       mongoose:
         specifier: ^9.8.0
-        version: 9.9.2(socks@2.8.9)
+        version: 9.10.0(socks@2.8.9)
       supertest:
         specifier: ^7.2.2
         version: 7.2.2(supports-color@10.2.2)
@@ -379,7 +379,7 @@ importers:
         version: 11.2.0(socks@2.8.9)(supports-color@10.2.2)
       mongoose:
         specifier: ^9.8.0
-        version: 9.9.2(socks@2.8.9)
+        version: 9.10.0(socks@2.8.9)
       zod:
         specifier: ^4.1.12
         version: 4.4.3
@@ -401,7 +401,7 @@ importers:
         version: 5.2.1(supports-color@10.2.2)
       mongoose:
         specifier: ^9.8.0
-        version: 9.9.2(socks@2.8.9)
+        version: 9.10.0(socks@2.8.9)
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -462,7 +462,7 @@ importers:
         version: 5.2.1(supports-color@10.2.2)
       mongoose:
         specifier: ^9.8.0
-        version: 9.9.2(socks@2.8.9)
+        version: 9.10.0(socks@2.8.9)
       supertest:
         specifier: ^7.2.2
         version: 7.2.2(supports-color@10.2.2)
@@ -680,7 +680,7 @@ importers:
         version: 5.2.1(supports-color@10.2.2)
       mongoose:
         specifier: ^9.8.0
-        version: 9.9.2(socks@2.8.9)
+        version: 9.10.0(socks@2.8.9)
 
   packages/mongoose-rxdb:
     dependencies:
@@ -693,10 +693,10 @@ importers:
         version: 25.9.5
       rxdb:
         specifier: ^17.4.0
-        version: 17.5.0(crossws@0.3.5)(mongodb@7.5.0(socks@2.8.9))(react@19.2.8)(rxjs@7.8.2)(supports-color@10.2.2)
+        version: 17.5.0(crossws@0.3.5)(mongodb@7.6.0(socks@2.8.9))(react@19.2.8)(rxjs@7.8.2)(supports-color@10.2.2)
       rxdb-premium:
         specifier: ^17.4.0
-        version: 17.4.0(rxdb@17.5.0(crossws@0.3.5)(mongodb@7.5.0(socks@2.8.9))(react@19.2.8)(rxjs@7.8.2)(supports-color@10.2.2))(rxjs@7.8.2)
+        version: 17.4.0(rxdb@17.5.0(crossws@0.3.5)(mongodb@7.6.0(socks@2.8.9))(react@19.2.8)(rxjs@7.8.2)(supports-color@10.2.2))(rxjs@7.8.2)
       rxjs:
         specifier: ^7.8.2
         version: 7.8.2
@@ -715,7 +715,7 @@ importers:
         version: 11.2.0(socks@2.8.9)(supports-color@10.2.2)
       mongoose:
         specifier: ^9.8.0
-        version: 9.9.2(socks@2.8.9)
+        version: 9.10.0(socks@2.8.9)
 
   packages/pdf-reader:
     devDependencies:
@@ -6134,8 +6134,8 @@ packages:
   just-diff@6.0.2:
     resolution: {integrity: sha512-S59eriX5u3/QhMNq3v/gm8Kd0w8OS6Tz2FS1NG4blv+z0MuQcBRJyFWjdovM0Rad4/P4aUPFtnkNjMjyMlMSYA==}
 
-  kareem@3.3.0:
-    resolution: {integrity: sha512-kpSuLD3/7RenBnjnJdOHXCKC8dTd1JzeOiJhN0necWWci6cC+qX+VuwPnMVgb+a4+KNJSfgqahpnfWaeDXCimw==}
+  kareem@3.4.0:
+    resolution: {integrity: sha512-JAKhnR4S027v/8949QXNInRskgETCg9rFUMi1VjhGbjX+XltCAAEFcXykkSocNkom1kc66EMJfjWvhj87BDQKg==}
     engines: {node: '>=18.0.0'}
 
   keyv@4.5.4:
@@ -6622,13 +6622,40 @@ packages:
       socks:
         optional: true
 
+  mongodb@7.6.0:
+    resolution: {integrity: sha512-WbZ6OCjYw2c53LOjfkQa+reXr7kIiOVpXXglnASFuiMtif0BvsMwHe3ClJHLm1/r7wJFwaasfFtD6iYIktB01g==}
+    engines: {node: '>=20.19.0'}
+    peerDependencies:
+      '@aws-sdk/credential-providers': ^3.806.0
+      '@mongodb-js/zstd': ^7.0.0
+      gcp-metadata: ^7.0.1
+      kerberos: ^7.0.0
+      mongodb-client-encryption: ^7.2.0
+      snappy: ^7.3.2
+      socks: ^2.8.6
+    peerDependenciesMeta:
+      '@aws-sdk/credential-providers':
+        optional: true
+      '@mongodb-js/zstd':
+        optional: true
+      gcp-metadata:
+        optional: true
+      kerberos:
+        optional: true
+      mongodb-client-encryption:
+        optional: true
+      snappy:
+        optional: true
+      socks:
+        optional: true
+
   mongoose-schema-jsonschema@4.0.1:
     resolution: {integrity: sha512-3eJ4nx7Y5yh5pfxoYm4l06ILFZTtMEZplIzJOHn9rbDXOpNSO7P4Eu/HKrqqBMqv8otOa4MmWlJBGB5BkjfHhQ==}
     peerDependencies:
       mongoose: '>=6.0.0 <10.0.0'
 
-  mongoose@9.9.2:
-    resolution: {integrity: sha512-Nz8Rwu9jvADm0pyX0M3mEy8bx3wB5b/tRDI4XnjL7p6tZgmdyL9g0gE/EC9It6/XMIbcvniwYQDKYs91Qm+o+g==}
+  mongoose@9.10.0:
+    resolution: {integrity: sha512-Kr0J3a61sMxjiLY4QqaL0U+iTA534MB0YKHIvFmMfEgnv5feWwwi9fYkq+WfOQrEIi5mT9GB7sIYt2scM1oZ+w==}
     engines: {node: '>=20.19.0'}
 
   mpath@0.9.0:
@@ -14535,7 +14562,7 @@ snapshots:
 
   just-diff@6.0.2: {}
 
-  kareem@3.3.0: {}
+  kareem@3.4.0: {}
 
   keyv@4.5.4:
     dependencies:
@@ -14957,16 +14984,24 @@ snapshots:
     optionalDependencies:
       socks: 2.8.9
 
-  mongoose-schema-jsonschema@4.0.1(mongoose@9.9.2(socks@2.8.9)):
+  mongodb@7.6.0(socks@2.8.9):
     dependencies:
-      mongoose: 9.9.2(socks@2.8.9)
+      '@mongodb-js/saslprep': 1.4.13
+      bson: 7.3.2
+      mongodb-connection-string-url: 7.0.2
+    optionalDependencies:
+      socks: 2.8.9
+
+  mongoose-schema-jsonschema@4.0.1(mongoose@9.10.0(socks@2.8.9)):
+    dependencies:
+      mongoose: 9.10.0(socks@2.8.9)
       pluralize: 8.0.0
 
-  mongoose@9.9.2(socks@2.8.9):
+  mongoose@9.10.0(socks@2.8.9):
     dependencies:
       '@standard-schema/spec': 1.1.0
-      kareem: 3.3.0
-      mongodb: 7.5.0(socks@2.8.9)
+      kareem: 3.4.0
+      mongodb: 7.6.0(socks@2.8.9)
       mpath: 0.9.0
       mquery: 6.0.0
       ms: 2.1.3
@@ -15868,7 +15903,7 @@ snapshots:
     dependencies:
       queue-microtask: 1.2.3
 
-  rxdb-premium@17.4.0(rxdb@17.5.0(crossws@0.3.5)(mongodb@7.5.0(socks@2.8.9))(react@19.2.8)(rxjs@7.8.2)(supports-color@10.2.2))(rxjs@7.8.2):
+  rxdb-premium@17.4.0(rxdb@17.5.0(crossws@0.3.5)(mongodb@7.6.0(socks@2.8.9))(react@19.2.8)(rxjs@7.8.2)(supports-color@10.2.2))(rxjs@7.8.2):
     dependencies:
       '@koa/cors': 5.0.0
       array-push-at-sort-position: 4.0.1
@@ -15876,7 +15911,7 @@ snapshots:
       eth-crypto: 3.1.0
       flexsearch: 0.7.43
       percom: 1.1.3
-      rxdb: 17.5.0(crossws@0.3.5)(mongodb@7.5.0(socks@2.8.9))(react@19.2.8)(rxjs@7.8.2)(supports-color@10.2.2)
+      rxdb: 17.5.0(crossws@0.3.5)(mongodb@7.6.0(socks@2.8.9))(react@19.2.8)(rxjs@7.8.2)(supports-color@10.2.2)
       rxjs: 7.8.2
       web-locks: 0.0.8
       web-worker: 1.5.0
@@ -15884,7 +15919,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  rxdb@17.5.0(crossws@0.3.5)(mongodb@7.5.0(socks@2.8.9))(react@19.2.8)(rxjs@7.8.2)(supports-color@10.2.2):
+  rxdb@17.5.0(crossws@0.3.5)(mongodb@7.6.0(socks@2.8.9))(react@19.2.8)(rxjs@7.8.2)(supports-color@10.2.2):
     dependencies:
       '@babel/runtime': 7.29.7
       '@types/simple-peer': 9.11.9
@@ -15911,7 +15946,7 @@ snapshots:
       ws: 8.21.3
       z-schema: 12.4.1
     optionalDependencies:
-      mongodb: 7.5.0(socks@2.8.9)
+      mongodb: 7.6.0(socks@2.8.9)
       react: 19.2.8
     transitivePeerDependencies:
       - '@fastify/websocket'
