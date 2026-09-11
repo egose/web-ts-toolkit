@@ -61,6 +61,13 @@ release lockfile so generated apps install reproducibly with a frozen lockfile.
 
 Each release build stamps the repository `VERSION` into the staged template
 manifest and generates `dist/template/pnpm-lock.yaml` from that exact manifest.
+A real lockfile needs the release tarballs on the registry, so a build that
+runs before the release is published (release/tag builds run before
+`publish-packages` releases the new dependency set) keeps any previously
+staged template, warns, and still succeeds. Publication stays fail-closed:
+`prepack` refuses to pack a missing or drifted `dist/template`, and
+`publish-packages` rebuilds each package after its dependencies are published,
+so the published template always carries a real lockfile.
 The source template intentionally has no lockfile because its dependency
 versions still contain release placeholders. Generated projects include the
 release lockfile and declare Node `^22.13.0 || >=24.0.0` with pnpm `11.18.0`; use

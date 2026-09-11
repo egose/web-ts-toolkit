@@ -14,7 +14,10 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import {
+  assertStagedTemplateReady,
+  getReleasePublishState,
   isExcluded,
+  isLockfileInstallFailure,
   isPrivateDotenvPath,
   normalize,
   EXCLUDED_PATHS,
@@ -583,6 +586,73 @@ describe('fail closed on invalid release lockfiles (CARMSF-02)', () => {
       });
       expect(drift).toEqual({ missing: [], unexpected: [], changed: [] });
     }, 'carmsf02-agreed-');
+  });
+
+  it('classifies the registry publish state without touching the network', () => {
+    expect(getReleasePublishState('1.2.3', () => '["1.2.3", "1.2.4"]')).toBe('published');
+    expect(getReleasePublishState('9.9.9', () => '["1.2.3", "1.2.4"]')).toBe('unpublished');
+    expect(
+      getReleasePublishState('1.2.3', () => {
+        throw new Error('registry unreachable');
+      }),
+    ).toBe('unknown');
+    expect(getReleasePublishState('1.2.3', () => 'not json')).toBe('unknown');
+    expect(getReleasePublishState('1.2.3', () => '{"latest": "1.2.3"}')).toBe('unknown');
+  });
+
+  it('detects only lockfile installer failures for build-time tolerance', () => {
+    expect(isLockfileInstallFailure('Command failed: pnpm install --lockfile-only --ignore-scripts')).toBe(true);
+    expect(isLockfileInstallFailure('Template symlinks are not supported: linked.txt')).toBe(false);
+    expect(isLockfileInstallFailure('Template package.json must contain the {{VERSION}} release placeholder.')).toBe(
+      false,
+    );
+    expect(isLockfileInstallFailure('')).toBe(false);
+  });
+
+  it('assertStagedTemplateReady rejects a missing stage instead of passing silently', async () => {
+    await withTestWorkspace((workspace) => {
+      writeFileSync(resolve(workspace.source, '.gitignore'), '.env\n');
+      expect(() =>
+        assertStagedTemplateReady({
+          sourceDir: workspace.source,
+          targetDir: resolve(workspace.root, 'absent-target'),
+          releaseVersion: '2.3.4',
+        }),
+      ).toThrow('is missing');
+    }, 'carms-stage-ready-missing-');
+  });
+
+  it('assertStagedTemplateReady accepts a clean stage and rejects drift', async () => {
+    await withTestWorkspace((workspace) => {
+      writeFileSync(resolve(workspace.source, '.gitignore'), '.env\n');
+      writeFileSync(
+        resolve(workspace.source, 'package.json'),
+        JSON.stringify({ dependencies: { demo: '^{{VERSION}}' } }),
+      );
+      stageTemplate({
+        sourceDir: workspace.source,
+        targetDir: workspace.target,
+        releaseVersion: '2.3.4',
+        generateLockfile: (directory) => writeAgreedTestLockfile(directory),
+      });
+
+      expect(() =>
+        assertStagedTemplateReady({
+          sourceDir: workspace.source,
+          targetDir: workspace.target,
+          releaseVersion: '2.3.4',
+        }),
+      ).not.toThrow();
+
+      writeFileSync(resolve(workspace.target, 'extra.txt'), 'unexpected\n');
+      expect(() =>
+        assertStagedTemplateReady({
+          sourceDir: workspace.source,
+          targetDir: workspace.target,
+          releaseVersion: '2.3.4',
+        }),
+      ).toThrow('stale dist/template');
+    }, 'carms-stage-ready-drift-');
   });
 
   it('verifyStagedTemplate rejects a fabricated lockfile even when file drift is clean', async () => {

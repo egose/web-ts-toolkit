@@ -55,6 +55,49 @@ export interface VerifyStagedTemplateOptions {
   releaseVersion: string;
 }
 
+export type ReleasePublishState = 'published' | 'unpublished' | 'unknown';
+
+export type RegistryVersionsRunner = (command: string, args: string[]) => string;
+
+/**
+ * Workspace package used to probe the registry for a release version. All
+ * `@web-ts-toolkit/*` template dependencies are versioned in lockstep, so one
+ * probe covers the release line.
+ */
+export const RELEASE_PROBE_PACKAGE = '@web-ts-toolkit/access-router-runtime';
+
+const DEFAULT_REGISTRY_RUNNER: RegistryVersionsRunner = (command, args) =>
+  execFileSync(command, args, { encoding: 'utf8', stdio: 'pipe' }) as string;
+
+/**
+ * Reports whether `releaseVersion` is already published to the npm registry.
+ * Returns `'unknown'` when the registry cannot be reached or its response is
+ * unreadable, so callers can fail closed instead of guessing.
+ */
+export function getReleasePublishState(
+  releaseVersion: string,
+  run: RegistryVersionsRunner = DEFAULT_REGISTRY_RUNNER,
+): ReleasePublishState {
+  try {
+    const parsed = JSON.parse(run('pnpm', ['view', RELEASE_PROBE_PACKAGE, 'versions', '--json'])) as unknown;
+    if (!Array.isArray(parsed)) return 'unknown';
+    return parsed.includes(releaseVersion) ? 'published' : 'unpublished';
+  } catch {
+    return 'unknown';
+  }
+}
+
+/**
+ * Detects a `pnpm install --lockfile-only` resolution failure raised by the
+ * default lockfile generator (Node reports it as
+ * `Command failed: pnpm install ...`). Other staging errors (missing
+ * gitignore, symlinks, placeholder or lockfile validation) never match, so
+ * they always fail the build even for unpublished releases.
+ */
+export function isLockfileInstallFailure(message: string): boolean {
+  return message.includes('Command failed: pnpm install');
+}
+
 export function normalize(pathValue: string): string {
   return normalizeTemplatePath(pathValue);
 }
@@ -282,6 +325,28 @@ export function verifyStagedTemplate(options: VerifyStagedTemplateOptions): Stag
     .sort();
 
   return { missing, unexpected, changed };
+}
+
+/**
+ * Fail-closed publication gate for `prepack`: the staged template must exist
+ * and agree exactly with the source template for `releaseVersion` (including
+ * a real resolved lockfile, enforced by `verifyStagedTemplate`). Unlike a
+ * drift-only check, a missing stage is rejected so an unpublished-version
+ * build that skipped staging can never be packed.
+ */
+export function assertStagedTemplateReady(options: VerifyStagedTemplateOptions): void {
+  if (!existsSync(options.targetDir)) {
+    throw new Error(
+      `Refusing to pack without a staged template: ${options.targetDir} is missing. ` +
+        `Run the package build after release ${options.releaseVersion} dependencies are published.`,
+    );
+  }
+  const drift = verifyStagedTemplate(options);
+  if (drift.missing.length || drift.unexpected.length || drift.changed.length) {
+    throw new Error(
+      `Refusing to pack stale dist/template. Run the package build before packing. Drift: ${JSON.stringify(drift)}`,
+    );
+  }
 }
 
 function copyTemplateForPublish(sourceDir: string, targetDir: string, rootDir: string): void {

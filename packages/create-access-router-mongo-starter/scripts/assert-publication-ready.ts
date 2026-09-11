@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { verifyStagedTemplate } from './stage-template';
+import { assertStagedTemplateReady } from './stage-template';
 
 const manifest = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as { version?: string };
 
@@ -12,11 +12,6 @@ if (!manifest.version || manifest.version.includes('PLACEHOLDER')) {
 
 const sourceDir = resolve('template');
 const targetDir = resolve('dist', 'template');
-if (existsSync(sourceDir) && existsSync(targetDir)) {
-  const drift = verifyStagedTemplate({ sourceDir, targetDir, releaseVersion: manifest.version });
-  if (drift.missing.length || drift.unexpected.length || drift.changed.length) {
-    throw new Error(
-      `Refusing to pack stale dist/template. Run the package build before packing. Drift: ${JSON.stringify(drift)}`,
-    );
-  }
+if (existsSync(sourceDir)) {
+  assertStagedTemplateReady({ sourceDir, targetDir, releaseVersion: manifest.version });
 }
