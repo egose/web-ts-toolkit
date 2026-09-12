@@ -5,7 +5,10 @@ sidebar_position: 9
 
 # Processors
 
-`@web-ts-toolkit/access-router/processors` currently exposes `copyAndDepopulate(...)`.
+`@web-ts-toolkit/access-router/processors` exposes hardened, path-based
+document transforms. Each one is also available as a declarative request
+`tasks` entry (`COPY_AND_DEPOPULATE`, `COPY`, `MOVE`, `SLICE`, `COUNT`,
+`MASK`) that runs per document after authorization and decoration.
 
 ## `copyAndDepopulate`
 
@@ -14,9 +17,52 @@ Copies selected nested values to new destinations and replaces the source value 
 ```ts
 import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';
 
-const result = copyAndDepopulate(doc, [
-  { src: 'author', dest: 'authorSnapshot' },
-]);
+const result = copyAndDepopulate(doc, [{ src: 'author', dest: 'authorSnapshot' }]);
+```
+
+Options:
+
+- `mutable` defaults to `true`
+- `idField` defaults to `_id`
+
+## `copyPaths` (`COPY`)
+
+Copies `src` to `dest` without modifying `src`. The value is deep-cloned so
+`dest` never aliases `src`.
+
+## `movePaths` (`MOVE`)
+
+Moves `src` to `dest` and deletes `src`. A `dest` nested under `src`
+copies without deleting so the new value survives.
+
+## `sliceArrays` (`SLICE`)
+
+Slices the array at `src` to `[skip, skip + limit)` and writes the window to
+`dest` (default: in place). An omitted `limit` keeps the tail; a present
+`limit` is clamped to `maxSlice` (default `1000`, matching `listHardLimit`).
+
+## `countPaths` (`COUNT`)
+
+Writes the size of `src` to `dest`: array length, object key count, `1` for
+other present values, `0` for null/undefined. Missing paths are no-ops.
+
+## `maskPaths` (`MASK`)
+
+Replaces `src` with `replacement` (default `'***'`). Only existing leaves
+are redacted; missing paths are no-ops.
+
+All processors share the `copyAndDepopulate` safety contract: intermediate
+segments fan out across arrays, missing/null/scalar intermediates are safe
+no-ops, and `__proto__`/`prototype`/`constructor` segments throw.
+
+## `copyAndDepopulate`
+
+Copies selected nested values to new destinations and replaces the source value with IDs.
+
+```ts
+import { copyAndDepopulate } from '@web-ts-toolkit/access-router/processors';
+
+const result = copyAndDepopulate(doc, [{ src: 'author', dest: 'authorSnapshot' }]);
 ```
 
 Options:

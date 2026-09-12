@@ -724,7 +724,9 @@ describe('AR-14 published export contract', () => {
 
     it('processors entry exports only copyAndDepopulate-derived symbols', () => {
       const topKeys = Object.keys(processorsCjs).filter((k) => k !== 'default' && k !== '__esModule');
-      expect(topKeys).toEqual(['copyAndDepopulate']);
+      expect(topKeys.sort()).toEqual(
+        ['copyAndDepopulate', 'copyPaths', 'countPaths', 'maskPaths', 'movePaths', 'sliceArrays'].sort(),
+      );
     });
 
     // ARF-09: an exact-equals snapshot of every runtime export of the three
@@ -860,8 +862,16 @@ describe('AR-14 published export contract', () => {
       const processorsKeysCjs = Object.keys(processorsCjs as Record<string, unknown>).filter(
         (k) => k !== 'default' && k !== '__esModule',
       );
-      expect(processorsKeysEsm.sort()).toEqual(['copyAndDepopulate']);
-      expect(processorsKeysCjs.sort()).toEqual(['copyAndDepopulate']);
+      const expectedProcessorsExports = [
+        'copyAndDepopulate',
+        'copyPaths',
+        'countPaths',
+        'maskPaths',
+        'movePaths',
+        'sliceArrays',
+      ];
+      expect(processorsKeysEsm.sort()).toEqual(expectedProcessorsExports.slice().sort());
+      expect(processorsKeysCjs.sort()).toEqual(expectedProcessorsExports.slice().sort());
     });
   });
 
