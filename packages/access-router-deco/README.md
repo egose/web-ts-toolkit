@@ -12,7 +12,7 @@ Peer dependencies:
 
 - `@web-ts-toolkit/access-router`
 - `express >= 5`
-- `mongoose >= 8` through `@web-ts-toolkit/access-router`
+- `mongoose >= 8` (direct peer)
 - `reflect-metadata ^0.1.13 || ^0.2.0` (both `0.1.x` and `0.2.x` lines satisfy the documented init policy; importing `@web-ts-toolkit/access-router-deco` initializes it once before the package decorators run)
 
 Declaration types:
@@ -22,7 +22,7 @@ Declaration types:
 TypeScript:
 
 - Supported compiler range: `>=5.5 <7.0` (maintained `5.x` and `6.x` lines; minimum verified `5.5`, verified `5.9` and `6.0`). Narrow the range if a line is no longer maintained.
-- Required compiler options: `experimentalDecorators: true` (legacy decorators). `emitDecoratorMetadata: true` is supported but not required — the package imports `reflect-metadata` from its root entrypoint.
+- Required compiler options: `experimentalDecorators: true` (legacy decorators). `emitDecoratorMetadata: true` is supported but not required — the package root transitively pulls `reflect-metadata` via decorators, but an explicit `import 'reflect-metadata'` in the app entry remains the safe canonical pattern.
 - Strict consumers must compile with `skipLibCheck: false` and either `moduleResolution: "NodeNext"` or `"Bundler"`; both are verified in the packed-consumer suite.
 
 ## Highlights
@@ -107,7 +107,7 @@ const { runtime } = factory.bootstrap(AppModule, app);
 - `RouterOptions(...)`
 - scoped option decorators `GlobalOption(...)`, `ModelOption(...)`, and `DefaultModelOption(...)`
 - legacy unscoped property decorator `Option(...)`
-- hook decorators such as `Validate`, `Prepare`, `Transform`, `RouteGuard`, `OverrideFilter`, `Identifier`
+- hook decorators `GlobalPermissions`, `DocPermissions`, `BaseFilter`, `OverrideFilter`, `Validate`, `Prepare`, `Transform`, `AfterPersist`, `Decorate`, `DecorateAll`, `RouteGuard`, `Identifier`, `BeforeDelete`, `AfterDelete`
 - parameter decorators `Request`, `Document`, `Permissions`, `Context`, `Filter`, `Id`
 - exported types such as `BootstrapResult`, `ModuleMetadata`, `RouterModel`, `RouteGuardOperationKey`, and `Type`
 - `EgoseFactory`
@@ -188,7 +188,7 @@ Use `DefaultModelOption(...)` for default model options, `ModelOption(...)` for 
 
 ## TypeScript Decorator Configuration
 
-This package uses TypeScript legacy decorators, including parameter decorators. Compile consumers with `experimentalDecorators: true` and use a compiler/transpiler that preserves legacy class, method, property, and parameter decorators. `emitDecoratorMetadata: true` is supported but not required — the package imports `reflect-metadata` from its root entrypoint, so consumers own installing the peer (`^0.1.13 || ^0.2.0`) but do not need a separate `import 'reflect-metadata'` before importing this package.
+This package uses TypeScript legacy decorators, including parameter decorators. Compile consumers with `experimentalDecorators: true` and use a compiler/transpiler that preserves legacy class, method, property, and parameter decorators. `emitDecoratorMetadata: true` is supported but not required — the package root transitively pulls `reflect-metadata` via decorators, but an explicit `import 'reflect-metadata'` in the app entry remains the safe canonical pattern. Consumers own installing the peer (`^0.1.13 || ^0.2.0`).
 
 Supported range is `typescript >=5.5 <7.0` (each maintained `5.x`/`6.x` line). `@types/node` should match the Node target (`>=22`).
 

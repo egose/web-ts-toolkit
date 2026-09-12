@@ -293,7 +293,10 @@ type StablePublicTypes = [
 void (null as unknown as StablePublicTypes);
 ```
 
-The names above are the primary public imports most consumers need. The full
+The names above are the primary public imports most consumers need. Invalid
+service defaults throw `UnsupportedServiceDefaultValueError` (defined in
+`src/services/shared.ts`; not re-exported from the package root, so it is not
+part of the import example above). The full
 root export inventory is locked by `access-router-client.exports.unit.test.ts`
 and mirrored in `llms.txt`, so implementation internals
 such as `useCacheInterceptors`, `cloneConfigWithCacheBypass`,

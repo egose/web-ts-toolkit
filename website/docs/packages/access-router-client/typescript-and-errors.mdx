@@ -211,6 +211,10 @@ inline literals:
   when a wrapper represents an existing projected document but neither the
   projection nor the read context provides an identity. Catching this error
   prevents treating the wrapper as a draft and accidentally creating a copy.
+- `UnsupportedServiceDefaultValueError` — runtime error thrown for invalid
+  service defaults (functions, symbols, bigints, non-finite numbers, invalid
+  `Date` values, non-plain instances, cycles). It is defined in
+  `src/services/shared.ts` and is not re-exported from the package root.
 
 The full root API is locked by the package's runtime/type export contract test
 (`access-router-client.exports.unit.test.ts`); any accidental addition or

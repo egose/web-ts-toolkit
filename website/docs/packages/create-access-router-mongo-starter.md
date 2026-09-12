@@ -179,6 +179,25 @@ The package also ships helper binaries used by the starter's deployment workflow
 
 Those are mainly for the generated starter's deployment flow rather than day-one scaffolding, but they are packaged so a generated app can install the exact generator version as a dev dependency and run the same released deploy helpers.
 
+### Shared build-prep helper
+
+`create-access-router-mongo-starter-deploy-shared` runs the provider-agnostic
+build preparation: frontend (`vite build`) plus serverless backend
+(`wtt-access-router-runtime build-serverless`), artifact verification, and a
+printout of the prepared `distAbs`/`functionsAbs` paths. Provider adapters
+call it internally; run it directly to inspect or reuse the packaged build:
+
+```bash
+pnpm exec create-access-router-mongo-starter-deploy-shared --project-root ./apps/my-app --mongodb-uri "$MONGODB_URI" --dry-run
+```
+
+Flags: `--project-root <path>` (default: cwd), `--api-base-url <path>`,
+`--mongodb-uri <uri>` (required; prefer `MONGODB_URI` env),
+`--dist-dir <path>` (default: `dist`),
+`--functions-dir <path>` (default: `netlify/functions`),
+`--functions-name <name>` (default: `main`), `--no-build`, `--ephemeral`,
+`--sandbox-dir <path>`, `--keep-sandbox`, `--dry-run`, `-h, --help`.
+
 ### Netlify deploy prerequisites
 
 `create-access-router-mongo-starter-deploy-netlify` deploys via the Netlify

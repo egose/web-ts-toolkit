@@ -177,6 +177,35 @@ passes the selected `API_BASE_URL` directly in the Vite process environment, so
 it deterministically overrides conflicting project `.env` files without
 exposing backend credentials to the frontend build.
 
+### Shared build-prep helper
+
+The `create-access-router-mongo-starter-deploy-shared` bin runs the
+provider-agnostic build preparation shared by all deploy adapters: it builds
+the frontend (`vite build`) and the serverless backend
+(`wtt-access-router-runtime build-serverless`), verifies the artifacts, and
+prints the prepared `distAbs`/`functionsAbs` paths. Provider adapters (e.g.
+the Netlify bin above) call it internally; run it directly only to inspect or
+reuse the packaged build flow:
+
+```sh
+pnpm exec create-access-router-mongo-starter-deploy-shared --project-root ./apps/my-app --mongodb-uri "$MONGODB_URI" --dry-run
+```
+
+| Flag                      | Description                                                                         |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| `--project-root <path>`   | Target app directory (default: current directory)                                   |
+| `--api-base-url <path>`   | Path-only `API_BASE_URL` for frontend and backend                                   |
+| `--mongodb-uri <uri>`     | Required `MONGODB_URI` for the serverless function (prefer `MONGODB_URI` env)       |
+| `--dist-dir <path>`       | Frontend publish dir (default: `dist`)                                              |
+| `--functions-dir <path>`  | Serverless output dir (default: `netlify/functions`)                                |
+| `--functions-name <name>` | Serverless function name (default: `main`)                                          |
+| `--no-build`              | Verify existing artifacts without building                                          |
+| `--ephemeral`             | Build in a platform temp directory, removed on success (keep with `--keep-sandbox`) |
+| `--sandbox-dir <path>`    | Build into the given persistent directory (mutually exclusive with `--ephemeral`)   |
+| `--keep-sandbox`          | With `--ephemeral`, keep the sandbox after build                                    |
+| `--dry-run`               | Print commands without running them                                                 |
+| `-h, --help`              | Show help                                                                           |
+
 ## Publish Checklist
 
 Use this before releasing `create-access-router-mongo-starter` to npm:

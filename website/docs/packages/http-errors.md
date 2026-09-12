@@ -17,10 +17,11 @@ npm install @web-ts-toolkit/http-errors
 
 Main exports:
 
-- `HttpError`, `ClientError`, and `ServerError`
-- specific 4xx and 5xx error classes such as `BadRequestError`, `ForbiddenError`, `NotFoundError`, and `ServiceUnavailableError`
-- status helpers and typed error metadata from the root package surface
-- `toAip193ErrorPayload(...)`
+- `HttpError`, `ClientError`, and `ServerError` base classes
+- 38 specific 4xx and 5xx error classes such as `BadRequestError`, `ForbiddenError`, `NotFoundError`, and `ServiceUnavailableError` (27 client + 11 server; see `src/client-errors.ts` and `src/server-errors.ts`)
+- status helpers (see `src/status.ts`): `canonicalStatusByHttpStatus`, `getCanonicalStatus`, `getStatusTitle`, `isHttpErrorStatusCode`, `validateHttpErrorStatusCode`, `validateClientErrorStatusCode`, `validateServerErrorStatusCode`
+- message helpers (see `src/messages.ts`): `messages`, `getDefaultMessage`
+- `toAip193ErrorPayload(...)` (with `fallbackDomain='http-errors'` default) and `createAip193ErrorInfoDetail(...)`
 - `toRfc9457ErrorPayload(...)`
 - `toRfc9457ValidationErrorPayload(...)`
 
@@ -220,7 +221,7 @@ const payload = toRfc9457ErrorPayload(error);
 
 `toRfc9457ErrorPayload(...)` is the general problem-details serializer. It always emits `type`, `title`, `status`, and `detail`, and it preserves custom `errors` entry types when the input is typed as `HttpErrorShape<YourEntry[]>`.
 
-When `type` is missing, the serializer uses `about:blank`. When `title` is missing, it uses the canonical HTTP status title, or `Unknown` for unmapped status codes. `instance` is emitted only when present.
+When `type` is missing, the serializer uses `about:blank`. When `title` is missing, it uses the canonical HTTP status title, or `Unknown Error` for unmapped status codes. `instance` is emitted only when present.
 
 ### Use the typed RFC 9457 validation helper
 

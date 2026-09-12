@@ -14,6 +14,8 @@ npm install @web-ts-toolkit/express-json-router express
 npm install --save-dev @types/express
 ```
 
+`express` and `@types/express` are already regular dependencies of this package; the install line above is for the consumer app that mounts the router.
+
 ## Quick Start
 
 ```ts

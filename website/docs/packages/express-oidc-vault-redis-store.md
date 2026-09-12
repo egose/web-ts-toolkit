@@ -50,6 +50,8 @@ app.use(
 );
 ```
 
+For a store-only snippet without Express wiring, see the `Quick Start` section in the package README.
+
 ### Namespaced Redis keys
 
 Use `keyPrefix` when the same Redis instance stores data for multiple apps or environments.

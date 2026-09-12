@@ -20,7 +20,7 @@ npm install @web-ts-toolkit/utils
 The package exports individual functions from the root entrypoint, including:
 
 - object helpers: `get`, `set`, `hasOwn`, `pick`, `pickBy`, `omit`, `omitBy`, `assign`, `cloneDeep`, `keys`, `toStringRecord`
-- array and collection helpers: `map`, `filter`, `reduce`, `find`, `forEach`, `flatten`, `flattenDeep`, `compact`, `uniq`, `uniqBy`, `difference`, `intersection`, `intersectionBy`, `groupBy`, `sum`, `sumBy`, `orderBy`
+- array and collection helpers: `map`, `filter`, `eachRight`, `join`, `reduce`, `find`, `forEach`, `flatten`, `flattenDeep`, `compact`, `uniq`, `uniqBy`, `difference`, `intersection`, `intersectionBy`, `groupBy`, `sum`, `sumBy`, `orderBy`
 - type guards: `isArray`, `isBoolean`, `isEmpty`, `isEqual`, `isFunction`, `isMatch`, `isNaN`, `isNil`, `isNumber`, `isObject`, `isPlainObject`, `isPromise`, `isString`, `isUndefined`
 - URL helpers: `addLeadingSlash`, `removeConsecutiveSlashesFromUrl`, `normalizeUrlPath`
 - async helpers: `mapValuesAsync`, `toAsyncFn`

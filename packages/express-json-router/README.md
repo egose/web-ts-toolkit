@@ -9,6 +9,8 @@ pnpm add @web-ts-toolkit/express-json-router express
 pnpm add -D @types/express
 ```
 
+`express` and `@types/express` are already regular dependencies of this package; the install line above is for the consumer app that mounts the router.
+
 ## Highlights
 
 - return plain values from route handlers

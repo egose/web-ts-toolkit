@@ -63,13 +63,16 @@ parseBooleanString('true', false);
 
 ## Main Exports
 
-- object helpers: `get`, `set`, `hasOwn`, `pick`, `pickBy`, `omit`, `omitBy`, `assign`, `cloneDeep`, `mapKeys`
-- collection helpers: `map`, `filter`, `eachRight`, `join`, `reduce`, `find`, `flatten`, `uniq`, `uniqBy`, `orderBy`, `groupBy`, `sum`, `sumBy`
-- string helpers: `startCase`, `upperCase`
-- guards: `isArray`, `isPlainObject`, `isString`, `isPromise`
+58 functions plus the `PropertyPath` type, all from the package root
+(see `src/index.ts`):
+
+- object/path helpers: `get`, `set`, `hasOwn`, `pick`, `pickBy`, `omit`, `omitBy`, `assign`, `keys`, `mapKeys`, `mapValues`, `toStringRecord`
+- collection helpers: `map`, `filter`, `forEach`, `eachRight`, `join`, `reduce`, `find`, `flatten`, `flattenDeep`, `compact`, `uniq`, `uniqBy`, `difference`, `intersection`, `intersectionBy`, `groupBy`, `orderBy`, `sum`, `sumBy`
+- guards: `isArray`, `isBoolean`, `isEmpty`, `isEqual`, `isFunction`, `isMatch`, `isNaN`, `isNil`, `isNumber`, `isObject`, `isPlainObject`, `isPromise`, `isString`, `isUndefined`
+- string helpers: `startCase`, `upperCase`, `padEnd`
 - URL helpers: `addLeadingSlash`, `removeConsecutiveSlashesFromUrl`, `normalizeUrlPath`
 - async helpers: `mapValuesAsync`, `toAsyncFn`
-- misc: `castArray`, `arrayToRecord`, `mapValues`, `noop`, `padEnd`, `parseBooleanString`
+- misc: `castArray`, `arrayToRecord`, `cloneDeep`, `noop`, `parseBooleanString`
 
 ## Path Grammar And Mutation Rules
 
@@ -85,7 +88,7 @@ segment arrays (`['a', 'b']`).
   segments, and malformed brackets are unspecified (no Lodash parity).
 - Mutation segments `__proto__`, `constructor`, and `prototype` (quoted
   or not) are rejected before any write: `set` returns its target
-  unchanged and `omit`/`deletePath` are no-ops.
+  unchanged and `omit` is a no-op.
 - In `pick`/`omit`, a flat string array is a **list** of paths
   (`pick(o, ['a', 'b'])` picks keys `a` and `b`); pass a nested array for
   a single segmented path (`pick(o, [['a', 'b']])` picks `a.b`).

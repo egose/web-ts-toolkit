@@ -13,6 +13,8 @@ Peer dependencies:
 - `mongoose >= 8`
 - `express >= 5`
 
+Bundling note: `handlebars` and the workspace deps are bundled (`tsup` externals are only `mongoose`/`express`), so only `mongoose` + `express` are peers.
+
 ## Highlights
 
 - **Message persistence schemas** — `Message`, `MessageArchive`, and `MessageRequest` schemas with timestamps, indexes, archiving, and idempotency reservations

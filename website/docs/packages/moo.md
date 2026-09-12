@@ -162,7 +162,7 @@ cartSchema.plugin(modelFunctionPlugin, {
 });
 ```
 
-Each registration adds an instance method, a static taking the document first, and a `ById` static that returns `null` when no document matches. Wrong argument types fail compilation; representative examples plus negative cases are compiler-checked from the packed package by `test/moo.typed-consumer.test.ts`.
+Each registration adds an instance method, a static taking the document first, and a `ById` static that returns `null` when no document matches. Wrong argument types fail compilation.
 
 ### New document plugin
 
@@ -239,7 +239,7 @@ Relationship mode (`localField` + `foreignField`) is fail-closed: missing/`null`
 
 Deletion always removes fully hydrated dependent documents through their own document `deleteOne()` (never bulk writes), so nested cascades and custom document hooks observe required fields across multi-level custom-`localField` chains. Internal deletion traversal pages dependent `_id`s (`batchSize`, default `100`) and bounds in-flight deletes (`maxConcurrency`, default `8`; forced to `1` inside an active transaction), instead of materializing and deleting the whole set at once. Public `findDependents()` still returns an array. A dependent-hook failure rejects the parent `deleteOne()` after the parent is already removed (fail-fast, remaining batches skipped; abort the transaction to restore everything when in one); already-deleted rows are skipped. Repeated references delete once per level; diamonds/cycles terminate with at-least-once hook delivery.
 
-Only document `deleteOne()` is intercepted (`pre`/`post('deleteOne', { document: true, query: false })`); query deletes and query updates bypass the cascade. The `pre` hook validates the execution context before the parent is removed, while the `post` hook runs after the parent is already removed. Typed filters accept per-field MongoDB operators (`{ price: { $gt: 5 } }`) forwarded to Mongoose unchanged, and the no-argument `findDependents()`/`findOrphans()` overloads return `Partial` maps with unsupported entries omitted. `findOrphans()` supports scalar `_id` relations and `[{ type: ObjectId, ref }]` arrays; dotted paths, `{ type: [ObjectId], ref }` syntax, dynamic `refPath`, `foreignFilter`-only relationships, and non-`_id` local keys resolve to `null` (see `docs/tasks/20260912-130000-moo-07-orphan-query-evidence.md`).
+Only document `deleteOne()` is intercepted (`pre`/`post('deleteOne', { document: true, query: false })`); query deletes and query updates bypass the cascade. The `pre` hook validates the execution context before the parent is removed, while the `post` hook runs after the parent is already removed. Typed filters accept per-field MongoDB operators (`{ price: { $gt: 5 } }`) forwarded to Mongoose unchanged, and the no-argument `findDependents()`/`findOrphans()` overloads return `Partial` maps with unsupported entries omitted. `findOrphans()` supports scalar `_id` relations and `[{ type: ObjectId, ref }]` arrays; dotted paths, `{ type: [ObjectId], ref }` syntax, dynamic `refPath`, `foreignFilter`-only relationships, and non-`_id` local keys resolve to `null`.
 
 ### Keycloak user sync
 

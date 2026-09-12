@@ -59,12 +59,11 @@ void [aip193, rfc9457, validation];
 
 ## Main Exports
 
-- `HttpError`
-- `ClientError` and `ServerError`
-- specific error classes such as `BadRequestError`, `ForbiddenError`, `NotFoundError`
-- `toAip193ErrorPayload(...)`
-- `toRfc9457ErrorPayload(...)`
-- `toRfc9457ValidationErrorPayload(...)`
+- `HttpError`, `ClientError`, and `ServerError` base classes
+- 38 specific error classes: 27 client (`4xx`) and 11 server (`5xx`) errors (see `src/client-errors.ts` and `src/server-errors.ts`)
+- serializers: `toAip193ErrorPayload(...)` (with `fallbackDomain='http-errors'` default), `toRfc9457ErrorPayload(...)`, `toRfc9457ValidationErrorPayload(...)`, and `createAip193ErrorInfoDetail(...)`
+- status helpers (see `src/status.ts`): `canonicalStatusByHttpStatus`, `getCanonicalStatus`, `getStatusTitle`, `isHttpErrorStatusCode`, `validateHttpErrorStatusCode`, `validateClientErrorStatusCode`, `validateServerErrorStatusCode`
+- message helpers (see `src/messages.ts`): `messages`, `getDefaultMessage`
 - types including `HttpErrorOptions`, `HttpErrorShape`, `HttpErrorProblemFields`, `HttpErrorMetadataValue`, `Aip193ErrorInfoDetail`, `Aip193ErrorPayload`, `Rfc9457ErrorPayload`, and `Rfc9457ValidationError`
 
 ## AIP-193 Serializer Contract
@@ -91,7 +90,7 @@ void payload;
 
 `toRfc9457ErrorPayload(...)` emits required RFC 9457 problem members (`type`, `title`, `status`, and `detail`) on every payload. If the input shape has `errors` typed as an array, the returned payload preserves that entry type for custom extension errors.
 
-When `type` is missing it falls back to `about:blank`. When `title` is missing it falls back to the canonical HTTP status title, or `Unknown` for unmapped status codes. `instance` is emitted only when present.
+When `type` is missing it falls back to `about:blank`. When `title` is missing it falls back to the canonical HTTP status title, or `Unknown Error` for unmapped status codes. `instance` is emitted only when present.
 
 ```ts
 import { BadRequestError, toRfc9457ErrorPayload } from '@web-ts-toolkit/http-errors';

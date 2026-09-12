@@ -56,14 +56,26 @@ Provider exports:
 - `EmailProvider`, `NoopEmailProvider`
 - `PaymentProvider`, `NoopPaymentProvider`
 
-Typed errors:
+Typed errors (full set; see README status table for route mappings):
 
-- `TemplateNotFoundError`
-- `ActionNotFoundError`
-- `ActionNotAllowedError`
-- `MessageNotFoundError`
-- `MessageArchivedError`
-- `InvalidClientRequestIdError`
+- `MessageNotFoundError` (404)
+- `TemplateNotFoundError` (404)
+- `ActionNotFoundError` (404)
+- `ActionNotAllowedError` (403)
+- `MessageArchivedError` (410)
+- `InvalidMessageUserError` (401)
+- `InvalidClientRequestIdError` (400)
+- `ActionConflictError` (409)
+- `ActionRetryableError` (409)
+- `ActionNotificationPendingError` (202)
+- `ClientRequestPendingError` (409)
+- `ClientRequestFailedError` (409)
+- `ClientRequestInconsistentStateError` (server error)
+- `MessageTransactionRequiredError` (server error)
+- `InvalidPaginationValueError` / `InvalidMessageServiceOptionError` (server error unless handled by host)
+- `ActionTemplateMismatchError` / `MessageModelResolutionError` (server error unless handled by host)
+- `PaymentSessionCompensationError` / `PaymentSessionCompensationAggregateError` (server error)
+- `TemplateRegistryValidationError` (registration time; not thrown by route handlers)
 
 ## Quick Start
 
@@ -413,15 +425,31 @@ Pass it to `createMessageRoutes({ paymentProvider })` or `new MessageService({ p
 
 ```ts
 import {
-  ActionNotAllowedError,
-  ActionNotFoundError,
-  InvalidClientRequestIdError,
   MessageNotFoundError,
   TemplateNotFoundError,
+  ActionNotFoundError,
+  ActionNotAllowedError,
+  MessageArchivedError,
+  InvalidMessageUserError,
+  InvalidClientRequestIdError,
+  ActionConflictError,
+  ActionRetryableError,
+  ActionNotificationPendingError,
+  ClientRequestPendingError,
+  ClientRequestFailedError,
+  ClientRequestInconsistentStateError,
+  MessageTransactionRequiredError,
+  InvalidPaginationValueError,
+  InvalidMessageServiceOptionError,
+  ActionTemplateMismatchError,
+  MessageModelResolutionError,
+  PaymentSessionCompensationError,
+  PaymentSessionCompensationAggregateError,
+  TemplateRegistryValidationError,
 } from '@web-ts-toolkit/message-service';
 ```
 
-These are useful both in route handlers and in direct service usage with `instanceof` checks.
+These are useful both in route handlers and in direct service usage with `instanceof` checks. See the package `README.md` Typed errors table for the full direct-service meanings and route status mappings (404/403/410/401/400/409/202, remainder propagated as server errors).
 
 ```ts
 try {

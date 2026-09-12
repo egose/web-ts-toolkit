@@ -34,6 +34,7 @@ import { createMemoryDatabase } from '@web-ts-toolkit/mongoose-rxdb/storage';
 
 Default exports are retained only as redundant compatibility conveniences. Avoid mixing them into new
 code because named imports give clearer editor completions and tree-shaking.
+The package-root default is the full api object; the storage subpath default is `createMemoryDatabase`.
 
 The package publishes separate ESM and CommonJS builds. When one process loads both formats, each format
 has its own `Schema`/`Connection` class identity and its own `defaultConnection`; they are not a shared

@@ -80,6 +80,7 @@ Root entrypoint (`@web-ts-toolkit/express-response-handler`):
 - `HttpResponse`
 - `createHandler(...)`
 - `ErrorFormats`
+- `CSVResponse`, `Response`, and 10 success classes: `Accepted`, `AlreadyReported`, `Created`, `IMUsed`, `MultiStatus`, `NoContent`, `NonAuthoritativeInfo`, `OK`, `PartialContent`, `ResetContent`
 
 Subpath entrypoints:
 
@@ -91,6 +92,7 @@ Subpath entrypoints:
 ### Subpath import example
 
 ```ts
+import { handleResponse } from '@web-ts-toolkit/express-response-handler';
 import { Created, NoContent } from '@web-ts-toolkit/express-response-handler/responses/success';
 
 async function createUser() {

@@ -126,12 +126,14 @@ Root entrypoint (`@web-ts-toolkit/access-router`):
 - `guard(...)` and `GuardModelCondition`, `GuardModelConditionID` types
 - `combineRoutes(...)` and `createOpenApiRouter(runtime, options)` (note: prefer `acl.createOpenApiRouter(options)` for the default runtime)
 - validation adapters: `defineRequestSchema(...)`, `fromZod(...)`, `fromYup(...)`, `fromJoi(...)`, `fromAjv(...)`, `fromStandardSchema(...)`, `fromValibot(...)`, `fromArkType(...)`, `fromIoTs(...)`, `fromSuperstruct(...)`, `fromVine(...)`
+- `permissionsPlugin` (src/plugins.ts) — Mongoose schema plugin used as `schema.plugin(permissionsPlugin, { modelName })`
+- logger helpers: `redactFilter`, `redactPayload`, `safeStringify`, `isLevelEnabled` + `OpLogContext` type
 - option helpers: `setGlobalOptions`, `setGlobalOption`, `getGlobalOptions`, `getGlobalOption`, `setModelOptions`, `setModelOption`, `getModelOptions`, `getModelOption`, `getModelNames`, `getModelJsonSchema`, `setDefaultModelOptions`, `setDefaultModelOption`, `getDefaultModelOptions`, `getDefaultModelOption`
 
 Subpath entrypoints:
 
-- `@web-ts-toolkit/access-router/advanced` — low-level runtime context, symbols (`MIDDLEWARE`, `PERMISSIONS`, ...), enums (`Codes`, `StatusCodes`), internals (`parseBody`, `parseQuery`, request schemas). Does NOT export `acl`, `defaultRuntime`, or router-creation helpers.
-- `@web-ts-toolkit/access-router/processors` — `copyAndDepopulate` and its `ProcessCopy` / `CopyAndDepopulateOptions` / `CopyAndDepopulateOutput` types for transforming populated documents.
+- `@web-ts-toolkit/access-router/advanced` — low-level runtime context, symbols (`MIDDLEWARE`, `DATA_MIDDLEWARE`, `PERMISSIONS`, ...), enums (`Codes`, `StatusCodes`), internals (`parseBody`, `parseQuery`, `parseBodyWithSchema`, request schemas). Does NOT export `acl`, `defaultRuntime`, or router-creation helpers.
+- `@web-ts-toolkit/access-router/processors` — `copyAndDepopulate`, `copyPaths`, `movePaths`, `sliceArrays`, `countPaths`, `maskPaths` and processor option types (`ProcessCopy`, `CopyAndDepopulateOptions`, `CopyAndDepopulateOutput`, `ProcessorOptions`, `SliceProcessorOptions`, `ProcessSlice`, `ProcessCount`, `ProcessMask`, `ProcessorOutput`) for transforming populated documents.
 
 ## Default runtime vs. isolated runtime
 

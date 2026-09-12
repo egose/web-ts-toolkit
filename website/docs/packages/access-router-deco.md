@@ -19,21 +19,21 @@ Peer dependencies:
 
 - `@web-ts-toolkit/access-router`
 - `express >=5`
-- `mongoose >=8` through `@web-ts-toolkit/access-router`
+- `mongoose >=8` (direct peer)
 - `reflect-metadata ^0.1.13 || ^0.2.0` (both `0.1` and `0.2` lines satisfy the documented init policy)
 
 Declaration types: `@types/express` is a runtime dependency of this package. A clean consumer installing only the package and the peers above resolves all emitted `.d.ts` imports with `skipLibCheck: false` — no extra `@types/express` install needed. Removing unrelated workspace packages or their transitive `@types/express` does not break compilation.
 
 TypeScript: `>=5.5 <7.0` (maintained `5.x`/`6.x` lines, verified `5.5`/`5.9`/`6.0`). Requires `experimentalDecorators: true` (legacy decorators); `emitDecoratorMetadata: true` is supported but not required. `skipLibCheck: false` with `moduleResolution: NodeNext` or `Bundler` is verified via the packed-consumer suite (see Compatibility Matrix in the package README — sentinel in `pnpm test`, full matrix via `pnpm --filter @web-ts-toolkit/access-router-deco test:compat`).
 
-Importing `@web-ts-toolkit/access-router-deco` initializes `reflect-metadata` once before the package decorators run.
+The package root transitively pulls `reflect-metadata` via decorators, but an explicit `import 'reflect-metadata'` in the app entry remains the safe canonical pattern.
 
 ## What It Exposes
 
 - `Module(...)`
 - `Router(...)`
 - `RouterOptions(...)`
-- hook decorators such as `GlobalPermissions`, `DocPermissions`, `Validate`, `Prepare`, `Transform`, `RouteGuard`
+- hook decorators `GlobalPermissions`, `DocPermissions`, `BaseFilter`, `OverrideFilter`, `Validate`, `Prepare`, `Transform`, `AfterPersist`, `Decorate`, `DecorateAll`, `RouteGuard`, `Identifier`, `BeforeDelete`, `AfterDelete`
 - parameter decorators `Request`, `Document`, `Permissions`, `Context`, `Filter`, and `Id`
 - scoped property decorators `GlobalOption(...)`, `ModelOption(...)`, and `DefaultModelOption(...)`
 - legacy unscoped property decorator `Option(...)`
@@ -139,7 +139,7 @@ The bootstrap result exposes the bound `runtime` and mounted Express `router` fo
 
 ## TypeScript Decorator Configuration
 
-This package uses TypeScript legacy decorators, including parameter decorators. Compile consumers with `experimentalDecorators: true` and use a compiler/transpiler that preserves legacy class, method, property, and parameter decorators. `emitDecoratorMetadata: true` is supported but not required — the package imports `reflect-metadata` from its root entrypoint, so consumers own installing the peer (`^0.1.13 || ^0.2.0`) but do not need a separate `import 'reflect-metadata'` before importing this package. Supported range is `typescript >=5.5 <7.0` (each maintained `5.x`/`6.x` line; minimum verified `5.5`).
+This package uses TypeScript legacy decorators, including parameter decorators. Compile consumers with `experimentalDecorators: true` and use a compiler/transpiler that preserves legacy class, method, property, and parameter decorators. `emitDecoratorMetadata: true` is supported but not required — the package root transitively pulls `reflect-metadata` via decorators, but an explicit `import 'reflect-metadata'` in the app entry remains the safe canonical pattern. Consumers own installing the peer (`^0.1.13 || ^0.2.0`). Supported range is `typescript >=5.5 <7.0` (each maintained `5.x`/`6.x` line; minimum verified `5.5`).
 
 Parameter injection is explicit: undecorated hook parameters receive no values. Use decorators such as `@Request()`, `@Document()`, `@Permissions()`, `@Context()`, `@Filter()`, and `@Id()` for every runtime value a hook needs.
 
