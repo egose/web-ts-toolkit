@@ -75,6 +75,26 @@ const keycloak = createManagedKeycloakClient({
   clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
 });
 
+// Mapped attribute paths must exist in the schema. pendingPassword is a
+// virtual below and is never persisted to MongoDB.
+const userSchema = new Schema({
+  providerId: String,
+  username: String,
+  email: String,
+  roles: [String],
+  tier: String,
+  tenantId: String,
+  subscription: { plan: String },
+});
+
+userSchema.virtual('pendingPassword') // pragma: allowlist secret
+  .get(function (this: { $locals: Record<string, unknown> }) {
+    return this.$locals.pendingPassword as string | undefined;
+  })
+  .set(function (this: { $locals: Record<string, unknown> }, value: string | undefined) {
+    this.$locals.pendingPassword = value;
+  });
+
 userSchema.plugin(keycloakUserSyncPlugin, {
   client: keycloak,
   realm: 'application',
@@ -86,6 +106,9 @@ userSchema.plugin(keycloakUserSyncPlugin, {
   passwordTemporary: true,
   mapPassword: (doc) => doc.get('pendingPassword') as string | undefined,
   attributePaths: ['tenantId', 'subscription.plan'],
+  rolePaths: ['tier'],
+  passwordPaths: ['pendingPassword'],
+  mapRoles: (_roles, doc) => (doc.get('tier') === 'pro' ? ['editor'] : []),
   mapAttributes: (doc) => ({
     tenantId: doc.get('tenantId'),
     plan: doc.get('subscription.plan'),
@@ -96,8 +119,8 @@ userSchema.plugin(keycloakUserSyncPlugin, {
 
 ## Gotchas
 
-- peer dependency: `mongoose >= 8`
-- optional peer dependency: `@egose/keycloak-fluent ^0.7` only for `@web-ts-toolkit/moo/plugins/keycloak-user-sync`
+- peer dependency: `mongoose >= 8` (tested with Mongoose 8.24.x and 9.x)
+- optional peer dependency: `@egose/keycloak-fluent >=0.12.1 <0.15.0` only for `@web-ts-toolkit/moo/plugins/keycloak-user-sync` (tested floor `0.12.1`, current `0.14.x`)
 - root entrypoint exports schema helpers, `isObjectId`, and non-Keycloak plugins; dedicated plugin subpaths are also available
 - Keycloak user sync is not re-exported from root or `@web-ts-toolkit/moo/plugins`; import it from the direct subpath
 - `createManagedKeycloakClient` lazily uses `client_credentials`, renews on demand without timers, and deduplicates concurrent authentication; construct a client directly for custom grants
@@ -110,15 +133,20 @@ userSchema.plugin(keycloakUserSyncPlugin, {
 - Keycloak attributes sync from the `attributes` path or `mapAttributes`; values become string arrays
 - use `managedAttributes` for keys the plugin may remove; unmanaged remote attributes are preserved
 - use `attributePaths` when `mapAttributes` reads dynamic paths outside the default `attributes` path
-- password sync is opt-in with `syncFields.password: true`; map a plaintext pending password, not a stored hash
-- password updates use Keycloak reset-password; `passwordTemporary` defaults to false
+- password sync is opt-in with `syncFields.password: true`; map a non-persisted pending-password virtual, not a stored hash or stored plaintext path
+- `mapPassword` runs lazily (creation or declared password intent only); declare extra inputs with `passwordPaths`, role inputs with `rolePaths`
+- Keycloak loggers receive only `{ operation, localDocumentId, error: { name, code?, status? } }`; `onError` keeps the original error
+- cascade delete intercepts only document `deleteOne()`; `post` runs after the parent is removed (abort the transaction to restore); `maxConcurrency` default 8, `batchSize` default 100
+- typed filters accept per-field operators (`{ price: { $gt: 5 } }`); no-argument `findDependents()`/`findOrphans()` return `Partial` maps (unsupported entries omitted)
+- schema-helper `overrides` win over defaults in both runtime and types
+- new-document plugin runs its callback only after the first successful `save()` of a newly inserted document
 
 ## Subpaths
 
 - `@web-ts-toolkit/moo/is` — `isObjectId`
 - `@web-ts-toolkit/moo/schema` — `uniqueNullableString`, `uniqueEmptiableString`
 - `@web-ts-toolkit/moo/utils` — `isSchema`, `isObjectIdType`, `isReference`
-- `@web-ts-toolkit/moo/plugins` — re-exports all plugins
+- `@web-ts-toolkit/moo/plugins` — non-Keycloak plugins (`modelFunctionPlugin`, `cascadeDeletePlugin`, `newDocumentPlugin`)
 - `@web-ts-toolkit/moo/plugins/cascade-delete` — `cascadeDeletePlugin`
 - `@web-ts-toolkit/moo/plugins/model-function` — `modelFunctionPlugin`
 - `@web-ts-toolkit/moo/plugins/new-document` — `newDocumentPlugin`

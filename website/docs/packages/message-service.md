@@ -40,8 +40,11 @@ Template and registry exports:
 - `TemplateRegistry`
 - `defaultRegistry`
 - `interpolateTemplate(...)`
+- `interpolateMessageContent(...)`
+- `resolveUiTemplate(...)`
 - `filterActions(...)`
 - `isActionAllowed(...)`
+- `hasExplicitPermissionGrant(...)`
 
 Service and route exports:
 
@@ -77,10 +80,23 @@ import {
   MESSAGE_MODEL_NAME,
   MESSAGE_REQUEST_MODEL_NAME,
   type MessageTemplate,
+  type MessageUser,
 } from '@web-ts-toolkit/message-service';
 
 const app = express();
-const myAuthMiddleware: express.RequestHandler = (_req, _res, next) => next();
+app.use(express.json());
+
+declare function resolveAuthenticatedUser(req: express.Request): MessageUser | undefined;
+
+const myAuthMiddleware: express.RequestHandler = (req, res, next) => {
+  const user = resolveAuthenticatedUser(req);
+  if (!user) {
+    res.status(401).json({ message: 'authentication required' });
+    return;
+  }
+  (req as express.Request & { user: MessageUser }).user = user;
+  next();
+};
 
 await mongoose.connect('mongodb://localhost/mydb');
 
@@ -89,16 +105,29 @@ mongoose.model(MESSAGE_ARCHIVE_MODEL_NAME, buildMessageArchiveSchema());
 mongoose.model(MESSAGE_REQUEST_MODEL_NAME, buildMessageRequestSchema());
 
 const welcomeTemplate: MessageTemplate = {
-  templateCd: 'welcome',
-  senderContent: {
-    title: 'Welcome {{name}}',
-  },
-  receiverContent: {
-    title: 'Welcome {{name}}',
-  },
-  prepare: async ({ payload }) => ({
+  templateCd: 'welcome.request',
+  type: 'request',
+  description: 'Welcome request',
+  senderContent: { title: 'Welcome {{name}}', long: 'Sent to reviewers', short: 'Sent' },
+  receiverContent: { title: 'Review {{name}}', long: 'Please review this request', short: 'Review' },
+  uiTemplate: 'default-message',
+  prepareMessage: async ({ user, payload }) => ({
+    fromUser: user._id,
+    toRoles: ['reviewer'],
     payload,
+    // Content renders from `templateData`, not `payload`.
+    templateData: { name: String(payload.name ?? '') },
   }),
+  actions: [
+    {
+      actionCd: 'approve',
+      name: 'Approve',
+      variant: 'primary',
+      sender: false,
+      receiver: true,
+      runHandler: async ({ actionAttemptId }) => ({ actionAttemptId }),
+    },
+  ],
 };
 
 defaultRegistry.register(welcomeTemplate);
@@ -107,8 +136,15 @@ const { router, service } = createMessageRoutes({
   getModel: mongoose.model.bind(mongoose),
 });
 
-app.use('/api/messages', myAuthMiddleware, router);
+app.use('/api/messages', myAuthMiddleware, router.original);
 ```
+
+Prerequisites: Node `>=22`, `mongoose >= 8`, `express >= 5`. Use a MongoDB
+replica set (or sharded cluster) when you use `clientRequestId` idempotency or
+transactional archival; standalone servers throw
+`MessageTransactionRequiredError`. Every route requires a resolved user with a
+valid `_id` (non-empty string or `ObjectId`) and returns `401` before any
+service, template, payment, model, or action effect otherwise.
 
 `createMessageRoutes(...)` returns both the mounted router and the underlying `MessageService` instance.
 
@@ -130,11 +166,10 @@ Important options:
 - `getIdentity`
 - `adminPermissionKey`
 
-Mounted routes:
+Mounted routes (action mutation is POST-only):
 
 - `POST /new/:templateCd`
 - `GET /:id/actions/:usertype`
-- `GET /:id/action/:actionCd`
 - `POST /:id/action/:actionCd`
 
 The route factory uses `@web-ts-toolkit/express-json-router`, so typed message-service errors become normal HTTP responses without extra controller wiring.
@@ -143,10 +178,18 @@ The route factory uses `@web-ts-toolkit/express-json-router`, so typed message-s
 
 ```ts
 import type express from 'express';
+import type { MessageUser } from '@web-ts-toolkit/message-service';
 
-const requireAuth: express.RequestHandler = (_req, _res, next) => next();
+const requireAuth: express.RequestHandler = (req, res, next) => {
+  const user = (req as express.Request & { user?: MessageUser }).user;
+  if (!user || typeof user._id !== 'string' || user._id.trim() === '') {
+    res.status(401).json({ message: 'authentication required' });
+    return;
+  }
+  next();
+};
 type RequestWithAuth = express.Request & {
-  user?: unknown;
+  user?: MessageUser;
   permissions?: Record<string, boolean>;
 };
 
@@ -166,7 +209,7 @@ const { router } = createMessageRoutes({
   },
 });
 
-app.use('/api/messages', router);
+app.use('/api/messages', router.original);
 ```
 
 ### Create-from-template request example
@@ -190,13 +233,15 @@ Use `MessageService` directly when you want the message workflow without the rou
 
 Common methods:
 
-- `createMessage(params)`
-- `createNotification(params)`
+- `createMessage(params)` — returns `Array<IMessage | IMessageArchive>`; `user`
+  (and `payerUser` when provided) must carry a valid principal id.
+- `createNotification(params)` — trusted host-level creation with raw `UserId`
+  values; performs no principal validation.
 - `listMessages({ user, limit?, skip?, populate? })`
 - `countMessages(user)`
-- `findMessage(id, options?)`
-- `findMessageOrThrow(id, options?)`
-- `getActions(id, usertype, options?)`
+- `findMessage(id, options?)` / `findMessageOrThrow(id, options?)` — trusted
+  host-level lookup across active and archive; no principal validation.
+- `getActions(messageId, usertype, { user, permissions?, isAdmin?, message?, populate? })` — `user` is required.
 - `handleAction(templateCd, actionCd, options)`
 - `buildVisibilityFilter(user)`
 
@@ -218,11 +263,12 @@ const service = new MessageService({
 
 ```ts
 await service.createNotification({
-  fromUser: { _id: 'system', name: 'System' },
-  toUser: { _id: 'user_123', name: 'Ada' },
+  fromUser: 'system',
+  toUser: 'user_123',
   receiverContent: {
     title: 'Deployment finished',
-    body: 'Your deployment completed successfully.',
+    long: 'Your deployment completed successfully.',
+    short: 'Deployment done',
   },
 });
 ```
@@ -232,9 +278,9 @@ await service.createNotification({
 ```ts
 const message = await service.findMessageOrThrow('message_123');
 
-await service.handleAction('welcome', 'acknowledge', {
+await service.handleAction('welcome.request', 'approve', {
   message,
-  user: { _id: 'user_123', name: 'Ada' },
+  user: { _id: 'user_123', roles: ['reviewer'] },
   permissions: { 'message.ack': true },
 });
 ```
@@ -247,12 +293,15 @@ await service.handleAction('welcome', 'acknowledge', {
 const registry = new TemplateRegistry();
 
 registry.register(template);
-registry.find('welcome');
-registry.has('welcome');
-registry.getAll();
-registry.unregister('welcome');
+const found: RegisteredMessageTemplate | undefined = registry.find('welcome.request');
+registry.has('welcome.request');
+const all: RegisteredMessageTemplate[] = registry.getAll();
+registry.unregister('welcome.request');
 registry.clear();
 ```
+
+Registration takes a mutable `MessageTemplate`; `find()`/`getAll()` return
+readonly `RegisteredMessageTemplate` views matching the frozen snapshot depth.
 
 `defaultRegistry` is a shared global instance for simpler applications.
 
@@ -326,10 +375,12 @@ Use the provider with `buildMessageSchema({ emailNotifier })` when you want sche
 ### Payment provider
 
 ```ts
-import type { PaymentProvider } from '@web-ts-toolkit/message-service';
+import type { PaymentProvider, UserId } from '@web-ts-toolkit/message-service';
 
-async function createCheckoutSession(user: unknown, code: string, priceArgs: unknown): Promise<string> {
-  void { user, code, priceArgs };
+async function createCheckoutSession(user: UserId, code: string, priceArgs?: Record<string, unknown>): Promise<string> {
+  void user;
+  void code;
+  void priceArgs;
   return 'session_123';
 }
 
@@ -342,15 +393,15 @@ async function refundCheckoutSession(sessionId: string): Promise<void> {
 }
 
 class StripePaymentProvider implements PaymentProvider {
-  async createSession(user, code, priceArgs) {
+  async createSession(user: UserId, code: string, priceArgs?: Record<string, unknown>) {
     return await createCheckoutSession(user, code, priceArgs);
   }
 
-  async expireSession(sessionId) {
+  async expireSession(sessionId: string) {
     await expireCheckoutSession(sessionId);
   }
 
-  async refundPayment(sessionId) {
+  async refundPayment(sessionId: string) {
     await refundCheckoutSession(sessionId);
   }
 }

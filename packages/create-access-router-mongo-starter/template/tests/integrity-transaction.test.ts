@@ -194,15 +194,25 @@ describe('category delete integrity against a transaction-capable replica set (C
       ]);
       const todoStatus = todoOutcome.status === 'fulfilled' ? todoOutcome.value.status : Number.NaN;
       const deleteStatus = deleteOutcome.status === 'fulfilled' ? deleteOutcome.value.status : Number.NaN;
-      expect([201, 400]).toContain(todoStatus);
+      // Race outcomes: Todo create may win (201, delete then 409), lose via
+      // pre-transaction validation (400 when the category is already gone),
+      // or lose inside its integrity transaction (409 when the category lock
+      // finds no row or a WriteConflict/transient transaction error maps to
+      // 409). Category delete wins with 200 or is rejected with 409.
+      expect([201, 400, 409]).toContain(todoStatus);
       expect([200, 409]).toContain(deleteStatus);
       if (deleteStatus === 200) {
         // Winner: delete. A late Todo create must then fail closed.
-        expect(todoStatus).toBe(400);
+        expect([400, 409]).toContain(todoStatus);
       } else {
-        // Winner: todo create. The delete must have been rejected.
-        expect(todoStatus).toBe(201);
+        // Delete rejected (409). Todo either won (201) or failed closed
+        // itself (400 validation / 409 conflict); both leave no dangling
+        // reference.
         expect(deleteStatus).toBe(409);
+        expect([201, 400, 409]).toContain(todoStatus);
+        if (todoStatus === 201) {
+          expect(deleteStatus).toBe(409);
+        }
       }
       // Sessions terminated: the database still accepts transactional work.
       const after = await request(app).post('/api/categories').send({ name: 'after-race' }).expect(201);

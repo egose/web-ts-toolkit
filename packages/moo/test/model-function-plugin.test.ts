@@ -16,14 +16,23 @@ type Cart = {
   price: number;
 };
 
+// Note: result types stay free of the CartDocument alias (plain number results
+// instead of returning the document) so CartDocument/CartMethods do not
+// circularly reference each other (TS2456). The plugin still exposes typed
+// sync/async instance, static, and ById surfaces with full inference.
+type CartMethods = ModelFunctionInstanceMethods<'applyDiscount', [suffix: string, priceChange: number], number> &
+  ModelFunctionInstanceMethods<'applyDiscountAsync', [suffix: string, priceChange: number], Promise<number>>;
+
 type CartDocument = ModelDocument<Cart, CartMethods>;
 
-type CartMethods = ModelFunctionInstanceMethods<'applyDiscount', [string, number], CartDocument> &
-  ModelFunctionInstanceMethods<'applyDiscountAsync', [string, number], Promise<CartDocument>>;
-
 type CartModel = Model<Cart, Record<string, never>, CartMethods> &
-  ModelFunctionStaticMethods<'applyDiscount', CartDocument, [string, number], CartDocument> &
-  ModelFunctionStaticMethods<'applyDiscountAsync', CartDocument, [string, number], Promise<CartDocument>>;
+  ModelFunctionStaticMethods<'applyDiscount', CartDocument, [suffix: string, priceChange: number], number> &
+  ModelFunctionStaticMethods<
+    'applyDiscountAsync',
+    CartDocument,
+    [suffix: string, priceChange: number],
+    Promise<number>
+  >;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -32,22 +41,22 @@ const cartSchema = new mongoose.Schema<Cart, CartModel, CartMethods>({
   price: { type: Number, required: true },
 });
 
-cartSchema.plugin(modelFunctionPlugin<Cart, CartMethods>, {
+cartSchema.plugin(modelFunctionPlugin, {
   fnName: 'applyDiscount',
   fn: (cart: CartDocument, nameSuffix: string, priceChange: number) => {
     cart.name = `${cart.name}_${nameSuffix}`;
     cart.price += priceChange;
-    return cart;
+    return cart.price;
   },
 });
 
-cartSchema.plugin(modelFunctionPlugin<Cart, CartMethods>, {
+cartSchema.plugin(modelFunctionPlugin, {
   fnName: 'applyDiscountAsync',
   fn: async (cart: CartDocument, nameSuffix: string, priceChange: number) => {
     await sleep(1);
     cart.name = `${cart.name}_${nameSuffix}`;
     cart.price += priceChange;
-    return cart;
+    return cart.price;
   },
 });
 
@@ -60,14 +69,16 @@ describe('modelFunctionPlugin', () => {
       price: 2000,
     });
 
-    const staticResult = Cart.applyDiscount(cart, 'premium', 100);
+    const staticPrice: number = Cart.applyDiscount(cart, 'premium', 100);
     const persistedCart = await Cart.findById(cart._id).orFail();
-    const instanceResult = persistedCart.applyDiscount('premium', 100);
+    const instancePrice: number = persistedCart.applyDiscount('premium', 100);
 
-    expect(staticResult.name).toBe('laptop_premium');
-    expect(staticResult.price).toBe(2100);
-    expect(instanceResult.name).toBe('laptop_premium');
-    expect(instanceResult.price).toBe(2100);
+    expect(staticPrice).toBe(2100);
+    expect(cart.name).toBe('laptop_premium');
+    expect(cart.price).toBe(2100);
+    expect(instancePrice).toBe(2100);
+    expect(persistedCart.name).toBe('laptop_premium');
+    expect(persistedCart.price).toBe(2100);
   });
 
   it('supports async functions', async () => {
@@ -76,14 +87,16 @@ describe('modelFunctionPlugin', () => {
       price: 100,
     });
 
-    const staticResult = await Cart.applyDiscountAsync(cart, 'pink', 1);
+    const staticPrice: number = await Cart.applyDiscountAsync(cart, 'pink', 1);
     const persistedCart = await Cart.findById(cart._id).orFail();
-    const instanceResult = await persistedCart.applyDiscountAsync('pink', 1);
+    const instancePrice: number = await persistedCart.applyDiscountAsync('pink', 1);
 
-    expect(staticResult.name).toBe('mouse_pink');
-    expect(staticResult.price).toBe(101);
-    expect(instanceResult.name).toBe('mouse_pink');
-    expect(instanceResult.price).toBe(101);
+    expect(staticPrice).toBe(101);
+    expect(cart.name).toBe('mouse_pink');
+    expect(cart.price).toBe(101);
+    expect(instancePrice).toBe(101);
+    expect(persistedCart.name).toBe('mouse_pink');
+    expect(persistedCart.price).toBe(101);
   });
 
   it('adds a by-id static helper', async () => {
@@ -92,9 +105,10 @@ describe('modelFunctionPlugin', () => {
       price: 500,
     });
 
-    const result = await Cart.applyDiscountById(cart._id, 'mechanical', 20);
+    const result: number | null = await Cart.applyDiscountById(cart._id, 'mechanical', 20);
 
-    expect(result?.name).toBe('keyboard_mechanical');
-    expect(result?.price).toBe(520);
+    expect(result).toBe(520);
+    const missing = await Cart.applyDiscountById(new mongoose.Types.ObjectId().toString(), 'ghost', 1);
+    expect(missing).toBeNull();
   });
 });

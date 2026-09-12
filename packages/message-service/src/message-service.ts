@@ -5,6 +5,8 @@ import type { IMessage, IMessageArchive, MessageUser, UserId } from './types/mes
 import type {
   MessageTemplate,
   MessageAction,
+  RegisteredMessageAction,
+  RegisteredMessageTemplate,
   SenderNotificationContent,
   UiTemplate,
   InterpolatedAction,
@@ -13,10 +15,59 @@ import type {
   Usertype,
 } from './types/template';
 import type { PaymentProvider } from './providers/payment';
-import { interpolateTemplate, isActionAllowed } from './template-engine';
+import { interpolateMessageContent, interpolateTemplate, isActionAllowed, resolveUiTemplate } from './template-engine';
 import { TemplateRegistry, defaultRegistry } from './template-registry';
 import { MESSAGE_MODEL_NAME, MESSAGE_ARCHIVE_MODEL_NAME, MESSAGE_REQUEST_MODEL_NAME } from './schemas/base';
-import { isRuntimeError, markRuntimeError } from './runtime-contract';
+import {
+  ActionConflictError,
+  ActionNotAllowedError,
+  ActionNotFoundError,
+  ActionNotificationPendingError,
+  ActionRetryableError,
+  ActionTemplateMismatchError,
+  ClientRequestFailedError,
+  ClientRequestInconsistentStateError,
+  ClientRequestPendingError,
+  InvalidClientRequestIdError,
+  InvalidMessageServiceOptionError,
+  InvalidMessageUserError,
+  InvalidPaginationValueError,
+  MessageArchivedError,
+  MessageModelResolutionError,
+  MessageNotFoundError,
+  PaymentSessionCompensationAggregateError,
+  PaymentSessionCompensationError,
+  TemplateNotFoundError,
+} from './errors';
+import type { MessageModelRole, PaymentSessionCompensationFailure } from './errors';
+import { isDuplicateKeyError, runMessageTransaction } from './persistence';
+import type { TransactionCapableActiveModel } from './persistence';
+
+// Re-export the shared failure contract so `src/index.ts`, routes, and
+// schema code keep importing every error from `./message-service` unchanged.
+export {
+  ActionConflictError,
+  ActionNotAllowedError,
+  ActionNotFoundError,
+  ActionNotificationPendingError,
+  ActionRetryableError,
+  ActionTemplateMismatchError,
+  ClientRequestFailedError,
+  ClientRequestInconsistentStateError,
+  ClientRequestPendingError,
+  InvalidClientRequestIdError,
+  InvalidMessageServiceOptionError,
+  InvalidMessageUserError,
+  InvalidPaginationValueError,
+  MessageArchivedError,
+  MessageModelResolutionError,
+  MessageNotFoundError,
+  MessageTransactionRequiredError,
+  PaymentSessionCompensationAggregateError,
+  PaymentSessionCompensationError,
+  TemplateNotFoundError,
+} from './errors';
+export type { MessageModelRole, PaymentSessionCompensationFailure } from './errors';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -46,17 +97,45 @@ export interface MessageServiceOptions {
   /**
    * How long a pending idempotent create reservation lease remains live before
    * another caller may atomically take it over. Defaults to 30000 ms.
+   *
+   * Must be a finite safe integer in `[1, 2147483647]` ms (positive lease).
+   * The upper bound is Node's maximum `setTimeout` delay (`2^31 - 1`); larger
+   * values would not fire on the intended cadence. Fractional, `NaN`,
+   * infinite, negative, zero, or overflowing values throw
+   * `InvalidMessageServiceOptionError` at construction.
    */
   clientRequestLeaseMs?: number;
   /**
    * Maximum time a duplicate idempotent create waits for completion or stale
    * lease takeover before raising `ClientRequestPendingError`. Defaults to 5000 ms.
+   *
+   * Must be a finite safe integer in `[0, 2147483647]` ms (nonnegative wait).
+   * `0` is a supported immediate check: a duplicate that cannot acquire or
+   * replay on its first attempt raises `ClientRequestPendingError` without
+   * sleeping. The wait deadline bounds polling only — it never cancels a hung
+   * database/provider operation. Out-of-range values throw
+   * `InvalidMessageServiceOptionError` at construction.
    */
   clientRequestWaitMs?: number;
-  /** Poll interval while waiting for an idempotent create outcome. Defaults to 200 ms. */
+  /**
+   * Poll interval while waiting for an idempotent create outcome. Defaults to 200 ms.
+   *
+   * Must be a finite safe integer in `[1, 2147483647]` ms (positive poll).
+   * Out-of-range values throw `InvalidMessageServiceOptionError` at construction.
+   */
   clientRequestPollMs?: number;
   /** Test hook for deterministic waiting; production uses `setTimeout`. */
   clientRequestDelay?: (ms: number) => Promise<void>;
+  /**
+   * Test hook for deterministic time. Defaults to `Date.now`.
+   *
+   * The same clock drives the duplicate-wait deadline and the persisted
+   * `leaseExpiresAt` wall-clock timestamps (`new Date(now())`), so fake
+   * clocks stay coherent in tests. The stale-takeover filter compares
+   * `leaseExpiresAt` against this clock, not an independent `new Date()`.
+   * Production uses real wall-clock time.
+   */
+  clientRequestNow?: () => number;
 }
 
 export interface MessageServiceModelNames {
@@ -78,14 +157,17 @@ export interface PaymentCompensationFailureEvent {
 
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_LIST_LIMIT = 100;
-const DUPLICATE_KEY_ERROR_CODE = 11000;
 const CLIENT_REQUEST_LEASE_MS = 30_000;
 const CLIENT_REQUEST_WAIT_MS = 5_000;
 const CLIENT_REQUEST_POLL_MS = 200;
+/**
+ * Maximum platform timer delay (`2^31 - 1` ms, ~24.8 days). Node's
+ * `setTimeout` clamps/overflows beyond this, so lease/wait/poll values above
+ * it are rejected at construction rather than silently misfiring.
+ */
+export const MAX_MESSAGE_SERVICE_TIMEOUT_MS = 2_147_483_647;
 const ACTION_LEASE_MS = 30_000;
 const MAX_CLIENT_REQUEST_ID_LENGTH = 128;
-const TRANSACTION_REQUIRED_MESSAGE =
-  'message-service requires MongoDB replica set or sharded-cluster transactions for idempotent batch creation';
 
 interface ClientRequestScope {
   clientRequestId: string;
@@ -110,12 +192,12 @@ interface ClientRequestLease {
   ownerId: string;
 }
 
-type ClientRequestStart = { kind: 'lease'; lease: ClientRequestLease } | { kind: 'replay'; replay: IMessage[] };
+type ClientRequestStart =
+  | { kind: 'lease'; lease: ClientRequestLease }
+  | { kind: 'replay'; replay: Array<IMessage | IMessageArchive> };
 
 type MessageDocumentData = Record<string, unknown>;
 type HydratedModelSource = { constructor: unknown };
-
-type MessageModelRole = keyof MessageServiceModelNames;
 
 const DEFAULT_MODEL_NAMES: MessageServiceModelNames = {
   active: MESSAGE_MODEL_NAME,
@@ -127,6 +209,7 @@ const DEFAULT_MODEL_NAMES: MessageServiceModelNames = {
 interface ActionClaim {
   message: IMessage;
   actionAttemptId: string;
+  actionOwnerToken: string;
 }
 
 /**
@@ -136,272 +219,51 @@ interface ActionClaim {
  */
 export const GENERIC_NOTIFICATION_TEMPLATE_CD = '__generic-notification__';
 
-// ---------------------------------------------------------------------------
-// Typed errors
-// ---------------------------------------------------------------------------
-
-export class MessageNotFoundError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'MessageNotFoundError');
+/**
+ * Shared principal-validation contract for user-facing service entry points
+ * and HTTP routes.
+ *
+ * A valid principal id is a non-empty string (after trimming) or a
+ * `mongoose.Types.ObjectId` instance. Missing, null, empty/whitespace-only,
+ * numeric, array, and plain-object ids are invalid. Valid string ids keep
+ * their string type (trimmed); valid ObjectId instances are preserved as
+ * ObjectId by callers and normalized to their hex string only where a string
+ * scope/query key is required.
+ *
+ * `findMessage`/`findMessageOrThrow` and `createNotification` are trusted
+ * host-level operations and intentionally do not take a principal; they are
+ * not part of this contract.
+ */
+export function isValidMessageUserId(id: unknown): id is string | mongoose.Types.ObjectId {
+  if (typeof id === 'string') {
+    return id.trim().length > 0;
   }
-
-  constructor(messageId: string) {
-    super(`message "${messageId}" not found`);
-    this.name = 'MessageNotFoundError';
-    markRuntimeError(this, this.name);
+  if (id instanceof mongoose.Types.ObjectId) {
+    return true;
   }
+  return false;
 }
 
-export class MessageArchivedError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'MessageArchivedError');
+/**
+ * Assert a user-facing principal and return its normalized string identity.
+ * Throws `InvalidMessageUserError` for missing/null/empty/numeric/array/
+ * plain-object ids. String ids are trimmed; ObjectId ids become their hex
+ * string. The caller's original `MessageUser` object (and its `_id` type) is
+ * left untouched so ObjectId-backed schemas keep their native type.
+ */
+export function requireMessageUserId(user: unknown): string {
+  if (!user || typeof user !== 'object' || Array.isArray(user)) {
+    throw new InvalidMessageUserError();
   }
-
-  constructor(messageId: string) {
-    super(`message "${messageId}" is archived`);
-    this.name = 'MessageArchivedError';
-    markRuntimeError(this, this.name);
+  const id = (user as MessageUser)._id;
+  if (!isValidMessageUserId(id)) {
+    throw new InvalidMessageUserError();
   }
+  return typeof id === 'string' ? id.trim() : String(id);
 }
 
-export class TemplateNotFoundError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'TemplateNotFoundError');
-  }
-
-  constructor(templateCd: string) {
-    super(`template "${templateCd}" not found`);
-    this.name = 'TemplateNotFoundError';
-    markRuntimeError(this, this.name);
-  }
-}
-
-export class ActionNotFoundError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'ActionNotFoundError');
-  }
-
-  constructor(templateCd: string, actionCd: string) {
-    super(`action "${actionCd}" not found in template "${templateCd}"`);
-    this.name = 'ActionNotFoundError';
-    markRuntimeError(this, this.name);
-  }
-}
-
-export class ActionNotAllowedError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'ActionNotAllowedError');
-  }
-
-  constructor() {
-    super('not allowed');
-    this.name = 'ActionNotAllowedError';
-    markRuntimeError(this, this.name);
-  }
-}
-
-export class InvalidMessageUserError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'InvalidMessageUserError');
-  }
-
-  constructor(message = 'user._id must be a non-empty string or ObjectId') {
-    super(message);
-    this.name = 'InvalidMessageUserError';
-    markRuntimeError(this, this.name);
-  }
-}
-
-export class ActionTemplateMismatchError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'ActionTemplateMismatchError');
-  }
-
-  constructor(expectedTemplateCd: string, receivedTemplateCd: string) {
-    super(`message template "${expectedTemplateCd}" does not match requested template "${receivedTemplateCd}"`);
-    this.name = 'ActionTemplateMismatchError';
-    markRuntimeError(this, this.name);
-  }
-}
-
-export class ActionConflictError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'ActionConflictError');
-  }
-
-  constructor(messageId: string) {
-    super(`message "${messageId}" already has an action in progress`);
-    this.name = 'ActionConflictError';
-    markRuntimeError(this, this.name);
-  }
-}
-
-export class ActionRetryableError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'ActionRetryableError');
-  }
-
-  actionAttemptId: string;
-
-  constructor(messageId: string, actionAttemptId: string, cause?: unknown) {
-    super(`message "${messageId}" action attempt "${actionAttemptId}" failed before commit and may be retried`);
-    this.name = 'ActionRetryableError';
-    markRuntimeError(this, this.name);
-    this.actionAttemptId = actionAttemptId;
-    if (cause) {
-      (this as Error & { cause?: unknown }).cause = cause;
-    }
-  }
-}
-
-export class ActionNotificationPendingError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'ActionNotificationPendingError');
-  }
-
-  actionAttemptId: string;
-  result: unknown;
-
-  constructor(messageId: string, actionAttemptId: string, result: unknown, cause?: unknown) {
-    super(`message "${messageId}" action committed but sender notification is pending`);
-    this.name = 'ActionNotificationPendingError';
-    markRuntimeError(this, this.name);
-    this.actionAttemptId = actionAttemptId;
-    this.result = result;
-    if (cause) {
-      (this as Error & { cause?: unknown }).cause = cause;
-    }
-  }
-}
-
-export class InvalidClientRequestIdError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'InvalidClientRequestIdError');
-  }
-
-  constructor(message: string) {
-    super(message);
-    this.name = 'InvalidClientRequestIdError';
-    markRuntimeError(this, this.name);
-  }
-}
-
-export class InvalidPaginationValueError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'InvalidPaginationValueError');
-  }
-
-  constructor(message: string) {
-    super(message);
-    this.name = 'InvalidPaginationValueError';
-    markRuntimeError(this, this.name);
-  }
-}
-
-export class ClientRequestPendingError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'ClientRequestPendingError');
-  }
-
-  constructor(clientRequestId: string) {
-    super(
-      `clientRequestId "${clientRequestId}" is still pending; retry after the current reservation completes or its lease expires`,
-    );
-    this.name = 'ClientRequestPendingError';
-    markRuntimeError(this, this.name);
-  }
-}
-
-export class ClientRequestFailedError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'ClientRequestFailedError');
-  }
-
-  constructor(clientRequestId: string, reason?: string | null) {
-    super(`clientRequestId "${clientRequestId}" previously failed${reason ? `: ${reason}` : ''}`);
-    this.name = 'ClientRequestFailedError';
-    markRuntimeError(this, this.name);
-  }
-}
-
-export class ClientRequestInconsistentStateError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'ClientRequestInconsistentStateError');
-  }
-
-  constructor(clientRequestId: string, message: string) {
-    super(`clientRequestId "${clientRequestId}" has inconsistent persisted state: ${message}`);
-    this.name = 'ClientRequestInconsistentStateError';
-    markRuntimeError(this, this.name);
-  }
-}
-
-export class MessageTransactionRequiredError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'MessageTransactionRequiredError');
-  }
-
-  constructor(cause?: unknown) {
-    super(TRANSACTION_REQUIRED_MESSAGE);
-    this.name = 'MessageTransactionRequiredError';
-    markRuntimeError(this, this.name);
-    if (cause) {
-      (this as Error & { cause?: unknown }).cause = cause;
-    }
-  }
-}
-
-export class MessageModelResolutionError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'MessageModelResolutionError');
-  }
-
-  role: MessageModelRole;
-  modelName: string;
-  connectionName: string;
-
-  constructor(role: MessageModelRole, modelName: string, connectionName: string, cause?: unknown) {
-    super(`message-service could not resolve ${role} model "${modelName}" on ${connectionName}`);
-    this.name = 'MessageModelResolutionError';
-    markRuntimeError(this, this.name);
-    this.role = role;
-    this.modelName = modelName;
-    this.connectionName = connectionName;
-    if (cause) {
-      (this as Error & { cause?: unknown }).cause = cause;
-    }
-  }
-}
-
-export class PaymentSessionCompensationError extends Error {
-  static [Symbol.hasInstance](value: unknown): boolean {
-    return isRuntimeError(value, 'PaymentSessionCompensationError');
-  }
-
-  sessionId: string;
-  operation: 'expire';
-  compensationError: unknown;
-  originalError: unknown;
-  hookError?: unknown;
-
-  constructor(
-    sessionId: string,
-    operation: 'expire',
-    compensationError: unknown,
-    originalError: unknown,
-    hookError?: unknown,
-  ) {
-    super(`payment session compensation failed for session "${sessionId}" during ${operation}`);
-    this.name = 'PaymentSessionCompensationError';
-    markRuntimeError(this, this.name);
-    this.sessionId = sessionId;
-    this.operation = operation;
-    this.compensationError = compensationError;
-    this.originalError = originalError;
-    this.hookError = hookError;
-    (this as Error & { cause?: unknown }).cause = compensationError;
-  }
-}
+// Error definitions live in ./errors.ts (shared failure contract) and are
+// re-exported above; persistence policy lives in ./persistence.ts.
 
 // ---------------------------------------------------------------------------
 // MessageService
@@ -439,6 +301,7 @@ export class MessageService {
   private clientRequestWaitMs: number;
   private clientRequestPollMs: number;
   private clientRequestDelay: (ms: number) => Promise<void>;
+  private clientRequestNow: () => number;
   private actionLeaseMs: number;
 
   constructor(options: MessageServiceOptions) {
@@ -459,10 +322,23 @@ export class MessageService {
     if (this.defaultListLimit > this.maxListLimit) {
       throw new InvalidPaginationValueError('defaultListLimit must be less than or equal to maxListLimit');
     }
-    this.clientRequestLeaseMs = options.clientRequestLeaseMs ?? CLIENT_REQUEST_LEASE_MS;
-    this.clientRequestWaitMs = options.clientRequestWaitMs ?? CLIENT_REQUEST_WAIT_MS;
-    this.clientRequestPollMs = options.clientRequestPollMs ?? CLIENT_REQUEST_POLL_MS;
+    this.clientRequestLeaseMs = this.validateDurationOption(
+      'clientRequestLeaseMs',
+      options.clientRequestLeaseMs ?? CLIENT_REQUEST_LEASE_MS,
+      1,
+    );
+    this.clientRequestWaitMs = this.validateDurationOption(
+      'clientRequestWaitMs',
+      options.clientRequestWaitMs ?? CLIENT_REQUEST_WAIT_MS,
+      0,
+    );
+    this.clientRequestPollMs = this.validateDurationOption(
+      'clientRequestPollMs',
+      options.clientRequestPollMs ?? CLIENT_REQUEST_POLL_MS,
+      1,
+    );
     this.clientRequestDelay = options.clientRequestDelay ?? this.delay;
+    this.clientRequestNow = options.clientRequestNow ?? (() => Date.now());
     this.actionLeaseMs = ACTION_LEASE_MS;
   }
 
@@ -473,6 +349,10 @@ export class MessageService {
   /**
    * Find a message by id, falling back to the archive. Returns null if
    * the message does not exist in either collection.
+   *
+   * Trusted host-level operation: takes no principal and performs no
+   * user-identity validation. Hosts must authorize the returned document
+   * before exposing it to a user (see `getActions`/`handleAction`).
    */
   async findMessage(
     messageId: string,
@@ -492,6 +372,13 @@ export class MessageService {
     )) as IMessageArchive | null;
   }
 
+  /**
+   * Same as `findMessage`, but throws `MessageNotFoundError` when neither the
+   * active nor the archive collection holds the id.
+   *
+   * Trusted host-level operation: no principal validation. Hosts must
+   * authorize before exposing the result to a user.
+   */
   async findMessageOrThrow(
     messageId: string,
     options: {
@@ -505,11 +392,29 @@ export class MessageService {
     }
     return message;
   }
-
   // -------------------------------------------------------------------------
   // Create message from template
   // -------------------------------------------------------------------------
 
+  /**
+   * Create messages from a trusted template as an authenticated user.
+   *
+   * User-facing entry point: `user` (and `payerUser` when provided) must
+   * carry a valid principal id (non-empty string or ObjectId; numbers,
+   * arrays, and plain objects are rejected with `InvalidMessageUserError`)
+   * before any template, provider, or model effect runs. Both the
+   * idempotent (`clientRequestId`) and direct branches enforce this.
+   *
+   * Idempotent replay contract (MSGF-06): a completed same-scope replay
+   * returns the current active/archive records merged from both collections
+   * (`Array<IMessage | IMessageArchive>`), sorted by exact
+   * `clientRequestItemIndex`, without rerunning preparation/payment. Fresh
+   * creates resolve active documents only. Archive entries are returned as
+   * persisted `IMessageArchive` — never cast to `IMessage` and never given
+   * fabricated active-only methods. Narrow with `'archivedAt' in doc`.
+   * Archive retention bounds the replay window: deleted archive documents
+   * surface as `ClientRequestInconsistentStateError`, not partial replays.
+   */
   async createMessage(params: {
     templateCd: string;
     user: MessageUser;
@@ -525,7 +430,7 @@ export class MessageService {
      * characters. Replays are scoped to the requester identity and template.
      */
     clientRequestId?: unknown;
-  }): Promise<IMessage[]> {
+  }): Promise<Array<IMessage | IMessageArchive>> {
     const {
       templateCd,
       user,
@@ -537,6 +442,14 @@ export class MessageService {
       req,
       clientRequestId,
     } = params;
+
+    // Principal validation before any template/provider/model effect in both
+    // branches. Valid string ids (trimmed) and ObjectId instances pass;
+    // the original `_id` type is preserved downstream for storage.
+    this.requireUserId(user);
+    if (payerUser !== undefined) {
+      this.requireUserId(payerUser);
+    }
 
     const normalizedClientRequestId = this.normalizeClientRequestId(clientRequestId);
 
@@ -576,7 +489,7 @@ export class MessageService {
     payerUser?: MessageUser;
     req?: unknown;
     clientRequestId: string;
-  }): Promise<IMessage[]> {
+  }): Promise<Array<IMessage | IMessageArchive>> {
     const clientRequestScope = this.buildClientRequestScope(params.clientRequestId, params.user, params.templateCd);
 
     const replay = await this.findCompletedClientRequestReplay(clientRequestScope);
@@ -611,7 +524,7 @@ export class MessageService {
     req?: unknown;
     clientRequestScope?: ClientRequestScope;
     clientRequestLease?: ClientRequestLease;
-  }): Promise<IMessage[]> {
+  }): Promise<Array<IMessage | IMessageArchive>> {
     const {
       templateCd,
       user,
@@ -649,14 +562,24 @@ export class MessageService {
     const items = Array.isArray(messageData) ? messageData : [messageData];
     if (clientRequestScope && clientRequestLease) {
       const docs: MessageDocumentData[] = [];
-      for (let index = 0; index < items.length; index++) {
-        docs.push(await this.buildMessageDocument(template, items[index], ctx, clientRequestScope, index));
+      try {
+        for (let index = 0; index < items.length; index++) {
+          docs.push(await this.buildMessageDocument(template, items[index], ctx, clientRequestScope, index));
+        }
+      } catch (error) {
+        // A later item's provider/render failure must not strand sessions
+        // created for earlier items. `buildMessageDocument` already attempts
+        // its own session for the failing item; compensate every prior doc
+        // here. If compensation itself fails its error (which preserves this
+        // `error` as `originalError`) propagates instead.
+        await this.compensatePaymentSessions(docs, error, clientRequestScope);
+        throw error;
       }
 
       return this.persistPreparedBatchTransaction(clientRequestScope, clientRequestLease, docs);
     }
 
-    const results: IMessage[] = [];
+    const results: Array<IMessage | IMessageArchive> = [];
     for (let index = 0; index < items.length; index++) {
       const item = items[index];
       results.push(await this.persistItem(template, item, ctx, clientRequestScope, clientRequestScope ? index : null));
@@ -669,6 +592,13 @@ export class MessageService {
   // Create generic notification (no template, no actions)
   // -------------------------------------------------------------------------
 
+  /**
+   * Create a generic notification without template preparation or actions.
+   *
+   * Trusted host-level operation: takes raw `UserId` values (string or
+   * ObjectId, including null) and performs no principal validation. Hosts
+   * own authentication/authorization for notification creation.
+   */
   async createNotification(
     params: {
       fromUser?: UserId | null;
@@ -701,6 +631,8 @@ export class MessageService {
    * Build a Mongoose filter for messages visible to the given user.
    * Exposed so callers can use the same visibility rules for custom
    * queries (e.g. with `populate`).
+   *
+   * User-facing helper: validates `user` before building the filter.
    */
   buildVisibilityFilter(user: MessageUser): Record<string, unknown> {
     const userId = this.requireUserId(user);
@@ -713,6 +645,9 @@ export class MessageService {
    * List active (non-archived) messages visible to a user.
    * Returns messages where the user is the sender, the receiver,
    * or matches one of the recipient's roles.
+   *
+   * User-facing operation: validates `user` via the shared principal
+   * contract. Returns `IMessage[]` ordered by `{ createdAt: -1, _id: -1 }`.
    */
   async listMessages(params: {
     user: MessageUser;
@@ -736,6 +671,8 @@ export class MessageService {
   /**
    * Count active (non-archived) messages visible to a user.
    * Useful for badge indicators ("3 new messages").
+   *
+   * User-facing operation: validates `user` via the shared principal contract.
    */
   async countMessages(user: MessageUser): Promise<number> {
     const Message = this.resolveModel('active');
@@ -746,23 +683,46 @@ export class MessageService {
   // Get actions for a message
   // -------------------------------------------------------------------------
 
+  /**
+   * Get available actions for a message as an authenticated user.
+   *
+   * User-facing operation: `options.user` is required and must carry a valid
+   * principal id (non-empty string or ObjectId). It is validated before any
+   * model lookup or template operation; invalid principals throw
+   * `InvalidMessageUserError`.
+   *
+   * Returns `{ uiTemplate, actions }` for visible messages, or `null` when the
+   * message is missing, the user has no sender/receiver relationship (unless
+   * `isAdmin`), or the template is unknown. Admin (`isAdmin`) and archived
+   * views return the resolved `uiTemplate` with an empty action list without
+   * evaluating action `condition` predicates. Eligible active listings
+   * evaluate conditions against the persisted message; action labels and
+   * confirmations render from persisted `message.payload` (missing values
+   * render empty), distinct from creation-time `templateData`.
+   */
   async getActions(
     messageId: string,
     usertype: Usertype,
     options: {
+      /** Authenticated caller; required. Validated before any effect. */
+      user: MessageUser;
       permissions?: Record<string, boolean>;
       message?: IMessage | IMessageArchive;
-      user?: MessageUser;
       isAdmin?: boolean;
       populate?: string | string[] | mongoose.PopulateOptions | mongoose.PopulateOptions[];
-    } = {},
+    },
   ): Promise<{ uiTemplate: UiTemplate; actions: InterpolatedAction[] } | null> {
-    const message = options.message ?? (await this.findMessage(messageId, { populate: options.populate }));
+    const user = requireMessageUserId((options as { user?: unknown } | undefined)?.user);
+    const authorizedUser = { ...(options as { user?: MessageUser }).user!, _id: user };
+    const message =
+      (options as { message?: IMessage | IMessageArchive; populate?: unknown }).message ??
+      (await this.findMessage(messageId, {
+        populate: (options as { populate?: string | string[] | mongoose.PopulateOptions | mongoose.PopulateOptions[] })
+          .populate,
+      }));
     if (!message) return null;
-    const user = this.requireUserId(options.user);
-    const authorizedUser = { ...options.user!, _id: user };
 
-    if (!options.isAdmin) {
+    if (!(options as { isAdmin?: boolean }).isAdmin) {
       const isAllowedUsertype =
         usertype === 'sender' ? message.isSender(authorizedUser) : message.isReceiver(authorizedUser);
       if (!isAllowedUsertype) {
@@ -777,15 +737,22 @@ export class MessageService {
     const template = this.registry.find(message.templateCd);
     if (!template) return null;
 
+    // Read-only/admin/archive views must not invoke action `condition`
+    // predicates merely to discard their results. Resolve the uiTemplate
+    // without filtering actions.
+    if (options.isAdmin || this.isArchivedMessage(message)) {
+      return { uiTemplate: resolveUiTemplate(template.uiTemplate, usertype), actions: [] };
+    }
+
+    // Eligible active listings evaluate conditions against the persisted
+    // message. Action labels/confirmations compile against persisted
+    // `message.payload` (not creation-time `templateData`); missing values
+    // render as empty strings.
     const data = (message.payload as Record<string, unknown> | undefined) ?? {};
     const interpolated = interpolateTemplate(template, data, usertype, {
       permissions: options.permissions,
       message: message as unknown as Record<string, unknown>,
     });
-
-    if (options.isAdmin || this.isArchivedMessage(message)) {
-      return { uiTemplate: interpolated.uiTemplate, actions: [] };
-    }
 
     return { uiTemplate: interpolated.uiTemplate, actions: interpolated.actions };
   }
@@ -794,6 +761,17 @@ export class MessageService {
   // Handle an action on a message
   // -------------------------------------------------------------------------
 
+  /**
+   * Execute an action with a durable claim, stable handler attempt key,
+   * transactional archive, and post-commit sender notification status.
+   *
+   * User-facing operation: `data.user` is validated before any template or
+   * model effect. Authorization and handler selection bind to the persisted
+   * claim, not the caller-supplied `data.message` copy. Archived messages
+   * apply a sender/receiver relationship gate before disclosing attempt IDs
+   * or notification state. Returns the handler's value (`unknown`; templates
+   * document their own shape).
+   */
   async handleAction(
     templateCd: string,
     actionCd: string,
@@ -807,6 +785,11 @@ export class MessageService {
     const userId = this.requireUserId(data.user);
     const authorizedUser = { ...data.user, _id: userId };
     if (this.isArchivedMessage(data.message)) {
+      // Relationship gate before disclosing archived outcomes: unrelated callers
+      // receive a stable denial without attempt IDs or notification state.
+      // Authorized (sender/receiver) retries remain available even when the
+      // template has been removed.
+      this.authorizeArchivedOutcome(data.message, authorizedUser);
       if (data.message.actionNotificationState === 'pending' || data.message.actionNotificationState === 'failed') {
         throw new ActionNotificationPendingError(
           String(data.message._id),
@@ -817,6 +800,9 @@ export class MessageService {
       throw new MessageArchivedError(String(data.message._id));
     }
 
+    // Fast-fail pre-checks against the caller-supplied copy. These are not
+    // authoritative: the persisted claim below is re-validated before any
+    // template effect runs.
     if (templateCd !== data.message.templateCd) {
       throw new ActionTemplateMismatchError(data.message.templateCd, templateCd);
     }
@@ -832,6 +818,34 @@ export class MessageService {
     }
 
     const claim = await this.claimAction(data.message, actionCd, authorizedUser);
+    // Authoritative authorization + handler/template selection bound to the
+    // persisted document returned by the atomic claim. Covers changed
+    // templateCd, recipient (toUser/fromUser), roles (toRoles), and
+    // condition-relevant payload data. A denied claim is released via the
+    // fenced retryable path so legitimate retries are not stranded.
+    let authorizedAction: MessageAction;
+    try {
+      authorizedAction = this.authorizeClaimedAction(templateCd, actionCd, claim.message, authorizedUser, {
+        permissions: data.permissions,
+      });
+    } catch (authError) {
+      try {
+        await this.markActionRetryable(
+          claim.message._id,
+          claim.actionAttemptId,
+          claim.actionOwnerToken,
+          authError,
+          claim.message,
+        );
+      } catch (releaseError) {
+        if (!(releaseError instanceof ActionConflictError)) {
+          throw releaseError;
+        }
+        // Ownership lost between claim and release: another worker owns the
+        // message now. Still report the denial for this caller.
+      }
+      throw authError;
+    }
     const ctx = this.buildActionContext({
       ...data,
       user: authorizedUser,
@@ -840,26 +854,46 @@ export class MessageService {
     });
     let result: unknown;
     try {
-      result = await action.runHandler(ctx);
+      result = await authorizedAction.runHandler(ctx);
     } catch (error) {
-      await this.markActionRetryable(data.message._id, claim.actionAttemptId, error, claim.message);
+      await this.markActionRetryable(
+        data.message._id,
+        claim.actionAttemptId,
+        claim.actionOwnerToken,
+        error,
+        claim.message,
+      );
       throw new ActionRetryableError(String(data.message._id), claim.actionAttemptId, error);
     }
 
-    await this.archiveClaimedMessage(claim.message, action, authorizedUser, claim.actionAttemptId);
+    await this.archiveClaimedMessage(
+      claim.message,
+      authorizedAction,
+      authorizedUser,
+      claim.actionAttemptId,
+      claim.actionOwnerToken,
+    );
 
-    if (action.senderNotification) {
+    if (authorizedAction.senderNotification) {
       try {
-        await this.runSenderNotification(action, ctx, claim.message);
+        await this.runSenderNotification(authorizedAction, ctx, claim.message);
         await this.markActionNotificationState(
           data.message._id,
           claim.actionAttemptId,
+          claim.actionOwnerToken,
           'sent',
           undefined,
           claim.message,
         );
       } catch (error) {
-        await this.markActionNotificationState(data.message._id, claim.actionAttemptId, 'failed', error, claim.message);
+        await this.markActionNotificationState(
+          data.message._id,
+          claim.actionAttemptId,
+          claim.actionOwnerToken,
+          'failed',
+          error,
+          claim.message,
+        );
         throw new ActionNotificationPendingError(String(data.message._id), claim.actionAttemptId, result, error);
       }
     }
@@ -947,7 +981,7 @@ export class MessageService {
   }
 
   private async persistItem(
-    template: MessageTemplate,
+    template: MessageTemplate | RegisteredMessageTemplate,
     m: PrepareResult,
     ctx: CreateContext,
     clientRequestScope: ClientRequestScope | undefined,
@@ -964,7 +998,7 @@ export class MessageService {
   }
 
   private async buildMessageDocument(
-    template: MessageTemplate,
+    template: MessageTemplate | RegisteredMessageTemplate,
     m: PrepareResult,
     ctx: CreateContext,
     clientRequestScope: ClientRequestScope | undefined,
@@ -986,7 +1020,11 @@ export class MessageService {
         if (!paymentSession) throw new Error('payment session creation failed');
       }
 
-      const interpolated = interpolateTemplate(template, m.templateData || {}, 'receiver');
+      // Content-only rendering: never evaluate action `condition` predicates
+      // during creation. Content compiles from `PrepareResult.templateData`;
+      // action labels/confirmations later compile from persisted
+      // `message.payload` at listing time (see `getActions`).
+      const interpolated = interpolateMessageContent(template, m.templateData || {});
 
       return {
         type,
@@ -1017,15 +1055,26 @@ export class MessageService {
     scope: ClientRequestScope,
     lease: ClientRequestLease,
     docs: MessageDocumentData[],
-  ): Promise<IMessage[]> {
-    const Message = this.resolveModel('active') as mongoose.Model<unknown> & {
-      db?: { startSession?: () => Promise<mongoose.ClientSession> };
-    };
-    const MessageRequest = this.resolveModel('request', undefined, Message);
+  ): Promise<Array<IMessage | IMessageArchive>> {
+    // Every failure before the transaction commits leaves all `docs` sessions
+    // uncommitted, including model-resolution and `startSession()` failures
+    // that occur before any write. Compensate them all; never compensate
+    // after `withTransaction` resolves (committed sessions are retained even
+    // if later `endSession()` housekeeping throws). Ambiguous provider/commit
+    // outcomes that this process cannot observe must be reconciled with the
+    // provider out of band; see the payment docs.
+    let Message: TransactionCapableActiveModel;
+    let MessageRequest: mongoose.Model<unknown>;
+    try {
+      Message = this.resolveModel('active') as TransactionCapableActiveModel;
+      MessageRequest = this.resolveModel('request', undefined, Message);
+    } catch (error) {
+      await this.compensatePaymentSessions(docs, error, scope);
+      throw error;
+    }
 
-    const operation = async (session?: mongoose.ClientSession): Promise<IMessage[]> => {
-      const created =
-        docs.length > 0 ? await Message.create(docs, session ? { session, ordered: true } : undefined) : [];
+    const operation = async (session: mongoose.ClientSession): Promise<Array<IMessage | IMessageArchive>> => {
+      const created = docs.length > 0 ? await Message.create(docs, { session, ordered: true }) : [];
       const result = (await MessageRequest.updateOne(
         { ...scope, state: 'pending', leaseOwnerId: lease.ownerId },
         {
@@ -1036,42 +1085,25 @@ export class MessageService {
             leaseExpiresAt: null,
           },
         },
-        session ? { session } : undefined,
+        { session },
       )) as { matchedCount?: number; modifiedCount?: number; n?: number };
 
       if ((result.matchedCount ?? result.n ?? 0) !== 1) {
         throw new ClientRequestPendingError(scope.clientRequestId);
       }
 
-      return created as unknown as IMessage[];
+      return created as unknown as Array<IMessage | IMessageArchive>;
     };
 
-    const startSession = Message.db?.startSession;
-    if (!startSession) {
-      try {
-        return await operation();
-      } catch (error) {
-        await this.compensatePaymentSessions(docs, error, scope);
-        throw error;
-      }
-    }
-
-    const session = await startSession.call(Message.db);
+    // Atomic batch commit always runs inside a transaction started on the
+    // owning connection. `runMessageTransaction` fails closed with
+    // `MessageTransactionRequiredError` when the model has no session
+    // capability — there is no sessionless fallback.
     try {
-      let result: IMessage[] = [];
-      await session.withTransaction(async () => {
-        result = await operation(session);
-      });
-      return result;
+      return await runMessageTransaction(Message, operation);
     } catch (error) {
-      const wrappedError = this.isTransactionSupportError(error) ? new MessageTransactionRequiredError(error) : error;
-      await this.compensatePaymentSessions(docs, wrappedError, scope);
-      if (this.isTransactionSupportError(error)) {
-        throw wrappedError;
-      }
-      throw wrappedError;
-    } finally {
-      await session.endSession();
+      await this.compensatePaymentSessions(docs, error, scope);
+      throw error;
     }
   }
 
@@ -1084,9 +1116,37 @@ export class MessageService {
       .map((doc) => doc.paymentSession)
       .filter((sessionId): sessionId is string => typeof sessionId === 'string' && sessionId.length > 0);
 
+    if (sessionIds.length === 0) return;
+    if (!this.expirePaymentSession) return;
+
+    // Attempt every session even when an earlier expiration or observer hook
+    // fails. Collect all failures and preserve the triggering error as
+    // `originalError`. A single session keeps the legacy single-session error
+    // shape; multi-session batches throw an aggregate carrying every failure.
+    const failures: PaymentSessionCompensationFailure[] = [];
+    let firstSingleError: PaymentSessionCompensationError | undefined;
     for (const sessionId of sessionIds) {
-      await this.compensatePaymentSession(sessionId, originalError, scope);
+      try {
+        await this.compensatePaymentSession(sessionId, originalError, scope);
+      } catch (error) {
+        if (error instanceof PaymentSessionCompensationError) {
+          if (!firstSingleError) firstSingleError = error;
+          failures.push({
+            sessionId: error.sessionId,
+            compensationError: error.compensationError,
+            hookError: error.hookError,
+          });
+        } else {
+          failures.push({ sessionId, compensationError: error });
+        }
+      }
     }
+
+    if (failures.length === 0) return;
+    if (sessionIds.length === 1 && firstSingleError) {
+      throw firstSingleError;
+    }
+    throw new PaymentSessionCompensationAggregateError(failures, originalError);
   }
 
   private async compensatePaymentSession(
@@ -1147,15 +1207,28 @@ export class MessageService {
     };
 
     const firstAttemptId = randomUUID();
+    const firstOwnerToken = randomUUID();
     const firstClaim = (await Message.findOneAndUpdate(
       { _id: messageId, $or: [{ actionState: 'active' }, { actionState: null }, { actionState: { $exists: false } }] },
-      { $set: { ...claimBase, actionState: 'processing', actionAttemptId: firstAttemptId } },
+      {
+        $set: {
+          ...claimBase,
+          actionState: 'processing',
+          actionAttemptId: firstAttemptId,
+          actionOwnerToken: firstOwnerToken,
+        },
+      },
       { returnDocument: 'after' },
     )) as IMessage | null;
-    if (firstClaim?.actionAttemptId) {
-      return { message: firstClaim, actionAttemptId: firstClaim.actionAttemptId };
+    if (firstClaim?.actionAttemptId && firstClaim?.actionOwnerToken) {
+      return {
+        message: firstClaim,
+        actionAttemptId: firstClaim.actionAttemptId,
+        actionOwnerToken: firstClaim.actionOwnerToken,
+      };
     }
 
+    const nextOwnerToken = randomUUID();
     const retryClaim = (await Message.findOneAndUpdate(
       {
         _id: messageId,
@@ -1163,17 +1236,24 @@ export class MessageService {
         actionAttemptId: { $type: 'string' },
         $or: [{ actionState: 'retryable' }, { actionState: 'processing', actionLeaseExpiresAt: { $lte: now } }],
       },
-      { $set: { ...claimBase, actionState: 'processing' } },
+      { $set: { ...claimBase, actionState: 'processing', actionOwnerToken: nextOwnerToken } },
       { returnDocument: 'after' },
     )) as IMessage | null;
-    if (retryClaim?.actionAttemptId) {
-      return { message: retryClaim, actionAttemptId: retryClaim.actionAttemptId };
+    if (retryClaim?.actionAttemptId && retryClaim?.actionOwnerToken) {
+      return {
+        message: retryClaim,
+        actionAttemptId: retryClaim.actionAttemptId,
+        actionOwnerToken: retryClaim.actionOwnerToken,
+      };
     }
 
     const archived = (await this.resolveModel('archive', message, Message).findById(
       messageId,
     )) as IMessageArchive | null;
     if (archived) {
+      // Same relationship gate as the direct archived path: do not disclose
+      // attempt IDs or notification state to unrelated callers.
+      this.authorizeArchivedOutcome(archived, user);
       if (archived.actionNotificationState === 'pending' || archived.actionNotificationState === 'failed') {
         throw new ActionNotificationPendingError(String(messageId), archived.actionAttemptId ?? '', undefined);
       }
@@ -1183,15 +1263,66 @@ export class MessageService {
     throw new ActionConflictError(String(messageId));
   }
 
+  /**
+   * Relationship/permission policy for archived outcomes.
+   *
+   * Only the recorded sender or receiver may observe whether an archived
+   * message is pending notification or terminally archived. This keeps
+   * authorized retries (including pending-notification retries) available even
+   * when the template has been unregistered, while unrelated callers receive a
+   * stable `ActionNotAllowedError` without attempt IDs or notification state.
+   */
+  private authorizeArchivedOutcome(message: IMessageArchive, user: MessageUser): void {
+    if (!message.isSender(user) && !message.isReceiver(user)) {
+      throw new ActionNotAllowedError();
+    }
+  }
+
+  /**
+   * Authoritative post-claim authorization bound to the persisted document
+   * returned by the atomic claim. Re-validates the requested template/action
+   * selection and the sender/receiver, permission, and condition checks
+   * against persisted `templateCd`, parties, roles, and payload data.
+   *
+   * Supported update protocol: the guarantee covers the document state as of
+   * the atomic claim (`findOneAndUpdate` returning the persisted document).
+   * Host writes that commit before the claim are observed; host writes that
+   * commit after the claim (during handler execution) are not prevented. Hosts
+   * must not mutate action-relevant fields (`templateCd`, `toUser`/`toRoles`/
+   * `fromUser`, condition payload) concurrently with in-flight actions outside
+   * a coordinated protocol. A fresh-document read alone is not a substitute
+   * for this claim-bound check.
+   */
+  private authorizeClaimedAction(
+    templateCd: string,
+    actionCd: string,
+    claimed: IMessage,
+    user: MessageUser,
+    options: { permissions?: Record<string, boolean> } = {},
+  ): MessageAction | RegisteredMessageAction {
+    if (templateCd !== claimed.templateCd) {
+      throw new ActionTemplateMismatchError(claimed.templateCd, templateCd);
+    }
+    const template = this.registry.find(claimed.templateCd);
+    if (!template) throw new TemplateNotFoundError(claimed.templateCd);
+    const action = template.actions.find((a) => a.actionCd === actionCd);
+    if (!action) throw new ActionNotFoundError(claimed.templateCd, actionCd);
+    if (!isActionAllowed(action, user, claimed, { permissions: options.permissions })) {
+      throw new ActionNotAllowedError();
+    }
+    return action;
+  }
+
   private async markActionRetryable(
     messageId: unknown,
     actionAttemptId: string,
+    actionOwnerToken: string,
     error: unknown,
     sourceDocument?: HydratedModelSource | null,
   ): Promise<void> {
     const Message = this.resolveModel('active', sourceDocument);
-    await Message.updateOne(
-      { _id: messageId, actionState: 'processing', actionAttemptId },
+    const updated = (await Message.updateOne(
+      { _id: messageId, actionState: 'processing', actionAttemptId, actionOwnerToken },
       {
         $set: {
           actionState: 'retryable',
@@ -1199,7 +1330,10 @@ export class MessageService {
           actionLeaseExpiresAt: null,
         },
       },
-    );
+    )) as { matchedCount?: number; n?: number };
+    if ((updated.matchedCount ?? updated.n ?? 0) !== 1) {
+      throw new ActionConflictError(String(messageId));
+    }
   }
 
   private async archiveClaimedMessage(
@@ -1207,10 +1341,9 @@ export class MessageService {
     action: MessageAction,
     user: MessageUser,
     actionAttemptId: string,
+    actionOwnerToken: string,
   ): Promise<void> {
-    const Message = this.resolveModel('active', message) as mongoose.Model<unknown> & {
-      db?: { startSession?: () => Promise<mongoose.ClientSession> };
-    };
+    const Message = this.resolveModel('active', message) as TransactionCapableActiveModel;
     const MessageArchive = this.resolveModel('archive', message, Message) as mongoose.Model<Record<string, unknown>>;
     const messageId = message._id;
     const data = message.toObject() as unknown as Record<string, unknown>;
@@ -1220,65 +1353,80 @@ export class MessageService {
     delete data.actionClaimedAt;
     delete data.actionLeaseExpiresAt;
     delete data.actionFailureMessage;
+    delete data.actionOwnerToken;
 
-    const operation = async (session?: mongoose.ClientSession) => {
-      await MessageArchive.create(
-        [
-          {
-            ...data,
-            actionCd: action.actionCd,
-            archivedBy: user._id,
-            archivedAt: new Date(),
-            actionAttemptId,
-            actionNotificationState: notificationState,
-            actionNotificationError: null,
-            actionNotificationAttemptedAt: null,
-          },
-        ],
-        session ? { session, ordered: true } : undefined,
-      );
+    const ownershipFilter = {
+      _id: messageId,
+      actionState: 'processing',
+      actionAttemptId,
+      actionOwnerToken,
+    };
+    const ownership = (await (
+      Message as unknown as {
+        findOne: (filter: Record<string, unknown>) => Promise<{ _id?: unknown } | null>;
+      }
+    ).findOne(ownershipFilter)) as { _id?: unknown } | null;
+    if (!ownership) {
+      throw new ActionConflictError(String(messageId));
+    }
+
+    const operation = async (session: mongoose.ClientSession) => {
+      try {
+        await MessageArchive.create(
+          [
+            {
+              ...data,
+              actionCd: action.actionCd,
+              archivedBy: user._id,
+              archivedAt: new Date(),
+              actionAttemptId,
+              actionOwnerToken,
+              actionNotificationState: notificationState,
+              actionNotificationError: null,
+              actionNotificationAttemptedAt: null,
+            },
+          ],
+          { session, ordered: true },
+        );
+      } catch (error) {
+        if (isDuplicateKeyError(error)) {
+          throw new ActionConflictError(String(messageId));
+        }
+        throw error;
+      }
       const deleted = (await Message.deleteOne(
-        { _id: messageId, actionState: 'processing', actionAttemptId },
-        session ? { session } : undefined,
+        { _id: messageId, actionState: 'processing', actionAttemptId, actionOwnerToken },
+        { session },
       )) as { deletedCount?: number; n?: number };
+      // Inside the transaction an aborted commit leaves no orphan archive,
+      // so a zero delete is purely a lost-ownership conflict.
       if ((deleted.deletedCount ?? deleted.n ?? 0) !== 1) {
         throw new ActionConflictError(String(messageId));
       }
     };
 
-    const startSession = Message.db?.startSession;
-    if (!startSession) {
-      await operation();
-      return;
-    }
-
-    const session = await startSession.call(Message.db);
+    // Archive movement is documented as atomic: it always runs inside a
+    // transaction on the owning connection. Missing session capability fails
+    // closed — there is no sessionless fallback.
     try {
-      await session.withTransaction(async () => {
-        await operation(session);
-      });
+      await runMessageTransaction(Message, operation);
     } catch (error) {
-      if (this.isTransactionSupportError(error)) {
-        await this.markActionRetryable(messageId, actionAttemptId, error, message);
-        throw new MessageTransactionRequiredError(error);
-      }
-      await this.markActionRetryable(messageId, actionAttemptId, error, message);
+      await this.markActionRetryable(messageId, actionAttemptId, actionOwnerToken, error, message);
       throw error;
-    } finally {
-      await session.endSession();
     }
   }
 
   private async markActionNotificationState(
     messageId: unknown,
     actionAttemptId: string,
+    actionOwnerToken: string,
     state: 'sent' | 'failed',
     error?: unknown,
     sourceDocument?: HydratedModelSource | null,
   ): Promise<void> {
     const MessageArchive = this.resolveModel('archive', sourceDocument);
-    await MessageArchive.updateOne(
-      { _id: messageId, actionAttemptId },
+    const updated = (await MessageArchive.updateOne(
+      { _id: messageId, actionAttemptId, actionOwnerToken },
       {
         $set: {
           actionNotificationState: state,
@@ -1286,7 +1434,10 @@ export class MessageService {
           actionNotificationAttemptedAt: new Date(),
         },
       },
-    );
+    )) as { matchedCount?: number; n?: number };
+    if ((updated.matchedCount ?? updated.n ?? 0) !== 1) {
+      throw new ActionConflictError(String(messageId));
+    }
   }
 
   private async runSenderNotification(
@@ -1361,6 +1512,26 @@ export class MessageService {
     return value;
   }
 
+  private validateDurationOption(
+    name: 'clientRequestLeaseMs' | 'clientRequestWaitMs' | 'clientRequestPollMs',
+    value: number,
+    min: number,
+  ): number {
+    if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value)) {
+      throw new InvalidMessageServiceOptionError(
+        `${name} must be a finite safe integer in [${min}, ${MAX_MESSAGE_SERVICE_TIMEOUT_MS}] ms`,
+      );
+    }
+
+    if (value < min || value > MAX_MESSAGE_SERVICE_TIMEOUT_MS) {
+      throw new InvalidMessageServiceOptionError(
+        `${name} must be a finite safe integer in [${min}, ${MAX_MESSAGE_SERVICE_TIMEOUT_MS}] ms`,
+      );
+    }
+
+    return value;
+  }
+
   private normalizeListLimit(value: number | undefined): number {
     if (value === undefined) {
       return this.defaultListLimit;
@@ -1394,23 +1565,7 @@ export class MessageService {
   }
 
   private requireUserId(user: MessageUser | undefined): string {
-    if (!user || user._id === undefined || user._id === null) {
-      throw new InvalidMessageUserError();
-    }
-
-    if (typeof user._id === 'string') {
-      const id = user._id.trim();
-      if (id.length === 0) {
-        throw new InvalidMessageUserError();
-      }
-      return id;
-    }
-
-    if (user._id instanceof mongoose.Types.ObjectId) {
-      return String(user._id);
-    }
-
-    throw new InvalidMessageUserError();
+    return requireMessageUserId(user);
   }
 
   private async findByClientRequestScope(scope: ClientRequestScope): Promise<IMessage[]> {
@@ -1419,15 +1574,133 @@ export class MessageService {
     return docs as unknown as IMessage[];
   }
 
-  private async findCompletedClientRequestReplay(scope: ClientRequestScope): Promise<IMessage[] | null> {
+  private async findArchivedByClientRequestScope(scope: ClientRequestScope): Promise<IMessageArchive[]> {
+    const MessageArchive = this.resolveModel('archive');
+    const docs = await MessageArchive.find(scope)
+      .sort({ clientRequestItemIndex: 1, _id: 1 })
+      .limit(Number.MAX_SAFE_INTEGER);
+    return docs as unknown as IMessageArchive[];
+  }
+
+  /**
+   * Merge one active snapshot and one archive snapshot for a completed scope.
+   *
+   * Archival moves a document with create-then-delete ordering, so with an
+   * active-then-archive read order a moving item is always visible in at least
+   * one snapshot (no miss). A commit landing between the two reads surfaces
+   * the same `_id` in both snapshots; deduplicating by `_id` string keeps the
+   * active copy and prevents double-counting. Returns the merged batch sorted
+   * by exact `clientRequestItemIndex`, or `null` when the merged set does not
+   * satisfy the exact distinct-index contract.
+   */
+  private mergeReplayBatch(
+    active: Array<IMessage | IMessageArchive>,
+    archived: Array<IMessage | IMessageArchive>,
+    itemCount: number,
+  ): Array<IMessage | IMessageArchive> | null {
+    const byId = new Map<string, IMessage | IMessageArchive>();
+    for (const doc of [...active, ...archived]) {
+      const key = String((doc as unknown as { _id: unknown })._id);
+      if (!byId.has(key)) {
+        byId.set(key, doc);
+      }
+    }
+    const docs = [...byId.values()];
+    const indexes = new Set(docs.map((doc) => doc.clientRequestItemIndex));
+    const hasExpectedIndexes =
+      docs.length === itemCount &&
+      indexes.size === itemCount &&
+      Array.from({ length: itemCount }, (_, index) => indexes.has(index)).every(Boolean);
+    if (!hasExpectedIndexes) {
+      return null;
+    }
+    return docs.sort((a, b) => {
+      const indexA = a.clientRequestItemIndex ?? 0;
+      const indexB = b.clientRequestItemIndex ?? 0;
+      if (indexA !== indexB) return indexA - indexB;
+      return String((a as unknown as { _id: unknown })._id).localeCompare(
+        String((b as unknown as { _id: unknown })._id),
+      );
+    });
+  }
+
+  private async buildCompletedReplay(
+    reservation: MessageRequestRecord,
+    scope: ClientRequestScope,
+    cachedActive?: Array<IMessage | IMessageArchive>,
+    cachedArchived?: Array<IMessageArchive>,
+  ): Promise<Array<IMessage | IMessageArchive>> {
+    if (reservation.itemCount === null || reservation.itemCount < 0 || !Number.isInteger(reservation.itemCount)) {
+      throw new ClientRequestInconsistentStateError(
+        scope.clientRequestId,
+        'completed reservation has an invalid itemCount',
+      );
+    }
+
+    if (reservation.itemCount === 0) {
+      const active = cachedActive ?? (await this.findByClientRequestScope(scope));
+      const archived = cachedArchived ?? (await this.findArchivedByClientRequestScope(scope));
+      if (active.length > 0 || archived.length > 0) {
+        throw new ClientRequestInconsistentStateError(
+          scope.clientRequestId,
+          'completed zero-item reservation has messages',
+        );
+      }
+      return [];
+    }
+
+    const itemCount = reservation.itemCount;
+    let active: Array<IMessage | IMessageArchive> = cachedActive ?? (await this.findByClientRequestScope(scope));
+    let archived: Array<IMessage | IMessageArchive> =
+      cachedArchived ?? (await this.findArchivedByClientRequestScope(scope));
+    const merged = this.mergeReplayBatch(active, archived, itemCount);
+    if (merged) {
+      return merged;
+    }
+
+    // A concurrent archive commit or reservation completion may have landed
+    // between the two collection reads. One bounded reconciliation re-read of
+    // both collections absorbs that transit before declaring true corruption.
+    active = await this.findByClientRequestScope(scope);
+    archived = await this.findArchivedByClientRequestScope(scope);
+    const reconciled = this.mergeReplayBatch(active, archived, itemCount);
+    if (reconciled) {
+      return reconciled;
+    }
+
+    const indexes = new Set([...active, ...archived].map((doc) => doc.clientRequestItemIndex));
+    throw new ClientRequestInconsistentStateError(
+      scope.clientRequestId,
+      `completed reservation expects item indexes 0..${itemCount - 1} but found ${JSON.stringify(Array.from(indexes))}`,
+    );
+  }
+
+  private async findCompletedClientRequestReplay(
+    scope: ClientRequestScope,
+  ): Promise<Array<IMessage | IMessageArchive> | null> {
     const reservation = await this.findClientRequestReservation(scope);
-    const docs = await this.findByClientRequestScope(scope);
 
     if (!reservation) {
-      if (docs.length > 0) {
+      // A winning caller may commit its reservation between this read and the
+      // message reads below. Re-read the reservation before declaring
+      // "messages exist without a reservation" so that race cannot
+      // false-corrupt; only a stable second miss with visible messages throws.
+      const active = await this.findByClientRequestScope(scope);
+      const archived = await this.findArchivedByClientRequestScope(scope);
+      if (active.length === 0 && archived.length === 0) {
+        return null;
+      }
+      const reread = await this.findClientRequestReservation(scope);
+      if (!reread) {
         throw new ClientRequestInconsistentStateError(scope.clientRequestId, 'messages exist without a reservation');
       }
-      return null;
+      if (reread.state === 'failed') {
+        throw new ClientRequestFailedError(scope.clientRequestId, reread.failureMessage);
+      }
+      if (reread.state !== 'completed') {
+        return null;
+      }
+      return this.buildCompletedReplay(reread, scope, active, archived);
     }
 
     if (reservation.state === 'failed') {
@@ -1438,43 +1711,15 @@ export class MessageService {
       return null;
     }
 
-    if (reservation.itemCount === null || reservation.itemCount < 0 || !Number.isInteger(reservation.itemCount)) {
-      throw new ClientRequestInconsistentStateError(
-        scope.clientRequestId,
-        'completed reservation has an invalid itemCount',
-      );
-    }
-
-    if (reservation.itemCount === 0) {
-      if (docs.length > 0) {
-        throw new ClientRequestInconsistentStateError(
-          scope.clientRequestId,
-          'completed zero-item reservation has messages',
-        );
-      }
-      return [];
-    }
-
-    const indexes = new Set(docs.map((doc) => doc.clientRequestItemIndex));
-    const hasExpectedIndexes =
-      docs.length === reservation.itemCount &&
-      indexes.size === reservation.itemCount &&
-      Array.from({ length: reservation.itemCount }, (_, index) => indexes.has(index)).every(Boolean);
-
-    if (!hasExpectedIndexes) {
-      throw new ClientRequestInconsistentStateError(
-        scope.clientRequestId,
-        `completed reservation expects item indexes 0..${reservation.itemCount - 1} but found ${JSON.stringify(
-          Array.from(indexes),
-        )}`,
-      );
-    }
-
-    return docs;
+    return this.buildCompletedReplay(reservation, scope);
   }
 
   private async acquireClientRequestStart(scope: ClientRequestScope): Promise<ClientRequestStart> {
-    const deadline = Date.now() + this.clientRequestWaitMs;
+    // Elapsed-time wait driven by the injected clock. The deadline bounds how
+    // long a duplicate polls for completion/takeover; it never cancels a hung
+    // database/provider operation — each `await` below still resolves on its
+    // own, the deadline only decides whether to poll again or throw pending.
+    const deadline = this.clientRequestNow() + this.clientRequestWaitMs;
 
     while (true) {
       const lease = await this.tryAcquireClientRequestLease(scope);
@@ -1487,11 +1732,13 @@ export class MessageService {
         return { kind: 'replay', replay };
       }
 
-      if (Date.now() >= deadline) {
+      if (this.clientRequestNow() >= deadline) {
         throw new ClientRequestPendingError(scope.clientRequestId);
       }
 
-      await this.clientRequestDelay(Math.min(this.clientRequestPollMs, Math.max(deadline - Date.now(), 0)));
+      await this.clientRequestDelay(
+        Math.min(this.clientRequestPollMs, Math.max(deadline - this.clientRequestNow(), 0)),
+      );
     }
   }
 
@@ -1512,11 +1759,11 @@ export class MessageService {
         state: 'pending',
         itemCount: null,
         leaseOwnerId: ownerId,
-        leaseExpiresAt: new Date(Date.now() + this.clientRequestLeaseMs),
+        leaseExpiresAt: new Date(this.clientRequestNow() + this.clientRequestLeaseMs),
       });
       return { ownerId };
     } catch (error) {
-      if (this.isDuplicateKeyError(error)) {
+      if (isDuplicateKeyError(error)) {
         return null;
       }
 
@@ -1530,11 +1777,11 @@ export class MessageService {
     const MessageRequest = this.resolveModel('request');
     const ownerId = randomUUID();
     const reservation = (await MessageRequest.findOneAndUpdate(
-      { ...scope, state: 'pending', leaseExpiresAt: { $lte: new Date() } },
+      { ...scope, state: 'pending', leaseExpiresAt: { $lte: new Date(this.clientRequestNow()) } },
       {
         $set: {
           leaseOwnerId: ownerId,
-          leaseExpiresAt: new Date(Date.now() + this.clientRequestLeaseMs),
+          leaseExpiresAt: new Date(this.clientRequestNow() + this.clientRequestLeaseMs),
         },
       },
       { returnDocument: 'after' },
@@ -1564,19 +1811,6 @@ export class MessageService {
           leaseExpiresAt: null,
         },
       },
-    );
-  }
-
-  private isDuplicateKeyError(error: unknown): error is { code: number } {
-    return error instanceof Error && 'code' in error && error.code === DUPLICATE_KEY_ERROR_CODE;
-  }
-
-  private isTransactionSupportError(error: unknown): boolean {
-    if (!(error instanceof Error)) return false;
-    return (
-      error.message.includes('Transaction numbers are only allowed') ||
-      error.message.includes('Transaction is not supported') ||
-      error.message.includes('transactions are not supported')
     );
   }
 

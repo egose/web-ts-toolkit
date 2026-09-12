@@ -1,14 +1,13 @@
 import JsonRouter from '@web-ts-toolkit/express-json-router';
-import type mongoose from 'mongoose';
 import type { Request, Response, NextFunction } from 'express';
 import type { MessageUser } from './types/message';
-import type { PaymentProvider } from './providers/payment';
 import {
   ActionConflictError,
   ActionNotificationPendingError,
   ActionNotAllowedError,
   ActionNotFoundError,
   ActionRetryableError,
+  InvalidMessageServiceOptionError,
   InvalidMessageUserError,
   ClientRequestFailedError,
   ClientRequestPendingError,
@@ -17,9 +16,10 @@ import {
   MessageNotFoundError,
   MessageService,
   TemplateNotFoundError,
+  requireMessageUserId,
 } from './message-service';
 import type { MessageServiceOptions } from './message-service';
-import { TemplateRegistry } from './template-registry';
+import { hasExplicitPermissionGrant } from './template-engine';
 
 // ---------------------------------------------------------------------------
 // Action code validation
@@ -102,12 +102,14 @@ function assertValidBody(body: unknown): asserts body is Record<string, unknown>
   }
 }
 
-function requireUser(user: MessageUser | undefined): MessageUser {
-  if (!user || user._id === undefined || user._id === null || String(user._id).trim().length === 0) {
+function requireUser(user: unknown): MessageUser {
+  try {
+    requireMessageUserId(user);
+  } catch {
     throw new JsonRouter.clientErrors.UnauthorizedError('authentication required');
   }
 
-  return user;
+  return user as MessageUser;
 }
 
 function isMongooseCastError(error: unknown): boolean {
@@ -142,8 +144,26 @@ function mapServiceError(error: unknown): never {
   if (error instanceof InvalidMessageUserError) {
     throw new JsonRouter.clientErrors.UnauthorizedError('authentication required');
   }
-  if (error instanceof ClientRequestPendingError || error instanceof ClientRequestFailedError) {
+  if (error instanceof ClientRequestPendingError) {
     throw new JsonRouter.clientErrors.ConflictError(error.message);
+  }
+  if (error instanceof ClientRequestFailedError) {
+    // Stable public failure without the recorded cause text. The persisted
+    // `failureMessage` stays in the request record and on
+    // `error.failureReason`/`cause` for internal observers; HTTP only carries
+    // the caller-supplied scoped id plus an actionable outcome. Never forward
+    // `error.message` verbatim here: older records/errors may interpolate the
+    // cause, and future edits must not reintroduce that crossing.
+    // Audit (MSGF-09): other mapped lifecycle errors forward only
+    // caller-supplied/authorized identifiers — pending/conflict carry
+    // request/message/attempt ids, archived outcomes are gated by the service
+    // relationship policy before any attempt id is disclosed, and
+    // template/action-not-found carry only route-supplied codes. Retryable and
+    // pending-notification causes stay on `error.cause`, which the HTTP
+    // serializers do not emit.
+    throw new JsonRouter.clientErrors.ConflictError(
+      `clientRequestId "${error.clientRequestId}" previously failed; retry with a new clientRequestId`,
+    );
   }
   if (isMongooseCastError(error)) {
     throw new JsonRouter.clientErrors.BadRequestError('id must be a valid ObjectId');
@@ -155,59 +175,154 @@ function mapServiceError(error: unknown): never {
 // createMessageRoutes
 // ---------------------------------------------------------------------------
 
-export interface MessageRoutesOptions {
-  /** Mongoose model getter */
-  getModel: (name: string) => mongoose.Model<unknown>;
-
-  /** Payment provider (optional — enables payment session handling) */
-  paymentProvider?: PaymentProvider | null;
-
-  /** Optional hook called when expiring an uncommitted payment session fails. */
-  onPaymentCompensationFailure?: MessageServiceOptions['onPaymentCompensationFailure'];
-
-  /** Admin roles that receive messages when no toUser/toRoles specified */
-  adminRoles?: string[];
-
-  /**
-   * Custom template registry. Use this to isolate templates per app or test
-   * instead of relying on the global `defaultRegistry`. Pass the same registry
-   * instance to `MessageService` if you also construct one directly.
-   */
-  registry?: TemplateRegistry;
-
+/**
+ * Route-only behavior options shared by both composition paths.
+ *
+ * These never configure the underlying `MessageService`: auth middleware,
+ * request extractors, and the admin read-only permission key. They apply
+ * identically whether routes construct a service or reuse an injected one.
+ */
+export interface MessageRoutesBehaviorOptions {
   /** Custom auth middleware applied to all routes */
   authMiddleware?: ((req: Request, res: Response, next: NextFunction) => void)[];
 
   /**
    * Extract user from request (default: req._user || req.user). All routes
-   * require this extractor to return a user with a non-empty `_id` before any
-   * service, template, payment, model, or action side effect runs.
+   * require this extractor to return a user with a valid `_id` (non-empty
+   * string or ObjectId; numbers, arrays, and plain objects are rejected)
+   * before any service, template, payment, model, or action side effect runs.
+   * Shares the service's principal-validation contract.
    */
   getUser?: (req: Request) => MessageUser | undefined;
 
-  /** Extract permissions from request (default: req._permissions || {}) */
+  /**
+   * Extract permissions from request (default: req._permissions || {}).
+   * Permission grants throughout the package (UI filtering, action
+   * execution, admin read-only) require an own property strictly equal to
+   * `true`; custom extractors must return plain own-boolean maps. Inherited
+   * properties and truthy non-booleans are denied.
+   */
   getPermissions?: (req: Request) => Record<string, boolean>;
 
   /** Extract identity from request (default: req._identity || {}) */
   getIdentity?: (req: Request) => Record<string, unknown>;
 
   /**
-   * Permission key that, when truthy, makes `getActions` return an empty
-   * action list (read-only view). Defaults to `'is.admin'`.
+   * Permission key that, when granted as an own boolean `true`, makes
+   * `getActions` return an empty action list (read-only view). Defaults to
+   * `'is.admin'`. Uses the same explicit-grant predicate as UI filtering and
+   * action execution, so inheritance (e.g. `constructor`) or truthy
+   * non-booleans cannot enable admin read-only mode.
    */
   adminPermissionKey?: string;
 }
 
 /**
+ * Convenience-construction path: routes build and own a `MessageService`
+ * from the full service option set. `service` must be absent; every other
+ * service knob (`getModel`, `connection`, `modelNames`, payment, `registry`,
+ * list limits, and `clientRequest*` timing/test hooks) is forwarded verbatim
+ * to `new MessageService(...)` so the route service never drifts behind the
+ * direct-service configuration surface.
+ */
+export interface MessageRoutesConstructionOptions extends MessageRoutesBehaviorOptions, MessageServiceOptions {
+  /**
+   * Must be absent on this path. Supplying `service` together with any
+   * service construction option is a conflict (see
+   * `MessageRoutesInjectionOptions`); the factory throws
+   * `InvalidMessageServiceOptionError` instead of silently ignoring options.
+   */
+  service?: undefined;
+  /** Mongoose model getter (required on this path for backwards compatibility). */
+  getModel: NonNullable<MessageServiceOptions['getModel']>;
+}
+
+/**
+ * Service-injection path: routes reuse the exact supplied configured
+ * service (custom `modelNames`, `connection`, timing policies, providers,
+ * and registry included). No second service or global registry is created.
+ * Every service construction option is typed `never` here and rejected at
+ * runtime; route-only behavior options remain allowed.
+ */
+export interface MessageRoutesInjectionOptions extends MessageRoutesBehaviorOptions {
+  /** Existing configured service reused verbatim (`returned.service === supplied`). */
+  service: MessageService;
+  getModel?: never;
+  connection?: never;
+  modelNames?: never;
+  paymentProvider?: never;
+  onPaymentCompensationFailure?: never;
+  adminRoles?: never;
+  registry?: never;
+  defaultListLimit?: never;
+  maxListLimit?: never;
+  clientRequestLeaseMs?: never;
+  clientRequestWaitMs?: never;
+  clientRequestPollMs?: never;
+  clientRequestDelay?: never;
+  clientRequestNow?: never;
+}
+
+/**
+ * Supported route composition options: either construct a service from
+ * service options or reuse an existing service — never both.
+ *
+ * - Construction: `createMessageRoutes({ getModel, registry, ... })`.
+ * - Injection: `createMessageRoutes({ service, getUser, ... })`.
+ *
+ * Combining `service` with any service construction option throws
+ * `InvalidMessageServiceOptionError` at runtime (and fails strict type
+ * checking via the `never` fields on the injection branch) rather than
+ * silently ignoring the conflicting options.
+ */
+export type MessageRoutesOptions = MessageRoutesConstructionOptions | MessageRoutesInjectionOptions;
+
+const SERVICE_CONSTRUCTION_KEYS = [
+  'getModel',
+  'connection',
+  'modelNames',
+  'paymentProvider',
+  'onPaymentCompensationFailure',
+  'adminRoles',
+  'registry',
+  'defaultListLimit',
+  'maxListLimit',
+  'clientRequestLeaseMs',
+  'clientRequestWaitMs',
+  'clientRequestPollMs',
+  'clientRequestDelay',
+  'clientRequestNow',
+] as const;
+
+/**
  * Create a JsonRouter with the message template routes.
  * Mount via `router.original` and apply your own auth/permission middleware.
+ *
+ * Composition (MSGF-11):
+ * - Convenience construction: `createMessageRoutes({ getModel, registry,
+ *   clientRequestWaitMs, ... })` builds and owns a `MessageService` from the
+ *   full service option set (no subsets).
+ * - Service injection: `createMessageRoutes({ service })` reuses the exact
+ *   supplied configured service — custom `modelNames`, `connection`, timing
+ *   policies, providers, and registry included — without creating a second
+ *   service or touching the global registry. Route-only behavior options
+ *   (`authMiddleware`, `getUser`, `getPermissions`, `getIdentity`,
+ *   `adminPermissionKey`) still apply on both paths.
+ *
+ * Combining `service` with any service construction option throws
+ * `InvalidMessageServiceOptionError` instead of silently ignoring conflicts.
+ * No per-method service callbacks are accepted; routes call the service API
+ * directly so authentication/validation/error mapping stay identical on both
+ * paths.
  *
  * Routes:
  *   POST /new/:templateCd        — create message from template
  *   GET  /:id/actions/:usertype  — get available actions for a message
  *   POST /:id/action/:actionCd   — execute an action (POST)
  *
- * All routes require a resolved user with a non-empty `_id`. Route parameters
+ * All routes require a resolved user with a valid `_id` (non-empty string
+ * or ObjectId; numbers, arrays, and plain objects are rejected with 401).
+ * Route parameters
  * are validated before service/model/template lookup, and mutating actions are
  * intentionally POST-only.
  */
@@ -216,11 +331,6 @@ export function createMessageRoutes(options: MessageRoutesOptions): {
   service: MessageService;
 } {
   const {
-    getModel,
-    paymentProvider = null,
-    onPaymentCompensationFailure,
-    adminRoles,
-    registry,
     authMiddleware = [],
     getUser = defaultGetUser,
     getPermissions = defaultGetPermissions,
@@ -228,7 +338,36 @@ export function createMessageRoutes(options: MessageRoutesOptions): {
     adminPermissionKey = 'is.admin',
   } = options;
 
-  const service = new MessageService({ getModel, paymentProvider, onPaymentCompensationFailure, adminRoles, registry });
+  let service: MessageService;
+  if (options.service !== undefined) {
+    const conflicts = SERVICE_CONSTRUCTION_KEYS.filter(
+      (key) => (options as unknown as Record<string, unknown>)[key] !== undefined,
+    );
+    if (conflicts.length > 0) {
+      throw new InvalidMessageServiceOptionError(
+        `createMessageRoutes: "service" cannot be combined with service construction options: ${conflicts.join(', ')}. Pass route-only options (authMiddleware, getUser, getPermissions, getIdentity, adminPermissionKey) alongside "service", or construct without "service".`,
+      );
+    }
+    service = options.service;
+  } else {
+    const construction = options as MessageRoutesConstructionOptions;
+    service = new MessageService({
+      getModel: construction.getModel,
+      connection: construction.connection,
+      modelNames: construction.modelNames,
+      paymentProvider: construction.paymentProvider,
+      onPaymentCompensationFailure: construction.onPaymentCompensationFailure,
+      adminRoles: construction.adminRoles,
+      registry: construction.registry,
+      defaultListLimit: construction.defaultListLimit,
+      maxListLimit: construction.maxListLimit,
+      clientRequestLeaseMs: construction.clientRequestLeaseMs,
+      clientRequestWaitMs: construction.clientRequestWaitMs,
+      clientRequestPollMs: construction.clientRequestPollMs,
+      clientRequestDelay: construction.clientRequestDelay,
+      clientRequestNow: construction.clientRequestNow,
+    });
+  }
   const router = new JsonRouter('', authMiddleware);
 
   router.post('/new/:templateCd', async (req) => {
@@ -270,7 +409,7 @@ export function createMessageRoutes(options: MessageRoutesOptions): {
     assertValidUsertype(usertype);
 
     const permissions = getPermissions(req);
-    const isAdmin = !!permissions[adminPermissionKey];
+    const isAdmin = hasExplicitPermissionGrant(permissions, adminPermissionKey);
 
     let result;
     try {

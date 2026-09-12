@@ -6,13 +6,30 @@ import type { UserId } from '../types/message';
  * Host apps implement this to handle payment sessions for messages
  * that require payment (e.g. Stripe, Adyen, Paddle).
  *
- * Message creation may create external sessions before MongoDB commit. If the
- * message write or idempotent batch transaction fails, `MessageService` calls
- * `expireSession()` for every newly created uncommitted session. Providers must
- * make expiration idempotent because callers may retry cleanup after ambiguous
- * network or provider failures. If expiration itself fails, message creation
- * fails with `PaymentSessionCompensationError` and the optional service hook is
- * invoked for observability.
+ * Message creation may create external sessions before MongoDB commit. If any
+ * prepared item, model/session setup step, or idempotent batch transaction
+ * fails before commit, `MessageService` calls `expireSession()` for every
+ * newly created uncommitted session tracked from preparation through the
+ * commit attempt — including sessions from earlier batch items when a later
+ * item's provider/render step fails, and sessions left uncommitted by model
+ * resolution, `startSession()`, persistence, or rollback failures. Every
+ * known session is attempted even when an earlier expiration or the
+ * `onPaymentCompensationFailure` observer fails; multi-session batches then
+ * throw `PaymentSessionCompensationAggregateError` (a
+ * `PaymentSessionCompensationError` carrying every per-session failure in
+ * `failures` with the triggering error as `originalError`), while a lone
+ * session keeps the single-session `PaymentSessionCompensationError` shape.
+ * Providers must make expiration idempotent because callers may retry cleanup
+ * after ambiguous network or provider failures. Committed sessions are never
+ * expired because post-commit housekeeping failed; a completed same-scope
+ * retry replays the committed batch without creating replacement sessions.
+ * Non-idempotent sequential creation keeps per-item semantics: only the
+ * failing item is compensated, already-committed items are retained.
+ * Process death before a returned session is recorded, or any ambiguous
+ * provider/commit outcome this process cannot observe, must be reconciled
+ * with the provider out of band. If expiration itself fails, message creation
+ * fails with the compensation error and the optional service hook is invoked
+ * once per failed session for observability.
  *
  * `priceArgs` is intentionally a free-form `Record<string, unknown>` so
  * providers can accept their own metadata (currency, line items, etc.).

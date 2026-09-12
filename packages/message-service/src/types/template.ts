@@ -112,6 +112,46 @@ export interface MessageTemplate {
 }
 
 // ---------------------------------------------------------------------------
+// Registered (readonly) views — returned by TemplateRegistry.find()/getAll()
+// ---------------------------------------------------------------------------
+
+/**
+ * Readonly uiTemplate view matching the registry freeze depth: a plain string
+ * passes through, while object forms are shallow-frozen at registration.
+ */
+export type RegisteredUiTemplate = string | Readonly<{ sender?: string; receiver?: string }>;
+
+/**
+ * Readonly action view matching the registry freeze depth: the action object,
+ * its `confirmation`, and its `payload` are each shallow-frozen. Function
+ * fields (`condition`, `runHandler`, `senderNotification`) keep their original
+ * identity and remain callable.
+ */
+export type RegisteredMessageAction = Readonly<Omit<MessageAction, 'confirmation' | 'payload'>> & {
+  readonly confirmation?: Readonly<ActionConfirmation>;
+  readonly payload?: Readonly<Record<string, unknown>>;
+};
+
+/**
+ * Readonly template view matching the registry freeze depth: the top-level
+ * snapshot, `senderContent`/`receiverContent`, object `uiTemplate`s, the
+ * action array, and each action plus its `confirmation`/`payload` are frozen.
+ * Mutating a registered view throws at runtime; register a replacement
+ * template to change behavior.
+ *
+ * Registration inputs stay author-friendly and mutable (`MessageTemplate`);
+ * only registry outputs use this readonly view.
+ */
+export type RegisteredMessageTemplate = Readonly<
+  Omit<MessageTemplate, 'senderContent' | 'receiverContent' | 'uiTemplate' | 'actions'>
+> & {
+  readonly senderContent: Readonly<MessageTemplate['senderContent']>;
+  readonly receiverContent: Readonly<MessageTemplate['receiverContent']>;
+  readonly uiTemplate: RegisteredUiTemplate;
+  readonly actions: readonly RegisteredMessageAction[];
+};
+
+// ---------------------------------------------------------------------------
 // Interpolation Result
 // ---------------------------------------------------------------------------
 

@@ -47,6 +47,20 @@ export interface IMessageRelationshipMethods {
 }
 
 export interface IMessageMethods extends IMessageRelationshipMethods {
+  /**
+   * Trusted host-level archival primitive: atomically moves the active message
+   * into the archive collection on the document's owning connection.
+   *
+   * The host must authorize before calling (no sender/receiver, permission, or
+   * condition checks run here). Invalid `actionCd` throws
+   * `TemplateNotFoundError`/`ActionNotFoundError`; an invalid `archivedBy`
+   * throws `InvalidMessageUserError` — never a silent no-op success. A live
+   * in-flight service claim (`processing` without an expired lease) throws
+   * `ActionConflictError` and steals nothing. Repeat calls throw
+   * `MessageArchivedError` (archive copy exists) or `MessageNotFoundError`.
+   * Deployments without transaction support throw
+   * `MessageTransactionRequiredError` before writing anything.
+   */
   archive(actionCd: string, archivedBy: UserId, registry: TemplateRegistry): Promise<void>;
 }
 
@@ -77,6 +91,7 @@ export interface IBaseMessage {
   actionState: ActionLifecycleState;
   actionCd: string | null;
   actionAttemptId: string | null;
+  actionOwnerToken: string | null;
   actionClaimedBy: string | null;
   actionClaimedAt: Date | null;
   actionLeaseExpiresAt: Date | null;
@@ -101,6 +116,7 @@ export type IMessageArchive = mongoose.Document<unknown, MongooseQueryHelpers, I
     archivedBy: UserId;
     archivedAt: Date;
     actionAttemptId: string | null;
+    actionOwnerToken: string | null;
     actionNotificationState: ActionNotificationState;
     actionNotificationError: string | null;
     actionNotificationAttemptedAt: Date | null;

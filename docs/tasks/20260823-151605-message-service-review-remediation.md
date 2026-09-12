@@ -4,6 +4,8 @@ Created: 2026-08-23 15:16:05 PDT
 
 Package: `packages/message-service`
 
+Follow-up review: [Message Service Boundary And Architectural Health Follow-Up](20260912-095904-message-service-boundary-health-follow-up.md) records additional failure windows and contract gaps found after this completed phase; historical completion evidence below is retained.
+
 ## Objective
 
 Remediate confirmed authorization, idempotency, concurrency, persistence-consistency, model-ownership, public API, packaging, and documentation gaps in `@web-ts-toolkit/message-service`. Preserve its template-driven Mongoose and Express role while making request ownership explicit, side-effect workflows recoverable, connection boundaries consistent, and behavior verifiable against a real MongoDB instance and an installed package artifact.

@@ -7,8 +7,10 @@ import {
   ActionNotAllowedError,
   ActionNotFoundError,
   ActionRetryableError,
+  InvalidMessageServiceOptionError,
   MessageArchivedError,
   MessageNotFoundError,
+  MessageService,
   TemplateNotFoundError,
 } from '../src/message-service';
 import { createMessageRoutes } from '../src/route-factory';
@@ -106,17 +108,43 @@ describe('createMessageRoutes', () => {
     expect(service.createMessage).not.toHaveBeenCalled();
   });
 
-  it('forwards payment compensation failure hooks to the route service', () => {
-    const onPaymentCompensationFailure = vi.fn();
-    const { service } = createMessageRoutes({
-      getModel: vi.fn(() => ({}) as never),
-      onPaymentCompensationFailure,
-    });
+  it('reuses the exact supplied service without creating a second service', async () => {
+    const getModel = vi.fn(() => ({}) as never);
+    const supplied = new MessageService({ getModel });
+    const { router, service } = createMessageRoutes({ service: supplied });
 
-    expect(
-      (service as unknown as { onPaymentCompensationFailure?: typeof onPaymentCompensationFailure })
-        .onPaymentCompensationFailure,
-    ).toBe(onPaymentCompensationFailure);
+    expect(service).toBe(supplied);
+    expect(router).toBeDefined();
+  });
+
+  it('rejects combining an injected service with service construction options', () => {
+    const getModel = vi.fn(() => ({}) as never);
+    const supplied = new MessageService({ getModel });
+
+    expect(() =>
+      createMessageRoutes({
+        service: supplied,
+        getModel: (() => ({}) as never) as never,
+      }),
+    ).toThrow(InvalidMessageServiceOptionError);
+    expect(() =>
+      createMessageRoutes({
+        service: supplied,
+        registry: undefined as never,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      createMessageRoutes({
+        service: supplied,
+        paymentProvider: null as never,
+      }),
+    ).toThrow(InvalidMessageServiceOptionError);
+    expect(() =>
+      createMessageRoutes({
+        service: supplied,
+        clientRequestWaitMs: 0 as never,
+      }),
+    ).toThrow(InvalidMessageServiceOptionError);
   });
 
   it('requires authentication before create route side effects', async () => {

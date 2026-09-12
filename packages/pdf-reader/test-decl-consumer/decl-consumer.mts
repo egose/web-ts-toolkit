@@ -48,6 +48,12 @@ const options: PdfReaderOptions = {
 
 const reader = new PDFReader(source, options);
 const urlReader = new PDFReader(urlSource, options);
+// Caller-created PDF workers stay caller-owned: the reader never destroys
+// them, so consumers destroy the worker explicitly (even if reader teardown
+// rejects), then release any blob preview URL after decode/display.
+const ownedWorker = {} as PDFWorker;
+void ownedWorker.destroy();
+expectTypeAssignableTo<boolean>(ownedWorker.destroyed);
 const loadResult = reader.load(new AbortController().signal);
 const convertOptions: ConvertOptions = {
   imageFormat: 'image/png',
@@ -77,6 +83,10 @@ expectTypeAssignableTo<PdfTextContent | undefined>(publicText);
 expectTypeAssignableTo<PageImageResult | undefined>(page.pageImage);
 expectTypeAssignableTo<PdfReaderState>(state);
 expectTypeAssignableTo<number>(image.width);
+expectTypeAssignableTo<number>(image.y);
+expectTypeAssignableTo<number>(image.size);
+expectTypeAssignableTo<number>(image.pageWidth);
+expectTypeAssignableTo<'image/png'>(image.mimeType);
 expectTypeAssignableTo<string>(GlobalWorkerOptions.workerSrc);
 expectTypeAssignableTo<AbortSignal>(convertOptions.signal as AbortSignal);
 expectTypeAssignableTo<LoadedPdfPage>({} as LoadedPdfPage);

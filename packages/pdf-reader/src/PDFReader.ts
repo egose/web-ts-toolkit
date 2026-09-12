@@ -3,6 +3,7 @@ import type { PageViewport, PDFDocumentLoadingTask, PDFDocumentProxy, PDFPagePro
 
 import { extractEmbeddedImages } from './embeddedImages';
 import { PdfReaderError } from './errors';
+import { isValidBlobForMime, isValidDataUrlForMime, MAX_TIMER_MS, resolveSafeCanvasDimensions } from './canvasGuards';
 import { assertPositiveFinite, resolveConvertOptions, resolvePageNumbers } from './options';
 import type {
   ConvertOptions,
@@ -12,6 +13,7 @@ import type {
   PageImageResult,
   PageResult,
   PdfDocumentInitParameters,
+  PdfReaderLimits,
   PdfReaderOptions,
   PdfReaderState,
   PdfReaderSourceInfo,
@@ -21,7 +23,19 @@ import type {
   ViewportScale,
 } from './types';
 
-const defaultLimits = {
+interface ResolvedLimits {
+  maxSourceBytes?: number;
+  maxDocumentPages: number;
+  maxTextItems: number;
+  maxTextCodeUnits: number;
+  maxOperatorCount: number;
+  maxCanvasPixels: number;
+  maxEmbeddedImagePixels: number;
+  maxEmbeddedImages: number;
+  maxEmbeddedImagePixelsTotal: number;
+}
+
+const defaultLimits: Omit<ResolvedLimits, 'maxSourceBytes'> = {
   maxDocumentPages: 1_000,
   maxTextItems: 50_000,
   maxTextCodeUnits: 5_000_000,
@@ -30,7 +44,37 @@ const defaultLimits = {
   maxEmbeddedImagePixels: 25_000_000,
   maxEmbeddedImages: 1_000,
   maxEmbeddedImagePixelsTotal: 100_000_000,
-} as const;
+};
+
+type DefaultLimitName = keyof typeof defaultLimits;
+
+/**
+ * Resolves caller-supplied limits against finite defaults.
+ *
+ * Explicit `undefined` is treated as omitted so optional-property spreads
+ * cannot erase a default. Supplied values must be positive safe integers;
+ * `maxSourceBytes` stays unset when omitted. Invalid supplied values throw
+ * `INVALID_OPTION`.
+ */
+export function resolveLimits(limits?: PdfReaderLimits): ResolvedLimits {
+  const resolved: ResolvedLimits = { ...defaultLimits };
+  if (limits === undefined || limits === null) return resolved;
+  for (const name of Object.keys(defaultLimits) as DefaultLimitName[]) {
+    const supplied = limits[name];
+    if (supplied === undefined) continue;
+    if (!Number.isSafeInteger(supplied) || (supplied as number) <= 0) {
+      throw new PdfReaderError('INVALID_OPTION', `${name} must be a positive safe integer.`);
+    }
+    resolved[name] = supplied as number;
+  }
+  const maxSourceBytes = limits.maxSourceBytes;
+  if (maxSourceBytes === undefined) return resolved;
+  if (!Number.isSafeInteger(maxSourceBytes) || maxSourceBytes <= 0) {
+    throw new PdfReaderError('INVALID_OPTION', 'maxSourceBytes must be a positive safe integer.');
+  }
+  resolved.maxSourceBytes = maxSourceBytes;
+  return resolved;
+}
 
 interface LoadState {
   task?: PDFDocumentLoadingTask;
@@ -44,17 +88,7 @@ interface ResolvedLoadOptions {
   deadlineMs?: number;
 }
 
-interface ResolvedLimits {
-  maxSourceBytes?: number;
-  maxDocumentPages: number;
-  maxTextItems: number;
-  maxTextCodeUnits: number;
-  maxOperatorCount: number;
-  maxCanvasPixels: number;
-  maxEmbeddedImagePixels: number;
-  maxEmbeddedImages: number;
-  maxEmbeddedImagePixelsTotal: number;
-}
+export type { ResolvedLimits };
 
 interface SourceSnapshot {
   pdfJsSource: Readonly<PdfDocumentInitParameters>;
@@ -90,9 +124,8 @@ export class PDFReader {
     this.#source = source;
     this.#createCanvas = options.canvasFactory ?? (() => document.createElement('canvas'));
     this.#logger = options.logger;
-    this.#limits = { ...defaultLimits, ...options.limits };
+    this.#limits = resolveLimits(options.limits);
     this.#sourcePolicy = options.sourcePolicy;
-    this.#validateLimits();
   }
 
   public get numPages(): number | undefined {
@@ -142,7 +175,20 @@ export class PDFReader {
     }
   }
 
-  /** Streams page results so callers do not need to retain the entire document conversion in memory. */
+  /**
+   * Streams page results so callers do not need to retain the entire document conversion in memory.
+   *
+   * Page-stage waits (`getPage`, text, operator list, render, encoding) settle
+   * promptly with `ABORTED`/`DESTROYED` via the shared cancellation/wait
+   * contract, but racing never cancels the underlying PDF.js work: it keeps
+   * running in the background, owned only for cleanup observation. A late
+   * `getPage()` fulfillment is cleaned exactly once and never processed;
+   * late text/operator values are dropped and late rejections observed, so a
+   * subsequent conversion may safely acquire the same reader/page immediately
+   * after the prior operation settles. A suspended generator only observes
+   * abort/destroy on the next `next()`/`return()`; destruction cannot force
+   * suspended consumer code to run.
+   */
   public async *pages(options: ConvertOptions = {}): AsyncGenerator<PageResult> {
     let ownsPageOperation = false;
     try {
@@ -166,7 +212,22 @@ export class PDFReader {
         try {
           this.#activePageWorkCount += 1;
           ownsActivePageWork = true;
-          page = await documentProxy.getPage(pageNumber);
+          // Shared cancellation/wait contract: settles promptly on abort/destroy
+          // without cancelling upstream PDF.js work. A late fulfillment is owned
+          // only for cleanup observation (exactly one cleanup, no later
+          // processing), so sequential reuse after settle cannot overlap it.
+          page = await this.#awaitWithSignal(
+            documentProxy.getPage(pageNumber),
+            resolved.signal,
+            undefined,
+            (latePage) => {
+              try {
+                (latePage as PDFPageProxy | undefined)?.cleanup();
+              } catch {
+                // Background cleanup is best-effort; the caller already settled.
+              }
+            },
+          );
           const result = await this.#processPage(page, pageNumber, documentProxy.numPages, resolved);
           page.cleanup();
           page = undefined;
@@ -192,7 +253,21 @@ export class PDFReader {
     return results;
   }
 
-  /** Terminates the loading task and document resources. The reader cannot be reused afterwards. */
+  /**
+   * Terminates the loading task and document resources. The reader cannot be reused afterwards.
+   *
+   * A caller-created PDF.js `PDFWorker` passed on the source stays
+   * caller-owned: neither `destroy()` nor PDF.js task teardown destroys it.
+   * Destroy it explicitly in your own `finally` block, even if this method
+   * rejects.
+   *
+   * In-flight page-stage waiters settle promptly with `DESTROYED`, but their
+   * upstream PDF.js work is uncancellable and continues in the background for
+   * cleanup observation only. This method waits for PDF.js loading/document
+   * destruction, not for orphaned `getPage`/text/operator continuations, which
+   * never start later processing. It cannot force a suspended `pages()`
+   * consumer to resume; that consumer observes destruction on next resume.
+   */
   public async destroy(): Promise<void> {
     if (this.#destroyPromise) return this.#destroyPromise;
     this.#destroyed = true;
@@ -234,7 +309,10 @@ export class PDFReader {
     this.#throwIfDestroyed();
     if (options.includeText) {
       try {
-        const text = await page.getTextContent();
+        // Same shared contract as getPage/render: prompt ABORTED/DESTROYED,
+        // late text dropped, late rejection observed, page still cleaned by
+        // the pages() owner. Upstream PDF.js text work is not cancelled.
+        const text = await this.#awaitWithSignal(page.getTextContent(), options.signal);
         this.#enforceTextLimits(text);
         result.text = text;
       } catch (error) {
@@ -255,6 +333,9 @@ export class PDFReader {
           logger: this.#logger,
           throwIfAborted: (signal) => this.#throwIfAborted(signal),
           throwIfDestroyed: () => this.#throwIfDestroyed(),
+          // Reuses the reader's single cancellation/wait contract so operator
+          // retrieval settles promptly without cancelling upstream PDF.js work.
+          awaitWithCancellation: <T>(pending: Promise<T>) => this.#awaitWithSignal(pending, options.signal),
         });
       } catch (error) {
         this.#rethrowLifecycleError(error, options.signal);
@@ -326,12 +407,22 @@ export class PDFReader {
       const dataUrl = quality === undefined ? canvas.toDataURL(mimeType) : canvas.toDataURL(mimeType, quality);
       this.#throwIfDestroyed();
       this.#throwIfAborted(signal);
+      if (!isValidDataUrlForMime(dataUrl, mimeType)) {
+        throw this.#createUnsupportedEnvironmentError(
+          `Canvas encoding produced an empty or mismatched result for ${mimeType}.`,
+        );
+      }
       return { kind: 'data-url', mimeType, dataUrl };
     }
 
     const blob = await this.#encodeCanvasToBlob(canvas, mimeType, quality, signal);
     this.#throwIfDestroyed();
     this.#throwIfAborted(signal);
+    if (!isValidBlobForMime(blob, mimeType)) {
+      throw this.#createUnsupportedEnvironmentError(
+        `Canvas Blob encoding produced an empty or mismatched result for ${mimeType}.`,
+      );
+    }
     return { kind: 'blob', mimeType, blob };
   }
 
@@ -396,16 +487,25 @@ export class PDFReader {
   }
 
   #allocateCanvas(width: number, height: number, limit: number, subject: string): HTMLCanvasElement {
-    const pixelWidth = Math.ceil(width);
-    const pixelHeight = Math.ceil(height);
-    const pixels = pixelWidth * pixelHeight;
-    if (!Number.isSafeInteger(pixels) || pixels > limit) {
-      const code = subject === 'page' ? 'CANVAS_LIMIT_EXCEEDED' : 'IMAGE_LIMIT_EXCEEDED';
-      throw new PdfReaderError(code, `${subject} requires ${pixels} pixels; limit is ${limit}.`);
-    }
+    const { pixelWidth, pixelHeight } = resolveSafeCanvasDimensions(
+      width,
+      height,
+      limit,
+      'CANVAS_LIMIT_EXCEEDED',
+      subject,
+    );
     const canvas = this.#createCanvas();
-    canvas.width = pixelWidth;
-    canvas.height = pixelHeight;
+    try {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
+    } catch (error) {
+      try {
+        this.#releaseCanvas(canvas);
+      } catch {
+        // Release is best-effort; preserve the original allocation failure.
+      }
+      throw error;
+    }
     return canvas;
   }
 
@@ -451,11 +551,36 @@ export class PDFReader {
 
     this.#lastLoadFailed = false;
     const state = { destroyed: false } as LoadState;
-    state.promise = (async () => {
+    // Publish ownership before running synchronously fallible source/policy/
+    // PDF.js code so a sync throw still clears this attempt via the finally
+    // below. The shared promise is assigned before the work starts so a
+    // reentrant policy that synchronously calls load()/state shares this task
+    // instead of creating a duplicate. The work itself still runs
+    // synchronously through policy approval and getDocument() init, preserving
+    // existing destroy-race ownership of an already-created PDF.js task.
+    let resolveLoad!: (value: PDFDocumentProxy) => void;
+    let rejectLoad!: (reason?: unknown) => void;
+    state.promise = new Promise<PDFDocumentProxy>((resolve, reject) => {
+      resolveLoad = resolve;
+      rejectLoad = reject;
+    });
+    state.promise.catch(() => undefined);
+    this.#loadingState = state;
+    const taskPromise = (async () => {
       try {
         const source = this.#createSourceSnapshot();
         const policyResult = this.#enforceSourcePolicy(source.info);
         if (policyResult) await this.#awaitWithDestroy(policyResult);
+        // Re-measure the borrowed byte reference after approval: a number
+        // array can be extended or a resizable buffer grown while policy is
+        // pending. This recheck runs in the same synchronous block as the
+        // `getDocument()` call below, and PDF.js converts `data`
+        // synchronously inside `getDocument()`, so no interleaving growth
+        // can slip between this recheck and conversion. Deliberately no
+        // defensive copy: typed arrays stay borrowed (PDF.js may transfer
+        // them to its worker), so only the size is re-validated, not the
+        // byte content.
+        this.#throwIfOverSourceLimit(source.pdfJsSource.data);
         if (state.destroyed || this.#destroyed) {
           throw this.#createDestroyedError();
         }
@@ -501,8 +626,7 @@ export class PDFReader {
         if (this.#loadingState === state) this.#loadingState = undefined;
       }
     })();
-    state.promise.catch(() => undefined);
-    this.#loadingState = state;
+    taskPromise.then(resolveLoad, rejectLoad);
     return state;
   }
 
@@ -514,7 +638,25 @@ export class PDFReader {
     return state.destroyPromise;
   }
 
-  async #awaitWithSignal<T>(promise: Promise<T>, signal?: AbortSignal, deadlineMs?: number): Promise<T> {
+  /**
+   * Single cancellation/wait contract for load, page retrieval, text,
+   * operator-list, render, and deadline waits.
+   *
+   * Caller-local `signal`/`deadlineMs` settle only that waiter; reader
+   * destruction settles every waiter. Racing never cancels the underlying
+   * PDF.js work: the upstream promise keeps running, owned only for cleanup
+   * observation. When abort/destroy wins first, a late fulfillment is handed
+   * to `onLateValue` (used to clean a late page exactly once, never to start
+   * later processing) and a late rejection is observed so it cannot become an
+   * unhandled rejection or a late published result. The callback-based Blob
+   * encoder follows the same settle-once/late-ignore contract.
+   */
+  async #awaitWithSignal<T>(
+    promise: Promise<T>,
+    signal?: AbortSignal,
+    deadlineMs?: number,
+    onLateValue?: (value: T) => void,
+  ): Promise<T> {
     this.#throwIfAborted(signal);
     this.#throwIfDestroyed();
 
@@ -541,32 +683,37 @@ export class PDFReader {
       this.#destroyController.signal.addEventListener('abort', onDestroy, { once: true });
       promise
         .then(
-          (value) => settle(() => resolve(value)),
-          (error) => settle(() => reject(error)),
+          (value) => {
+            if (settled) {
+              if (onLateValue) {
+                try {
+                  onLateValue(value);
+                } catch {
+                  // Background cleanup must not surface after the caller settled.
+                }
+              }
+              return;
+            }
+            settle(() => resolve(value));
+          },
+          (error) => {
+            // When settled, the late rejection is already observed here, so it
+            // cannot become unhandled or overwrite the caller-facing result.
+            if (settled) return;
+            settle(() => reject(error));
+          },
         )
         .catch(() => undefined);
     });
   }
 
+  /**
+   * Destroy-only wait sharing the single cancellation contract above.
+   * Caller-local load abort/deadline semantics stay in `#awaitWithSignal`;
+   * this wrapper passes no caller signal so only destruction can win early.
+   */
   async #awaitWithDestroy<T>(promise: PromiseLike<T>): Promise<T> {
-    this.#throwIfDestroyed();
-    return await new Promise<T>((resolve, reject) => {
-      let settled = false;
-      const onDestroy = () => settle(() => reject(this.#createDestroyedError()));
-      const cleanup = () => this.#destroyController.signal.removeEventListener('abort', onDestroy);
-      const settle = (callback: () => void) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        callback();
-      };
-
-      this.#destroyController.signal.addEventListener('abort', onDestroy, { once: true });
-      Promise.resolve(promise).then(
-        (value) => settle(() => resolve(value)),
-        (error) => settle(() => reject(error)),
-      );
-    });
+    return this.#awaitWithSignal(Promise.resolve(promise));
   }
 
   #createAbortedError(): PdfReaderError {
@@ -601,11 +748,24 @@ export class PDFReader {
 
   #resolveLoadOptions(options?: AbortSignal | LoadOptions): ResolvedLoadOptions {
     if (!options) return {};
-    if (this.#isAbortSignal(options)) return { signal: options };
-    if (options.deadlineMs !== undefined && (!Number.isFinite(options.deadlineMs) || options.deadlineMs <= 0)) {
-      throw new PdfReaderError('INVALID_OPTION', 'deadlineMs must be a positive finite number.');
+    if (options === null || typeof options !== 'object' || Array.isArray(options)) {
+      throw new PdfReaderError('INVALID_OPTION', 'Load options must be an object or an AbortSignal.');
     }
-    return options;
+    if (this.#isAbortSignal(options)) return { signal: options };
+    const candidate = options as LoadOptions;
+    if (candidate.deadlineMs !== undefined) {
+      if (
+        !Number.isFinite(candidate.deadlineMs) ||
+        (candidate.deadlineMs as number) <= 0 ||
+        (candidate.deadlineMs as number) > MAX_TIMER_MS
+      ) {
+        throw new PdfReaderError(
+          'INVALID_OPTION',
+          `deadlineMs must be a positive finite number not exceeding ${MAX_TIMER_MS}.`,
+        );
+      }
+    }
+    return { signal: candidate.signal, deadlineMs: candidate.deadlineMs };
   }
 
   #isAbortSignal(value: AbortSignal | LoadOptions): value is AbortSignal {
@@ -613,16 +773,7 @@ export class PDFReader {
   }
 
   #enforceSourcePolicy(source: PdfReaderSourceInfo): Promise<void> | void {
-    if (
-      source.byteLength !== undefined &&
-      this.#limits.maxSourceBytes !== undefined &&
-      source.byteLength > this.#limits.maxSourceBytes
-    ) {
-      throw new PdfReaderError(
-        'SOURCE_LIMIT_EXCEEDED',
-        `PDF source is ${source.byteLength} bytes; limit is ${this.#limits.maxSourceBytes}.`,
-      );
-    }
+    this.#throwIfOverSourceLimit(source.rawSource.data);
     if (!this.#sourcePolicy) return;
     try {
       const result = this.#sourcePolicy(source);
@@ -637,15 +788,40 @@ export class PDFReader {
     }
   }
 
+  /**
+   * Rejects a synchronously measurable over-limit byte source.
+   *
+   * Length is read without scanning or copying element content, so an
+   * oversized array fails on its `length` before any entry is visited.
+   */
+  #throwIfOverSourceLimit(data: unknown): void {
+    if (this.#limits.maxSourceBytes === undefined) return;
+    const byteLength = this.#knownByteLength(data);
+    if (byteLength !== undefined && byteLength > this.#limits.maxSourceBytes) {
+      throw new PdfReaderError(
+        'SOURCE_LIMIT_EXCEEDED',
+        `PDF source is ${byteLength} bytes; limit is ${this.#limits.maxSourceBytes}.`,
+      );
+    }
+  }
+
   #createSourceSnapshot(): SourceSnapshot {
     const kind = this.#sourceKind(this.#source);
-    const pdfJsSource = this.#toPdfJsSource(this.#source);
-    const info = this.#inspectSource(pdfJsSource, kind);
+    // Read the caller's header container once and stabilize it into a single
+    // owned record. The same frozen reference backs both the policy metadata
+    // and the PDF.js loading params below, so approval and network behavior
+    // cannot diverge through later mutation or repeated getter evaluation.
+    const headers = this.#snapshotHttpHeaders(this.#readRawHttpHeaders(this.#source));
+    const pdfJsSource = this.#toPdfJsSource(this.#source, headers);
+    const info = this.#inspectSource(pdfJsSource, kind, headers);
     return { pdfJsSource, info };
   }
 
-  #inspectSource(source: Readonly<PdfDocumentInitParameters>, kind: SourceKind): PdfReaderSourceInfo {
-    const headers = this.#readHttpHeaders(source.httpHeaders);
+  #inspectSource(
+    source: Readonly<PdfDocumentInitParameters>,
+    kind: SourceKind,
+    headers: HeaderInspection,
+  ): PdfReaderSourceInfo {
     const info = {
       rawSource: source,
       kind,
@@ -666,7 +842,7 @@ export class PDFReader {
     return 'document-init-parameters';
   }
 
-  #toPdfJsSource(source: PdfSource): Readonly<PdfDocumentInitParameters> {
+  #toPdfJsSource(source: PdfSource, headers: HeaderInspection): Readonly<PdfDocumentInitParameters> {
     if (typeof source === 'string') {
       return this.#freezeSource({ url: source });
     }
@@ -677,13 +853,32 @@ export class PDFReader {
       return this.#freezeSource({ data: source });
     }
 
+    // Prototype-safe own-enumerable copy: define (never assign) so a
+    // `__proto__` key becomes an own data property instead of mutating the
+    // snapshot prototype. `httpHeaders` is skipped here and replaced below
+    // with the stabilized record so no live caller reference survives.
     const snapshot: Record<PropertyKey, unknown> = {};
     for (const key of Reflect.ownKeys(source)) {
+      if (key === 'httpHeaders') continue;
       const descriptor = Object.getOwnPropertyDescriptor(source, key);
       if (!descriptor?.enumerable) continue;
-      snapshot[key] = (source as Record<PropertyKey, unknown>)[key];
+      const value = (source as Record<PropertyKey, unknown>)[key];
+      Object.defineProperty(snapshot, key, {
+        value,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
     }
     if (typeof URL !== 'undefined' && snapshot.url instanceof URL) snapshot.url = snapshot.url.toString();
+    if (headers.httpHeaders !== undefined) {
+      Object.defineProperty(snapshot, 'httpHeaders', {
+        value: headers.httpHeaders,
+        writable: false,
+        enumerable: true,
+        configurable: false,
+      });
+    }
     return this.#freezeSource(snapshot as PdfDocumentInitParameters);
   }
 
@@ -691,14 +886,32 @@ export class PDFReader {
     return Object.freeze(source);
   }
 
+  #isFetchHeaders(value: object): boolean {
+    if (typeof Headers !== 'undefined' && value instanceof Headers) return true;
+    try {
+      if (Object.prototype.toString.call(value) === '[object Headers]') return true;
+    } catch {
+      // Ignore branding probes and fall through to structural enumeration.
+    }
+    return false;
+  }
+
   #isPdfTypedArray(source: PdfSource): source is PdfTypedArray {
     return ArrayBuffer.isView(source) && !(source instanceof DataView);
   }
 
   #knownByteLength(value: unknown): number | undefined {
+    // Mirrors the installed PDF.js `getDataProp` conversion: binary strings
+    // become one byte per code unit (`stringToBytes`), number arrays become
+    // one byte per entry (`new Uint8Array(array)`, entries coerced), and
+    // buffers/views contribute their `byteLength` (sliced views only their
+    // slice). Array length is returned without visiting entries, so a
+    // length-based rejection never traverses element content and non-finite
+    // entries still count instead of reporting an unknown size.
+    if (typeof value === 'string') return value.length;
     if (value instanceof ArrayBuffer) return value.byteLength;
     if (ArrayBuffer.isView(value)) return value.byteLength;
-    if (Array.isArray(value) && value.every((entry) => Number.isFinite(entry))) return value.length;
+    if (Array.isArray(value)) return value.length;
     return undefined;
   }
 
@@ -708,35 +921,56 @@ export class PDFReader {
     return undefined;
   }
 
-  #readHttpHeaders(value: unknown): HeaderInspection {
-    if (!value || typeof value !== 'object') return { hasHttpHeaders: false };
+  #readRawHttpHeaders(source: PdfSource): unknown {
+    if (typeof source !== 'object' || source === null) return undefined;
+    if (source instanceof ArrayBuffer || ArrayBuffer.isView(source) || Array.isArray(source)) return undefined;
+    // Single property read (own or inherited) so a changing getter is
+    // observed once; nested header values are stabilized separately below.
+    // `data` and other byte forms stay borrowed references here: PDFR3-03
+    // owns byte-limit/copy semantics, so this boundary must not clone them.
+    return (source as { httpHeaders?: unknown }).httpHeaders;
+  }
+
+  /**
+   * Stabilizes effective HTTP headers into one owned, frozen record.
+   *
+   * Enumeration mirrors the installed PDF.js `createHeaders` transport
+   * (`for...in`, inherited enumerable string keys, `undefined` skipped) so
+   * the approved diagnostic and the value handed to `getDocument()` agree.
+   * Remaining values are coerced with `String()` as `Headers.append` would.
+   * Non-plain containers (`Headers`, `Map`, class instances) intentionally
+   * yield no value entries — matching what PDF.js `for...in` consumption
+   * observes — while `hasHttpHeaders` stays `true` so policies gating only
+   * on header presence keep blocking. A throwing getter propagates so the
+   * load fails closed before policy approval. The caller's container is
+   * never frozen or mutated.
+   */
+  #snapshotHttpHeaders(value: unknown): HeaderInspection {
+    if (value === null || value === undefined) return { hasHttpHeaders: false };
+    if (typeof value !== 'object' && typeof value !== 'function') return { hasHttpHeaders: false };
+    if (this.#isFetchHeaders(value)) {
+      // A fetch `Headers` container stores entries internally: PDF.js
+      // `for...in` consumption observes none of them (or, on some runtimes,
+      // enumerates container methods instead). Report presence without
+      // claiming value equivalence and load with no header entries so the
+      // approved diagnostic and the effective request stay identical.
+      return { hasHttpHeaders: true };
+    }
 
     const entries: [string, string][] = [];
-    try {
-      for (const [name, headerValue] of Object.entries(value)) {
-        if (typeof headerValue === 'string') entries.push([name, headerValue]);
-      }
-      if ('forEach' in value && typeof value.forEach === 'function') {
-        value.forEach((headerValue: unknown, name: unknown) => {
-          if (typeof name === 'string' && typeof headerValue === 'string') entries.push([name, headerValue]);
-        });
-      }
-    } catch {
-      return { hasHttpHeaders: true };
+    for (const name in value as Record<string, unknown>) {
+      const headerValue = (value as Record<string, unknown>)[name];
+      if (headerValue === undefined) continue;
+      entries.push([name, String(headerValue)]);
     }
 
     return {
       hasHttpHeaders: true,
+      // Object.fromEntries installs `__proto__` as an own data property
+      // (no prototype mutation); the frozen record is shared by policy info
+      // and PDF.js loading params. Opaque worker/factory fields elsewhere in
+      // the snapshot stay borrowed by reference — only headers stabilize.
       httpHeaders: entries.length > 0 ? Object.freeze(Object.fromEntries(entries)) : undefined,
     };
-  }
-
-  #validateLimits(): void {
-    for (const [name, value] of Object.entries(this.#limits)) {
-      if (value === undefined) continue;
-      if (!Number.isSafeInteger(value) || value <= 0) {
-        throw new PdfReaderError('INVALID_OPTION', `${name} must be a positive safe integer.`);
-      }
-    }
   }
 }

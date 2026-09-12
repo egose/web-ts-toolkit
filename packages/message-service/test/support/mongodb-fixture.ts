@@ -52,6 +52,7 @@ export async function createMongoMessageServiceFixture(
       | 'clientRequestWaitMs'
       | 'clientRequestPollMs'
       | 'clientRequestDelay'
+      | 'clientRequestNow'
       | 'paymentProvider'
       | 'onPaymentCompensationFailure'
     >;
@@ -102,7 +103,9 @@ function buildModelGetter(
   const wrappedMessage = wrapMessageModel(models.Message, {
     afterCreate: async (doc) => {
       if (doc?.clientRequestId && doc.clientRequestItemIndex === 0) {
-        await barriers.firstBatchItemCommitted.arrive();
+        // Fires on create-return inside the uncommitted batch transaction,
+        // not on commit (see MessageServiceBarriers docs).
+        await barriers.firstBatchItemCreated.arrive();
       }
     },
     afterFindOneAndUpdate: async (doc) => {
@@ -118,7 +121,9 @@ function buildModelGetter(
   });
   const wrappedArchive = wrapCreate(models.MessageArchive, async (doc) => {
     if (doc?.actionAttemptId) {
-      await barriers.archiveCommitted.arrive();
+      // Fires on create-return inside the uncommitted archive transaction,
+      // not on commit (see MessageServiceBarriers docs).
+      await barriers.archiveCreated.arrive();
     }
   });
 
