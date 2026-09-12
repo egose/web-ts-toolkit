@@ -46,6 +46,7 @@ export const BaseMessageFields: Record<string, mongoose.SchemaTypeOptions<unknow
   actionState: { type: String, enum: ['active', 'processing', 'retryable'], default: 'active' },
   actionCd: { type: String, default: null },
   actionAttemptId: { type: String, default: null },
+  actionOwnerToken: { type: String, default: null },
   actionClaimedBy: { type: String, default: null },
   actionClaimedAt: { type: Date, default: null },
   actionLeaseExpiresAt: { type: Date, default: null },

@@ -60,6 +60,18 @@ browser consumer connects to, not the TypeScript source.
 |                       | `ImageBitmap` path, and a nested form XObject with its own matrix.      |
 |                       | Used by PDFR-06 to prove the private extractor boundary against real    |
 |                       | fixtures rather than mocks only.                                        |
+| `embedded-1bit.pdf`   |
+|                       | Single-page hand-authored PDF for PDFR3-06 with two DeviceGray/BPC-1    |
+|                       | image XObjects: a 1×1 white pixel (`0x80`) and a 9×2 packed-row image   |
+|                       | exercising row-padding boundaries. Takes PDF.js's `GRAYSCALE_1BPP`      |
+|                       | path with `isOffscreenCanvasSupported: false` and the `ImageBitmap`     |
+|                       | path otherwise; pixel assertions run under both.                        |
+| `embedded-shared.pdf` |
+|                       | Three-page hand-authored PDF for PDFR3-13 sharing one 8×8 DeviceRGB     |
+|                       | XObject Ref across pages (2 paints p1, 1 paint p2/p3, exceeding the     |
+|                       | worker shared-image threshold). Proves `g_`-prefixed references         |
+|                       | resolve through the document-wide `commonObjs` store with correct       |
+|                       | pixels on every page.                                                   |
 
 ## Regenerating
 
@@ -83,6 +95,10 @@ dependencies:
 ```
 node generate-embedded-images.mjs
 ```
+
+That command writes `embedded-images.pdf` (+ sidecar), `embedded-1bit.pdf`
+(+ sidecar), and `embedded-shared.pdf` (+ sidecar) with no external
+dependencies.
 
 `generate.py` pins `/CreationDate` to a fixed UTC value (`2026-01-01
 00:00:00`) via `pdf.set_creation_date(...)`. Without that pin, `fpdf2`

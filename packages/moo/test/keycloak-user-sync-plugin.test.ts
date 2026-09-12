@@ -1,3 +1,5 @@
+import { format, inspect } from 'node:util';
+
 import mongoose from 'mongoose';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -185,8 +187,15 @@ describe('keycloakUserSyncPlugin', () => {
     expect(user._id).toBeDefined();
     expect(logger.error).toHaveBeenCalledWith(
       'Keycloak user sync failed during save',
-      expect.objectContaining({ error: expect.any(Error), operation: 'save', localDocumentId: expect.any(String) }),
+      expect.objectContaining({
+        error: expect.objectContaining({ name: 'Error' }),
+        operation: 'save',
+        localDocumentId: expect.any(String),
+      }),
     );
+    const loggedError = logger.error.mock.calls[0]?.[1] as { error?: unknown };
+    expect(loggedError.error).not.toBeInstanceOf(Error);
+    expect(Object.keys(loggedError.error as Record<string, unknown>).sort()).toEqual(['name']);
     expect(onError).toHaveBeenCalledOnce();
   });
 
@@ -367,6 +376,124 @@ describe('keycloakUserSyncPlugin', () => {
     },
   );
 
+  it.each([true, false])(
+    'keeps a partially provisioned account disabled across repeated credential failures then completes credentials before enablement (temporary=%s)',
+    async (passwordTemporary) => {
+      keycloak.failOnce('core.users.resetPassword');
+      keycloak.failOnce('core.users.resetPassword');
+      const UserModel = createUserModel(keycloak, { syncFields: { password: true }, passwordTemporary });
+
+      let thrown: unknown;
+      try {
+        await UserModel.create({ username: 'alice', email: 'alice@example.com', password: 'initial-secret' }); // pragma: allowlist secret
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      // One remote account, still disabled, no duplicate creation.
+      expect(keycloak.users).toHaveLength(1);
+      expect(keycloak.users[0]).toMatchObject({ id: 'user-1', username: 'alice', enabled: false });
+      expect(keycloak.callsFor('user.create')).toHaveLength(1);
+      // Initial fluent provisioning plus the same-save recovery retry both failed.
+      expect(keycloak.callsFor('core.users.resetPassword')).toHaveLength(2);
+      for (const call of keycloak.callsFor('core.users.resetPassword')) {
+        expect(call.args[0]).toMatchObject({
+          id: 'user-1',
+          credential: { temporary: passwordTemporary, type: 'password', value: 'initial-secret' },
+        });
+      }
+      // Recovery never enabled before credentials succeeded.
+      const enableUpdates = keycloak
+        .callsFor('core.users.update')
+        .filter((call) => JSON.stringify(call.args).includes('"enabled":true'));
+      expect(enableUpdates).toHaveLength(0);
+      // Provider ID was safely persisted before credential work so retry binds authoritatively.
+      const persisted = await UserModel.findOne({ username: 'alice' }).orFail();
+      expect(persisted.providerId).toBe('user-1');
+
+      // Documented retry: re-apply the pending password; credentials must land before enablement.
+      keycloak.calls.length = 0;
+      keycloak.coreUsers.resetPassword.mockClear();
+      keycloak.coreUsers.update.mockClear();
+      const retry = await UserModel.findOne({ username: 'alice' }).orFail();
+      retry.password = 'initial-secret'; // pragma: allowlist secret
+      retry.markModified('password');
+      await retry.save();
+
+      expect(keycloak.users).toHaveLength(1);
+      expect(keycloak.users[0]).toMatchObject({ id: 'user-1', enabled: true });
+      expect(keycloak.callsFor('user.create')).toHaveLength(0);
+      expect(keycloak.coreUsers.resetPassword).toHaveBeenCalledWith({
+        realm: 'test',
+        id: 'user-1',
+        credential: { temporary: passwordTemporary, type: 'password', value: 'initial-secret' },
+      });
+      const sequence = keycloak.calls.map((call) => call.operation);
+      const resetIndex = sequence.lastIndexOf('core.users.resetPassword');
+      const updateIndices = sequence
+        .map((operation, index) => ({ operation, index }))
+        .filter(({ operation }) => operation === 'core.users.update')
+        .map(({ index }) => index);
+      const enableIndex = updateIndices.find((index) =>
+        JSON.stringify(keycloak.calls[index]?.args).includes('"enabled":true'),
+      );
+      expect(resetIndex).toBeGreaterThanOrEqual(0);
+      expect(enableIndex).toBeGreaterThanOrEqual(0);
+      expect(enableIndex as number).toBeGreaterThan(resetIndex);
+      expect((await UserModel.findOne({ username: 'alice' }).lean())?.providerId).toBe('user-1');
+    },
+  );
+
+  it('does not reset another account on an already-exists collision during password creation', async () => {
+    keycloak.users.push({ id: 'user-b', username: 'bob', email: 'b@example.com', enabled: true });
+    const UserModel = createUserModel(keycloak, {
+      identifyBy: 'email',
+      syncFields: { password: true },
+      passwordTemporary: true,
+    });
+
+    let thrown: unknown;
+    try {
+      await UserModel.create({ username: 'bob', email: 'new@example.com', password: 'initial-secret' }); // pragma: allowlist secret
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toMatch(/already exists/i);
+    expect(keycloak.users).toHaveLength(1);
+    expect(keycloak.users[0]).toMatchObject({ id: 'user-b', username: 'bob', email: 'b@example.com' });
+    expect(keycloak.callsFor('core.users.resetPassword')).toHaveLength(0);
+    expect(keycloak.callsFor('core.users.update')).toHaveLength(0);
+    expect(keycloak.callsFor('user.update')).toHaveLength(0);
+  });
+
+  it('does not swallow an unrelated creation failure to reset a same-email account', async () => {
+    keycloak.users.push({ id: 'user-b', username: 'bob', email: 'shared@example.com', enabled: true });
+    keycloak.failOnce('user.create', new Error('Injected Keycloak failure at user.create'));
+    const UserModel = createUserModel(keycloak, {
+      identifyBy: 'username',
+      syncFields: { password: true },
+      passwordTemporary: false,
+    });
+
+    let thrown: unknown;
+    try {
+      await UserModel.create({ username: 'alice', email: 'shared@example.com', password: 'initial-secret' }); // pragma: allowlist secret
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toContain('Injected Keycloak failure at user.create');
+    expect(keycloak.users).toHaveLength(1);
+    expect(keycloak.users[0]).toMatchObject({ id: 'user-b', username: 'bob', email: 'shared@example.com' });
+    expect(keycloak.callsFor('core.users.resetPassword')).toHaveLength(0);
+    expect(keycloak.callsFor('core.users.update')).toHaveLength(0);
+    expect(keycloak.callsFor('user.update')).toHaveLength(0);
+  });
+
   it('distinguishes initial linking from a persisted email transition', async () => {
     keycloak.users.push({ id: 'existing', username: 'alice', email: 'alice@example.com', emailVerified: true });
     const UserModel = createUserModel(keycloak, { identifyBy: 'email' });
@@ -536,6 +663,156 @@ describe('keycloakUserSyncPlugin', () => {
     expect(JSON.stringify(logContext)).not.toContain('alice@example.com');
     expect(JSON.stringify(callbackContext)).not.toContain('initial-secret');
     expect(JSON.stringify(callbackContext)).not.toContain('alice@example.com');
+  });
+
+  it('sanitizes hostile transport errors at the custom logger boundary while preserving the original error', async () => {
+    const passwordSentinel = 'moo03-pw-9f2KqX7zQb4'; // pragma: allowlist secret
+    const tokenSentinel = 'moo03-token-4HbT2mZkR8';
+    const emailSentinel = 'moo03-sentinel-inbox@example.invalid';
+    const toJSON = vi.fn(() => ({ leaked: passwordSentinel }));
+    const customInspect = vi.fn(() => `custom-inspect ${tokenSentinel}`);
+    const hostile = new Error(`create failed for password ${passwordSentinel}`);
+    hostile.name = 'TransportError';
+    hostile.stack = `TransportError: boom ${tokenSentinel}\n    at test`;
+    hostile.cause = new Error(`cause holds ${emailSentinel} and ${passwordSentinel}`);
+    Object.assign(hostile, {
+      code: 'TRANSPORT_FAIL',
+      status: 502,
+      request: {
+        headers: { authorization: `Bearer ${tokenSentinel}`, 'x-email': emailSentinel },
+        body: { password: passwordSentinel },
+      },
+      response: { status: 502, data: { email: emailSentinel, token: tokenSentinel } },
+      password: passwordSentinel,
+      token: tokenSentinel,
+    });
+    (hostile as unknown as Record<string | symbol, unknown>).toJSON = toJSON;
+    (hostile as unknown as Record<string | symbol, unknown>)[Symbol.for('nodejs.util.inspect.custom')] = customInspect;
+
+    keycloak.coreUsers.find.mockRejectedValueOnce(hostile);
+    const logger = { error: vi.fn() };
+    const onError = vi.fn();
+    const UserModel = createUserModel(keycloak, { identifyBy: 'email', logger, onError, throwOnError: false });
+
+    await UserModel.create({ username: 'alice', email: 'alice@example.com' });
+
+    expect(logger.error).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0]?.[0]).toBe(hostile);
+
+    const [logMessage, logContext] = logger.error.mock.calls[0] as [unknown, Record<string, unknown>];
+    expect(logMessage).toBe('Keycloak user sync failed during save');
+    expect(logContext).toMatchObject({ operation: 'save', localDocumentId: expect.any(String) });
+    expect(Object.keys(logContext).sort()).toEqual(['error', 'localDocumentId', 'operation']);
+    expect(logContext.error).toEqual({ name: 'TransportError', code: 'TRANSPORT_FAIL', status: 502 });
+    expect(logContext.error).not.toBe(hostile);
+
+    const sentinels = [passwordSentinel, tokenSentinel, emailSentinel];
+    const seen = new Set<unknown>();
+    const pending: unknown[] = [logMessage, logContext];
+    while (pending.length > 0) {
+      const value = pending.pop();
+      if (typeof value === 'string') {
+        for (const sentinel of sentinels) expect(value).not.toContain(sentinel);
+      } else if (Array.isArray(value)) {
+        if (!seen.has(value)) {
+          seen.add(value);
+          pending.push(...value);
+        }
+      } else if (typeof value === 'object' && value !== null) {
+        if (!seen.has(value)) {
+          seen.add(value);
+          pending.push(...Object.values(value));
+        }
+      }
+    }
+    for (const sentinel of sentinels) {
+      expect(String(logMessage)).not.toContain(sentinel);
+      expect(inspect(logContext, { depth: null, getters: true })).not.toContain(sentinel);
+      expect(format('%O', logContext)).not.toContain(sentinel);
+      expect(JSON.stringify(logContext) ?? '').not.toContain(sentinel);
+    }
+    expect(toJSON).not.toHaveBeenCalled();
+    expect(customInspect).not.toHaveBeenCalled();
+  });
+
+  it('sanitizes errors reported through the default console logger', async () => {
+    const passwordSentinel = 'moo03-console-pw-7dWqL3mN5'; // pragma: allowlist secret
+    const tokenSentinel = 'moo03-console-token-8KpX1vYr6';
+    const emailSentinel = 'moo03-console-inbox@example.invalid';
+    const hostile = new Error(`lookup failed ${passwordSentinel}`);
+    hostile.name = 'TransportError';
+    hostile.stack = `TransportError: console boom ${tokenSentinel}`;
+    hostile.cause = { detail: emailSentinel, token: tokenSentinel };
+    Object.assign(hostile, {
+      request: { headers: { authorization: `Bearer ${tokenSentinel}` }, body: { password: passwordSentinel } },
+      response: { data: { email: emailSentinel } },
+    });
+
+    keycloak.coreUsers.find.mockRejectedValueOnce(hostile);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const UserModel = createUserModel(keycloak, {
+        identifyBy: 'email',
+        logger: undefined,
+        throwOnError: false,
+      });
+
+      await UserModel.create({ username: 'alice', email: 'alice@example.com' });
+
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      const [logMessage, logContext] = consoleError.mock.calls[0] as [unknown, Record<string, unknown>];
+      expect(logMessage).toBe('Keycloak user sync failed during save');
+      expect(logContext).toMatchObject({ operation: 'save', localDocumentId: expect.any(String) });
+      expect(logContext.error).toEqual({ name: 'TransportError' });
+
+      for (const sentinel of [passwordSentinel, tokenSentinel, emailSentinel]) {
+        expect(String(logMessage)).not.toContain(sentinel);
+        expect(inspect(logContext, { depth: null, getters: true })).not.toContain(sentinel);
+        expect(format('%O', logContext)).not.toContain(sentinel);
+        expect(JSON.stringify(logContext) ?? '').not.toContain(sentinel);
+      }
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('preserves original error identity on delete with sanitized logging and failing observers', async () => {
+    const passwordSentinel = 'moo03-delete-pw-2TnB6wJs9'; // pragma: allowlist secret
+    const tokenSentinel = 'moo03-delete-token-5YcF8hLd3';
+    const emailSentinel = 'moo03-delete-inbox@example.invalid';
+    const hostile = new Error(`delete failed ${passwordSentinel}`);
+    hostile.name = 'TransportError';
+    hostile.stack = `TransportError: delete boom ${tokenSentinel}`;
+    hostile.cause = new Error(`delete cause ${emailSentinel}`);
+    Object.assign(hostile, {
+      request: { headers: { authorization: `Bearer ${tokenSentinel}` }, body: { password: passwordSentinel } },
+      response: { data: { email: emailSentinel } },
+    });
+
+    const logger = { error: vi.fn(() => Promise.reject(new Error('logger failed'))) };
+    const onError = vi.fn(() => {
+      throw new Error('callback failed');
+    });
+    const UserModel = createUserModel(keycloak, { identifyBy: 'username', logger, onError });
+    const user = await UserModel.create({ username: 'alice', email: 'alice@example.com' });
+    expect(logger.error).not.toHaveBeenCalled();
+
+    keycloak.coreUsers.del.mockRejectedValueOnce(hostile);
+    await expect(user.deleteOne()).rejects.toBe(hostile);
+
+    expect(logger.error).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0]?.[0]).toBe(hostile);
+    const [logMessage, logContext] = logger.error.mock.calls[0] as [unknown, Record<string, unknown>];
+    expect(logMessage).toBe('Keycloak user sync failed during delete');
+    expect(logContext).toMatchObject({ operation: 'delete', localDocumentId: expect.any(String) });
+    expect(logContext.error).toEqual({ name: 'TransportError' });
+    for (const sentinel of [passwordSentinel, tokenSentinel, emailSentinel]) {
+      expect(inspect(logContext, { depth: null, getters: true })).not.toContain(sentinel);
+      expect(format('%O', logContext)).not.toContain(sentinel);
+      expect(JSON.stringify(logContext) ?? '').not.toContain(sentinel);
+    }
   });
 
   it('passes the full document to onError only when sensitive document context is explicitly enabled', async () => {
@@ -1012,6 +1289,241 @@ describe('keycloakUserSyncPlugin', () => {
     expect(keycloak.users).toHaveLength(0);
   });
 
+  it.each([[['email']], [['email', 'username']]] as const)(
+    'rejects an A-to-B email collision without touching B for %s ordering',
+    async (identifyBy) => {
+      keycloak.users.push(
+        { id: 'user-a', username: 'alice', email: 'a@example.com', emailVerified: true },
+        { id: 'user-b', username: 'bob', email: 'b@example.com', emailVerified: true },
+      );
+      const UserModel = createUserModel(keycloak, { identifyBy: [...identifyBy], persistProviderId: false });
+      const user = new UserModel({ username: 'alice', email: 'a@example.com', emailVerified: true });
+      await user.save();
+
+      keycloak.calls.length = 0;
+      keycloak.coreUsers.update.mockClear();
+      keycloak.coreUsers.resetPassword.mockClear();
+      keycloak.coreUsers.sendVerifyEmail.mockClear();
+      keycloak.coreUsers.del.mockClear();
+
+      user.email = 'b@example.com';
+      await expect(user.save()).rejects.toThrow(/relink|conflict|persisted/i);
+
+      expect(keycloak.users.find((remote) => remote.id === 'user-b')).toMatchObject({
+        username: 'bob',
+        email: 'b@example.com',
+        emailVerified: true,
+      });
+      expect(keycloak.users.find((remote) => remote.id === 'user-a')).toMatchObject({
+        username: 'alice',
+        email: 'a@example.com',
+      });
+      expect(keycloak.callsFor('user.update')).toHaveLength(0);
+      expect(keycloak.callsFor('core.users.update')).toHaveLength(0);
+      expect(keycloak.callsFor('user.resetPassword')).toHaveLength(0);
+      expect(keycloak.callsFor('core.users.resetPassword')).toHaveLength(0);
+      expect(keycloak.callsFor('user.delete')).toHaveLength(0);
+      expect(keycloak.callsFor('core.users.del')).toHaveLength(0);
+      expect(keycloak.callsFor('user.reconcileRealmRoles')).toHaveLength(0);
+      expect(keycloak.callsFor('user.sendVerifyEmail')).toHaveLength(0);
+      expect(keycloak.callsFor('core.users.sendVerifyEmail')).toHaveLength(0);
+    },
+  );
+
+  it.each([[['username']], [['username', 'email']]] as const)(
+    'rejects an A-to-B username collision without touching B for %s ordering',
+    async (identifyBy) => {
+      keycloak.users.push(
+        { id: 'user-a', username: 'alice', email: 'a@example.com' },
+        { id: 'user-b', username: 'bob', email: 'b@example.com' },
+      );
+      const UserModel = createUserModel(keycloak, { identifyBy: [...identifyBy] });
+      const user = new UserModel({ username: 'alice', email: 'a@example.com' });
+      await user.save();
+      expect(user.providerId).toBe('user-a');
+
+      keycloak.calls.length = 0;
+      keycloak.coreUsers.update.mockClear();
+      keycloak.coreUsers.resetPassword.mockClear();
+      keycloak.coreUsers.sendVerifyEmail.mockClear();
+      keycloak.coreUsers.del.mockClear();
+
+      user.username = 'bob';
+      await expect(user.save()).rejects.toThrow(/relink|conflict|persisted|server-controlled/i);
+
+      expect(keycloak.users.find((remote) => remote.id === 'user-b')).toMatchObject({
+        username: 'bob',
+        email: 'b@example.com',
+      });
+      expect(keycloak.users.find((remote) => remote.id === 'user-a')).toMatchObject({
+        username: 'alice',
+        email: 'a@example.com',
+      });
+      expect(keycloak.callsFor('user.update')).toHaveLength(0);
+      expect(keycloak.callsFor('core.users.update')).toHaveLength(0);
+      expect(keycloak.callsFor('user.resetPassword')).toHaveLength(0);
+      expect(keycloak.callsFor('core.users.resetPassword')).toHaveLength(0);
+      expect(keycloak.callsFor('user.delete')).toHaveLength(0);
+      expect(keycloak.callsFor('core.users.del')).toHaveLength(0);
+      expect(keycloak.callsFor('user.reconcileRealmRoles')).toHaveLength(0);
+    },
+  );
+
+  it('still protects B from an email collision when throwOnError is false', async () => {
+    keycloak.users.push(
+      { id: 'user-a', username: 'alice', email: 'a@example.com', emailVerified: true },
+      { id: 'user-b', username: 'bob', email: 'b@example.com', emailVerified: true },
+    );
+    const UserModel = createUserModel(keycloak, {
+      identifyBy: 'email',
+      persistProviderId: false,
+      throwOnError: false,
+    });
+    const user = new UserModel({ username: 'alice', email: 'a@example.com', emailVerified: true });
+    await user.save();
+
+    keycloak.calls.length = 0;
+    keycloak.coreUsers.update.mockClear();
+
+    user.email = 'b@example.com';
+    await user.save();
+
+    expect(keycloak.users).toHaveLength(2);
+    expect(keycloak.users.find((remote) => remote.id === 'user-b')).toMatchObject({
+      username: 'bob',
+      email: 'b@example.com',
+      emailVerified: true,
+    });
+    expect(keycloak.users.find((remote) => remote.id === 'user-a')).toMatchObject({
+      email: 'a@example.com',
+    });
+    expect(keycloak.callsFor('user.update')).toHaveLength(0);
+    expect(keycloak.callsFor('core.users.update')).toHaveLength(0);
+    expect(keycloak.callsFor('core.users.del')).toHaveLength(0);
+  });
+
+  it('rejects a delete after an unsaved providerId reassignment without touching either account', async () => {
+    keycloak.users.push(
+      { id: 'user-a', username: 'alice', email: 'a@example.com' },
+      { id: 'user-b', username: 'bob', email: 'b@example.com' },
+    );
+    const UserModel = createUserModel(keycloak);
+    const user = new UserModel({ username: 'alice', email: 'a@example.com' });
+    await user.save();
+    expect(user.providerId).toBe('user-a');
+
+    keycloak.calls.length = 0;
+    keycloak.coreUsers.del.mockClear();
+
+    user.providerId = 'user-b';
+    await expect(user.deleteOne()).rejects.toThrow(/server-controlled|persisted|relink/i);
+
+    expect(keycloak.users).toHaveLength(2);
+    expect(keycloak.users.find((remote) => remote.id === 'user-a')).toMatchObject({ username: 'alice' });
+    expect(keycloak.users.find((remote) => remote.id === 'user-b')).toMatchObject({ username: 'bob' });
+    expect(keycloak.callsFor('user.delete')).toHaveLength(0);
+    expect(keycloak.callsFor('core.users.del')).toHaveLength(0);
+    expect(await UserModel.findById(user._id).lean()).toMatchObject({ username: 'alice' });
+  });
+
+  it('fails closed when the persisted providerId is stale and the current identity collides with B', async () => {
+    keycloak.users.push({ id: 'user-a', username: 'alice', email: 'a@example.com' });
+    const UserModel = createUserModel(keycloak);
+    const user = new UserModel({ username: 'alice', email: 'a@example.com' });
+    await user.save();
+    expect(user.providerId).toBe('user-a');
+
+    keycloak.users.push({ id: 'user-b', username: 'bob', email: 'b@example.com' });
+    await UserModel.collection.updateOne({ _id: user._id }, { $set: { providerId: 'ghost' } });
+    const stale = await UserModel.findById(user._id).orFail();
+    expect(stale.providerId).toBe('ghost');
+
+    keycloak.calls.length = 0;
+    keycloak.coreUsers.update.mockClear();
+
+    stale.username = 'bob';
+    stale.email = 'b@example.com';
+    await expect(stale.save()).rejects.toThrow(/no longer exists|persisted|relink|conflict/i);
+
+    expect(keycloak.users).toHaveLength(2);
+    expect(keycloak.users.find((remote) => remote.id === 'user-b')).toMatchObject({
+      username: 'bob',
+      email: 'b@example.com',
+    });
+    expect(keycloak.users.find((remote) => remote.id === 'user-a')).toMatchObject({
+      username: 'alice',
+      email: 'a@example.com',
+    });
+    expect(keycloak.callsFor('user.create')).toHaveLength(0);
+    expect(keycloak.callsFor('user.update')).toHaveLength(0);
+    expect(keycloak.callsFor('core.users.update')).toHaveLength(0);
+  });
+
+  it('fails closed when the persisted local row is missing at delete time', async () => {
+    keycloak.users.push({ id: 'user-a', username: 'alice', email: 'a@example.com' });
+    const UserModel = createUserModel(keycloak);
+    const user = new UserModel({ username: 'alice', email: 'a@example.com' });
+    await user.save();
+    expect(user.providerId).toBe('user-a');
+
+    await UserModel.collection.deleteOne({ _id: user._id });
+    keycloak.calls.length = 0;
+    keycloak.coreUsers.del.mockClear();
+
+    await expect(user.deleteOne()).rejects.toThrow(/persisted/i);
+
+    expect(keycloak.users).toHaveLength(1);
+    expect(keycloak.users[0]).toMatchObject({ id: 'user-a', username: 'alice' });
+    expect(keycloak.callsFor('user.delete')).toHaveLength(0);
+    expect(keycloak.callsFor('core.users.del')).toHaveLength(0);
+  });
+
+  it('rejects deleting a never-persisted document before any remote call', async () => {
+    keycloak.users.push({ id: 'user-b', username: 'bob', email: 'b@example.com' });
+    const UserModel = createUserModel(keycloak);
+    const user = new UserModel({ providerId: 'user-b', username: 'bob', email: 'b@example.com' });
+
+    await expect(user.deleteOne()).rejects.toThrow(/never.*persist|persisted/i);
+
+    expect(keycloak.users).toHaveLength(1);
+    expect(keycloak.users[0]).toMatchObject({ id: 'user-b', username: 'bob' });
+    expect(keycloak.calls).toHaveLength(0);
+  });
+
+  it('still applies non-colliding email updates to the bound remote ID', async () => {
+    keycloak.users.push({ id: 'user-a', username: 'alice', email: 'a@example.com', emailVerified: true });
+    const UserModel = createUserModel(keycloak, { identifyBy: 'email', persistProviderId: false });
+    const user = new UserModel({ username: 'alice', email: 'a@example.com', emailVerified: true });
+    await user.save();
+
+    keycloak.coreUsers.update.mockClear();
+    keycloak.coreUsers.sendVerifyEmail.mockClear();
+    user.email = 'c@example.com';
+    await user.save();
+
+    expect(keycloak.coreUsers.update).toHaveBeenCalledWith(
+      { realm: 'test', id: 'user-a' },
+      expect.objectContaining({ email: 'c@example.com', emailVerified: false }),
+    );
+    expect(keycloak.coreUsers.sendVerifyEmail).toHaveBeenCalledWith({ realm: 'test', id: 'user-a' });
+    expect(keycloak.users).toHaveLength(1);
+    expect(keycloak.users[0]).toMatchObject({ id: 'user-a', email: 'c@example.com' });
+  });
+
+  it('links a new document through a reversed identifyBy ordering', async () => {
+    keycloak.users.push({ id: 'user-a', username: 'alice', email: 'a@example.com', emailVerified: true });
+    const UserModel = createUserModel(keycloak, { identifyBy: ['email', 'username'] });
+
+    const created = await UserModel.create({ username: 'alice', email: 'a@example.com', emailVerified: true });
+
+    expect(created.providerId).toBe('user-a');
+    expect(keycloak.users).toHaveLength(1);
+    expect(keycloak.coreUsers.update).toHaveBeenCalledWith(
+      { realm: 'test', id: 'user-a' },
+      expect.not.objectContaining({ emailVerified: expect.any(Boolean) }),
+    );
+  });
+
   it('keeps a document retryable when remote deletion fails with throwOnError disabled', async () => {
     const UserModel = createUserModel(keycloak, { throwOnError: false });
     const user = await UserModel.create({ username: 'alice', email: 'alice@example.com' });
@@ -1026,5 +1538,196 @@ describe('keycloakUserSyncPlugin', () => {
 
     expect(await UserModel.findById(user._id).lean()).toBeNull();
     expect(keycloak.users).toHaveLength(0);
+  });
+
+  it('triggers role sync precisely through declared rolePaths without profile or credential writes', async () => {
+    const mapRoles = vi.fn((roles: unknown, document: { get(path: string): unknown }) => {
+      const tier = document.get('tier');
+      return tier === 'pro' ? ['pro-role'] : ['basic-role'];
+    });
+    const schema = new mongoose.Schema({
+      providerId: String,
+      username: { type: String, required: true },
+      email: { type: String, required: true },
+      emailVerified: { type: Boolean, default: false },
+      firstName: String,
+      lastName: String,
+      enabled: Boolean,
+      archived: { type: Boolean, default: false },
+      tier: { type: String, default: 'basic' },
+      roles: { type: [String], default: [] },
+      attributes: { type: mongoose.Schema.Types.Mixed },
+    });
+    schema.plugin(keycloakUserSyncPlugin, {
+      client: keycloak.client as never,
+      realm: 'test',
+      logger: false,
+      mapRoles: mapRoles as never,
+      rolePaths: ['tier'],
+      managedRoles: ['basic-role', 'pro-role'],
+    });
+    const TierModel = mongoose.model(`KeycloakSyncTier${mongoose.modelNames().length}`, schema);
+    keycloak.roles.set('basic-role', { id: 'role-basic', name: 'basic-role' });
+    keycloak.roles.set('pro-role', { id: 'role-pro', name: 'pro-role' });
+
+    const user = await TierModel.create({ username: 'alice', email: 'alice@example.com', tier: 'basic' });
+    expect(keycloak.mappings.get('user-1')?.map((role) => role.name)).toEqual(['basic-role']);
+    const creations = mapRoles.mock.calls.length;
+
+    keycloak.calls.length = 0;
+    keycloak.coreUsers.update.mockClear();
+    keycloak.coreUsers.resetPassword.mockClear();
+    mapRoles.mockClear();
+
+    user.set('tier', 'pro');
+    await user.save();
+
+    expect(mapRoles).toHaveBeenCalledTimes(1);
+    expect(keycloak.callsFor('user.reconcileRealmRoles')).toHaveLength(1);
+    expect(keycloak.mappings.get('user-1')?.map((role) => role.name)).toEqual(['pro-role']);
+    expect(keycloak.coreUsers.update).not.toHaveBeenCalled();
+    expect(keycloak.coreUsers.resetPassword).not.toHaveBeenCalled();
+
+    keycloak.calls.length = 0;
+    keycloak.coreUsers.update.mockClear();
+    mapRoles.mockClear();
+
+    user.set('firstName', 'Alicia');
+    await user.save();
+
+    expect(keycloak.coreUsers.update).toHaveBeenCalledWith(
+      { realm: 'test', id: 'user-1' },
+      expect.objectContaining({ firstName: 'Alicia' }),
+    );
+    expect(mapRoles).not.toHaveBeenCalled();
+    expect(keycloak.callsFor('user.reconcileRealmRoles')).toHaveLength(0);
+    expect(keycloak.coreUsers.resetPassword).not.toHaveBeenCalled();
+    expect(creations).toBeGreaterThanOrEqual(1);
+  });
+
+  it('evaluates password mappers only for creation or declared password intent', async () => {
+    const mapPassword = vi.fn((document: { get(path: string): unknown }) => {
+      const pending = document.get('pendingPassword');
+      return typeof pending === 'string' && pending.length > 0 ? pending : null;
+    });
+    const schema = new mongoose.Schema({
+      providerId: String,
+      username: { type: String, required: true },
+      email: { type: String, required: true },
+      emailVerified: { type: Boolean, default: false },
+      firstName: String,
+      lastName: String,
+      enabled: Boolean,
+      archived: { type: Boolean, default: false },
+      roles: { type: [String], default: [] },
+      attributes: { type: mongoose.Schema.Types.Mixed },
+      pendingPassword: String,
+    });
+    schema.plugin(keycloakUserSyncPlugin, {
+      client: keycloak.client as never,
+      realm: 'test',
+      logger: false,
+      syncFields: { password: true },
+      mapPassword: mapPassword as never,
+      passwordPaths: ['pendingPassword'],
+    });
+    const PendingModel = mongoose.model(`KeycloakSyncPending${mongoose.modelNames().length}`, schema);
+
+    const user = await PendingModel.create({
+      username: 'alice',
+      email: 'alice@example.com',
+      pendingPassword: 'initial-secret', // pragma: allowlist secret
+    });
+    expect(mapPassword).toHaveBeenCalled();
+    expect(keycloak.coreUsers.resetPassword).toHaveBeenCalledWith({
+      realm: 'test',
+      id: 'user-1',
+      credential: { temporary: false, type: 'password', value: 'initial-secret' },
+    });
+
+    keycloak.calls.length = 0;
+    keycloak.coreUsers.update.mockClear();
+    keycloak.coreUsers.resetPassword.mockClear();
+    mapPassword.mockClear();
+
+    user.set('firstName', 'Alicia');
+    await user.save();
+
+    expect(keycloak.coreUsers.update).toHaveBeenCalledWith(
+      { realm: 'test', id: 'user-1' },
+      expect.objectContaining({ firstName: 'Alicia' }),
+    );
+    expect(mapPassword).not.toHaveBeenCalled();
+    expect(keycloak.coreUsers.resetPassword).not.toHaveBeenCalled();
+    expect(keycloak.callsFor('user.reconcileRealmRoles')).toHaveLength(0);
+
+    mapPassword.mockClear();
+    keycloak.coreUsers.resetPassword.mockClear();
+    keycloak.coreUsers.update.mockClear();
+
+    user.set('pendingPassword', 'next-secret'); // pragma: allowlist secret
+    await user.save();
+
+    expect(mapPassword).toHaveBeenCalledTimes(1);
+    expect(keycloak.coreUsers.resetPassword).toHaveBeenCalledWith({
+      realm: 'test',
+      id: 'user-1',
+      credential: { temporary: false, type: 'password', value: 'next-secret' },
+    });
+  });
+
+  it('keeps disabled mapper dependencies inert and validates/snapshots dependency arrays', async () => {
+    expect(() => createUserModel(keycloak, { rolePaths: ['tier', '   '] })).toThrow(
+      'rolePaths[1] must be a non-empty string',
+    );
+    expect(() =>
+      createUserModel(keycloak, {
+        passwordPaths: 'pendingPassword' as never, // pragma: allowlist secret
+      }),
+    ).toThrow('passwordPaths must be an array of non-empty strings');
+
+    const rolePaths = ['tier'];
+    const passwordPaths = ['pendingPassword'];
+    const schema = new mongoose.Schema({
+      providerId: String,
+      username: { type: String, required: true },
+      email: { type: String, required: true },
+      emailVerified: { type: Boolean, default: false },
+      firstName: String,
+      lastName: String,
+      enabled: Boolean,
+      archived: { type: Boolean, default: false },
+      attributes: { type: mongoose.Schema.Types.Mixed },
+      tier: { type: String, default: 'basic' },
+      pendingPassword: String,
+      roles: { type: [String], default: [] },
+    });
+    schema.plugin(keycloakUserSyncPlugin, {
+      client: keycloak.client as never,
+      realm: 'test',
+      logger: false,
+      syncFields: { roles: false, password: false },
+      mapRoles: (() => ['x']) as never,
+      mapPassword: (() => null) as never,
+      rolePaths,
+      passwordPaths,
+    });
+    rolePaths.push('injected');
+    passwordPaths.push('injected');
+
+    const DisabledModel = mongoose.model(`KeycloakSyncDisabledDeps${mongoose.modelNames().length}`, schema);
+    const user = await DisabledModel.create({ username: 'alice', email: 'alice@example.com' });
+    keycloak.calls.length = 0;
+    keycloak.coreUsers.update.mockClear();
+    keycloak.coreUsers.resetPassword.mockClear();
+
+    user.set('tier', 'pro');
+    user.set('pendingPassword', 'next-secret'); // pragma: allowlist secret
+    (user as unknown as { set(path: string, value: unknown): void }).set('injected', 'yes');
+    await user.save();
+
+    expect(keycloak.callsFor('user.reconcileRealmRoles')).toHaveLength(0);
+    expect(keycloak.coreUsers.resetPassword).not.toHaveBeenCalled();
+    expect(keycloak.coreUsers.update).not.toHaveBeenCalled();
   });
 });

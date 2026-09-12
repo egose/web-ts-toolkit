@@ -446,7 +446,7 @@ describe('MessageService MongoDB integration harness', () => {
     expect(String(differentCase[0]._id)).not.toBe(String(first[0]._id));
   });
 
-  it('can pause independently after reservation acquisition, first batch item commit, action handler entry, and archive commit', async () => {
+  it('can pause independently after reservation acquisition, first batch item creation, action handler entry, and archive creation', async () => {
     const barriers = createMessageServiceBarriers();
     const batchTemplate: MessageTemplate = {
       ...roleTemplate,
@@ -493,7 +493,9 @@ describe('MessageService MongoDB integration harness', () => {
     ).toBe(1);
     barriers.reservationAcquired.release();
 
-    await barriers.firstBatchItemCommitted.reached;
+    await barriers.firstBatchItemCreated.reached;
+    // Create-return milestone inside the uncommitted transaction: the batch
+    // writes are still invisible outside it.
     expect(
       await models.Message.countDocuments({
         clientRequestId: 'barrier-request',
@@ -501,7 +503,9 @@ describe('MessageService MongoDB integration harness', () => {
         templateCd: batchTemplate.templateCd,
       }),
     ).toBe(0);
-    barriers.firstBatchItemCommitted.release();
+    barriers.firstBatchItemCreated.release();
+    // Commit is observed only through committed state after the promise
+    // resolves, never through the create-return barrier above.
     await expect(createPromise).resolves.toHaveLength(2);
 
     const actionMessage = (await models.Message.create({
@@ -513,7 +517,7 @@ describe('MessageService MongoDB integration harness', () => {
       receiverContent: { title: 'R', long: 'R', short: 'R' },
     })) as IMessage;
     actionMessage.archive = async () => {
-      await barriers.archiveCommitted.arrive();
+      await barriers.archiveCreated.arrive();
     };
 
     const actionPromise = service.handleAction(actionTemplate.templateCd, 'approve', {
@@ -524,15 +528,15 @@ describe('MessageService MongoDB integration harness', () => {
     await barriers.actionClaimed.reached;
     expect(await models.MessageArchive.countDocuments({})).toBe(0);
     barriers.actionClaimed.release();
-    await barriers.archiveCommitted.reached;
-    barriers.archiveCommitted.release();
+    await barriers.archiveCreated.reached;
+    barriers.archiveCreated.release();
     await expect(actionPromise).resolves.toBe('approved');
 
     releaseBarriers(
       barriers.reservationAcquired,
-      barriers.firstBatchItemCommitted,
+      barriers.firstBatchItemCreated,
       barriers.actionClaimed,
-      barriers.archiveCommitted,
+      barriers.archiveCreated,
     );
   });
 
@@ -560,7 +564,8 @@ describe('MessageService MongoDB integration harness', () => {
 
     await barriers.reservationAcquired.reached;
     barriers.reservationAcquired.release();
-    await barriers.firstBatchItemCommitted.reached;
+    await barriers.firstBatchItemCreated.reached;
+    // Still inside the uncommitted transaction: nothing visible yet.
     expect(
       await models.Message.countDocuments({
         clientRequestId: 'live-pending-request',
@@ -576,7 +581,7 @@ describe('MessageService MongoDB integration harness', () => {
       }),
     ).rejects.toBeInstanceOf(ClientRequestPendingError);
 
-    barriers.firstBatchItemCommitted.release();
+    barriers.firstBatchItemCreated.release();
     await expect(createPromise).resolves.toHaveLength(2);
   });
 
@@ -1094,9 +1099,11 @@ describe('MessageService MongoDB integration harness', () => {
     ).rejects.toBeInstanceOf(ActionConflictError);
 
     barriers.actionClaimed.release();
-    barriers.archiveCommitted.release();
+    barriers.archiveCreated.release();
     await expect(approve).resolves.toBe('approved');
 
+    // Committed-state observation: archive movement is asserted after the
+    // action promise resolves, not at the archive create-return barrier.
     expect(approveHandler).toHaveBeenCalledTimes(1);
     expect(rejectHandler).not.toHaveBeenCalled();
     expect(await models.Message.countDocuments({ _id: message._id })).toBe(0);

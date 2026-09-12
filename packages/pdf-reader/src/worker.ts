@@ -11,6 +11,10 @@ import { GlobalWorkerOptions } from 'pdfjs-dist';
  *
  * When passing an existing DOM `Worker`, the caller retains ownership of
  * terminating it.
+ *
+ * A caller-created PDF.js `PDFWorker` passed on a `PdfSource` is likewise
+ * never destroyed by the reader or by PDF.js task teardown: destroy it
+ * explicitly in a `finally` block, even when `reader.destroy()` rejects.
  */
 export function configurePdfWorker(worker: string | Worker): void {
   if (typeof worker === 'string') {

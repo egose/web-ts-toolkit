@@ -70,8 +70,25 @@ export interface KeycloakUserSyncSensitiveErrorContext extends KeycloakUserSyncE
   document: unknown;
 }
 
+/**
+ * Allowlisted logger error summary. The logger boundary never receives the
+ * original error, its message/stack/cause, transport request/response data,
+ * or arbitrary enumerable properties — only a sanitized name plus optional
+ * machine codes. `onError` still receives the original error for private
+ * processing.
+ */
+export interface KeycloakUserSyncLoggedError {
+  readonly name: string;
+  readonly code?: string;
+  readonly status?: number;
+}
+
+export interface KeycloakUserSyncLogContext extends KeycloakUserSyncErrorContext {
+  readonly error: KeycloakUserSyncLoggedError;
+}
+
 export interface KeycloakUserSyncLogger {
-  error(message: string, context: KeycloakUserSyncErrorContext & { error: unknown }): void | Promise<void>;
+  error(message: string, context: KeycloakUserSyncLogContext): void | Promise<void>;
 }
 
 export interface KeycloakUserSyncDocument {
@@ -99,6 +116,21 @@ export interface KeycloakUserSyncPluginOptions {
   mapPassword?: (document: KeycloakUserSyncDocument) => string | null | undefined;
   /** Mongoose paths that should trigger attribute syncing when mapAttributes reads dynamic fields. */
   attributePaths?: readonly string[];
+  /**
+   * Mongoose paths that should trigger role syncing when mapRoles reads
+   * fields beyond the configured roles path (e.g. a tier or plan field).
+   * Honored only while `syncFields.roles` is enabled. The configured roles
+   * path always triggers; these are additional explicit dependencies.
+   */
+  rolePaths?: readonly string[];
+  /**
+   * Mongoose paths that should trigger password syncing when mapPassword
+   * reads fields beyond the configured password path (e.g. a virtual
+   * backing field or pending-password input). Honored only while
+   * `syncFields.password` is enabled. The mapper itself is still evaluated
+   * only for creation or an actual password-sync intent.
+   */
+  passwordPaths?: readonly string[];
   /** Attribute keys owned by this plugin. Only managed keys are removed when missing from the mapper result. */
   managedAttributes?: readonly string[];
   /** Role names this plugin owns. Role removal is limited to this set; without it, role sync is additive-only. */
@@ -162,13 +194,23 @@ type SyncState = {
 
 type NormalizedKeycloakUserSyncPluginOptions = Omit<
   KeycloakUserSyncPluginOptions,
-  'realm' | 'identifyBy' | 'paths' | 'syncFields' | 'attributePaths' | 'managedAttributes' | 'managedRoles'
+  | 'realm'
+  | 'identifyBy'
+  | 'paths'
+  | 'syncFields'
+  | 'attributePaths'
+  | 'rolePaths'
+  | 'passwordPaths'
+  | 'managedAttributes'
+  | 'managedRoles'
 > & {
   realm: string;
   identifyBy: readonly KeycloakUserIdentityField[];
   paths: Readonly<KeycloakUserSyncPaths>;
   syncFields: Readonly<Record<KeycloakUserSyncField, boolean>>;
   attributePaths?: readonly string[];
+  rolePaths?: readonly string[];
+  passwordPaths?: readonly string[];
   managedAttributes?: readonly string[];
   managedRoles?: readonly string[];
 };
@@ -334,6 +376,8 @@ const normalizeOptions = (schema: Schema, options: KeycloakUserSyncPluginOptions
     paths,
     syncFields,
     attributePaths: normalizeOptionalStringList(options.attributePaths, 'attributePaths'),
+    rolePaths: normalizeOptionalStringList(options.rolePaths, 'rolePaths'),
+    passwordPaths: normalizeOptionalStringList(options.passwordPaths, 'passwordPaths'),
     managedAttributes: normalizeOptionalStringList(options.managedAttributes, 'managedAttributes'),
     managedRoles: normalizeOptionalStringList(options.managedRoles, 'managedRoles'),
     maxRolesPerSync: normalizeMaxRolesPerSync(options.maxRolesPerSync),
@@ -360,6 +404,39 @@ const normalizeOptions = (schema: Schema, options: KeycloakUserSyncPluginOptions
 };
 
 const getState = (document: PluginDocument) => document.$locals[syncStateKey] as SyncState | undefined;
+
+const loggerTokenPattern = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
+
+const toLoggerToken = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  if (value.length === 0 || value.length > 64) return undefined;
+  if (!loggerTokenPattern.test(value)) return undefined;
+  return value;
+};
+
+/**
+ * Build the allowlisted logger error summary without touching unsafe error
+ * surfaces. Only `name`, `code`, and `status`/`statusCode` are read (each
+ * validated); message, stack, cause, request/response, enumerable payload
+ * properties, and custom inspection hooks are never read, spread, or
+ * serialized, so transport secrets cannot flow into logs.
+ */
+const toLoggedError = (error: unknown): KeycloakUserSyncLoggedError => {
+  if (typeof error !== 'object' || error === null) return { name: 'UnknownError' };
+  try {
+    const candidate = error as { name?: unknown; code?: unknown; status?: unknown; statusCode?: unknown };
+    const name = toLoggerToken(candidate.name) ?? 'Error';
+    const code = toLoggerToken(candidate.code);
+    const rawStatus = candidate.status ?? candidate.statusCode;
+    const status =
+      typeof rawStatus === 'number' && Number.isSafeInteger(rawStatus) && rawStatus >= 0 && rawStatus <= 999
+        ? rawStatus
+        : undefined;
+    return { name, ...(code === undefined ? {} : { code }), ...(status === undefined ? {} : { status }) };
+  } catch {
+    return { name: 'Error' };
+  }
+};
 
 const getDocumentSession = (document: PluginDocument) => document.$session?.() ?? null;
 
@@ -390,6 +467,7 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
   const identities = options.identifyBy;
   const realmHandle = options.client.realm(options.realm);
   const trackedPaths = buildTrackedPaths(options);
+  const identitySnapshotPaths = uniqueStrings([...trackedPaths, paths.providerId, paths.username, paths.email]);
 
   const buildSafeErrorContext = (operation: KeycloakUserSyncErrorContext['operation'], document: PluginDocument) => ({
     operation,
@@ -402,9 +480,15 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
     document: PluginDocument,
   ) => {
     const safeContext = buildSafeErrorContext(operation, document);
-    const logger = options.logger === false ? null : (options.logger ?? console);
+    const logger = options.logger === false ? null : ((options.logger ?? console) as KeycloakUserSyncLogger);
     try {
-      await logger?.error(`Keycloak user sync failed during ${operation}`, { ...safeContext, error });
+      // Safe logging boundary: only the allowlisted summary reaches the
+      // logger. The original error is preserved below for throwing and for
+      // the private onError callback, which is a distinct channel.
+      await logger?.error(`Keycloak user sync failed during ${operation}`, {
+        ...safeContext,
+        error: toLoggedError(error),
+      });
     } catch {
       // Preserve the original sync error; logging must not change the sync policy.
     }
@@ -427,9 +511,28 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
   const getUsername = (document: PluginDocument) =>
     stringValue(readDocumentValue(document, 'username')) ?? stringValue(readDocumentValue(document, 'email'));
 
+  const readPersistedSnapshot = async (document: PluginDocument) =>
+    document.constructor
+      .findById(document._id)
+      .select(identitySnapshotPaths)
+      .session(getDocumentSession(document))
+      .lean();
+
+  /**
+   * Single persisted-identity resolution boundary shared by saves and deletes.
+   *
+   * New local documents perform explicitly authorized initial linking through
+   * their current identity values. Existing documents resolve only through
+   * their persisted snapshot: a stored providerId is authoritative, a stale
+   * binding fails closed instead of falling through to an unrelated account,
+   * and current mutable username/email values that resolve to a different
+   * remote user are reported as identity conflicts. Callers must not touch
+   * that remote account when this function throws.
+   */
   const resolveUser = async (
     document: PluginDocument,
-    previous?: Record<string, unknown> | null,
+    snapshot: Record<string, unknown> | null | undefined,
+    wasNew: boolean,
   ): Promise<{ user: KeycloakUser | null; duplicateEmailsAllowed: boolean }> => {
     const realm = await realmHandle.get();
     if (!realm) throw new Error(`Keycloak realm "${options.realm}" was not found`);
@@ -444,45 +547,196 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
       return (await realmHandle.userById(user.id).get()) ?? user;
     };
 
+    const findByProviderId = async (providerId: string) => realmHandle.userById(providerId).get();
+    const findByUsername = async (username: string) => realmHandle.user(username).get();
+    const findByEmail = async (email: string) => {
+      const matches = (
+        await realmHandle.searchUsers(email, { attribute: 'email', exact: true, first: 0, max: 2 })
+      ).filter((user) => normalizeEmail(user.email) === normalizeEmail(email));
+
+      if (matches.length > 1) {
+        throw new Error('Cannot identify a unique Keycloak user for the configured email identity');
+      }
+      if (matches.length === 1) return getCompleteUserById(matches[0]);
+      return null;
+    };
+
+    const findByIdentity = async (identity: KeycloakUserIdentityField, value: string) => {
+      if (identity === 'providerId') return findByProviderId(value);
+      if (identity === 'username') return findByUsername(value);
+      return findByEmail(value);
+    };
+
+    const identityConflict = () =>
+      new Error(
+        'keycloakUserSyncPlugin detected a Keycloak identity conflict; refusing to relink to a different remote user',
+      );
+
+    if (wasNew) {
+      for (const identity of orderedIdentities) {
+        for (const value of uniqueStrings([
+          readDocumentValue(document, identity),
+          getPreviousValue(snapshot, identity),
+        ])) {
+          const user = await findByIdentity(identity, value);
+          if (user) return { user, duplicateEmailsAllowed };
+        }
+      }
+
+      return { user: null, duplicateEmailsAllowed };
+    }
+
+    if (!snapshot) {
+      throw new Error(
+        'keycloakUserSyncPlugin cannot verify the persisted Keycloak identity for this document; refusing to sync a possibly relinked account',
+      );
+    }
+
+    const persistedValue = (identity: KeycloakUserIdentityField) => stringValue(getPreviousValue(snapshot, identity));
+    const currentValue = (identity: KeycloakUserIdentityField) => stringValue(readDocumentValue(document, identity));
+    const persistedProviderId = persistedValue('providerId');
+    const currentProviderId = currentValue('providerId');
+    if (persistedProviderId && currentProviderId && persistedProviderId !== currentProviderId) {
+      throw new Error('keycloakUserSyncPlugin providerId is server-controlled and cannot be changed after persistence');
+    }
+
+    // A changed username always identifies a different unique account. A
+    // changed email does so only when the realm forbids duplicate emails;
+    // duplicate-email realms may legitimately share one address across
+    // accounts bound by providerId, and the binding below keeps B untouched.
+    const isRelinkProtected = (identity: KeycloakUserIdentityField) =>
+      identity === 'username' || (identity === 'email' && !duplicateEmailsAllowed);
+
+    const checkCurrentDoesNotRelink = async (identity: KeycloakUserIdentityField, boundId: string) => {
+      if (!identities.includes(identity) || !isRelinkProtected(identity)) return;
+      const current = currentValue(identity);
+      if (!current) return;
+      const persisted = persistedValue(identity);
+      const unchanged =
+        identity === 'email'
+          ? persisted !== null && normalizeEmail(persisted) === normalizeEmail(current)
+          : persisted === current;
+      if (persisted !== null && unchanged) return;
+      const user = await findByIdentity(identity, current);
+      if (user?.id && user.id !== boundId) throw identityConflict();
+    };
+
+    if (persistedProviderId) {
+      // The stored providerId is authoritative: it keeps duplicate-email
+      // realms working (one address may legitimately be shared) and avoids
+      // extra lookups on every sync. Current-value conflicts are still
+      // verified below, and a stale binding fails closed without fallthrough.
+      const bound = await findByProviderId(persistedProviderId);
+      if (!bound?.id) {
+        throw new Error(
+          'keycloakUserSyncPlugin persisted Keycloak identity no longer exists; refusing to relink to a different remote user',
+        );
+      }
+      await checkCurrentDoesNotRelink('username', bound.id);
+      await checkCurrentDoesNotRelink('email', bound.id);
+      return { user: bound, duplicateEmailsAllowed };
+    }
+
+    let bound: KeycloakUser | null = null;
     for (const identity of orderedIdentities) {
-      if (identity === 'providerId') {
-        for (const providerId of uniqueStrings([
-          readDocumentValue(document, 'providerId'),
-          getPreviousValue(previous, 'providerId'),
-        ])) {
-          const user = await realmHandle.userById(providerId).get();
-          if (user) return { user, duplicateEmailsAllowed };
-        }
-      }
+      if (identity === 'providerId') continue;
+      const persisted = persistedValue(identity);
+      if (!persisted) continue;
+      const user = await findByIdentity(identity, persisted);
+      if (!user?.id) continue;
+      if (bound?.id && bound.id !== user.id) throw identityConflict();
+      bound ??= user;
+    }
 
-      if (identity === 'username') {
-        for (const username of uniqueStrings([
-          readDocumentValue(document, 'username'),
-          getPreviousValue(previous, 'username'),
-        ])) {
-          const user = await realmHandle.user(username).get();
-          if (user) return { user, duplicateEmailsAllowed };
-        }
+    if (bound?.id) {
+      await checkCurrentDoesNotRelink('username', bound.id);
+      await checkCurrentDoesNotRelink('email', bound.id);
+      if (currentProviderId) {
+        const owner = await findByProviderId(currentProviderId);
+        if (owner?.id && owner.id !== bound.id) throw identityConflict();
       }
+      return { user: bound, duplicateEmailsAllowed };
+    }
 
-      if (identity === 'email') {
-        for (const email of uniqueStrings([
-          readDocumentValue(document, 'email'),
-          getPreviousValue(previous, 'email'),
-        ])) {
-          const matches = (
-            await realmHandle.searchUsers(email, { attribute: 'email', exact: true, first: 0, max: 2 })
-          ).filter((user) => normalizeEmail(user.email) === normalizeEmail(email));
-
-          if (matches.length > 1) {
-            throw new Error('Cannot identify a unique Keycloak user for the configured email identity');
-          }
-          if (matches.length === 1) return { user: await getCompleteUserById(matches[0]), duplicateEmailsAllowed };
-        }
-      }
+    // No persisted binding exists: any current identity that already resolves
+    // remotely would be a silent relink, so fail closed instead of linking it.
+    if (currentProviderId) {
+      const owner = await findByProviderId(currentProviderId);
+      if (owner?.id) throw identityConflict();
+    }
+    for (const identity of orderedIdentities) {
+      if (identity === 'providerId') continue;
+      const current = currentValue(identity);
+      if (!current) continue;
+      const user = await findByIdentity(identity, current);
+      if (user?.id) throw identityConflict();
     }
 
     return { user: null, duplicateEmailsAllowed };
+  };
+
+  const getProvisioningFlags = (error: unknown) => {
+    if (typeof error !== 'object' || error === null) return null;
+    const candidate = error as {
+      name?: unknown;
+      accountPersists?: unknown;
+      accountEnabled?: unknown;
+      passwordApplied?: unknown;
+      initialProvisioning?: unknown;
+    };
+    if (
+      candidate.name !== 'UserPasswordProvisioningError' &&
+      !('accountPersists' in candidate) &&
+      !('initialProvisioning' in candidate)
+    ) {
+      return null;
+    }
+    return candidate;
+  };
+
+  const isAlreadyExistsError = (error: unknown) =>
+    error instanceof Error && /already exists in realm/.test(error.message);
+
+  const readIntendedEnabled = (document: PluginDocument) => {
+    if (!syncFields.enabled) return undefined;
+    const archived = readDocumentValue(document, 'archived');
+    if (typeof archived === 'boolean') return !archived;
+    const enabled = readDocumentValue(document, 'enabled');
+    if (typeof enabled === 'boolean') return enabled;
+    return undefined;
+  };
+
+  /**
+   * Small private creation-recovery flow with explicit outcome, credential,
+   * and enablement state.
+   *
+   * Only new local documents may recover (explicitly authorized initial
+   * linking). Recovery requires proof that this attempt left a disabled
+   * account behind: a password-provisioning error with `accountPersists`
+   * (matching the supported fluent contract) or, when no password was
+   * involved, the existing post-create convergence case. Unrelated creation
+   * errors and already-exists collisions rethrow without touching the
+   * resolved account, so another account's credentials can never be reset
+   * here. Password completion additionally requires an exact username match.
+   */
+  const recoverPartialCreation = async (
+    document: PluginDocument,
+    username: string,
+    creationError: unknown,
+    desiredPassword: string | null,
+  ) => {
+    if (identities.length === 0) throw creationError;
+    if (isAlreadyExistsError(creationError)) throw creationError;
+    const flags = getProvisioningFlags(creationError);
+    if (flags && flags.accountPersists === false) throw creationError;
+    if (desiredPassword && !(flags && flags.accountPersists === true)) throw creationError;
+    const recoveredUser = await resolveCreatedUser(document, username);
+    if (!recoveredUser?.id) throw creationError;
+    if (desiredPassword) {
+      const candidateUsername = stringValue(recoveredUser.username);
+      if (!candidateUsername || candidateUsername !== username) throw creationError;
+    }
+    return { user: recoveredUser, passwordAlreadyApplied: flags?.passwordApplied === true };
   };
 
   const resolveCreatedUser = async (document: PluginDocument, username: string) => {
@@ -532,9 +786,11 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
   };
 
   const syncDocument = async (document: PluginDocument, state: SyncState) => {
-    const resolved = await resolveUser(document, state.previous);
+    const resolved = await resolveUser(document, state.previous, state.wasNew);
     let user = resolved.user;
     let created = false;
+    let recoveredPartial = false;
+    let passwordAlreadyApplied = false;
     const shouldSyncProfile =
       state.wasNew ||
       ['username', 'email', 'emailVerified', 'firstName', 'lastName', 'enabled'].some((field) =>
@@ -544,33 +800,54 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
     const payload = shouldSyncProfile
       ? buildProfilePayload(document, options, Boolean(resolved.user), state.wasNew ? undefined : state.changedFields)
       : {};
-    const desiredPassword = getDesiredPassword(document, options);
+    // Evaluate the password mapper only for creation or an actual
+    // password-sync intent. Unrelated updates must neither invoke the mapper
+    // nor trigger credential operations. The cached value preserves MOO-02
+    // recovery: creation evaluates once, and a recovered partial creation
+    // reuses that same outcome for its reset-before-enable step.
+    let cachedPassword: string | null | undefined;
+    let passwordEvaluated = false;
+    const readDesiredPassword = () => {
+      if (!passwordEvaluated) {
+        cachedPassword = getDesiredPassword(document, options);
+        passwordEvaluated = true;
+      }
+      return cachedPassword ?? null;
+    };
 
     if (!user) {
       const username = getUsername(document);
       if (!username) throw new Error('Cannot create a Keycloak user without a username or email');
       payload.attributes = mergeAttributes(null, document, options);
+      const creationPassword = readDesiredPassword();
       try {
         user =
           (await realmHandle.user(username).create({
             username,
             ...payload,
-            ...(desiredPassword && {
-              password: desiredPassword,
+            ...(creationPassword && {
+              password: creationPassword,
               passwordTemporary: options.passwordTemporary ?? false,
             }),
           })) ?? null;
         created = true;
       } catch (error) {
-        if (identities.length === 0) throw error;
-        const recoveredUser = await resolveCreatedUser(document, username);
-        if (!recoveredUser) throw error;
-        user = recoveredUser;
+        // Creation recovery resolves through live identity values, which is
+        // only authorized initial linking for new local documents. An
+        // existing document without a persisted binding must fail closed
+        // instead of relinking to whoever currently matches.
+        if (!state.wasNew) throw error;
+        const recovered = await recoverPartialCreation(document, username, error, creationPassword);
+        user = recovered.user;
+        recoveredPartial = true;
+        passwordAlreadyApplied = recovered.passwordAlreadyApplied;
       }
     }
 
     if (!user?.id) throw new Error('Keycloak did not return a user ID');
     const userId = user.id;
+    // Safe persistence before credential work so a retry resolves through the
+    // authoritative MOO-01 providerId binding instead of a fresh lookup.
     await persistProviderId(document, userId);
 
     const emailVerificationPlan = planEmailVerification({
@@ -583,6 +860,18 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
       remoteEmail: user.email,
     });
 
+    // Explicit credential/enablement state: a required password must succeed
+    // before the account is enabled. Recovered partial creations and password
+    // changes therefore apply the profile without `enabled`, reset the
+    // credential with the configured temporary policy, and only then enable.
+    // No password is ever placed in a generic profile payload.
+    const desiredPassword =
+      !created && !passwordAlreadyApplied && (recoveredPartial || state.passwordChanged)
+        ? readDesiredPassword()
+        : (cachedPassword ?? null);
+    const willResetPassword =
+      Boolean(desiredPassword) && !created && !passwordAlreadyApplied && (recoveredPartial || state.passwordChanged);
+
     if (!created) {
       if (emailVerificationPlan.initialLinkSameEmail) delete payload.emailVerified;
       if (emailVerificationPlan.changed) {
@@ -591,16 +880,26 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
         payload.emailVerified = false;
       }
       if (shouldSyncAttributes) payload.attributes = mergeAttributes(user, document, options);
-      if (Object.keys(payload).length > 0) {
-        await realmHandle.userById(userId).update(payload);
-        user = { ...user, ...payload };
+      if (willResetPassword) {
+        const { enabled: deferredEnabled, ...profileWithoutEnabled } = payload;
+        const intendedEnabled =
+          typeof deferredEnabled === 'boolean' ? deferredEnabled : (readIntendedEnabled(document) ?? true);
+        if (Object.keys(profileWithoutEnabled).length > 0) {
+          await realmHandle.userById(userId).update(profileWithoutEnabled);
+          user = { ...user, ...profileWithoutEnabled };
+        }
+        await realmHandle
+          .userById(userId)
+          .resetPassword(desiredPassword as string, { temporary: options.passwordTemporary ?? false });
+        user = { ...user };
+        await realmHandle.userById(userId).update({ enabled: intendedEnabled });
+        user = { ...user, enabled: intendedEnabled };
+      } else {
+        if (Object.keys(payload).length > 0) {
+          await realmHandle.userById(userId).update(payload);
+          user = { ...user, ...payload };
+        }
       }
-    }
-
-    if (!created && state.passwordChanged && desiredPassword) {
-      await realmHandle
-        .userById(userId)
-        .resetPassword(desiredPassword, { temporary: options.passwordTemporary ?? false });
     }
 
     if (created || state.changedFields.has('roles')) await syncRoles(user, document);
@@ -611,7 +910,11 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
   };
 
   const deleteDocument = async (document: PluginDocument) => {
-    const { user } = await resolveUser(document);
+    if (document.isNew) {
+      throw new Error('keycloakUserSyncPlugin cannot delete a Keycloak user for a document that was never persisted');
+    }
+    const snapshot = await readPersistedSnapshot(document);
+    const { user } = await resolveUser(document, snapshot, false);
     if (user?.id) await realmHandle.userById(user.id).delete();
   };
 
@@ -627,11 +930,7 @@ export function keycloakUserSyncPlugin(schema: Schema, rawOptions: KeycloakUserS
     const state: SyncState = { ...changePlan, wasNew: this.isNew };
     this.$locals[syncStateKey] = state;
     if (!state.shouldSync || this.isNew) return;
-    state.previous = await this.constructor
-      .findById(this._id)
-      .select(trackedPaths)
-      .session(getDocumentSession(this))
-      .lean();
+    state.previous = await readPersistedSnapshot(this);
 
     if (providerIdChanged) {
       const previousProviderId = stringValue(getPreviousValue(state.previous, 'providerId'));

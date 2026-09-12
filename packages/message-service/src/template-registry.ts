@@ -1,4 +1,4 @@
-import type { MessageTemplate } from './types/template';
+import type { MessageTemplate, RegisteredMessageTemplate } from './types/template';
 import { isRuntimeError, markRuntimeError } from './runtime-contract';
 
 export class TemplateRegistryValidationError extends Error {
@@ -60,8 +60,8 @@ function validateTemplate(template: MessageTemplate): void {
   }
 }
 
-function snapshotTemplate(template: MessageTemplate): MessageTemplate {
-  const snapshot: MessageTemplate = {
+function snapshotTemplate(template: MessageTemplate): RegisteredMessageTemplate {
+  const snapshot: RegisteredMessageTemplate = {
     ...template,
     senderContent: Object.freeze({ ...template.senderContent }),
     receiverContent: Object.freeze({ ...template.receiverContent }),
@@ -75,10 +75,10 @@ function snapshotTemplate(template: MessageTemplate): MessageTemplate {
           payload: action.payload ? Object.freeze({ ...action.payload }) : undefined,
         }),
       ),
-    ) as unknown as MessageTemplate['actions'],
+    ) as unknown as RegisteredMessageTemplate['actions'],
   };
 
-  return Object.freeze(snapshot);
+  return Object.freeze(snapshot) as RegisteredMessageTemplate;
 }
 
 /**
@@ -95,10 +95,13 @@ function snapshotTemplate(template: MessageTemplate): MessageTemplate {
  * simple cases or quick experiments.
  */
 export class TemplateRegistry {
-  private templates = new Map<string, MessageTemplate>();
+  private templates = new Map<string, RegisteredMessageTemplate>();
 
   /**
    * Register a template. Overwrites if templateCd already exists.
+   *
+   * Takes an author-friendly mutable `MessageTemplate`; the registry stores a
+   * frozen shallow snapshot (see `RegisteredMessageTemplate`).
    */
   register(template: MessageTemplate): void {
     validateTemplate(template);
@@ -116,8 +119,13 @@ export class TemplateRegistry {
 
   /**
    * Find a template by its templateCd.
+   *
+   * Returns a readonly `RegisteredMessageTemplate` view matching the registry
+   * freeze depth (top-level, content objects, object uiTemplates, the action
+   * array, and each action plus its confirmation/payload are frozen).
+   * Mutating the result throws at runtime; register a replacement instead.
    */
-  find(templateCd: string): MessageTemplate | undefined {
+  find(templateCd: string): RegisteredMessageTemplate | undefined {
     return this.templates.get(templateCd);
   }
 
@@ -137,8 +145,10 @@ export class TemplateRegistry {
 
   /**
    * Get all registered templates.
+   *
+   * Returns readonly `RegisteredMessageTemplate` views; see `find()`.
    */
-  getAll(): MessageTemplate[] {
+  getAll(): RegisteredMessageTemplate[] {
     return Array.from(this.templates.values());
   }
 

@@ -124,6 +124,7 @@ describe('buildMessageArchiveSchema (factory)', () => {
     expect(paths).toContain('archivedBy');
     expect(paths).toContain('archivedAt');
     expect(paths).toContain('actionAttemptId');
+    expect(paths).toContain('actionOwnerToken');
     expect(paths).toContain('actionNotificationState');
     expect(paths).toContain('actionNotificationError');
     expect(paths).toContain('actionNotificationAttemptedAt');

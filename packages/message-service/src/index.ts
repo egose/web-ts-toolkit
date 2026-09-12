@@ -26,6 +26,9 @@ export type {
   ActionConfirmation,
   MessageAction,
   MessageTemplate,
+  RegisteredMessageAction,
+  RegisteredMessageTemplate,
+  RegisteredUiTemplate,
   UiTemplate,
   Usertype,
   InterpolatedContent,
@@ -52,7 +55,14 @@ export { MessageArchiveSchema, buildMessageArchiveSchema } from './schemas/messa
 export { MessageRequestSchema, buildMessageRequestSchema } from './schemas/message-request';
 
 // --- Template Engine ---
-export { interpolateTemplate, filterActions, isActionAllowed } from './template-engine';
+export {
+  interpolateTemplate,
+  interpolateMessageContent,
+  resolveUiTemplate,
+  filterActions,
+  isActionAllowed,
+  hasExplicitPermissionGrant,
+} from './template-engine';
 
 // --- Template Registry ---
 export {
@@ -69,11 +79,17 @@ export { NoopPaymentProvider } from './providers/payment';
 export type { PaymentProvider } from './providers/payment';
 
 // --- Message Service ---
-export { MessageService } from './message-service';
+export {
+  MessageService,
+  isValidMessageUserId,
+  requireMessageUserId,
+  MAX_MESSAGE_SERVICE_TIMEOUT_MS,
+} from './message-service';
 export type {
   MessageServiceModelNames,
   MessageServiceOptions,
   PaymentCompensationFailureEvent,
+  PaymentSessionCompensationFailure,
 } from './message-service';
 export {
   GENERIC_NOTIFICATION_TEMPLATE_CD,
@@ -81,6 +97,7 @@ export {
   ActionConflictError,
   ActionNotificationPendingError,
   InvalidMessageUserError,
+  InvalidMessageServiceOptionError,
   MessageArchivedError,
   MessageNotFoundError,
   TemplateNotFoundError,
@@ -95,8 +112,14 @@ export {
   MessageTransactionRequiredError,
   MessageModelResolutionError,
   PaymentSessionCompensationError,
+  PaymentSessionCompensationAggregateError,
 } from './message-service';
 
 // --- Route Factory ---
 export { createMessageRoutes } from './route-factory';
-export type { MessageRoutesOptions } from './route-factory';
+export type {
+  MessageRoutesBehaviorOptions,
+  MessageRoutesConstructionOptions,
+  MessageRoutesInjectionOptions,
+  MessageRoutesOptions,
+} from './route-factory';

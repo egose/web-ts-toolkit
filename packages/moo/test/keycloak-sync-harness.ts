@@ -147,16 +147,53 @@ export const createKeycloakSyncHarness = () => {
         users.push(user);
 
         if (password) {
-          await coreUsers.resetPassword({
-            realm: 'test',
-            id: user.id,
-            credential: {
-              temporary: passwordTemporary ?? false,
-              type: 'password',
-              value: password,
-            },
-          });
-          if (desiredEnabled) await coreUsers.update({ realm: 'test', id: user.id }, { enabled: true });
+          try {
+            await coreUsers.resetPassword({
+              realm: 'test',
+              id: user.id,
+              credential: {
+                temporary: passwordTemporary ?? false,
+                type: 'password',
+                value: password,
+              },
+            });
+          } catch (passwordError) {
+            // Mirror the supported fluent client: the disabled account persists
+            // when cleanup fails, with explicit outcome flags and the original
+            // failure preserved as the cause. No passwords are attached.
+            const provisioningError = new Error(
+              `Failed to set initial password for user "${username}" in realm "test"; the disabled created user still exists because cleanup failed.`,
+              { cause: passwordError },
+            );
+            provisioningError.name = 'UserPasswordProvisioningError';
+            Object.assign(provisioningError, {
+              profileApplied: true,
+              accountPersists: true,
+              accountEnabled: false,
+              passwordApplied: false,
+              initialProvisioning: true,
+            });
+            throw provisioningError;
+          }
+          if (desiredEnabled) {
+            try {
+              await coreUsers.update({ realm: 'test', id: user.id }, { enabled: true });
+            } catch (enableError) {
+              const provisioningError = new Error(
+                `Password was set for user "${username}" in realm "test" but the final enable step failed. The disabled user persists and retrying with the same enabled input will update it without creating a duplicate.`,
+                { cause: enableError },
+              );
+              provisioningError.name = 'UserPasswordProvisioningError';
+              Object.assign(provisioningError, {
+                profileApplied: true,
+                accountPersists: true,
+                accountEnabled: false,
+                passwordApplied: true,
+                initialProvisioning: true,
+              });
+              throw provisioningError;
+            }
+          }
         }
 
         record('user.create.after', [username, user]);

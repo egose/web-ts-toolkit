@@ -30,7 +30,7 @@ import { describe, expect, it } from 'vitest';
 // `../dist/index.mjs` is the *built* ESM the installed consumer loads.
 import * as pkg from '../dist/index.mjs';
 import builtBundleSource from '../dist/index.mjs?raw';
-import { getDocument, GlobalWorkerOptions, OPS } from 'pdfjs-dist';
+import { getDocument, GlobalWorkerOptions, OPS, PDFWorker } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // `?raw` is a Vite built-in that inlines the file as a string import.
@@ -39,6 +39,8 @@ import multiB64 from './fixtures/generated/multi.pdf.base64.txt?raw';
 import malformedB64 from './fixtures/generated/malformed.pdf.base64.txt?raw';
 import encryptedB64 from './fixtures/generated/encrypted.pdf.base64.txt?raw';
 import embeddedImagesB64 from './fixtures/generated/embedded-images.pdf.base64.txt?raw';
+import embeddedOneBitB64 from './fixtures/generated/embedded-1bit.pdf.base64.txt?raw';
+import embeddedSharedB64 from './fixtures/generated/embedded-shared.pdf.base64.txt?raw';
 
 import type { PageResult } from '../src/types';
 
@@ -60,6 +62,25 @@ function textOf(page: PageResult | undefined): string {
   if (!page?.text) return '';
   const items = (page.text as unknown as { items: Array<{ str?: string }> }).items;
   return items.map((item) => item.str ?? '').join('');
+}
+
+/**
+ * Decodes an extracted PNG data URL back into raw RGBA pixels through the
+ * real browser image pipeline, so pixel assertions verify end-to-end
+ * extractor output rather than just data-URL prefixes.
+ */
+async function pixelsOfDataUrl(dataUrl: string): Promise<{ width: number; height: number; data: number[] }> {
+  const image = new Image();
+  image.src = dataUrl;
+  await image.decode();
+  const canvas = document.createElement('canvas');
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Failed to create a 2D canvas context for pixel assertions.');
+  context.drawImage(image, 0, 0);
+  const decoded = context.getImageData(0, 0, canvas.width, canvas.height);
+  return { width: canvas.width, height: canvas.height, data: Array.from(decoded.data) };
 }
 
 /**
@@ -221,6 +242,37 @@ describe('PDFR-01 real-browser PDF.js integration', () => {
     }
   }, 60_000);
 
+  it('loads real PDF.js bytes from a binary string at the exact limit and rejects one-over', async () => {
+    applyWorkerConfig();
+    const bytes = decodeFixture(sampleB64);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i] as number);
+
+    // Exact limit: the binary string follows PDF.js `stringToBytes` (one byte
+    // per code unit) and converts into the same one-page document.
+    const exact = new PDFReader({ data: binary } as never, {
+      canvasFactory: () => document.createElement('canvas'),
+      limits: { maxSourceBytes: binary.length },
+    });
+    try {
+      const doc = await exact.load();
+      expect(doc.numPages).toBe(1);
+      const pages = await exact.convert({ includeText: true, includePageImage: false });
+      expect(textOf(pages[0])).toContain('Page 1');
+    } finally {
+      await exact.destroy();
+      await assertNoLeakedDocument(exact);
+    }
+
+    // One byte over: rejected before the worker starts, with no live document.
+    const over = new PDFReader({ data: binary } as never, {
+      limits: { maxSourceBytes: binary.length - 1 },
+    });
+    await expect(over.load()).rejects.toMatchObject({ code: 'SOURCE_LIMIT_EXCEEDED' });
+    expect(over.state).toBe('failed');
+    await over.destroy();
+  }, 60_000);
+
   it('loads multi-page fixture, honours selected page numbers, and proofs non-trivial viewport', async () => {
     applyWorkerConfig();
     const bytes = decodeFixture(multiB64);
@@ -323,6 +375,75 @@ describe('PDFR-01 real-browser PDF.js integration', () => {
       await reader.destroy();
       await assertNoLeakedDocument(reader);
     }
+  }, 60_000);
+
+  it('keeps a caller-owned worker and blob preview alive through decode, then releases both (PDFR3-09)', async () => {
+    applyWorkerConfig();
+    // Mirrors the README Worker Setup + blob-preview example: the
+    // caller-created PDFWorker is destroyed in a nested finally even when
+    // reader teardown rejects, and the object URL stays alive until the
+    // preview decodes (immediate revocation after assignment rejects).
+    const worker = new PDFWorker({ name: 'pdfr3-09-preview' });
+    const reader = new PDFReader(
+      { data: decodeFixture(sampleB64), worker },
+      { canvasFactory: () => document.createElement('canvas') },
+    );
+    const preview = document.createElement('img');
+    document.body.append(preview);
+    let objectUrl: string | undefined;
+    let decodedBeforeRevoke = false;
+    try {
+      await reader.load();
+      const [page] = await reader.convert({
+        includeText: false,
+        includePageImage: true,
+        pageImageOutput: 'blob',
+      });
+      expect(page?.pageImage?.kind).toBe('blob');
+      const blob = page?.pageImage && 'blob' in page.pageImage ? page.pageImage.blob : undefined;
+      expect(blob).toBeInstanceOf(Blob);
+
+      objectUrl = URL.createObjectURL(blob as Blob);
+      preview.src = objectUrl;
+      await preview.decode();
+      expect(preview.naturalWidth).toBeGreaterThan(0);
+      decodedBeforeRevoke = true;
+    } finally {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      preview.remove();
+      try {
+        await reader.destroy();
+      } finally {
+        await worker.destroy();
+      }
+    }
+
+    expect(decodedBeforeRevoke).toBe(true);
+    expect(worker.destroyed).toBe(true);
+    await assertNoLeakedDocument(reader);
+  }, 60_000);
+
+  it('destroys a caller-owned worker explicitly when load fails (PDFR3-09)', async () => {
+    applyWorkerConfig();
+    const worker = new PDFWorker({ name: 'pdfr3-09-failure' });
+    const reader = new PDFReader(
+      { data: decodeFixture(malformedB64), worker },
+      { canvasFactory: () => document.createElement('canvas') },
+    );
+
+    try {
+      await expect(reader.load()).rejects.toThrow();
+      expect(reader.numPages).toBeUndefined();
+    } finally {
+      try {
+        await reader.destroy();
+      } finally {
+        await worker.destroy();
+      }
+    }
+
+    expect(worker.destroyed).toBe(true);
+    await assertNoLeakedDocument(reader);
   }, 60_000);
 
   it('fails on a malformed/truncated PDF with a structured error and leaves no live document', async () => {
@@ -485,6 +606,101 @@ describe('PDFR-01 real-browser PDF.js integration', () => {
       await assertNoLeakedDocument(reader);
     }
   }, 60_000);
+
+  it('decodes one-bit image XObjects to correct pixels with bitmap conversion enabled and disabled', async () => {
+    applyWorkerConfig();
+    const white = [255, 255, 255, 255];
+    const black = [0, 0, 0, 255];
+    // 9x2 fixture rows: row 0 is W,B,W,B,W,B,W,B,W; row 1 is B,W,B,W,B,W,B,W,B.
+    const wideRow = (first: number[]) => {
+      const second = first === white ? black : white;
+      return [first, second, first, second, first, second, first, second, first].flat();
+    };
+    const expectedWide = [...wideRow(white), ...wideRow(black)];
+
+    for (const isOffscreenCanvasSupported of [true, false]) {
+      // Fresh bytes per iteration: PDF.js may transfer (detach) the typed
+      // array to its worker during load, so a shared buffer cannot load twice.
+      const iterationBytes = decodeFixture(embeddedOneBitB64);
+      const reader = new PDFReader({ data: iterationBytes, isOffscreenCanvasSupported } as never, {
+        canvasFactory: () => document.createElement('canvas'),
+      });
+      try {
+        await reader.load();
+        const pages = await reader.convert({
+          includeText: false,
+          includePageImage: false,
+          includeEmbeddedImages: true,
+        });
+        expect(pages).toHaveLength(1);
+        expect(pages[0]?.images).toHaveLength(2);
+
+        // Single white pixel: the pre-fix length-inferred path returned gray
+        // `[128,128,128,255]` for this `0x80` byte with bitmaps disabled.
+        const single = await pixelsOfDataUrl(pages[0]?.images[0]?.dataUrl ?? '');
+        expect([single.width, single.height]).toEqual([1, 1]);
+        expect(single.data).toEqual(white);
+
+        const wide = await pixelsOfDataUrl(pages[0]?.images[1]?.dataUrl ?? '');
+        expect([wide.width, wide.height]).toEqual([9, 2]);
+        expect(wide.data).toEqual(expectedWide);
+      } finally {
+        await reader.destroy();
+        await assertNoLeakedDocument(reader);
+      }
+    }
+  }, 120_000);
+
+  it('extracts a cross-page shared image on every page via the document-wide store (PDFR3-13)', async () => {
+    applyWorkerConfig();
+    // PDFR3-07 reproduced this as a defect: the same image Ref painted on
+    // >= 2 pages is globalized by the worker into `page.commonObjs` under a
+    // `g_`-prefixed ID, and the pre-fix extractor (page.objs only) omitted
+    // the page 2-3 paints. The fixed adapter routes `g_` IDs to
+    // `page.commonObjs` and awaits readiness via callback-form `get`.
+    const bytes = decodeFixture(embeddedSharedB64);
+    const reader = new PDFReader(bytes, {
+      canvasFactory: () => document.createElement('canvas'),
+    });
+    try {
+      await reader.load();
+      const pages = await reader.convert({
+        includeText: false,
+        includePageImage: false,
+        includeEmbeddedImages: true,
+      });
+
+      // Two paints on page 1, one paint each on pages 2-3: all four must be
+      // extracted, pre- and post-render identical (rendering never moves the
+      // object between stores, per the PDFR3-07 probe measurements).
+      expect(pages).toHaveLength(3);
+      expect(pages[0]?.images).toHaveLength(2);
+      expect(pages[1]?.images).toHaveLength(1);
+      expect(pages[2]?.images).toHaveLength(1);
+
+      expect(pages[0]?.images.map((image) => image.transform)).toEqual([
+        [8, 0, 0, 8, 10, 10],
+        [8, 0, 0, 8, 30, 10],
+      ]);
+      expect(pages[1]?.images[0]?.transform).toEqual([8, 0, 0, 8, 10, 10]);
+      expect(pages[2]?.images[0]?.transform).toEqual([8, 0, 0, 8, 10, 10]);
+
+      // Solid-red 8x8 DeviceRGB fixture: every extracted paint must decode
+      // to exact red pixels end to end, whichever PDF.js image path served it.
+      const red = [255, 0, 0, 255];
+      const expected = Array.from({ length: 8 * 8 }, () => red).flat();
+      for (const page of pages) {
+        for (const image of page.images) {
+          const decoded = await pixelsOfDataUrl(image.dataUrl);
+          expect([decoded.width, decoded.height]).toEqual([8, 8]);
+          expect(decoded.data).toEqual(expected);
+        }
+      }
+    } finally {
+      await reader.destroy();
+      await assertNoLeakedDocument(reader);
+    }
+  }, 120_000);
 
   it('cancels an active render and surfaces ABORTED without leaving a live canvas or page', async () => {
     applyWorkerConfig();

@@ -17,6 +17,8 @@ export type PlannerOptions = {
   paths: Readonly<KeycloakUserSyncPaths>;
   syncFields: Readonly<Record<KeycloakUserSyncField, boolean>>;
   attributePaths?: readonly string[];
+  rolePaths?: readonly string[];
+  passwordPaths?: readonly string[];
   managedAttributes?: readonly string[];
   managedRoles?: readonly string[];
   mapRoles?: (roles: unknown, document: KeycloakUserSyncDocument) => readonly string[];
@@ -114,6 +116,36 @@ export const getDocumentValue = (
   field: keyof KeycloakUserSyncPaths,
 ) => document.get(paths[field]);
 
+/**
+ * Shared mapper-dependency plumbing for attribute/role/password mappers.
+ *
+ * Each mapper may read arbitrary document state beyond its configured path.
+ * The corresponding `*Paths` option declares the extra Mongoose paths that
+ * trigger that mapper's operation. Dependencies are honored only while their
+ * sync field is enabled; disabled fields stay fully inert.
+ *
+ * Kept private to the planner: package exports must not grow a second
+ * divergent path registry.
+ */
+const dependencyPathsFor = (options: PlannerOptions, field: 'attributes' | 'roles' | 'password'): readonly string[] => {
+  if (!options.syncFields[field]) return [];
+  if (field === 'attributes') return options.attributePaths ?? [];
+  if (field === 'roles') return options.rolePaths ?? [];
+  return options.passwordPaths ?? [];
+};
+
+const hasDependencyChanged = (
+  options: PlannerOptions,
+  field: 'attributes' | 'roles' | 'password',
+  isModified: (path: string) => boolean,
+) => dependencyPathsFor(options, field).some(isModified);
+
+const collectDependencyPaths = (options: PlannerOptions): string[] => [
+  ...dependencyPathsFor(options, 'attributes'),
+  ...dependencyPathsFor(options, 'roles'),
+  ...dependencyPathsFor(options, 'password'),
+];
+
 export const buildTrackedPaths = (options: PlannerOptions) =>
   uniqueStrings([
     options.paths.providerId,
@@ -124,7 +156,7 @@ export const buildTrackedPaths = (options: PlannerOptions) =>
           ? [options.paths.enabled, options.paths.archived]
           : [options.paths[field as keyof KeycloakUserSyncPaths]],
       ),
-    ...(options.syncFields.attributes && options.attributePaths ? options.attributePaths : []),
+    ...collectDependencyPaths(options),
   ]);
 
 export const planChangedFields = (
@@ -142,7 +174,9 @@ export const planChangedFields = (
     if (paths.some(isModified)) changedFields.add(field);
   }
 
-  if (options.syncFields.attributes && options.attributePaths?.some(isModified)) changedFields.add('attributes');
+  if (hasDependencyChanged(options, 'attributes', isModified)) changedFields.add('attributes');
+  if (hasDependencyChanged(options, 'roles', isModified)) changedFields.add('roles');
+  if (hasDependencyChanged(options, 'password', isModified)) changedFields.add('password');
 
   const shouldPersistMissingProviderId = stringValue(currentProviderId) === null;
   const shouldSync = isNew || shouldPersistMissingProviderId || changedFields.size > 0;

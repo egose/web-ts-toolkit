@@ -54,6 +54,101 @@ describe('keycloak user sync planner', () => {
     expect(plan.trackedPaths).toContain('profile.tenantId');
   });
 
+  it('triggers role and password ops only through declared mapper dependencies', () => {
+    const options = {
+      paths,
+      syncFields,
+      rolePaths: ['tier'],
+      passwordPaths: ['pendingPassword'],
+    } as const;
+
+    const roleOnly = planChangedFields(
+      { ...options, paths, syncFields },
+      false,
+      (path) => path === 'tier',
+      'remote-id',
+    );
+    expect([...roleOnly.changedFields]).toEqual(['roles']);
+    expect(roleOnly.shouldSync).toBe(true);
+    expect(roleOnly.passwordChanged).toBe(false);
+
+    const passwordOnly = planChangedFields(
+      { ...options, paths, syncFields },
+      false,
+      (path) => path === 'pendingPassword',
+      'remote-id',
+    );
+    expect([...passwordOnly.changedFields]).toEqual(['password']);
+    expect(passwordOnly.shouldSync).toBe(true);
+    expect(passwordOnly.passwordChanged).toBe(true);
+
+    const unrelated = planChangedFields(
+      { ...options, paths, syncFields },
+      false,
+      (path) => path === 'unrelated',
+      'remote-id',
+    );
+    expect([...unrelated.changedFields]).toEqual([]);
+    expect(unrelated.shouldSync).toBe(false);
+    expect(unrelated.passwordChanged).toBe(false);
+  });
+
+  it('keeps disabled mapper dependencies inert and tracks declared paths', () => {
+    const disabledRoles = { ...syncFields, roles: false };
+    const disabledPassword = { ...syncFields, password: false };
+    const disabledAttributes = { ...syncFields, attributes: false };
+
+    const rolePlan = planChangedFields(
+      { paths, syncFields: disabledRoles, rolePaths: ['tier'] },
+      false,
+      (path) => path === 'tier',
+      'remote-id',
+    );
+    expect([...rolePlan.changedFields]).toEqual([]);
+    expect(rolePlan.shouldSync).toBe(false);
+
+    const passwordPlan = planChangedFields(
+      { paths, syncFields: disabledPassword, passwordPaths: ['pendingPassword'] },
+      false,
+      (path) => path === 'pendingPassword',
+      'remote-id',
+    );
+    expect([...passwordPlan.changedFields]).toEqual([]);
+    expect(passwordPlan.passwordChanged).toBe(false);
+
+    const attributePlan = planChangedFields(
+      { paths, syncFields: disabledAttributes, attributePaths: ['profile.tenantId'] },
+      false,
+      (path) => path === 'profile.tenantId',
+      'remote-id',
+    );
+    expect([...attributePlan.changedFields]).toEqual([]);
+
+    const tracked = planChangedFields(
+      {
+        paths,
+        syncFields,
+        attributePaths: ['profile.tenantId'],
+        rolePaths: ['tier'],
+        passwordPaths: ['pendingPassword'],
+      },
+      false,
+      () => false,
+      'remote-id',
+    );
+    expect(tracked.trackedPaths).toContain('profile.tenantId');
+    expect(tracked.trackedPaths).toContain('tier');
+    expect(tracked.trackedPaths).toContain('pendingPassword');
+
+    const untracked = planChangedFields(
+      { paths, syncFields: disabledRoles, rolePaths: ['tier'] },
+      false,
+      () => false,
+      'remote-id',
+    );
+    expect(untracked.trackedPaths).not.toContain('tier');
+  });
+
   it('plans initial-link and persisted email verification transitions separately', () => {
     expect(
       planEmailVerification({

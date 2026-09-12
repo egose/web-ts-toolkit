@@ -42,6 +42,32 @@ export function buildMessageArchiveSchema(): mongoose.Schema<
   );
 
   schema.index({ createdAt: 1 });
+  // MSGF-06 replay lookups: same scoped shapes as the active collection so
+  // completed-batch replay over archived items is evidence-backed (no
+  // COLLSCAN). Archival preserves clientRequest* fields, so the unique
+  // scope+index invariant carries over to the archive.
+  schema.index(
+    { clientRequestOwnerId: 1, templateCd: 1, clientRequestId: 1, createdAt: 1, _id: 1 },
+    {
+      partialFilterExpression: {
+        clientRequestId: { $type: 'string' },
+        clientRequestOwnerId: { $type: 'string' },
+        templateCd: { $type: 'string' },
+      },
+    },
+  );
+  schema.index(
+    { clientRequestOwnerId: 1, templateCd: 1, clientRequestId: 1, clientRequestItemIndex: 1 },
+    {
+      unique: true,
+      partialFilterExpression: {
+        clientRequestId: { $type: 'string' },
+        clientRequestOwnerId: { $type: 'string' },
+        templateCd: { $type: 'string' },
+        clientRequestItemIndex: { $type: 'number' },
+      },
+    },
+  );
 
   schema.methods.isSender = isSender;
   schema.methods.isReceiver = isReceiver;

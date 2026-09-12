@@ -146,6 +146,7 @@ export function installPackedConsumer(): string {
           ...Object.fromEntries(workspacePackages.map((pkg) => [pkg.name, `file:${packed.tarballs[pkg.name]}`])),
           express: '^5.2.1',
           mongoose: '^9.8.0',
+          'mongodb-memory-server': rootPackageJson.devDependencies['mongodb-memory-server'],
         },
         devDependencies: {
           '@types/express': '^5.0.6',
@@ -161,6 +162,7 @@ export function installPackedConsumer(): string {
     path.resolve(consumerDir, 'pnpm-workspace.yaml'),
     `${['packages: []', 'overrides:']
       .concat(workspacePackages.map((pkg) => `  '${pkg.name}': file:${packed.tarballs[pkg.name]}`))
+      .concat(['allowBuilds:', '  mongodb-memory-server: false'])
       .join('\n')}\n`,
   );
   run('pnpm', ['install'], consumerDir);

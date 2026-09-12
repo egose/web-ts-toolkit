@@ -4,6 +4,16 @@ import type { IBaseMessage, IMessageMethods, UserId } from '../types/message';
 import type { TemplateRegistry } from '../template-registry';
 import { includesAction } from '../template-registry';
 import { isSender, isReceiver } from './methods';
+import {
+  ActionConflictError,
+  ActionNotFoundError,
+  InvalidMessageUserError,
+  MessageArchivedError,
+  MessageNotFoundError,
+  MessageTransactionRequiredError,
+  TemplateNotFoundError,
+  isValidMessageUserId,
+} from '../message-service';
 
 // ---------------------------------------------------------------------------
 // Email notification hook
@@ -27,7 +37,11 @@ export interface MessageSchemaConfig {
    * send a best-effort email notification to the recipient. Pass `null` (the
    * default) to disable.
    *
-   * When `null`, no pre-save hook is registered at all.
+   * When `null`, no save hooks are registered at all. When set, the schema
+   * registers a pre-save state capture plus a connection-local post-save
+   * hook: the post-save hook resolves user/archive models on the hydrated
+   * document's owning connection and skips session-bound writes (Mongoose
+   * save hooks run before the surrounding transaction commits).
    */
   emailNotifier?: EmailNotifier | null;
 
@@ -48,11 +62,15 @@ export interface MessageSchemaConfig {
 
   /**
    * Name of the Mongoose model that holds the recipient user records.
-   * Defaults to `'User'`. The pre-save hook uses `mongoose.model(name)`
-   * to look up the recipient's email address.
+   * Defaults to `'User'`. The post-save email hook resolves it on the
+   * message document's owning connection
+   * (`document.constructor.db.model(name)`) to look up the recipient's email
+   * address, so connection-local apps must register the user model on the
+   * same connection as the message models.
    *
-   * The model MUST be registered with Mongoose before the first save —
-   * `buildMessageSchema` does a sanity check to give a clear error if not.
+   * The model MUST be registered before the first save when `emailNotifier`
+   * is set — `buildMessageSchema` checks this eagerly to fail fast (pass
+   * `connection` when configuring connection-local schemas).
    */
   userModelName?: string;
 
@@ -106,27 +124,201 @@ function resolveDocumentModel(
   }
 }
 
+function isDuplicateKeyError(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && (error as { code?: unknown }).code === 11000;
+}
+
+function isTransactionSupportError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.message.includes('Transaction numbers are only allowed') ||
+    error.message.includes('Transaction is not supported') ||
+    error.message.includes('transactions are not supported')
+  );
+}
+
 function createArchiveMethod(ctx: ArchiveContext) {
-  return function archive(
+  return async function archive(
     this: MessageHydratedDocument,
     actionCd: string,
     archivedBy: UserId,
     registry: TemplateRegistry,
   ): Promise<void> {
-    if (!includesAction(this.templateCd, actionCd, registry) || !archivedBy) {
-      return Promise.resolve();
+    // Fail closed: invalid action/user never resolve a silent no-op success.
+    // Trusted host-level primitive — hosts must authorize before calling.
+    if (typeof actionCd !== 'string' || actionCd.length === 0) {
+      throw new ActionNotFoundError(
+        String((this as unknown as { templateCd?: unknown }).templateCd ?? ''),
+        String(actionCd),
+      );
+    }
+    if (!isValidMessageUserId(archivedBy)) {
+      throw new InvalidMessageUserError();
+    }
+    if (!registry || typeof registry.find !== 'function') {
+      throw new TemplateNotFoundError(String((this as unknown as { templateCd?: unknown }).templateCd ?? ''));
+    }
+    const templateCd = this.templateCd;
+    const template = registry.find(templateCd);
+    if (!template) {
+      throw new TemplateNotFoundError(templateCd);
+    }
+    if (!includesAction(templateCd, actionCd, registry)) {
+      throw new ActionNotFoundError(templateCd, actionCd);
     }
 
-    const MessageArchive = resolveDocumentModel(this, ctx.archiveModelName, 'archive');
-    const data = this.toObject();
+    const activeModel = this.constructor as mongoose.Model<unknown> & { db?: mongoose.Connection };
+    const connection = activeModel.db as
+      | (mongoose.Connection & { startSession?: () => Promise<mongoose.ClientSession> })
+      | undefined;
+    if (!connection || typeof connection.startSession !== 'function') {
+      throw new MessageTransactionRequiredError(
+        new Error('message-service: direct archive() requires a Mongoose connection with session/transaction support'),
+      );
+    }
+    const MessageArchive = resolveDocumentModel(this, ctx.archiveModelName, 'archive') as mongoose.Model<
+      Record<string, unknown>
+    >;
+    const ActiveTyped = activeModel as unknown as mongoose.Model<Record<string, unknown>>;
 
-    return MessageArchive.create({
-      ...data,
-      actionCd,
-      archivedBy,
-    }).then(async () => {
-      await this.deleteOne();
-    });
+    const messageId = this._id;
+    const existingSession =
+      typeof (this as unknown as { $session?: () => mongoose.ClientSession | null }).$session === 'function'
+        ? (this as unknown as { $session: () => mongoose.ClientSession | null }).$session()
+        : null;
+
+    const run = async (session: mongoose.ClientSession): Promise<void> => {
+      await session.withTransaction(async () => {
+        const now = new Date();
+        // Fresh read inside the transaction: a stale hydrated copy must not
+        // decide fencing, and the archived payload reflects persisted state.
+        const fresh = (await ActiveTyped.findOne({ _id: messageId }).session(session).lean()) as unknown as Record<
+          string,
+          unknown
+        > | null;
+        if (!fresh) {
+          const archivedMatch = (await MessageArchive.findOne({ _id: messageId })
+            .session(session)
+            .select('_id')
+            .lean()
+            .catch(() => null)) as unknown;
+          if (archivedMatch) {
+            throw new MessageArchivedError(String(messageId));
+          }
+          throw new MessageNotFoundError(String(messageId));
+        }
+        const state = fresh.actionState as string | null | undefined;
+        const leaseExpiresAt = fresh.actionLeaseExpiresAt as Date | null | undefined;
+        const liveLease =
+          state === 'processing' && leaseExpiresAt instanceof Date && leaseExpiresAt.getTime() > now.getTime();
+        // Fail closed: a processing record without a parsable future lease is
+        // treated as live (only an explicitly expired lease may be archived
+        // over). This keeps direct archive from stealing an in-flight service
+        // action that has not demonstrably expired.
+        if (state === 'processing' && !liveLease) {
+          const expired = leaseExpiresAt instanceof Date && leaseExpiresAt.getTime() <= now.getTime();
+          if (!expired) {
+            throw new ActionConflictError(String(messageId));
+          }
+        } else if (liveLease) {
+          throw new ActionConflictError(String(messageId));
+        }
+
+        const source = { ...(fresh as Record<string, unknown>) };
+        delete source.actionState;
+        delete source.actionClaimedBy;
+        delete source.actionClaimedAt;
+        delete source.actionLeaseExpiresAt;
+        delete source.actionFailureMessage;
+        // Preserve the stored attempt/owner identity for audit; direct archive
+        // mints no new owner token. Notification state is terminal-none because
+        // no service sender-notification runs on this path.
+        const archiveDoc: Record<string, unknown> = {
+          ...source,
+          actionCd,
+          archivedBy,
+          archivedAt: new Date(),
+          actionNotificationState: 'none',
+          actionNotificationError: null,
+          actionNotificationAttemptedAt: null,
+        };
+        try {
+          await MessageArchive.create([archiveDoc], { session, ordered: true });
+        } catch (error) {
+          if (isDuplicateKeyError(error)) {
+            throw new MessageArchivedError(String(messageId));
+          }
+          throw error;
+        }
+        // Conditional delete: a service claim that wins concurrently changes
+        // actionState/ownership, so the delete matches zero and the
+        // transaction aborts — no conflicting commit, no orphan archive.
+        const deleted = (await ActiveTyped.deleteOne(
+          {
+            _id: messageId,
+            $or: [
+              { actionState: 'active' },
+              { actionState: 'retryable' },
+              { actionState: 'processing', actionLeaseExpiresAt: { $lte: now } },
+              { actionState: null },
+              { actionState: { $exists: false } },
+            ],
+          },
+          { session },
+        )) as unknown as { deletedCount?: number; n?: number };
+        if ((deleted.deletedCount ?? deleted.n ?? 0) !== 1) {
+          throw new ActionConflictError(String(messageId));
+        }
+      });
+    };
+
+    if (existingSession) {
+      try {
+        await run(existingSession);
+      } catch (error) {
+        if (
+          error instanceof ActionConflictError ||
+          error instanceof MessageArchivedError ||
+          error instanceof MessageNotFoundError
+        ) {
+          throw error;
+        }
+        if (isTransactionSupportError(error)) {
+          throw new MessageTransactionRequiredError(error);
+        }
+        throw error;
+      }
+      return;
+    }
+
+    let session: mongoose.ClientSession;
+    try {
+      session = await connection.startSession();
+    } catch (error) {
+      throw new MessageTransactionRequiredError(error);
+    }
+    try {
+      try {
+        await run(session);
+      } catch (error) {
+        if (
+          error instanceof ActionConflictError ||
+          error instanceof MessageArchivedError ||
+          error instanceof MessageNotFoundError
+        ) {
+          throw error;
+        }
+        if (isDuplicateKeyError(error)) {
+          throw new MessageArchivedError(String(messageId));
+        }
+        if (isTransactionSupportError(error)) {
+          throw new MessageTransactionRequiredError(error);
+        }
+        throw error;
+      }
+    } finally {
+      await session.endSession();
+    }
   };
 }
 
@@ -333,7 +525,7 @@ export function buildMessageSchema(
 }
 
 /**
- * Default Message schema with no email notifier and no pre-save hook.
+ * Default Message schema with no email notifier and no save hooks.
  * Provided for backwards compatibility and simple use cases.
  * Use `buildMessageSchema(config)` when you need custom behavior.
  */

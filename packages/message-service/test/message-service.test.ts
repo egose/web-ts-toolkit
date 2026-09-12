@@ -19,11 +19,16 @@ import {
 import { defaultRegistry } from '../src/template-registry';
 import type { MessageTemplate } from '../src/types/template';
 
+// Faithful in-memory matcher for the array-backed unit doubles below (MSGF-12).
+// Every predicate in the filter must hold: `$or` branches are ANDed with
+// sibling predicates such as `_id` (the pre-MSFG-12 matcher returned early on
+// `$or` and silently ignored them). Multi-message and compound `_id`/`$or`
+// lifecycle behavior itself is proven against real MongoDB in
+// `message-service.mongodb.test.ts`, `message-service.action-fencing.test.ts`,
+// and `message-service.replay-coherence.test.ts`; this matcher only keeps the
+// fast unit suite honest.
 function matchesQuery(doc: any, query: any): boolean {
   if (!query) return true;
-  if (query.$or) {
-    return query.$or.some((clause: any) => matchesQuery(doc, clause));
-  }
   return Object.entries(query).every(([key, value]) => {
     if (key === '$or') {
       return (value as any[]).some((clause: any) => matchesQuery(doc, clause));
@@ -122,6 +127,35 @@ describe('MessageService', () => {
       return String(a._id).localeCompare(String(b._id));
     });
 
+  // Direction-aware comparator for the `sort(spec)` fake below (MSGF-12): the
+  // pre-fix double ignored the requested direction entirely. Handles the
+  // service's `{ createdAt: -1, _id: -1 }` and
+  // `{ clientRequestItemIndex: 1, _id: 1 }` sorts.
+  const toSortable = (value: unknown) => (value instanceof Date ? value.getTime() : value);
+
+  const compareSortValues = (a: unknown, b: unknown): number => {
+    const left = toSortable(a);
+    const right = toSortable(b);
+    if (left === right) return 0;
+    if (left === undefined || left === null) return -1;
+    if (right === undefined || right === null) return 1;
+    if (typeof left === 'number' && typeof right === 'number') return left - right;
+    const leftText = String(left);
+    const rightText = String(right);
+    return leftText < rightText ? -1 : 1;
+  };
+
+  const sortBySpec = (docs: any[], spec: Record<string, 1 | -1>) => {
+    const entries = Object.entries(spec);
+    return docs.slice().sort((a, b) => {
+      for (const [key, direction] of entries) {
+        const compared = compareSortValues(a[key], b[key]);
+        if (compared !== 0) return (direction === -1 ? -1 : 1) * compared;
+      }
+      return 0;
+    });
+  };
+
   const buildQuery = (docs: any[]) => {
     const state = {
       docs: sortMessages(docs),
@@ -135,7 +169,7 @@ describe('MessageService', () => {
     };
 
     return {
-      sort: () => buildQuery(state.docs),
+      sort: (spec: Record<string, 1 | -1> = {}) => buildQuery(sortBySpec(state.docs, spec)),
       skip: (value: number) => {
         state.skip = value;
         return buildQuery(state.docs.slice(state.skip));
@@ -147,6 +181,23 @@ describe('MessageService', () => {
       then: exec().then.bind(exec()),
       catch: exec().catch.bind(exec()),
     };
+  };
+
+  // Explicit in-memory transaction seam for the array-backed doubles
+  // (MSGF-12). The doubles have no MongoDB connection, so `db.startSession`
+  // returns a pass-through session that runs the unit of work directly: no
+  // isolation, locking, or rollback. This keeps the fast unit suite
+  // exercising service orchestration (scoping, replay bookkeeping,
+  // compensation wiring) while real atomicity, multi-message interleaving,
+  // and compound `_id`/`$or` claim behavior are proven against MongoDB in
+  // `message-service.mongodb.test.ts`,
+  // `message-service.action-fencing.test.ts`, and
+  // `message-service.replay-coherence.test.ts`. It is not persistence
+  // evidence: production `runMessageTransaction` fails closed with
+  // `MessageTransactionRequiredError` when this capability is absent.
+  const fakeSession = {
+    withTransaction: vi.fn(async (work: () => Promise<unknown>) => work()),
+    endSession: vi.fn(async () => undefined),
   };
 
   const mockMessageModel = {
@@ -203,6 +254,7 @@ describe('MessageService', () => {
       return doc;
     }),
     findById: vi.fn(async (id: string) => mockMessages.find((m) => m._id === id) || null),
+    findOne: vi.fn(async (query: any) => mockMessages.find((m) => matchesQuery(m, query)) || null),
     findOneAndUpdate: vi.fn(async (query: any, data: any) => {
       const message = mockMessages.find((entry) => matchesQuery(entry, query));
       if (message) {
@@ -215,6 +267,13 @@ describe('MessageService', () => {
       return buildQuery(matched);
     }),
     countDocuments: vi.fn(async (query: any) => mockMessages.filter((m) => matchesQuery(m, query)).length),
+    updateOne: vi.fn(async (query: any, data: any) => {
+      const message = mockMessages.find((entry) => matchesQuery(entry, query));
+      if (message) {
+        applyUpdate(message, data);
+      }
+      return { acknowledged: true, matchedCount: message ? 1 : 0 };
+    }),
     deleteOne: vi.fn(async (query: any) => {
       const index = mockMessages.findIndex((entry) => matchesQuery(entry, query));
       if (index >= 0) {
@@ -222,6 +281,9 @@ describe('MessageService', () => {
       }
       return { acknowledged: true, deletedCount: index >= 0 ? 1 : 0 };
     }),
+    db: {
+      startSession: vi.fn(async () => fakeSession),
+    },
   };
 
   const mockMessageRequestModel = {
@@ -295,7 +357,17 @@ describe('MessageService', () => {
       if (mockMessages.some((m) => m._id === id)) return null;
       return mockArchives.find((m) => m._id === id) || null;
     }),
-    updateOne: vi.fn(async () => ({ acknowledged: true, matchedCount: 1 })),
+    find: vi.fn((query: any) => {
+      const matched = mockArchives.filter((m) => matchesQuery(m, query));
+      return buildQuery(matched);
+    }),
+    updateOne: vi.fn(async (query: any, data: any) => {
+      const archived = mockArchives.find((entry) => matchesQuery(entry, query));
+      if (archived) {
+        applyUpdate(archived, data);
+      }
+      return { acknowledged: true, matchedCount: archived ? 1 : 0 };
+    }),
   };
 
   const getModel = (name: string) => {
@@ -501,6 +573,8 @@ describe('MessageService', () => {
     });
 
     expect(result).toBe('approved');
+    // Atomic archive movement runs inside the transaction seam (MSGF-12):
+    // both writes carry the session instead of executing sessionless.
     expect(mockArchiveModel.create).toHaveBeenCalledWith(
       [
         expect.objectContaining({
@@ -510,11 +584,16 @@ describe('MessageService', () => {
           actionNotificationState: 'none',
         }),
       ],
-      undefined,
+      expect.objectContaining({ session: fakeSession, ordered: true }),
     );
     expect(mockMessageModel.deleteOne).toHaveBeenCalledWith(
-      { _id: msg._id, actionState: 'processing', actionAttemptId: expect.any(String) },
-      undefined,
+      {
+        _id: msg._id,
+        actionState: 'processing',
+        actionAttemptId: expect.any(String),
+        actionOwnerToken: expect.any(String),
+      },
+      expect.objectContaining({ session: fakeSession }),
     );
   });
 
@@ -595,7 +674,7 @@ describe('MessageService', () => {
       service.handleAction('svc-test', 'approve', { message: mockMessages[0], user: { _id: 'u2' } }),
     ).rejects.toBeInstanceOf(ActionNotificationPendingError);
     expect(mockArchiveModel.updateOne).toHaveBeenCalledWith(
-      { _id: 'msg-0', actionAttemptId: expect.any(String) },
+      { _id: 'msg-0', actionAttemptId: expect.any(String), actionOwnerToken: expect.any(String) },
       expect.objectContaining({ $set: expect.objectContaining({ actionNotificationState: 'failed' }) }),
     );
   });
@@ -1146,6 +1225,7 @@ describe('MessageService', () => {
       }),
       endSession: vi.fn(async () => undefined),
     };
+    const previousDb = (mockMessageModel as any).db;
     (mockMessageModel as any).db = { startSession: vi.fn(async () => session) };
     const service = new MessageService({ getModel });
 
@@ -1161,7 +1241,37 @@ describe('MessageService', () => {
         state: 'failed',
       });
     } finally {
-      delete (mockMessageModel as any).db;
+      (mockMessageModel as any).db = previousDb;
+    }
+  });
+
+  it('should fail closed when the model has no session capability for idempotent batches', async () => {
+    // The documented-atomic batch path must not silently succeed sessionless
+    // (MSGF-12): without `db.startSession`, `runMessageTransaction` throws
+    // `MessageTransactionRequiredError` instead of executing the writes.
+    defaultRegistry.register(testTemplate);
+    const previousDb = (mockMessageModel as any).db;
+    delete (mockMessageModel as any).db;
+    const service = new MessageService({ getModel });
+
+    mockMessages.length = 0;
+    mockMessageRequests.length = 0;
+    try {
+      await expect(
+        service.createMessage({
+          templateCd: 'svc-test',
+          user: { _id: 'u1' },
+          payload: { name: 'Widget' },
+          clientRequestId: 'no-session-capability',
+        }),
+      ).rejects.toBeInstanceOf(MessageTransactionRequiredError);
+      expect(mockMessages).toHaveLength(0);
+      expect(mockMessageRequests[0]).toMatchObject({
+        clientRequestId: 'no-session-capability',
+        state: 'failed',
+      });
+    } finally {
+      (mockMessageModel as any).db = previousDb;
     }
   });
 
