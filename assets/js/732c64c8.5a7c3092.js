@@ -250,11 +250,23 @@ function _createMdxContent(props) {
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "interpolateMessageContent(...)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "resolveUiTemplate(...)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
           children: "filterActions(...)"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "isActionAllowed(...)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "hasExplicitPermissionGrant(...)"
         })
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
@@ -319,8 +331,26 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import express from 'express';\nimport mongoose from 'mongoose';\nimport {\n  buildMessageArchiveSchema,\n  buildMessageRequestSchema,\n  buildMessageSchema,\n  createMessageRoutes,\n  defaultRegistry,\n  MESSAGE_ARCHIVE_MODEL_NAME,\n  MESSAGE_MODEL_NAME,\n  MESSAGE_REQUEST_MODEL_NAME,\n  type MessageTemplate,\n} from '@web-ts-toolkit/message-service';\n\nconst app = express();\nconst myAuthMiddleware: express.RequestHandler = (_req, _res, next) => next();\n\nawait mongoose.connect('mongodb://localhost/mydb');\n\nmongoose.model(MESSAGE_MODEL_NAME, buildMessageSchema());\nmongoose.model(MESSAGE_ARCHIVE_MODEL_NAME, buildMessageArchiveSchema());\nmongoose.model(MESSAGE_REQUEST_MODEL_NAME, buildMessageRequestSchema());\n\nconst welcomeTemplate: MessageTemplate = {\n  templateCd: 'welcome',\n  senderContent: {\n    title: 'Welcome {{name}}',\n  },\n  receiverContent: {\n    title: 'Welcome {{name}}',\n  },\n  prepare: async ({ payload }) => ({\n    payload,\n  }),\n};\n\ndefaultRegistry.register(welcomeTemplate);\n\nconst { router, service } = createMessageRoutes({\n  getModel: mongoose.model.bind(mongoose),\n});\n\napp.use('/api/messages', myAuthMiddleware, router);\n"
+        children: "import express from 'express';\nimport mongoose from 'mongoose';\nimport {\n  buildMessageArchiveSchema,\n  buildMessageRequestSchema,\n  buildMessageSchema,\n  createMessageRoutes,\n  defaultRegistry,\n  MESSAGE_ARCHIVE_MODEL_NAME,\n  MESSAGE_MODEL_NAME,\n  MESSAGE_REQUEST_MODEL_NAME,\n  type MessageTemplate,\n  type MessageUser,\n} from '@web-ts-toolkit/message-service';\n\nconst app = express();\napp.use(express.json());\n\ndeclare function resolveAuthenticatedUser(req: express.Request): MessageUser | undefined;\n\nconst myAuthMiddleware: express.RequestHandler = (req, res, next) => {\n  const user = resolveAuthenticatedUser(req);\n  if (!user) {\n    res.status(401).json({ message: 'authentication required' });\n    return;\n  }\n  (req as express.Request & { user: MessageUser }).user = user;\n  next();\n};\n\nawait mongoose.connect('mongodb://localhost/mydb');\n\nmongoose.model(MESSAGE_MODEL_NAME, buildMessageSchema());\nmongoose.model(MESSAGE_ARCHIVE_MODEL_NAME, buildMessageArchiveSchema());\nmongoose.model(MESSAGE_REQUEST_MODEL_NAME, buildMessageRequestSchema());\n\nconst welcomeTemplate: MessageTemplate = {\n  templateCd: 'welcome.request',\n  type: 'request',\n  description: 'Welcome request',\n  senderContent: { title: 'Welcome {{name}}', long: 'Sent to reviewers', short: 'Sent' },\n  receiverContent: { title: 'Review {{name}}', long: 'Please review this request', short: 'Review' },\n  uiTemplate: 'default-message',\n  prepareMessage: async ({ user, payload }) => ({\n    fromUser: user._id,\n    toRoles: ['reviewer'],\n    payload,\n    // Content renders from `templateData`, not `payload`.\n    templateData: { name: String(payload.name ?? '') },\n  }),\n  actions: [\n    {\n      actionCd: 'approve',\n      name: 'Approve',\n      variant: 'primary',\n      sender: false,\n      receiver: true,\n      runHandler: async ({ actionAttemptId }) => ({ actionAttemptId }),\n    },\n  ],\n};\n\ndefaultRegistry.register(welcomeTemplate);\n\nconst { router, service } = createMessageRoutes({\n  getModel: mongoose.model.bind(mongoose),\n});\n\napp.use('/api/messages', myAuthMiddleware, router.original);\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Prerequisites: Node ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ">=22"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "mongoose >= 8"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "express >= 5"
+      }), ". Use a MongoDB\nreplica set (or sharded cluster) when you use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "clientRequestId"
+      }), " idempotency or\ntransactional archival; standalone servers throw\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MessageTransactionRequiredError"
+      }), ". Every route requires a resolved user with a\nvalid ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), " (non-empty string or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ObjectId"
+      }), ") and returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "401"
+      }), " before any\nservice, template, payment, model, or action effect otherwise."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "createMessageRoutes(...)"
@@ -377,7 +407,7 @@ function _createMdxContent(props) {
         })
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Mounted routes:"
+      children: "Mounted routes (action mutation is POST-only):"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
@@ -386,10 +416,6 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "GET /:id/actions/:usertype"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "GET /:id/action/:actionCd"
         })
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
@@ -406,7 +432,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import type express from 'express';\n\nconst requireAuth: express.RequestHandler = (_req, _res, next) => next();\ntype RequestWithAuth = express.Request & {\n  user?: unknown;\n  permissions?: Record<string, boolean>;\n};\n\nconst { router } = createMessageRoutes({\n  getModel: mongoose.model.bind(mongoose),\n  authMiddleware: [requireAuth],\n  getUser(req) {\n    return (req as RequestWithAuth).user;\n  },\n  getPermissions(req) {\n    return (req as RequestWithAuth).permissions ?? {};\n  },\n  getIdentity(req) {\n    return {\n      tenantId: req.headers['x-tenant-id'],\n    };\n  },\n});\n\napp.use('/api/messages', router);\n"
+        children: "import type express from 'express';\nimport type { MessageUser } from '@web-ts-toolkit/message-service';\n\nconst requireAuth: express.RequestHandler = (req, res, next) => {\n  const user = (req as express.Request & { user?: MessageUser }).user;\n  if (!user || typeof user._id !== 'string' || user._id.trim() === '') {\n    res.status(401).json({ message: 'authentication required' });\n    return;\n  }\n  next();\n};\ntype RequestWithAuth = express.Request & {\n  user?: MessageUser;\n  permissions?: Record<string, boolean>;\n};\n\nconst { router } = createMessageRoutes({\n  getModel: mongoose.model.bind(mongoose),\n  authMiddleware: [requireAuth],\n  getUser(req) {\n    return (req as RequestWithAuth).user;\n  },\n  getPermissions(req) {\n    return (req as RequestWithAuth).permissions ?? {};\n  },\n  getIdentity(req) {\n    return {\n      tenantId: req.headers['x-tenant-id'],\n    };\n  },\n});\n\napp.use('/api/messages', router.original);\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "create-from-template-request-example",
@@ -434,14 +460,22 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Common methods:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "createMessage(params)"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
+        }), " — returns ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Array<IMessage | IMessageArchive>"
+        }), "; ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "user"
+        }), "\n(and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "payerUser"
+        }), " when provided) must carry a valid principal id."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "createNotification(params)"
-        })
+        }), " — trusted host-level creation with raw ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "UserId"
+        }), "\nvalues; performs no principal validation."]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "listMessages({ user, limit?, skip?, populate? })"
@@ -450,18 +484,18 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "countMessages(user)"
         })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "findMessage(id, options?)"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
+        }), " / ", (0,jsx_runtime.jsx)(_components.code, {
           children: "findMessageOrThrow(id, options?)"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "getActions(id, usertype, options?)"
-        })
+        }), " — trusted\nhost-level lookup across active and archive; no principal validation."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "getActions(messageId, usertype, { user, permissions?, isAdmin?, message?, populate? })"
+        }), " — ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "user"
+        }), " is required."]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "handleAction(templateCd, actionCd, options)"
@@ -484,7 +518,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "await service.createNotification({\n  fromUser: { _id: 'system', name: 'System' },\n  toUser: { _id: 'user_123', name: 'Ada' },\n  receiverContent: {\n    title: 'Deployment finished',\n    body: 'Your deployment completed successfully.',\n  },\n});\n"
+        children: "await service.createNotification({\n  fromUser: 'system',\n  toUser: 'user_123',\n  receiverContent: {\n    title: 'Deployment finished',\n    long: 'Your deployment completed successfully.',\n    short: 'Deployment done',\n  },\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "direct-template-action-example",
@@ -492,7 +526,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "const message = await service.findMessageOrThrow('message_123');\n\nawait service.handleAction('welcome', 'acknowledge', {\n  message,\n  user: { _id: 'user_123', name: 'Ada' },\n  permissions: { 'message.ack': true },\n});\n"
+        children: "const message = await service.findMessageOrThrow('message_123');\n\nawait service.handleAction('welcome.request', 'approve', {\n  message,\n  user: { _id: 'user_123', roles: ['reviewer'] },\n  permissions: { 'message.ack': true },\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "template-registry",
@@ -504,8 +538,18 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "const registry = new TemplateRegistry();\n\nregistry.register(template);\nregistry.find('welcome');\nregistry.has('welcome');\nregistry.getAll();\nregistry.unregister('welcome');\nregistry.clear();\n"
+        children: "const registry = new TemplateRegistry();\n\nregistry.register(template);\nconst found: RegisteredMessageTemplate | undefined = registry.find('welcome.request');\nregistry.has('welcome.request');\nconst all: RegisteredMessageTemplate[] = registry.getAll();\nregistry.unregister('welcome.request');\nregistry.clear();\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Registration takes a mutable ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MessageTemplate"
+      }), "; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "find()"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "getAll()"
+      }), " return\nreadonly ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "RegisteredMessageTemplate"
+      }), " views matching the frozen snapshot depth."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "defaultRegistry"
@@ -591,7 +635,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import type { PaymentProvider } from '@web-ts-toolkit/message-service';\n\nasync function createCheckoutSession(user: unknown, code: string, priceArgs: unknown): Promise<string> {\n  void { user, code, priceArgs };\n  return 'session_123';\n}\n\nasync function expireCheckoutSession(sessionId: string): Promise<void> {\n  void sessionId;\n}\n\nasync function refundCheckoutSession(sessionId: string): Promise<void> {\n  void sessionId;\n}\n\nclass StripePaymentProvider implements PaymentProvider {\n  async createSession(user, code, priceArgs) {\n    return await createCheckoutSession(user, code, priceArgs);\n  }\n\n  async expireSession(sessionId) {\n    await expireCheckoutSession(sessionId);\n  }\n\n  async refundPayment(sessionId) {\n    await refundCheckoutSession(sessionId);\n  }\n}\n"
+        children: "import type { PaymentProvider, UserId } from '@web-ts-toolkit/message-service';\n\nasync function createCheckoutSession(user: UserId, code: string, priceArgs?: Record<string, unknown>): Promise<string> {\n  void user;\n  void code;\n  void priceArgs;\n  return 'session_123';\n}\n\nasync function expireCheckoutSession(sessionId: string): Promise<void> {\n  void sessionId;\n}\n\nasync function refundCheckoutSession(sessionId: string): Promise<void> {\n  void sessionId;\n}\n\nclass StripePaymentProvider implements PaymentProvider {\n  async createSession(user: UserId, code: string, priceArgs?: Record<string, unknown>) {\n    return await createCheckoutSession(user, code, priceArgs);\n  }\n\n  async expireSession(sessionId: string) {\n    await expireCheckoutSession(sessionId);\n  }\n\n  async refundPayment(sessionId: string) {\n    await refundCheckoutSession(sessionId);\n  }\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Pass it to ", (0,jsx_runtime.jsx)(_components.code, {

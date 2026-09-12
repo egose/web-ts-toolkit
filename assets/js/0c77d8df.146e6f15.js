@@ -80,7 +80,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-sh",
-        children: "pnpm add @web-ts-toolkit/pdf-reader pdfjs-dist\n"
+        children: "pnpm add @web-ts-toolkit/pdf-reader pdfjs-dist@~6.2.108\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The package targets browsers, is published as ESM-only, and treats ", (0,jsx_runtime.jsx)(_components.code, {
@@ -120,7 +120,15 @@ function _createMdxContent(props) {
         children: "dataURL"
       }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
         children: "isPNG"
-      }), " names."]
+      }), " names. Follow-up hardening keeps that API but snapshots effective headers before ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sourcePolicy(...)"
+      }), ", rechecks borrowed byte sizes after approval, retries failed loads with a fresh attempt, settles page-stage waits promptly via one shared cancellation contract (underlying PDF.js work stays uncancellable), decodes one-bit images by declared kind, resolves shared images via ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "commonObjs"
+      }), ", and rejects invalid options/encodes with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "INVALID_OPTION"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "UNSUPPORTED_ENVIRONMENT"
+      }), ". Page work stays serial and text/operator limits still apply after PDF.js returns complete structures — no concurrency or streaming-text API change ships in this release."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "example",
       children: "Example"
@@ -172,9 +180,22 @@ function _createMdxContent(props) {
         children: "PDFWorker"
       }), " on the ", (0,jsx_runtime.jsx)(_components.code, {
         children: "PDFReader"
-      }), " source object instead of using the global helper: ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "new PDFReader({ data: bytes, worker: new PDFWorker({ name: 'tenant-a' }) })"
-      }), "."]
+      }), " source object and retain the handle so you can destroy it explicitly:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { PDFWorker } from 'pdfjs-dist';\nimport { PDFReader } from '@web-ts-toolkit/pdf-reader';\n\nconst worker = new PDFWorker({ name: 'tenant-a' });\nconst reader = new PDFReader({ data: bytes, worker });\n\ntry {\n  await reader.load();\n  // ... pages()/convert() ...\n} finally {\n  try {\n    await reader.destroy();\n  } finally {\n    await worker.destroy();\n  }\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["A caller-created ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "PDFWorker"
+      }), " is never destroyed by the reader or by PDF.js task teardown (PDF.js destroys only the worker it creates internally), so the nested ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "finally"
+      }), " runs even when ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "reader.destroy()"
+      }), " rejects, including after a load failure. Destroy the reader first so in-flight document work settles before the worker goes away. The worker script URL itself must be emitted by the application bundler (for example, Vite's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pdfjs-dist/build/pdf.worker.min.mjs?url"
+      }), " import); the package emits no worker asset."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "reader.state"
@@ -228,7 +249,31 @@ function _createMdxContent(props) {
         children: "pageImageOutput: 'data-url'"
       }), " convenience path. ", (0,jsx_runtime.jsx)(_components.code, {
         children: "jpegQuality"
-      }), " applies only to JPEG output."]
+      }), " applies only to JPEG output. Conversion defaults are ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "viewportScale: 1.5"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "imageFormat: 'image/png'"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "jpegQuality: 0.92"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "includePageImage: true"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pageImageOutput: 'data-url'"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "includeText: true"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "includeEmbeddedImages: false"
+      }), "; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pageRange"
+      }), " is 1-based (one page number or an inclusive tuple, with reversed tuples normalized). The package returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Blob"
+      }), "s directly, never object URLs: keep any ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "URL.createObjectURL(blob)"
+      }), " alive through ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "img.decode()"
+      }), "/display and revoke it on replacement, disposal, or error — never immediately after assigning ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "src"
+      }), ", which invalidates the preview before it loads."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Constructor ", (0,jsx_runtime.jsx)(_components.code, {
         children: "canvasFactory"
@@ -256,17 +301,43 @@ function _createMdxContent(props) {
         children: "limits.maxSourceBytes"
       }), " rejects synchronously knowable in-memory sources before ", (0,jsx_runtime.jsx)(_components.code, {
         children: "getDocument()"
-      }), ". Finite defaults also cap loaded document pages, retained per-page text item/code-unit counts, per-page operator traversal for embedded-image extraction, rendered page pixels, one embedded image's decoded pixels, extracted embedded-image count, and aggregate decoded embedded-image pixels per page. Text and operator checks run after PDF.js returns those complete structures and before package traversal or result retention; they bound package-owned work, not PDF.js' initial parsing allocation. Embedded-image count and aggregate decoded-pixel checks run before the next extracted-image canvas allocation or PNG data-url encode. Repeated image XObject references reuse one encoded data URL per page after those aggregate placement limits pass; inline images are not cached by synthetic keys. Exact aggregate encoded data-url bytes are not precomputable before browser canvas encoding, so decoded-pixel limits are the documented output boundary."]
+      }), ": binary strings (one byte per code unit), number arrays (one byte per entry, rejected by length without entry traversal), and buffer/view ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "byteLength"
+      }), ". The size is rechecked after source-policy approval, so growth during approval still fails before loading; borrowed ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "data"
+      }), " is never copied, and remote response-byte limits stay application-owned. Finite defaults also cap loaded document pages, retained per-page text item/code-unit counts, per-page operator traversal for embedded-image extraction, rendered page pixels, one embedded image's decoded pixels, extracted embedded-image count, and aggregate decoded embedded-image pixels per page. Text and operator checks run after PDF.js returns those complete structures and before package traversal or result retention; they bound package-owned work, not PDF.js' initial parsing allocation. Embedded-image count and aggregate decoded-pixel checks run before the next extracted-image canvas allocation or PNG data-url encode. Repeated image XObject references reuse one encoded data URL per page after those aggregate placement limits pass; inline images are not cached by synthetic keys. Exact aggregate encoded data-url bytes are not precomputable before browser canvas encoding, so decoded-pixel limits are the documented output boundary."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "sourcePolicy(source)"
       }), " runs before PDF.js network/loading work so applications can reject disallowed URLs, protocols, credentials, or headers while still passing approved PDF.js options through unchanged."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Embedded-image extraction remains opt-in on the package root. The current real-browser fixture suite characterizes inline images, repeated image XObjects, composed transforms, RGBA soft-mask images, and nested form XObjects against the supported ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Embedded-image extraction remains opt-in on the package root. The current real-browser fixture suite characterizes inline images, repeated image XObjects, composed transforms, RGBA soft-mask images, one-bit (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "GRAYSCALE_1BPP"
+      }), ") image XObjects with pixel assertions under both ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ImageBitmap"
+      }), " and packed-bit paths, and nested form XObjects against the supported ", (0,jsx_runtime.jsx)(_components.code, {
         children: "pdfjs-dist"
       }), " peer minor ", (0,jsx_runtime.jsx)(_components.code, {
         children: "~6.2.108"
-      }), ". Repeated XObject placements share one per-page encoded payload while retaining distinct returned transforms and coordinates. Standalone image-mask operators and unsupported individual image layouts are skipped with diagnostics instead of aborting the page; resource-limit, abort, and destroy errors still propagate."]
+      }), ". Repeated XObject placements share one per-page encoded payload while retaining distinct returned transforms and coordinates. Shared ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "g_"
+      }), "-prefixed references resolve through the document-wide ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "commonObjs"
+      }), " store with readiness awaited under the same cancellation contract; page-local references keep using ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "page.objs"
+      }), ". Image ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "x"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "y"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "width"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "height"
+      }), " are PDF user-space coordinates before viewport scaling (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "y"
+      }), " is the upper bound); ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "size"
+      }), " reports decoded source bytes, not the encoded PNG length. Standalone image-mask operators and unsupported individual image layouts are skipped with diagnostics instead of aborting the page; resource-limit, abort, and destroy errors still propagate."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["PDFR2-05 release-note evidence is captured in this page, the package README, and the task completion record. ", (0,jsx_runtime.jsx)(_components.code, {
         children: "CHANGELOG.md"
@@ -284,13 +355,13 @@ function _createMdxContent(props) {
         children: "packages/pdf-reader/benchmark/"
       }), " that compares the current ", (0,jsx_runtime.jsx)(_components.code, {
         children: "pages()"
-      }), " path against a bounded page-level scheduler candidate before any concurrency option is considered. The recorded local run in Headless Chromium ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " path against a bounded page-level scheduler candidate (concurrency ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "2"
+      }), ", reorder window ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "2"
+      }), " retained pages) before any concurrency option is considered. The current baseline (2026-09-12, Headless Chromium ", (0,jsx_runtime.jsx)(_components.code, {
         children: "151.0.7922.34"
-      }), " improved the synthetic long/image-heavy fixtures but also doubled active page/canvas ownership from ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "1/1"
-      }), " to ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "2/2"
-      }), ", so the package keeps the serial API until a tighter browser memory/backpressure budget exists. The benchmark command is ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ", 1 warmup + 3 repeats) reports conversion-only, load, and load-inclusive times with global simultaneous peaks: bounded overlap reduces conversion-only time on some fixtures but loads a second document and doubles simultaneous page/canvas ownership, so the package keeps the serial API until a tighter browser memory/backpressure budget exists. The 2026-08-19 single-sample numbers remain historical only. The benchmark command is ", (0,jsx_runtime.jsx)(_components.code, {
         children: "pnpm --filter @web-ts-toolkit/pdf-reader benchmark"
       }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {

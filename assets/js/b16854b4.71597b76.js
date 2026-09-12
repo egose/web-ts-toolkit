@@ -213,6 +213,22 @@ function _createMdxContent(props) {
           })
         })
       })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Supported peer versions:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "mongoose >= 8"
+        }), " (tested with Mongoose 8.24.x and 9.x)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "@egose/keycloak-fluent >=0.12.1 <0.15.0"
+        }), " for the Keycloak user-sync subpath (tested floor ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "0.12.1"
+        }), ", current ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "0.14.x"
+        }), ")"]
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "what-it-exposes",
       children: "What It Exposes"
@@ -308,6 +324,24 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "import { uniqueNullableString } from '@web-ts-toolkit/moo/schema';\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "uniqueNullableString"
+      }), " allows repeating ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), "/missing values while rejecting duplicate strings (partial index on ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ $type: 'string' }"
+      }), "); ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "uniqueEmptiableString"
+      }), " additionally ignores ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "''"
+      }), " (partial index on ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ $type: 'string', $gt: '' }"
+      }), "). Extra overrides are spread over the defaults and reflected in the inferred return type. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "isObjectId"
+      }), " is a strict canonical guard: only 24-character lowercase hex strings and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "mongoose.Types.ObjectId"
+      }), " instances pass."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "objectid-checks",
       children: "ObjectId checks"
@@ -330,8 +364,16 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import mongoose, { type Model } from 'mongoose';\nimport {\n  type ModelDocument,\n  type ModelFunctionInstanceMethods,\n  type ModelFunctionStaticMethods,\n  modelFunctionPlugin,\n} from '@web-ts-toolkit/moo';\n\ntype Cart = {\n  name: string;\n  price: number;\n};\n\ntype CartDocument = ModelDocument<Cart, CartMethods>;\n\ntype CartMethods = ModelFunctionInstanceMethods<'applyDiscount', [suffix: string, priceChange: number], CartDocument>;\n\ntype CartModel = Model<Cart, {}, CartMethods> &\n  ModelFunctionStaticMethods<'applyDiscount', CartDocument, [suffix: string, priceChange: number], CartDocument>;\n\nconst cartSchema = new mongoose.Schema<Cart, CartModel, CartMethods>({\n  name: { type: String, required: true },\n  price: { type: Number, required: true },\n});\n\ncartSchema.plugin(modelFunctionPlugin, {\n  fnName: 'applyDiscount',\n  fn: (cart: CartDocument, suffix: string, priceChange: number) => {\n    cart.name = `${cart.name}-${suffix}`;\n    cart.price += priceChange;\n    return cart;\n  },\n});\n"
+        children: "import mongoose, { type Model } from 'mongoose';\nimport {\n  type ModelDocument,\n  type ModelFunctionInstanceMethods,\n  type ModelFunctionStaticMethods,\n  modelFunctionPlugin,\n} from '@web-ts-toolkit/moo';\n\ntype Cart = {\n  name: string;\n  price: number;\n};\n\n// Keep result types free of the CartDocument alias (plain values, not the\n// document) so the aliases never circularly reference each other.\ntype CartMethods = ModelFunctionInstanceMethods<'applyDiscount', [suffix: string, priceChange: number], number> &\n  ModelFunctionInstanceMethods<'applyDiscountAsync', [suffix: string, priceChange: number], Promise<number>>;\n\ntype CartDocument = ModelDocument<Cart, CartMethods>;\n\ntype CartModel = Model<Cart, {}, CartMethods> &\n  ModelFunctionStaticMethods<'applyDiscount', CartDocument, [suffix: string, priceChange: number], number> &\n  ModelFunctionStaticMethods<\n    'applyDiscountAsync',\n    CartDocument,\n    [suffix: string, priceChange: number],\n    Promise<number>\n  >;\n\nconst cartSchema = new mongoose.Schema<Cart, CartModel, CartMethods>({\n  name: { type: String, required: true },\n  price: { type: Number, required: true },\n});\n\n// No explicit plugin generics: the method name, argument tuple, and result\n// are inferred from the options.\ncartSchema.plugin(modelFunctionPlugin, {\n  fnName: 'applyDiscount',\n  fn: (cart: CartDocument, suffix: string, priceChange: number) => {\n    cart.price += priceChange;\n    return cart.price;\n  },\n});\n\ncartSchema.plugin(modelFunctionPlugin, {\n  fnName: 'applyDiscountAsync',\n  fn: async (cart: CartDocument, suffix: string, priceChange: number) => {\n    cart.price += priceChange;\n    return cart.price;\n  },\n});\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Each registration adds an instance method, a static taking the document first, and a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ById"
+      }), " static that returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " when no document matches. Wrong argument types fail compilation; representative examples plus negative cases are compiler-checked from the packed package by ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "test/moo.typed-consumer.test.ts"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "new-document-plugin",
       children: "New document plugin"
@@ -347,14 +389,18 @@ function _createMdxContent(props) {
         children: "fn"
       }), " after the first successful ", (0,jsx_runtime.jsx)(_components.code, {
         children: "save()"
-      }), ". Later saves of the same document do not trigger the callback."]
+      }), ". Later saves of the same document do not trigger the callback. Only document ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "save()"
+      }), " is observed; query inserts, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "insertMany()"
+      }), " fast paths that skip document middleware, and updates to existing documents never trigger it. This is a post-save notification, not durable delivery: the callback runs after MongoDB persistence, cannot roll back the write, and carries no outbox, retry, or exactly-once guarantee across transaction retries. Applications needing transactional delivery should record their own outbox intent inside the transaction and process it after commit."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "cascade-delete-plugin",
       children: "Cascade delete plugin"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import mongoose, { type Model, type Types } from 'mongoose';\nimport {\n  type CascadeDeleteDependencyMap,\n  type CascadeDeleteDocumentMethods,\n  type CascadeDeleteModelStatics,\n  cascadeDeletePlugin,\n} from '@web-ts-toolkit/moo/plugins';\n\nconst referenceModelName = 'Reference';\n\ntype Reference = {\n  name: string;\n};\n\ntype File = {\n  refs: Types.ObjectId[];\n};\n\ntype FileMethods = CascadeDeleteDocumentMethods<typeof referenceModelName, Reference>;\n\ntype FileModel = Model<File, {}, FileMethods> & CascadeDeleteModelStatics<typeof referenceModelName, Reference>;\n\ntype FileDependents = CascadeDeleteDependencyMap<typeof referenceModelName, Reference>;\n\nconst fileSchema = new mongoose.Schema<File, FileModel, FileMethods>({\n  refs: [{ type: mongoose.Schema.Types.ObjectId, ref: referenceModelName }],\n});\n\nfileSchema.plugin(cascadeDeletePlugin, {\n  model: referenceModelName,\n  localField: 'refs',\n  foreignField: '_id',\n});\n\nconst File = mongoose.model<File, FileModel>('File', fileSchema);\n\nasync function example(file: mongoose.HydratedDocument<File, FileMethods>) {\n  const dependents = (await file.findDependents()) as FileDependents;\n  const references = await file.findDependents(referenceModelName);\n  const orphans = await File.findOrphans(referenceModelName);\n\n  dependents.Reference;\n  references?.[0]?.name;\n  orphans?.[0]?.name;\n}\n"
+        children: "import mongoose, { type Model, type Types } from 'mongoose';\nimport {\n  type CascadeDeleteDependencyMap,\n  type CascadeDeleteDocumentMethods,\n  type CascadeDeleteModelStatics,\n  cascadeDeletePlugin,\n} from '@web-ts-toolkit/moo/plugins';\n\nconst referenceModelName = 'Reference';\n\ntype Reference = {\n  name: string;\n};\n\ntype File = {\n  refs: Types.ObjectId[];\n};\n\ntype FileMethods = CascadeDeleteDocumentMethods<typeof referenceModelName, Reference>;\n\ntype FileModel = Model<File, {}, FileMethods> & CascadeDeleteModelStatics<typeof referenceModelName, Reference>;\n\ntype FileDependents = Partial<CascadeDeleteDependencyMap<typeof referenceModelName, Reference>> &\n  Record<string, unknown[]>;\n\nconst fileSchema = new mongoose.Schema<File, FileModel, FileMethods>({\n  refs: [{ type: mongoose.Schema.Types.ObjectId, ref: referenceModelName }],\n});\n\nfileSchema.plugin(cascadeDeletePlugin, {\n  model: referenceModelName,\n  localField: 'refs',\n  foreignField: '_id',\n});\n\nconst File = mongoose.model<File, FileModel>('File', fileSchema);\n\nasync function example(file: mongoose.HydratedDocument<File, FileMethods>) {\n  const dependents: FileDependents = await file.findDependents();\n  const references = await file.findDependents(referenceModelName);\n  const orphans = await File.findOrphans(referenceModelName);\n\n  dependents.Reference;\n  references?.[0]?.name;\n  orphans?.[0]?.name;\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["If you prefer importing the plugin from its dedicated published entrypoint instead of the grouped ", (0,jsx_runtime.jsx)(_components.code, {
@@ -365,6 +411,98 @@ function _createMdxContent(props) {
         className: "language-ts",
         children: "import { cascadeDeletePlugin } from '@web-ts-toolkit/moo/plugins/cascade-delete';\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Relationship mode (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "localField"
+      }), " + ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "foreignField"
+      }), ") is fail-closed: missing/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), "/empty-string local keys and empty reference arrays resolve to zero dependents and delete nothing, so unrelated records with a missing/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " foreign key survive. A local field omitted by a projection is distinguished from an intentionally empty relation — when the path is provably deselected the lookup throws instead of silently reporting zero dependents. Supplemental ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "extraForeignFilter"
+      }), " constraints are composed conjunctively (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ $and: [relationship, extra] }"
+      }), "), so an extra filter on the relationship field (including ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$or"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$and"
+      }), " payloads) can only narrow, never replace or widen, the deletion set. Explicit full-filter mode (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "foreignFilter"
+      }), ") is a separate contract: the resolved filter is used as-is and any ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "extraForeignFilter"
+      }), " is ignored; resolvers returning ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), "/non-objects resolve to zero dependents. Empty full filters (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{}"
+      }), ") are rejected by default at registration and at runtime because they would match the whole dependent collection; there is currently no broad-delete opt-in. Invalid ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "model"
+      }), "/field combinations and non-object static filters throw at ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "schema.plugin(...)"
+      }), " time."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Deletion always removes fully hydrated dependent documents through their own document ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "deleteOne()"
+      }), " (never bulk writes), so nested cascades and custom document hooks observe required fields across multi-level custom-", (0,jsx_runtime.jsx)(_components.code, {
+        children: "localField"
+      }), " chains. Internal deletion traversal pages dependent ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), "s (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "batchSize"
+      }), ", default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "100"
+      }), ") and bounds in-flight deletes (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "maxConcurrency"
+      }), ", default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "8"
+      }), "; forced to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "1"
+      }), " inside an active transaction), instead of materializing and deleting the whole set at once. Public ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "findDependents()"
+      }), " still returns an array. A dependent-hook failure rejects the parent ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "deleteOne()"
+      }), " after the parent is already removed (fail-fast, remaining batches skipped; abort the transaction to restore everything when in one); already-deleted rows are skipped. Repeated references delete once per level; diamonds/cycles terminate with at-least-once hook delivery."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Only document ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "deleteOne()"
+      }), " is intercepted (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pre"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "post('deleteOne', { document: true, query: false })"
+      }), "); query deletes and query updates bypass the cascade. The ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pre"
+      }), " hook validates the execution context before the parent is removed, while the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "post"
+      }), " hook runs after the parent is already removed. Typed filters accept per-field MongoDB operators (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ price: { $gt: 5 } }"
+      }), ") forwarded to Mongoose unchanged, and the no-argument ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "findDependents()"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "findOrphans()"
+      }), " overloads return ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Partial"
+      }), " maps with unsupported entries omitted. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "findOrphans()"
+      }), " supports scalar ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), " relations and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "[{ type: ObjectId, ref }]"
+      }), " arrays; dotted paths, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ type: [ObjectId], ref }"
+      }), " syntax, dynamic ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "refPath"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "foreignFilter"
+      }), "-only relationships, and non-", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), " local keys resolve to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " (see ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "docs/tasks/20260912-130000-moo-07-orphan-query-evidence.md"
+      }), ")."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "keycloak-user-sync",
       children: "Keycloak user sync"
@@ -375,7 +513,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { createManagedKeycloakClient, keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';\n\nconst keycloak = createManagedKeycloakClient({ baseUrl, authRealm: 'master', clientId, clientSecret });\n\nuserSchema.plugin(keycloakUserSyncPlugin, {\n  client: keycloak,\n  realm: 'application',\n  identifyBy: ['providerId', 'username', 'email'],\n  managedRoles: ['admin', 'editor', 'viewer'],\n  managedAttributes: ['tenantId', 'plan'],\n  paths: { password: 'pendingPassword' }, // pragma: allowlist secret\n  syncFields: { email: true, firstName: true, lastName: true, roles: true, attributes: true, password: true },\n  passwordTemporary: true,\n  mapPassword(document) {\n    return document.get('pendingPassword') as string | undefined;\n  },\n  attributePaths: ['tenantId', 'subscription.plan'],\n  mapAttributes(document) {\n    return {\n      tenantId: document.get('tenantId'),\n      plan: document.get('subscription.plan'),\n    };\n  },\n  onError(error, context) {\n    reportKeycloakSyncError(error, context);\n  },\n});\n"
+        children: "import { createManagedKeycloakClient, keycloakUserSyncPlugin } from '@web-ts-toolkit/moo/plugins/keycloak-user-sync';\n\nconst keycloak = createManagedKeycloakClient({ baseUrl, authRealm: 'master', clientId, clientSecret });\n\n// Mapped attribute paths must exist in the schema. pendingPassword is a\n// virtual below and is never persisted to MongoDB.\nconst userSchema = new Schema({\n  providerId: String,\n  username: String,\n  email: String,\n  roles: [String],\n  tier: String,\n  tenantId: String,\n  subscription: { plan: String },\n});\n\nuserSchema\n  .virtual('pendingPassword') // pragma: allowlist secret\n  .get(function (this: { $locals: Record<string, unknown> }) {\n    return this.$locals.pendingPassword as string | undefined;\n  })\n  .set(function (this: { $locals: Record<string, unknown> }, value: string | undefined) {\n    this.$locals.pendingPassword = value;\n  });\n\nuserSchema.plugin(keycloakUserSyncPlugin, {\n  client: keycloak,\n  realm: 'application',\n  identifyBy: ['providerId', 'username', 'email'],\n  managedRoles: ['admin', 'editor', 'viewer'],\n  managedAttributes: ['tenantId', 'plan'],\n  paths: { password: 'pendingPassword' }, // pragma: allowlist secret\n  syncFields: { email: true, firstName: true, lastName: true, roles: true, attributes: true, password: true },\n  passwordTemporary: true,\n  mapPassword(document) {\n    return document.get('pendingPassword') as string | undefined;\n  },\n  attributePaths: ['tenantId', 'subscription.plan'],\n  rolePaths: ['tier'],\n  passwordPaths: ['pendingPassword'],\n  mapRoles(_roles, document) {\n    return document.get('tier') === 'pro' ? ['editor'] : [];\n  },\n  mapAttributes(document) {\n    return {\n      tenantId: document.get('tenantId'),\n      plan: document.get('subscription.plan'),\n    };\n  },\n  onError(error, context) {\n    reportKeycloakSyncError(error, context);\n  },\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The managed client authenticates lazily with ", (0,jsx_runtime.jsx)(_components.code, {
@@ -400,15 +538,21 @@ function _createMdxContent(props) {
         children: "managedAttributes"
       }), " for keys the plugin may replace or remove. Password sync is disabled by default; enable ", (0,jsx_runtime.jsx)(_components.code, {
         children: "syncFields.password"
-      }), " only for a plaintext pending password value, not a stored hash. Passwords are not sent in create or profile-update payloads; created and existing users are updated through Keycloak's reset-password endpoint using ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " only for a short-lived, non-persisted pending-password virtual such as the example above — never an ordinary stored plaintext path or a stored hash. Passwords are not sent in create or profile-update payloads; created and existing users are updated through Keycloak's reset-password endpoint using ", (0,jsx_runtime.jsx)(_components.code, {
         children: "passwordTemporary"
-      }), ". A newly resolved Keycloak ID is stored before optional password, role, and verification-email work so retries can target the same remote user. The application owns that plaintext field's lifecycle and should keep it short-lived, avoid persistence where possible, and prevent it from entering logs, traces, or error reporters. Error logger metadata and ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ", and a partially provisioned account stays disabled until its required credentials succeed. A newly resolved Keycloak ID is stored before optional password, role, and verification-email work so retries can target the same remote user. The application owns that plaintext input's lifecycle and should keep it short-lived, non-persisted, and out of logs, traces, or error reporters. Mapper dependencies are explicit (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "attributePaths"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "rolePaths"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "passwordPaths"
+      }), ", honored only while the corresponding ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "syncFields"
+      }), " entry is enabled), and the password mapper runs lazily — for creation or an actual password-sync intent only. Error loggers receive only the allowlisted ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ operation, localDocumentId, error: { name, code?, status? } }"
+      }), " summary, never the message, stack, cause, or transport data, while ", (0,jsx_runtime.jsx)(_components.code, {
         children: "onError"
-      }), " context include safe fields such as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "operation"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "localDocumentId"
-      }), " by default, not the document, email address, password, or payload. Set ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " keeps the original error. Set ", (0,jsx_runtime.jsx)(_components.code, {
         children: "includeDocumentInErrorContext: true"
       }), " only for private error handlers that can receive the full sensitive Mongoose document. Logger and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "onError"
@@ -450,13 +594,29 @@ function _createMdxContent(props) {
         children: "schema.plugin(...)"
       }), ": ", (0,jsx_runtime.jsx)(_components.code, {
         children: "realm"
-      }), ", configured paths, managed names, and attribute trigger paths must be non-empty; ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ", configured paths, managed names, and attribute/role/password trigger paths must be non-empty; ", (0,jsx_runtime.jsx)(_components.code, {
         children: "identifyBy"
       }), " must be a supported non-empty identity list; and built-in synced field paths must exist in the schema. Mapper-driven ", (0,jsx_runtime.jsx)(_components.code, {
         children: "attributePaths"
-      }), " may name dynamic fields that the mapper reads. Options are snapshotted at registration, duplicate registration on the same schema is rejected, and ", (0,jsx_runtime.jsx)(_components.code, {
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "rolePaths"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "passwordPaths"
+      }), " name the additional Mongoose paths the mapper reads (as in the example above). Options are snapshotted at registration, duplicate registration on the same schema is rejected, and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "providerId"
       }), " is immutable after persistence so document updates cannot redirect synchronization to another Keycloak user."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Saves and deletes share one persisted-identity boundary. New local documents perform explicitly authorized initial linking through their current identity values. Existing documents resolve only through their persisted snapshot: a stored ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "providerId"
+      }), " is authoritative, and a changed username or email that resolves to a different remote user fails closed instead of relinking — the conflicting update, credential reset, role change, or delete is never sent to that other account. A stale persisted ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "providerId"
+      }), ", a missing persisted local row, or a delete of a never-persisted document is likewise rejected before any destructive remote call. Identity protection applies independently of ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "throwOnError"
+      }), ": with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "throwOnError: false"
+      }), " a conflicting save still succeeds locally while leaving the other account untouched, and a conflicting delete always blocks local deletion so the verified binding remains retryable. Migration implication: rows whose stored ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "providerId"
+      }), " no longer exists remotely fail closed on sync; clear or re-link the stored binding explicitly rather than changing a profile field and expecting a silent relink."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Role sync is additive-only by default: desired local roles are assigned, but unrelated existing Keycloak realm roles are preserved. Set ", (0,jsx_runtime.jsx)(_components.code, {
         children: "managedRoles"
