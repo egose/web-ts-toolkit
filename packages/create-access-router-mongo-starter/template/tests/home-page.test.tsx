@@ -175,7 +175,7 @@ describe('HomePage', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(/todo could not be saved/i);
-    expect(alert).toHaveFocus();
+    await waitFor(() => expect(alert).toHaveFocus());
     expect(title).toHaveValue('Keep this text');
     expect(screen.queryByText(/private server detail/i)).not.toBeInTheDocument();
 
@@ -361,7 +361,7 @@ describe('HomePage', () => {
 
     const alert = await screen.findByText(/category could not be added.*already exist/i);
     expect(alert).toBeInTheDocument();
-    expect(await screen.findByRole('alert')).toHaveFocus();
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveFocus());
 
     categoryInput.focus();
     expect(categoryInput).toHaveFocus();

@@ -107,13 +107,13 @@ type DeleteCapableDocument = {
 };
 
 type OwningConnection = {
-  model(name: string): Model<any>;
+  model(name: string): Model<Record<string, unknown>>;
   getClient?: () => unknown;
 };
 
 type ExecutionContext = {
   connection: OwningConnection;
-  Target: Model<any>;
+  Target: Model<Record<string, unknown>>;
   session: ClientSession | null;
 };
 

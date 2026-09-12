@@ -97,12 +97,9 @@ async function recordAsync(name: string, iters: number, note: string, fn: (i: nu
 }
 
 function report(env: string, sizes: string) {
-  // eslint-disable-next-line no-console
   console.log(`[bnd12-benchmark] env: ${env}`);
-  // eslint-disable-next-line no-console
   console.log(`[bnd12-benchmark] sizes: ${sizes}`);
   for (const r of rows) {
-    // eslint-disable-next-line no-console
     console.log(
       `[bnd12-benchmark] ${r.case} iters=${r.iters} totalMs=${r.totalMs.toFixed(2)} ` +
         `meanUs=${r.meanUs.toFixed(1)} heapDeltaMB=${r.heapDeltaMB.toFixed(2)} note=${r.note}`,

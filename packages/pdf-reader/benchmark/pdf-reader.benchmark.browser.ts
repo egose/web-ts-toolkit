@@ -100,11 +100,6 @@ interface CanvasTracker {
   sawActiveCanvas: () => boolean;
 }
 
-interface CountingCanvasFactory {
-  factory: () => HTMLCanvasElement;
-  getEncodeCount: () => number;
-}
-
 interface ImageAccounting {
   factory: () => HTMLCanvasElement;
   getAllocCount: () => number;
@@ -194,22 +189,6 @@ function createCanvasTracker(): CanvasTracker {
     factory,
     getPeakActiveCanvases: () => peakActiveCanvases,
     sawActiveCanvas: () => sawActive,
-  };
-}
-
-function createCountingCanvasFactory(): CountingCanvasFactory {
-  let encodeCount = 0;
-  return {
-    factory: () => {
-      const canvas = document.createElement('canvas');
-      const toDataURL = canvas.toDataURL.bind(canvas);
-      canvas.toDataURL = (...args) => {
-        encodeCount += 1;
-        return toDataURL(...args);
-      };
-      return canvas;
-    },
-    getEncodeCount: () => encodeCount,
   };
 }
 

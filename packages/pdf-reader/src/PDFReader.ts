@@ -886,7 +886,7 @@ export class PDFReader {
     return Object.freeze(source);
   }
 
-  #isFetchHeaders(value: object | Function): boolean {
+  #isFetchHeaders(value: object): boolean {
     if (typeof Headers !== 'undefined' && value instanceof Headers) return true;
     try {
       if (Object.prototype.toString.call(value) === '[object Headers]') return true;

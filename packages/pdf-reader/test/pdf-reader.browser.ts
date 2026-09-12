@@ -391,7 +391,6 @@ describe('PDFR-01 real-browser PDF.js integration', () => {
     const preview = document.createElement('img');
     document.body.append(preview);
     let objectUrl: string | undefined;
-    let decodedBeforeRevoke = false;
     try {
       await reader.load();
       const [page] = await reader.convert({
@@ -407,7 +406,6 @@ describe('PDFR-01 real-browser PDF.js integration', () => {
       preview.src = objectUrl;
       await preview.decode();
       expect(preview.naturalWidth).toBeGreaterThan(0);
-      decodedBeforeRevoke = true;
     } finally {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       preview.remove();
@@ -418,7 +416,6 @@ describe('PDFR-01 real-browser PDF.js integration', () => {
       }
     }
 
-    expect(decodedBeforeRevoke).toBe(true);
     expect(worker.destroyed).toBe(true);
     await assertNoLeakedDocument(reader);
   }, 60_000);

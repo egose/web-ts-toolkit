@@ -2279,9 +2279,7 @@ describe('PDFReader', () => {
 
     const mismatch = createPdfHarness({ numPages: 1 });
     const mismatchCanvas = createCanvasHarness();
-    mismatchCanvas.canvas.toBlob = vi.fn((callback: BlobCallback, mimeType?: string) =>
-      callback(new Blob(['x'], { type: 'image/png' })),
-    );
+    mismatchCanvas.canvas.toBlob = vi.fn((callback: BlobCallback) => callback(new Blob(['x'], { type: 'image/png' })));
     const mismatchReader = new PDFReader(new Uint8Array([1]), { canvasFactory: () => mismatchCanvas.canvas });
     await mismatchReader.load();
 
@@ -2293,7 +2291,7 @@ describe('PDFReader', () => {
   });
 
   it('retains default and valid PNG/JPEG data-URL and Blob contracts', async () => {
-    const pdf = createPdfHarness({ numPages: 1 });
+    createPdfHarness({ numPages: 1 });
     const canvas = createCanvasHarness();
     const reader = new PDFReader(new Uint8Array([1]), { canvasFactory: () => canvas.canvas });
     await reader.load();
