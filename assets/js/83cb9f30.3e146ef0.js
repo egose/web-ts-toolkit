@@ -271,6 +271,32 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "ErrorFormats"
         })
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "CSVResponse"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Response"
+        }), ", and 10 success classes: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Accepted"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "AlreadyReported"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Created"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "IMUsed"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "MultiStatus"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "NoContent"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "NonAuthoritativeInfo"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "OK"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "PartialContent"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ResetContent"
+        })]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Published subpaths:"
@@ -309,7 +335,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { Created, NoContent } from '@web-ts-toolkit/express-response-handler/responses/success';\n\nasync function createUser() {\n  return { id: 'user_1' };\n}\n\napp.post(\n  '/users',\n  handleResponse(async () => new Created(await createUser())),\n);\napp.delete(\n  '/users/:id',\n  handleResponse(async () => new NoContent()),\n);\n"
+        children: "import { handleResponse } from '@web-ts-toolkit/express-response-handler';\nimport { Created, NoContent } from '@web-ts-toolkit/express-response-handler/responses/success';\n\nasync function createUser() {\n  return { id: 'user_1' };\n}\n\napp.post(\n  '/users',\n  handleResponse(async () => new Created(await createUser())),\n);\napp.delete(\n  '/users/:id',\n  handleResponse(async () => new NoContent()),\n);\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "import-styles",

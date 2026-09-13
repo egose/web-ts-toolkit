@@ -83,6 +83,10 @@ const toc = [{
   "id": "deployment-helpers",
   "level": 2
 }, {
+  "value": "Shared build-prep helper",
+  "id": "shared-build-prep-helper",
+  "level": 3
+}, {
   "value": "Netlify deploy prerequisites",
   "id": "netlify-deploy-prerequisites",
   "level": 3
@@ -423,6 +427,60 @@ function _createMdxContent(props) {
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Those are mainly for the generated starter's deployment flow rather than day-one scaffolding, but they are packaged so a generated app can install the exact generator version as a dev dependency and run the same released deploy helpers."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "shared-build-prep-helper",
+      children: "Shared build-prep helper"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "create-access-router-mongo-starter-deploy-shared"
+      }), " runs the provider-agnostic\nbuild preparation: frontend (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "vite build"
+      }), ") plus serverless backend\n(", (0,jsx_runtime.jsx)(_components.code, {
+        children: "wtt-access-router-runtime build-serverless"
+      }), "), artifact verification, and a\nprintout of the prepared ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "distAbs"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "functionsAbs"
+      }), " paths. Provider adapters\ncall it internally; run it directly to inspect or reuse the packaged build:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-bash",
+        children: "pnpm exec create-access-router-mongo-starter-deploy-shared --project-root ./apps/my-app --mongodb-uri \"$MONGODB_URI\" --dry-run\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Flags: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--project-root <path>"
+      }), " (default: cwd), ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--api-base-url <path>"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--mongodb-uri <uri>"
+      }), " (required; prefer ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "MONGODB_URI"
+      }), " env),\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--dist-dir <path>"
+      }), " (default: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dist"
+      }), "),\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--functions-dir <path>"
+      }), " (default: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "netlify/functions"
+      }), "),\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--functions-name <name>"
+      }), " (default: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "main"
+      }), "), ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--no-build"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--ephemeral"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--sandbox-dir <path>"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--keep-sandbox"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "--dry-run"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "-h, --help"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "netlify-deploy-prerequisites",
       children: "Netlify deploy prerequisites"

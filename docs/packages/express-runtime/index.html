@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">@web-ts-toolkit/express-runtime | web-ts-toolkit</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" name="twitter:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" property="og:url" content="https://web-ts-toolkit.pages.dev/docs/packages/express-runtime"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="@web-ts-toolkit/express-runtime | web-ts-toolkit"><meta data-rh="true" name="description" content="Express app factory plus serverless handler and local dev server helpers."><meta data-rh="true" property="og:description" content="Express app factory plus serverless handler and local dev server helpers."><link data-rh="true" rel="icon" href="/img/logo.svg"><link data-rh="true" rel="canonical" href="https://web-ts-toolkit.pages.dev/docs/packages/express-runtime"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/express-runtime" hreflang="en"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/express-runtime" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Express Runtime","item":"https://web-ts-toolkit.pages.dev/docs/packages/express-runtime"}]}</script><link rel="stylesheet" href="/assets/css/styles.376982ca.css">
-<script src="/assets/js/runtime~main.2984d955.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.1b653f42.js" defer="defer"></script>
 <script src="/assets/js/main.f9368f36.js" defer="defer"></script>
 </head>
 <body>
@@ -80,6 +80,9 @@ installed — <code>npm install express @web-ts-toolkit/express-runtime</code>
 (<code>serverless-http</code> ships with the runtime package). A bundle executed without
 the runtime package installed fails to load with a missing-module error. The
 same externals apply to <code>build</code> output.</p>
+<p><code>build</code> and <code>build-serverless</code> require <code>tsup</code> to be installed: the CLI bundle
+keeps it external and loads it via dynamic import only when building. Users
+who only run <code>dev</code>, <code>start</code>, or <code>start-serverless</code> don&#x27;t need it.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Quxk" id="start-a-built-serverless-bundle-locally">Start a built serverless bundle locally<a href="#start-a-built-serverless-bundle-locally" class="hash-link" aria-label="Direct link to Start a built serverless bundle locally" title="Direct link to Start a built serverless bundle locally" translate="no">​</a></h3>
 <div class="language-bash codeBlockContainer_w6vd theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_le0H"><pre tabindex="0" class="prism-code language-bash codeBlock_UPOz thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_NsHp"><div class="token-line" style="color:#393A34"><span class="token plain">npx wtt-express-runtime start-serverless ./netlify/functions/handler.js --port 9000 --env .env</span><br></div></code></pre></div></div>
 <p>Override the adapter body limit (default 1 MiB, <code>0</code> = empty bodies only):</p>
@@ -214,7 +217,7 @@ strict compilation. No platform-specific adapter is shipped; the local
 <p>Use the public <code>./cli</code> subpath when another package wants the same runtime CLI behavior without shelling out to <code>wtt-express-runtime</code>.</p>
 <p>It re-exports the parser and helpers used by the binary, including:</p>
 <ul>
-<li class="">argument types such as <code>DevArgs</code>, <code>BuildArgs</code>, and <code>StartArgs</code></li>
+<li class="">argument types such as <code>DevArgs</code>, <code>BuildArgs</code>, <code>StartArgs</code>, <code>BuildEntryContentArgs</code>, and <code>RuntimeModuleShutdown</code></li>
 <li class=""><code>parseArgs(...)</code></li>
 <li class=""><code>runDevCommand(...)</code></li>
 <li class=""><code>runCliCommand(...)</code></li>

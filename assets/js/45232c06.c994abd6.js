@@ -230,9 +230,7 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "mongoose >=8"
-        }), " through ", (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/access-router"
-        })]
+        }), " (direct peer)"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "reflect-metadata ^0.1.13 || ^0.2.0"
@@ -283,11 +281,11 @@ function _createMdxContent(props) {
         children: "pnpm --filter @web-ts-toolkit/access-router-deco test:compat"
       }), ")."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Importing ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "@web-ts-toolkit/access-router-deco"
-      }), " initializes ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["The package root transitively pulls ", (0,jsx_runtime.jsx)(_components.code, {
         children: "reflect-metadata"
-      }), " once before the package decorators run."]
+      }), " via decorators, but an explicit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "import 'reflect-metadata'"
+      }), " in the app entry remains the safe canonical pattern."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "what-it-exposes",
       children: "What It Exposes"
@@ -305,10 +303,14 @@ function _createMdxContent(props) {
           children: "RouterOptions(...)"
         })
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["hook decorators such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ["hook decorators ", (0,jsx_runtime.jsx)(_components.code, {
           children: "GlobalPermissions"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "DocPermissions"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "BaseFilter"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "OverrideFilter"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "Validate"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
@@ -316,7 +318,19 @@ function _createMdxContent(props) {
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "Transform"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "AfterPersist"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Decorate"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DecorateAll"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "RouteGuard"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Identifier"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "BeforeDelete"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "AfterDelete"
         })]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["parameter decorators ", (0,jsx_runtime.jsx)(_components.code, {
@@ -418,13 +432,13 @@ function _createMdxContent(props) {
         children: "experimentalDecorators: true"
       }), " and use a compiler/transpiler that preserves legacy class, method, property, and parameter decorators. ", (0,jsx_runtime.jsx)(_components.code, {
         children: "emitDecoratorMetadata: true"
-      }), " is supported but not required — the package imports ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " is supported but not required — the package root transitively pulls ", (0,jsx_runtime.jsx)(_components.code, {
         children: "reflect-metadata"
-      }), " from its root entrypoint, so consumers own installing the peer (", (0,jsx_runtime.jsx)(_components.code, {
-        children: "^0.1.13 || ^0.2.0"
-      }), ") but do not need a separate ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " via decorators, but an explicit ", (0,jsx_runtime.jsx)(_components.code, {
         children: "import 'reflect-metadata'"
-      }), " before importing this package. Supported range is ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " in the app entry remains the safe canonical pattern. Consumers own installing the peer (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "^0.1.13 || ^0.2.0"
+      }), "). Supported range is ", (0,jsx_runtime.jsx)(_components.code, {
         children: "typescript >=5.5 <7.0"
       }), " (each maintained ", (0,jsx_runtime.jsx)(_components.code, {
         children: "5.x"

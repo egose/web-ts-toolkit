@@ -397,6 +397,20 @@ function _createMdxContent(props) {
       }), " ships with the runtime package). A bundle executed without\nthe runtime package installed fails to load with a missing-module error. The\nsame externals apply to ", (0,jsx_runtime.jsx)(_components.code, {
         children: "build"
       }), " output."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "build"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "build-serverless"
+      }), " require ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "tsup"
+      }), " to be installed: the CLI bundle\nkeeps it external and loads it via dynamic import only when building. Users\nwho only run ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "dev"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "start"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "start-serverless"
+      }), " don't need it."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "start-a-built-serverless-bundle-locally",
       children: "Start a built serverless bundle locally"
@@ -998,8 +1012,12 @@ function _createMdxContent(props) {
           children: "DevArgs"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "BuildArgs"
-        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "StartArgs"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "BuildEntryContentArgs"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "RuntimeModuleShutdown"
         })]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {

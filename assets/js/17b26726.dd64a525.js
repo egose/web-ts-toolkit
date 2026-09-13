@@ -494,6 +494,14 @@ function _createMdxContent(props) {
         }), " — runtime error thrown by ", (0,jsx_runtime.jsx)(_components.code, {
           children: "Model.save()"
         }), "\nwhen a wrapper represents an existing projected document but neither the\nprojection nor the read context provides an identity. Catching this error\nprevents treating the wrapper as a draft and accidentally creating a copy."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "UnsupportedServiceDefaultValueError"
+        }), " — runtime error thrown for invalid\nservice defaults (functions, symbols, bigints, non-finite numbers, invalid\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Date"
+        }), " values, non-plain instances, cycles). It is defined in\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "src/services/shared.ts"
+        }), " and is not re-exported from the package root."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The full root API is locked by the package's runtime/type export contract test\n(", (0,jsx_runtime.jsx)(_components.code, {

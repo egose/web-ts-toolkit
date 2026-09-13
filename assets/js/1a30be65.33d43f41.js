@@ -203,6 +203,18 @@ function _createMdxContent(props) {
           })
         })
       })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/access-router"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/express-runtime"
+      }), " are regular dependencies (not peers); only ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "express"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "mongoose"
+      }), " are peers. The peer range is ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "mongoose >=8 <10"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "what-it-exposes",
       children: "What It Exposes"
@@ -236,6 +248,10 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "normalizeAccessRouterRuntimeConfigExport(value, path)"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "validateAccessRouterRuntimeConfig(config)"
         })
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {

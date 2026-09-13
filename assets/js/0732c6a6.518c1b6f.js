@@ -165,6 +165,12 @@ function _createMdxContent(props) {
           })
         })
       })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "express"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@types/express"
+      }), " are already regular dependencies of this package; the install line above is for the consumer app that mounts the router."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "quick-start",
       children: "Quick Start"

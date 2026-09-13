@@ -221,6 +221,10 @@ function _createMdxContent(props) {
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "filter"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "eachRight"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "join"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "reduce"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "find"

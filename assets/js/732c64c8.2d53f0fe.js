@@ -298,32 +298,86 @@ function _createMdxContent(props) {
         })]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Typed errors:"
+      children: "Typed errors (full set; see README status table for route mappings):"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "TemplateNotFoundError"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "ActionNotFoundError"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "ActionNotAllowedError"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "MessageNotFoundError"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
+        }), " (404)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "TemplateNotFoundError"
+        }), " (404)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "ActionNotFoundError"
+        }), " (404)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "ActionNotAllowedError"
+        }), " (403)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "MessageArchivedError"
-        })
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
+        }), " (410)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "InvalidMessageUserError"
+        }), " (401)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "InvalidClientRequestIdError"
-        })
+        }), " (400)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "ActionConflictError"
+        }), " (409)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "ActionRetryableError"
+        }), " (409)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "ActionNotificationPendingError"
+        }), " (202)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "ClientRequestPendingError"
+        }), " (409)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "ClientRequestFailedError"
+        }), " (409)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "ClientRequestInconsistentStateError"
+        }), " (server error)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "MessageTransactionRequiredError"
+        }), " (server error)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "InvalidPaginationValueError"
+        }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "InvalidMessageServiceOptionError"
+        }), " (server error unless handled by host)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "ActionTemplateMismatchError"
+        }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "MessageModelResolutionError"
+        }), " (server error unless handled by host)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "PaymentSessionCompensationError"
+        }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "PaymentSessionCompensationAggregateError"
+        }), " (server error)"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "TemplateRegistryValidationError"
+        }), " (registration time; not thrown by route handlers)"]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "quick-start",
@@ -649,12 +703,14 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import {\n  ActionNotAllowedError,\n  ActionNotFoundError,\n  InvalidClientRequestIdError,\n  MessageNotFoundError,\n  TemplateNotFoundError,\n} from '@web-ts-toolkit/message-service';\n"
+        children: "import {\n  MessageNotFoundError,\n  TemplateNotFoundError,\n  ActionNotFoundError,\n  ActionNotAllowedError,\n  MessageArchivedError,\n  InvalidMessageUserError,\n  InvalidClientRequestIdError,\n  ActionConflictError,\n  ActionRetryableError,\n  ActionNotificationPendingError,\n  ClientRequestPendingError,\n  ClientRequestFailedError,\n  ClientRequestInconsistentStateError,\n  MessageTransactionRequiredError,\n  InvalidPaginationValueError,\n  InvalidMessageServiceOptionError,\n  ActionTemplateMismatchError,\n  MessageModelResolutionError,\n  PaymentSessionCompensationError,\n  PaymentSessionCompensationAggregateError,\n  TemplateRegistryValidationError,\n} from '@web-ts-toolkit/message-service';\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["These are useful both in route handlers and in direct service usage with ", (0,jsx_runtime.jsx)(_components.code, {
         children: "instanceof"
-      }), " checks."]
+      }), " checks. See the package ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "README.md"
+      }), " Typed errors table for the full direct-service meanings and route status mappings (404/403/410/401/400/409/202, remainder propagated as server errors)."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",

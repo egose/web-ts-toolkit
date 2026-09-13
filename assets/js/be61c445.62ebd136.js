@@ -214,9 +214,9 @@ function _createMdxContent(props) {
           children: "ClientError"
         }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
           children: "ServerError"
-        })]
+        }), " base classes"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
-        children: ["specific 4xx and 5xx error classes such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ["38 specific 4xx and 5xx error classes such as ", (0,jsx_runtime.jsx)(_components.code, {
           children: "BadRequestError"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "ForbiddenError"
@@ -224,13 +224,45 @@ function _createMdxContent(props) {
           children: "NotFoundError"
         }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
           children: "ServiceUnavailableError"
+        }), " (27 client + 11 server; see ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "src/client-errors.ts"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "src/server-errors.ts"
+        }), ")"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["status helpers (see ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "src/status.ts"
+        }), "): ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "canonicalStatusByHttpStatus"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "getCanonicalStatus"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "getStatusTitle"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "isHttpErrorStatusCode"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "validateHttpErrorStatusCode"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "validateClientErrorStatusCode"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "validateServerErrorStatusCode"
         })]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "status helpers and typed error metadata from the root package surface"
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["message helpers (see ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "src/messages.ts"
+        }), "): ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "messages"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "getDefaultMessage"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "toAip193ErrorPayload(...)"
-        })
+        }), " (with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "fallbackDomain='http-errors'"
+        }), " default) and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "createAip193ErrorInfoDetail(...)"
+        })]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "toRfc9457ErrorPayload(...)"
@@ -482,7 +514,7 @@ function _createMdxContent(props) {
       }), ". When ", (0,jsx_runtime.jsx)(_components.code, {
         children: "title"
       }), " is missing, it uses the canonical HTTP status title, or ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "Unknown"
+        children: "Unknown Error"
       }), " for unmapped status codes. ", (0,jsx_runtime.jsx)(_components.code, {
         children: "instance"
       }), " is emitted only when present."]

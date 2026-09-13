@@ -117,6 +117,13 @@ function _createMdxContent(props) {
         }), " model services."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.a, {
+          href: "./asset-inliner",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/asset-inliner"
+          })
+        }), ": generic asset inliner for CSS and HTML (ESM-only Base64 data URL encoding)."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.a, {
           href: "./express-runtime",
           children: (0,jsx_runtime.jsx)(_components.code, {
             children: "@web-ts-toolkit/express-runtime"
@@ -232,7 +239,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Many package-local ", (0,jsx_runtime.jsx)(_components.code, {
         children: "README.md"
-      }), " files stay intentionally short and point back here for the full guides."]
+      }), " files are the authoritative reference for installed consumers (they ship in the published package); this site mirrors and expands them with guides."]
     })]
   });
 }

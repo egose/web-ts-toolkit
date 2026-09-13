@@ -371,9 +371,7 @@ function _createMdxContent(props) {
         children: "ById"
       }), " static that returns ", (0,jsx_runtime.jsx)(_components.code, {
         children: "null"
-      }), " when no document matches. Wrong argument types fail compilation; representative examples plus negative cases are compiler-checked from the packed package by ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "test/moo.typed-consumer.test.ts"
-      }), "."]
+      }), " when no document matches. Wrong argument types fail compilation."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "new-document-plugin",
       children: "New document plugin"
@@ -500,9 +498,7 @@ function _createMdxContent(props) {
         children: "_id"
       }), " local keys resolve to ", (0,jsx_runtime.jsx)(_components.code, {
         children: "null"
-      }), " (see ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "docs/tasks/20260912-130000-moo-07-orphan-query-evidence.md"
-      }), ")."]
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "keycloak-user-sync",
       children: "Keycloak user sync"

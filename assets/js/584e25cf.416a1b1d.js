@@ -384,11 +384,25 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["route-path and default-value constants such as ", (0,jsx_runtime.jsx)(_components.code, {
           children: "DEFAULT_OIDC_VAULT_BASE_PATH"
-        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "OIDC_VAULT_ROUTE_PATHS"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "DEFAULT_OIDC_VAULT_REQUEST_BODY_LIMIT"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "OIDC_VAULT_URL_ENCODED_PARAMETER_LIMIT"
         })]
-      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: "public types for sessions, hooks, token issuing, validators, config, and store-provider interfaces"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["public types for sessions, hooks, token issuing, validators, config, and store-provider interfaces (including ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "OidcVaultConfig"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "OidcVaultSessionInput"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "OidcVaultStoreConflictError"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "OidcVaultExchangeResult"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "OidcVaultLogoutResult"
+        }), "; curated subset — see the package exports for the full list)"]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "frontend-storage-policy",
