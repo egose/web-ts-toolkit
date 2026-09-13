@@ -589,7 +589,9 @@ Only set `cookie.domain` (for example `.example.com`) as an advanced expansion w
 - `DEFAULT_AUTHORIZATION_TRANSACTION_TTL_MS`
 - `DEFAULT_EXCHANGE_CODE_TTL_MS`
 - `DEFAULT_OIDC_SCOPES`
+- `DEFAULT_OIDC_VAULT_REQUEST_BODY_LIMIT`
 - `OIDC_VAULT_ROUTE_PATHS`
+- `OIDC_VAULT_URL_ENCODED_PARAMETER_LIMIT`
 - `normalizeOidcVaultBasePath(...)`
 - `resolveOidcVaultConfig(...)`
 - `resolveOidcVaultConfigFromEnv(...)`
@@ -597,6 +599,11 @@ Only set `cookie.domain` (for example `.example.com`) as an advanced expansion w
 - `type OidcVaultHooks`
 - `type OidcVaultStoreProvider`
 - `type OidcVaultSession`
+- `type OidcVaultConfig`
+- `type OidcVaultSessionInput`
+- `OidcVaultStoreConflictError`
+- `type OidcVaultExchangeResult`
+- `type OidcVaultLogoutResult`
 - `type OidcVaultAccessTokenValidator`
 - `type OidcVaultAuthenticatedRequest`
 - `type OidcVaultJwtAccessTokenValidatorOptions`

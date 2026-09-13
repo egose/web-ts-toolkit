@@ -175,6 +175,10 @@ command to run before listening.
 > additional externals can be added via `--external`. Deploy the bundle with
 > both packages installed (`express` is a peer dependency).
 
+> `build` and `build-serverless` require `tsup` to be installed: the CLI bundle
+> keeps it external and loads it via dynamic import only when building. Users
+> who only run `dev`, `start`, or `start-serverless` don't need it.
+
 ### CLI — start (run a bundled app locally)
 
 The `start` command runs the `build` output locally with `startLocalServer()`:
@@ -482,9 +486,9 @@ The `@web-ts-toolkit/express-runtime/cli` subpath is a supported programmatic CL
 facade used by packages such as `@web-ts-toolkit/access-router-runtime`.
 Supported consumer API exports are `parseArgs`, `runCliCommand`, `runDevCommand`,
 `runExpressDevCommand`, `runBuildEntryCommand`, `RuntimeCliCommand`,
-`DevCommandRunner`, `BuildEntryCommandOptions`, `DevArgs`, `BuildArgs`,
+`DevCommandRunner`, `BuildEntryCommandOptions`, `BuildEntryContentArgs`, `DevArgs`, `BuildArgs`,
 `StartArgs`, `StartServerlessArgs`, `ParsedArgs`, `Subcommand`,
-`RuntimeModuleInit`, `GenericHandler`, `ApiGatewayRestEvent`,
+`RuntimeModuleInit`, `RuntimeModuleShutdown`, `GenericHandler`, `ApiGatewayRestEvent`,
 `ServerlessResult`, `ServerlessAdapterOptions`, `CLI_VERSION`,
 `DEFAULT_ADAPTER_MAX_BODY_BYTES`, `TEMP_BUILD_ENTRY_FILENAME`, and
 `TEMP_SERVERLESS_ENTRY_FILENAME`.

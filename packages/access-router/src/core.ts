@@ -42,7 +42,7 @@ import {
 import Permission, { Permissions } from './permission';
 import { Service, PublicService, Base } from './services';
 import { normalizeSelect, getDocPermissions, setDocValue, toObject, pickDocFields, genPagination } from './helpers';
-import { copyAndDepopulate } from './processors';
+import { copyAndDepopulate, copyPaths, countPaths, maskPaths, movePaths, sliceArrays } from './processors';
 import { isDocument } from './lib';
 import { MIDDLEWARE } from './symbols';
 import { Cache } from './cache';
@@ -472,6 +472,41 @@ export class Core {
             docObject,
             args as Array<{ src: string; dest: string }>,
             options as { mutable?: boolean; idField?: string },
+          ) as T;
+          break;
+        case 'COPY':
+          docObject = copyPaths(
+            docObject,
+            args as Array<{ src: string; dest: string }>,
+            options as { mutable?: boolean },
+          ) as T;
+          break;
+        case 'MOVE':
+          docObject = movePaths(
+            docObject,
+            args as Array<{ src: string; dest: string }>,
+            options as { mutable?: boolean },
+          ) as T;
+          break;
+        case 'SLICE':
+          docObject = sliceArrays(
+            docObject,
+            args as Array<{ src: string; dest?: string; skip?: number; limit?: number }>,
+            options as { mutable?: boolean; maxSlice?: number },
+          ) as T;
+          break;
+        case 'COUNT':
+          docObject = countPaths(
+            docObject,
+            args as Array<{ src: string; dest: string }>,
+            options as { mutable?: boolean },
+          ) as T;
+          break;
+        case 'MASK':
+          docObject = maskPaths(
+            docObject,
+            args as Array<{ src: string; replacement?: unknown }>,
+            options as { mutable?: boolean },
           ) as T;
           break;
       }

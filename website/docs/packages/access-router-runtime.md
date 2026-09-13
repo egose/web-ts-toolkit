@@ -23,6 +23,8 @@ Instead, you describe the API in one TypeScript config file and let the package 
 npm install @web-ts-toolkit/access-router-runtime @web-ts-toolkit/access-router @web-ts-toolkit/express-runtime express mongoose
 ```
 
+`@web-ts-toolkit/access-router` and `@web-ts-toolkit/express-runtime` are regular dependencies (not peers); only `express` and `mongoose` are peers. The peer range is `mongoose >=8 <10`.
+
 ## What It Exposes
 
 Main entrypoint:
@@ -34,6 +36,7 @@ Main entrypoint:
 - `loadAccessRouterRuntime(path, options?)`
 - `loadAccessRouterRuntimeConfigSync(path)`
 - `normalizeAccessRouterRuntimeConfigExport(value, path)`
+- `validateAccessRouterRuntimeConfig(config)`
 
 Published extras:
 

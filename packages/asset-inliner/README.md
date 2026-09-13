@@ -194,7 +194,11 @@ Resolver helpers: `classifyUrl`, `isSkippableUrl`, `stripQueryAndFragment`, `dec
 
 Discovery: `discoverAssets`, `discoverAssetsSync`.
 
-Policy: `DEFAULT_MAX_*`, `MAX_REASONABLE_MAX_*`, `DEFAULT_POLICY`, `validatePolicyValue`, `normalizePolicy`.
+Detection: `defaultDetector`, `resolveByExtension`, `resolveWithDetector`.
+
+Policy: `DEFAULT_MAX_*`, `MAX_REASONABLE_MAX_*`, `DEFAULT_POLICY`, `validatePolicyValue`, `validatePolicyOptions`, `normalizePolicy`.
+
+Note: `DiscoverOptions` (`discovery.ts`) extends the base `DiscoveryOptions` (`types.ts`) with `definitions`/`registry` inputs.
 
 Errors: `AssetInlinerError` + `UnsupportedAssetError`, `AmbiguousDefinitionError`, `InvalidOptionsError`, `DetectionMismatchError`, `AmbiguousAssetError`, `ResourceLimitError`, `ParseError`, `FilesystemError` (all with stable `code`).
 

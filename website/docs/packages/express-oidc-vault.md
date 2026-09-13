@@ -41,8 +41,8 @@ Main exports:
 - `createOidcVaultMiddleware(...)`
 - `createOidcVaultAccessTokenMiddleware(...)`
 - `createOidcVaultJwtAccessTokenValidator(...)`
-- route-path and default-value constants such as `DEFAULT_OIDC_VAULT_BASE_PATH` and `OIDC_VAULT_ROUTE_PATHS`
-- public types for sessions, hooks, token issuing, validators, config, and store-provider interfaces
+- route-path and default-value constants such as `DEFAULT_OIDC_VAULT_BASE_PATH`, `OIDC_VAULT_ROUTE_PATHS`, `DEFAULT_OIDC_VAULT_REQUEST_BODY_LIMIT`, and `OIDC_VAULT_URL_ENCODED_PARAMETER_LIMIT`
+- public types for sessions, hooks, token issuing, validators, config, and store-provider interfaces (including `OidcVaultConfig`, `OidcVaultSessionInput`, `OidcVaultStoreConflictError`, `OidcVaultExchangeResult`, and `OidcVaultLogoutResult`; curated subset — see the package exports for the full list)
 
 ## Frontend Storage Policy
 

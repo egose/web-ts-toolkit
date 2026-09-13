@@ -55,6 +55,8 @@ process.once('SIGTERM', async () => {
 });
 ```
 
+For a store-only snippet without Express wiring, see the `Quick Start` section in the package README.
+
 ### Custom collection names
 
 If your deployment needs explicit collection naming, pass the collection names up front:

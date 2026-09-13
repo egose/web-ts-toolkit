@@ -14,6 +14,7 @@ This site is the primary documentation home for the current `web-ts-toolkit` wor
 - [`@web-ts-toolkit/access-router-deco`](./access-router-deco): decorator-based module and router configuration for `access-router`.
 - [`@web-ts-toolkit/access-router-client`](./access-router-client): typed client adapter, model wrapper, and batching helpers for `access-router` APIs.
 - [`@web-ts-toolkit/access-router-react`](./access-router-react): React hooks for `access-router-client` model services.
+- [`@web-ts-toolkit/asset-inliner`](./asset-inliner): generic asset inliner for CSS and HTML (ESM-only Base64 data URL encoding).
 - [`@web-ts-toolkit/express-runtime`](./express-runtime): Express app factory, local dev server helpers, serverless wrapper, and reusable runtime CLI.
 - [`@web-ts-toolkit/express-json-router`](./express-json-router): JSON-aware Express router wrapper built on the shared response handler.
 - [`@web-ts-toolkit/express-oidc-vault`](./express-oidc-vault): OIDC middleware for Express with body or cookie session transport and server-side refresh-token storage.
@@ -30,4 +31,4 @@ This site is the primary documentation home for the current `web-ts-toolkit` wor
 - [`@web-ts-toolkit/utils`](./utils): shared collection, object, async, and URL helpers used across the workspace.
 - [`create-access-router-mongo-starter`](./create-access-router-mongo-starter): starter CLI that scaffolds a MongoDB-backed `access-router` + React app.
 
-Many package-local `README.md` files stay intentionally short and point back here for the full guides.
+Many package-local `README.md` files are the authoritative reference for installed consumers (they ship in the published package); this site mirrors and expands them with guides.

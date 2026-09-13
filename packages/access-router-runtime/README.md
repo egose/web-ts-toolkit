@@ -17,6 +17,8 @@ Use one TypeScript config file to define:
 pnpm add @web-ts-toolkit/access-router-runtime @web-ts-toolkit/access-router @web-ts-toolkit/express-runtime express mongoose
 ```
 
+`@web-ts-toolkit/access-router` and `@web-ts-toolkit/express-runtime` are regular dependencies (not peers); only `express` and `mongoose` are peers. The peer range is `mongoose >=8 <10`.
+
 ## Quick Start
 
 For a fuller starter, see the stable repository example:
@@ -132,6 +134,7 @@ Main exports:
 - `loadAccessRouterRuntime(path, options?)`
 - `loadAccessRouterRuntimeConfigSync(path)`
 - `normalizeAccessRouterRuntimeConfigExport(value, path)`
+- `validateAccessRouterRuntimeConfig(config)`
 
 `createAccessRouterRuntime(...)` returns the Express app plus explicit `init()` and `shutdown()` lifecycle methods. Its public context exposes runtime-owned registries as readonly snapshots: `runtime.models`, `runtime.modelRouters`, and `runtime.dataRouters` can be inspected, but callers cannot mutate those collections after route assembly. `runtime.config` is also a readonly snapshot for inspection; mutating the original caller-owned config object after construction does not replace the DB URL/options or lifecycle hooks used by `runtime.init()` / `runtime.shutdown()`.
 

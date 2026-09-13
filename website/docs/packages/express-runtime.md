@@ -191,6 +191,10 @@ installed — `npm install express @web-ts-toolkit/express-runtime`
 the runtime package installed fails to load with a missing-module error. The
 same externals apply to `build` output.
 
+`build` and `build-serverless` require `tsup` to be installed: the CLI bundle
+keeps it external and loads it via dynamic import only when building. Users
+who only run `dev`, `start`, or `start-serverless` don't need it.
+
 ### Start a built serverless bundle locally
 
 ```bash
@@ -421,7 +425,7 @@ Use the public `./cli` subpath when another package wants the same runtime CLI b
 
 It re-exports the parser and helpers used by the binary, including:
 
-- argument types such as `DevArgs`, `BuildArgs`, and `StartArgs`
+- argument types such as `DevArgs`, `BuildArgs`, `StartArgs`, `BuildEntryContentArgs`, and `RuntimeModuleShutdown`
 - `parseArgs(...)`
 - `runDevCommand(...)`
 - `runCliCommand(...)`

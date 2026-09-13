@@ -46,7 +46,7 @@ Subpath entrypoints:
 
 - `@web-ts-toolkit/moo/schema` — schema field helpers
 - `@web-ts-toolkit/moo/is` — type guards such as `isObjectId(...)`
-- `@web-ts-toolkit/moo/utils` — mongoose utilities
+- `@web-ts-toolkit/moo/utils` — `isSchema`, `isObjectIdType`, `isReference`, and the `ReferenceShape` type
 - `@web-ts-toolkit/moo/plugins` — plugin entrypoint
 - `@web-ts-toolkit/moo/plugins/cascade-delete` — cascade-delete plugin
 - `@web-ts-toolkit/moo/plugins/model-function` — model-function plugin
@@ -138,7 +138,7 @@ const byId: number | null = await Cart.applyDiscountById(cart._id.toString(), 'p
 const asyncById: number | null = await Cart.applyDiscountAsyncById(cart._id, 'premium', 100);
 ```
 
-Each registration adds three typed surfaces: an instance method, a static taking the document first, and a `ById` static that loads the document and returns `null` when it is missing. Wrong argument types fail compilation. Typed sync/async/instance/static/ById examples plus negative cases are compiler-checked from the packed package by `test/moo.typed-consumer.test.ts` (strict NodeNext, no repo aliases or MongoDB fixtures).
+Each registration adds three typed surfaces: an instance method, a static taking the document first, and a `ById` static that loads the document and returns `null` when it is missing. Wrong argument types fail compilation.
 
 ## Schema Helpers
 
@@ -177,7 +177,7 @@ Deletion always removes fully hydrated dependent documents through their own doc
 
 Supported operations and timing: only document `deleteOne()` is intercepted (`pre`/`post('deleteOne', { document: true, query: false })`). Query deletes (`deleteMany()`, `findOneAndDelete()`, query `deleteOne()`) and query updates bypass the cascade. The `pre('deleteOne')` hook validates the execution context before the parent is removed (cross-client sessions and transactions on standalone topologies reject there); the `post('deleteOne')` hook runs after the parent is already removed, so a later dependent failure rejects the parent promise without restoring the parent outside a transaction. Dependent models resolve through the owning model's connection and the effective session (explicit `deleteOne({ session })` option, else the document-bound `$session()`) flows through dependent reads and deletes including nested cascades. `maxConcurrency` and `batchSize` must be integers `>= 1` when provided and are validated at `schema.plugin(...)` time.
 
-Typed filters accept MongoDB operators per field (`{ price: { $gt: 5 } }`, `{ price: { $in: [...] } }`, plus `$and`/`$or` payloads through the index signature) and are forwarded to Mongoose unchanged. The no-argument `findDependents()`/`findOrphans()` overloads return `Partial` maps: entries whose lookup is unsupported or resolved to nullish are omitted rather than reported as empty arrays. `findOrphans()` support (see `docs/tasks/20260912-130000-moo-07-orphan-query-evidence.md`): scalar `_id` relations and `[{ type: ObjectId, ref }]` arrays are supported; non-`_id` local keys with a hardcoded `distinct('_id')`, dotted foreign paths, `{ type: [ObjectId], ref }` syntax, dynamic `refPath`, and `foreignFilter`-only relationships are unsupported and resolve to `null` (omitted from the map) rather than silently succeeding. Null/missing foreign rows are reported as orphans; per-page `$not/$in` batching is not a correct collection-scale anti-join, so a server-side `$lookup` strategy is deferred to a follow-up.
+Typed filters accept MongoDB operators per field (`{ price: { $gt: 5 } }`, `{ price: { $in: [...] } }`, plus `$and`/`$or` payloads through the index signature) and are forwarded to Mongoose unchanged. The no-argument `findDependents()`/`findOrphans()` overloads return `Partial` maps: entries whose lookup is unsupported or resolved to nullish are omitted rather than reported as empty arrays. `findOrphans()` support: scalar `_id` relations and `[{ type: ObjectId, ref }]` arrays are supported; non-`_id` local keys with a hardcoded `distinct('_id')`, dotted foreign paths, `{ type: [ObjectId], ref }` syntax, dynamic `refPath`, and `foreignFilter`-only relationships are unsupported and resolve to `null` (omitted from the map) rather than silently succeeding. Null/missing foreign rows are reported as orphans; per-page `$not/$in` batching is not a correct collection-scale anti-join, so a server-side `$lookup` strategy is deferred to a follow-up.
 
 ## Keycloak User Sync
 

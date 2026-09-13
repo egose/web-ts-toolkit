@@ -34,7 +34,11 @@ export default defineRuntimeConfig({
     // ensure, so init proceeds without touching the models — `Model.init()`
     // would otherwise buffer indefinitely on a disconnected connection.
     if (!config.db?.url) return;
-    await Promise.all(Object.values(models).map((model) => model.init()));
+    await Promise.all(
+      Object.values(models)
+        .filter((model): model is NonNullable<typeof model> => model !== undefined)
+        .map((model) => model.init()),
+    );
   },
   express: {
     middleware: [enforceBasicRouteContract],

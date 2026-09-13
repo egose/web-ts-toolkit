@@ -8,11 +8,19 @@ TypeScript packages for backend and web tooling.
 - `@web-ts-toolkit/access-router-client`: typed client utilities for `@web-ts-toolkit/access-router` APIs
 - `@web-ts-toolkit/access-router-deco`: decorator-based configuration for `@web-ts-toolkit/access-router`
 - `@web-ts-toolkit/access-router-react`: React hooks for `@web-ts-toolkit/access-router-client` model services
+- `@web-ts-toolkit/access-router-runtime`: config-driven Express and serverless runtime for access-router resource APIs
+- `@web-ts-toolkit/asset-inliner`: generic asset inliner for CSS and HTML (ESM-only Base64 data URL encoding)
 - `@web-ts-toolkit/express-json-router`: Express router wrapper for return-value JSON responses
+- `@web-ts-toolkit/express-oidc-vault`: OIDC session middleware for Express with pluggable vault stores
+- `@web-ts-toolkit/express-oidc-vault-memory-store`: in-memory store provider for `express-oidc-vault`
+- `@web-ts-toolkit/express-oidc-vault-mongodb-store`: MongoDB store provider for `express-oidc-vault`
+- `@web-ts-toolkit/express-oidc-vault-redis-store`: Redis store provider for `express-oidc-vault`
 - `@web-ts-toolkit/express-response-handler`: FastAPI-style return-value response handling for Express
 - `@web-ts-toolkit/express-runtime`: Express app factory plus serverless handler and local dev server helpers
 - `@web-ts-toolkit/http-errors`: typed HTTP error classes and payload helpers for backend APIs
+- `@web-ts-toolkit/json-frame`: tabular JSON normalization and transformation (records, columns, split, values, table, index)
 - `@web-ts-toolkit/message-service`: template-driven messaging core for Mongoose + Express applications
+- `@web-ts-toolkit/mongoose-rxdb`: Mongoose-like Schema, Document, Query, Model, and Middleware proxy backed by RxDB (SQLite storage)
 - `@web-ts-toolkit/moo`: Mongoose helpers for schema fields, ObjectId checks, and document plugins
 - `@web-ts-toolkit/pdf-reader`: resource-safe browser PDF rendering and extraction built on PDF.js
 - `@web-ts-toolkit/utils`: shared collection, object, async, and URL helpers used across workspace packages

@@ -245,10 +245,12 @@ export interface SubQueryEntry {
   };
 }
 
+export type TaskType = 'COPY_AND_DEPOPULATE' | 'COPY' | 'MOVE' | 'SLICE' | 'COUNT' | 'MASK' | string;
+
 export interface Task {
-  type: string;
+  type: TaskType;
   args: unknown;
-  options: Record<string, unknown>;
+  options?: Record<string, unknown>;
 }
 
 export interface AccessRouterBaseRequest extends AccessRouterRequest {
