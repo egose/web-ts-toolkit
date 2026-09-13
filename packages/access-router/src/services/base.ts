@@ -1,5 +1,6 @@
 import {
   castArray,
+  cloneDeep,
   compact,
   flatten,
   forEach,
@@ -14,12 +15,15 @@ import {
 } from '@web-ts-toolkit/utils';
 import { getGlobalOption, getModelOption } from '../options';
 import { iterateQuery, setDocValue } from '../helpers';
+import { toObject } from '../helpers/document';
 import { isValidFieldPath } from '../helpers/sort-policy';
 import { RequestConcurrencyScheduler } from '../helpers/concurrency';
 import {
   ErrorResult,
   Filter,
   Include,
+  CorrelatedInclude,
+  LegacyInclude,
   ListResult,
   ModelHookContext,
   ModelRequest,
@@ -39,11 +43,45 @@ import {
   SubQueryEntry,
   Task,
 } from '../interfaces';
+import {
+  collectCorrelatedReferencePaths,
+  containsParentMarkerShape,
+  CorrelatedReferenceError,
+  isCorrelatedInclude,
+  resolveCorrelatedFilterTemplate,
+  resolveCorrelatedIdTemplate,
+  validateCorrelatedIncludeShape,
+  validateExpandedCorrelatedOperands,
+} from '../correlated-includes';
 import { Codes, FilterOperator } from '../enums';
 import { resolveRequestComplexity, validateRequestComplexity } from '../request-complexity';
 import { getActiveRuntime } from '../runtime-context';
 
 type CrossResourceModelOperation = 'list' | 'read' | 'count';
+
+interface CorrelatedExecState {
+  totalQueries: number;
+  scheduler: RequestConcurrencyScheduler;
+}
+
+const correlatedExecStates = new WeakMap<object, CorrelatedExecState>();
+
+function getCorrelatedTemplateDepth(includes: CorrelatedInclude[]): number {
+  let max = 0;
+  const visit = (entries: unknown, depth: number) => {
+    const list = castArray(entries as CorrelatedInclude | CorrelatedInclude[]).filter(Boolean);
+    for (const entry of list) {
+      if (!isPlainObject(entry)) continue;
+      max = Math.max(max, depth);
+      const nested = (entry as { args?: { include?: unknown } }).args?.include;
+      if (nested !== undefined) {
+        visit(nested as unknown, depth + 1);
+      }
+    }
+  };
+  if (includes.length > 0) visit(includes as unknown, 1);
+  return max;
+}
 type ForeignKeyIndex<TValue> = Map<string, TValue[]>;
 type ForeignKeyCountIndex = Map<string, Set<string>>;
 
@@ -260,15 +298,56 @@ export class Base<TModel = unknown> {
   }
 
   protected processInclude(include: Include | Include[]) {
-    const includes = compact(castArray(include)).filter(({ model, op, path, localField, foreignField }) => {
-      return model && op && path && localField && foreignField;
-    });
+    const items = compact(castArray(include));
+    const legacy: LegacyInclude[] = [];
+    const correlated: CorrelatedInclude[] = [];
+    const correlatedReferenceFields: string[] = [];
+
+    for (const entry of items) {
+      // Correlated entries are never silently dropped or reinterpreted as
+      // legacy includes: malformed correlated input fails closed here so
+      // service-direct callers get the same controlled error as HTTP
+      // validation (ACI-02 requirement 1; execution lands in ACI-03).
+      if (isCorrelatedInclude(entry)) {
+        const shapeErrors = validateCorrelatedIncludeShape(entry);
+        if (shapeErrors.length > 0) {
+          this.throwClientRequestError(Codes.BadRequest, shapeErrors[0]);
+        }
+        correlated.push(entry);
+        correlatedReferenceFields.push(...collectCorrelatedReferencePaths(entry));
+        continue;
+      }
+
+      // A legacy-shaped entry carrying $parent markers is malformed
+      // correlated input, never an ordinary legacy include (ACI-01 D1.2).
+      if (containsParentMarkerShape(entry)) {
+        this.throwClientRequestError(
+          Codes.BadRequest,
+          'Legacy includes must not contain $parent markers; use a correlated include (mode: "correlated")',
+        );
+      }
+
+      const candidate = entry as Partial<LegacyInclude>;
+      if (candidate.model && candidate.op && candidate.path && candidate.localField && candidate.foreignField) {
+        legacy.push(entry as LegacyInclude);
+      }
+      // Preserve the legacy silent-drop for malformed legacy entries that
+      // carry no correlated signals.
+    }
+
+    const seenCorrelatedPaths = new Set<string>();
+    for (const entry of correlated) {
+      if (seenCorrelatedPaths.has(entry.path)) {
+        this.throwClientRequestError(Codes.BadRequest, `Duplicate correlated include output path: ${entry.path}`);
+      }
+      seenCorrelatedPaths.add(entry.path);
+    }
 
     // include Include local fields and paths
     let includeLocalFields: string[] = [];
     let includePaths: string[] = [];
 
-    forEach(includes, (inc) => {
+    forEach(legacy, (inc) => {
       includeLocalFields.push(inc.localField);
       includePaths.push(inc.path);
     });
@@ -277,9 +356,11 @@ export class Base<TModel = unknown> {
     includePaths = uniq(compact(includePaths));
 
     return {
-      includes,
+      includes: legacy,
+      correlatedIncludes: correlated,
       includeLocalFields,
       includePaths,
+      correlatedReferenceFields: uniq(compact(correlatedReferenceFields)),
     };
   }
 
@@ -339,7 +420,7 @@ export class Base<TModel = unknown> {
     return trustedArgs;
   }
 
-  private assertIncludeForeignField(include: Include): void {
+  private assertIncludeForeignField(include: LegacyInclude): void {
     if (!isValidFieldPath(include.foreignField)) {
       this.throwClientRequestError(Codes.BadRequest, `Invalid include foreignField: ${include.foreignField}`);
     }
@@ -356,6 +437,15 @@ export class Base<TModel = unknown> {
 
     for (let x = 0; x < includes.length; x++) {
       const include = includes[x];
+      // Correlated execution lands in ACI-03. Reaching the legacy executor
+      // with a correlated entry is a programming error: fail closed instead
+      // of silently skipping the include.
+      if (isCorrelatedInclude(include)) {
+        this.throwClientRequestError(
+          Codes.BadRequest,
+          'Correlated includes are not supported by the legacy include executor',
+        );
+      }
       this.assertIncludeForeignField(include);
 
       switch (include.op) {
@@ -374,7 +464,7 @@ export class Base<TModel = unknown> {
     return isSingle ? docList[0] : docList;
   }
 
-  private async includeDocsRead<TDoc>(docs: TDoc[], include: Include): Promise<TDoc[]> {
+  private async includeDocsRead<TDoc>(docs: TDoc[], include: LegacyInclude): Promise<TDoc[]> {
     const { model, path, localField, foreignField, filter: _filters, args = {}, options = {} } = include;
 
     const svc = await this.getAuthorizedTargetService(model, 'read');
@@ -399,7 +489,7 @@ export class Base<TModel = unknown> {
     return docs;
   }
 
-  private async includeDocsList<TDoc>(docs: TDoc[], include: Include): Promise<TDoc[]> {
+  private async includeDocsList<TDoc>(docs: TDoc[], include: LegacyInclude): Promise<TDoc[]> {
     const { model, op, path, localField, foreignField, filter: _filters, args = {}, options = {} } = include;
 
     const svc = await this.getAuthorizedTargetService(model, op);
@@ -438,7 +528,7 @@ export class Base<TModel = unknown> {
     return docs;
   }
 
-  private async includeDocsCount<TDoc>(docs: TDoc[], include: Include): Promise<TDoc[]> {
+  private async includeDocsCount<TDoc>(docs: TDoc[], include: LegacyInclude): Promise<TDoc[]> {
     const { model, path, localField, foreignField, filter: _filters } = include;
 
     const svc = await this.getAuthorizedTargetService(model, 'count');
@@ -454,6 +544,405 @@ export class Base<TModel = unknown> {
     }
 
     return docs;
+  }
+
+  protected getCorrelatedExecState(): CorrelatedExecState {
+    const key = this.req as object;
+    let state = correlatedExecStates.get(key);
+    if (!state) {
+      state = {
+        totalQueries: 0,
+        scheduler: new RequestConcurrencyScheduler(this.getRequestComplexity().maxBulkConcurrency),
+      };
+      correlatedExecStates.set(key, state);
+    }
+    return state;
+  }
+
+  protected claimCorrelatedQuerySlot(): void {
+    const limits = this.getRequestComplexity();
+    const state = this.getCorrelatedExecState();
+    if (state.totalQueries >= limits.maxCorrelatedQueries) {
+      this.throwClientRequestError(
+        Codes.BadRequest,
+        `Correlated include query budget exceeded (max ${limits.maxCorrelatedQueries})`,
+      );
+    }
+    state.totalQueries += 1;
+  }
+
+  private sanitizeCorrelatedArgs(include: CorrelatedInclude): {
+    select?: unknown;
+    sort?: unknown;
+    skip?: unknown;
+    limit?: unknown;
+    page?: unknown;
+    pageSize?: unknown;
+    nestedInclude?: unknown;
+  } {
+    const args = (include.args ?? {}) as Record<string, unknown>;
+    if (include.op === 'list') {
+      const { select, sort, skip, limit, page, pageSize, include: nestedInclude } = args;
+      return { select, sort, skip, limit, page, pageSize, nestedInclude };
+    }
+    const { select, sort, include: nestedInclude } = args;
+    return { select, sort, nestedInclude };
+  }
+
+  protected async includeCorrelatedDocs<TDoc>(
+    docs: TDoc[],
+    correlatedIncludes: CorrelatedInclude[],
+    snapshots?: unknown[],
+    depth = 0,
+  ): Promise<TDoc[]> {
+    if (correlatedIncludes.length === 0) return docs;
+
+    const limits = this.getRequestComplexity();
+    const templateDepth = getCorrelatedTemplateDepth(correlatedIncludes);
+    if (depth + templateDepth > limits.maxCorrelatedDepth) {
+      this.throwClientRequestError(
+        Codes.BadRequest,
+        `Correlated include depth exceeded (max ${limits.maxCorrelatedDepth})`,
+      );
+    }
+
+    const state = this.getCorrelatedExecState();
+    const resolvedSnapshots: unknown[] = snapshots ?? docs.map((doc) => cloneDeep(toObject(doc)) as unknown);
+
+    for (const include of correlatedIncludes) {
+      switch (include.op) {
+        case 'read':
+          await this.includeCorrelatedRead(docs, include, resolvedSnapshots, state, depth);
+          break;
+        case 'list':
+          await this.includeCorrelatedList(docs, include, resolvedSnapshots, state, depth);
+          break;
+        case 'count':
+          await this.includeCorrelatedCount(docs, include, resolvedSnapshots, state, depth);
+          break;
+        default:
+          this.throwClientRequestError(
+            Codes.BadRequest,
+            `Unsupported correlated include op: ${(include as { op?: unknown }).op}`,
+          );
+      }
+    }
+
+    return docs;
+  }
+
+  private async includeCorrelatedRead<TDoc>(
+    docs: TDoc[],
+    include: CorrelatedInclude,
+    snapshots: unknown[],
+    state: CorrelatedExecState,
+    depth: number,
+  ): Promise<void> {
+    const svc = await this.getAuthorizedTargetService(include.model, 'read');
+    const { select, sort, nestedInclude } = this.sanitizeCorrelatedArgs(include);
+    const hasId = (include as { id?: unknown }).id !== undefined;
+
+    if (hasId) {
+      const idTemplate = (include as { id: unknown }).id;
+      const tasks = docs.map((_, index) => ({ index, snapshot: snapshots[index] }));
+      await state.scheduler.map(tasks, async ({ index, snapshot }) => {
+        let resolution: { status: string; id?: string };
+        try {
+          resolution = resolveCorrelatedIdTemplate(idTemplate, snapshot);
+        } catch (error) {
+          if (error instanceof CorrelatedReferenceError) {
+            throw new ClientRequestError({
+              success: false,
+              kind: 'error',
+              code: Codes.BadRequest,
+              errors: [{ detail: error.message }],
+            });
+          }
+          throw error;
+        }
+        if (resolution.status === 'unresolvable') {
+          setDocValue(docs[index], include.path, null);
+          return;
+        }
+        const resolvedId = (resolution as { id: string }).id;
+        // Preserve custom identifier behavior via the target's genIDFilter,
+        // then authorize the resulting filter with explicit read access.
+        // No read->list fallback by construction (Service.findOne has none).
+        let idFilter: Filter;
+        try {
+          idFilter = await svc.genIDFilter(resolvedId);
+        } catch (error) {
+          const clientResult = this.getClientRequestErrorResult(error);
+          if (clientResult) throw new ClientRequestError(clientResult);
+          throw error;
+        }
+        const authorized = await svc.genFilter('read', idFilter);
+        if (authorized === false) {
+          throw new ClientRequestError({ success: false, kind: 'error', code: Codes.Forbidden });
+        }
+        this.claimCorrelatedQuerySlot();
+        let result: SingleResult | ErrorResult;
+        try {
+          result = await svc.findOne(
+            {},
+            {
+              select: select as never,
+              sort: sort as never,
+              include: nestedInclude as never,
+              overrides: { filter: authorized as never },
+            },
+            { access: 'read', lean: true, includePermissions: false } as never,
+          );
+        } catch (error) {
+          const clientResult = this.getClientRequestErrorResult(error);
+          if (clientResult) throw new ClientRequestError(clientResult);
+          throw error;
+        }
+        if (result.success) {
+          setDocValue(docs[index], include.path, result.data);
+        } else if (result.code === Codes.NotFound) {
+          setDocValue(docs[index], include.path, null);
+        } else {
+          throw new ClientRequestError(result as ErrorResult);
+        }
+      });
+      return;
+    }
+
+    const filterTemplate = (include as { filter: Record<string, unknown> }).filter;
+    const templateErrors = this.validateClientFilter(filterTemplate as never);
+    if (templateErrors.length > 0) {
+      this.throwClientRequestError(Codes.BadRequest, templateErrors[0]);
+    }
+    let parsedTemplate: Record<string, unknown>;
+    try {
+      parsedTemplate = (await this.parseClientData(
+        filterTemplate as Record<string, unknown>,
+        state.scheduler,
+      )) as Record<string, unknown>;
+    } catch (error) {
+      const clientResult = this.getClientRequestErrorResult(error);
+      if (clientResult) throw new ClientRequestError(clientResult);
+      throw error;
+    }
+    const tasks = docs.map((_, index) => ({ index, snapshot: snapshots[index] }));
+    await state.scheduler.map(tasks, async ({ index, snapshot }) => {
+      let resolution;
+      try {
+        resolution = resolveCorrelatedFilterTemplate(parsedTemplate, snapshot);
+      } catch (error) {
+        if (error instanceof CorrelatedReferenceError) {
+          throw new ClientRequestError({
+            success: false,
+            kind: 'error',
+            code: Codes.BadRequest,
+            errors: [{ detail: error.message }],
+          });
+        }
+        throw error;
+      }
+      if (resolution.status === 'unresolvable') {
+        setDocValue(docs[index], include.path, null);
+        return;
+      }
+      const expanded = resolution.filter;
+      const operandErrors = validateExpandedCorrelatedOperands(expanded, this.getRequestComplexity());
+      if (operandErrors.length > 0) {
+        throw new ClientRequestError({
+          success: false,
+          kind: 'error',
+          code: Codes.BadRequest,
+          errors: [{ detail: operandErrors[0].detail }],
+        });
+      }
+      const authorized = await svc.genFilter('read', expanded as never);
+      if (authorized === false) {
+        throw new ClientRequestError({ success: false, kind: 'error', code: Codes.Forbidden });
+      }
+      this.claimCorrelatedQuerySlot();
+      let result: SingleResult | ErrorResult;
+      try {
+        result = await svc.findOne(
+          {},
+          {
+            select: select as never,
+            sort: sort as never,
+            include: nestedInclude as never,
+            overrides: { filter: authorized as never },
+          },
+          { access: 'read', lean: true, includePermissions: false } as never,
+        );
+      } catch (error) {
+        const clientResult = this.getClientRequestErrorResult(error);
+        if (clientResult) throw new ClientRequestError(clientResult);
+        throw error;
+      }
+      if (result.success) {
+        setDocValue(docs[index], include.path, result.data);
+      } else if (result.code === Codes.NotFound) {
+        setDocValue(docs[index], include.path, null);
+      } else {
+        throw new ClientRequestError(result as ErrorResult);
+      }
+    });
+    void depth;
+  }
+
+  private async includeCorrelatedList<TDoc>(
+    docs: TDoc[],
+    include: CorrelatedInclude,
+    snapshots: unknown[],
+    state: CorrelatedExecState,
+    depth: number,
+  ): Promise<void> {
+    const svc = await this.getAuthorizedTargetService(include.model, 'list');
+    const { select, sort, skip, limit, page, pageSize, nestedInclude } = this.sanitizeCorrelatedArgs(include);
+    const filterTemplate = (include as { filter: Record<string, unknown> }).filter;
+    const templateErrors = this.validateClientFilter(filterTemplate as never);
+    if (templateErrors.length > 0) {
+      this.throwClientRequestError(Codes.BadRequest, templateErrors[0]);
+    }
+    let parsedTemplate: Record<string, unknown>;
+    try {
+      parsedTemplate = (await this.parseClientData(
+        filterTemplate as Record<string, unknown>,
+        state.scheduler,
+      )) as Record<string, unknown>;
+    } catch (error) {
+      const clientResult = this.getClientRequestErrorResult(error);
+      if (clientResult) throw new ClientRequestError(clientResult);
+      throw error;
+    }
+    const tasks = docs.map((_, index) => ({ index, snapshot: snapshots[index] }));
+    await state.scheduler.map(tasks, async ({ index, snapshot }) => {
+      let resolution;
+      try {
+        resolution = resolveCorrelatedFilterTemplate(parsedTemplate, snapshot);
+      } catch (error) {
+        if (error instanceof CorrelatedReferenceError) {
+          throw new ClientRequestError({
+            success: false,
+            kind: 'error',
+            code: Codes.BadRequest,
+            errors: [{ detail: error.message }],
+          });
+        }
+        throw error;
+      }
+      if (resolution.status === 'unresolvable') {
+        setDocValue(docs[index], include.path, []);
+        return;
+      }
+      const expanded = resolution.filter;
+      const operandErrors = validateExpandedCorrelatedOperands(expanded, this.getRequestComplexity());
+      if (operandErrors.length > 0) {
+        throw new ClientRequestError({
+          success: false,
+          kind: 'error',
+          code: Codes.BadRequest,
+          errors: [{ detail: operandErrors[0].detail }],
+        });
+      }
+      const authorized = await svc.genFilter('list', expanded as never);
+      if (authorized === false) {
+        throw new ClientRequestError({ success: false, kind: 'error', code: Codes.Forbidden });
+      }
+      this.claimCorrelatedQuerySlot();
+      let result: ListResult | ErrorResult;
+      try {
+        result = await svc.find(
+          {},
+          {
+            select: select as never,
+            sort: sort as never,
+            skip: skip as never,
+            limit: limit as never,
+            page: page as never,
+            pageSize: pageSize as never,
+            include: nestedInclude as never,
+            overrides: { filter: authorized as never },
+          },
+          { includeCount: false, lean: true, includePermissions: false } as never,
+        );
+      } catch (error) {
+        const clientResult = this.getClientRequestErrorResult(error);
+        if (clientResult) throw new ClientRequestError(clientResult);
+        throw error;
+      }
+      if (result.success) {
+        setDocValue(docs[index], include.path, result.data);
+      } else {
+        throw new ClientRequestError(result as ErrorResult);
+      }
+    });
+    void depth;
+  }
+
+  private async includeCorrelatedCount<TDoc>(
+    docs: TDoc[],
+    include: CorrelatedInclude,
+    snapshots: unknown[],
+    state: CorrelatedExecState,
+    depth: number,
+  ): Promise<void> {
+    const svc = await this.getAuthorizedTargetService(include.model, 'count');
+    const filterTemplate = (include as { filter: Record<string, unknown> }).filter;
+    const templateErrors = this.validateClientFilter(filterTemplate as never);
+    if (templateErrors.length > 0) {
+      this.throwClientRequestError(Codes.BadRequest, templateErrors[0]);
+    }
+    const tasks = docs.map((_, index) => ({ index, snapshot: snapshots[index] }));
+    await state.scheduler.map(tasks, async ({ index, snapshot }) => {
+      let resolution;
+      try {
+        resolution = resolveCorrelatedFilterTemplate(filterTemplate as Record<string, unknown>, snapshot);
+      } catch (error) {
+        if (error instanceof CorrelatedReferenceError) {
+          throw new ClientRequestError({
+            success: false,
+            kind: 'error',
+            code: Codes.BadRequest,
+            errors: [{ detail: error.message }],
+          });
+        }
+        throw error;
+      }
+      if (resolution.status === 'unresolvable') {
+        setDocValue(docs[index], include.path, 0);
+        return;
+      }
+      const expanded = resolution.filter;
+      const operandErrors = validateExpandedCorrelatedOperands(expanded, this.getRequestComplexity());
+      if (operandErrors.length > 0) {
+        throw new ClientRequestError({
+          success: false,
+          kind: 'error',
+          code: Codes.BadRequest,
+          errors: [{ detail: operandErrors[0].detail }],
+        });
+      }
+      // Explicit count access (never the Service.count list default) and
+      // count semantics independent of any list limit.
+      const authorized = await svc.genFilter('count', expanded as never);
+      if (authorized === false) {
+        throw new ClientRequestError({ success: false, kind: 'error', code: Codes.Forbidden });
+      }
+      this.claimCorrelatedQuerySlot();
+      let result: SingleResult<number> | ErrorResult;
+      try {
+        result = await svc.countTrusted(authorized as never);
+      } catch (error) {
+        const clientResult = this.getClientRequestErrorResult(error);
+        if (clientResult) throw new ClientRequestError(clientResult);
+        throw error;
+      }
+      if (result.success) {
+        setDocValue(docs[index], include.path, result.data);
+      } else {
+        throw new ClientRequestError(result as ErrorResult);
+      }
+    });
+    void depth;
   }
 
   protected async parseClientData<TValue>(

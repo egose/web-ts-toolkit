@@ -39,6 +39,7 @@ import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import * as pkg from '../dist/index.mjs';
 
 const EXPECTED_RUNTIME_EXPORTS = [
+  'CorrelatedIncludeError',
   'CustomHeaders',
   'DataService',
   'MissingPersistenceIdentityError',
@@ -47,6 +48,7 @@ const EXPECTED_RUNTIME_EXPORTS = [
   'Service',
   'ServiceError',
   'createAdapter',
+  'parentField',
   'removeItemById',
   'replaceItemById',
   'wrapLazyPromise',

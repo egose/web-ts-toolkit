@@ -69,6 +69,31 @@ Router-specific options are also available through the mutable property helpers:
 - `queryRouteSegment`
 - `mutationRouteSegment`
 
+## Request Complexity And Correlated Limits
+
+`requestComplexity` bounds apply to every read/list/count request, including
+correlated-include templates and their per-parent expansions:
+
+- `maxDepth` (default `8`), `maxNodes` (default `500`),
+  `maxLogicalClauses` (default `50`), `maxInValues` (default `100`),
+  `maxBulkItems` (default `100`), `maxIncludeCount` (default `10`),
+  `maxSubQueryCount` (default `10`), `maxBulkConcurrency` (default `10`),
+  `maxHookConcurrency` (default `10`)
+- `maxCorrelatedQueries` (default `100`): total inner target executions per
+  parent request (each per-parent read/list/count counts 1; nested levels
+  multiply). Exceeding it fails the whole request — no partial results.
+- `maxCorrelatedDepth` (default `5`): nesting depth of correlated includes.
+
+Each correlated entry counts toward `maxIncludeCount` and its markers count
+as nodes; template `$in` lengths count toward `maxInValues`. After
+per-parent substitution the expanded filter is revalidated against
+`maxNodes`/`maxDepth`/`maxInValues`/`maxLogicalClauses`, so a short template
+expanding against a large parent array can still be rejected. Fan-out shares
+the request-scoped scheduler bounded by `maxBulkConcurrency` (no separate
+concurrency knob). These are safety bounds, not measured performance claims:
+per-parent includes cost roughly one target query per parent per include
+(plus nesting), so prefer tight parent filters and small per-parent limits.
+
 ## OpenAPI Router Options
 
 `createOpenApiRouter(...)` accepts:

@@ -26,6 +26,12 @@ import {
   ServiceError,
   MissingPersistenceIdentityError,
   ResultError,
+  parentField,
+  CorrelatedIncludeError,
+  CorrelatedInclude,
+  CorrelatedFilterQuery,
+  ParentRef,
+  WithCorrelatedOutputs,
 } from '@web-ts-toolkit/access-router-client';
 
 interface Pet {
@@ -127,3 +133,19 @@ import type { ModelResponse } from '@web-ts-toolkit/access-router-client';
 declare const lazyCreate: Promise<ModelResponse<Pet>>;
 const fromLazy = await lazyCreate;
 fromLazy satisfies Response<Pet, Model<Pet> & Pet>;
+
+// Positive: ACI-04 — parentField markers, correlated filters, and $include
+// composition are reachable from the packed declarations.
+const ownerRef: ParentRef = parentField('orgId');
+ownerRef satisfies ParentRef;
+const correlatedFilter: CorrelatedFilterQuery<Pet> = { name: parentField('name') };
+void correlatedFilter;
+const ownerInc = petService.read(parentField('_id')).$include<'owner', Pet>('owner');
+ownerInc satisfies CorrelatedInclude<'owner', Pet, 'read'>;
+type PetWithOwner = WithCorrelatedOutputs<Pet, [typeof ownerInc]>;
+declare const petWithOwner: PetWithOwner;
+const owner: Pet | null = petWithOwner.owner;
+void owner;
+const correlatedErr = new CorrelatedIncludeError('bad include');
+const _correlatedIsError: Error = correlatedErr;
+void _correlatedIsError;

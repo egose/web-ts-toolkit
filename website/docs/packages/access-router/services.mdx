@@ -33,6 +33,44 @@ These methods are what the built-in HTTP routes call internally.
 - `_update(..., { returningAll: false })` trims the response to the updated fields
 - `_upsert(...)` only supports the default `_id` identifier
 
+## Correlated Includes
+
+Read/list service paths (`_list`, `_read`, `_readFilter`, and the grouped
+root entries that dispatch to them) accept correlated `include` entries
+(`mode: 'correlated'`) alongside legacy `localField`/`foreignField` joins.
+Each correlated entry runs a target query **per parent document** using
+`{ "$parent": "<field>" }` markers resolved against the immediate parent
+snapshot:
+
+```json
+{ "mode": "correlated", "model": "Org", "op": "read", "path": "org", "id": { "$parent": "orgId" } }
+{ "mode": "correlated", "model": "Post", "op": "list", "path": "posts",
+  "filter": { "authorId": { "$parent": "_id" } },
+  "args": { "select": ["title"], "sort": { "createdAt": -1 }, "limit": 5 } }
+{ "mode": "correlated", "model": "Post", "op": "count", "path": "postCount",
+  "filter": { "authorId": { "$parent": "_id" } } }
+```
+
+Execution notes:
+
+- Reads attach the doc or `null`, lists attach per-parent paginated arrays,
+  counts attach numbers (count semantics, never a capped list count).
+  Missing/`null` references attach `null`/`[]`/`0` with no target query.
+- Identifier reads use the target's configured identifier behavior with no
+  read-to-list fallback; counts use explicit count access.
+- Dispatch goes through the authorized target service under the active
+  request/runtime context. Target denials fail the whole request with zero
+  target persistence queries.
+- Referenced parent fields are added to the parent DB select, then trimmed
+  unless policy-allowed and selected. Sibling include output and
+  decorate/task output never feed references.
+- Bounds: each entry counts toward `maxIncludeCount`; expanded filters are
+  revalidated (`maxNodes`/`maxDepth`/`maxInValues`/`maxLogicalClauses`);
+  `maxCorrelatedQueries` (default `100`) caps total inner executions and
+  `maxCorrelatedDepth` (default `5`) caps nesting. See [Configuration](./configuration).
+- Direct count parents carry no `include`. Malformed correlated input is a
+  controlled `BadRequest`, never a silent drop. See [Validation](./validation).
+
 ## Data Router Services
 
 `DataRouter.getService(req)` returns a `DataService`.

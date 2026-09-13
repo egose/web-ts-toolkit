@@ -46,6 +46,16 @@ Generated documentation includes:
 
 Paths are emitted as OpenAPI-style paths such as `/users/{id}`.
 
+Request bodies that accept `include` (advanced list/read bodies and root
+batch entries) document both the legacy `localField`/`foreignField` shape
+and the correlated shape: `mode: 'correlated'` with `model`, `op`
+(`read`/`list`/`count`), explicit output `path`, exactly one of `id` or
+`filter`, and per-operation `args`. `{ "$parent": "<field>" }` markers and
+`{ "$escape": ... }` literals appear as plain JSON objects in the schema —
+they carry no special OpenAPI type beyond the shared include schema, which
+reuses the same validation (`includeItemSchema`) that the routes enforce,
+so the documented shape and the runtime verdicts agree.
+
 ## Operation IDs
 
 Generated operation ids follow the router naming conventions, for example:

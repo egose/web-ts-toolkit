@@ -14,3 +14,9 @@ export type { CacheController, CachePartitioner } from './services/interceptors'
 
 export { createAdapter };
 export type { AdapterOptions, ModelServiceOptions, DataServiceOptions } from './adapter';
+
+// ACI-04: correlated includes — explicit parent-field references and the
+// controlled error for descriptor/conversion misuse. All other machinery
+// (scanning, snapshots, conversion) stays internal.
+export { parentField } from './correlated';
+export { CorrelatedIncludeError } from './correlated-brand';

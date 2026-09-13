@@ -85,6 +85,89 @@ const grouped = await adapter.group(
 );
 ```
 
+## Correlated Includes
+
+A correlated include runs a target query per parent document using values
+from that parent. Build the inner query with the familiar service methods,
+reference parent fields explicitly with `parentField()`, and attach the
+result with `$include(path)`:
+
+```ts
+import { createAdapter, parentField } from '@web-ts-toolkit/access-router-client';
+
+type User = { _id?: string; orgId?: string; managerId?: string; name: string };
+type Org = { _id?: string; name: string; description?: string; active?: boolean };
+type Post = { _id?: string; authorId?: string; reviewerId?: string; title: string };
+
+const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });
+const userService = adapter.createModelService<User>({ modelName: 'User', basePath: 'users' });
+const orgService = adapter.createModelService<Org>({ modelName: 'Org', basePath: 'orgs' });
+const postService = adapter.createModelService<Post>({ modelName: 'Post', basePath: 'posts' });
+
+const userWithIncludes = await userService.readAdvanced('user-id-1', {
+  include: [
+    orgService.readAdvanced(parentField('orgId'), { select: ['name', 'description'] }).$include('org'),
+    postService
+      .listAdvanced(
+        { authorId: parentField('_id'), reviewerId: parentField('managerId'), title: '$special' },
+        { select: ['title'], sort: { createdAt: -1 }, limit: 5 },
+      )
+      .$include('posts'),
+    postService.countAdvanced({ authorId: parentField('_id') }).$include('postCount'),
+  ],
+});
+void userWithIncludes;
+
+const basicPosts = postService.list({ limit: 5 }).$include('posts', {
+  filter: { authorId: parentField('_id') },
+});
+void basicPosts;
+
+const basicCount = postService.count().$include('postCount', {
+  filter: { authorId: parentField('_id') },
+});
+void basicCount;
+
+const filteredOrg = orgService
+  .readAdvancedFilter({ _id: parentField('orgId'), active: true }, { select: ['name'] })
+  .$include('org');
+void filteredOrg;
+```
+
+All seven builders compose this way: `read`, `readAdvanced`,
+`readAdvancedFilter`, `list` (+ supplemental `{ filter }`), `listAdvanced`,
+`count` (+ supplemental `{ filter }`), and `countAdvanced`. Reference scope
+and result-shape notes:
+
+- References resolve against the **immediate parent** document on the outer
+  server. Nested includes inside `args.include` bind to the target doc of
+  the enclosing include, never to the outer parent.
+- Plain strings are never references: `title: '$special'` keeps its literal
+  query meaning. Match a literal `{ $parent: 'x' }` object with
+  `{ $escape: { $parent: 'x' } }` (use the `$eq`-wrapped form when the
+  literal sits in a bare field position).
+- Reads attach the doc or `null`, lists attach arrays, counts attach
+  numbers. A missing or `null` reference skips the target query and
+  attaches the same no-match shape (`null` / `[]` / `0`).
+- Identifier reads (`read` / `readAdvanced`) preserve the target's
+  configured identifier behavior (custom id fields included). Lists apply
+  `limit`/`page` per parent; counts use count semantics (never a capped
+  list count).
+- Conversion is synchronous and performs zero HTTP calls. A call carrying
+  references returns a frozen, non-thenable descriptor — it cannot be
+  awaited into data or grouped; convert it with `$include()` first.
+  Reference-free calls keep their ordinary lazy/grouped behavior.
+- Descriptors are transport-inert: the inner query always executes on the
+  **outer** server. Mixing adapters in one include tree is allowed at build
+  time and never dispatches to the inner service's transport.
+- Typed output needs an explicit result generic with the path first:
+  `.$include<'org', Org>('org')`. Without it the path is still attached but
+  typed `unknown`; nothing is inferred from partial projections, reads admit
+  `null`, and nested values stay plain (never `Model`-wrapped).
+- Requires a server with correlated-include support (see the
+  `@web-ts-toolkit/access-router` README "Correlated Includes" section).
+  Older servers silently drop the new entries instead of executing them.
+
 ## Contract
 
 The full website docs at
@@ -182,6 +265,11 @@ symbol from the package root:
 import {
   // Adapter factory — the primary entry point.
   createAdapter,
+  // Correlated includes — explicit parent references and include composition.
+  parentField,
+  // Thrown for reference/descriptor misuse (malformed markers, forbidden
+  // positions, `$include()` validation, grouping a descriptor).
+  CorrelatedIncludeError,
   // Service classes. `ModelService` and `DataService` are what
   // `createAdapter(...)` constructs; `Service` is an advanced base class
   // for callers that need a bespoke service shape.
@@ -244,10 +332,20 @@ import type {
   Populate,
   Sort,
   Document,
+  // Correlated includes — wire payload, reference, filter, and output types.
+  ParentRef,
+  CorrelatedInclude,
+  CorrelatedIncludeOp,
+  CorrelatedIncludeArgs,
+  CorrelatedFilterQuery,
+  SupplementalIncludeOptions,
+  WithCorrelatedOutputs,
 } from '@web-ts-toolkit/access-router-client';
 
 void [
   createAdapter,
+  parentField,
+  CorrelatedIncludeError,
   ModelService,
   DataService,
   Service,
@@ -289,6 +387,13 @@ type StablePublicTypes = [
   Populate,
   Sort,
   Document,
+  ParentRef,
+  CorrelatedInclude<string, unknown, CorrelatedIncludeOp>,
+  CorrelatedIncludeOp,
+  CorrelatedIncludeArgs,
+  CorrelatedFilterQuery<Document>,
+  SupplementalIncludeOptions<Document>,
+  WithCorrelatedOutputs<Document, []>,
 ];
 void (null as unknown as StablePublicTypes);
 ```

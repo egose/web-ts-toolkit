@@ -1,6 +1,7 @@
 import { Document } from 'mongoose';
 import {
   castArray,
+  cloneDeep,
   compact,
   forEach,
   get,
@@ -123,6 +124,37 @@ const assertModelDocument = <TModel>(
   throw new Error(`${hookName} hook for model=${modelName} must return a Mongoose document instance`);
 };
 
+const unsetDocPath = (doc: unknown, path: string): void => {
+  const segments = path.split('.');
+  let current: unknown = doc;
+  // Unwrap mongoose documents to their underlying _doc for plain mutation.
+  const unwrap = (value: unknown): unknown =>
+    value != null && typeof value === 'object' && '_doc' in (value as Record<string, unknown>)
+      ? (value as { _doc: unknown })._doc
+      : value;
+  current = unwrap(current);
+  for (let i = 0; i < segments.length - 1; i++) {
+    if (current == null || typeof current !== 'object') return;
+    if (!Object.prototype.hasOwnProperty.call(current, segments[i])) return;
+    current = unwrap((current as Record<string, unknown>)[segments[i]]);
+  }
+  if (current != null && typeof current === 'object') {
+    delete (current as Record<string, unknown>)[segments[segments.length - 1]];
+  }
+};
+
+const shouldKeepCorrelatedRef = (ref: string, keep: Set<string>): boolean => {
+  if (keep.has(ref)) return true;
+  const top = ref.split('.')[0];
+  if (keep.has(top)) return true;
+  // A selected dotted subpath (e.g. select a.b) implies its parent chain was
+  // fetched; keep the parent object rather than stripping the whole branch.
+  for (const kept of keep) {
+    if (kept === ref || kept.startsWith(`${ref}.`) || ref.startsWith(`${kept}.`)) return true;
+  }
+  return false;
+};
+
 export class Service<TModel = unknown> extends Base<TModel> {
   protected model: any;
   protected options: ModelRouterOptions<TModel>;
@@ -222,8 +254,10 @@ export class Service<TModel = unknown> extends Base<TModel> {
       this.genAllowedFields({}, access, this.baseFieldsExt),
     ]);
 
-    const { includes, includeLocalFields, includePaths } = this.processInclude(include);
-    const finalSelect = normalizeSelect(_select).concat(includeLocalFields);
+    const { includes, correlatedIncludes, includeLocalFields, includePaths, correlatedReferenceFields } =
+      this.processInclude(include);
+    const correlatedOutputPaths = correlatedIncludes.map((entry) => entry.path);
+    const finalSelect = normalizeSelect(_select).concat(includeLocalFields, correlatedReferenceFields);
 
     const query = {
       filter: _filter,
@@ -263,8 +297,18 @@ export class Service<TModel = unknown> extends Base<TModel> {
       resolvedQuery: query,
     };
 
+    // Stable snapshot for correlated references (ACI-01 D7.3): fetched from
+    // persistence including internal-only reference fields, before legacy
+    // include attachment, decorate, and task mutation.
+    const correlatedSnapshots = [cloneDeep(toObject(doc))];
+
     try {
       doc = await this.includeDocs(doc, includes);
+      if (correlatedIncludes.length > 0) {
+        const docList = [doc];
+        await this.includeCorrelatedDocs(docList, correlatedIncludes, correlatedSnapshots);
+        doc = docList[0];
+      }
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
       if (result) {
@@ -283,8 +327,20 @@ export class Service<TModel = unknown> extends Base<TModel> {
     doc = await this.trimOutputFields(
       doc,
       access,
-      this.baseFieldsExt.concat(includePaths, normalizeSelect(overrideSelect)),
+      this.baseFieldsExt.concat(includePaths, correlatedOutputPaths, normalizeSelect(overrideSelect)),
     );
+    if (correlatedReferenceFields.length > 0) {
+      const keep = new Set([
+        ...normalizeSelect(_select),
+        ...normalizeSelect(overrideSelect),
+        ...this.baseFieldsExt,
+        ...includePaths,
+        ...correlatedOutputPaths,
+      ]);
+      for (const ref of correlatedReferenceFields) {
+        if (!shouldKeepCorrelatedRef(ref, keep)) unsetDocPath(doc, ref);
+      }
+    }
     if (!includePermissions) doc = this.addEmptyPermissions(doc);
 
     this.completeOp('findOne', startedAt, Codes.Success, _filter);
@@ -356,11 +412,13 @@ export class Service<TModel = unknown> extends Base<TModel> {
         ? _populate.filter((p) => finalSelect.includes(p.path.split('.')[0]))
         : _populate;
 
-    const { includes, includeLocalFields, includePaths } = this.processInclude(include);
+    const { includes, correlatedIncludes, includeLocalFields, includePaths, correlatedReferenceFields } =
+      this.processInclude(include);
+    const correlatedOutputPaths = correlatedIncludes.map((entry) => entry.path);
 
     const query = {
       filter: _filter,
-      select: finalSelect.concat(includeLocalFields),
+      select: finalSelect.concat(includeLocalFields, correlatedReferenceFields),
       populate: filteredPopulate,
       sort,
       ...pagination,
@@ -370,7 +428,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
       sort,
       skip: pagination.skip,
       limit: pagination.limit,
-      selectCount: finalSelect.concat(includeLocalFields).length,
+      selectCount: finalSelect.concat(includeLocalFields, correlatedReferenceFields).length,
       populateCount: Array.isArray(filteredPopulate) ? filteredPopulate.length : filteredPopulate ? 1 : 0,
     });
 
@@ -401,8 +459,13 @@ export class Service<TModel = unknown> extends Base<TModel> {
 
     const _decorate: (...args: unknown[]) => unknown = isFunction(decorate) ? decorate : (v) => v;
 
+    const correlatedSnapshots = docs.map((doc) => cloneDeep(toObject(doc)));
+
     try {
       docs = await this.includeDocs(docs, includes);
+      if (correlatedIncludes.length > 0) {
+        docs = (await this.includeCorrelatedDocs(docs, correlatedIncludes, correlatedSnapshots)) as any[];
+      }
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
       if (result) {
@@ -429,8 +492,20 @@ export class Service<TModel = unknown> extends Base<TModel> {
         doc = await this.trimOutputFields(
           doc,
           'list',
-          this.baseFieldsExt.concat(includePaths, normalizeSelect(overrideSelect)),
+          this.baseFieldsExt.concat(includePaths, correlatedOutputPaths, normalizeSelect(overrideSelect)),
         );
+        if (correlatedReferenceFields.length > 0) {
+          const keep = new Set([
+            ...normalizeSelect(_select),
+            ...normalizeSelect(overrideSelect),
+            ...this.baseFieldsExt,
+            ...includePaths,
+            ...correlatedOutputPaths,
+          ]);
+          for (const ref of correlatedReferenceFields) {
+            if (!shouldKeepCorrelatedRef(ref, keep)) unsetDocPath(doc, ref);
+          }
+        }
         doc = await _decorate(doc, contexts[i]);
         if (!includePermissions) doc = this.addEmptyPermissions(doc);
 
@@ -998,6 +1073,24 @@ export class Service<TModel = unknown> extends Base<TModel> {
     if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query };
 
     return { success: true, kind: 'single', code: Codes.Success, data: await this.model.countDocuments(filter), query };
+  }
+
+  /**
+   * Trusted count for correlated includes (ACI-03): the caller already
+   * resolved parent references, revalidated expanded operands, and applied
+   * explicit `count` access via `genFilter`. This skips client-filter
+   * validation and subquery parsing so substituted parent data stays inert.
+   */
+  public async countTrusted(authorizedFilter: Filter<TModel>): Promise<SingleResult<number> | ErrorResult> {
+    const query = { filter: authorizedFilter };
+    if (authorizedFilter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query };
+    return {
+      success: true,
+      kind: 'single',
+      code: Codes.Success,
+      data: await this.model.countDocuments(authorizedFilter),
+      query,
+    };
   }
 
   public async countByFieldValues(

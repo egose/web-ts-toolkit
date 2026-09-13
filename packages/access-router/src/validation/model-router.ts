@@ -87,7 +87,7 @@ export const countBodySchema = z
     filter: objectOrArraySchema.optional(),
   })
   .passthrough()
-  .superRefine((body, ctx) => rejectKeys(body, ctx, ['query', 'access', 'options']));
+  .superRefine((body, ctx) => rejectKeys(body, ctx, ['query', 'access', 'options', 'include']));
 
 export const readFilterBodySchema = z
   .object({

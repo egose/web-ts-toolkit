@@ -1,4 +1,4 @@
-import { Projection, Sort, Populate, PopulateAccess, Include, Task } from './types';
+import { Projection, Sort, Populate, PopulateAccess, CorrelatedIncludeInput, Task } from './types';
 
 export interface SubQueryOptions {
   path?: string;
@@ -24,7 +24,13 @@ export interface ListOptions {
 export interface ListAdvancedArgs<TSelect extends Projection = Projection> {
   select?: TSelect;
   populate?: Populate[] | Populate | string;
-  include?: Include | Include[];
+  /**
+   * ACI-04: legacy `Include` joins or `$include()`-converted correlated
+   * payloads (`CorrelatedIncludeInput`). Converted payloads travel as data;
+   * unconverted descriptors / live requests are rejected with a controlled
+   * error at call time.
+   */
+  include?: CorrelatedIncludeInput | CorrelatedIncludeInput[];
   sort?: Sort;
   skip?: string | number;
   limit?: string | number;
@@ -54,7 +60,11 @@ export interface ReadAdvancedArgs<TSelect extends Projection = Projection> {
   select?: TSelect;
   sort?: Sort;
   populate?: Populate[] | Populate | string;
-  include?: Include | Include[];
+  /**
+   * ACI-04: legacy `Include` joins or `$include()`-converted correlated
+   * payloads (`CorrelatedIncludeInput`). See `ListAdvancedArgs.include`.
+   */
+  include?: CorrelatedIncludeInput | CorrelatedIncludeInput[];
   tasks?: Task | Task[];
 }
 

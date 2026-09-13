@@ -1,6 +1,11 @@
 import {
   // Adapter factory — the primary entry point.
   createAdapter,
+  // Correlated includes — explicit parent references and include composition.
+  parentField,
+  // Thrown for reference/descriptor misuse (malformed markers, forbidden
+  // positions, `$include()` validation, grouping a descriptor).
+  CorrelatedIncludeError,
   // Service classes. `ModelService` and `DataService` are what
   // `createAdapter(...)` constructs; `Service` is an advanced base class
   // for callers that need a bespoke service shape.
@@ -63,10 +68,20 @@ import type {
   Populate,
   Sort,
   Document,
+  // Correlated includes — wire payload, reference, filter, and output types.
+  ParentRef,
+  CorrelatedInclude,
+  CorrelatedIncludeOp,
+  CorrelatedIncludeArgs,
+  CorrelatedFilterQuery,
+  SupplementalIncludeOptions,
+  WithCorrelatedOutputs,
 } from '@web-ts-toolkit/access-router-client';
 
 void [
   createAdapter,
+  parentField,
+  CorrelatedIncludeError,
   ModelService,
   DataService,
   Service,
@@ -108,5 +123,12 @@ type StablePublicTypes = [
   Populate,
   Sort,
   Document,
+  ParentRef,
+  CorrelatedInclude<string, unknown, CorrelatedIncludeOp>,
+  CorrelatedIncludeOp,
+  CorrelatedIncludeArgs,
+  CorrelatedFilterQuery<Document>,
+  SupplementalIncludeOptions<Document>,
+  WithCorrelatedOutputs<Document, []>,
 ];
 void (null as unknown as StablePublicTypes);

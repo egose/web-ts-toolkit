@@ -62,6 +62,12 @@ export type FilterQuery<T> = _FilterQuery<T>;
 // consumer importing `DottedPathFilter`/`ServerSideCast` from
 // `@web-ts-toolkit/access-router-client` fails to compile.
 export type { DottedPathFilter, ServerSideCast } from './mongoose/types';
+// ACI-04: the correlated filter surface lives in `./mongoose/types`
+// alongside `_FilterQuery<T>`; re-export it from the package root for the
+// same reachability reason (consumers spell it at the seven service-method
+// call sites and in basic `$include(path, { filter })` options).
+import type { CorrelatedFilterQuery, CorrelatedQuerySelector, EscapeLiteral } from './mongoose/types';
+export type { CorrelatedFilterQuery, CorrelatedQuerySelector, EscapeLiteral };
 
 export interface Include {
   model: string;
@@ -72,6 +78,183 @@ export interface Include {
   filter?: FilterQuery<unknown>;
   args?: Record<string, unknown>;
   options?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// ACI-04: correlated includes.
+// ---------------------------------------------------------------------------
+
+/**
+ * Explicit parent-field reference created by `parentField(path)` (ACI-01
+ * D2.1). Recognition is structural and value-position-only: a plain object
+ * whose own enumerable keys are exactly `['$parent']` with a non-empty
+ * string value. Magic `$field` strings are never markers — `'$special'` or
+ * `'$parent'` in a field-value position keeps its existing literal query
+ * meaning.
+ *
+ * The object returned by `parentField()` is frozen. References resolve
+ * against the immediate parent document on the outer server (ACI-01 D3.4).
+ */
+export interface ParentRef {
+  readonly $parent: string;
+}
+
+/** Wire operation carried by a correlated include (fixed by the originating method). */
+export type CorrelatedIncludeOp = 'list' | 'read' | 'count';
+
+/**
+ * Allowlisted inner-query args for a correlated include (ACI-01 D9.1):
+ * identifier/filter reads forward `{ select, sort, include }`, lists
+ * additionally forward per-parent pagination `{ skip, limit, page, pageSize }`,
+ * basic `read`/`count` carry no args. Everything else (notably `populate`
+ * and `tasks`) is dropped or rejected at `$include()` conversion time.
+ */
+export interface CorrelatedIncludeArgs {
+  readonly select?: unknown;
+  readonly sort?: unknown;
+  readonly include?: CorrelatedIncludeInput | CorrelatedIncludeInput[];
+  readonly skip?: unknown;
+  readonly limit?: unknown;
+  readonly page?: unknown;
+  readonly pageSize?: unknown;
+}
+
+/**
+ * Serialized correlated include (ACI-01 D1): the discriminated
+ * `mode: 'correlated'` variant of the wire `Include` union. Produced purely
+ * by `$include()` — synchronously, with zero HTTP calls — from a frozen
+ * per-call snapshot, so repeated conversion yields independently owned
+ * payloads and never shares mutable state.
+ *
+ * `Path` is the explicit output path; `Out` is the caller-supplied result
+ * generic (default `unknown`, carried type-only via `__correlatedOutput` and
+ * never serialized). Inner values are plain: read outputs are `Out | null`,
+ * list outputs are `Out[]`, count outputs are `number` (see
+ * `WithCorrelatedOutputs`). Nothing is inferred from partial projections, no
+ * guaranteed read match is promised, and values are never `Model`-wrapped.
+ */
+export interface CorrelatedInclude<
+  Path extends string = string,
+  Out = unknown,
+  Op extends CorrelatedIncludeOp = CorrelatedIncludeOp,
+> {
+  readonly mode: 'correlated';
+  readonly model: string;
+  readonly op: Op;
+  readonly path: Path;
+  readonly id?: string | ParentRef;
+  readonly filter?: unknown;
+  readonly args?: CorrelatedIncludeArgs;
+  /** Type-only carrier for the `$include(path)` result generic; never set at runtime. */
+  readonly __correlatedOutput?: Out;
+}
+
+/** Anything an outer `include` array may carry: legacy joins or correlated payloads. */
+export type CorrelatedIncludeInput = Include | CorrelatedInclude<string, unknown, CorrelatedIncludeOp>;
+
+/** Supplemental filter option for basic `list()` / `count()` `$include()` (ACI-01 D9.3). */
+export interface SupplementalIncludeOptions<T> {
+  filter: CorrelatedFilterQuery<T>;
+}
+
+type CorrelatedOutputOf<Entry> =
+  Entry extends CorrelatedInclude<infer Path, infer Out, infer Op>
+    ? string extends Path
+      ? Record<never, never>
+      : Op extends 'read'
+        ? { [K in Path]: Out | null }
+        : Op extends 'list'
+          ? { [K in Path]: Out[] }
+          : Op extends 'count'
+            ? { [K in Path]: number }
+            : Record<never, never>
+    : Record<never, never>;
+
+type UnionToIntersection<U> = (U extends unknown ? (arg: U) => void : never) extends (arg: infer I) => void ? I : never;
+
+type FlattenIncludeInput<TInc> = TInc extends readonly (infer Entry)[] ? Entry : TInc;
+
+type CorrelatedOutputs<TInc> = UnionToIntersection<CorrelatedOutputOf<FlattenIncludeInput<TInc>>>;
+
+/**
+ * Merges `$include(path)` output paths into an outer response shape
+ * (ACI-01 D10). Legacy `Include` entries and wide (non-literal) paths
+ * contribute nothing, so outer types without correlated payloads are exactly
+ * their previous shape. Correlated entries contribute their explicit output
+ * path with the caller-supplied generic: reads admit `null` (no guaranteed
+ * match), lists are arrays, counts are numbers; values stay plain.
+ *
+ * Generic order is path-first (`$include<'org', Org>('org')`): TypeScript
+ * has no partial type-argument inference, so a result-generic-first order
+ * would widen the output path to `string` whenever the generic is supplied
+ * explicitly. Path-first keeps the literal in both the untyped
+ * (`$include('org')`) and explicitly typed forms; a lone result generic in
+ * first position (e.g. `$include<Org>`) is rejected by the `string`
+ * constraint instead of silently dropping the merge.
+ */
+export type WithCorrelatedOutputs<TBase, TInc> = [keyof CorrelatedOutputs<TInc>] extends [never]
+  ? TBase
+  : TBase & CorrelatedOutputs<TInc>;
+
+/** `$include(path)` mixin for executable or descriptor read-shaped queries. */
+export interface IncludableRead {
+  $include<const TPath extends string = string, TOut = unknown>(path: TPath): CorrelatedInclude<TPath, TOut, 'read'>;
+}
+
+/** `$include(path)` mixin for executable or descriptor list-shaped queries. */
+export interface IncludableList {
+  $include<const TPath extends string = string, TOut = unknown>(path: TPath): CorrelatedInclude<TPath, TOut, 'list'>;
+}
+
+/** `$include(path)` mixin for executable or descriptor count-shaped queries. */
+export interface IncludableCount {
+  $include<const TPath extends string = string, TOut = unknown>(path: TPath): CorrelatedInclude<TPath, TOut, 'count'>;
+}
+
+/**
+ * `$include(path, { filter })` mixin for basic `list()` executables. The
+ * supplemental filter is the inner filter (basic methods have no filter of
+ * their own, so the sources cannot conflict by construction — ACI-01 D9.3).
+ */
+export interface IncludableBasicList<T> {
+  $include<const TPath extends string = string, TOut = unknown>(
+    path: TPath,
+    options: SupplementalIncludeOptions<T>,
+  ): CorrelatedInclude<TPath, TOut, 'list'>;
+}
+
+/** `$include(path, { filter })` mixin for basic `count()` executables. */
+export interface IncludableBasicCount<T> {
+  $include<const TPath extends string = string, TOut = unknown>(
+    path: TPath,
+    options: SupplementalIncludeOptions<T>,
+  ): CorrelatedInclude<TPath, TOut, 'count'>;
+}
+
+/**
+ * Frozen, non-thenable reference-bearing descriptor returned by the seven
+ * correlated-capable methods when their reference positions (`id` / `filter`)
+ * contain live `ParentRef` markers (ACI-01 D8.1). It carries no executor, so
+ * zero HTTP is possible from it; `await` yields the descriptor unchanged
+ * (a programming error, documented rather than guarded — JavaScript
+ * `await` on non-thenables cannot be intercepted).
+ *
+ * Convert with `$include(path)` into a detached wire payload and embed it in
+ * an outer request's `include` array. The descriptor holds a frozen snapshot
+ * captured at call time: conversion is synchronous, pure, and repeatable.
+ */
+export interface CorrelatedReadDescriptor {
+  $include<const TPath extends string = string, TOut = unknown>(path: TPath): CorrelatedInclude<TPath, TOut, 'read'>;
+}
+
+/** List-shaped variant of {@link CorrelatedReadDescriptor}. */
+export interface CorrelatedListDescriptor {
+  $include<const TPath extends string = string, TOut = unknown>(path: TPath): CorrelatedInclude<TPath, TOut, 'list'>;
+}
+
+/** Count-shaped variant of {@link CorrelatedReadDescriptor}. */
+export interface CorrelatedCountDescriptor {
+  $include<const TPath extends string = string, TOut = unknown>(path: TPath): CorrelatedInclude<TPath, TOut, 'count'>;
 }
 
 export type PopulateAccess = 'list' | 'read';

@@ -175,7 +175,8 @@ type TypedFilterObject<T> = {
 export type TypedFilter<T> = false | TypedFilterObject<WithDefaultId<T>>;
 export type Filter<T = unknown> = IsUnknown<T> extends true ? LooseFilter : TypedFilter<T>;
 
-export interface Include {
+export interface LegacyInclude {
+  mode?: 'legacy';
   model: string;
   op: 'list' | 'read' | 'count';
   path: string;
@@ -185,6 +186,70 @@ export interface Include {
   args?: unknown;
   options?: unknown;
 }
+
+/**
+ * Explicit structural marker referencing a field of the immediate parent
+ * document (ACI-01 D2.1). Recognized only in filter/id value positions of
+ * correlated includes; magic `$field` strings are never markers.
+ */
+export interface ParentRef {
+  $parent: string;
+}
+
+/** Filter template for correlated includes; values may carry {@link ParentRef} markers. */
+export type CorrelatedFilter = Record<string, unknown>;
+
+export interface CorrelatedIncludeArgs {
+  select?: Projection;
+  sort?: Sort;
+  skip?: number | string;
+  limit?: number | string;
+  page?: number | string;
+  pageSize?: number | string;
+  include?: Include | Include[];
+}
+
+interface CorrelatedIncludeBase {
+  mode: 'correlated';
+  model: string;
+  op: 'list' | 'read' | 'count';
+  path: string;
+  args?: CorrelatedIncludeArgs;
+  options?: Record<string, never>;
+}
+
+/** Identifier read: exactly one of `id` / `filter` must be present. */
+export interface CorrelatedReadByIdInclude extends CorrelatedIncludeBase {
+  op: 'read';
+  id: string | ParentRef;
+  filter?: never;
+}
+
+export interface CorrelatedReadByFilterInclude extends CorrelatedIncludeBase {
+  op: 'read';
+  filter: CorrelatedFilter;
+  id?: never;
+}
+
+export interface CorrelatedListInclude extends CorrelatedIncludeBase {
+  op: 'list';
+  filter: CorrelatedFilter;
+  id?: never;
+}
+
+export interface CorrelatedCountInclude extends CorrelatedIncludeBase {
+  op: 'count';
+  filter: CorrelatedFilter;
+  id?: never;
+}
+
+export type CorrelatedInclude =
+  | CorrelatedReadByIdInclude
+  | CorrelatedReadByFilterInclude
+  | CorrelatedListInclude
+  | CorrelatedCountInclude;
+
+export type Include = LegacyInclude | CorrelatedInclude;
 
 export type FindAccess = 'list' | 'read';
 export type PopulateAccess = 'list' | 'read';

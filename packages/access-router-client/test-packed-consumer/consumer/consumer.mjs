@@ -9,6 +9,7 @@
 import assert from 'node:assert';
 
 import {
+  CorrelatedIncludeError,
   CustomHeaders,
   DataService,
   MissingPersistenceIdentityError,
@@ -17,12 +18,14 @@ import {
   Service,
   ServiceError,
   createAdapter,
+  parentField,
   removeItemById,
   replaceItemById,
   wrapLazyPromise,
 } from '@web-ts-toolkit/access-router-client';
 
 const expected = [
+  'CorrelatedIncludeError',
   'CustomHeaders',
   'DataService',
   'MissingPersistenceIdentityError',
@@ -31,6 +34,7 @@ const expected = [
   'Service',
   'ServiceError',
   'createAdapter',
+  'parentField',
   'removeItemById',
   'replaceItemById',
   'wrapLazyPromise',
@@ -72,3 +76,7 @@ assert.ok(petService instanceof ModelService, 'createModelService returns a Mode
 assert.strictEqual(typeof wrapLazyPromise, 'function', 'wrapLazyPromise exported');
 assert.strictEqual(typeof removeItemById, 'function', 'removeItemById exported');
 assert.strictEqual(typeof replaceItemById, 'function', 'replaceItemById exported');
+// ACI-04: correlated-include helpers are public runtime exports.
+assert.strictEqual(typeof parentField, 'function', 'parentField exported');
+assert.deepStrictEqual(parentField('orgId'), { $parent: 'orgId' }, 'parentField builds the structural marker');
+assert.ok(CorrelatedIncludeError.prototype instanceof Error, 'CorrelatedIncludeError extends Error');

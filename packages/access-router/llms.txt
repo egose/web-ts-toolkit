@@ -78,6 +78,22 @@ const conservative: CopyAndDepopulateOutput = copyAndDepopulate({ items: [{ _id:
 void [typed, conservative];
 ```
 
+Correlated includes: besides legacy `localField`/`foreignField` joins,
+`include` entries accept `mode: 'correlated'` with `{ "$parent": "<field>" }`
+markers in filter value positions (or as the whole `id`). Each entry runs per
+parent against the immediate parent snapshot: reads attach doc-or-`null`,
+lists attach per-parent paginated arrays, counts attach numbers (missing/null
+refs attach `null`/`[]`/`0` with no query). Plain `'$special'` strings stay
+literal; match literal `{ "$parent": "x" }` objects with
+`{ "$escape": { "$parent": "x" } }`. Identifier behavior, per-op target
+authorization (denials fail the whole request with zero target queries), and
+bounds (`maxIncludeCount`, revalidated `maxNodes`/`maxDepth`/`maxInValues`/
+`maxLogicalClauses`, `maxCorrelatedQueries` default 100,
+`maxCorrelatedDepth` default 5) follow the README "Correlated Includes"
+section. Wire types (`ParentRef`, `CorrelatedInclude`, `Include`) are
+available from `@web-ts-toolkit/access-router/advanced` without deep
+imports.
+
 ## Gotchas
 
 - peer dependencies: `express >= 5` and `mongoose >= 8`

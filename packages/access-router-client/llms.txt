@@ -39,6 +39,32 @@ const grouped = await adapter.group(
 );
 ```
 
+Correlated includes (per-parent target queries; requires a
+correlated-include-capable server):
+
+```ts
+import { parentField } from '@web-ts-toolkit/access-router-client';
+
+const withOrg = await userService.readAdvanced('user-id-1', {
+  include: [
+    orgService.readAdvanced(parentField('orgId'), { select: ['name'] }).$include('org'),
+    postService.listAdvanced({ authorId: parentField('_id') }, { limit: 5 }).$include('posts'),
+    postService.countAdvanced({ authorId: parentField('_id') }).$include('postCount'),
+  ],
+});
+```
+
+Notes: references resolve against the immediate parent on the outer server;
+plain `'$special'` strings stay literal (match a literal `{ $parent: 'x' }`
+object with `{ $escape: { $parent: 'x' } }`); reads attach `Out | null`,
+lists `Out[]`, counts `number` (missing/null refs attach `null`/`[]`/`0`
+with no target query); identifier reads keep the target's identifier
+behavior; list pagination applies per parent; conversion is synchronous with
+zero HTTP and reference-bearing calls return frozen non-thenable descriptors
+(convert with `$include(path)` — path-first generic
+`$include<'org', Org>('org')`); descriptors are transport-inert (inner
+queries always run on the outer server).
+
 ## Unreleased Migration
 
 - subdocument results are now plain data; replace subdocument `Model.save()` and `totalCount` usage with parent-scoped helper mutations and `SubDocumentListResponse.count`
@@ -79,8 +105,8 @@ const grouped = await adapter.group(
 - this package targets `@web-ts-toolkit/access-router` servers; plain Axios is simpler for non-access-router APIs
 - imports are named-only (`import { createAdapter }`); there is no default export
 - the public export surface is locked by `access-router-client.exports.unit.test.ts`. Only these names are part of the supported root API:
-  - runtime values: `createAdapter`, `ModelService`, `DataService`, `Service`, `ServiceError`, `MissingPersistenceIdentityError`, `Model`, `CustomHeaders`, `wrapLazyPromise`, `replaceItemById`, `removeItemById`
-  - type/interface exports (named via `import type`): `AdapterOptions`, `ModelServiceOptions`, `DataServiceOptions`, `CacheController`, `CachePartitioner`, `Response`, `SuccessResult`, `FailureResult`, `ModelResponse`, `ArrayModelResponse`, `ListModelResponse`, `ModelData`, `DataResponse`, `ArrayDataResponse`, `ListDataResponse`, `SubDocumentResponse`, `SubDocumentListResponse`, `Document`, `ModelMutationInput`, `SubDocumentMutationInput`, `Projection`, `KeyValueProjection`, `SelectedKeys`, `SelectedShape`, `ResolvedSelectedShape`, `Sort`, `SortOrder`, `FilterQuery`, `DottedPathFilter`, `ServerSideCast`, `Populate`, `PopulateAccess`, `Include`, `Task`, `SubQueryOptions`, `WrapOptions`, `ResultError`, `ResponseCallback`, `AdditionalReqConfig`, `Defaults`, `DataDefaults`, `LazyRequest`, `ModelRequest`, `DataRequest`, `ModelPromiseMeta`, `DataPromiseMeta`, `RootModelQueryMeta`, `RootDataQueryMeta`, `RootQueryMeta`, `ListArgs`, `ListOptions`, `ListAdvancedArgs`, `ListAdvancedOptions`, `ReadOptions`, `ReadAdvancedArgs`, `ReadAdvancedOptions`, `CreateOptions`, `CreateAdvancedArgs`, `CreateAdvancedOptions`, `UpdateOptions`, `UpdateAdvancedArgs`, `UpdateAdvancedOptions`, `UpsertOptions`, `UpsertAdvancedArgs`, `UpsertAdvancedOptions`, `DataListArgs`, `DataListOptions`, `DataListAdvancedArgs`, `DataListAdvancedOptions`, `DataReadOptions`, `DataReadAdvancedArgs`, `DataReadAdvancedOptions`
+  - runtime values: `createAdapter`, `ModelService`, `DataService`, `Service`, `ServiceError`, `MissingPersistenceIdentityError`, `Model`, `CustomHeaders`, `wrapLazyPromise`, `replaceItemById`, `removeItemById`, `parentField`, `CorrelatedIncludeError`
+  - type/interface exports (named via `import type`): `AdapterOptions`, `ModelServiceOptions`, `DataServiceOptions`, `CacheController`, `CachePartitioner`, `Response`, `SuccessResult`, `FailureResult`, `ModelResponse`, `ArrayModelResponse`, `ListModelResponse`, `ModelData`, `DataResponse`, `ArrayDataResponse`, `ListDataResponse`, `SubDocumentResponse`, `SubDocumentListResponse`, `Document`, `ModelMutationInput`, `SubDocumentMutationInput`, `Projection`, `KeyValueProjection`, `SelectedKeys`, `SelectedShape`, `ResolvedSelectedShape`, `Sort`, `SortOrder`, `FilterQuery`, `DottedPathFilter`, `ServerSideCast`, `Populate`, `PopulateAccess`, `Include`, `Task`, `SubQueryOptions`, `WrapOptions`, `ResultError`, `ResponseCallback`, `AdditionalReqConfig`, `Defaults`, `DataDefaults`, `LazyRequest`, `ModelRequest`, `DataRequest`, `ModelPromiseMeta`, `DataPromiseMeta`, `RootModelQueryMeta`, `RootDataQueryMeta`, `RootQueryMeta`, `ListArgs`, `ListOptions`, `ListAdvancedArgs`, `ListAdvancedOptions`, `ReadOptions`, `ReadAdvancedArgs`, `ReadAdvancedOptions`, `CreateOptions`, `CreateAdvancedArgs`, `CreateAdvancedOptions`, `UpdateOptions`, `UpdateAdvancedArgs`, `UpdateAdvancedOptions`, `UpsertOptions`, `UpsertAdvancedArgs`, `UpsertAdvancedOptions`, `DataListArgs`, `DataListOptions`, `DataListAdvancedArgs`, `DataListAdvancedOptions`, `DataReadOptions`, `DataReadAdvancedArgs`, `DataReadAdvancedOptions`, `ParentRef`, `CorrelatedInclude`, `CorrelatedIncludeOp`, `CorrelatedIncludeArgs`, `CorrelatedIncludeInput`, `CorrelatedFilterQuery`, `CorrelatedQuerySelector`, `EscapeLiteral`, `SupplementalIncludeOptions`, `WithCorrelatedOutputs`, `IncludableRead`, `IncludableList`, `IncludableCount`, `IncludableBasicList`, `IncludableBasicCount`, `CorrelatedReadDescriptor`, `CorrelatedListDescriptor`, `CorrelatedCountDescriptor`
 
 Model `create(...)` and `createAdvanced(...)` preserve cardinality: object input returns `ModelResponse<T>`; array input returns `ArrayModelResponse<T>`, even for one item.
   - any name not listed above is implementation-internal and must not be relied on. Configure caching through `AdapterOptions` (`cacheTTL`, `cachePartition`, `cacheCapacity`); control an existing cache through the adapter's `clearCache()` and `disposeCache()` methods; configure `throwOnError` per-service or per-call rather than reaching for `applyResponseCallbacks` directly.

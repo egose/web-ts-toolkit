@@ -1,11 +1,29 @@
 import { AxiosRequestConfig } from 'axios';
 import { isPlainObject, mapValues } from '@web-ts-toolkit/utils';
 import { FilterQuery, WrapOptions } from './types';
+import { CorrelatedIncludeError, isCorrelatedIncludeDescriptor } from './correlated-brand';
 
 export function replaceSubQuery<T>(filter: FilterQuery<T>): unknown {
+  // ACI-04: reference-bearing descriptors are data-less placeholders, never
+  // subquery sources. Reject them with a controlled error instead of
+  // rewriting them into `$$sq` metadata or recursing into them as plain
+  // filter objects. `ParentRef` markers (`{ $parent }`) are not descriptors
+  // and pass through untouched below.
+  if (isCorrelatedIncludeDescriptor(filter)) {
+    throw new CorrelatedIncludeError(
+      'A correlated include descriptor cannot be embedded as a subquery filter value — ' +
+        'call $include(path) on it first, or restructure the query',
+    );
+  }
   if (!isPlainObject(filter)) return filter;
 
   const ret: Record<string, unknown> = mapValues(filter, (val: unknown): unknown => {
+    if (isCorrelatedIncludeDescriptor(val)) {
+      throw new CorrelatedIncludeError(
+        'A correlated include descriptor cannot be embedded as a subquery filter value — ' +
+          'call $include(path) on it first, or restructure the query',
+      );
+    }
     if (isPlainObject(val) && '__op' in val && val.__op && '__query' in val && val.__query) {
       return {
         $$sq: val.__query,

@@ -25,10 +25,12 @@ references.
 ```text docs-block-map
 # source	ordinal	sha256	classification	fixture-or--
 packages/access-router-client/README.md	1	ea7f7dc92479cfb046e024221154724a81f43c282438921f949548bbccf1ca63	derived	readme-quickstart.ts
-packages/access-router-client/README.md	2	c3e75694ffacd37ce898ab14c69a661c79d94c7dbfd139b36cf475b212a889dd	exact	readme-exports.ts
+packages/access-router-client/README.md	2	cec3248f2d06591a9ec6759b83d8407a69f0a0e6156af843f2e594892cdf6a77	derived	correlated-includes.ts
+packages/access-router-client/README.md	3	e0edba23e601248825a16de50e1812fcb6c73b4d6f28f37f99c9e792dede4f0d	exact	readme-exports.ts
 packages/access-router-client/llms.txt	1	6db26e108fd3e45bb6d5154b747f431943bbb914c027055514202d88e759199e	derived	readme-quickstart.ts
 packages/access-router-client/llms.txt	2	0cb6d1d0b741cc903bc3f4e7a3d00136f130fd703f3ceb02275e36368e105a13	derived	services-data.ts
 packages/access-router-client/llms.txt	3	5b07e991c4d49e4e151554cc017cf6d018b090d4f11acceef1daf11b3aab2f11	derived	readme-quickstart.ts
+packages/access-router-client/llms.txt	4	27b45d74b94972fb20a57ee86e4485ffbfbecc2547e92247b33dc3103cb0c075	derived	correlated-includes.ts
 website/docs/packages/access-router-client/adapter.mdx	1	978d6eafe686d3c3cc940e6745195c5bb4e288093f9232e13c160458574b121c	derived	adapter-setup.ts
 website/docs/packages/access-router-client/adapter.mdx	2	ce55cb2a7a693ea85b6dff6a4262321a2c1e216faf00bec6efd910d11fbf8532	derived	adapter-setup.ts
 website/docs/packages/access-router-client/adapter.mdx	3	a6a7ce5ecc084f51a8510b2b643f6bffba059e47151c781f9209e31ac5983043	derived	services-model.ts
@@ -56,11 +58,13 @@ website/docs/packages/access-router-client/model.mdx	12	be06d00afe55ea0c98d71646
 website/docs/packages/access-router-client/model.mdx	13	700e5203a192ea85ca5c5c0d136b43504b12cfcc896d26ab5a648ff6134a4374	derived	model-basics.ts
 website/docs/packages/access-router-client/services.mdx	1	0f9ec812d078a3ce6ea472cefc90e85aecbe03a04e8df2cc6a038cb180bd9f04	derived	services-model.ts
 website/docs/packages/access-router-client/services.mdx	2	d1894fd51037772667dc6e0dc1a4fa8bfcd1528871dd9a03bf9a2a610aca7fee	derived	services-subdocs.ts
-website/docs/packages/access-router-client/services.mdx	3	842d9a759b6c4dd5b0ecdc4241b17a3f074f6da74949be5fe1e1be29e402af12	derived	services-subdocs.ts
-website/docs/packages/access-router-client/services.mdx	4	4e31655c970519031b86dca1b9e0a1722fc36d8e97ccef66d202502065bf8098	derived	services-subdocs.ts
-website/docs/packages/access-router-client/services.mdx	5	0866c9b4151eea73e93b8cae0b73d7b064c9df4514407f103c18dc1c95d1b8a3	derived	services-subdocs.ts
-website/docs/packages/access-router-client/services.mdx	6	0501452003f001d2d9570fd2f92d950428162f974642b113f39f4c00bd44a741	derived	services-data.ts
-website/docs/packages/access-router-client/services.mdx	7	632a7be2a21f64b2ecedcbcfaa505b077fb0d20e3a52380be6d68e1195f74a28	derived	types-errors.ts
+website/docs/packages/access-router-client/services.mdx	3	ccccff68eac7e665ae065e67d1bbb8def5d17501fa36e803dbffc2a67441f128	derived	correlated-includes.ts
+website/docs/packages/access-router-client/services.mdx	4	365cfe748ca0251cfd9e0f38e3e796c07c690a7a9f8406492aaa144d1447c380	derived	correlated-includes.ts
+website/docs/packages/access-router-client/services.mdx	5	842d9a759b6c4dd5b0ecdc4241b17a3f074f6da74949be5fe1e1be29e402af12	derived	services-subdocs.ts
+website/docs/packages/access-router-client/services.mdx	6	4e31655c970519031b86dca1b9e0a1722fc36d8e97ccef66d202502065bf8098	derived	services-subdocs.ts
+website/docs/packages/access-router-client/services.mdx	7	0866c9b4151eea73e93b8cae0b73d7b064c9df4514407f103c18dc1c95d1b8a3	derived	services-subdocs.ts
+website/docs/packages/access-router-client/services.mdx	8	0501452003f001d2d9570fd2f92d950428162f974642b113f39f4c00bd44a741	derived	services-data.ts
+website/docs/packages/access-router-client/services.mdx	9	632a7be2a21f64b2ecedcbcfaa505b077fb0d20e3a52380be6d68e1195f74a28	derived	types-errors.ts
 website/docs/packages/access-router-client/typescript-and-errors.mdx	1	a6a7ce5ecc084f51a8510b2b643f6bffba059e47151c781f9209e31ac5983043	derived	services-model.ts
 website/docs/packages/access-router-client/typescript-and-errors.mdx	2	057a96919d48619bce4092343555e7d2b9df738ad611b4c4c255a5be8d9ee1f1	derived	types-filters.ts
 website/docs/packages/access-router-client/typescript-and-errors.mdx	3	d9fe86f2aac264aed6ed918adb206cb0d567593fb5a32b2150596701fc89bce2	derived	types-filters.ts
@@ -89,6 +93,7 @@ The fixtures live in `examples/` and are semantically compiled by
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `readme-quickstart.ts`     | README.md "Quick Start"; index.md "Quick Start"                                                                                                 |
 | `readme-exports.ts`        | README.md "Main Exports" (verbatim extracted block)                                                                                             |
+| `correlated-includes.ts`   | README.md "Correlated Includes"; llms.txt correlated-includes pattern; services.mdx "Correlated Includes"                                       |
 | `adapter-setup.ts`         | adapter.mdx "Basic Setup", "Adapter Options", "Matching Server Paths"; README.md "Contract"                                                     |
 | `services-model.ts`        | README.md "Unreleased Migration" model-create cardinality; services.mdx "ModelService" "Advanced query", "Service Defaults"                     |
 | `services-subdocs.ts`      | services.mdx "Subqueries", "Subdocument Helpers" + the create/update/bulk/edit example block                                                    |

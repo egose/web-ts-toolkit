@@ -90,6 +90,7 @@ Main entrypoint:
 - `ModelService`
 - `DataService`
 - `Model`
+- `parentField` + `$include(path)` for correlated includes
 - response and query helper types from `./types`
 
 ## Quick Start
@@ -214,9 +215,9 @@ Fields named like wrapper methods (`save`, `reset`, `set`, `get`, `assign`, `toJ
 ## Package Guide
 
 - [Adapter And Setup](./adapter): configuring `createAdapter(...)`, batching, wrapping arbitrary endpoints, and cache behavior
-- [Services](./services): `ModelService` and `DataService` methods, defaults, subqueries, and subdocuments
+- [Services](./services): `ModelService` and `DataService` methods, defaults, subqueries, correlated includes, and subdocuments
 - [Model](./model): dirty tracking, save/reset behavior, path-based updates, and collision handling
-- [TypeScript And Errors](./typescript-and-errors): typed selects, response typing, and `ServiceError`
+- [TypeScript And Errors](./typescript-and-errors): typed selects, correlated output typing, response typing, and `ServiceError`
 
 ## Routing Notes
 

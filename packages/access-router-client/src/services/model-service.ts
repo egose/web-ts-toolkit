@@ -1,8 +1,19 @@
 import { AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
 import {
   FilterQuery,
+  CorrelatedFilterQuery,
+  CorrelatedCountDescriptor,
+  CorrelatedIncludeInput,
+  CorrelatedListDescriptor,
+  CorrelatedReadDescriptor,
   Document,
+  IncludableBasicCount,
+  IncludableBasicList,
+  IncludableCount,
+  IncludableList,
+  IncludableRead,
   ModelRequest,
+  ParentRef,
   Projection,
   ResolvedSelectedShape,
   Response,
@@ -12,6 +23,7 @@ import {
   ResponseCallback,
   ModelMutationInput,
   SubDocumentMutationInput,
+  WithCorrelatedOutputs,
 } from '../types';
 
 import {
@@ -48,6 +60,15 @@ import {
 } from './shared';
 import { makeRequest } from './request';
 import { buildSubDocumentOps } from './sub-ops';
+import {
+  assertNoTransportConfig,
+  attachIncludable,
+  captureCorrelatedSource,
+  createCorrelatedDescriptor,
+  scanFilterForRefs,
+  scanIdForRefs,
+  validateIncludeEntries,
+} from '../correlated';
 
 type RequestConfig = AxiosRequestConfig & AdditionalReqConfig;
 
@@ -122,7 +143,16 @@ export class ModelService<
   // Collection operations
   // ---------------------------------------------------------------------------
 
-  list<TData extends Partial<T> = T>(args?: ListArgs, options?: ListOptions, axiosRequestConfig?: RequestConfig) {
+  list<TData extends Partial<T> = T>(
+    args?: ListArgs,
+    options?: ListOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ListModelResponse<T, TData>> & IncludableBasicList<T>;
+  list<TData extends Partial<T> = T>(
+    args?: ListArgs,
+    options?: ListOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): unknown {
     const {
       skip = this._defaults.listArgs.skip,
       limit = this._defaults.listArgs.limit,
@@ -144,7 +174,9 @@ export class ModelService<
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
-    return makeRequest<ListModelResponse<T, TData>>(
+    // ACI-04: basic list() has no filter of its own, so it is always
+    // executable; the supplemental `{ filter }` arrives at `$include()` time.
+    const req = makeRequest<ListModelResponse<T, TData>>(
       () =>
         this._axios
           .get(
@@ -195,14 +227,85 @@ export class ModelService<
         __service: this,
       },
     );
+    return attachIncludable(
+      req,
+      captureCorrelatedSource({
+        method: 'list',
+        model: this._modelName,
+        op: 'list',
+        basic: true,
+        kind: 'filter',
+        callArgs: args,
+        callOptions: options,
+        defaults: {
+          skip: this._defaults.listArgs.skip,
+          limit: this._defaults.listArgs.limit,
+          page: this._defaults.listArgs.page,
+          pageSize: this._defaults.listArgs.pageSize,
+        },
+      }),
+    );
   }
 
-  listAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
+  listAdvanced<
+    TData extends Partial<T> | never = never,
+    TSelect extends Projection = Projection,
+    TInc extends CorrelatedIncludeInput | readonly CorrelatedIncludeInput[] | undefined =
+      | CorrelatedIncludeInput
+      | readonly CorrelatedIncludeInput[]
+      | undefined,
+  >(
     filter: FilterQuery<T>,
+    args?: ListAdvancedArgs<TSelect> & { include?: TInc },
+    options?: ListAdvancedOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ListModelResponse<T, WithCorrelatedOutputs<ResolvedSelectedShape<T, TSelect, TData>, TInc>>> &
+    IncludableList;
+  // ACI-04: TData is unused on the descriptor overload (descriptors carry no
+  // response type) but is kept for explicit-generic call parity with the
+  // executable overload.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  listAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
+    filter: CorrelatedFilterQuery<T>,
     args?: ListAdvancedArgs<TSelect>,
     options?: ListAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ): ModelRequest<ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
+  ): CorrelatedListDescriptor;
+  listAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
+    filter: FilterQuery<T> | CorrelatedFilterQuery<T>,
+    args?: ListAdvancedArgs<TSelect>,
+    options?: ListAdvancedOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): unknown {
+    // ACI-04: scan reference positions at call time. Markers present selects
+    // the descriptor overload (frozen, non-thenable, zero HTTP); markers
+    // absent keeps the ordinary executable path below.
+    const listAdvancedHasRefs = scanFilterForRefs(filter, 'listAdvanced');
+    if (args?.include != null) validateIncludeEntries(args.include, 'listAdvanced');
+    if (listAdvancedHasRefs) {
+      assertNoTransportConfig(axiosRequestConfig, 'listAdvanced');
+      return createCorrelatedDescriptor(
+        captureCorrelatedSource({
+          method: 'listAdvanced',
+          model: this._modelName,
+          op: 'list',
+          basic: false,
+          kind: 'filter',
+          filter,
+          callArgs: args,
+          callOptions: options,
+          defaults: {
+            select: this._defaults.listAdvancedArgs.select,
+            sort: this._defaults.listAdvancedArgs.sort,
+            include: this._defaults.listAdvancedArgs.include,
+            skip: this._defaults.listAdvancedArgs.skip,
+            limit: this._defaults.listAdvancedArgs.limit,
+            page: this._defaults.listAdvancedArgs.page,
+            pageSize: this._defaults.listAdvancedArgs.pageSize,
+          },
+        }),
+      );
+    }
     const {
       skip = this._defaults.listAdvancedArgs.skip,
       limit = this._defaults.listAdvancedArgs.limit,
@@ -232,8 +335,10 @@ export class ModelService<
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
-    const _filter = replaceSubQuery<T>(filter);
-    return makeRequest<ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(
+    const _filter = replaceSubQuery<T>(filter as FilterQuery<T>);
+    // ACI-04: executable path — attach the pure `$include()` converter
+    // (non-enumerable; reads the frozen snapshot, never claims execution).
+    const listAdvancedReq = makeRequest<ListModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(
       () =>
         this._axios
           .post(
@@ -287,6 +392,28 @@ export class ModelService<
         __requestConfig: reqConfig,
         __service: this,
       },
+    );
+    return attachIncludable(
+      listAdvancedReq,
+      captureCorrelatedSource({
+        method: 'listAdvanced',
+        model: this._modelName,
+        op: 'list',
+        basic: false,
+        kind: 'filter',
+        filter,
+        callArgs: args,
+        callOptions: options,
+        defaults: {
+          select: this._defaults.listAdvancedArgs.select,
+          sort: this._defaults.listAdvancedArgs.sort,
+          include: this._defaults.listAdvancedArgs.include,
+          skip: this._defaults.listAdvancedArgs.skip,
+          limit: this._defaults.listAdvancedArgs.limit,
+          page: this._defaults.listAdvancedArgs.page,
+          pageSize: this._defaults.listAdvancedArgs.pageSize,
+        },
+      }),
     );
   }
 
@@ -689,10 +816,13 @@ export class ModelService<
     );
   }
 
-  count(axiosRequestConfig?: RequestConfig) {
+  count(axiosRequestConfig?: RequestConfig): ModelRequest<Response<number>> & IncludableBasicCount<T>;
+  count(axiosRequestConfig?: RequestConfig): unknown {
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
-    return makeRequest<Response<number>>(
+    // ACI-04: basic count() has no filter of its own, so it is always
+    // executable; the supplemental `{ filter }` arrives at `$include()` time.
+    const countReq = makeRequest<Response<number>>(
       () =>
         this._axios
           .get(`${this._basePath}/count`, reqConfig)
@@ -717,12 +847,44 @@ export class ModelService<
         __service: this,
       },
     );
+    return attachIncludable(
+      countReq,
+      captureCorrelatedSource({
+        method: 'count',
+        model: this._modelName,
+        op: 'count',
+        basic: true,
+        kind: 'filter',
+        defaults: {},
+      }),
+    );
   }
 
-  countAdvanced(filter: FilterQuery<T>, axiosRequestConfig?: RequestConfig) {
+  countAdvanced(
+    filter: FilterQuery<T>,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<Response<number>> & IncludableCount;
+  countAdvanced(filter: CorrelatedFilterQuery<T>, axiosRequestConfig?: RequestConfig): CorrelatedCountDescriptor;
+  countAdvanced(filter: FilterQuery<T> | CorrelatedFilterQuery<T>, axiosRequestConfig?: RequestConfig): unknown {
+    // ACI-04: scan reference positions at call time (see listAdvanced).
+    const countAdvancedHasRefs = scanFilterForRefs(filter, 'countAdvanced');
+    if (countAdvancedHasRefs) {
+      assertNoTransportConfig(axiosRequestConfig, 'countAdvanced');
+      return createCorrelatedDescriptor(
+        captureCorrelatedSource({
+          method: 'countAdvanced',
+          model: this._modelName,
+          op: 'count',
+          basic: false,
+          kind: 'filter',
+          filter,
+          defaults: {},
+        }),
+      );
+    }
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
 
-    return makeRequest<Response<number>>(
+    const countAdvancedReq = makeRequest<Response<number>>(
       () =>
         this._axios
           .post(`${this._basePath}/count`, { filter }, reqConfig)
@@ -748,13 +910,51 @@ export class ModelService<
         __service: this,
       },
     );
+    return attachIncludable(
+      countAdvancedReq,
+      captureCorrelatedSource({
+        method: 'countAdvanced',
+        model: this._modelName,
+        op: 'count',
+        basic: false,
+        kind: 'filter',
+        filter,
+        defaults: {},
+      }),
+    );
   }
 
   // ---------------------------------------------------------------------------
   // Document operations
   // ---------------------------------------------------------------------------
 
-  read<TData extends Partial<T> = T>(identifier: string, options?: ReadOptions, axiosRequestConfig?: RequestConfig) {
+  read<TData extends Partial<T> = T>(
+    identifier: string,
+    options?: ReadOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ModelResponse<T, TData>> & IncludableRead;
+  read(identifier: ParentRef, options?: ReadOptions, axiosRequestConfig?: RequestConfig): CorrelatedReadDescriptor;
+  read<TData extends Partial<T> = T>(
+    identifier: string | ParentRef,
+    options?: ReadOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): unknown {
+    // ACI-04: identifier reference positions select the descriptor overload.
+    if (scanIdForRefs(identifier, 'read')) {
+      assertNoTransportConfig(axiosRequestConfig, 'read');
+      return createCorrelatedDescriptor(
+        captureCorrelatedSource({
+          method: 'read',
+          model: this._modelName,
+          op: 'read',
+          basic: false,
+          kind: 'id',
+          id: identifier,
+          callOptions: options,
+          defaults: {},
+        }),
+      );
+    }
     const {
       includePermissions = this._defaults.readOptions.includePermissions ?? true,
       tryList = this._defaults.readOptions.tryList ?? true,
@@ -765,7 +965,7 @@ export class ModelService<
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
-    return makeRequest<ModelResponse<T, TData>>(
+    const readReq = makeRequest<ModelResponse<T, TData>>(
       () =>
         this._axios
           .get(
@@ -805,14 +1005,74 @@ export class ModelService<
         __service: this,
       },
     );
+    return attachIncludable(
+      readReq,
+      captureCorrelatedSource({
+        method: 'read',
+        model: this._modelName,
+        op: 'read',
+        basic: false,
+        kind: 'id',
+        id: identifier,
+        callOptions: options,
+        defaults: {},
+      }),
+    );
   }
 
-  readAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
+  readAdvanced<
+    TData extends Partial<T> | never = never,
+    TSelect extends Projection = Projection,
+    TInc extends CorrelatedIncludeInput | readonly CorrelatedIncludeInput[] | undefined =
+      | CorrelatedIncludeInput
+      | readonly CorrelatedIncludeInput[]
+      | undefined,
+  >(
     identifier: string,
+    args?: ReadAdvancedArgs<TSelect> & { include?: TInc },
+    options?: ReadAdvancedOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ModelResponse<T, WithCorrelatedOutputs<ResolvedSelectedShape<T, TSelect, TData>, TInc>>> &
+    IncludableRead;
+  // ACI-04: TData is unused on the descriptor overload (descriptors carry no
+  // response type) but is kept for explicit-generic call parity with the
+  // executable overload.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  readAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
+    identifier: ParentRef,
     args?: ReadAdvancedArgs<TSelect>,
     options?: ReadAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ): ModelRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
+  ): CorrelatedReadDescriptor;
+  readAdvanced<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
+    identifier: string | ParentRef,
+    args?: ReadAdvancedArgs<TSelect>,
+    options?: ReadAdvancedOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): unknown {
+    // ACI-04: identifier reference positions select the descriptor overload.
+    if (scanIdForRefs(identifier, 'readAdvanced')) {
+      assertNoTransportConfig(axiosRequestConfig, 'readAdvanced');
+      if (args?.include != null) validateIncludeEntries(args.include, 'readAdvanced');
+      return createCorrelatedDescriptor(
+        captureCorrelatedSource({
+          method: 'readAdvanced',
+          model: this._modelName,
+          op: 'read',
+          basic: false,
+          kind: 'id',
+          id: identifier,
+          callArgs: args,
+          callOptions: options,
+          defaults: {
+            select: this._defaults.readAdvancedArgs.select,
+            sort: this._defaults.readAdvancedArgs.sort,
+            include: this._defaults.readAdvancedArgs.include,
+          },
+        }),
+      );
+    }
+    if (args?.include != null) validateIncludeEntries(args.include, 'readAdvanced');
     const populate = args?.populate ?? cloneServiceDefaultValue(this._defaults.readAdvancedArgs.populate);
     const include = args?.include ?? cloneServiceDefaultValue(this._defaults.readAdvancedArgs.include);
     const tasks = args?.tasks ?? cloneServiceDefaultValue(this._defaults.readAdvancedArgs.tasks);
@@ -832,7 +1092,7 @@ export class ModelService<
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
-    return makeRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(
+    const readAdvancedReq = makeRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(
       () =>
         this._axios
           .post(
@@ -881,14 +1141,79 @@ export class ModelService<
         __service: this,
       },
     );
+    return attachIncludable(
+      readAdvancedReq,
+      captureCorrelatedSource({
+        method: 'readAdvanced',
+        model: this._modelName,
+        op: 'read',
+        basic: false,
+        kind: 'id',
+        id: identifier,
+        callArgs: args,
+        callOptions: options,
+        defaults: {
+          select: this._defaults.readAdvancedArgs.select,
+          sort: this._defaults.readAdvancedArgs.sort,
+          include: this._defaults.readAdvancedArgs.include,
+        },
+      }),
+    );
   }
 
-  readAdvancedFilter<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
+  readAdvancedFilter<
+    TData extends Partial<T> | never = never,
+    TSelect extends Projection = Projection,
+    TInc extends CorrelatedIncludeInput | readonly CorrelatedIncludeInput[] | undefined =
+      | CorrelatedIncludeInput
+      | readonly CorrelatedIncludeInput[]
+      | undefined,
+  >(
     filter: FilterQuery<T>,
+    args?: ReadAdvancedArgs<TSelect> & { include?: TInc },
+    options?: ReadAdvancedOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): ModelRequest<ModelResponse<T, WithCorrelatedOutputs<ResolvedSelectedShape<T, TSelect, TData>, TInc>>> &
+    IncludableRead;
+  // ACI-04: TData is unused on the descriptor overload (descriptors carry no
+  // response type) but is kept for explicit-generic call parity with the
+  // executable overload.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  readAdvancedFilter<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
+    filter: CorrelatedFilterQuery<T>,
     args?: ReadAdvancedArgs<TSelect>,
     options?: ReadAdvancedOptions,
     axiosRequestConfig?: RequestConfig,
-  ): ModelRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>> {
+  ): CorrelatedReadDescriptor;
+  readAdvancedFilter<TData extends Partial<T> | never = never, TSelect extends Projection = Projection>(
+    filter: FilterQuery<T> | CorrelatedFilterQuery<T>,
+    args?: ReadAdvancedArgs<TSelect>,
+    options?: ReadAdvancedOptions,
+    axiosRequestConfig?: RequestConfig,
+  ): unknown {
+    // ACI-04: scan reference positions at call time (see listAdvanced).
+    const readFilterHasRefs = scanFilterForRefs(filter, 'readAdvancedFilter');
+    if (args?.include != null) validateIncludeEntries(args.include, 'readAdvancedFilter');
+    if (readFilterHasRefs) {
+      assertNoTransportConfig(axiosRequestConfig, 'readAdvancedFilter');
+      return createCorrelatedDescriptor(
+        captureCorrelatedSource({
+          method: 'readAdvancedFilter',
+          model: this._modelName,
+          op: 'read',
+          basic: false,
+          kind: 'filter',
+          filter,
+          callArgs: args,
+          callOptions: options,
+          defaults: {
+            select: this._defaults.readAdvancedArgs.select,
+            sort: this._defaults.readAdvancedArgs.sort,
+            include: this._defaults.readAdvancedArgs.include,
+          },
+        }),
+      );
+    }
     const sort = args?.sort ?? cloneServiceDefaultValue(this._defaults.readAdvancedArgs.sort);
     const populate = args?.populate ?? cloneServiceDefaultValue(this._defaults.readAdvancedArgs.populate);
     const include = args?.include ?? cloneServiceDefaultValue(this._defaults.readAdvancedArgs.include);
@@ -909,8 +1234,8 @@ export class ModelService<
     const { throwOnError, ...reqConfig } = axiosRequestConfig ?? {};
     reqConfig.headers = this.updateHeaders(reqConfig.headers, { ignoreCache });
 
-    const _filter = replaceSubQuery<T>(filter);
-    return makeRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(
+    const _filter = replaceSubQuery<T>(filter as FilterQuery<T>);
+    const readFilterReq = makeRequest<ModelResponse<T, ResolvedSelectedShape<T, TSelect, TData>>>(
       () =>
         this._axios
           .post(
@@ -961,6 +1286,24 @@ export class ModelService<
         __requestConfig: reqConfig,
         __service: this,
       },
+    );
+    return attachIncludable(
+      readFilterReq,
+      captureCorrelatedSource({
+        method: 'readAdvancedFilter',
+        model: this._modelName,
+        op: 'read',
+        basic: false,
+        kind: 'filter',
+        filter,
+        callArgs: args,
+        callOptions: options,
+        defaults: {
+          select: this._defaults.readAdvancedArgs.select,
+          sort: this._defaults.readAdvancedArgs.sort,
+          include: this._defaults.readAdvancedArgs.include,
+        },
+      }),
     );
   }
 
