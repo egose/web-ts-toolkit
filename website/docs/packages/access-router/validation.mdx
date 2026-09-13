@@ -21,6 +21,33 @@ Naming conventions:
 - advanced body payloads use camelCase
 - advanced body payloads use `filter` and `select`
 
+## Include Validation (Legacy And Correlated)
+
+`include` entries are validated by the shared `includeItemSchema`, reused
+identically by direct model routes and grouped root entries, so both paths
+return the same verdicts. Two variants are accepted:
+
+- **Legacy** (`mode` absent or `'legacy'`): requires
+  `localField`/`foreignField` as before; behavior is unchanged.
+- **Correlated** (`mode: 'correlated'`): requires `model`, `op`
+  (`'read'`/`'list'`/`'count'`), and an explicit output `path`; exactly one
+  of `id` (identifier reads) or `filter` (filter reads, lists, counts) must
+  be present. `localField`/`foreignField` must be absent. Args are
+  allowlisted per operation (reads `{ select, sort, include }`; lists add
+  `{ skip, limit, page, pageSize }`; counts take no args) and wire `options`
+  must be absent or `{}`. A legacy-shaped entry carrying `$parent` markers
+  is `BadRequest` — never silently reinterpreted.
+
+Marker rules enforced at validation: `{ "$parent": "<field>" }` (exactly
+one own key, non-empty string value, dotted paths allowed except
+`__proto__`/`prototype`/`constructor` segments) only in supported filter
+value positions; `{ "$escape": { "$parent": "<field>" } }` matches the
+literal object. Markers in `$$sq`/`$$date` subtrees, as object keys, in root
+`$text`/`$where`/`$comment`, in `populate.match`, or in `sort`/`select` are
+`BadRequest`. Output `path` must be a non-empty valid field path (not
+`_id`, no `$` prefix); duplicate correlated paths in one include array are
+rejected. Direct count bodies reject `include` entirely.
+
 ## Request Schemas
 
 Model routers support `requestSchemas` for stricter application-level validation.

@@ -13,6 +13,7 @@ import { normalizeGroupedRequestConfig } from './services/cache-utils';
 import { applyGroupCallbacks, finalizeRootEntry, finalizeRootTransportFailure } from './services/shared';
 import { ADAPTER_ID_KEY } from './services/symbols';
 import { claimLazyRequest, releaseLazyRequestClaim } from './lazy-promise';
+import { CorrelatedIncludeError, isCorrelatedIncludeDescriptor } from './correlated-brand';
 
 const defaultAxiosConfig = Object.freeze({
   baseURL: '/api',
@@ -370,6 +371,15 @@ export function createAdapter(axiosConfig?: AxiosRequestConfig, adapterOptions?:
       let sharedConfigKey: string | undefined;
       let groupThrowOnError: boolean | undefined;
       const defs = proms.map((prom, index) => {
+        // ACI-04: reference-bearing descriptors carry no executor and no
+        // transport — they cannot be grouped or awaited into execution.
+        // Convert with `$include(path)` and embed the payload in an outer
+        // request instead. Brand-checked before any network activity.
+        if (isCorrelatedIncludeDescriptor(prom)) {
+          throw new CorrelatedIncludeError(
+            'Cannot group a correlated include descriptor; call $include(path) on it and embed the converted payload in an outer request instead',
+          );
+        }
         // ARC-09: reject foreign-adapter requests. The adapter's per-instance
         // identity token is stamped non-enumerably on the service; a request
         // whose owning service was constructed by a different adapter cannot

@@ -202,6 +202,79 @@ Advanced read/list requests can attach related model data with `include` entries
 `op: 'count'` returns exact authorized counts and ignores include pagination fields such as `args.limit`.
 `op: 'list'` materializes authorized related rows through the target model's normal list path, so target `limit`, `page`, `pageSize`, and `listHardLimit` bounds still apply to included rows.
 
+## Correlated Includes
+
+Besides the legacy `localField`/`foreignField` joins, `include` entries accept
+a correlated variant (`mode: 'correlated'`) that runs a target query **per
+parent document** using values from that parent. References are explicit
+structural markers — `{ "$parent": "<field>" }`, dotted paths allowed —
+recognized only in filter _value_ positions (bare values, field operators
+such as `$eq`/`$in`, `$in` array elements, `$and`/`$or`/`$nor` clauses,
+`$elemMatch` subtrees) and as the whole `id` of identifier reads. Plain
+strings are never references: `'$special'` keeps its literal query meaning.
+Match a literal `{ "$parent": "x" }` object with
+`{ "$escape": { "$parent": "x" } }` (use the `$eq`-wrapped form when the
+literal sits in a bare field position).
+
+Wire shapes (the originating method fixes `op`; there is no override):
+
+```json
+{ "mode": "correlated", "model": "Org", "op": "read", "path": "org", "id": { "$parent": "orgId" } }
+{ "mode": "correlated", "model": "Org", "op": "read", "path": "org",
+  "filter": { "_id": { "$parent": "orgId" }, "active": true }, "args": { "select": ["name"] } }
+{ "mode": "correlated", "model": "Post", "op": "list", "path": "posts",
+  "filter": { "authorId": { "$parent": "_id" }, "title": "$special" },
+  "args": { "select": ["title"], "sort": { "createdAt": -1 }, "limit": 5 } }
+{ "mode": "correlated", "model": "Post", "op": "count", "path": "postCount",
+  "filter": { "authorId": { "$parent": "_id" } } }
+```
+
+Semantics:
+
+- References resolve against the **immediate parent** document as fetched
+  from persistence (including internally loaded reference fields), before
+  include attachment, `decorate` hooks, and task mutation. Nested
+  `args.include` entries bind to the target doc of the enclosing include.
+  Sibling include output never feeds references.
+- A missing (`undefined`) or `null` reference short-circuits that parent's
+  execution to the no-match shape with no target query: `read` attaches
+  `null`, `list` attaches `[]`, `count` attaches `0`. Target misses produce
+  the same shapes. The output path is always set.
+- Identifier reads use the target's configured identifier behavior
+  (`resolveIdentifierFilter`/`genIDFilter`, custom `resolveIdFilter`
+  honored) with no read-to-list fallback. Counts use explicit count access
+  with count semantics, independent of any list limit. List pagination
+  (`skip`/`limit`/`page`/`pageSize`) applies **per parent** — contrast with
+  legacy batched list includes, whose pagination applies across the parent
+  set. Substituted parent values are data: objects match literally (never
+  become operators) and arrays are never flattened.
+- Each correlated entry counts toward `maxIncludeCount`; expanded filters
+  are revalidated against `maxNodes`/`maxDepth`/`maxInValues`/
+  `maxLogicalClauses`. Total inner executions per request are bounded by
+  `maxCorrelatedQueries` (default `100`) and nesting by
+  `maxCorrelatedDepth` (default `5`); exceeding any bound fails the whole
+  request. Fan-out shares the request-scoped scheduler (no per-parent
+  reset). Target authorization denials fail the whole request with zero
+  target persistence queries; target runtime errors fail the whole request.
+  `path` must be a non-empty valid field path (not `_id`, not `$`-prefixed);
+  duplicates in one include array are `BadRequest`; collisions with parent
+  fields overwrite (legacy `setDocValue` parity).
+- Referenced parent fields are added to the parent DB select like legacy
+  `localField`s, then trimmed unless allowed by field policy and selected.
+  A policy-forbidden reference still resolves — only its query effects are
+  visible, never the value.
+- Direct count parents carry no `include`; correlated _count_ includes
+  attach to read/list parents only. Correlated entries are accepted in both
+  direct (`model-router.ts`) and root (`root-router.ts`) validators with
+  identical verdicts; malformed correlated input is a controlled
+  `BadRequest`, never a silent drop. Legacy entries are unchanged, and
+  legacy-shaped entries carrying `$parent` markers are rejected.
+
+The TypeScript wire types (`ParentRef`, `CorrelatedInclude`, `Include`) are
+reachable without deep imports via `@web-ts-toolkit/access-router/advanced`
+(which re-exports `./interfaces`). See the website `services`,
+`configuration`, `validation`, and `openapi` pages for the full contract.
+
 ## Import styles
 
 The package ships both a default export and named exports:

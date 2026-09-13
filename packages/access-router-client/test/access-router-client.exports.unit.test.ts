@@ -54,6 +54,11 @@ const EXPECTED_RUNTIME_EXPORTS = [
   // consumers that manipulate `Model<T>[]` directly.
   'replaceItemById',
   'removeItemById',
+  // ACI-04: explicit parent-field references for correlated includes.
+  'parentField',
+  // ACI-04: controlled error for descriptor/conversion misuse (call-time
+  // scans, `$include()` validation, grouping brand-checks).
+  'CorrelatedIncludeError',
 ] as const;
 
 // Compile-time sentinel: the listed runtime exports are the
@@ -318,6 +323,52 @@ describe('access-router-client public export contract (ARC-17)', () => {
       void ({} as _ResponseCallback);
       void ({} as _AdditionalReqConfig);
       void ({} as _Document);
+    });
+
+    it('exports the ACI-04 correlated-include primitives', () => {
+      type _ParentRef = import('../src').ParentRef;
+      type _CorrelatedInclude = import('../src').CorrelatedInclude<'org', { name: string }, 'read'>;
+      type _CorrelatedIncludeArgs = import('../src').CorrelatedIncludeArgs;
+      type _CorrelatedIncludeInput = import('../src').CorrelatedIncludeInput;
+      type _CorrelatedIncludeOp = import('../src').CorrelatedIncludeOp;
+      type _CorrelatedFilterQuery = import('../src').CorrelatedFilterQuery<{ name: string }>;
+      type _CorrelatedQuerySelector = import('../src').CorrelatedQuerySelector<string>;
+      type _EscapeLiteral = import('../src').EscapeLiteral;
+      type _SupplementalIncludeOptions = import('../src').SupplementalIncludeOptions<{ name: string }>;
+      type _WithCorrelatedOutputs = import('../src').WithCorrelatedOutputs<{ a: number }, []>;
+      type _IncludableRead = import('../src').IncludableRead;
+      type _IncludableList = import('../src').IncludableList;
+      type _IncludableCount = import('../src').IncludableCount;
+      type _IncludableBasicList = import('../src').IncludableBasicList<{ name: string }>;
+      type _IncludableBasicCount = import('../src').IncludableBasicCount<{ name: string }>;
+      type _CorrelatedReadDescriptor = import('../src').CorrelatedReadDescriptor;
+      type _CorrelatedListDescriptor = import('../src').CorrelatedListDescriptor;
+      type _CorrelatedCountDescriptor = import('../src').CorrelatedCountDescriptor;
+      const ref: _ParentRef = { $parent: '_id' };
+      const wire: _CorrelatedInclude = {
+        mode: 'correlated',
+        model: 'Org',
+        op: 'read',
+        path: 'org',
+        id: ref,
+      };
+      expect(wire.mode).toBe('correlated');
+      void ({} as _CorrelatedIncludeArgs);
+      void ({} as _CorrelatedIncludeInput);
+      void ({} as _CorrelatedIncludeOp);
+      void ({} as _CorrelatedFilterQuery);
+      void ({} as _CorrelatedQuerySelector);
+      void ({} as _EscapeLiteral);
+      void ({} as _SupplementalIncludeOptions);
+      void ({} as _WithCorrelatedOutputs);
+      void ({} as _IncludableRead);
+      void ({} as _IncludableList);
+      void ({} as _IncludableCount);
+      void ({} as _IncludableBasicList);
+      void ({} as _IncludableBasicCount);
+      void ({} as _CorrelatedReadDescriptor);
+      void ({} as _CorrelatedListDescriptor);
+      void ({} as _CorrelatedCountDescriptor);
     });
   });
 

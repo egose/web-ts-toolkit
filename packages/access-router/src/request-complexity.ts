@@ -11,6 +11,8 @@ export interface RequestComplexityOptions {
   maxSubQueryCount?: number;
   maxBulkConcurrency?: number;
   maxHookConcurrency?: number;
+  maxCorrelatedQueries?: number;
+  maxCorrelatedDepth?: number;
 }
 
 export const defaultRequestComplexity: Required<RequestComplexityOptions> = {
@@ -23,6 +25,8 @@ export const defaultRequestComplexity: Required<RequestComplexityOptions> = {
   maxSubQueryCount: 10,
   maxBulkConcurrency: 10,
   maxHookConcurrency: 10,
+  maxCorrelatedQueries: 100,
+  maxCorrelatedDepth: 5,
 };
 
 type ComplexityScope = 'request' | 'filter';
@@ -48,6 +52,14 @@ export const resolveRequestComplexity = (
   maxHookConcurrency: normalizePositiveInteger(
     options?.maxHookConcurrency,
     defaultRequestComplexity.maxHookConcurrency,
+  ),
+  maxCorrelatedQueries: normalizePositiveInteger(
+    options?.maxCorrelatedQueries,
+    defaultRequestComplexity.maxCorrelatedQueries,
+  ),
+  maxCorrelatedDepth: normalizePositiveInteger(
+    options?.maxCorrelatedDepth,
+    defaultRequestComplexity.maxCorrelatedDepth,
   ),
 });
 

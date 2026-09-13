@@ -12,6 +12,7 @@ const assert = require('node:assert');
 const arc = require('@web-ts-toolkit/access-router-client');
 
 const expected = [
+  'CorrelatedIncludeError',
   'CustomHeaders',
   'DataService',
   'MissingPersistenceIdentityError',
@@ -20,6 +21,7 @@ const expected = [
   'Service',
   'ServiceError',
   'createAdapter',
+  'parentField',
   'removeItemById',
   'replaceItemById',
   'wrapLazyPromise',
@@ -45,6 +47,19 @@ assert.strictEqual(
   new arc.MissingPersistenceIdentityError('boom').name,
   'MissingPersistenceIdentityError',
   'MissingPersistenceIdentityError sets its name',
+);
+// ACI-04: correlated-include helpers are public runtime exports.
+assert.strictEqual(typeof arc.parentField, 'function', 'parentField is a function');
+assert.deepStrictEqual(
+  arc.parentField('orgId'),
+  { $parent: 'orgId' },
+  'parentField builds the structural marker',
+);
+assert.ok(arc.CorrelatedIncludeError.prototype instanceof Error, 'CorrelatedIncludeError extends Error');
+assert.strictEqual(
+  new arc.CorrelatedIncludeError('boom').name,
+  'CorrelatedIncludeError',
+  'CorrelatedIncludeError sets its name',
 );
 
 const adapter = arc.createAdapter({ baseURL: 'http://localhost:3000/api' });

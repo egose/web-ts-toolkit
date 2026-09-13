@@ -161,6 +161,44 @@ That is most useful when:
 - you intentionally want to hide part of the selected type at the call site
 - you are bridging older code that expects a custom shape
 
+## Correlated Include Output Typing
+
+`$include(path)` carries an explicit result generic defaulting to `unknown`,
+and the outer awaited type gains the output path via `WithCorrelatedOutputs`.
+Because TypeScript has no partial type-argument inference, the generic order
+is path-first: write `.$include<'org', Org>('org')` so the literal path is
+preserved in both the untyped (`$include('org')`) and explicitly typed forms.
+A lone result generic in first position is rejected by the `string`
+constraint instead of silently dropping the merge.
+
+What the types promise — and what they do not:
+
+- reads contribute `Out | null` (no guaranteed match is typed), lists
+  contribute `Out[]`, counts contribute `number`
+- inner values are plain: never `Model`-wrapped, matching the legacy
+  `lean: true` payloads that travel over the wire
+- nothing is inferred from partial projections: selecting `['name']` does
+  not narrow `Out`, and no parent-path validation without a parent type is
+  claimed
+- legacy `Include` entries and wide (non-literal) paths contribute nothing,
+  so outer types without correlated payloads are exactly their previous
+  shape
+
+Reference positions accept `ParentRef` markers in bare field values, field
+operators (`$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`,
+`$regex`, `$options`, nested `$not`), `$in`/`$nin` elements and whole
+values, and inside `$and`/`$or`/`$nor` and `$elemMatch` subtrees — via the
+`CorrelatedFilterQuery` / `CorrelatedQuerySelector` types. Strict
+`FilterQuery` shapes reject every reference form at compile time (with a
+`$parent?: never` guard), while the correlated overloads admit them; the
+runtime scan enforces the same boundary for unchecked JavaScript callers.
+Bare array elements, `$exists`/`$type`/`$mod`, `$regex` on non-strings, and
+bare markers as whole `$and` clauses or whole filters stay type-rejected
+(the server verdict remains authoritative at runtime). `{ $escape: ... }`
+literals are data, so escape-only filters stay executable. Existing `$$sq`
+subquery values and the `ServerSideCast` / `DottedPathFilter` escape hatches
+keep working alongside markers.
+
 ## Important Response Types
 
 Common exported types include:

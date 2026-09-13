@@ -139,6 +139,104 @@ This works because the client replaces embedded lazy requests with the special `
 
 That gives you a way to express server-side dependent queries without manually constructing the low-level root-router payload.
 
+## Correlated Includes
+
+A correlated include runs a target query **per parent document** using values
+from that parent. Build the inner query with the familiar service methods,
+reference parent fields explicitly with `parentField()`, and attach the
+result with `$include(path)`:
+
+```ts
+import { parentField } from '@web-ts-toolkit/access-router-client';
+
+const userWithIncludes = await userService.readAdvanced('user-id-1', {
+  include: [
+    orgService
+      .readAdvanced(parentField('orgId'), { select: ['name', 'description'] })
+      .$include('org'),
+    postService
+      .listAdvanced(
+        { authorId: parentField('_id'), reviewerId: parentField('managerId'), title: '$special' },
+        { select: ['title'], sort: { createdAt: -1 }, limit: 5 },
+      )
+      .$include('posts'),
+    postService.countAdvanced({ authorId: parentField('_id') }).$include('postCount'),
+  ],
+});
+void userWithIncludes;
+```
+
+All seven builders compose this way:
+
+| Method | Reference position | Inner operation |
+| --- | --- | --- |
+| `read(id)` | identifier argument | `read` |
+| `readAdvanced(id, args)` | identifier argument | `read` |
+| `readAdvancedFilter(filter, args)` | filter argument | `read` |
+| `list(args)` + `$include(path, { filter })` | supplemental filter | `list` |
+| `listAdvanced(filter, args)` | filter argument | `list` |
+| `count()` + `$include(path, { filter })` | supplemental filter | `count` |
+| `countAdvanced(filter)` | filter argument | `count` |
+
+```ts
+const basicPosts = postService.list({ limit: 5 }).$include('posts', {
+  filter: { authorId: parentField('_id') },
+});
+void basicPosts;
+```
+
+Reference scope and result-shape notes:
+
+- References resolve against the **immediate parent** document on the outer
+  server. Nested includes inside `args.include` bind to the target doc of
+  the enclosing include, never to the outer parent.
+- Plain strings are never references: `title: '$special'` keeps its literal
+  query meaning. Match a literal `{ $parent: 'x' }` object with
+  `{ $escape: { $parent: 'x' } }` (use the `$eq`-wrapped form when the
+  literal sits in a bare field position).
+- Reads attach the doc or `null`, lists attach arrays, counts attach
+  numbers. A missing or `null` reference skips the target query and attaches
+  the same no-match shape (`null` / `[]` / `0`).
+- Identifier reads preserve the target's configured identifier behavior
+  (custom id fields included). Lists apply `limit`/`page` per parent
+  (contrast with legacy `localField`/`foreignField` includes, whose batch
+  pagination applies across the whole parent set); counts use count
+  semantics, never a capped list count.
+- Conversion is synchronous and performs zero HTTP calls. A call carrying
+  references returns a frozen, non-thenable descriptor — it cannot be
+  awaited into data or grouped; convert it with `$include()` first.
+  Reference-free calls keep their ordinary lazy/grouped behavior.
+- Descriptors are transport-inert: the inner query always executes on the
+  **outer** server under the outer request context. Mixing adapters in one
+  include tree is allowed at build time and never dispatches to the inner
+  service's transport.
+- Supported inner args are allowlisted per operation: reads forward
+  `select`/`sort`/`include`, lists additionally forward per-parent
+  pagination (`skip`/`limit`/`page`/`pageSize`), basic `read`/`count` carry
+  no args. Explicit `populate`, `tasks`, execution-only options (`skim`,
+  `includePermissions`, `includeCount`, `tryList`, `populateAccess`,
+  `ignoreCache`, `includeExtraHeaders`, `sq`), or transport config on a
+  reference-bearing call throws at `$include()`; the same keys inherited
+  from service/adapter defaults are silently dropped. `options` on the wire
+  entry must stay empty.
+- Referenced parent fields are loaded internally for resolution even when
+  omitted from `select`, then trimmed from output unless selected (or
+  override-selected). A policy-forbidden reference still resolves — only its
+  query effects are visible, never the value itself. Sibling include output
+  and `decorate`/task output never feed references (stable pre-include
+  snapshot).
+- Execution is bounded per request (`maxCorrelatedQueries` total inner
+  executions, `maxCorrelatedDepth` nesting depth); exceeding either fails the
+  whole request. Target authorization denials and runtime errors fail the
+  whole parent request — partial per-parent error shapes are never attached.
+- Typed output needs an explicit result generic with the path first:
+  `.$include<'org', Org>('org')`. Without it the path is still attached but
+  typed `unknown`; nothing is inferred from partial projections, reads admit
+  `null`, and nested values stay plain (never `Model`-wrapped).
+- Requires a server with correlated-include support. Older servers silently
+  drop the new entries instead of executing them — check the server release
+  notes for the minimum version.
+
 ## Subdocument Helpers
 
 `ModelService<T>` also exposes subdocument helpers from `id(id)`:

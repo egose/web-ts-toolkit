@@ -29,6 +29,7 @@
 //   through `ServerSideCast<T>` for a feature the runtime already supports.
 
 import type { LazyRequest } from '../types';
+import type { ParentRef } from '../types';
 
 export type AnyArray<T> = T[] | ReadonlyArray<T>;
 
@@ -55,7 +56,7 @@ export type ApplyBasicQueryCasting<T> =
 
 type QueryOperatorOperand<T> = T extends AnyArray<unknown> ? Unpacked<T> : T;
 
-type Condition<T> = ApplyBasicQueryCasting<T> | QuerySelector<T> | LazyRequest<unknown>;
+type Condition<T> = ApplyBasicQueryCasting<T> | QuerySelector<T> | LazyRequest<unknown> | EscapeLiteral;
 
 export type _FilterQuery<T> = {
   [P in keyof T]?: Condition<T[P]>;
@@ -79,6 +80,15 @@ type RootQuerySelector<T> = {
   $where?: string | ((...args: never[]) => unknown);
   /** @see https://www.mongodb.com/docs/manual/reference/operator/query/comment/#op._S_comment */
   $comment?: string;
+  /**
+   * ACI-04: structural guard so a `ParentRef` marker (`{ $parent: path }`)
+   * cannot silently satisfy the all-optional `QuerySelector<T>`/root shape.
+   * Without this, a reference-bearing filter would match the strict
+   * `FilterQuery<T>` overload and mistype a descriptor as executable.
+   * `$parent` as an object *key* is never a marker (ACI-01 D2.3); this only
+   * blocks marker *values* from leaking into the strict surface.
+   */
+  $parent?: never;
 };
 
 type QuerySelector<T> = {
@@ -106,6 +116,12 @@ type QuerySelector<T> = {
   $mod?: QueryOperatorOperand<T> extends number ? [number, number] : never;
   $regex?: QueryOperatorOperand<T> extends string ? RegExp | string : never;
   $options?: QueryOperatorOperand<T> extends string ? string : never;
+  /**
+   * ACI-04: same structural guard as the root selector (see above). Blocks
+   * marker values from satisfying strict field-operator bags so overloads
+   * discriminate reference-bearing filters at compile time.
+   */
+  $parent?: never;
 };
 
 /**
@@ -135,3 +151,99 @@ export type DottedPathFilter<T> = _FilterQuery<T> & {
  * it is purely a deliberate compile-time opt-out.
  */
 export type ServerSideCast<T> = DottedPathFilter<T>;
+
+// ---------------------------------------------------------------------------
+// ACI-04: correlated-include filter surface.
+// ---------------------------------------------------------------------------
+
+/**
+ * Literal-object escape for the correlated-include marker shape (ACI-01
+ * D2.2): `{ $escape: { $parent: '<field>' } }` matches the literal object
+ * `{ $parent: '<field>' }` against target data and is never interpreted as a
+ * parent reference. Admitted in both the strict and the correlated filter
+ * surface because an escape is data, not a reference: admitting it in the
+ * strict surface keeps escape-only filters on the executable overload so the
+ * static type agrees with the runtime (escapes never create descriptors).
+ */
+export interface EscapeLiteral {
+  readonly $escape: ParentRef;
+}
+
+type CorrelatedCondition<T> =
+  | ApplyBasicQueryCasting<T>
+  | ParentRef
+  | CorrelatedQuerySelector<T>
+  | LazyRequest<unknown>
+  | EscapeLiteral;
+
+/**
+ * Field-operator bag mirroring `QuerySelector<T>` with `ParentRef` admitted
+ * exactly in the ACI-01 D3.1 value positions: comparison operators, `$in` /
+ * `$nin` elements, `$regex` / `$options` (string fields only — the reference
+ * stays inside the string-conditional branch so `$regex` on a numeric field
+ * still fails to compile), and nested `$not` selectors. Flags that take no
+ * value reference (`$exists`, `$type`, `$mod`) stay strict, as do bare array
+ * elements (only `$in` / `$nin` arrays admit reference elements per D3.1).
+ */
+export type CorrelatedQuerySelector<T> = {
+  // Comparison
+  $eq?: ApplyBasicQueryCasting<T> | ParentRef;
+  $gt?: QueryOperatorOperand<T> | ParentRef;
+  $gte?: QueryOperatorOperand<T> | ParentRef;
+  $in?: Array<QueryOperatorOperand<T> | ParentRef> | ParentRef;
+  $lt?: QueryOperatorOperand<T> | ParentRef;
+  $lte?: QueryOperatorOperand<T> | ParentRef;
+  $ne?: ApplyBasicQueryCasting<T> | ParentRef;
+  $nin?: Array<QueryOperatorOperand<T> | ParentRef> | ParentRef;
+  // Logical
+  $not?: QueryOperatorOperand<T> extends string ? CorrelatedQuerySelector<T> | RegExp : CorrelatedQuerySelector<T>;
+  // Element
+  $exists?: boolean;
+  $type?: string | number;
+  // Evaluation
+  $expr?: unknown;
+  $jsonSchema?: unknown;
+  $mod?: QueryOperatorOperand<T> extends number ? [number, number] : never;
+  $regex?: QueryOperatorOperand<T> extends string ? RegExp | string | ParentRef : never;
+  $options?: QueryOperatorOperand<T> extends string ? string | ParentRef : never;
+  // Structural guard (see `QuerySelector`): a marker value must not satisfy
+  // the operator bag, and `$parent` mixed with operators is malformed.
+  $parent?: never;
+};
+
+type CorrelatedRootQuerySelector<T> = {
+  $and?: Array<CorrelatedFilterQuery<T>>;
+  $nor?: Array<CorrelatedFilterQuery<T>>;
+  $or?: Array<CorrelatedFilterQuery<T>>;
+  $text?: {
+    $search: string;
+    $language?: string;
+    $caseSensitive?: boolean;
+    $diacriticSensitive?: boolean;
+  };
+  $where?: string | ((...args: never[]) => unknown);
+  $comment?: string;
+  /**
+   * Structural guard: a bare `ParentRef` must not satisfy a filter clause,
+   * so `{ $and: [parentField('x')] }` (a server-side `BadRequest` per
+   * ACI-01 D3.1/ACI-02) fails to compile instead of mistyping.
+   */
+  $parent?: never;
+};
+
+/**
+ * Filter surface for the seven correlated-include-capable methods
+ * (ACI-04). A strict `FilterQuery<T>` value is always assignable here, and
+ * additionally `ParentRef` markers are admitted in bare field positions and
+ * the supported operator positions above. Passing a value containing a live
+ * marker selects the descriptor overload at compile time; the runtime scan
+ * enforces the same boundary for unchecked JavaScript callers.
+ *
+ * Existing `$$sq` (embedded `LazyRequest`) and typed-filter (`DottedPathFilter`
+ * / `ServerSideCast`) escape hatches keep working: subquery values are still
+ * admitted and are rewritten to `$$sq` payloads at `$include()` conversion
+ * time while markers pass through untouched.
+ */
+export type CorrelatedFilterQuery<T> = {
+  [P in keyof T]?: CorrelatedCondition<T[P]>;
+} & CorrelatedRootQuerySelector<T>;

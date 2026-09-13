@@ -121,6 +121,13 @@ Operation-specific fields are kept at the top level:
 - `args` for selection, populate, paging, and task inputs
 - `options` for behavior switches such as permissions and counts
 
+Root entries accept the same `include` shapes as direct routes: legacy
+`localField`/`foreignField` joins and correlated entries
+(`mode: 'correlated'` with `{ "$parent": "<field>" }` markers resolved per
+parent against the immediate parent snapshot). Direct and root validators
+share one schema, so verdicts agree; malformed correlated input is a
+controlled `BadRequest`.
+
 The response wraps each operation as:
 
 ```ts
