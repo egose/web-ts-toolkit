@@ -1,7 +1,11 @@
 # BDECO-10 Evidence Report: Module Mount Paths Versus OpenAPI Paths
 
 Parent task: `docs/tasks/20260907-121236-access-router-deco-boundary-review.md` (Task BDECO-10, investigation).
-Status of BDECO-10: investigation complete, implementation deferred to follow-up BDECO-10-F01 (pending maintainer approval).
+Status of BDECO-10: investigation complete. BDECO-10-F01: in_progress (2026-09-27 continuation).
+
+## Continuation decision (2026-09-27)
+
+The user approved module-prefix OpenAPI composition with migration documentation. Apply prefixes before collision checks, rather than mutating registered descriptors after construction. Preserve Express mounting and model `parentPath` values. Reject a model `parentPath` equal to or descending from the module mount with a migration-oriented error (segment-aware, so `/apiary` is not `/api`). Use OpenAPI `servers` for a reverse-proxy prefix that precedes the module mount. The older proposed equality formula below was incomplete: `module + parent + base` does not in general equal `proxy + module + base`; documentation must explain ordering explicitly.
 No source semantics were changed by this investigation. Live Express route matching is untouched
 (`packages/access-router-deco/src/factory.ts` not modified; BDECO-01 through BDECO-09 work preserved).
 

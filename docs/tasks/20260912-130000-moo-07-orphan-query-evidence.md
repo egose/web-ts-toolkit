@@ -1,7 +1,7 @@
 # MOO-07 Evidence: Orphan-Query Contract Investigation
 
 Created: 2026-09-12. Investigation only — no source changes. Probes were throwaway
-(`/tmp/opencode/moo-07-probe.mjs`, temp copies under `packages/moo/`, since removed);
+(`<repo-root>/_tmp/moo-07-probe.mjs`, temp copies under `packages/moo/`, since removed);
 no retained tests/fixtures were added, so per-task verification V2 is not triggered
 (nothing to regress; `git status` shows only this file plus the task-file edit).
 

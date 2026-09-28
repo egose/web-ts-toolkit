@@ -440,7 +440,7 @@ Verification:
 Completion evidence:
 
 - Changed: `packages/json-frame/tsconfig.json`, `tsconfig.base.json`
-- Verified: `pnpm install --frozen-lockfile`; `pnpm --filter @web-ts-toolkit/json-frame build`; `pnpm exec tsc --noEmit -p packages/json-frame/tsconfig.json`; `npm pack --dry-run --json` from `packages/json-frame/`; `pnpm exec tsc --noEmit -p /tmp/opencode/json-frame-ambient-check.tsconfig.json`
+- Verified: `pnpm install --frozen-lockfile`; `pnpm --filter @web-ts-toolkit/json-frame build`; `pnpm exec tsc --noEmit -p packages/json-frame/tsconfig.json`; `npm pack --dry-run --json` from `packages/json-frame/`; `pnpm exec tsc --noEmit -p <repo-root>/_tmp/json-frame-ambient-check.tsconfig.json`
 - Result: confirmed the existing scaffold already matched the single-entry package pattern for manifest, exports, build script, minimal README, and empty named-export-only entrypoint; added the root and wildcard `@web-ts-toolkit/json-frame` source aliases and removed Node ambient types from package source typechecking; build emitted `dist/index.js`, `dist/index.mjs`, `dist/index.d.ts`, and `dist/index.d.mts`; the ESM entry contained no internal relative imports; `npm pack --dry-run --json` packed only `package.json`, `README.md`, and `dist/*`; the ambient-type check failed on `process`, `Buffer`, and `document` as required
 - Follow-up: `JFRAME-02`
 

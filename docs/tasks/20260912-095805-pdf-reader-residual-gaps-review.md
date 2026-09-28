@@ -65,7 +65,7 @@ No full package test, fresh packed install, declaration-consumer run, benchmark 
 
 ## Shared Working And Verification Rules
 
-- Use repository-relative paths in task updates. Generic temporary directories such as `/tmp` are acceptable. Preserve unrelated worktree changes.
+- Use repository-relative paths in task updates. Temporary work must use ignored repository-local `_tmp*` directories with `TMPDIR=<repo-root>/_tmp-<topic>`. Preserve unrelated worktree changes.
 - Each agent sets its task `in_progress` only after dependencies complete, and appends changed files, command results, acceptance evidence, and follow-ups before setting `completed`. Use `blocked` with owner/prerequisite when required evidence cannot run; use `deferred` only with rationale and residual risk.
 - Keep behavioral regressions with fixes. Demonstrate pre-fix failure when feasible. Use deferred promises and observable browser events rather than elapsed-time guesses for lifecycle tests.
 - Source-policy failures must remain redacted. Preserve native PDF.js error identity on ordinary PDF.js failures and caller-local load abort/deadline isolation.
