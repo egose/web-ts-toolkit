@@ -12,6 +12,7 @@ import {
   reactPackage,
   rootPackageJson,
   run,
+  runConsumer,
   testVersion,
   unpackTarball,
   unpackTarballToDir,
@@ -81,7 +82,7 @@ describe('ARR-10 packed-package compatibility using the real release transformat
     expect(packedManifest.version).toBe(testVersion);
     expect(packedManifest.license).toBe(rootPackageJson.license);
     expect(rootPackageJson.engines).toEqual({ node: '>=20' });
-    expect(packedManifest.engines).toEqual({ node: '>=20' });
+    expect(packedManifest.engines).toEqual({ node: '>=22' });
     expect(packedManifest.repository).toEqual({
       ...rootPackageJson.repository,
       directory: 'packages/access-router-react',
@@ -183,19 +184,21 @@ describe('ARR-10 packed-package compatibility using the real release transformat
     copyConsumerSources(react19ConsumerDir);
 
     // React 19 runtime smoke against the installed artifact.
-    run('node', ['consumer.cjs'], react19ConsumerDir);
-    run('node', ['consumer.mjs'], react19ConsumerDir);
+    runConsumer(['consumer.cjs'], react19ConsumerDir);
+    runConsumer(['consumer.mjs'], react19ConsumerDir);
 
     // Strict NodeNext and Bundler typecheck against the installed package.
-    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext.json'], react19ConsumerDir);
-    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-bundler.json'], react19ConsumerDir);
+    runConsumer(['node_modules/typescript/bin/tsc', '-p', 'tsconfig-nodenext.json'], react19ConsumerDir);
+    runConsumer(['node_modules/typescript/bin/tsc', '-p', 'tsconfig-bundler.json'], react19ConsumerDir);
 
     const react18ConsumerDir = installPackedConsumer({ reactMajor: 18, includeRuntimeDeps: true });
     copyConsumerSources(react18ConsumerDir);
 
     // React 18 runs the same packed-hook smoke from its own isolated peer tree.
-    run('node', ['consumer.cjs'], react18ConsumerDir);
-    run('node', ['consumer.mjs'], react18ConsumerDir);
+    runConsumer(['consumer.cjs'], react18ConsumerDir);
+    runConsumer(['consumer.mjs'], react18ConsumerDir);
+    runConsumer(['node_modules/typescript/bin/tsc', '-p', 'tsconfig-nodenext.json'], react18ConsumerDir);
+    runConsumer(['node_modules/typescript/bin/tsc', '-p', 'tsconfig-bundler.json'], react18ConsumerDir);
 
     // Sanity: the installed consumer has a real
     // `@web-ts-toolkit/access-router-react` in its node_modules (no workspace

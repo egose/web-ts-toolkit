@@ -1,6 +1,7 @@
 export { PdfReaderError } from './errors';
 export type { PdfReaderErrorCode } from './errors';
 export { PDFReader } from './PDFReader';
+export { pdfTextToString } from './pdfTextToString';
 export { pdfUrlSource } from './source';
 export { configurePdfWorker } from './worker';
 export type { PdfUrlSource, PdfUrlSourceOptions } from './source';

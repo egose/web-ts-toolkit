@@ -140,6 +140,7 @@ export interface QueryOptions {
   skip?: number;
   projection?: Record<string, 0 | 1> | string;
   lean?: boolean;
+  /** Nontransactional update-then-insert; see UpdateOneOptions.upsert for race limitations. */
   upsert?: boolean;
   new?: boolean;
   returnDocument?: 'before' | 'after';
@@ -153,6 +154,14 @@ export interface InsertManyOptions {
 
 export interface UpdateOneOptions {
   sort?: QueryOptions['sort'];
+  /**
+   * Insert after no write-time match, including a selected record losing its
+   * predicate on retry. Update and insert are separate operations: concurrent
+   * generated IDs can duplicate business keys; the same explicit _id can throw
+   * a native insert conflict (no automatic retry-as-update). Stable IDs do not
+   * make conditional upserts transactional. Use upsert:false for state claims;
+   * serialize creation by business key across all application writers as needed.
+   */
   upsert?: boolean;
   runValidators?: boolean;
   setDefaultsOnInsert?: boolean;
@@ -180,8 +189,14 @@ export interface DeleteManyOptions {}
  */
 export interface FindOneAndUpdateOptions {
   sort?: QueryOptions['sort'];
+  /**
+   * Nontransactional update-then-insert, also after predicate loss on retry.
+   * Generated IDs can duplicate business keys; the same explicit _id can throw
+   * a native insert conflict. See UpdateOneOptions.upsert for application guidance.
+   */
   upsert?: boolean;
   new?: boolean;
+  /** Defaults to 'before' (null on insertion); 'after' returns the inserted/updated record. Overrides new. */
   returnDocument?: 'before' | 'after';
   runValidators?: boolean;
   setDefaultsOnInsert?: boolean;

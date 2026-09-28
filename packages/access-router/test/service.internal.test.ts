@@ -2,7 +2,8 @@ import mongoose from 'mongoose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ModelRequest } from '../src/interfaces/index.ts';
 import { RequestConcurrencyScheduler } from '../src/helpers/concurrency.ts';
-import type { ModelAdapter } from '../src/model.ts';
+import Model, { admitModelPersistence, type ModelAdapter } from '../src/model.ts';
+import { AccessRuntime } from '../src/runtime.ts';
 import { setGlobalOptions } from '../src/options/index.ts';
 import { Base } from '../src/services/base.ts';
 import { Service } from '../src/services/service.ts';
@@ -117,6 +118,89 @@ describe('access-router internals', () => {
       expect(result.data.get('u1')).toEqual(new Set(['p1', 'p2']));
       expect(result.data.get('u2')).toEqual(new Set(['p2']));
     }
+  });
+
+  it('casts a copy with the owning adapter synchronously even while its persistence permit is occupied', async () => {
+    const modelName = `AclServiceInternal${++modelCounter}`;
+    const runtime = new AccessRuntime();
+    const schema = new mongoose.Schema({
+      tenant: mongoose.Schema.Types.ObjectId,
+      keys: [{ type: String, lowercase: true }],
+    });
+    const middleware = vi.fn();
+    schema.pre('countDocuments', middleware);
+    runtime.registerModelInstance(modelName, mongoose.model(modelName, schema));
+    const raw = new Model(modelName, runtime);
+    const scheduler = new RequestConcurrencyScheduler(1);
+    const adapter = admitModelPersistence(raw, scheduler);
+    let release!: () => void;
+    const held = scheduler.work(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const filter = { $and: [{ tenant: 'ABCDEF'.repeat(4) }], keys: { $in: ['UPPER', 'upper'] } };
+    try {
+      const cast = adapter.castFilter!(filter);
+      expect(cast).toEqual({
+        $and: [{ tenant: new mongoose.Types.ObjectId('abcdef'.repeat(4)) }],
+        keys: { $in: ['upper', 'upper'] },
+      });
+      expect(filter).toEqual({ $and: [{ tenant: 'ABCDEF'.repeat(4) }], keys: { $in: ['UPPER', 'upper'] } });
+      expect(middleware).not.toHaveBeenCalled();
+    } finally {
+      release();
+      await held;
+    }
+  });
+
+  it('keeps adapter casting and aggregate seams with filter overrides and normalized parent aliases', async () => {
+    const modelName = `AclServiceInternal${++modelCounter}`;
+    const runtime = new AccessRuntime();
+    runtime.registerModelInstance(
+      modelName,
+      mongoose.model(
+        modelName,
+        new mongoose.Schema({
+          ownerId: [Number],
+          tenant: mongoose.Schema.Types.ObjectId,
+        }),
+      ),
+    );
+    const adapter = new Model(modelName, runtime);
+    const cast = vi.spyOn(adapter, 'castFilter');
+    const aggregate = vi.spyOn(adapter, 'aggregate').mockResolvedValue([
+      { _id: 1, documentIds: ['p1', 'p2'] },
+      { _id: 2, documentIds: ['p2'] },
+    ] as never);
+    const service = createAdapterService({ macl: {} } as ModelRequest, modelName, adapter);
+    // A trusted ACL override can replace the original foreign constraint entirely.
+    const authorizedFilter = { tenant: 'abcdef'.repeat(4) };
+    vi.spyOn(service, 'genFilter').mockResolvedValue(authorizedFilter as never);
+    const values = ['001', '1', '002'];
+    const result = await service.countByFieldValues('ownerId', values, {}, 'count');
+    expect(cast).toHaveBeenCalledTimes(2);
+    expect(aggregate).toHaveBeenCalledOnce();
+    expect(aggregate.mock.calls[0][0][0]).toEqual({
+      $match: { tenant: new mongoose.Types.ObjectId(authorizedFilter.tenant) },
+    });
+    expect(aggregate.mock.calls[0][0][3]).toEqual({ $match: { foreignValues: { $in: [1, 1, 2] } } });
+    expect(values).toEqual(['001', '1', '002']);
+    expect(authorizedFilter.tenant).toBe('abcdef'.repeat(4));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.get('001')).toEqual(new Set(['p1', 'p2']));
+      expect(result.data.get('1')).toEqual(new Set(['p1', 'p2']));
+      expect(result.data.get('002')).toEqual(new Set(['p2']));
+    }
+    // Persistence errors must not be mislabeled as schema-cast BadRequest.
+    const databaseError = new Error('aggregate failed');
+    aggregate.mockRejectedValueOnce(databaseError as never);
+    await expect(service.countByFieldValues('ownerId', values)).rejects.toBe(databaseError);
+    const malformed = await service.countByFieldValues('ownerId', ['not-a-number']);
+    expect(malformed).toMatchObject({ success: false, code: 'bad_request' });
+    expect(aggregate).toHaveBeenCalledTimes(2);
   });
 
   it('batches include count lookups into a single query', async () => {

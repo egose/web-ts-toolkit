@@ -73,6 +73,38 @@ describe('access-router-client built-declaration consumer (ARC-15)', () => {
     expectTypeAssignableTo<null>(failureData);
   });
 
+  it('CLC-05 exposes absent ordinary fields while reserving wrapper and thenable members', () => {
+    interface FormDocument {
+      _id?: string;
+      name: string;
+      nickname?: string;
+      then?: string;
+      save?: string;
+    }
+    const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });
+    const service = adapter.createModelService<FormDocument>({ modelName: 'Form', basePath: 'forms' });
+    const model = Model.create<FormDocument, Partial<FormDocument>>({ name: 'projected' }, service, 'id', true);
+    model.nickname = 'direct';
+    expectTypeAssignableTo<string | undefined>(model.nickname);
+    expect(model.get('nickname')).toBe('direct');
+    model.set('nickname', 'helper').assign({ nickname: 'assigned', then: 'data-only', save: 'reserved-data' });
+    expect(model.nickname).toBe('assigned');
+    expect(typeof model.save).toBe('function');
+    expectTypeAssignableTo<string | undefined>(model.get('then'));
+    const constructorModel = new Model<FormDocument, Partial<FormDocument>>({}, service);
+    constructorModel.set('nickname', 'typed constructor helper');
+    // Negative checks are compiled against emitted declarations, not executed.
+    const checkReserved = () => {
+      // @ts-expect-error then is reserved for non-thenable wrapper behavior.
+      model.then = 'shadow';
+      // @ts-expect-error public wrapper methods cannot be replaced with data.
+      model.save = 'shadow';
+      // @ts-expect-error persistence queue is private wrapper state.
+      model._saveQueue = undefined;
+    };
+    void checkReserved;
+  });
+
   it('model create overloads preserve scalar and bulk cardinality', () => {
     const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });
     const petService = adapter.createModelService<Pet>({ modelName: 'Pet', basePath: 'pets' });

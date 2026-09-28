@@ -1,7 +1,11 @@
 # BDECO-09 Evidence Report: Scoped Property Enforcement And Inherited Remapping
 
 Parent task: `docs/tasks/20260907-121236-access-router-deco-boundary-review.md` (Task BDECO-09, investigation).
-Status of BDECO-09: investigation complete, implementation deferred to follow-up BDECO-09-F01 (pending maintainer approval).
+Status of BDECO-09: investigation complete. BDECO-09-F01: in_progress (2026-09-27 continuation).
+
+## Continuation decision (2026-09-27)
+
+The user approved implementation of scope enforcement and child remapping, and selected validation of known values. The bounded validation policy is: optional `undefined` remains allowed; `requestPermissionField`, `documentPermissionField`, `idParam`, `idField`, `parentPath`, `queryRouteSegment`, `mutationRouteSegment`, `modelPermissionPrefix`, `modelName`, and `basePath` require strings; `listHardLimit` requires a finite number; `requireRegisteredPopulateModels` requires a boolean. This applies to all property decorators, including legacy `Option`. Unknown extension keys remain allowed without typo warnings, and structured policies/hooks are not exhaustively validated. This supersedes the earlier undecided throw/warn policy. Scope mismatches and invalid known values throw `TypeError` with property/key context. Root routers do not support instance option properties and reject them. Historical findings below describe the pre-fix implementation.
 No source semantics were changed by this investigation. BDECO-06 and BDECO-08 work is preserved (no edits to `src/factory.ts` argument assembly, `src/interfaces.ts`, or `src/decorators/class.decorators.ts`).
 
 ## 1. Bounded Scope

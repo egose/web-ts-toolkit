@@ -107,6 +107,49 @@ describe('normalizeFromOrientOptions', () => {
       'prototype',
     ]);
   });
+
+  it.each(['ordinary', 'null', 'custom'])('snapshots only own enumerable columnTypes from a %s prototype', (kind) => {
+    const inherited = { inherited: 'not-a-column-type' };
+    Object.defineProperty(inherited, 'toString', {
+      get() {
+        throw new Error('inherited override read');
+      },
+    });
+    const prototype = kind === 'ordinary' ? Object.prototype : kind === 'null' ? null : inherited;
+    const columnTypes = Object.defineProperties(
+      Object.create(prototype),
+      Object.getOwnPropertyDescriptors({
+        ['__proto__']: 'float',
+        constructor: 'integer',
+        hasOwnProperty: 'boolean',
+      }),
+    ) as Partial<Record<string, ColumnType>>;
+    Object.defineProperty(columnTypes, 'hidden', { value: 'invalid', enumerable: false });
+    const descriptors = Object.getOwnPropertyDescriptors(columnTypes);
+    const normalized = normalizeFromOrientOptions({ columnTypes }).columnTypes!;
+    expect(Object.getPrototypeOf(normalized)).toBeNull();
+    expect(Object.isFrozen(normalized)).toBe(true);
+    expect(Object.entries(normalized)).toEqual(Object.entries(columnTypes));
+    expect(normalized.toString).toBeUndefined();
+    expect(normalized.inherited).toBeUndefined();
+    expect(normalized.hidden).toBeUndefined();
+    expect(Object.getOwnPropertyDescriptors(columnTypes)).toEqual(descriptors);
+    expect(Object.getPrototypeOf(columnTypes)).toBe(prototype);
+    columnTypes['__proto__'] = 'string';
+    expect(normalized['__proto__']).toBe('float');
+  });
+
+  it('still rejects invalid own prototype-named logical types', () => {
+    for (const column of ['constructor', 'toString', 'hasOwnProperty', '__proto__']) {
+      try {
+        normalizeFromOrientOptions({ columnTypes: { [column]: 'invalid' } as FromOrientOptions['columnTypes'] });
+        throw new Error('expected invalid own type rejection');
+      } catch (error) {
+        expect(error).toBeInstanceOf(JsonFrameOptionError);
+        expect(error).toMatchObject({ option: `columnTypes.${column}`, value: 'invalid' });
+      }
+    }
+  });
 });
 
 describe('structured errors', () => {

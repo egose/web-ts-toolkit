@@ -172,11 +172,13 @@ try {
   process.exit(1);
 }
 `;
-    const result = await runSubprocess(process.execPath, ['-e', script], { cwd: packageRoot, timeoutMs: 1_000 });
+    // The package root loads RxDB's native matcher. Budget cold startup as well
+    // as execution; a catastrophic regex on 100,000 characters still cannot finish.
+    const result = await runSubprocess(process.execPath, ['-e', script], { cwd: packageRoot, timeoutMs: 10_000 });
 
     expect(result.timedOut).toBe(false);
     expect(result.exitCode).toBe(0);
-  });
+  }, 15_000);
 
   describe('BMRX-03 request-derived regex rejection', () => {
     const attackPatterns = ['^(a+)+$', '^((a+))+$', '^(a|aa)+$', '^(a*)+$', '^((a+)?b)+$', '^Ada', 'Ada'];
@@ -212,28 +214,31 @@ try {
     });
 
     it('rejects grouped/overlapping/quantified variants in a subprocess without native execution', async () => {
-      for (const pattern of ['^((a+))+$', '^(a|aa)+$', '^(a*)+$', '^((a+)?b)+$']) {
-        const script = `
+      // Load the root once, while retaining the timeout guard if any variant
+      // accidentally reaches native regex evaluation.
+      const script = `
 const { sanitizeFilter, QueryFilterError } = require('./dist/index.js');
-try {
-  const safe = sanitizeFilter({ name: { $regex: ${JSON.stringify(pattern)} } });
-  const re = new RegExp(safe.name.$regex);
-  re.test('a'.repeat(100000) + '!');
-  process.exit(2);
-} catch (error) {
-  if (error instanceof QueryFilterError) process.exit(0);
-  console.error(error && error.stack || error);
-  process.exit(1);
+for (const pattern of ${JSON.stringify(['^((a+))+$', '^(a|aa)+$', '^(a*)+$', '^((a+)?b)+$'])}) {
+  try {
+    const safe = sanitizeFilter({ name: { $regex: pattern } });
+    const re = new RegExp(safe.name.$regex);
+    re.test('a'.repeat(100000) + '!');
+    process.exit(2);
+  } catch (error) {
+    if (error instanceof QueryFilterError) continue;
+    console.error(error && error.stack || error);
+    process.exit(1);
+  }
 }
+process.exit(0);
 `;
-        const result = await runSubprocess(process.execPath, ['-e', script], {
-          cwd: packageRoot,
-          timeoutMs: 5_000,
-        });
-        expect(result.timedOut).toBe(false);
-        expect(result.exitCode).toBe(0);
-      }
-    });
+      const result = await runSubprocess(process.execPath, ['-e', script], {
+        cwd: packageRoot,
+        timeoutMs: 10_000,
+      });
+      expect(result.timedOut).toBe(false);
+      expect(result.exitCode).toBe(0);
+    }, 15_000);
 
     it('keeps trusted schema match validators working while request regex is rejected', async () => {
       const schema = new Schema<UserDoc>({ name: { type: String, match: /^Ada$/ }, age: Number, role: String });

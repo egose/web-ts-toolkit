@@ -199,7 +199,7 @@ function installPackedConsumer(): string {
       2,
     )}\n`,
   );
-  run('pnpm', ['install', '--no-frozen-lockfile'], consumerDir);
+  run('pnpm', ['install', '--ignore-workspace', '--no-frozen-lockfile'], consumerDir);
   return consumerDir;
 }
 
@@ -297,13 +297,13 @@ describe('OIDC-11 packed-package consumer compatibility', () => {
 
     run('node', ['consumer.cjs'], consumerDir);
     run('node', ['consumer.mjs'], consumerDir);
-    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext.json'], consumerDir);
-    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext-cts.json'], consumerDir);
-    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-bundler.json'], consumerDir);
+    run('pnpm', ['--ignore-workspace', 'exec', 'tsc', '-p', 'tsconfig-nodenext.json'], consumerDir);
+    run('pnpm', ['--ignore-workspace', 'exec', 'tsc', '-p', 'tsconfig-nodenext-cts.json'], consumerDir);
+    run('pnpm', ['--ignore-workspace', 'exec', 'tsc', '-p', 'tsconfig-bundler.json'], consumerDir);
 
     const nodenextTrace = run(
       'pnpm',
-      ['exec', 'tsc', '-p', 'tsconfig-nodenext.json', '--traceResolution'],
+      ['--ignore-workspace', 'exec', 'tsc', '-p', 'tsconfig-nodenext.json', '--traceResolution'],
       consumerDir,
     );
     expect(nodenextTrace).toMatch(/Resolving module '@web-ts-toolkit\/express-oidc-vault'/);
@@ -312,7 +312,7 @@ describe('OIDC-11 packed-package consumer compatibility', () => {
     );
     const nodenextCtsTrace = run(
       'pnpm',
-      ['exec', 'tsc', '-p', 'tsconfig-nodenext-cts.json', '--traceResolution'],
+      ['--ignore-workspace', 'exec', 'tsc', '-p', 'tsconfig-nodenext-cts.json', '--traceResolution'],
       consumerDir,
     );
     expect(nodenextCtsTrace).toMatch(/Resolving module '@web-ts-toolkit\/express-oidc-vault'/);

@@ -35,70 +35,104 @@ TypeScript:
 
 ## Quick Start
 
+This public article endpoint lets anyone read a published article by slug. It grants no list or write access and exposes only the allowed read fields (plus Access Router's `_id` and `_permissions` metadata). Authentication is unnecessary for this public policy; request headers do not grant privileges.
+
 ```ts
 import 'reflect-metadata';
 import express from 'express';
 import mongoose from 'mongoose';
-import {
-  Module,
-  Router,
-  GlobalPermissions,
-  DocPermissions,
-  Validate,
-  OverrideFilter,
-  Identifier,
-  Request,
-  Document,
-  Permissions,
-  Filter,
-  Id,
-  EgoseFactoryStatic,
-} from '@web-ts-toolkit/access-router-deco';
+import { Module, Router, BaseFilter, Identifier, Id, EgoseFactoryStatic } from '@web-ts-toolkit/access-router-deco';
 
-mongoose.model('User', new mongoose.Schema({ name: String, email: String, public: Boolean }));
+// Call once per host-owned connection; pass the model instance, not a global name.
+export function createArticleApp(connection: mongoose.Connection) {
+  const Article = connection.model(
+    'Article',
+    new mongoose.Schema({
+      slug: { type: String, required: true, unique: true },
+      title: { type: String, required: true },
+      body: String,
+      published: { type: Boolean, default: false },
+      internalNotes: String,
+    }),
+  );
 
-@Router('User', { basePath: '/users' })
-class UserRouter {
-  @DocPermissions('read')
-  canRead(@Document() doc: any, @Permissions() permissions: { has(permission: string): boolean }) {
-    return { read: doc.public || permissions.has('isAdmin') };
+  @Router(Article, {
+    basePath: '/articles',
+    // No list fallback or computed field-permission metadata (only its empty placeholder).
+    defaults: { publicReadOptions: { includePermissions: false, tryList: false } },
+    operationAccess: {
+      read: true,
+      list: false,
+      new: false,
+      create: false,
+      update: false,
+      upsert: false,
+      delete: false,
+      distinct: false,
+      count: false,
+      subs: false,
+    },
+    permissionSchema: {
+      slug: { read: true },
+      title: { read: true },
+      body: { read: true },
+      published: false,
+      internalNotes: false,
+    },
+  })
+  class ArticleRouter {
+    @BaseFilter('read')
+    publishedOnly() {
+      return { published: true };
+    }
+
+    @Identifier()
+    bySlug(@Id() slug: string) {
+      return { slug };
+    }
   }
 
-  @Validate('create')
-  validateCreate(@Document() doc: { name?: string; email?: string }) {
-    if (!doc.email) return ['email is required'];
-    if (!doc.name) return false;
-    return true;
-  }
+  @Module({
+    routers: [ArticleRouter],
+    options: { basePath: '/api', handleErrors: true },
+  })
+  class ArticleModule {}
 
-  @OverrideFilter('read')
-  constrainRead(@Filter() filter: any, @Permissions() permissions: { has(permission: string): boolean }) {
-    return permissions.has('isAdmin') ? filter : { ...filter, public: true };
-  }
-
-  @Identifier()
-  bySlug(@Id() id: string) {
-    return { slug: id };
-  }
+  const app = express();
+  app.use(express.json());
+  const factory = EgoseFactoryStatic.create(); // New isolated Access Router runtime.
+  const { runtime } = factory.bootstrap(ArticleModule, app);
+  return { app, runtime, Article };
 }
-
-@Module({
-  routers: [UserRouter],
-  options: { basePath: '/api' },
-})
-class AppModule {
-  @GlobalPermissions()
-  permissions(@Request() req: express.Request) {
-    return req.headers['x-role'] === 'admin' ? ['isAdmin'] : [];
-  }
-}
-
-const app = express();
-const factory = EgoseFactoryStatic.create();
-const { runtime } = factory.bootstrap(AppModule, app);
-// Isolated runtime per factory — preferred for apps, tests, and multi-tenant bootstraps.
-// `EgoseFactory` remains available as a compatibility singleton bound to the default `access-router` runtime for shared-runtime apps.
 ```
+
+Save this as `articles.ts`. Prerequisites: Node >=22, the dependencies and legacy TypeScript settings above, and a reachable MongoDB database. In an async host startup, open a dedicated connection before listening (compile TypeScript before running Node):
+
+```ts
+import mongoose from 'mongoose';
+import { createArticleApp } from './articles.js';
+
+async function main() {
+  const uri = process.env.MONGODB_URI;
+  if (!uri) throw new Error('Set MONGODB_URI');
+  const connection = await mongoose.createConnection(uri).asPromise();
+  const { app, Article } = createArticleApp(connection);
+  await Article.init(); // Ensure the unique slug index exists before serving.
+  // Provision articles through a trusted seed/admin process, e.g.:
+  // await Article.create({ slug: 'welcome', title: 'Welcome', body: 'Hello', published: true });
+  const server = app.listen(3000);
+  // The host owns shutdown: close server, then await connection.close().
+  return { server, connection };
+}
+void main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});
+```
+
+After provisioning `welcome`, `GET /api/articles/welcome` returns its public fields. A draft slug returns `404`; `GET /api/articles` and `POST /api/articles` return `401` under Access Router's denial contract. Sending `x-role: admin` changes none of these decisions. JSON parsing is installed before routes, but parsed bodies do not authorize writes.
+
+`operationAccess` authorizes operations; `permissionSchema` authorizes fields. A document-permission map alone does not configure either policy. Migration note (PDEC-05): the former quickstart trusted `x-role` as an administrator grant; replace that pattern with this public policy or a host-verified principal boundary. For private/tenant workflows, authenticate in host middleware before bootstrap's mounted router, deny missing principals with a route guard, and derive tenant filters from that verified principal via `@Request()`. Use `@Context()` for model-hook context where supported by the hook table below. Filters restrict data; they are not authentication. Request/principal state belongs in the injected request/context, never shared class fields. Each tenant-owned connection/model should use its own factory runtime; isolation alone does not authenticate tenant selection.
 
 ## Main Exports
 
@@ -135,6 +169,8 @@ Every hook method uses **explicit parameter injection** — undecorated paramete
 
 Migration note (BDECO-05 — fail-fast decorator targets): hook, parameter, and property decorators are instance-only and reject unsupported targets at decoration time before writing metadata. Static methods/properties/parameters, constructor parameters, and missing/invalid operations (including zero-argument JavaScript calls like `BaseFilter()`) now throw instead of being silently skipped. Previously such declarations compiled but never registered, so a deny guard or filter could silently disappear. If you relied on static decorators, move the hook to an instance method.
 
+Migration note (PDEC-02 — accessor hooks): method-hook decorators also reject getters, setters, missing descriptors, and non-callable or malformed method descriptors before writing hook metadata, without invoking getters. Legacy TypeScript descriptor typing can accept a callable getter such as `@RouteGuard('read') get guard() { return () => false; }`, but this now throws at decoration time instead of silently losing the policy. Use an instance method: `@RouteGuard('read') guard() { return false; }`. Ordinary, inherited, symbol-keyed, and wrapped instance methods remain supported.
+
 | Decorator              | Scope / Valid Class Role                                                                     | Operations                                                                                    | Result Shape (`MaybePromise<…>`)                                                                                                                   | Valid Parameter Decorators                                          |
 | ---------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | `@GlobalPermissions()` | `@Module` only (scalar)                                                                      | —                                                                                             | `GlobalPermissionValue` (`string \| string[] \| Record<string,boolean> \| null \| undefined`)                                                      | `@Request()`                                                        |
@@ -168,6 +204,50 @@ Root-shorthand contract (exact-slot registration): decorated hooks occupy exactl
 | `@Option(key?)`             | legacy unscoped — any hook-hosting class (role determines target) | `string`                                  | same as above via role-appropriate setter; prefer scoped decorators |
 
 Build-time keys (`basePath`, `parentPath`, `idParam`, `queryRouteSegment`, `mutationRouteSegment`) must be set before route construction (property injection happens in the pre-construction option phase).
+
+**Property contract migration (BDECO-09-F01):** scoped decorators now enforce the
+class roles in the table at bootstrap, including inferred-key and inherited
+declarations. Wrong-role placement throws `TypeError` before runtime mutation.
+Root routers accept no instance option properties (including legacy `Option`);
+put root configuration in `@Router(options)`. A child mapping replaces a base
+mapping for either the same option key **or the same property**, including symbol
+properties. Move misplaced decorators to the intended provider and remove any
+reliance on a remapped property writing both old and new keys.
+
+All four property decorators validate these known values before their setters:
+
+- Strings: `requestPermissionField`, `documentPermissionField`, `idParam`,
+  `idField`, `parentPath`, `queryRouteSegment`, `mutationRouteSegment`,
+  `modelPermissionPrefix`, `modelName`, `basePath`.
+- Finite number: `listHardLimit` (including zero; this is a type check, not a new
+  limit policy).
+- Boolean: `requireRegisteredPopulateModels`.
+
+Optional `undefined` is allowed. Invalid known values throw `TypeError` naming
+the key/property, and bootstrap rolls back package-controlled writes. This is
+not complete option-schema validation: arbitrary extension/typo keys remain
+accepted by legacy `Option`, and structured policies, functions and objects are
+governed by their existing runtime contracts. TypeScript property decorators do
+not type-check property values; the runtime checks above also apply when an
+inferred key or legacy `Option` bypasses explicit-key typing.
+
+### Module mounts and OpenAPI migration
+
+Module `options.basePath` now prefixes both root and model OpenAPI paths, before
+collision checks. With module `/api` and model base `/users`, the reachable URL
+and generated path are `/api/users`; root `/batch` similarly becomes
+`/api/batch`. Empty or `/` module mounts add no prefix. Pre-existing routes in a
+shared runtime are preserved; newly registered routes use their own mount.
+
+Model OpenAPI composition is **module base + parentPath + model base**.
+`parentPath` remains metadata only and does not change Express matching. Remove
+an old `parentPath: '/api'` workaround when the module already mounts at `/api`:
+bootstrap rejects parent paths equal to or beneath that mount to prevent a
+silent double prefix (`/apiary` is not beneath `/api`). For a proxy prefix `/ext`
+that precedes `/api`, leave `parentPath` at its default and pass
+`servers: [{ url: '/ext' }]` to `runtime.createOpenApiRouter(...)` or the spec
+builder. That yields external `/ext/api/users`; `parentPath: '/ext'` would instead
+describe `/api/ext/users`. Live Express URLs are unchanged by this migration.
 
 ### Parameter Decorators
 
@@ -221,11 +301,17 @@ Calling `bootstrap(...)` twice with the same factory, module class, and Express 
 
 ## Transactional Bootstrap
 
-`EgoseFactoryStatic.bootstrap(...)` is atomic for package-controlled state. Module, router, and option classes are validated before any constructor runs. The factory snapshots `globalOptions`, `defaultModelOptions`, `modelOptions`, model registrations, model refs/subs/atts, and OpenAPI registrations via `createBootstrapSnapshot()` before mutating the runtime, then restores them via `restoreBootstrapSnapshot()` on any failure. Request runtime initialization (`factory.runtime()`), all decorated option registration, routes, and opt-in error handlers are composed on an unmounted `express.Router()` first (init before routes and error handlers); only after every step succeeds is that single module router mounted on the host app with `app.use(basePath, router)`. If the final `app.use` itself throws, the runtime snapshot is still restored and the app's internal stack is truncated to its pre-bootstrap length.
+`EgoseFactoryStatic.bootstrap(...)` snapshots package-controlled runtime state before mutation and delays publication until setup succeeds. Class roles are validated before construction; effective hook declarations are checked during configuration planning. After planning, the factory requires callable `createBootstrapSnapshot()` and `restoreBootstrapSnapshot()` methods, resolving each directly on the runtime API or on its underlying `.runtime` (direct methods take precedence). Missing capability, thrown acquisition errors, or an absent snapshot stop bootstrap before package preflight, setters, model registration, or mounting. The real runtime snapshot covers global/default/model options, model registrations, model refs/subs/atts, and OpenAPI registrations.
+
+Request runtime initialization (`factory.runtime()`), decorated option registration, routes, and opt-in error handlers are composed on an unmounted `express.Router()` first (init before routes and error handlers). Only after setup succeeds is that single module router mounted with `app.use(basePath, router)`. On setup failure, including a final `app.use` that throws after mounting, the factory independently attempts runtime restoration and truncation of the app's mount stack to its pre-bootstrap length.
 
 Request runtime initialization is scoped to the module router mounted at `basePath` and does not run on unrelated host routes. Two isolated modules on one app each use only their owning runtime on their own paths. Applications needing request runtime initialization outside module routes must explicitly own that middleware (for example, `app.use(factory.runtime())`).
 
-Deterministic checks such as malformed hook chains (`Invalid hook chain for <aclKey>`) and duplicate validator/static-array conflicts are validated in preflight before any setter, so a failure never leaves partial runtime state. A failed `bootstrap` does not mark the module/app tuple as bootstrapped, so retrying with a corrected module behaves like a clean first attempt and mounts exactly one module router with one copy of initialization and every route/hook (no duplication of global/default/model options, hook chains, or OpenAPI routes).
+Malformed hook chains (`Invalid hook chain for <aclKey>`) and duplicate validator/static-array conflicts are checked in preflight before setters, inside the snapshot boundary because runtime lookups can mutate state. When rollback succeeds, bootstrap rethrows the exact original value, including non-`Error` throws. A corrected retry then behaves like a clean first attempt, with one mount and one copy of initialization, routes, hooks, and OpenAPI registrations.
+
+**Recovery failure:** if runtime restoration or app-stack cleanup throws, bootstrap reports an `AggregateError`. Its `cause` and first `errors` entry are the original thrown value; subsequent entries are the runtime-restore failure and/or app-cleanup failure in that order. Both recovery steps are attempted even if one fails. Failed runtime restoration leaves runtime state uncertain; failed app cleanup can leave routes mounted. The host must repair or replace the affected runtime/app before retrying. Every attempt releases the in-progress reservation, and a failed attempt is not marked bootstrapped; this permits recovery but does not prove rollback succeeded.
+
+**Migration note:** bootstrap previously ignored snapshot acquisition/restoration failures. Runtime adapters and test doubles must now provide working synchronous snapshot/restore capability; missing methods no longer permit unprotected setup. Ordinary successful rollback preserves error identity, while failed recovery now surfaces the original and recovery failures together.
 
 **Non-rollback boundary:** arbitrary user constructors and field initializers (`new Type()`) executed while building the module plan are outside the transaction and are not undone. Express internals outside the mount stack (e.g., `app.set(...)`, already-sent responses) are also not rolled back. The guarantee covers only the factory's runtime state and the Express mount stack (`app._router.stack` / `app.router.stack` truncation).
 
@@ -276,6 +362,14 @@ function registerModel(value: RouterModel<User>) {
 A `string | Model<TModel>` union held in a variable or function parameter is accepted wherever a model name or instance is. Option objects still infer from the model type (e.g. `permissionSchema` keys), and model-like objects or non-model values are still rejected.
 
 ## Hook Inheritance & Symbol Methods
+
+**Hook class roles are enforced at bootstrap.** Every known effective hook declaration is checked before runtime setters or Express publication, including inherited, symbol-keyed, wrapped, and mixed allowed/disallowed declarations. `@GlobalPermissions()` belongs only on `@Module`; model hooks belong on `@Router(Model)` or `@RouterOptions(Model)`. Default `@RouterOptions(options)` accepts only `@RouteGuard` and `@Identifier`. Root `@Router(options)` accepts no hook methods; its prototype is validated without constructing the root class.
+
+**Migration note:** wrong-role hooks that were previously silently ignored now stop bootstrap with the class, member, hook, and valid placements in the diagnostic. Move the declaration to a provider with the intended supported scope; bootstrap does not reassign it automatically. Only effective declarations are checked: an override suppresses ancestor hook metadata, and a decorated override is checked in its own class role. Constructors of other providers still run during configuration planning and remain outside rollback.
+
+**Method-wrapper composition is supported in either decorator order.** Legacy TypeScript decorators that mutate `descriptor.value` or return a replacement method descriptor retain the hook declaration on that declaring member. Bootstrap invokes the effective wrapped method with the class instance as `this` and the existing explicit parameter injection (including sparse positions). This also applies to inherited and symbol-keyed methods. An override still replaces the ancestor's hook and parameter declarations; redecorate the override to register it.
+
+Wrappers remain responsible for the behavior they return: forward `this`, arguments, return values/promises, and errors when preserving the original hook. Composition support does not restore behavior discarded by a wrapper or transfer declarations to a different member. **Migration note:** instrumentation that previously replaced a decorated function could silently drop its guard or validator; that declared policy now remains active regardless of decorator order.
 
 **Symbol methods are supported** — decorated methods may use string or symbol keys (`[Symbol.for('myHook')]()`). Discovery uses `Reflect.ownKeys` and registration/diagnostics are symbol-safe; a decorated symbol method is always discovered and executed through the runtime, never silently ignored. Duplicate scalar detection (e.g., two `@RouteGuard('read')` targeting the same operation) includes symbol identities deterministically via `String(key)` / `Symbol(description)` in diagnostics.
 

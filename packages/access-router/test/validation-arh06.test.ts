@@ -82,7 +82,7 @@ describe('validation ARH-06 async contracts', () => {
       properties: { name: { type: 'string' } },
       required: ['name'],
     });
-    const validator = fromAjv(compiled as never);
+    const validator = fromAjv(compiled);
 
     const pInvalid = validator({ name: 123 });
     const pValid = validator({ name: 'ok' });
@@ -134,7 +134,7 @@ describe('validation ARH-06 async contracts', () => {
       type: 'object',
       properties: { n: { type: 'number', isEvenArh06: true } },
     });
-    const validator = fromAjv(compiled as never);
+    const validator = fromAjv(compiled);
 
     expect(await validator({ n: 4 })).toEqual({ success: true, data: { n: 4 } });
 
@@ -146,7 +146,7 @@ describe('validation ARH-06 async contracts', () => {
     }
 
     const operational = new Error(`ajv upstream ${SENTINEL}`);
-    const rejecting = Object.assign(() => Promise.reject(operational), { errors: null }) as never;
+    const rejecting = Object.assign(() => Promise.reject(operational), { $async: true as const });
     await expect(fromAjv(rejecting)({})).rejects.toBe(operational);
   });
 

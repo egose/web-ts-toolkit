@@ -2,7 +2,7 @@
 
 A Mongoose-like API (`Schema`, `Document`, `Query`, `Model`, `Connection`, pre/post middleware)
 backed by **RxDB** so your data lives in local SQLite (or any RxDB storage).
-It is a drop-in-shaped proxy: code that reads like Mongoose persists offline.
+It supports a deliberate Mongoose-shaped subset; MongoDB transaction and uniqueness guarantees do not apply.
 
 ## Installation
 
@@ -83,7 +83,6 @@ interface UserVirtuals {
 type UserDocument = HydratedDocument<User, UserMethods, UserVirtuals>;
 
 const conn = new Connection();
-await conn.connect(() => createMemoryDatabase({ name: 'quickstart' }));
 
 const userSchema = new Schema<User, UserMethods, {}, UserVirtuals>({
   name: { type: String, required: true },
@@ -106,17 +105,21 @@ userSchema.method('addTag', function (this: UserDocument, tag: string) {
   return this.tags;
 });
 
-const User = conn.model('User', userSchema);
+try {
+  await conn.connect(() => createMemoryDatabase({ name: 'quickstart' }));
+  const User = conn.model('User', userSchema);
+  const ada = await User.create({ name: 'Ada', age: 36, role: 'admin', tags: [] });
+  console.log(ada.isAdmin); // true
+  ada.addTag('math');
+  await ada.save();
 
-const ada = await User.create({ name: 'Ada', age: 36, role: 'admin', tags: [] });
-console.log(ada.isAdmin); // true
-ada.addTag('math');
-
-const admins = await User.find({ role: 'admin' }).sort({ age: 1 });
-await User.updateOne({ name: 'Ada' }, { $inc: { age: 1 } });
-await User.deleteOne({ name: 'Ada' });
-console.log(admins.map((user) => user.name));
-await conn.disconnect();
+  const admins = await User.find({ role: 'admin' }).sort({ age: 1 });
+  await User.updateOne({ name: 'Ada' }, { $inc: { age: 1 } });
+  await User.deleteOne({ name: 'Ada' });
+  console.log(admins.map((user) => user.name));
+} finally {
+  await conn.disconnect();
+}
 ```
 
 For durable local storage, replace the memory factory with `createSqliteDatabase({ filePath: './app.db' })`.
@@ -131,14 +134,15 @@ Use `Schema<RawDoc, Methods, Statics, Virtuals>` as the source of truth for the 
 - `RawDocument<T>` and `LeanResult<T>` contain only domain fields plus the logical `_id`; RxDB metadata fields are not part of the public result surface.
 - Hydrated reads and writes return `HydratedDocument<T, Methods, Virtuals>`, which combines `Document<T>`, raw fields, instance methods, and virtual properties.
 - Lean queries return `LeanResult<T>` records without document methods; hydrated queries return document methods plus raw fields. Lean only transforms document-producing results: `UpdateResult`, `DeleteResult`, and `countDocuments()` numbers pass through unchanged, and `.lean(false)` restores the pre-lean hydrated type so toggling back does not leave a false lean type. `findOneAndUpdate(..., { lean: true })` and `findOneAndDelete(..., { lean: true })` return `LeanResult<T> | null`; omission/`lean: false` returns hydrated documents. Nullable document results preserve `null`.
-- Projected lean records are still typed as the full `LeanResult<T>`; projection exclusion is a documented type limitation, not a narrowed partial.
+- Projected lean records are still typed as the full `LeanResult<T>`; omitted fields and redacted `null` array slots are a documented type limitation, not a narrowed partial.
 - `Query<Result>` is `PromiseLike<Result>`, so `await User.find()` and `await User.findOne()` preserve exact result types without `.exec()`.
-- Intentionally public thrown errors are importable from the package root for `instanceof` narrowing: `WriteNormalizationError`, `MutationPartialFailureError`, and `BulkWritePartialFailureError` (plus `QueryFilterError`, `QueryOptionError`, `MutationOptionError`, `ValidationError`, `SchemaConfigurationError`). Blocked deep imports are not required:
+- Intentionally public thrown errors are importable from the package root for `instanceof` narrowing: `WriteNormalizationError`, `ParallelSaveError`, `MutationPartialFailureError`, and `BulkWritePartialFailureError` (plus `QueryFilterError`, `QueryOptionError`, `MutationOptionError`, `ValidationError`, `SchemaConfigurationError`). Blocked deep imports are not required:
 
 ```ts
 import {
   BulkWritePartialFailureError,
   MutationPartialFailureError,
+  ParallelSaveError,
   WriteNormalizationError,
 } from '@web-ts-toolkit/mongoose-rxdb';
 ```
@@ -263,6 +267,18 @@ returns, later structural `schema.add()` calls are rejected, and direct mutation
 schema's path maps cannot affect the compiled model, casting, validation, public JSON Schema, or RxDB
 schema. Use `schema.clone()` before model compilation when you need an independent editable copy;
 clones do not share mutable path maps, child schemas, hooks, virtuals, options, or query helpers.
+Required tuples, enum arrays, and custom validator configuration objects are owned and sealed on
+compiled paths, including nested/array-item paths. Caller-owned rule containers are not frozen.
+Clones have editable independent rules; methods/hooks and callback closure state remain mutable behavior.
+
+Literal defaults have a separate data-copy boundary. Schema construction, `add()`, cloning and model
+compilation own arrays, plain/null-prototype objects and Dates after bounded structural preflight;
+cyclic, over-depth/over-work, sparse or accessor-bearing literals throw `WriteNormalizationError`
+before recursive copying. Default factories are not executed by schema copying. Nonplain defaults
+retain their kind until a needed default reaches schema-aware casting: mixed Map/Set/class values
+reject before writes, while supported string/number coercions still work. Those opaque coercion
+objects and factory callbacks remain application-owned shared behavior; resulting document data is
+independently owned. Whole-document input/default/output budgets still apply when defaults are used.
 
 Accepted schema options are intentionally narrow and have tested behavior:
 
@@ -304,7 +320,180 @@ it dirty.
 `markModified(path)` is reconciled with the snapshot: it is useful for supported mixed values, but a path
 that is unchanged or reverted to its persisted value is treated as clean. Saving an unchanged loaded
 document skips adapter mutation. The snapshot is refreshed only after a successful insert or update;
-failed saves retain their modified paths so a later retry can persist the same changes.
+failed writes retain their modified paths so a later retry can persist the same changes.
+
+### In-Flight Saves (Compatibility / Migration)
+
+Each save captures owned data and per-path replacement intent **after validation and pre-save hooks**,
+before persistence. Changes made before capture join that save. Changes made after capture (including
+scalar/live nested edits, assignments, `set()`, and `markModified()`) remain on the live document for a
+later save; they do not alter the captured write. A successful write advances the snapshot to the
+captured data and consumes only captured intent. Marking the same path again creates fresh intent even
+when its value is unchanged. Equal/reverted values still produce no write; that marker controls
+replacement if the path subsequently changes before the next save. An unchanged save consumes its
+captured clean markers without writing. `clearModified()` explicitly discards current markers; it does
+not discard structural differences.
+
+Plain-object live edits merge by changed leaf. Explicit parent assignment, `set('parent', value)`,
+`set('parent.nested', value)`, and `markModified('parent')` replace the changed subtree. Complete arrays
+are whole-array, last-writer-wins writes. Projection completeness checks still apply to every save.
+
+**Await each save on an instance before calling save again.** An overlapping call rejects with the
+root-exported `ParallelSaveError` before collection resolution, validation, hooks, or writes. The guard
+covers the entire active operation, including success/error post hooks; a recursive save from a hook
+also rejects. Rejected overlaps run no hooks and do not cancel or change the active save. The guard
+releases on both success and failure. Distinct document instances retain their existing leaf-merge /
+last-writer-wins semantics; this is not cross-instance locking.
+
+Validation/save hooks retain once-per-operation semantics (validation hooks are skipped when
+`validateBeforeSave: false`); final merged-candidate validation remains inside the adapter retry boundary.
+A failed write retains captured and later intent for retry. A **post-save hook failure after a successful
+write does not undo persistence**: the snapshot has advanced and a newly inserted document has
+`isNew === false`. Post-hook edits remain pending. Retry after settlement saves remaining edits without
+reinserting the record. Successful `save()` returns the live document, which may already contain later
+unsaved edits. Migration: replace same-instance `Promise.all([doc.save(), doc.save()])` with awaited saves.
+
+### Document Value Safety (Compatibility / Migration)
+
+Construction, `create`, `insertMany`, direct schema-property assignment, and both forms of `set()`
+check values **before cloning or casting**. Invalid values throw the root-exported
+`WriteNormalizationError`. Mixed/unshaped object data supports finite JSON primitives, dense arrays,
+plain objects (including null-prototype objects), and valid `Date` instances. Mixed Map/Set/class
+instances, functions, symbols, bigint, non-finite numbers, nested `undefined`, sparse arrays,
+enumerable accessors/symbol keys, and dangerous keys reject instead of being dropped or becoming `{}`.
+
+- Schema casts retain their converter semantics: numeric strings to numbers, `"false"` to false,
+  bigint to a declared string/number, and compatible boxed/custom scalar values remain supported.
+  Invalid casts reject immediately. Scalar array elements follow the converter policy: objects/arrays
+  require an object/mixed/subdocument element schema. Dotted setters cast against the addressed path.
+  Snapshots/serialization also normalize live nested scalar edits against their declared schema path.
+- `undefined` means absent for declared schema fields, including subdocument fields; it is not valid
+  inside mixed JSON objects or array elements. Dates remain owned `Date` values in documents and become
+  ISO strings in storage. Inputs and snapshots do not retain caller aliases.
+- Traversal allows at most **50 levels and 2,000 visited values**, counting the root at depth zero and
+  each repeated reference separately. Raw document/setter inputs and complete resulting documents
+  (including `_id`) are bounded as a whole, not independently per property. Needed default-factory
+  results share the casting operation's budgets; overridden defaults are not evaluated. Insert
+  conversion enforces the same whole-input-plus-default and whole-output budgets, including defaults
+  first needed after `toObject()` omits explicit `undefined`, pre-save hooks, or default-enabled upserts. These are
+  structural limits, not byte limits or a sandbox for application factories/coercion/virtual callbacks.
+- Setters stage all changes, including dotted traversal and virtual-setter data changes. Rejection
+  restores document data and dirty intent. External side effects of application callbacks cannot be
+  rolled back. `create([...])` prepares all entries including late insert defaults, and `insertMany`
+  prepares all entries in either ordered mode, before
+  writes; invalid ingress anywhere in either batch causes no writes. Later middleware, validation, or
+  storage failures retain their existing non-transactional behavior. Limits apply per batch document.
+- Live nested mutations remain supported. If they introduce invalid values, serialization, dirty
+  comparisons, and save reject before recursive cloning/comparison or adapter mutation, even with save
+  validation disabled. Remove/correct the invalid live value before retrying.
+
+**Migration:** values that previously lost prototypes or silently stringified invalid array elements
+now reject at ingress. Oversized insert-time defaults now reject before writes instead of producing
+records that fail hydration or a batch error after insertion. Literal defaults no longer lose their
+kind during schema cloning/model compilation; unsupported mixed defaults reject rather than storing
+`{}` or prototype-erased objects. Invalid literal structure can now reject during schema construction
+or copying, even if a later document would override that default. The same bounded checks protect
+`castDocumentToSchema` and `castValue`.
+
+### Saving Selected Documents (Compatibility / Migration)
+
+Hydrated `find()` / `findOne()` results retain private, immutable selection metadata. A projection
+describes what was read, not permission to replace hidden data. The partial-save contract is deliberately
+narrow:
+
+- Keep `_id` selected (it is included by default). Saving a loaded record without `_id` throws
+  `WriteNormalizationError` before mutation, even when unchanged. No replacement identity is generated.
+- Selected scalar edits and in-place plain-object leaf edits merge into current storage. Hidden
+  optional, required, immutable, and defaulted fields are preserved. Successful saves do not fetch those
+  fields into the public document, its hooks, `toObject()`, or `toJSON()`.
+- A changed array replaces the **whole array**. If any part of that array was projected out, all array
+  changes reject with `WriteNormalizationError`, including edits to a visible element, pushes, removals,
+  and numeric-index setters. Array identity/index merging is never inferred.
+- Explicit top-level assignment, `set('parent', value)`, or `markModified('parent')` means whole-subtree
+  replacement when changed. Such writes (including `null`/unset) reject if the subtree is incomplete.
+  The same restriction applies when an edit would create an incomplete parent or write an unselected
+  field. Select the whole parent (`'profile'`, not just `'profile.name'`) before replacing it.
+  For nested replacement intent, use `set()` or `markModified()`; direct mutations inside a plain
+  object follow the leaf-diff contract.
+- Completeness is conservative: an exclusion below a subtree makes replacement unsafe even if the
+  excluded path happened to be absent; listing individual child fields does not prove the parent
+  complete. Empty projections retain full-record behavior. Unchanged projected records with `_id`
+  skip mutation. These safety checks also apply with `validateBeforeSave: false`.
+
+**Array representation:** lean and hydrated projections use explicit `null` for redacted array
+positions, preserving the source length and indexes. For example, selecting `'title members.1.name'`
+from three members returns `members: [null, { name: 'Ada' }, null]`. Selecting `'members.name'`
+also uses `null` at positions without that field if any element contributes; if none contributes,
+the array field is omitted. Multiple selected paths are combined. Excluding a whole numeric index
+uses `null` instead of removing/shifting that element. Nested arrays follow the same rule.
+These placeholders expose no hidden values and are not defaults or evidence of stored `null`;
+an actual selected `null` is indistinguishable without a fuller read. Check for `null` before
+accessing a projected element: result types do not narrow to reflect these slots. `toObject()`,
+`toJSON()`, and JSON serialization preserve the same representation. Unchanged and selected scalar
+saves preserve the stored arrays; placeholders are never written back as incomplete replacements.
+Caller-supplied sparse arrays and holes introduced by live mutations still reject.
+
+For example, with a `profile` child schema containing `name` and private fields:
+
+```ts
+const selected = await User.findOne({ _id: userId }).select('profile.name');
+if (selected) {
+  selected.set('profile.name', 'Grace'); // leaf edit; preserves hidden siblings
+  await selected.save();
+  // selected.set('profile', { name: 'Grace Hopper' }) followed by save() rejects.
+}
+```
+
+With save validation enabled, partial saves run `validate` and `save` middleware once on the redacted
+document. Schema validation is deferred until the full candidate (current storage plus this save's
+delta) is available inside the adapter's retry boundary. Required and cross-field rules therefore see
+the actual candidate, with no default synthesis. An unchanged partial save has no candidate to validate.
+Standalone `validate()` / `validateSync()` on a nonempty projection cannot certify a full record:
+they reject / return `ValidationError` with `kind: 'projection'`. Reload without `select()` for
+standalone validation, or use the validated save path. Hooks that themselves call standalone validation
+must account for this restriction.
+
+**Migration:** older versions could silently erase hidden fields when saving redacted arrays or
+replacing partial objects. Reload the whole affected subtree before such replacements; retain dotted
+leaf edits for partial objects. Defaults are no longer reapplied while validating or diffing loaded
+records: fields omitted by projection or `setDefaultsOnInsert: false` stay absent on later saves, and
+explicitly unsetting a loaded defaulted field does not restore its default. Projected-document setters
+also suppress recursive defaults. New-document default application is unchanged.
+Projected arrays now use explicit `null` slots instead of holes (and whole-index exclusions no longer
+compact indexes), so multi-element numeric/missing-field projections can hydrate and safely save.
+
+### Conditional Mutation Selectors (Compatibility / Migration)
+
+Updates recheck the compiled selector using RxDB's own matcher against the current record on every
+native conflict retry. Reads and mutation rechecks therefore share RxDB semantics for the supported
+filter subset:
+
+- Scalar `$eq` and `$in` can match elements of an array; `$nin` fails if an array contains a forbidden
+  element. An array-valued `$eq` retains native array equality semantics.
+- Equality / `$in` with `null` also match missing fields; `$ne: null` and `$nin: [null]` exclude both
+  null and missing. Use `$exists` to distinguish a present null from an absent field.
+- Dotted selectors traverse nested objects and arrays; numeric segments address array indexes.
+- Ordinary strings, including date-looking strings with offsets, retain native string comparison.
+  `Date` filter operands normalize to stored ISO strings before both reads and rechecks; strings are
+  not implicitly parsed as dates by the matcher.
+
+For updates without `upsert`, a selected record that loses its predicate returns `matchedCount: 0` /
+`modifiedCount: 0`, or `null` for `findOneAndUpdate`. No alternative record is selected. Successful
+counts and before/after values come from the successful retry's current state. For a conditional
+claim, use `_id` plus the expected state (for example, `tags: { $nin: ['blocked'] }`) and treat no-match
+as a lost claim. Multi-record mutations remain per-record, non-transactional operations.
+
+Deletes use the same matcher for a **best-effort** check immediately before native removal. A writer
+can still change the record between that check and removal; this does not provide atomic conditional
+delete. Unsupported filters, including request regex, still reject during compilation before persistence.
+Direct adapter callers must supply compiled queries (use `compileQuery`), just as model queries do.
+`findOneAndDelete` returns an observed preimage, not an atomic delete-time snapshot. For state-sensitive
+workflows, prefer a conditional update to a terminal/soft-deleted state with `upsert: false`, then perform
+physical cleanup under application coordination. A prior read or an `_id` filter alone cannot lock a delete.
+
+**Migration:** older mutation rechecks used a separate matcher that could disagree with reads for
+arrays, null/missing fields, dotted paths, and date-looking strings. Conditional updates now follow
+native RxDB matching, including losing a `$nin` claim when a concurrent writer adds a forbidden member.
 
 ## Write Normalization
 
@@ -325,6 +514,11 @@ the first storage failure remain inserted and a `BulkWritePartialFailureError` r
 `insertedCount`, `insertedIds`, inserted `records`, and record-level `errors`. Pass
 `{ ordered: false }` to attempt every input record and receive the same partial-failure shape for all
 failed indexes.
+
+Unordered duplicate IDs retain first-occurrence priority and original input-index error attribution.
+Each occurrence is attempted; later duplicates normally receive native primary-key conflicts. Native bulk
+passes contain unique IDs, so their count is the maximum frequency of an ID. Partitioning uses linear
+dictionary work, but duplicate-heavy batches still require those passes; this is not a throughput guarantee.
 
 Dates are stored as ISO-8601 strings (`Date#toISOString()`) in every storage backend and hydrated back
 to `Date` instances when documents are read. Dotted update paths such as `profile.score` update nested
@@ -358,6 +552,64 @@ into the inserted record. `_id` is generated when the equality filter does not p
 `setDefaultsOnInsert` applies schema defaults only when it is exactly `true`, and it is rejected unless
 `upsert: true` is also set.
 
+### Upsert Concurrency And Business Identity
+
+`upsert: true` on `updateOne` / `findOneAndUpdate` means **update, then separately insert if there
+is no write-time match**. It is not a transaction or atomic secondary-key uniqueness constraint.
+The insert branch also runs when a selected candidate loses its predicate inside a native conflict
+retry. There is no alternate-record selection, read-before-insert uniqueness check, or automatic
+retry-as-update after an insert conflict.
+
+Deterministically gated native-memory and persistent trial-SQLite tests establish these outcomes:
+
+| Interleaving                                                          | Outcome                                                                                                                    |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Both calls observe no match; generated IDs                            | Both can insert, with distinct IDs and the same business key.                                                              |
+| Both calls observe no match; same explicit `_id` equality             | One inserts; the other rejects with the native insert conflict. The losing update is not applied.                          |
+| Selected record loses its predicate during retry; generated ID        | The selected record keeps the competing change; the upsert inserts a new record, even if another record is still eligible. |
+| Selected record loses its predicate during retry; same explicit `_id` | The insert attempts the occupied ID and rejects; the competing change survives and no alternate record is updated.         |
+
+Which concurrent caller wins is not guaranteed. Conflicts observed with RxDB 17 use `code: 'CONFLICT'`;
+they propagate as native errors, not a new package-owned duplicate-key error. Other validation/backend
+failures can also reject. Evidence covers native memory and `trial-native`, not Premium or replication.
+
+A successful `updateOne` insertion returns `matchedCount: 0`, `modifiedCount: 0`, `upsertedCount: 1`,
+and `upsertedId`. `findOneAndUpdate` defaults to `returnDocument: 'before'` and returns **null even
+when it inserted**; choose `'after'` / `new: true` for the inserted record (lean if requested).
+Inserts are built from equality fields plus the update, not from the lost candidate's snapshot.
+Other predicates are not enforced on the inserted result: an update may change an equality field,
+and range/membership predicates do not supply initial values. An inserted record need not match
+the original filter. Defaults and validation follow the insert contract above.
+
+Application guidance:
+
+- Assign one stable, canonical `_id` per business entity, including tenant/key scope, and supply it
+  as a direct equality filter (`{ _id: entityId }` or `{ _id: { $eq: entityId } }`). Equalities nested
+  inside `$and`/`$or` are not extracted for insertion. All writers must use the same mapping. This
+  uses native primary-key conflict enforcement, not a unique constraint on another field.
+- A stable ID prevents two successful inserts at that ID; it does **not** turn conditional upsert
+  into a transaction. An existing record with the same ID but a different state can cause a conflict
+  even without concurrent calls. After conflict, reload and decide whether the existing state meets
+  the business request; do not blindly replay non-idempotent updates such as `$inc`.
+- Serialize entity creation/read-decision-write workflows by business key when exactly one local
+  creator is needed. The queue/lock must cover every participating writer; an in-process lock does
+  not coordinate other processes, tabs, devices, or replication. Use an authoritative backend with
+  atomic constraints/transactions when coordination must extend beyond that boundary. A separate
+  existence read is not a uniqueness guarantee. Use an identity-only creation filter; a state filter
+  changed by the update can cause repeated insertion even in a serialized workflow.
+- For claims and conditional transitions, use `_id` plus expected state with **`upsert: false`**
+  (the default). Treat zero matches / null as a lost claim. Separate entity creation from claiming:
+
+```ts
+const claim = await Jobs.updateOne({ _id: jobId, state: 'ready' }, { $set: { state: 'claimed' } }, { upsert: false });
+if (claim.matchedCount === 0) {
+  // Missing or no longer eligible; do not create a replacement job here.
+}
+```
+
+**Compatibility / migration:** upsert semantics are characterized, not expanded. Replace assumptions
+of atomic find-or-create or claim-with-upsert with the explicit identity/coordination contract above.
+
 ## Query Reads
 
 Read queries validate pagination before adapter execution: `limit()` and `skip()` must be non-negative
@@ -382,15 +634,15 @@ execution uses a snapshot taken before query middleware runs.
 
 ## Validation And Middleware
 
-Validation recurses through nested `Schema` paths and arrays of subdocuments. Errors are aggregated
+Full-record validation recurses through nested `Schema` paths and arrays of subdocuments. Errors are aggregated
 into one package-owned `ValidationError` with an `errors` map keyed by full logical paths such as
 `profile.name` or `members.0.role`. Conditional `required` functions and custom validators run with
 `this` bound to the owning document for root paths, and to the plain subdocument object for nested
 schema paths and subdocument-array items.
 
-`validateBeforeSave` is honored: `save()` runs `validate()` first by default, while schemas created
+`validateBeforeSave` is honored: full-document `save()` runs `validate()` first by default, while schemas created
 with `{ validateBeforeSave: false }` skip automatic save validation but still support explicit
-`doc.validate()`.
+`doc.validate()`. Partial records use the candidate-validation contract in **Saving Selected Documents** above.
 
 `validateSync()` performs the schema validation path synchronously without middleware. If it encounters
 an async custom validator, it returns a `ValidationError` for that path; use `validate()` for async

@@ -27,6 +27,7 @@ import {
   toBodyParserErrorPayload,
   toErrorPayload,
 } from './errors';
+import { computeExpiresAt, isUsableEpochMs, validateLifetimeOptions } from './lifetime-policy';
 import {
   assertTrustedOrigin,
   resolveBackendOrigin,
@@ -138,6 +139,7 @@ const validateOidcVaultOptions = (
   trustedOrigins: TrustedOrigins;
   resolvedOptions: OidcVaultOptions;
 } => {
+  validateLifetimeOptions(options, getNow(options));
   const backendOrigin = resolveBackendOrigin(options);
   const frontendRedirectUri = normalizeFrontendRedirectUri(options);
   validatePostLogoutRedirectUri(options);
@@ -174,6 +176,21 @@ const isStoreConflictError = (error: unknown): error is OidcVaultStoreConflictEr
   error instanceof OidcVaultStoreConflictError ||
   (typeof error === 'object' && error !== null && 'name' in error && error.name === 'OidcVaultStoreConflictError');
 
+const assertSessionIdentity = (session: OidcVaultSession, config: OidcVaultResolvedConfig): void => {
+  // Compare stored identifiers verbatim with the resolved config, without
+  // discovery or URL normalization. Undefined fields remain legacy-compatible;
+  // each known field is still enforced independently of the other's presence.
+  // This guards live sessions only: shared exchange codes are consumed before
+  // lookup, and stale logout aliases do not expose identity through getSession.
+  const provider = session.provider;
+  if (
+    (provider?.issuer !== undefined && provider.issuer !== config.issuer) ||
+    (provider?.clientId !== undefined && provider.clientId !== config.clientId)
+  ) {
+    throw new OidcVaultHttpError(401, 'OIDC_VAULT_INVALID_SESSION', 'Session is missing or expired.');
+  }
+};
+
 const getSessionIdFromRequest = (req: Request, options: OidcVaultOptions, action: 'refresh' | 'logout'): string => {
   if (usesCookieTransport(options)) {
     const cookieSessionId = getSessionIdFromCookie(req, options);
@@ -205,7 +222,9 @@ const createExchangeResponse = (
 ): OidcVaultExchangeResult => ({
   sessionId: usesCookieTransport(options) ? undefined : session.sessionId,
   user: session.user,
-  ...issuedToken,
+  accessToken: issuedToken.accessToken,
+  expiresIn: issuedToken.expiresIn,
+  tokenType: issuedToken.tokenType,
 });
 
 const appendQueryParam = (url: URL, name: string, value: string | undefined): void => {
@@ -350,7 +369,25 @@ const withIssuedToken = async (
     return {};
   }
 
-  return options.tokenIssuer.issue({ req, res, session });
+  const result: unknown = await options.tokenIssuer.issue({ req, res, session });
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) {
+    throw new TypeError('tokenIssuer.issue must return a token result object.');
+  }
+
+  // Read only the declared fields, once, while still inside issuance rollback.
+  // Never retain the issuer-owned object or enumerate its extra properties.
+  const { accessToken, expiresIn, tokenType } = result as Record<string, unknown>;
+  if (typeof accessToken !== 'string' || accessToken.length === 0) {
+    throw new TypeError('tokenIssuer.issue accessToken must be a nonempty string.');
+  }
+  if (typeof expiresIn !== 'number' || !Number.isSafeInteger(expiresIn) || expiresIn < 0) {
+    throw new TypeError('tokenIssuer.issue expiresIn must be a finite nonnegative safe integer.');
+  }
+  if (tokenType !== undefined && tokenType !== 'Bearer') {
+    throw new TypeError('tokenIssuer.issue tokenType must be Bearer when provided.');
+  }
+
+  return { accessToken, expiresIn, ...(tokenType === undefined ? {} : { tokenType }) };
 };
 
 const resolveFrontendRedirectUri = (transaction: AuthorizationTransaction, options: OidcVaultOptions): string => {
@@ -491,7 +528,11 @@ const createLoginHandler = (
       codeChallenge: createPkceChallenge(pkceVerifier),
       returnTo: resolveReturnTo(req, options),
       createdAt: now,
-      expiresAt: now + (options.authorizationTransactionTtlMs ?? DEFAULT_AUTHORIZATION_TRANSACTION_TTL_MS),
+      expiresAt: computeExpiresAt(
+        now,
+        options.authorizationTransactionTtlMs ?? DEFAULT_AUTHORIZATION_TRANSACTION_TTL_MS,
+        'authorizationTransactionTtlMs',
+      ),
     };
 
     await options.storeProvider.createAuthorizationTransaction(transaction);
@@ -576,8 +617,15 @@ const createCallbackHandler = (
     }
 
     const now = getNow(options);
+    const sessionExpiresAt =
+      options.sessionTtlMs === undefined ? undefined : computeExpiresAt(now, options.sessionTtlMs, 'sessionTtlMs');
+    const exchangeExpiresAt = computeExpiresAt(
+      now,
+      options.exchangeCodeTtlMs ?? DEFAULT_EXCHANGE_CODE_TTL_MS,
+      'exchangeCodeTtlMs',
+    );
     const sessionId = createOpaqueId('sess');
-    const session = {
+    const session: OidcVaultSession = {
       sessionId,
       logicalSessionId: sessionId,
       subject,
@@ -592,13 +640,21 @@ const createCallbackHandler = (
       scope: typeof tokenResponse.scope === 'string' ? tokenResponse.scope : metadata.scopes,
       createdAt: now,
       updatedAt: now,
+      ...(sessionExpiresAt === undefined ? {} : { expiresAt: sessionExpiresAt }),
       user: mergeUserProfile(subject, claims, userInfo),
       metadata: {
         tokenType: tokenResponse.token_type,
       },
-    } satisfies OidcVaultSession;
+    };
 
     await callHook('callback', options.hooks?.onBeforeSessionCreate, req, res, session, { subject });
+    if (sessionExpiresAt !== undefined) {
+      // Anchor the maximum before the hook: even a delayed hook or a mutation
+      // of createdAt cannot extend it. Invalid/removal attempts restore the cap.
+      session.expiresAt = isUsableEpochMs(session.expiresAt)
+        ? Math.min(session.expiresAt, sessionExpiresAt)
+        : sessionExpiresAt;
+    }
     const createdSession = await options.storeProvider.createSession(session);
 
     const exchangeCode = createOpaqueId('code');
@@ -609,7 +665,7 @@ const createCallbackHandler = (
         sessionId: createdSession.sessionId,
         returnTo: transaction.returnTo,
         createdAt: now,
-        expiresAt: now + (options.exchangeCodeTtlMs ?? DEFAULT_EXCHANGE_CODE_TTL_MS),
+        expiresAt: exchangeExpiresAt,
       });
     } catch (error) {
       await options.storeProvider.deleteSessionsByLogicalSessionId({
@@ -626,7 +682,7 @@ const createCallbackHandler = (
     res.redirect(302, appendCodeToRedirectUri(frontendDestination, exchangeCode));
   });
 
-const createExchangeHandler = (options: OidcVaultOptions): RequestHandler =>
+const createExchangeHandler = (options: OidcVaultOptions, config: OidcVaultResolvedConfig): RequestHandler =>
   createAsyncHandler('exchange', options, async (req, res) => {
     const body = getBody(req);
     const code = getRequiredString(body.code, 'Exchange request is missing code.', 'OIDC_VAULT_MISSING_EXCHANGE_CODE');
@@ -641,6 +697,8 @@ const createExchangeHandler = (options: OidcVaultOptions): RequestHandler =>
     if (!session) {
       throw new OidcVaultHttpError(401, 'OIDC_VAULT_INVALID_SESSION', 'Session is missing or expired.');
     }
+
+    assertSessionIdentity(session, config);
 
     let issuedToken: Partial<OidcVaultTokenIssueResult>;
 
@@ -684,6 +742,8 @@ const createRefreshHandler = (
 
       throw new OidcVaultHttpError(401, 'OIDC_VAULT_INVALID_SESSION', 'Session is missing or expired.');
     }
+
+    assertSessionIdentity(currentSession, config);
 
     const metadata = await resolveProviderMetadata(config, options);
     const tokenResponse = await requestToken(
@@ -812,6 +872,8 @@ const createLogoutHandler = (
       return;
     }
 
+    assertSessionIdentity(session, config);
+
     await callHook('logout', options.hooks?.onBeforeLogout, req, res, session, undefined);
     await options.storeProvider.deleteSessionsByLogicalSessionId({
       logicalSessionId: session.logicalSessionId ?? session.sessionId,
@@ -936,7 +998,7 @@ function registerRoutes(
 ): void {
   router.get(OIDC_VAULT_ROUTE_PATHS.login, createLoginHandler(options, config, backendOrigin, basePath));
   router.get(OIDC_VAULT_ROUTE_PATHS.callback, createCallbackHandler(options, config, backendOrigin, basePath));
-  router.post(OIDC_VAULT_ROUTE_PATHS.exchange, createExchangeHandler(options));
+  router.post(OIDC_VAULT_ROUTE_PATHS.exchange, createExchangeHandler(options, config));
   router.post(OIDC_VAULT_ROUTE_PATHS.refresh, createRefreshHandler(options, config, trustedOrigins));
   router.post(OIDC_VAULT_ROUTE_PATHS.logout, createLogoutHandler(options, config, trustedOrigins));
   router.post(OIDC_VAULT_ROUTE_PATHS['backchannel-logout'], createBackchannelLogoutHandler(options, config));

@@ -175,10 +175,21 @@ type TypedFilterObject<T> = {
 export type TypedFilter<T> = false | TypedFilterObject<WithDefaultId<T>>;
 export type Filter<T = unknown> = IsUnknown<T> extends true ? LooseFilter : TypedFilter<T>;
 
+/**
+ * Batched related-data join. Count uses one grouped aggregate per execution,
+ * counting distinct authorized target documents independently of list pagination.
+ * The target schema casts authorized filters/foreign operands; invalid casts return
+ * BadRequest. Query casting does not execute countDocuments middleware/plugins.
+ */
 export interface LegacyInclude {
   mode?: 'legacy';
   model: string;
   op: 'list' | 'read' | 'count';
+  /**
+   * Output path; must not overlap the receiving model's documentPermissionField
+   * (equal, ancestor or descendant, including equivalent bracket paths).
+   * Nested receiving-model settings apply. Rejected before target persistence.
+   */
   path: string;
   filter?: Filter;
   localField: string;
@@ -213,6 +224,11 @@ interface CorrelatedIncludeBase {
   mode: 'correlated';
   model: string;
   op: 'list' | 'read' | 'count';
+  /**
+   * Output-only field path. Must not equal, contain or descend from the receiving
+   * model's documentPermissionField (default `_permissions`). The include tree is
+   * preflighted before target persistence; violations return BadRequest.
+   */
   path: string;
   args?: CorrelatedIncludeArgs;
   options?: Record<string, never>;
@@ -249,6 +265,7 @@ export type CorrelatedInclude =
   | CorrelatedListInclude
   | CorrelatedCountInclude;
 
+/** Related output cannot overwrite authorization metadata at any supported nested level. */
 export type Include = LegacyInclude | CorrelatedInclude;
 
 export type FindAccess = 'list' | 'read';

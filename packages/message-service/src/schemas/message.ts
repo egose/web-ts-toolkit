@@ -4,6 +4,8 @@ import type { IBaseMessage, IMessageMethods, UserId } from '../types/message';
 import type { TemplateRegistry } from '../template-registry';
 import { includesAction } from '../template-registry';
 import { isSender, isReceiver } from './methods';
+import { isDuplicateKeyError, runMessageTransaction } from '../persistence';
+import type { MessageTransactionCleanupFailureObserver } from '../types/transaction';
 import {
   ActionConflictError,
   ActionNotFoundError,
@@ -86,6 +88,14 @@ export interface MessageSchemaConfig {
    * Defaults to `'MessageArchive'`. Used by the `archive()` instance method.
    */
   archiveModelName?: string;
+  /**
+   * Best-effort diagnostics for `endSession()` rejection after direct `archive()`.
+   * Preserves committed success or the primary transaction error even when the
+   * observer throws/rejects. Awaited; keep it bounded. Borrowed document sessions
+   * remain caller-owned and are not ended/reported. Service writes use the
+   * separate `MessageServiceOptions.onTransactionCleanupFailure` observer.
+   */
+  onTransactionCleanupFailure?: MessageTransactionCleanupFailureObserver;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,6 +104,7 @@ export interface MessageSchemaConfig {
 
 interface ArchiveContext {
   archiveModelName: string;
+  onTransactionCleanupFailure?: MessageTransactionCleanupFailureObserver;
 }
 
 type MessageModel = mongoose.Model<IBaseMessage, object, IMessageMethods>;
@@ -122,19 +133,6 @@ function resolveDocumentModel(
     (resolutionError as Error & { cause?: unknown }).cause = error;
     throw resolutionError;
   }
-}
-
-function isDuplicateKeyError(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && (error as { code?: unknown }).code === 11000;
-}
-
-function isTransactionSupportError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  return (
-    error.message.includes('Transaction numbers are only allowed') ||
-    error.message.includes('Transaction is not supported') ||
-    error.message.includes('transactions are not supported')
-  );
 }
 
 function createArchiveMethod(ctx: ArchiveContext) {
@@ -188,136 +186,99 @@ function createArchiveMethod(ctx: ArchiveContext) {
         : null;
 
     const run = async (session: mongoose.ClientSession): Promise<void> => {
-      await session.withTransaction(async () => {
-        const now = new Date();
-        // Fresh read inside the transaction: a stale hydrated copy must not
-        // decide fencing, and the archived payload reflects persisted state.
-        const fresh = (await ActiveTyped.findOne({ _id: messageId }).session(session).lean()) as unknown as Record<
-          string,
-          unknown
-        > | null;
-        if (!fresh) {
-          const archivedMatch = (await MessageArchive.findOne({ _id: messageId })
-            .session(session)
-            .select('_id')
-            .lean()
-            .catch(() => null)) as unknown;
-          if (archivedMatch) {
-            throw new MessageArchivedError(String(messageId));
-          }
-          throw new MessageNotFoundError(String(messageId));
+      const now = new Date();
+      // Fresh read inside the transaction: a stale hydrated copy must not
+      // decide fencing, and the archived payload reflects persisted state.
+      const fresh = (await ActiveTyped.findOne({ _id: messageId }).session(session).lean()) as unknown as Record<
+        string,
+        unknown
+      > | null;
+      if (!fresh) {
+        const archivedMatch = (await MessageArchive.findOne({ _id: messageId })
+          .session(session)
+          .select('_id')
+          .lean()
+          .catch(() => null)) as unknown;
+        if (archivedMatch) {
+          throw new MessageArchivedError(String(messageId));
         }
-        const state = fresh.actionState as string | null | undefined;
-        const leaseExpiresAt = fresh.actionLeaseExpiresAt as Date | null | undefined;
-        const liveLease =
-          state === 'processing' && leaseExpiresAt instanceof Date && leaseExpiresAt.getTime() > now.getTime();
-        // Fail closed: a processing record without a parsable future lease is
-        // treated as live (only an explicitly expired lease may be archived
-        // over). This keeps direct archive from stealing an in-flight service
-        // action that has not demonstrably expired.
-        if (state === 'processing' && !liveLease) {
-          const expired = leaseExpiresAt instanceof Date && leaseExpiresAt.getTime() <= now.getTime();
-          if (!expired) {
-            throw new ActionConflictError(String(messageId));
-          }
-        } else if (liveLease) {
-          throw new ActionConflictError(String(messageId));
-        }
-
-        const source = { ...(fresh as Record<string, unknown>) };
-        delete source.actionState;
-        delete source.actionClaimedBy;
-        delete source.actionClaimedAt;
-        delete source.actionLeaseExpiresAt;
-        delete source.actionFailureMessage;
-        // Preserve the stored attempt/owner identity for audit; direct archive
-        // mints no new owner token. Notification state is terminal-none because
-        // no service sender-notification runs on this path.
-        const archiveDoc: Record<string, unknown> = {
-          ...source,
-          actionCd,
-          archivedBy,
-          archivedAt: new Date(),
-          actionNotificationState: 'none',
-          actionNotificationError: null,
-          actionNotificationAttemptedAt: null,
-        };
-        try {
-          await MessageArchive.create([archiveDoc], { session, ordered: true });
-        } catch (error) {
-          if (isDuplicateKeyError(error)) {
-            throw new MessageArchivedError(String(messageId));
-          }
-          throw error;
-        }
-        // Conditional delete: a service claim that wins concurrently changes
-        // actionState/ownership, so the delete matches zero and the
-        // transaction aborts — no conflicting commit, no orphan archive.
-        const deleted = (await ActiveTyped.deleteOne(
-          {
-            _id: messageId,
-            $or: [
-              { actionState: 'active' },
-              { actionState: 'retryable' },
-              { actionState: 'processing', actionLeaseExpiresAt: { $lte: now } },
-              { actionState: null },
-              { actionState: { $exists: false } },
-            ],
-          },
-          { session },
-        )) as unknown as { deletedCount?: number; n?: number };
-        if ((deleted.deletedCount ?? deleted.n ?? 0) !== 1) {
-          throw new ActionConflictError(String(messageId));
-        }
-      });
-    };
-
-    if (existingSession) {
-      try {
-        await run(existingSession);
-      } catch (error) {
-        if (
-          error instanceof ActionConflictError ||
-          error instanceof MessageArchivedError ||
-          error instanceof MessageNotFoundError
-        ) {
-          throw error;
-        }
-        if (isTransactionSupportError(error)) {
-          throw new MessageTransactionRequiredError(error);
-        }
-        throw error;
+        throw new MessageNotFoundError(String(messageId));
       }
-      return;
-    }
-
-    let session: mongoose.ClientSession;
-    try {
-      session = await connection.startSession();
-    } catch (error) {
-      throw new MessageTransactionRequiredError(error);
-    }
-    try {
-      try {
-        await run(session);
-      } catch (error) {
-        if (
-          error instanceof ActionConflictError ||
-          error instanceof MessageArchivedError ||
-          error instanceof MessageNotFoundError
-        ) {
-          throw error;
+      const state = fresh.actionState as string | null | undefined;
+      const leaseExpiresAt = fresh.actionLeaseExpiresAt as Date | null | undefined;
+      const liveLease =
+        state === 'processing' && leaseExpiresAt instanceof Date && leaseExpiresAt.getTime() > now.getTime();
+      // Fail closed: a processing record without a parsable future lease is
+      // treated as live (only an explicitly expired lease may be archived
+      // over). This keeps direct archive from stealing an in-flight service
+      // action that has not demonstrably expired.
+      if (state === 'processing' && !liveLease) {
+        const expired = leaseExpiresAt instanceof Date && leaseExpiresAt.getTime() <= now.getTime();
+        if (!expired) {
+          throw new ActionConflictError(String(messageId));
         }
+      } else if (liveLease) {
+        throw new ActionConflictError(String(messageId));
+      }
+
+      const source = { ...(fresh as Record<string, unknown>) };
+      delete source.actionState;
+      delete source.actionClaimedBy;
+      delete source.actionClaimedAt;
+      delete source.actionLeaseExpiresAt;
+      delete source.actionFailureMessage;
+      // Preserve the stored attempt/owner identity for audit; direct archive
+      // mints no new owner token. Notification state is terminal-none because
+      // no service sender-notification runs on this path.
+      const archiveDoc: Record<string, unknown> = {
+        ...source,
+        actionCd,
+        archivedBy,
+        archivedAt: new Date(),
+        actionNotificationState: 'none',
+        actionNotificationError: null,
+        actionNotificationAttemptedAt: null,
+      };
+      try {
+        await MessageArchive.create([archiveDoc], { session, ordered: true });
+      } catch (error) {
         if (isDuplicateKeyError(error)) {
           throw new MessageArchivedError(String(messageId));
         }
-        if (isTransactionSupportError(error)) {
-          throw new MessageTransactionRequiredError(error);
-        }
         throw error;
       }
-    } finally {
-      await session.endSession();
+      // Conditional delete: a service claim that wins concurrently changes
+      // actionState/ownership, so the delete matches zero and the
+      // transaction aborts — no conflicting commit, no orphan archive.
+      const deleted = (await ActiveTyped.deleteOne(
+        {
+          _id: messageId,
+          $or: [
+            { actionState: 'active' },
+            { actionState: 'retryable' },
+            { actionState: 'processing', actionLeaseExpiresAt: { $lte: now } },
+            { actionState: null },
+            { actionState: { $exists: false } },
+          ],
+        },
+        { session },
+      )) as unknown as { deletedCount?: number; n?: number };
+      if ((deleted.deletedCount ?? deleted.n ?? 0) !== 1) {
+        throw new ActionConflictError(String(messageId));
+      }
+    };
+
+    try {
+      await runMessageTransaction(activeModel, run, {
+        operation: 'directArchive',
+        session: existingSession ?? undefined,
+        onTransactionCleanupFailure: ctx.onTransactionCleanupFailure,
+      });
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        throw new MessageArchivedError(String(messageId));
+      }
+      throw error;
     }
   };
 }
@@ -429,6 +390,7 @@ function assertModelRegistered(connection: mongoose.Connection | typeof mongoose
 }
 
 interface ResolvedConfig {
+  onTransactionCleanupFailure?: MessageTransactionCleanupFailureObserver;
   emailNotifier: EmailNotifier | null;
   onEmailDeliveryFailure?: (event: EmailDeliveryFailureEvent) => void | Promise<void>;
   emailNotificationExclusions: string[];
@@ -439,6 +401,7 @@ interface ResolvedConfig {
 
 function resolveConfig(config?: MessageSchemaConfig): ResolvedConfig {
   return {
+    onTransactionCleanupFailure: config?.onTransactionCleanupFailure,
     emailNotifier: config?.emailNotifier ?? null,
     onEmailDeliveryFailure: config?.onEmailDeliveryFailure,
     emailNotificationExclusions: (config?.emailNotificationExclusions ?? []).map(normalizeEmailTitle),
@@ -451,7 +414,7 @@ function resolveConfig(config?: MessageSchemaConfig): ResolvedConfig {
 /**
  * Build a fresh Message schema with the given configuration.
  * Prefer this over the default `MessageSchema` export when you need
- * an email notifier, exclusions, or custom model names.
+ * an email notifier, exclusions, cleanup diagnostics, or custom model names.
  *
  * Note: when `emailNotifier` is set, the configured `userModelName` MUST
  * be registered with Mongoose before calling this function. The schema
@@ -506,7 +469,10 @@ export function buildMessageSchema(
 
   schema.methods.isSender = isSender;
   schema.methods.isReceiver = isReceiver;
-  schema.methods.archive = createArchiveMethod({ archiveModelName: resolved.archiveModelName });
+  schema.methods.archive = createArchiveMethod({
+    archiveModelName: resolved.archiveModelName,
+    onTransactionCleanupFailure: resolved.onTransactionCleanupFailure,
+  });
 
   if (resolved.emailNotifier) {
     schema.pre('save', createEmailStateCaptureHook());

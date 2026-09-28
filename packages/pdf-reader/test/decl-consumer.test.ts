@@ -11,6 +11,7 @@ function run(command: string, args: string[]): string {
       cwd: packageRoot,
       encoding: 'utf8',
       stdio: 'pipe',
+      timeout: 60_000,
     });
   } catch (error) {
     const caught = error as { stdout?: string; stderr?: string; status?: number; message?: string };
@@ -23,8 +24,10 @@ function run(command: string, args: string[]): string {
 }
 
 describe('PDFR-02 strict declaration consumers', () => {
+  // Two real compiler subprocesses exceeded 15s even with successful exits on
+  // the loaded host. Match packed-consumer's bounded harness, not page timers.
   it('compile against the built package root under NodeNext and Bundler', () => {
     run('pnpm', ['exec', 'tsc', '-p', 'test-decl-consumer/tsconfig-nodenext.json']);
     run('pnpm', ['exec', 'tsc', '-p', 'test-decl-consumer/tsconfig-bundler.json']);
-  }, 15_000);
+  }, 180_000);
 });

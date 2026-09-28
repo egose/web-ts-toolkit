@@ -48,7 +48,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "peerDependencies": {
     "@web-ts-toolkit/access-router-client": "workspace:*",

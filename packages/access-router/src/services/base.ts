@@ -13,7 +13,7 @@ import {
   set,
   uniq,
 } from '@web-ts-toolkit/utils';
-import { getGlobalOption, getModelOption } from '../options';
+import { getGlobalOption, getModelNames, getModelOption } from '../options';
 import { iterateQuery, setDocValue } from '../helpers';
 import { toObject } from '../helpers/document';
 import { isValidFieldPath } from '../helpers/sort-policy';
@@ -56,6 +56,8 @@ import {
 import { Codes, FilterOperator } from '../enums';
 import { resolveRequestComplexity, validateRequestComplexity } from '../request-complexity';
 import { getActiveRuntime } from '../runtime-context';
+import { defaultRuntime } from '../runtime';
+import { getRequestWorkState } from '../helpers/request-work';
 
 type CrossResourceModelOperation = 'list' | 'read' | 'count';
 
@@ -63,8 +65,6 @@ interface CorrelatedExecState {
   totalQueries: number;
   scheduler: RequestConcurrencyScheduler;
 }
-
-const correlatedExecStates = new WeakMap<object, CorrelatedExecState>();
 
 function getCorrelatedTemplateDepth(includes: CorrelatedInclude[]): number {
   let max = 0;
@@ -130,6 +130,7 @@ export function validateClientFilter(filter: Filter | null | undefined): string[
 export class Base<TModel = unknown> {
   protected req: ModelRequest;
   protected modelName: string;
+  protected readonly requestRuntime = getActiveRuntime() ?? defaultRuntime;
 
   constructor(req: ModelRequest, modelName: string) {
     this.req = req;
@@ -343,6 +344,8 @@ export class Base<TModel = unknown> {
       seenCorrelatedPaths.add(entry.path);
     }
 
+    this.assertIncludeOutputPaths([...legacy, ...correlated]);
+
     // include Include local fields and paths
     let includeLocalFields: string[] = [];
     let includePaths: string[] = [];
@@ -362,6 +365,50 @@ export class Base<TModel = unknown> {
       includePaths,
       correlatedReferenceFields: uniq(compact(correlatedReferenceFields)),
     };
+  }
+
+  private validateIncludeOutputPath(path: string, modelName: string): void {
+    const permissionField = getModelOption(modelName, 'documentPermissionField');
+    // Use the attachment helper's path semantics, including legacy bracket
+    // notation. Reading either probe at the other path detects equal paths
+    // and both ancestor directions without rejecting unrelated siblings.
+    if (
+      get(set({}, path, true), permissionField) !== undefined ||
+      get(set({}, permissionField, true), path) !== undefined
+    ) {
+      this.throwClientRequestError(
+        Codes.BadRequest,
+        `Include output path ${path} overlaps document permission field ${permissionField} on model ${modelName}`,
+      );
+    }
+  }
+
+  private assertIncludeOutputPaths(include: Include[]): void {
+    const pending = [{ entries: include, modelName: this.modelName }];
+    const visited = new WeakMap<object, Set<string>>();
+    while (pending.length > 0) {
+      const { entries, modelName } = pending.pop()!;
+      if (modelName !== this.modelName && !getModelNames().includes(modelName)) {
+        this.throwClientRequestError(Codes.BadRequest, `Model ${modelName} not found`);
+      }
+      for (const entry of entries) {
+        if (!isPlainObject(entry)) continue;
+        const models = visited.get(entry) ?? new Set<string>();
+        if (models.has(modelName)) continue;
+        models.add(modelName);
+        visited.set(entry, models);
+        if (typeof entry.path === 'string' && entry.path) {
+          this.validateIncludeOutputPath(entry.path, modelName);
+        }
+        // Preflight nested descriptors too: a legacy parent can otherwise
+        // swallow a target's error result, and earlier siblings could query.
+        // Inner output belongs to the target model, not the outer source.
+        if ((entry.op === 'read' || entry.op === 'list') && typeof entry.model === 'string') {
+          const nested = (entry.args as { include?: Include | Include[] } | undefined)?.include;
+          if (nested) pending.push({ entries: compact(castArray(nested)), modelName: entry.model });
+        }
+      }
+    }
   }
 
   private getForeignKeyValues(value: unknown): unknown[] {
@@ -536,6 +583,7 @@ export class Base<TModel = unknown> {
     const localValues = docs.flatMap((doc) => this.getForeignKeyValues(get(doc, localField)));
     const result = await svc.countByFieldValues(foreignField, localValues, _filters ?? {}, 'count');
 
+    if (!result.success && result.code === Codes.BadRequest) throw new ClientRequestError(result);
     if (!result.success) return docs;
 
     for (let y = 0; y < docs.length; y++) {
@@ -547,16 +595,7 @@ export class Base<TModel = unknown> {
   }
 
   protected getCorrelatedExecState(): CorrelatedExecState {
-    const key = this.req as object;
-    let state = correlatedExecStates.get(key);
-    if (!state) {
-      state = {
-        totalQueries: 0,
-        scheduler: new RequestConcurrencyScheduler(this.getRequestComplexity().maxBulkConcurrency),
-      };
-      correlatedExecStates.set(key, state);
-    }
-    return state;
+    return getRequestWorkState(this.req, this.requestRuntime);
   }
 
   protected claimCorrelatedQuerySlot(): void {

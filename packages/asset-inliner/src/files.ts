@@ -284,6 +284,7 @@ function buildInlineOptions(filePath: string, catalog: AssetCatalog, opts: Inlin
     maxTargetBytes: opts.maxTargetBytes,
     maxReplacements: opts.maxReplacements,
     maxOutputBytes: opts.maxOutputBytes,
+    maxSyntaxDepth: opts.maxSyntaxDepth,
     maxInlineBytes: opts.maxInlineBytes,
     shouldInline: opts.shouldInline,
     inlineEmbeddedCss: opts.inlineEmbeddedCss,
@@ -673,6 +674,7 @@ function validateInlineFilesOptions(opts: InlineFilesOptions): void {
     maxTargetBytes: opts.maxTargetBytes,
     maxReplacements: opts.maxReplacements,
     maxOutputBytes: opts.maxOutputBytes,
+    maxSyntaxDepth: opts.maxSyntaxDepth,
     maxInlineBytes: opts.maxInlineBytes,
   });
   if (opts.write !== undefined && typeof opts.write !== 'boolean') {

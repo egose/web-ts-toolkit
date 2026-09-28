@@ -237,6 +237,31 @@ Reference scope and result-shape notes:
   drop the new entries instead of executing them — check the server release
   notes for the minimum version.
 
+### Client preparation limits
+
+Filter scanning, correlated capture/copy, and subquery rewriting now reject
+cycles, depth over **64 edges** (each root is depth 0), or over **10,000
+expanded value visits** per boundary with synchronous `CorrelatedIncludeError`.
+This includes reference-free and supplemental `$include()` filters. Preparation
+performs zero HTTP and does not execute lazy requests or freeze caller containers.
+
+Count containers, primitive leaves, array slots (including holes), and each
+repeated shared-object occurrence. Shared acyclic references are supported.
+Capture combines supplied id/filter/args/options; undefined optional roots are
+absent. Conversion combines id or rewritten filter with effective forwarded
+args, including defaults. Internal wire-envelope keys do not count toward the
+filter-only budget. A conversion can exceed its aggregate budget even if the
+individual builder inputs fit, especially after `$$sq` metadata expansion.
+
+`$escape` contents stay literal during marker scanning and rewriting but are
+still structurally checked. Live requests remain opaque until their `__query`
+becomes `$$sq` wire data, which is checked before copying. Reduce oversized
+filters/args instead of relying on previously unbounded preparation. These
+plain-object/array structural limits are not byte limits, latency guarantees,
+or bounds on arbitrary getter/proxy/exotic-instance behavior. Service defaults
+have a [separate normalization budget](./adapter#service-defaults); server
+execution limits remain separate as well.
+
 ## Subdocument Helpers
 
 `ModelService<T>` also exposes subdocument helpers from `id(id)`:

@@ -157,18 +157,19 @@ All user-facing routes require a resolved user with a valid `_id` (non-empty str
 
 Custom extractors are preserved: `getUser`, `getPermissions`, and `getIdentity` receive the original Express request and their return values are passed through to `MessageService`. The route factory enforces the shared principal contract: `getUser` must return a user with a non-empty string or `ObjectId` `_id` before continuing.
 
-| Option                         | Type                                | Description                                                                |
-| ------------------------------ | ----------------------------------- | -------------------------------------------------------------------------- |
-| `getModel`                     | `(name: string) => Model`           | Mongoose model getter                                                      |
-| `paymentProvider`              | `PaymentProvider`                   | Optional payment provider (enables payment session handling)               |
-| `onPaymentCompensationFailure` | `(event) => void \| Promise<void>`  | Optional hook called when expiring an uncommitted payment session fails    |
-| `adminRoles`                   | `string[]`                          | Roles that receive messages when no `toUser`/`toRoles` is specified        |
-| `registry`                     | `TemplateRegistry`                  | Custom template registry (default: `defaultRegistry`)                      |
-| `authMiddleware`               | `((req, res, next) => void)[]`      | Custom middleware applied to all routes before route validation            |
-| `getUser`                      | `(req) => MessageUser \| undefined` | Extract authenticated user (default: `req._user \|\| req.user`)            |
-| `getPermissions`               | `(req) => Record<string, boolean>`  | Extract permissions (default: `req._permissions \|\| {}`)                  |
-| `getIdentity`                  | `(req) => Record<string, unknown>`  | Extract identity (default: `req._identity \|\| {}`)                        |
-| `adminPermissionKey`           | `string`                            | Permission key for admin read-only view of actions (default: `'is.admin'`) |
+| Option                         | Type                                       | Description                                                                       |
+| ------------------------------ | ------------------------------------------ | --------------------------------------------------------------------------------- |
+| `getModel`                     | `(name: string) => Model`                  | Mongoose model getter                                                             |
+| `paymentProvider`              | `PaymentProvider`                          | Optional payment provider (enables payment session handling)                      |
+| `onPaymentCompensationFailure` | `(event) => void \| Promise<void>`         | Optional hook called when expiring an uncommitted payment session fails           |
+| `onTransactionCleanupFailure`  | `MessageTransactionCleanupFailureObserver` | Best-effort diagnostics when a service-owned transaction's `endSession()` rejects |
+| `adminRoles`                   | `string[]`                                 | Roles that receive messages when no `toUser`/`toRoles` is specified               |
+| `registry`                     | `TemplateRegistry`                         | Custom template registry (default: `defaultRegistry`)                             |
+| `authMiddleware`               | `((req, res, next) => void)[]`             | Custom middleware applied to all routes before route validation                   |
+| `getUser`                      | `(req) => MessageUser \| undefined`        | Extract authenticated user (default: `req._user \|\| req.user`)                   |
+| `getPermissions`               | `(req) => Record<string, boolean>`         | Extract permissions (default: `req._permissions \|\| {}`)                         |
+| `getIdentity`                  | `(req) => Record<string, unknown>`         | Extract identity (default: `req._identity \|\| {}`)                               |
+| `adminPermissionKey`           | `string`                                   | Permission key for admin read-only view of actions (default: `'is.admin'`)        |
 
 Routes:
 
@@ -185,6 +186,102 @@ Route input validation happens before database or template lookup:
 - `clientRequestId`, when present, must be a string, is trimmed by the service, must be non-empty after trimming, and must be at most 128 characters.
 
 HTTP contract change: action mutation is POST-only. `GET /:id/action/:actionCd` is not registered and must not be used for state changes; callers should treat a GET response as not found or method-not-allowed depending on surrounding Express middleware.
+
+### Public message DTOs (MSGR-03 migration)
+
+`POST /new/:templateCd` returns `PublicMessageDto[]` for both fresh creation and
+completed replay. The shipped Node host's list endpoint returns the same DTOs in
+its existing `{ success: true, data }` envelope. Root named exports
+`serializePublicMessage`, `PublicMessageDto`, `PublicMessageParty`, and
+`PublicMessageSource` let custom HTTP adapters use this contract too:
+
+```typescript
+import {
+  serializePublicMessage,
+  type MessageService,
+  type MessageUser,
+  type PublicMessageDto,
+} from '@web-ts-toolkit/message-service';
+
+export async function publicInbox(service: MessageService, user: MessageUser): Promise<PublicMessageDto[]> {
+  const messages = await service.listMessages({ user });
+  return messages.map(serializePublicMessage);
+}
+```
+
+The explicit allowlist is:
+
+- `_id`, `templateCd`, `type`, `fromUser`, `toUser`, `toRoles`;
+- `senderContent` and `receiverContent` (only `title`, `long`, `short`),
+  `documents` (attachment IDs), `payload`, `display`;
+- `paymentCd` and `paymentSession` (intentional business payment reference);
+- `actionState`, `actionCd`, `actionAttemptId`, `createdAt`, `updatedAt`;
+- archives additionally expose `archivedBy`, `archivedAt`, `actionNotificationState`.
+
+IDs are strings and dates are ISO strings. Unpopulated parties are IDs or `null`;
+populated parties contain only `{ _id, displayName?, email? }`, with presentation
+fields included only when they are strings. Missing/unsupported party references
+become `null`; populated attachments and `archivedBy` become IDs. Populate
+`email`/`displayName` only when appropriate for the response audience. The helper
+expects stored message fields (including timestamps), accepts hydrated or plain
+records, and performs no authorization itself.
+
+Migration: clients must stop reading raw diagnostics, `actionOwnerToken`, claim
+identity/timestamps/leases, notification-attempt timestamps, `clientRequest*`
+bookkeeping, `__v`, or arbitrary schema/populated-user fields from HTTP messages.
+They are no longer returned. Use `_id` for message identity and keep the submitted
+request key client-side for replay. The intentional `actionAttemptId` contract
+remains available for authorized outcome correlation, including existing 409/202
+action responses; it is not a worker ownership credential. For archives, use
+`archivedAt` to detect terminal state (`actionState` is the stored action snapshot).
+
+Direct `createMessage`, find, and list service results remain hydrated Mongoose
+records with internal diagnostics and lifecycle methods where applicable; the
+serializer does not mutate them. Operational observers retain their raw errors.
+`payload`, `display`, text content, and action-handler results are host-controlled
+business data, **not automatically sanitized**. Custom fields require an explicit
+host DTO extension after authorization rather than spreading stored documents.
+
+### Transaction cleanup diagnostics
+
+Migration (MSGR-01): once MongoDB's `withTransaction()` resolves, session cleanup
+failure no longer rejects creation or archival. Paid batches retain their payment
+sessions and replay normally; committed actions continue to the documented
+post-commit sender notification (`sent`, or `ActionNotificationPendingError` with
+stored `failed` state). Direct `archive()` resolves successfully after commit.
+If the transaction rejects, cleanup cannot replace its primary error. If a
+transaction callback and its abort both reject, the callback error takes precedence.
+
+Configure the root-exported `MessageTransactionCleanupFailureObserver` through
+`MessageServiceOptions.onTransactionCleanupFailure` for service writes, and
+`buildMessageSchema({ onTransactionCleanupFailure })` for direct document archival.
+The root-exported `MessageTransactionCleanupFailureEvent` contains:
+
+- `operation`: `createBatch`, `actionArchive`, or `directArchive`;
+- `stage`: `endSession`, and `error`: the raw cleanup rejection;
+- `outcome: 'committed'` after confirmed commit, or `outcome: 'failed'` with
+  `originalError` when the transaction rejected.
+
+These are internal diagnostics, not HTTP response fields. The optional observer
+is awaited once per failed package-owned session cleanup; synchronous throws and
+asynchronous rejections are swallowed. Keep observers bounded (a never-settling
+observer delays the call). Use them for logging/metrics, not payment compensation
+or action retries. Without an observer, cleanup errors are suppressed.
+
+Route construction forwards `onTransactionCleanupFailure` unchanged. With
+`createMessageRoutes({ service })`, configure the observer on that service;
+combining an injected service with this construction option is rejected at runtime
+and by strict TypeScript. Schema configuration is independent: service options do
+not reconfigure document methods. Direct archival uses the document's owning
+connection; a session attached with `$session(session)` is borrowed and never
+ended/reported by the package. Its owner remains responsible for cleanup; direct
+archival still calls `withTransaction()` and does not join an already-open transaction.
+
+`failed` means no commit was confirmed to this process, **not** proof of rollback.
+Driver retries remain in effect. An unresolved commit acknowledgement/network
+failure or process death can leave an ambiguous outcome; this hook supplies no
+commit reconciliation or payment crash recovery. Reconcile such outcomes with
+MongoDB and the payment provider out of band before retrying external effects.
 
 ### `MessageService`
 
@@ -210,9 +307,32 @@ Methods:
 - `countMessages(user)` — count messages visible to a user.
 - `findMessage(id, { populate?, select? })` — find a message by id (active or archive). Trusted host-level operation: performs no principal validation.
 - `findMessageOrThrow(id, { populate?, select? })` — same as `findMessage`, but throws `MessageNotFoundError`. Trusted host-level operation.
-- `getActions(messageId, usertype, { user, permissions?, isAdmin?, message?, populate? })` — get available actions. `user` is required and validated before any model lookup or template operation. Returns `{ uiTemplate, actions }` or `null`; admin/archived views return the resolved `uiTemplate` with an empty list without evaluating conditions.
+- `getActions(messageId, usertype, { user, permissions?, isAdmin?, populate? })` — read available actions from storage by the requested ID on the configured connection. `user` is required and validated before any model lookup or template operation. Returns `{ uiTemplate, actions }` or `null`; admin/archived views return the resolved `uiTemplate` with an empty list without evaluating conditions. The old `message` option is deprecated and ignored.
 - `handleAction(templateCd, actionCd, { message, user, permissions? })` — execute an action with a durable claim, stable handler attempt key, transactional archive, and post-commit sender notification status.
 - `buildVisibilityFilter(user)` — get the Mongoose filter for messages visible to a user.
+
+Action-read migration: omit `getActions`' deprecated `message` option. It is
+accepted for source compatibility but ignored, even when its ID matches. Every
+listing reads the requested ID (active, then archive) through the service's
+configured model resolver/connection. Missing records return `null`. The trusted
+`findMessage` APIs still return hydrated snapshots without authorization; do not
+use a cached result as proof of current access.
+
+Relationships are checked against stored `fromUser`, `toUser`, and `toRoles`
+before optional `populate`. Eligible active conditions receive that message with
+the requested presentation population applied; admin/archive views skip both
+population and conditions. Mutation conditions must also support unpopulated
+references because `handleAction` rechecks the atomic claim without population.
+Relationship methods accept string/ObjectId identities and populated `_id`s;
+null, deleted, or projected-away populated references never match an identity.
+An explicit recipient role can still grant access independently. These methods
+do not check host account liveness: a valid authenticated principal can match a
+canonical stored ID even if presentation population finds no user. Hosts own
+account revocation and must clear stored relationships when that is their policy.
+
+Listings and archived outcomes reflect their database read snapshot, not a
+reservation or a promise of future access. Later writes may change availability;
+active mutations retain their atomic claim-bound authorization and fencing.
 
 Pagination contract: `defaultListLimit` and `maxListLimit` must be finite integers, `maxListLimit` must be at least 1, and the default must not exceed the max. Request `limit` and `skip` values must also be finite integers; fractional, `NaN`, and infinite values are rejected. Request `limit <= 0` is normalized to 1, high limits are clamped to `maxListLimit`, and negative `skip` is normalized to 0 so invalid input never turns into an unbounded MongoDB query. Results are ordered by `{ createdAt: -1, _id: -1 }` for deterministic offset pages when timestamps tie.
 
@@ -256,8 +376,9 @@ Rendering/action separation: message content (`senderContent`/`receiverContent`)
 
 ### Action lifecycle notes
 
-- Active messages start with `actionState: 'active'`. `handleAction()` authorizes and selects the handler against the persisted document returned by the atomic claim — not the caller-supplied copy — covering `templateCd`, `toUser`/`fromUser`, `toRoles`, and condition payload data. A stale copy authorized before a stored change cannot execute; a claim denied after acquisition is released to `retryable` through the fenced owner-token path so legitimate retries are not stranded. Supported update protocol: the guarantee covers state as of the atomic claim; hosts must not mutate action-relevant fields concurrently with in-flight actions outside a coordinated protocol, and a fresh read alone is not a substitute for the claim-bound check.
-- Archived outcomes require a sender/receiver relationship with the archived record before any attempt ID or notification state is disclosed. Unrelated callers receive `ActionNotAllowedError` (403 on HTTP) with no attempt IDs on both direct and HTTP paths, including the claim-fallback path when the active copy is gone. Authorized sender/receiver retries remain available even when the template has been unregistered.
+- Active messages start with `actionState: 'active'`. `handleAction()` authorizes and selects the handler against the persisted document returned by the atomic claim — not the caller-supplied copy — covering `templateCd`, `toUser`/`fromUser`, `toRoles`, and condition payload data. A stale copy authorized before a stored change cannot execute. If a **fresh attempt** is denied before its handler runs, fenced release restores `active` and clears its action code, attempt ID, owner token, claimant, claim time, lease, and failure diagnostic to `null`. A legitimate caller can then choose any currently allowed action, including a different code in a replacement template, with a new attempt ID. A denied **retry or takeover** instead becomes `retryable`, retaining the same attempt ID and action restriction because earlier execution may have had effects. If ownership changed before either release, the replacement is untouched and the denied caller still receives its authorization error. Supported update protocol: the guarantee covers state as of the atomic claim; hosts must not mutate action-relevant fields concurrently with in-flight actions outside a coordinated protocol, and a fresh read alone is not a substitute for the claim-bound check.
+- Migration: a fresh post-claim denial now leaves the message `active`, without a persisted denial diagnostic or reserved action choice, rather than `retryable`. Handle the authorization error and reload current message state before choosing a valid action. Existing retryable/expired attempts remain conservative same-action retries; this change does not automatically reset older denied attempts whose execution history is unknown.
+- Archived outcomes re-read the archive by the supplied record's ID on its owning connection, retaining resolver/source-connection consistency checks. They require a sender/receiver relationship with that stored record before any current attempt ID or notification state is disclosed. Unrelated callers receive `ActionNotAllowedError` (403 on HTTP) with no attempt IDs on both direct and HTTP paths, including the claim-fallback path when the active copy is gone. Authorized sender/receiver retries remain available even when the template has been unregistered. Migration: supplied archive fields no longer determine the outcome; deleted/missing archives throw `MessageNotFoundError` rather than replaying cached notification state.
 - The service claims an action with an atomic conditional `findOneAndUpdate()`. Only an unclaimed active message, a retryable same-action attempt, or an expired same-action processing lease can move to `actionState: 'processing'`; competing same or different actions receive `ActionConflictError` while a live claim exists.
 - The first successful claim stores a stable `actionAttemptId` on the active message and passes it to `action.runHandler(ctx)` as `ctx.actionAttemptId`. If the process dies after an external handler effect but before archival commit, a same-action retry reuses that attempt id. Handlers must use this key with external systems or their own persistence to deduplicate side effects; the service does not claim arbitrary external calls are exactly-once.
 - If the handler throws before archival commit, the active message moves to `actionState: 'retryable'` with `actionFailureMessage`, and `handleAction()` throws `ActionRetryableError`. A later same-action retry may reclaim the same attempt id; different actions continue to conflict with the outstanding attempt.

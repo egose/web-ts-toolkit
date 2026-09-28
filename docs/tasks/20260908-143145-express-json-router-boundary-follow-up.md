@@ -176,7 +176,7 @@ Completion evidence:
 - Changed files: `docs/tasks/20260908-143145-express-json-router-boundary-follow-up.md` only (EJB-02 Status + this record). No production code, test, or config changes.
 - Fresh build: `pnpm --filter @web-ts-toolkit/express-json-router... build` from repo root — success (tsup CJS+ESM+DTS, `dist/index.mjs` 7.85 KB).
 - V1: `pnpm --filter @web-ts-toolkit/express-json-router test` from repo root, serialized — 2 test files, 33 tests, all passed (includes rebuild + NodeNext/Bundler typechecks + packed-consumer tests).
-- Probes: `/tmp/ejb02-probe.mjs` (8-scenario native-vs-JSON matrix, copied into package dir for module resolution then removed) — 5 SAME (C/D/E/E2/F), 3 DIFF (A/B/G); plus inline HEAD-marker probe (`HEAD x-h=get`, `GET x-h=get`, endpoints list) confirming A mechanism. No terminal-error logs; all handlers void-returning.
+- Probes: `<repo-root>/_tmp/ejb02-probe.mjs` (8-scenario native-vs-JSON matrix, copied into package dir for module resolution then removed) — 5 SAME (C/D/E/E2/F), 3 DIFF (A/B/G); plus inline HEAD-marker probe (`HEAD x-h=get`, `GET x-h=get`, endpoints list) confirming A mechanism. No terminal-error logs; all handlers void-returning.
 - Caller inspection: greps for `.route(`, `JsonRouter|express-json-router`, `next(['"]rou` across `packages/`, `apps/` (no JsonRouter use), `website/docs`; inspected paths/examples listed above.
 - `git diff --check` — clean.
 
@@ -351,7 +351,7 @@ Commands/results (from repo root unless noted, serialized):
 
 Discriminating evidence (temp probes, removed afterwards, run from `packages/express-json-router` with `--ignoreConfig` NodeNext `tsc`):
 
-- Narrowing probe (`/tmp/ejb05-probe-narrow.mts`): `ManualThenable<{ok:boolean}>` assigns to `PromiseLike<{ok:boolean}>` (control passes) while `const asNativePromise: Promise<{ok:boolean}> = thenable` requires `@ts-expect-error` to compile (exit 0 with the directive consumed). A narrowed contract `T | Promise<T>` would therefore reject the positive fixture.
+- Narrowing probe (`<repo-root>/_tmp/ejb05-probe-narrow.mts`): `ManualThenable<{ok:boolean}>` assigns to `PromiseLike<{ok:boolean}>` (control passes) while `const asNativePromise: Promise<{ok:boolean}> = thenable` requires `@ts-expect-error` to compile (exit 0 with the directive consumed). A narrowed contract `T | Promise<T>` would therefore reject the positive fixture.
 - Old-weak-shape probe (`ejb05-probe-weak.mts` in package dir): `const weak: JsonRouterCallback<{id:string},{ok:boolean}> = () => ({ then: 'not-a-function' })` compiles clean (exit 0), proving the pre-fix fixture (omitted sixth generic, `MaybePromise<unknown>` = `unknown`) accepted garbage without proving `PromiseLike` compatibility.
 - Malformed probe (`ejb05-probe-malformed.mts` in package dir, directive removed): fails with `TS2322: Type 'string' is not assignable to type '<TResult1 = ResBody, ...>(onfulfilled?: ...) => PromiseLike<...>'` at the `then` property (exit 2) — the intended reason, not an unrelated inference failure. The earlier intermediate V2 run likewise showed the incompatible-value negative failing as `Type 'Promise<{ wrong: boolean }>' is not assignable to type 'MaybePromise<ResBody>'` with the `then`-signature incompatibility chain.
 - Generated declarations untouched: `dist/` rebuilt by the normal build only; no committed declaration was hand-edited.

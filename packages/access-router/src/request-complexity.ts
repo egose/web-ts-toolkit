@@ -9,9 +9,19 @@ export interface RequestComplexityOptions {
   maxBulkItems?: number;
   maxIncludeCount?: number;
   maxSubQueryCount?: number;
+  /**
+   * Defaults to 10. Shared request-and-runtime-owned ceiling on awaited model-service
+   * adapter/document persistence operations, including nested includes/root entries.
+   * Recursive orchestration holds no permit; internal map/run bounds are per call.
+   * One operation may issue multiple driver commands via Mongoose middleware/populate;
+   * direct DB/network calls from trusted application hooks are outside this ceiling.
+   * Not a process-wide connection limit or protection against competing edits.
+   */
   maxBulkConcurrency?: number;
   maxHookConcurrency?: number;
+  /** Cumulative correlated target executions per request/runtime (default 100); permit release does not refund this budget. */
   maxCorrelatedQueries?: number;
+  /** Correlated template nesting bound (default 5), independent of persistence concurrency. */
   maxCorrelatedDepth?: number;
 }
 

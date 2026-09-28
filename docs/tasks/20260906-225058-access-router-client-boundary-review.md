@@ -280,6 +280,16 @@ Completion evidence:
 - Residual risk (NOT resolved, kept visible): until the follow-up lands, direct assignment to any absent optional or projection-omitted field is a SILENT persistence loss — value looks set on the wrapper, never reaches dirty tracking, serialization, save, or reset, and a later `set()` leaves direct reads stale. Severity P1 persists as a runtime hazard; only the decision record (not a fix) is complete.
 - Verified commands + results: `pnpm --filter @web-ts-toolkit/access-router-client exec vitest run test/access-router-client.bnd07-absent-fields.unit.test.ts test/access-router-client.bnd06-reconciliation.unit.test.ts test/access-router-client.model-reconciliation.unit.test.ts test/access-router-client.model.integration.test.ts test/access-router-client.arc21-projection-identity.integration.test.ts` → 5 files, 40 tests passed (7 new characterization + 6 BND-06 + 27 existing incl. ARC-21 projection-identity; BND-06 behavior preserved, no regressions). No `model.ts` change (`git diff` on `src/model.ts` shows only BND-06 lines). No full `pnpm test/build/lint` run per lane instruction (reserved for BND-13).
 
+Resolution note (2026-09-26): `BND-07-FOLLOWUP` was authorized as contract (A),
+consistent assignment, and implemented in
+[CLC-05 completion evidence](./20260926-215404-access-router-client-business-contracts.md#task-clc-05-persist-direct-writes-to-absent-model-fields).
+Its seven characterization tests now assert tracked absent-field assignment,
+save/reset and helper-after-direct behavior. Public docs/migration verification
+is recorded under
+[CLC-06](./20260926-215404-access-router-client-business-contracts.md#task-clc-06-document-the-corrected-business-and-migration-contracts).
+The findings and deferral above record the original investigation, before that
+runtime resolution.
+
 ### Task BND-08: Align Model Path Mutation And Dirty Normalization
 
 Status: completed

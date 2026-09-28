@@ -86,11 +86,44 @@ This makes the archive an audit/history collection for committed state transitio
 
 If a process dies before the handler, the processing lease eventually expires and a same-action retry can reclaim the attempt. If it dies after the handler but before archival commit, the same attempt id is reused so handler side effects can be deduplicated. Archive insertion and active deletion are one MongoDB transaction. After commit, sender notification is explicitly post-commit: failure changes the archive notification state to `failed` and surfaces `ActionNotificationPendingError` instead of pretending the business action did not commit.
 
+MSGR-01 migration: service creation, action archival, and direct archival share
+`runMessageTransaction`. A resolved `withTransaction()` is the confirmed commit
+boundary; rejected `endSession()` housekeeping cannot expire committed payments,
+mark a committed action retryable, skip its notification, or reject direct archive
+success. Transaction rejection preserves the primary error across cleanup failure;
+callback failure also takes precedence over a secondary abort rejection. Callback
+error tracking resets for each driver retry so a prior attempt cannot mask a later
+commit error.
+
+Hosts observe owned-session cleanup failures via `onTransactionCleanupFailure`
+on service options (forwarded by route construction) or independently on
+`buildMessageSchema` for direct archival. The root-exported event/observer types
+specify `operation` (`createBatch`/`actionArchive`/`directArchive`), `stage:
+'endSession'`, raw `error`, and `outcome: 'committed'` or `'failed'` plus
+`originalError`. Observer throws/rejections are suppressed; observers are awaited
+and must be bounded. No observer means suppressed cleanup diagnostics. Injected
+routes reject this construction option; configure the injected service itself.
+Borrowed document sessions retain caller cleanup ownership and never generate
+this event; direct archive still runs `withTransaction`, not a nested transaction.
+All models/sessions remain on the document's owning connection.
+
+`failed` means the transaction rejected, not that rollback is proven. Unresolved
+commit acknowledgements and process death remain ambiguous and require host
+MongoDB/provider reconciliation; this diagnostic hook adds no reconciliation or
+crash-recovery protocol. Raw diagnostic events are for internal logging/metrics,
+not HTTP responses or automatic compensation/retry decisions.
+
 The document-level `archive()` method is retained as a trusted host-only primitive with the same transactional discipline on the document's owning connection (fresh in-transaction read, live-claim refusal with `ActionConflictError`, conditional active delete so a concurrent service commit cannot double-apply). It runs no user authorization and stores terminal notification state `none`; invalid action/user input and repeats fail closed with typed errors rather than silent success, and transaction-less deployments fail with `MessageTransactionRequiredError` before any write. There is deliberately no second lifecycle: direct archives preserve the stored attempt/owner identity and reuse the archive collection/indexes, while the service path remains the only user-authorized action-commit route.
 
 Each lease acquisition mints a distinct `actionOwnerToken` alongside the stable `actionAttemptId`. Every completion/failure write — the retryable mark, the archive commit (ownership pre-check plus a conditional active delete), and the post-commit notification-state update — is conditioned on the current owner token, so a worker that lost its lease receives `ActionConflictError` and cannot mutate the replacement's claim, archive, or notification state. Long-running handlers must therefore finish within the 30-second action lease; there is no renewal mechanism, and fencing does not stop an already-running external call, so handlers must still deduplicate external effects by `actionAttemptId`.
 
-Authorization and handler selection are bound to the persisted claim, not the caller-supplied document: after the atomic `findOneAndUpdate`, the service re-validates `templateCd`, the template/action lookup, and the sender/receiver, permission, and condition checks against the claimed record before running `runHandler`. A denied claim is released to `retryable` with the same owner token so legitimate retries proceed. Archived and claim-fallback outcomes apply a relationship gate first — only the recorded sender or receiver may observe pending-notification or terminally-archived results, even when the template is gone — while unrelated callers receive a stable denial without attempt IDs. The supported update protocol covers only state as of the atomic claim; concurrent host mutations of action-relevant fields during handler execution are outside the guarantee and must be coordinated by the host.
+Authorization and handler selection are bound to the persisted claim, not the caller-supplied document: after the atomic `findOneAndUpdate`, the service re-validates `templateCd`, the template/action lookup, and the sender/receiver, permission, and condition checks against the claimed record before running `runHandler`. The claim acquisition branch records whether this is a fresh attempt or a retry/takeover; a stale caller document cannot determine that classification.
+
+On authoritative denial, a fresh attempt that has never invoked its handler is released to `active`, resetting only its claim bookkeeping (`actionCd`, `actionAttemptId`, `actionOwnerToken`, `actionClaimedBy`, `actionClaimedAt`, `actionLeaseExpiresAt`, `actionFailureMessage`) to `null`, with the normal update timestamp. This restores all currently authorized action choices, even after replacement with a template using different action codes. A denied retry/takeover is released to `retryable` with its denial diagnostic and cleared lease, retaining the stable attempt ID, action code, and current owner token: earlier owners may have executed effects. Both paths condition their update on message ID, `processing` state, attempt ID, and owner token. A takeover that wins before release is untouched, and the denied caller still receives the authorization error rather than a release conflict.
+
+Migration: consumers must no longer expect every post-claim denial to reserve an action or leave a retryable diagnostic. Fresh denial restores action choice and a later claim receives a new attempt ID; previously attempted work still requires same-action deduplicated retries. Pre-existing retryable/expired records are not automatically reset because their execution history is unknown.
+
+Archived and claim-fallback outcomes apply a relationship gate first — only the recorded sender or receiver may observe pending-notification or terminally-archived results, even when the template is gone — while unrelated callers receive a stable denial without attempt IDs. The supported update protocol covers only state as of the atomic claim; concurrent host mutations of action-relevant fields during handler execution are outside the guarantee and must be coordinated by the host.
 
 Records written before fencing carry no `actionOwnerToken`. A same-action takeover of such a record still matches (the retry filter does not require the field), keeps the existing attempt id, and mints a token; no migration script or backfill is required. Until the first fenced claim, those records have no ownership protection, so upgrade during a live claim should drain in-flight handlers first.
 
@@ -117,6 +150,58 @@ Payment sessions are external side effects created before the message commit poi
 The route factory provides `createMessageRoutes` — a plain Express router with no ACL dependency. Mount it with your own auth middleware, or ignore it entirely and use `MessageService` directly to build your own routes.
 
 User-facing service entry points (`createMessage`, `getActions`, `handleAction`, `listMessages`/`countMessages`/`buildVisibilityFilter`) and all routes share one principal contract (`isValidMessageUserId`/`requireMessageUserId`): only a non-empty string (trimmed) or an `ObjectId` `_id` is accepted, before any template, provider, or model effect. Valid string ids stay strings and valid `ObjectId` instances keep their native type for storage; scope/query keys use the trimmed/hex string. `findMessage`/`findMessageOrThrow` and `createNotification` are trusted host-level operations with no principal and are outside this contract.
+
+Action-read migration (MSGR-04): `getActions` always queries the requested ID
+through the configured resolver/connection, active then archive. Its deprecated
+`message` option is ignored; matching IDs do not establish freshness. Trusted
+find APIs remain unauthenticated hydrated snapshots. The listing relationship
+gate uses canonical stored identities before presentation population; only
+eligible active conditions receive the requested populated snapshot. Admin and
+archive listings skip population and predicates. Shared mutation conditions must
+support the unpopulated atomic claim as well. Relationship helpers normalize
+string/ObjectId IDs and populated `_id`s without stringifying arbitrary objects;
+missing/deleted/projected-away populated IDs cannot match, while explicit roles
+remain independent grants. Canonical stored IDs do not imply account-liveness
+checks: hosts own principal revocation and relationship removal.
+
+Direct archived `handleAction` outcomes now re-read the archive by ID using the
+same document-owned model resolution and resolver/connection consistency checks
+as mutation claims. Direct and claim-fallback paths share the stored relationship
+gate and current notification/attempt result, without needing the template.
+A deleted archive throws `MessageNotFoundError`, never a cached outcome.
+Read authorization is snapshot-time only: later host writes are not locked out.
+The active atomic claim, post-claim checks, denied-claim release, and owner-token
+fencing remain the execution boundary; a successful listing cannot replace them.
+
+### Public messages are explicit DTOs (MSGR-03)
+
+Successful create/replay routes and the shipped Node host list apply the root
+`serializePublicMessage` helper to hydrated results. `PublicMessageDto` explicitly
+allows identity/template/type, parties/roles, sender/receiver content (title,
+long, short), attachment IDs, payload/display, business paymentCd/paymentSession,
+actionState/actionCd/actionAttemptId, and creation/update timestamps. Archives add
+archivedBy/archivedAt/actionNotificationState. IDs become strings and dates ISO
+strings. Archive presence, not the stored action-state snapshot, identifies a
+terminal message.
+
+Populated parties expose only `_id` and optional string `displayName`/`email`;
+unpopulated references remain IDs, missing references are null, and populated
+attachments/archivedBy reduce to IDs. Hosts control whether presentation fields
+should be populated for an audience. The serializer never spreads a document or
+delegates whole-document JSON serialization. Raw diagnostics, owner tokens,
+claim/lease bookkeeping, notification attempt timestamps, all clientRequest\*
+fields, version keys, and arbitrary schema/user extensions are excluded.
+
+Migration: HTTP consumers use the DTO instead of the persisted document shape,
+retain their own submitted request key, and explicitly extend a host DTO for any
+additional authorized business fields. The stable actionAttemptId remains an
+intentional public correlation/deduplication identifier, coherent with authorized
+409/202 action outcomes; the owner token remains private. Direct-service hydrated
+results, methods and stored diagnostics are preserved for operational use.
+Serialization is a presentation boundary, not an authorization check or recursive
+secret scrubber: arbitrary host payload/display/text and action-handler results
+remain host-controlled business data. The README lists every field and a typed
+root-import example; packed consumers verify both module formats and declarations.
 
 ### Listing is offset-based and bounded
 

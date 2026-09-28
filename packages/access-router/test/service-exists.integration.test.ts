@@ -1,7 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import request from 'supertest';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import acl, { permissionsPlugin, setGlobalOptions } from '../dist/index.mjs';
 import { useMongoTestDatabase } from './setup';
@@ -45,6 +45,7 @@ const createExistsApp = async ({ seed = true }: { seed?: boolean } = {}) => {
     operationAccess: {
       list: true,
       read: true,
+      upsert: true,
     },
     permissionSchema: {
       name: true,
@@ -54,6 +55,9 @@ const createExistsApp = async ({ seed = true }: { seed?: boolean } = {}) => {
       read: () => ({ public: true }),
       update: () => false,
     },
+    overrideFilter: {
+      read: (filter) => (filter && filter.name === 'override-denied' ? false : filter),
+    },
   });
 
   router.router.get('/custom/exists', async (req) => {
@@ -61,13 +65,10 @@ const createExistsApp = async ({ seed = true }: { seed?: boolean } = {}) => {
     const access = req.query.access === 'update' ? 'update' : 'read';
     const includeId = req.query.includeId === 'true';
 
-    return svc.exists(
-      { name: String(req.query.name ?? '') },
-      {
-        access,
-        includeId,
-      },
-    );
+    return svc.exists(req.query.deny === 'true' ? false : { name: String(req.query.name ?? '') }, {
+      access,
+      includeId,
+    });
   });
 
   if (seed) {
@@ -80,11 +81,14 @@ const createExistsApp = async ({ seed = true }: { seed?: boolean } = {}) => {
   const app = express();
   app.use(express.json());
   app.use(router.routes);
+  const rootPath = `${basePath}-root`;
+  app.use(acl.createRouter({ basePath: rootPath, operationAccess: true }).routes);
 
-  return { app, basePath, modelName };
+  return { app, basePath, modelName, rootPath };
 };
 
 afterEach(() => {
+  vi.restoreAllMocks();
   resetGlobalOptions();
   mongoose.deleteModel(/AclMongoExistsUser.*/);
 });
@@ -131,20 +135,68 @@ describe('service exists integration', () => {
     });
   });
 
-  it('honors the requested access override', async () => {
-    const { app, basePath } = await createExistsApp();
+  it.each([false, true])(
+    'returns Forbidden for denied access, includeId=%s (custom route owns HTTP status)',
+    async (includeId) => {
+      const { app, basePath, modelName } = await createExistsApp();
+      const findOne = vi.spyOn(mongoose.model(modelName), 'findOne');
 
-    const response = await request(app)
-      .get(`${basePath}/custom/exists?name=public-user&access=update`)
-      .expect(200)
-      .expect('Content-Type', /json/);
+      const response = await request(app)
+        .get(`${basePath}/custom/exists?name=public-user&access=update&includeId=${includeId}`)
+        .expect(200)
+        .expect('Content-Type', /json/);
 
-    expect(response.body).toMatchObject({
-      success: true,
-      kind: 'single',
-      code: 'success',
-      data: false,
-    });
+      expect(response.body).toMatchObject({
+        success: false,
+        kind: 'error',
+        code: 'forbidden',
+        query: { filter: false },
+      });
+      expect(response.body).not.toHaveProperty('data');
+      expect(findOne).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([false, true])(
+    'distinguishes explicit/override denial from ACL no-match, includeId=%s',
+    async (includeId) => {
+      const { app, basePath, modelName } = await createExistsApp();
+      const findOne = vi.spyOn(mongoose.model(modelName), 'findOne');
+      for (const query of ['name=public-user&deny=true', 'name=override-denied']) {
+        const response = await request(app)
+          .get(`${basePath}/custom/exists?${query}&includeId=${includeId}`)
+          .expect(200);
+        expect(response.body).toMatchObject({ success: false, code: 'forbidden', query: { filter: false } });
+        expect(response.body).not.toHaveProperty('data');
+      }
+      expect(findOne).not.toHaveBeenCalled();
+      const hidden = await request(app)
+        .get(`${basePath}/custom/exists?name=private-user&includeId=${includeId}`)
+        .expect(200);
+      expect(hidden.body).toMatchObject({ success: true, data: includeId ? null : false });
+      expect(findOne).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('maps denied public upsert to direct/root-entry 403 without lookup or mutation', async () => {
+    const { app, basePath, modelName, rootPath } = await createExistsApp();
+    const User = mongoose.model(modelName);
+    const doc = await User.findOne({ name: 'public-user' }).lean();
+    const findOne = vi.spyOn(User, 'findOne');
+    const create = vi.spyOn(User, 'create');
+    const save = vi.spyOn(User.prototype, 'save');
+    const data = { _id: String(doc!._id), name: 'changed' };
+    await request(app).put(`${basePath}/__mutation`).send({ data }).expect(403);
+    const root = await request(app)
+      .post(rootPath)
+      .send([{ target: 'model', name: modelName, op: 'upsert', data }])
+      .expect(200);
+    expect(root.body[0]).toMatchObject({ statusCode: 403, result: { success: false, code: 'forbidden' } });
+    expect(findOne).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+    expect(await User.collection.findOne({ _id: doc!._id })).toMatchObject({ name: 'public-user' });
+    expect(await User.collection.countDocuments({})).toBe(2);
   });
 
   // ARF-12 #1: Regimented regression coverage for exists() behaviour when an

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import express from 'express';
 import mongoose from 'mongoose';
@@ -43,7 +44,7 @@ describe('access-router-deco documentation examples', () => {
   });
 
   it.each(docs.map((doc) => extractFirstTypeScriptBlock(doc.name, doc.path)))(
-    'compiles $name against emitted declarations',
+    'strictly compiles and executes $name over HTTP against emitted packages',
     ({ name, source }) => {
       const sourceFile = path.resolve(consumerDir, `${name.toLowerCase().replaceAll(/\W+/g, '-')}.ts`);
       const tsconfigPath = path.resolve(consumerDir, `${name.toLowerCase().replaceAll(/\W+/g, '-')}.tsconfig.json`);
@@ -55,10 +56,10 @@ describe('access-router-deco documentation examples', () => {
           {
             compilerOptions: {
               target: 'ES2022',
-              module: 'ESNext',
-              moduleResolution: 'Bundler',
+              module: 'NodeNext',
+              moduleResolution: 'NodeNext',
               strict: true,
-              noEmit: true,
+              noEmitOnError: true,
               skipLibCheck: false,
               experimentalDecorators: true,
               emitDecoratorMetadata: true,
@@ -82,8 +83,24 @@ describe('access-router-deco documentation examples', () => {
       }
 
       expect(result.status).toBe(0);
+
+      // Execute tsc's output of the exact extracted block: no replacement policy,
+      // reconstructed decorators, transpile-only pass, or source-package aliases.
+      const runner = path.resolve(consumerDir, 'documentation-http.mjs');
+      writeFileSync(runner, readFileSync(path.join(packageRoot, 'test', 'documentation-http.fixture.js'), 'utf8'));
+      const output = execFileSync(process.execPath, [runner, sourceFile.replace(/\.ts$/, '.js')], {
+        cwd: consumerDir,
+        encoding: 'utf8',
+        timeout: 30000,
+      });
+      expect(JSON.parse(output)).toEqual({ requests: 19, reads: 8, forbiddenPersistenceCalls: 0 });
     },
   );
+
+  it('keeps the shipped and website application examples identical', () => {
+    const [readme, website] = docs.map((doc) => extractFirstTypeScriptBlock(doc.name, doc.path));
+    expect(website.source).toBe(readme.source);
+  });
 
   it('rejects returning document from typed validator at type-check time', () => {
     const sourceFile = path.resolve(consumerDir, 'validate-return-doc-fail.ts');

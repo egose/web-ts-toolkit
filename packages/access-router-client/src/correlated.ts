@@ -26,6 +26,14 @@ import { isPlainObject } from '@web-ts-toolkit/utils';
 
 import { CORRELATED_DESCRIPTOR_BRAND, CorrelatedIncludeError, isCorrelatedIncludeDescriptor } from './correlated-brand';
 import { replaceSubQuery } from './helpers';
+import {
+  isLazyRequestLike,
+  isOpaqueQueryValue,
+  queryChildContext,
+  validateQueryInputs,
+  validateQueryWireInputs,
+} from './query-traversal';
+import type { QueryContext } from './query-traversal';
 import type { CorrelatedInclude, CorrelatedIncludeOp, ParentRef } from './types';
 
 /** Execution-only option keys (ACI-01 D9.1): explicit values throw at `$include()`; inherited defaults are ignored. */
@@ -64,38 +72,43 @@ export function parentField(path: string): ParentRef {
   return Object.freeze({ $parent: path });
 }
 
-const isLazyRequestLike = (value: unknown): boolean =>
-  typeof value === 'object' && value !== null && '__op' in value && '__query' in value;
-
 /**
  * Snapshot-aware deep clone. Detaches plain objects/arrays (cycle- and
  * shared-reference-safe), clones `Date`/`RegExp` values, and preserves
  * embedded live lazy requests *by reference*: their `__query` metadata is
  * non-enumerable, so a naive structural clone would strip it and silently
- * break `$$sq` conversion. A live request's `__query` was already detached
- * from caller inputs when that request was created, so sharing the reference
- * inside a frozen snapshot is safe; the converter detaches the rewritten
- * `$$sq` payload afterwards. Exotic leaves (ObjectId, class instances) and
+ * break `$$sq` conversion. Live metadata stays live until conversion, which
+ * validates and detaches the exposed `$$sq` payload before returning it.
+ * Request-shaped ordinary records are structural beneath `$escape` and in
+ * exposed wire data. Only actual wrapped requests retain execution identity
+ * there; context-specific memoization keeps shared live/literal paths distinct.
+ * Inert descriptors also retain their brand (including inside literal escapes).
+ * Exotic leaves (ObjectId, class instances) and
  * non-container roots pass through by reference — matching the existing
  * direct-execution aliasing for values the converter never interprets.
  */
-const cloneSnapshotValue = (value: unknown, seen: WeakMap<object, unknown> = new WeakMap()): unknown => {
+const cloneSnapshotValue = (
+  value: unknown,
+  mode: QueryContext = 'live',
+  seen = { live: new WeakMap<object, unknown>(), structural: new WeakMap<object, unknown>() },
+): unknown => {
   if (value == null || typeof value !== 'object') return value;
-  if (isLazyRequestLike(value)) return value;
-  const cached = seen.get(value);
+  if (isOpaqueQueryValue(value, mode)) return value;
+  const cached = seen[mode].get(value);
   if (cached !== undefined) return cached;
   if (value instanceof Date) return new Date(value.getTime());
   if (value instanceof RegExp) return new RegExp(value.source, value.flags);
   if (Array.isArray(value)) {
     const copy: unknown[] = [];
-    seen.set(value, copy);
-    for (const item of value) copy.push(cloneSnapshotValue(item, seen));
+    seen[mode].set(value, copy);
+    for (const item of value) copy.push(cloneSnapshotValue(item, mode, seen));
     return copy;
   }
   if (isPlainObject(value)) {
     const copy: Record<string, unknown> = {};
-    seen.set(value, copy);
-    for (const [key, item] of Object.entries(value)) copy[key] = cloneSnapshotValue(item, seen);
+    seen[mode].set(value, copy);
+    const childMode = queryChildContext(value, mode);
+    for (const [key, item] of Object.entries(value)) copy[key] = cloneSnapshotValue(item, childMode, seen);
     return copy;
   }
   return value;
@@ -217,6 +230,7 @@ const scanNode = (node: unknown, ctx: ScanContext, method: string): boolean => {
  * a field-condition object); anything else delegates to {@link scanNode}.
  */
 export const scanFilterForRefs = (filter: unknown, method: string): boolean => {
+  validateQueryInputs(method, filter);
   if (isMarkerShaped(filter)) {
     throw new CorrelatedIncludeError(
       `${method}: a bare parent reference cannot be the whole filter — ` + `wrap it in a field condition instead`,
@@ -310,15 +324,20 @@ export interface CorrelatedSource {
   readonly defaults: Record<string, unknown>;
 }
 
-const deepFreezeSnapshot = (value: unknown, seen: WeakSet<object> = new WeakSet<object>()): void => {
+const deepFreezeSnapshot = (
+  value: unknown,
+  mode: QueryContext = 'live',
+  seen: WeakSet<object> = new WeakSet<object>(),
+): void => {
   if (value == null || typeof value !== 'object' || Object.isFrozen(value) || seen.has(value)) return;
   // Live subquery requests are shared by reference (see cloneSnapshotValue);
   // never freeze caller-visible request objects through the snapshot.
-  if (isLazyRequestLike(value) || isCorrelatedIncludeDescriptor(value)) return;
+  if (isOpaqueQueryValue(value, mode)) return;
   if (!isPlainObject(value) && !Array.isArray(value)) return;
   seen.add(value);
   Object.freeze(value);
-  for (const item of Object.values(value)) deepFreezeSnapshot(item, seen);
+  const childMode = queryChildContext(value, mode);
+  for (const item of Object.values(value)) deepFreezeSnapshot(item, childMode, seen);
 };
 
 export interface CaptureParams {
@@ -336,6 +355,10 @@ export interface CaptureParams {
 
 /** Captures a frozen, detached snapshot of the per-call inputs at call time (ACI-01 D8.4). */
 export const captureCorrelatedSource = (params: CaptureParams): CorrelatedSource => {
+  // One aggregate budget before any recursive cloning/freezing. Undefined
+  // optional roots are absent; supplied args/options count even when conversion
+  // later drops them, since capturing them still consumes preparation work.
+  validateQueryInputs(params.method, params.id, params.filter, params.callArgs, params.callOptions);
   const callArgs = isPlainObject(params.callArgs)
     ? (cloneSnapshotValue(params.callArgs) as Record<string, unknown>)
     : {};
@@ -415,7 +438,7 @@ export const convertCorrelatedSource = (
     // Rewrite subqueries against the caller-owned value first (reads live
     // `__query` metadata), then detach the rewritten payload so the wire
     // output never aliases caller inputs or live requests.
-    innerFilter = cloneSnapshotValue(replaceSubQuery(rawFilter as Parameters<typeof replaceSubQuery>[0]));
+    innerFilter = replaceSubQuery(rawFilter as Parameters<typeof replaceSubQuery>[0]);
   } else {
     if (supplemental !== undefined) {
       throw new CorrelatedIncludeError(
@@ -428,7 +451,7 @@ export const convertCorrelatedSource = (
       scanFilterForRefs(source.filter, source.method);
       // `replaceSubQuery` is pure (never mutates), so it runs directly on
       // the frozen snapshot; the result is detached below.
-      innerFilter = cloneSnapshotValue(replaceSubQuery(source.filter as Parameters<typeof replaceSubQuery>[0]));
+      innerFilter = replaceSubQuery(source.filter as Parameters<typeof replaceSubQuery>[0]);
     }
   }
 
@@ -470,8 +493,18 @@ export const convertCorrelatedSource = (
       const entries = Array.isArray(effective) ? effective : [effective];
       validateIncludeEntries(entries, source.method);
     }
-    args[key] = cloneSnapshotValue(effective);
+    args[key] = effective;
   }
+
+  // Rewritten $$sq metadata and selected inherited defaults are now wire data,
+  // not opaque live requests. Bound the aggregate before detaching any of it.
+  // Empty generated args do not consume the caller's filter-only budget.
+  validateQueryWireInputs(
+    `${source.method}.$include`,
+    source.id,
+    innerFilter,
+    Object.keys(args).length > 0 ? args : undefined,
+  );
 
   const wire: Record<string, unknown> = {
     mode: 'correlated',
@@ -480,11 +513,11 @@ export const convertCorrelatedSource = (
     path,
   };
   if (source.kind === 'id') {
-    wire.id = cloneSnapshotValue(source.id);
+    wire.id = cloneSnapshotValue(source.id, 'structural');
   } else {
-    wire.filter = innerFilter;
+    wire.filter = cloneSnapshotValue(innerFilter, 'structural');
   }
-  if (Object.keys(args).length > 0) wire.args = args;
+  if (Object.keys(args).length > 0) wire.args = cloneSnapshotValue(args, 'structural');
   return wire as unknown as CorrelatedInclude<string, unknown, CorrelatedIncludeOp>;
 };
 

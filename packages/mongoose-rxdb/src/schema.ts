@@ -1,3 +1,4 @@
+import { cloneSchemaDefault } from './converter';
 import type {
   CompiledSchemaRepresentation,
   CompiledPath,
@@ -207,6 +208,9 @@ export class Schema<
     return this;
   }
 
+  /** Owns literal JSON/Date defaults after bounded structural preflight.
+   * Nonplain defaults keep their kind for schema-aware casting/rejection;
+   * invalid literal structure throws WriteNormalizationError before copying. */
   clone(): this {
     const c = new Schema(cloneDefinition(this.definition), clonePlain(this.options)) as this;
     c.paths = new Map(Array.from(this.paths.entries()).map(([k, v]) => [k, clonePath(v)]));
@@ -273,7 +277,13 @@ function compilePath(name: string, prop: any, parent: Schema<any, any, any, any>
 
   if (prop && typeof prop === 'object' && !Array.isArray(prop) && 'type' in prop) {
     validatePathOptions(name, prop);
-    options = prop as SchemaTypeOptions;
+    // Own validation containers before compilation can freeze them. Keep the
+    // type (possibly a live child Schema) and other option semantics intact.
+    options = { ...prop } as SchemaTypeOptions;
+    if (options.required !== undefined) options.required = clonePlain(options.required);
+    if (options.validate !== undefined) options.validate = clonePlain(options.validate);
+    if (options.enum !== undefined) options.enum = clonePlain(options.enum);
+    if (options.default !== undefined) options.default = cloneSchemaDefault(options.default);
     typeDef = prop.type;
   } else if (isInlineNestedDefinition(prop)) {
     // BMRX-14: inline nested plain objects (for example
@@ -489,9 +499,10 @@ function validatePathOptions(pathName: string, options: Record<string, any>): vo
 function clonePath(path: CompiledPath): CompiledPath {
   return {
     ...path,
-    options: clonePlain(path.options),
+    options: clonePathOptions(path.options),
+    definition: clonePathDefinition(path.definition),
     subSchema: path.subSchema instanceof Schema ? path.subSchema.clone() : path.subSchema,
-    arrayItemOptions: path.arrayItemOptions ? clonePlain(path.arrayItemOptions) : undefined,
+    arrayItemOptions: path.arrayItemOptions ? clonePathOptions(path.arrayItemOptions) : undefined,
   };
 }
 
@@ -518,16 +529,27 @@ function cloneHook<T extends { fn: any; options?: any }>(hook: T): T {
 }
 
 function cloneDefinition<T>(value: T): T {
-  if (value instanceof Date) return new Date(value.getTime()) as T;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, any>).map(([name, prop]) => [name, clonePathDefinition(prop)]),
+  ) as T;
+}
+
+// Follow schema grammar only. A `default` key inside literal data is data,
+// whereas the same key on a path option envelope needs the bounded copier.
+function clonePathDefinition<T>(value: T): T {
   if (value instanceof Schema) return value.clone() as T;
-  if (Array.isArray(value)) return value.map(cloneDefinition) as T;
-  if (value && typeof value === 'object') {
-    if (value instanceof RegExp) return new RegExp(value.source, value.flags) as T;
-    const out: Record<string, any> = {};
-    for (const [key, nested] of Object.entries(value as Record<string, any>)) out[key] = cloneDefinition(nested);
-    return out as T;
-  }
-  return value;
+  if (Array.isArray(value)) return value.map(clonePathDefinition) as T;
+  if (value && typeof value === 'object' && 'type' in value) return clonePathOptions(value as SchemaTypeOptions) as T;
+  return clonePlain(value);
+}
+
+function clonePathOptions(options: SchemaTypeOptions): SchemaTypeOptions {
+  return Object.fromEntries(
+    Object.entries(options).map(([key, value]) => [
+      key,
+      key === 'default' ? cloneSchemaDefault(value) : key === 'type' ? clonePathDefinition(value) : clonePlain(value),
+    ]),
+  );
 }
 
 function clonePlain<T>(value: T): T {
@@ -547,8 +569,8 @@ function deepFreeze<T>(value: T, seen: Set<object> = new Set()): T {
   if (value instanceof RegExp || value instanceof Date) return value;
   // BMRX-12: never freeze live Schema instances via the compiled
   // representation. Structural freezing is owned by freezeStructuralSchema
-  // (which keeps methods/hooks mutable); deepFreeze only handles the plain
-  // JSON-ish compiled payload and must not make schema maps non-extensible
+  // (which keeps methods/hooks mutable); deepFreeze handles plain compiled
+  // payloads/rule containers and must not make schema maps non-extensible
   // before throwing mutators are installed.
   if (value instanceof Schema) return value;
   if (seen.has(value as object)) return value;
@@ -573,7 +595,7 @@ function deepFreeze<T>(value: T, seen: Set<object> = new Set()): T {
  * BMRX-12 structural freeze.
  *
  * Makes the compiled (and source-after-compile) schema genuinely immutable
- * for structure: path entries, path options/enum, array item options,
+ * for structure: path entries, path options/validation rules, array item options,
  * schema options, definition top level, child schemas, virtuals, and the
  * paths map mutators. `Object.freeze` alone neither blocks `Map.set/delete`
  * nor freezes entries, so map mutators are replaced with throwing stubs and
@@ -617,15 +639,14 @@ function freezeStructuralSchema(schema: Schema<any, any, any, any>, seen: Set<ob
 function freezeCompiledPath(path: CompiledPath, seen: Set<object>): void {
   if (!path || typeof path !== 'object' || seen.has(path as object)) return;
   seen.add(path as object);
-  if (path.options && typeof path.options === 'object') {
-    const enumValue = (path.options as { enum?: unknown }).enum;
-    if (Array.isArray(enumValue)) Object.freeze(enumValue);
-    Object.freeze(path.options);
-  }
-  if (path.arrayItemOptions && typeof path.arrayItemOptions === 'object') {
-    const enumValue = (path.arrayItemOptions as { enum?: unknown }).enum;
-    if (Array.isArray(enumValue)) Object.freeze(enumValue);
-    Object.freeze(path.arrayItemOptions);
+  for (const options of [path.options, path.arrayItemOptions]) {
+    if (!options) continue;
+    // Seal rule containers, not the entire option graph: type can reference a
+    // child Schema, and RegExp execution state/functions must remain mutable.
+    deepFreeze(options.required, seen);
+    deepFreeze(options.validate, seen);
+    if (Array.isArray(options.enum)) Object.freeze(options.enum);
+    Object.freeze(options);
   }
   const sub = (path as { subSchema?: unknown }).subSchema;
   if (sub instanceof Schema) freezeStructuralSchema(sub, seen);

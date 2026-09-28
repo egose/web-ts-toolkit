@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { execSync } from 'node:child_process';
 
 import { createRedisOidcVaultStore, type OidcVaultRedisClient } from '../src/index';
+import { NON_EXPIRING_INDEX_SCORE } from '../src/scripts.js';
 import { createRedisHarness, REDIS_TIMEOUT, type RedisHarness } from './redis-harness';
 
 const hasDocker = (() => {
@@ -194,8 +195,18 @@ if (!hasDocker) {
           refreshToken: 'refresh_1',
         });
 
-        await harness.client.sendCommand(['ZADD', `${keyPrefix}:subject:user_stale`, '100', 'sess_1']);
-        await harness.client.sendCommand(['ZADD', `${keyPrefix}:provider-session:provider_sid_stale`, '100', 'sess_1']);
+        await harness.client.sendCommand([
+          'ZADD',
+          `${keyPrefix}:subject:user_stale`,
+          String(NON_EXPIRING_INDEX_SCORE),
+          'sess_1',
+        ]);
+        await harness.client.sendCommand([
+          'ZADD',
+          `${keyPrefix}:provider-session:provider_sid_stale`,
+          String(NON_EXPIRING_INDEX_SCORE),
+          'sess_1',
+        ]);
 
         expect(await store.deleteSessionsBySubject('user_stale')).toBe(0);
         expect(await store.deleteSessionsByProviderSessionId('provider_sid_stale')).toBe(0);
@@ -211,7 +222,26 @@ if (!hasDocker) {
         throw new Error('Redis harness not initialized.');
       }
       const keyPrefix = harness.createKeyPrefix(context.task.name);
-      const store = createStore(harness, keyPrefix, Date.now);
+      const raw = harness.client;
+      const corruptKey = `${keyPrefix}:session:sess_corrupt`;
+      const corruptValue = '{"sessionId":"sess_corrupt","refreshToken":"refresh_corrupt_secret"';
+      let corruptSnapshotObserved = false;
+      const store = createRedisOidcVaultStore({
+        keyPrefix,
+        client: {
+          set: raw.set.bind(raw),
+          get: raw.get.bind(raw),
+          del: raw.del.bind(raw),
+          sendCommand: async (args) => {
+            const response = await raw.sendCommand(args);
+            if (args[0] === 'MGET' && args.includes(corruptKey)) {
+              expect((response as unknown[])[args.indexOf(corruptKey) - 1]).toBe(corruptValue);
+              corruptSnapshotObserved = true;
+            }
+            return response;
+          },
+        },
+      });
 
       try {
         await store.createSession({
@@ -220,15 +250,21 @@ if (!hasDocker) {
           refreshToken: 'refresh_valid_secret',
           idToken: 'id_valid_secret',
         });
-        await harness.client.set(
-          `${keyPrefix}:session:sess_corrupt`,
-          '{"sessionId":"sess_corrupt","refreshToken":"refresh_corrupt_secret"',
-        );
-        await harness.client.sendCommand(['ZADD', `${keyPrefix}:subject:user_1`, '-1', 'sess_corrupt']);
+        await raw.set(corruptKey, corruptValue);
+        await raw.sendCommand([
+          'ZADD',
+          `${keyPrefix}:subject:user_1`,
+          String(NON_EXPIRING_INDEX_SCORE),
+          'sess_corrupt',
+        ]);
 
         await expect(store.deleteSessionsBySubject('user_1')).resolves.toBe(1);
+        expect(corruptSnapshotObserved).toBe(true);
         expect(await store.getSession('sess_valid')).toBeNull();
-        expect(await store.getSession('sess_corrupt')).toBeNull();
+        // Inspect directly: getSession would otherwise repair it and mask a
+        // batched-repair failure.
+        expect(await raw.get(corruptKey)).toBeNull();
+        expect(await raw.sendCommand(['ZRANGE', `${keyPrefix}:subject:user_1`, '0', '-1'])).toEqual([]);
       } finally {
         await harness.deleteKeysByPrefix(keyPrefix);
       }

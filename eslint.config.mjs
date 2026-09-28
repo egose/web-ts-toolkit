@@ -5,7 +5,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**', 'packages/**/src/**/*.js'],
+    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**', 'packages/**/src/**/*.js', '_tmp*/**', '_tmp/**'],
   },
   {
     ignores: ['packages/access-router/_tmp_examples/**', 'website/**', 'packages/create-access-router-mongo-starter/template/**', '.mongoose/**'],

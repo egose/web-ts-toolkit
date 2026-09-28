@@ -16,7 +16,9 @@ import type {
   ModelValidateHook,
 } from '@web-ts-toolkit/access-router';
 import { HOOK_DEFINITIONS, type HookDefinition, type HookDefinitionKey, type HookOperation } from '../constants';
+import { defineMethodDeclarationMetadata } from '../metadata';
 
+/** Instance methods only. Callable accessors can satisfy legacy descriptor types but throw at decoration time. */
 type HookDecorator<TReturn> = <TKey extends string | symbol, TMethod extends (...args: any[]) => TReturn>(
   target: object,
   key: TKey,
@@ -47,6 +49,8 @@ type DecorateAllDecoratorHook<TModel = unknown> = Extract<ModelListHook<TModel>,
  *
  * - static methods (`typeof target === 'function'`, i.e. the decorator was
  *   applied to the constructor rather than the prototype);
+ * - accessors (even those returning functions), missing descriptors, and
+ *   descriptors without an own callable data value, without invoking getters;
  * - missing/invalid operations for operation-bearing hooks (`undefined`,
  *   empty, wrong-type, or unsupported values), validated against
  *   `HOOK_DEFINITIONS` even when the caller passes no argument from
@@ -62,12 +66,30 @@ type DecorateAllDecoratorHook<TModel = unknown> = Extract<ModelListHook<TModel>,
  * operationless hooks (`@GlobalPermissions`, `@Identifier`, `@BeforeDelete`,
  * `@AfterDelete`) are unaffected.
  */
-const assertInstanceMethodTarget = (definition: HookDefinition, target: object) => {
+const assertInstanceMethodTarget = (
+  definition: HookDefinition,
+  target: object,
+  key: string | symbol,
+  descriptor: unknown,
+): Function => {
   if (typeof target === 'function') {
     throw new Error(
-      `Invalid @${definition.optionKey} target: static methods are not supported; decorate an instance method (not "static"). Static hooks are never registered because discovery scans instance prototypes, so this fails fast instead of silently dropping the hook.`,
+      `Invalid @${definition.optionKey} target "${String(key)}": static methods are not supported; decorate an instance method (not "static"). Static hooks are never registered because discovery scans instance prototypes, so this fails fast instead of silently dropping the hook.`,
     );
   }
+  // Inspect the supplied descriptor, not target[key]: wrappers may supply a
+  // replacement method before it is installed. Do not evaluate accessor hooks
+  // or a malformed descriptor's own `value` getter while checking the boundary.
+  const value =
+    descriptor !== null && typeof descriptor === 'object' && !('get' in descriptor) && !('set' in descriptor)
+      ? Object.getOwnPropertyDescriptor(descriptor, 'value')
+      : undefined;
+  if (!value || typeof value.value !== 'function') {
+    throw new Error(
+      `Invalid @${definition.optionKey} target "${String(key)}": decorate an instance method with a callable data descriptor; accessors, missing descriptors, and non-method values are not supported.`,
+    );
+  }
+  return value.value;
 };
 
 const assertValidOperation = (definition: HookDefinition, operation: unknown) => {
@@ -82,12 +104,13 @@ const assertValidOperation = (definition: HookDefinition, operation: unknown) =>
 
 const setMethodMetadata = <THook extends Function>(definition: HookDefinition, operation?: string) => {
   return (target: object, key: string | symbol, descriptor: TypedPropertyDescriptor<THook>) => {
-    assertInstanceMethodTarget(definition, target);
+    const method = assertInstanceMethodTarget(definition, target, key, descriptor);
     assertValidOperation(definition, operation);
-    if (descriptor.value === undefined) return;
-    Reflect.defineMetadata(definition.watermark, true, descriptor.value);
+    Reflect.defineMetadata(definition.watermark, true, method);
     const compositeKey = operation ? `${definition.optionKey}.${operation}` : definition.optionKey;
-    Reflect.defineMetadata(compositeKey, true, descriptor.value);
+    Reflect.defineMetadata(compositeKey, true, method);
+    defineMethodDeclarationMetadata(target, key, definition.watermark, true);
+    defineMethodDeclarationMetadata(target, key, compositeKey, true);
   };
 };
 

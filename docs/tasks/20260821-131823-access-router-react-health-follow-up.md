@@ -43,7 +43,7 @@ Verified on 2026-08-21:
 
 - The worktree was clean before review (`git status --short` produced no output).
 - `pnpm --filter @web-ts-toolkit/access-router-react test`: passed. Transitive builds, strict NodeNext and Bundler declaration consumers, 11 Vitest files, and 198 tests completed successfully.
-- `pnpm --filter @web-ts-toolkit/access-router-react test:react18`: exited successfully with 8 files and 180 tests, but it installed dependencies into the fixed shared path `/tmp/opencode/react18-deps`, omitted three default-lane files, and printed expected uncaught render errors from request-key tests.
+- `pnpm --filter @web-ts-toolkit/access-router-react test:react18`: exited successfully with 8 files and 180 tests, but it installed dependencies into the fixed shared path `<repo-root>/_tmp/react18-deps`, omitted three default-lane files, and printed expected uncaught render errors from request-key tests.
 - `pnpm exec tsc --noEmit -p tsconfig.json` from the package: failed. The config follows workspace source aliases outside the package `rootDir`, lacks Node test types, uses ES2020 while source/tests use newer APIs, and exposes package-local test type errors. Notable errors include four `Error(message, { cause })` calls, invalid `throwOnError`/`enabled` export probes, and invalid fixtures.
 - The default test gate does not run `test:react18`, source/test no-emit typechecking, coverage, or a packed React-hook behavior test.
 - Existing packed consumers inspect exports and exercise `requestKeyFor`; they do not mount a hook from the installed tarball.
@@ -441,7 +441,7 @@ Primary ownership:
 
 Finding:
 
-The package builds for ES2020 but emits ES2022 `Error` cause construction. It declares Node `>=22` even though the root workspace supports Node `>=20` and this browser-facing package has no Node runtime imports. React 18 is advertised as verified but is absent from the default test gate. Its setup reuses predictable global path `/tmp/opencode/react18-deps`, skips validation once one React directory exists, can retain stale/partial dependencies, and is unsafe for concurrent jobs.
+The package builds for ES2020 but emits ES2022 `Error` cause construction. It declares Node `>=22` even though the root workspace supports Node `>=20` and this browser-facing package has no Node runtime imports. React 18 is advertised as verified but is absent from the default test gate. Its setup reuses predictable global path `<repo-root>/_tmp/react18-deps`, skips validation once one React directory exists, can retain stale/partial dependencies, and is unsafe for concurrent jobs.
 
 References:
 

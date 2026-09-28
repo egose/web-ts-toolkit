@@ -37,6 +37,75 @@ export class MissingPersistenceIdentityError extends Error {
 const MODEL_PATH_PATTERN = /[^.[\]]+|\[(?:([^"'[\]]+)|["']([^"']+)["'])\]/g;
 const MODEL_UNSAFE_PATH_PARTS = new Set(['__proto__', 'constructor', 'prototype']);
 
+// Only this module can unwrap a public wrapper for reconciliation. Methods run
+// against the target so private-state writes never enter the public write trap.
+const modelTargets = new WeakMap<object, object>();
+
+function isSupportedModelKey(key: PropertyKey): key is string {
+  return (
+    typeof key === 'string' &&
+    key.length > 0 &&
+    !/[.[\]]/.test(key) &&
+    !MODEL_UNSAFE_PATH_PARTS.has(key) &&
+    modelPathRoot(key) === key
+  );
+}
+
+function assertSupportedModelKey(key: PropertyKey): asserts key is string {
+  if (!isSupportedModelKey(key)) {
+    throw new TypeError(`Unsupported Model top-level field "${String(key)}".`);
+  }
+}
+
+function createModelWrapper<T extends object>(
+  target: T,
+  reserved: Set<PropertyKey>,
+  write: (key: string, value: unknown) => void,
+): T {
+  const methods = new Map<PropertyKey, (...args: unknown[]) => unknown>();
+  const rejectStructure = () => {
+    throw new TypeError('Model wrapper structure is reserved; use field assignment, set(), or assign().');
+  };
+  const wrapper = new Proxy(target, {
+    get: (target, key) => {
+      // A document's `then` is data, never a Promise assimilation hook.
+      if (key === 'then') return undefined;
+      const value = Reflect.get(target, key, target);
+      // Object.prototype helpers must retain the public receiver: legacy
+      // __defineGetter__/__defineSetter__ must go through defineProperty too.
+      if (!reserved.has(key) || key === 'constructor' || hasOwn(Object.prototype, key) || typeof value !== 'function') {
+        return value;
+      }
+      let method = methods.get(key);
+      if (!method) {
+        method = (...args: unknown[]) => {
+          const result: unknown = Reflect.apply(value, target, args);
+          // Fluent helpers must not leak the unintercepted target.
+          return result === target ? wrapper : result;
+        };
+        methods.set(key, method);
+      }
+      return method;
+    },
+    set: (_target, key, value, receiver) => {
+      assertSupportedModelKey(key);
+      if (reserved.has(key) || receiver !== wrapper) {
+        throw new TypeError(`Model member "${key}" is reserved; use data helpers for reserved fields.`);
+      }
+      write(key, value);
+      return true;
+    },
+    // Structural writes can shadow forwarders, replace methods, or prevent
+    // future fields from being forwarded. Reject before any data/dirty mutation.
+    defineProperty: rejectStructure,
+    deleteProperty: rejectStructure,
+    setPrototypeOf: rejectStructure,
+    preventExtensions: rejectStructure,
+  });
+  modelTargets.set(wrapper, target);
+  return wrapper;
+}
+
 function toModelPathParts(path: string): Array<string | number> {
   if (path.length === 0) {
     return [];
@@ -90,6 +159,15 @@ function assertSupportedModelPath(path: string): string {
  * mutating it does not affect sibling wrappers created from the same
  * underlying document.
  *
+ * Nonreserved top-level assignment tracks even absent/projected-out fields.
+ * Nested in-place edits still require `set` or `markModified`. Direct keys
+ * must be nonempty literal strings without dots/brackets, forbidden prototype
+ * names, or numeric spellings changed by path normalization (e.g. `01`).
+ * Symbol writes, reserved-member writes, and structural wrapper mutations
+ * (delete/defineProperty/prototype changes/freeze/seal) throw `TypeError`.
+ * Internal and inherited members are reserved; `then` is helper-only and
+ * reads as `undefined` directly. Model methods are owner-bound.
+ *
  * Persistence identity (ARC-21): identity is stored SEPARATELY from the
  * projected document data. When a service reads a single document by id
  * (`read`, `readAdvanced`), it threads an explicit `persistenceId` into
@@ -123,13 +201,24 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
 
   constructor(data: TData, adapter: ModelService<T>, persistenceId?: string, fromExisting?: boolean) {
     this.modifiedPaths = new Set();
+    this._saveQueue = undefined;
     this._persistenceId = persistenceId;
     this._fromExisting = fromExisting ?? false;
     this._snapshot = cloneDeep(data);
     this.defineHiddenDataProp(cloneDeep(data));
     this.defineHiddenAdapterProp(adapter);
+    // Capture wrapper-owned keys before adding data forwarders. Include the
+    // prototype chain so ordinary assignment cannot overwrite API members.
+    const reserved = new Set<PropertyKey>(['then', ...Reflect.ownKeys(this)]);
+    for (let owner: object | null = Object.getPrototypeOf(this); owner; owner = Object.getPrototypeOf(owner)) {
+      for (const key of Reflect.ownKeys(owner)) reserved.add(key);
+    }
     this.definePublicDataProps();
     this.initializeDirtyState();
+    return createModelWrapper(this, reserved, (key, value) => {
+      (this._data as Record<string, unknown>)[key] = value;
+      if (!hasOwn(this, key)) this.definePublicDataProps();
+    });
   }
 
   static create<T extends Document, TData extends Partial<T> = T>(
@@ -310,7 +399,9 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     // to the pre-save state (leaving concurrent edits reversible too).
     const nextSnapshot = (Array.isArray(this._snapshot) ? [] : {}) as Record<string, unknown>;
     const dataRecord = this._data as unknown as Record<string, unknown>;
-    for (const key of Object.keys(dataRecord)) {
+    // A reset during the request can remove a newly submitted field entirely.
+    // Its persisted baseline still belongs in the next snapshot.
+    for (const key of new Set([...Object.keys(dataRecord), ...submittedPaths])) {
       const normKey = this.normalizePath(key);
       if (this.modifiedPaths.has(normKey)) {
         if (submittedPaths.has(normKey)) {
@@ -320,7 +411,9 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
         } else {
           // This save did not persist the concurrent edit, so retain its prior
           // reset baseline even if the response also contains that field.
-          nextSnapshot[key] = cloneDeep((this._snapshot as unknown as Record<string, unknown>)[key]);
+          if (hasOwn(this._snapshot, key)) {
+            nextSnapshot[key] = cloneDeep((this._snapshot as unknown as Record<string, unknown>)[key]);
+          }
         }
       } else {
         nextSnapshot[key] = cloneDeep(dataRecord[key]);
@@ -334,9 +427,9 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     // set as independent copies; adopting `result.data` preserves pending
     // edits and reset behavior without aliasing the original.
     const returned = Model.create<T, TData>(this._data, this._service, this._persistenceId, true);
-    returned._snapshot = cloneDeep(this._snapshot);
-    returned.modifiedPaths = new Set(this.modifiedPaths);
-    returned.definePublicDataProps();
+    const returnedTarget = modelTargets.get(returned) as Model<T, TData>;
+    returnedTarget._snapshot = cloneDeep(this._snapshot);
+    returnedTarget.modifiedPaths = new Set(this.modifiedPaths);
     return {
       ...result,
       data: returned,
@@ -389,8 +482,23 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     return this;
   }
 
+  /**
+   * Assigns literal top-level data keys, including absent and reserved data
+   * fields, then reconciles dirty state. All keys are checked before writes:
+   * empty keys, dots/brackets, `__proto__`/`constructor`/`prototype`, numeric
+   * spellings normalized to another key (e.g. `01`), and enumerable symbol
+   * keys throw `TypeError`. Use `set` for nested paths. Key preflight is not
+   * transactional execution of arbitrary caller getters/proxies.
+   */
   assign(partial: Partial<TData>) {
     const keys = Object.keys(partial) as (keyof TData)[];
+
+    // Validate the entire key set before the first write. assign is a literal
+    // top-level operation; dotted/bracket paths belong to set/markModified.
+    for (const key of keys) assertSupportedModelKey(String(key));
+    if (Object.getOwnPropertySymbols(partial).some((key) => Object.prototype.propertyIsEnumerable.call(partial, key))) {
+      throw new TypeError('Model.assign() does not support symbol fields.');
+    }
 
     for (let x = 0; x < keys.length; x++) {
       const key = keys[x];
@@ -409,6 +517,12 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
     return this;
   }
 
+  /**
+   * Restores the local snapshot. Added fields become absent in `toObject()`
+   * and read as `undefined`; enumerable wrapper forwarders may remain.
+   * Draft initial fields remain dirty for creation. This is not a server
+   * unset/delete operation; JSON omission of undefined values is unchanged.
+   */
   reset() {
     // Invariant: reset restores the persisted baseline for saved models; for
     // unsaved drafts the snapshot is not persisted, so initial values stay
@@ -505,11 +619,11 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
 
     for (let x = 0; x < keycnt; x++) {
       const key = keys[x];
-      if (key in this) continue;
+      if (key === 'then' || !isSupportedModelKey(key) || key in this) continue;
 
       Object.defineProperty(this, key, {
         enumerable: true,
-        get: () => (hasOwn(this._data, key) ? this._data[key as keyof TData] : null),
+        get: () => (hasOwn(this._data, key) ? this._data[key as keyof TData] : undefined),
         set: (value) => (this._data[key as keyof TData] = value),
       });
     }
@@ -556,5 +670,25 @@ export class Model<T extends Document, TData extends Partial<T> = T> {
  * wrapper API. Documents may still contain those field names, but callers must
  * access them via `get(...)`, `set(...)`, `assign(...)`, or `toObject()` rather
  * than ordinary direct property access.
+ * `then` and inherited Object-member names are also excluded. Nonreserved
+ * optional fields remain writable even when absent at runtime. Static
+ * projection types still expose only their selected data shape.
  */
-export type ModelData<T extends Document, TData extends Partial<T> = T> = Omit<TData, keyof Model<T, TData>>;
+export type ModelData<T extends Document, TData extends Partial<T> = T> = Omit<
+  TData,
+  | keyof Model<T, TData>
+  | 'then'
+  | '__proto__'
+  | 'prototype'
+  | 'constructor'
+  | 'toString'
+  | 'toLocaleString'
+  | 'valueOf'
+  | 'hasOwnProperty'
+  | 'isPrototypeOf'
+  | 'propertyIsEnumerable'
+  | '__defineGetter__'
+  | '__defineSetter__'
+  | '__lookupGetter__'
+  | '__lookupSetter__'
+>;

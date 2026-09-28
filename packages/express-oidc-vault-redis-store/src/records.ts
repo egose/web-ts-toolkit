@@ -8,7 +8,8 @@ export const serialize = (value: unknown): string => JSON.stringify(value);
 
 /**
  * Thrown when a stored Redis value cannot be parsed or fails structural
- * validation. The message never includes stored token or refresh values.
+ * validation (including identity mismatch with the requested key). The message
+ * never includes stored token or refresh values.
  * Malformed one-time records are consumed atomically and return `null`; they
  * fail closed without throwing this error. Malformed sessions are deleted when
  * encountered through reads or indexed revocation.
@@ -36,9 +37,12 @@ const isOptionalFiniteNumber = (value: unknown): value is number | undefined =>
 
 const isStringRecord = (value: unknown): value is Record<string, unknown> => isPlainRecord(value);
 
-export const validateAuthorizationTransaction = (value: unknown): value is AuthorizationTransaction =>
+// Require the lookup identity at the validation boundary, before a decoded
+// record can be returned or used to derive mutation keys.
+export const validateAuthorizationTransaction = (value: unknown, state: string): value is AuthorizationTransaction =>
   isPlainRecord(value) &&
   isString(value.state) &&
+  value.state === state &&
   isString(value.nonce) &&
   isString(value.pkceVerifier) &&
   isString(value.codeChallenge) &&
@@ -47,9 +51,10 @@ export const validateAuthorizationTransaction = (value: unknown): value is Autho
   isFiniteNumber(value.expiresAt) &&
   (value.metadata === undefined || isStringRecord(value.metadata));
 
-export const validateExchangeCodeRecord = (value: unknown): value is ExchangeCodeRecord =>
+export const validateExchangeCodeRecord = (value: unknown, code: string): value is ExchangeCodeRecord =>
   isPlainRecord(value) &&
   isString(value.code) &&
+  value.code === code &&
   isString(value.sessionId) &&
   isOptionalString(value.returnTo) &&
   isFiniteNumber(value.createdAt) &&
@@ -58,9 +63,10 @@ export const validateExchangeCodeRecord = (value: unknown): value is ExchangeCod
 const validateProviderMetadata = (value: unknown): boolean =>
   value === undefined || (isPlainRecord(value) && isOptionalString(value.issuer) && isOptionalString(value.clientId));
 
-export const validateSession = (value: unknown): value is OidcVaultSession =>
+export const validateSession = (value: unknown, sessionId: string): value is OidcVaultSession =>
   isPlainRecord(value) &&
   isString(value.sessionId) &&
+  value.sessionId === sessionId &&
   isOptionalString(value.logicalSessionId) &&
   isString(value.subject) &&
   isOptionalString(value.providerSessionId) &&

@@ -40,9 +40,11 @@ export interface CacheController {
  * different tokens never do. Returning `undefined` bypasses the cache for that
  * credentialed request, so credentials cannot be reused across identities.
  *
- * The token is mixed into the cache key alongside the URL and request body. Do
- * not return raw cookies, authorization values, or other secrets; sensitive
- * auth headers are excluded from cache keys regardless of the returned token.
+ * Captured when the request enters the cache, the token occupies a separate
+ * key component from the typed body. Choose a token distinguishing every
+ * response-affecting identity/tenant context; redaction does not infer identity.
+ * Never return raw cookies, authorization values, or other secrets; recognized
+ * sensitive auth headers are excluded from cache keys regardless of the token.
  */
 export type CachePartitioner = (config: InternalAxiosRequestConfig) => string | undefined;
 
@@ -525,9 +527,18 @@ function generateCacheKey(config: InternalAxiosRequestConfig, partition?: string
     withCredentials: Boolean(config.withCredentials),
     transitional: normalizeConfigValue(config.transitional),
   });
-  const key = `${config.baseURL}/${config.url}_${config.method}_${generateParamKey(config.params)}_${generateDataKey(
-    config.data,
-  )}_${partition ?? ''}_${serializeHeaders(config.headers)}_${responseSemantics}`;
+  // Frame every component independently: delimiters inside bodies, URLs or
+  // partition tokens must never shift a value into a neighboring field.
+  const key = JSON.stringify([
+    config.baseURL,
+    config.url,
+    config.method,
+    generateParamKey(config.params),
+    generateDataKey(config.data),
+    partition,
+    serializeHeaders(config.headers),
+    responseSemantics,
+  ]);
 
   return encodeURI(key);
 }
@@ -538,8 +549,9 @@ function generateParamKey(params?: Record<string, unknown>) {
 }
 
 function generateDataKey(data: unknown) {
-  if (!data) return '';
-  return typeof data === 'string' ? data : JSON.stringify(normalizeConfigValue(data));
+  // Keep absent/null/falsy bodies distinct, and never equate a string with
+  // the JSON serialization of an object, array or primitive.
+  return [typeof data, normalizeConfigValue(data)];
 }
 
 const resolveWithCredentials = (config: InternalAxiosRequestConfig, withCredentialsDefault: boolean): boolean => {
@@ -671,8 +683,8 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
 
       // 3) Fresh miss: register an in-flight slot that resolves when this
       //    request's response interceptor stores the snapshot (or rejects
-      //    when the request fails). Wrap the adapter so the slot rejects and
-      //    is finalized on rejection from the wrapped network call —
+      //    when the request fails). Wrap the adapter so transport failures
+      //    reject and finalize the slot at the wrapped network call —
       //    AxiosError may not carry config through reliably when the adapter
       //    throws a plain Error, so response-interceptor error handling alone
       //    is unsafe.
@@ -767,14 +779,12 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
           const response = await dispatch(adapterConfig);
           return response;
         } catch (error) {
-          // Decouple slot settlement from the source's status policy so tails
-          // can re-settle the shared network response under their own
-          // validateStatus. Settlement rejections resolve the slot with the
-          // response; transform/transport failures reject it.
-          const errResponse = (error as { response?: AxiosResponse })?.response;
-          if (errResponse && isSettlementRejectionFor(error, adapterConfig)) {
-            resolveInflight(slot, errResponse);
-          } else {
+          // Axios has not transformed the rejected response yet. Leave HTTP
+          // settlement rejections pending until the response error interceptor
+          // can share the transformed body. Transport failures still reject
+          // here even when the error carries no config; parse failures reject
+          // through the transform wrapper before any body can be shared.
+          if (!isSettlementRejectionFor(error, adapterConfig)) {
             rejectInflight(slot, error);
           }
           throw error;
@@ -822,9 +832,9 @@ export function useCacheInterceptors(instance: AxiosInstance, policyOrTtl: Cache
     (error) => {
       const state = ((error?.config ?? {}) as CacheRequestConfig)[CACHE_REQUEST_STATE];
       if (state?.role === 'source' && state.slot) {
-        // Same decoupling as the source adapter wrapper: settlement
-        // rejections share the response with tails for per-caller settlement.
-        // Fallback path when the wrapper could not dispatch (no `dispatch`).
+        // Axios has now transformed the rejected response, so tails can share
+        // it and settle under their own policies without seeing raw wire data.
+        // A parse failure has already rejected the slot in the transform wrapper.
         const errResponse = (error as { response?: AxiosResponse })?.response;
         const sourceConfig = (error?.config ?? {}) as InternalAxiosRequestConfig;
         if (errResponse && isSettlementRejectionFor(error, sourceConfig)) {

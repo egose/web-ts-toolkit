@@ -9,6 +9,7 @@ import {
   PDFReader,
   PdfReaderError,
   configurePdfWorker,
+  pdfTextToString,
   pdfUrlSource,
   type BlobPageImage,
   type ConvertOptions,
@@ -70,6 +71,15 @@ const page = {} as PageResult;
 const image = {} as ExtractedImage;
 const pdfError = new PdfReaderError('ABORTED', 'cancelled');
 const publicText: PdfTextContent | undefined = page.text;
+expectTypeAssignableTo<(content: PdfTextContent) => string>(pdfTextToString);
+if (publicText) {
+  const plainText: string = pdfTextToString(publicText);
+  document.createElement('pre').textContent = plainText;
+}
+// @ts-expect-error Narrow optional page text before assembly.
+pdfTextToString(page.text);
+// @ts-expect-error The helper consumes PDF.js text content, not a string.
+pdfTextToString('already plain text');
 const state: PdfReaderState = reader.state;
 
 expectTypeAssignableTo<typeof PDFReader>(PDFReader);

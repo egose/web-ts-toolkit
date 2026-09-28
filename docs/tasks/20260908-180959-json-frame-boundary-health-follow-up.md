@@ -63,7 +63,7 @@ Priorities for this follow-up: P1 is silent data/schema corruption or disproport
 - Preserve shallow cell identity on reads/exports; do not silently deep-freeze cells or clone every read to solve serialization issues.
 - Public behavior changes require source JSDoc, README, relevant website guidance, strict consumer tests where applicable, and a release-note entry or explicit release-note evidence in this file. Never manually edit generated `dist/` files.
 - Mark a task `in_progress` only after dependencies complete; record its owner. Complete only with acceptance and verification evidence. Use `blocked` for unresolved prerequisites, and `deferred` with rationale and residual risk for intentionally postponed work.
-- Keep every project path repository-relative in task updates. Temporary experiments may use `/tmp/opencode` or generic system temporary directories.
+- Keep every project path repository-relative in task updates. Temporary experiments must use ignored repository-local `_tmp*` directories with `TMPDIR=<repo-root>/_tmp-<topic>`.
 
 ## Verification Commands
 
@@ -431,7 +431,16 @@ Verification: V5 recorded baseline/after evidence, V1 affected tests, V2, V3. A 
 
 ### Task JFB-09: Perform Independent Integration And Contract Review
 
-Status: blocked
+Status: in_progress
+
+Continuation (2026-09-27): rechecking the older strict repository-verification
+blocker on the current worktree. The September 26 JFC/JFP plans supply subsequent
+implementation and independent-review evidence (including shared-expansion
+budgets, datetime policy, website guidance, and property-key inference fixes).
+Those later plans do not retroactively turn the historical root test failure
+into a pass. This continuation runs current root lint/build/test serially and
+will retain blocked status if required verification fails. No new json-frame
+implementation is planned unless those checks identify a relevant defect.
 
 Completion evidence:
 

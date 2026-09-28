@@ -36,6 +36,11 @@ These values are inherited by every model router unless overridden.
 - `operationAccess` defaults to `false`
 - `modelPermissionPrefix` defaults to an empty string
 
+Include output cannot equal, descend from, or contain `documentPermissionField`,
+including dotted custom fields and equivalent legacy bracket paths. Nested include
+levels use the receiving model's setting; violations are BadRequest before target
+persistence. See [Services](./services#safe-include-output-and-exact-counts).
+
 ## Model Router Options
 
 Common model options:
@@ -79,20 +84,41 @@ correlated-include templates and their per-parent expansions:
   `maxBulkItems` (default `100`), `maxIncludeCount` (default `10`),
   `maxSubQueryCount` (default `10`), `maxBulkConcurrency` (default `10`),
   `maxHookConcurrency` (default `10`)
-- `maxCorrelatedQueries` (default `100`): total inner target executions per
-  parent request (each per-parent read/list/count counts 1; nested levels
-  multiply). Exceeding it fails the whole request — no partial results.
+- `maxCorrelatedQueries` (default `100`): cumulative inner target executions per
+  request/runtime (each executed per-parent read/list/count counts 1; nested levels
+  multiply). Exceeding it fails the request/affected root entry.
 - `maxCorrelatedDepth` (default `5`): nesting depth of correlated includes.
 
 Each correlated entry counts toward `maxIncludeCount` and its markers count
 as nodes; template `$in` lengths count toward `maxInValues`. After
 per-parent substitution the expanded filter is revalidated against
 `maxNodes`/`maxDepth`/`maxInValues`/`maxLogicalClauses`, so a short template
-expanding against a large parent array can still be rejected. Fan-out shares
-the request-scoped scheduler bounded by `maxBulkConcurrency` (no separate
-concurrency knob). These are safety bounds, not measured performance claims:
-per-parent includes cost roughly one target query per parent per include
-(plus nesting), so prefer tight parent filters and small per-parent limits.
+expanding against a large parent array can still be rejected. Prefer tight parent
+filters and small per-parent limits to bound relationship work.
+
+### Persistence admission
+
+`maxBulkConcurrency` bounds awaited adapter/document persistence operations across
+model-service calls, root entries, subqueries, legacy includes and nested correlated
+levels sharing one request/runtime. Each request and runtime has an independent pool;
+services capture their runtime at construction. Admission awaits lazy queries,
+save/delete and service-triggered post-write populate. Bulk create admits one
+singleton-array adapter call per item, preserving result order and submitting every
+item even if another rejects.
+
+Recursive orchestration holds no permit while awaiting descendants, so limit `1`
+supports nested includes. Internal map/run bounds remain per invocation.
+`RootRouter.maxConcurrentOperations` separately limits whole root operations per
+order group. Permits release on success/error with FIFO transfer; release does not
+cancel submitted siblings or refund the cumulative correlated-query budget.
+
+This is an adapter-operation ceiling, not a count of MongoDB driver commands: one
+operation can issue multiple commands via Mongoose middleware/populate. Router ACL,
+prepare, afterPersist and decorate run outside the permit; Mongoose middleware is
+inside the awaited operation. Direct DB/network calls in trusted hooks are outside
+admission. This is not a process-wide connection limit, transaction/optimistic-edit
+guard or throughput guarantee. Controlled nested-query tests measured peak collection
+calls falling from 9 to 3 at limit 3; that does not bound arbitrary middleware fan-out.
 
 ## OpenAPI Router Options
 

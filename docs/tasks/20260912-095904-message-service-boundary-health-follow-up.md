@@ -30,12 +30,12 @@ Inspected all package source files, package/build metadata, README/DESIGN, emitt
 
 Actually run from the repository root:
 
-| Check                                                  | Result                                                                                                                                                                                                  |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `git status --short` before review                     | Clean worktree                                                                                                                                                                                          |
-| `pnpm --filter @web-ts-toolkit/message-service test`   | Passed: 6 files, 157 tests; rebuilt the dependency closure and package; includes MongoDB replica-set and release-like packed ESM/CJS/NodeNext/Bundler consumers                                         |
-| `node /tmp/opencode/message-service-review-probes.cjs` | Confirmed 13 **current faulty-behavior scenarios** against freshly built output, a disposable MongoDB replica set, and one live Express endpoint; not a passing regression suite for the proposed fixes |
-| `git diff --check` after writing the plan              | Passed for tracked changes; new-file whitespace checked separately with `git diff --no-index --check /dev/null docs/tasks/20260912-095904-message-service-boundary-health-follow-up.md`                 |
+| Check                                                     | Result                                                                                                                                                                                                  |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git status --short` before review                        | Clean worktree                                                                                                                                                                                          |
+| `pnpm --filter @web-ts-toolkit/message-service test`      | Passed: 6 files, 157 tests; rebuilt the dependency closure and package; includes MongoDB replica-set and release-like packed ESM/CJS/NodeNext/Bundler consumers                                         |
+| `node <repo-root>/_tmp/message-service-review-probes.cjs` | Confirmed 13 **current faulty-behavior scenarios** against freshly built output, a disposable MongoDB replica set, and one live Express endpoint; not a passing regression suite for the proposed fixes |
+| `git diff --check` after writing the plan                 | Passed for tracked changes; new-file whitespace checked separately with `git diff --no-index --check /dev/null docs/tasks/20260912-095904-message-service-boundary-health-follow-up.md`                 |
 
 The temporary probe is analysis evidence only and is not a durable dependency for these tasks. Each defect task specifies how to recreate its regression under the package's test directory. The probe verified:
 
@@ -1089,7 +1089,7 @@ Completion evidence (MSGF-15, 2026-09-12, independent reviewer):
   this reviewer. The only files touched are this task file (MSGF-15 status/evidence). A
   temporary probe script was executed from inside the package directory for module resolution
   and then deleted; the retained copy lives outside the repo at
-  `/tmp/opencode/msgf15-probe.mjs` (not committed). `git status` confirms no reviewer churn;
+  `<repo-root>/_tmp/msgf15-probe.mjs` (not committed). `git status` confirms no reviewer churn;
   remaining worktree changes belong to parallel workstreams (moo, pdf-reader, other task docs)
   and were left untouched. No CHANGELOG touched. No `dist/` edits committed (`git status --
 packages/message-service/dist/` empty; dist is build output).

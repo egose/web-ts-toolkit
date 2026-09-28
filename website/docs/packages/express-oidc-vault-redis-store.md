@@ -91,7 +91,17 @@ Redis Cluster clients are rejected when the store is created. The store uses ato
 - **Connect the client yourself.** The store never calls `client.connect()`, `client.quit()`, or `client.disconnect()`. Pass an already-connected client and reuse it across requests.
 - **Own `error` listeners, reconnects, and shutdown.** The store reads and writes commands but does not attach `error` listeners, suppress client errors, or close the client. Always register a client `error` listener on production connections; an unhandled client error can crash the process.
 - **Graceful shutdown.** Drain `createSession`/`rotateSession`/`deleteSessionsBy*` in-flight calls, then `client.quit()`. The store holds no background timers, so no store-side teardown is required beyond verifying in-flight operations have settled.
-- **Concurrency.** Store methods are safe to call concurrently from one or more processes. Atomic operations are protected by Redis server-side scripts; concurrent duplicate ID creation, concurrent indexed revocation of overlapping indexes, concurrent rotation into the same target ID, and concurrent same-ID rotation conflicting with indexed revocation are all bounded.
+- **Concurrency.** Scripts protect individual mutations. Indexed deletion traverses once and sums primary deletions, including matching rotation successors, excluding expired/missing records and alias/index repair. Later arrivals can survive; errors can follow earlier commits. This is not a global logout snapshot or a fixed total-work bound.
+
+## Portable Lifetime And Maintenance Contract
+
+Each alias keeps its immediate successor's `expiresAt`; later rotations never extend it. Without expiry, Redis/memory impose no alias time limit (MongoDB defaults to five minutes), so non-expiring alias growth has no fixed size bound. With `A/L1 -> B/L1 -> C/L2`, B revokes L2; retained A keeps L1 and its original deadline. Redis can retain old-lineage aliases after that transition until expiry or explicit cleanup. `getSession` never resolves aliases. Use fresh session IDs and distinct logical IDs for unrelated login families.
+
+Subject/provider-session object deletes filter each supplied issuer/client; strings, logical IDs and aliases are unscoped. Scoped/direct deletion preserves unexpired aliases while another live member survives. Redis create is create-only (memory/MongoDB upsert); alias-only target reuse clears former ownership. JSON-compatible plain inputs are captured at invocation and detached on return. Opaque native values retain JSON/`toJSON` semantics without portable mutation isolation.
+
+Redis TTL is authoritative; preserve store-written TTLs and matching index scores during restore. The store does not independently audit payload expiry after external TTL alteration. Post-write `SCAN COUNT 100` and revocation `ZSCAN COUNT 250` use hints, not hard batch caps. The whole response is processed; Lua can materialize whole lineages/alias sets. Cleanup depends on continued successful operations and has no fixed deadline/memory cap.
+
+Post-commit maintenance failure preserves successful create/rotation and emits only fixed operation text, with no adapter error details. Arbitrary client errors can still reject other operations; do not log raw errors, connection URLs, whole records or credential-valued labels. The [shipped README](https://github.com/egose/web-ts-toolkit/blob/main/packages/express-oidc-vault-redis-store/README.md) contains the full lifecycle/compatibility guidance.
 
 ## Key Namespace And Migration
 

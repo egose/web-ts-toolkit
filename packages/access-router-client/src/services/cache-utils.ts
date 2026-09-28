@@ -60,8 +60,10 @@ export const normalizeConfigValue = (value: unknown): unknown => {
  *   `toISOString()`, so distinct instants compare distinct and equal
  *   instants compare equal without colliding with plain strings.
  * - `URLSearchParams` → `{ __type: 'URLSearchParams', entries }` with
- *   entries sorted by key then value, so equal entry sets compare equal
- *   regardless of insertion order and distinct sets compare distinct.
+ *   entries stably sorted by key, preserving repeated-value order while
+ *   allowing distinct-key reordering.
+ * - Plain objects → `{ __type: 'Object', entries }` with sorted keys and
+ *   recursively normalized values, so caller data cannot mimic special tags.
  * - `AxiosHeaders` → normalized via `toJSON()` as before.
  *
  * Explicitly rejected with `UnsupportedGroupedRequestConfigError`:
@@ -127,16 +129,8 @@ export const normalizeGroupedRequestConfig = (config: unknown): unknown => {
     }
 
     if (value instanceof URLSearchParams) {
-      const entries = Array.from(value.entries()).sort(([leftKey, leftValue], [rightKey, rightValue]) =>
-        leftKey === rightKey
-          ? leftValue < rightValue
-            ? -1
-            : leftValue > rightValue
-              ? 1
-              : 0
-          : leftKey < rightKey
-            ? -1
-            : 1,
+      const entries = Array.from(value.entries()).sort(([leftKey], [rightKey]) =>
+        leftKey === rightKey ? 0 : leftKey < rightKey ? -1 : 1,
       );
       return { __type: 'URLSearchParams', entries };
     }
@@ -169,19 +163,18 @@ export const normalizeGroupedRequestConfig = (config: unknown): unknown => {
 
       seen.add(value);
       try {
-        const normalized = Object.entries(omitBy(value as Record<string, unknown>, (item) => item === undefined))
+        const entries = Object.entries(omitBy(value as Record<string, unknown>, (item) => item === undefined))
           .sort(([left], [right]) => left.localeCompare(right))
-          .reduce<Record<string, unknown>>((acc, [key, item]) => {
+          .map(([key, item]) => {
             const itemPath = path === 'config' ? key : `${path}.${key}`;
             if (path === 'config' && unsupportedGroupConfigKeys.has(key)) {
               throw new UnsupportedGroupedRequestConfigError(
                 `Grouped requests do not support axios config key ${itemPath}`,
               );
             }
-            acc[key] = normalize(item, itemPath);
-            return acc;
-          }, {});
-        return normalized;
+            return [key, normalize(item, itemPath)];
+          });
+        return { __type: 'Object', entries };
       } finally {
         seen.delete(value);
       }

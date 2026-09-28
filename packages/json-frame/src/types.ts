@@ -145,8 +145,15 @@ export interface TablePayload extends JsonObject {
  * `options.columnTypes`.
  *
  * Explicit non-table `columnTypes` are validated against non-null cells without
- * coercion. `datetime` accepts pandas-style timezone-naive ISO date/datetime
- * strings for generated Table Schema output, not numeric epoch values.
+ * coercion. `datetime` accepts calendar-valid, timezone-naive ISO strings for
+ * four-digit years 0000–9999 under proleptic Gregorian rules (0000 is a leap
+ * year). Grammar: `YYYY-MM-DD`, optionally followed by `T` or a space and
+ * `HH:mm:ss`, optionally with 1–9 fractional-second digits. Hours are 00–23;
+ * minutes/seconds are 00–59. Numeric epochs and timezone suffixes are rejected.
+ * Strings are preserved exactly. Calendar validity does not guarantee pandas
+ * read-back: dtype/resolution limits, including nanosecond bounds for table
+ * read-back, can exclude accepted years. Inferred ISO-looking strings stay
+ * `string` unless Table Schema or an explicit type says otherwise.
  * `categorical` accepts non-null scalar JSON values and exports as Table Schema
  * `type: 'any'` with `extDtype: 'category'` when no source field metadata is
  * available. `mixed` and `unknown` accept any JSON-compatible cell value.
@@ -177,11 +184,23 @@ export interface FromOrientOptions {
   /**
    * Explicit logical column types applied after parsing when no Table Schema is
    * present. Non-null cells must already be compatible; values are never
-   * coerced to satisfy the declared logical type.
+   * coerced to satisfy the declared logical type. Only own enumerable string
+   * keys are overrides; inherited properties are ignored. Names such as
+   * `constructor` and `__proto__` are valid column labels.
    */
   readonly columnTypes?: Readonly<Partial<Record<ColumnLabel, ColumnType>>>;
   /** Packing threshold for typed-array storage. `0` disables packing. */
   readonly packThreshold?: number;
+  /**
+   * Optional positive safe integer limiting ingestion traversal occurrences.
+   * Counts the parsed root and every scalar/container value, including repeated
+   * aliases. Exact-budget inputs succeed; excess fails with a path-bearing
+   * JsonFrameValidationError. Omitted means no quota. Not retained by the frame
+   * for exports. Does not bound JSON.parse/input bytes, key allocation, frame
+   * densification, caller hooks, or total memory.
+   * @example fromOrient([{ n: 1 }], { orient: 'records', maxNodes: 3 })
+   */
+  readonly maxNodes?: number;
 }
 
 /** Options for `toTable()` and `toJSONString('table', ...)`. */
@@ -190,8 +209,21 @@ export interface ToTableOptions {
   readonly indexField?: string;
 }
 
-/** Additional options accepted by `toJSONString()`. */
-export type ToJSONStringOptions = ToTableOptions;
+/** Options validated for every `toJSONString()` orient; indexField affects table only. */
+export interface ToJSONStringOptions extends ToTableOptions {
+  /**
+   * Optional positive safe integer limiting the complete exported payload's
+   * validation traversal. Counts root, orient wrappers, table metadata and every
+   * scalar/container occurrence, revisiting aliases. Exact-budget succeeds;
+   * excess throws path-bearing JsonFrameValidationError with the selected orient.
+   * No default quota; resets per call, independently of ingestion maxNodes.
+   * Does not bound payload construction, key allocation, string bytes, native
+   * serialization hooks, or total memory. Validation does not clone cells.
+   * @example frame.toJSONString('records', { maxNodes: 3 })
+   * @example frame.toJSONString('table', { indexField: 'row_id', maxNodes: 100 })
+   */
+  readonly maxNodes?: number;
+}
 
 /**
  * Immutable column-major view over pandas-compatible tabular JSON.
@@ -226,9 +258,12 @@ export interface DataFrame<TRow extends JsonCompatibleRow<TRow> = JsonRow> {
    * over-depth containers, sparse arrays, and non-JSON values introduced
    * through caller-mutable nested cells fail with path-bearing
    * `JsonFrameValidationError` carrying the selected orient. Validation is one
-   * allocation-free traversal pass followed by native stringification; both
-   * passes expand repeated references per occurrence with no breadth/work
-   * budget. Property getters/`Proxy` traps run during traversal and `toJSON`
+   * traversal pass without cloning followed by native stringification; both
+   * passes expand repeated references per occurrence. Optional maxNodes limits
+   * validation visits, including root/wrappers/metadata, independently per call
+   * with no default quota or inherited ingestion budget. It does not bound
+   * payload construction, key allocation, bytes, or total memory.
+   * Property getters/`Proxy` traps run during traversal and `toJSON`
    * hooks may run during stringification; hooks are caller responsibility and
    * are not sandboxed.
    */

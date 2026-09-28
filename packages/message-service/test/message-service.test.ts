@@ -1390,19 +1390,22 @@ describe('MessageService', () => {
   it('should throw MessageArchivedError when handling an archived message', async () => {
     defaultRegistry.register(testTemplate);
     const service = new MessageService({ getModel });
+    const archived = {
+      _id: 'arch-1',
+      templateCd: 'svc-test',
+      archivedAt: new Date(),
+      isSender: () => false,
+      isReceiver: () => true,
+    };
+    mockArchiveModel.findById.mockResolvedValueOnce(archived);
 
     await expect(
       service.handleAction('svc-test', 'approve', {
-        message: {
-          _id: 'arch-1',
-          templateCd: 'svc-test',
-          archivedAt: new Date(),
-          isSender: () => false,
-          isReceiver: () => true,
-        } as never,
+        message: { ...archived } as never,
         user: { _id: 'u2' },
       }),
     ).rejects.toBeInstanceOf(MessageArchivedError);
+    expect(mockArchiveModel.findById).toHaveBeenLastCalledWith('arch-1');
   });
 
   it('should throw TemplateNotFoundError for unknown template in handleAction', async () => {

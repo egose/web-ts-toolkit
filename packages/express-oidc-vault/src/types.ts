@@ -14,6 +14,17 @@ export interface OidcVaultUserProfile {
   [key: string]: unknown;
 }
 
+/**
+ * Stored session identity. Exchange, refresh, and live-session logout compare
+ * each defined field verbatim against resolved middleware config before use.
+ * Known mismatches fail with 401 `OIDC_VAULT_INVALID_SESSION` without changing
+ * the session or cookie. Issuer trailing-slash variants are distinct.
+ *
+ * Omitted fields remain legacy-compatible and are not backfilled by refresh.
+ * Complete isolation requires separate session/alias, exchange-code, and
+ * transaction namespaces: exchange spends its code before this check, and
+ * logout's stale-alias path has no live identity to check.
+ */
 export interface OidcVaultProviderMetadata {
   issuer?: string;
   clientId?: string;
@@ -40,7 +51,9 @@ export interface OidcVaultSession {
    * This controls the lifetime of the refresh-token-backed server-side session.
    * It is not derived from upstream OAuth `expires_in`, which only describes the
    * upstream access token lifetime. Leave unset when your application or store
-   * owns session lifetime through another policy.
+   * owns session lifetime through another policy. `sessionTtlMs` assigns an
+   * absolute maximum at callback creation; a precreate hook may shorten it.
+   * Refresh preserves this timestamp rather than renewing the lifetime.
    */
   expiresAt?: number;
   createdAt: number;
@@ -129,6 +142,21 @@ export class OidcVaultStoreConflictError extends Error {
   }
 }
 
+/**
+ * Portable store boundary for JSON-compatible plain objects/arrays and scalar
+ * values (strings, finite numbers, booleans, null). Built-in providers capture
+ * inputs at invocation before asynchronous work; returned portable data is
+ * detached from caller input and stored state. Native BSON/JSON/structured-clone
+ * values outside that subset retain provider-specific serialization semantics;
+ * opaque native objects have no cross-provider mutation-isolation guarantee.
+ *
+ * Bulk deletion counts primary records removed, never alias cleanup. Memory
+ * excludes expired sessions; MongoDB can count expired rows awaiting TTL cleanup;
+ * Redis counts actual primary deletions during a cursor traversal. Counts are not
+ * proof that no matches remain: concurrent arrivals can survive. MongoDB scoped
+ * deletion repeats until an empty query; Redis traverses once. Neither provides
+ * a global logout snapshot, and errors can follow earlier committed deletions.
+ */
 export interface OidcVaultStoreProvider {
   /** Upsert an authorization transaction by `state`. */
   createAuthorizationTransaction(input: AuthorizationTransactionInput): Promise<void>;
@@ -147,8 +175,8 @@ export interface OidcVaultStoreProvider {
    * and its subject/logical/provider-session index memberships; an accepted
    * replacement takes over the ID with its own subject/logical/provider-session
    * scope. Reusing an ID that holds only a stale rotation alias clears that
-   * alias on memory/Redis, while MongoDB retains the stale alias row until its
-   * lineage is deleted (FU-SVH-05b).
+   * alias on memory/Redis, while MongoDB can retain the stale alias row until
+   * expiry or lineage cleanup (FU-SVH-05b).
    *
    * Portable callers must always create sessions with a fresh unused
    * `sessionId` and handle `OidcVaultStoreConflictError`: reusing a live ID is
@@ -162,8 +190,8 @@ export interface OidcVaultStoreProvider {
    * Atomically replace an existing session with a distinct unused `nextSession.sessionId`.
    *
    * Providers preserve the existing logical session ID when the next session omits
-   * one, retain the old public session ID as a finite in-flight-request
-   * revocation alias (not whole-lineage revocation), and throw
+   * one and retain the old public session ID as an in-flight-request revocation
+   * alias. Rotation itself does not revoke the lineage. Providers throw
    * `OidcVaultStoreConflictError` without changing source or target data when
    * the source is missing, the target already exists, or the target ID equals
    * the source ID.
@@ -171,16 +199,26 @@ export interface OidcVaultStoreProvider {
    * Each alias expires with its immediate successor session's `expiresAt` and is
    * not extended by later rotations, so an earlier alias can stop working while
    * the lineage is still live. A rotation that assigns an explicitly different
-   * logical session ID moves the alias to the new lineage; earlier aliases keep
-   * the old lineage. Sessions without `expiresAt` have provider-specific
-   * retention: memory and Redis aliases persist until lineage termination, while
+   * logical session ID assigns the new source-ID alias to the new lineage;
+   * earlier aliases keep the old lineage and deadline if retained. Memory
+   * eagerly retires inactive old-lineage aliases on ownership transitions;
+   * MongoDB/Redis can retain them until expiry or explicit cleanup. Use distinct
+   * logical IDs for unrelated login families. Sessions without `expiresAt` have
+   * provider-specific retention: memory and Redis impose no alias time limit, while
    * MongoDB applies its finite `rotatedSessionAliasRetentionMs` fallback
    * (default 5 minutes). Generic callers must treat an expired alias as a hint,
    * not a revocation channel; core refresh rotates the live session directly and
    * preserves `expiresAt`, so it does not depend on alias lifetime (SVH-05).
    */
   rotateSession(input: RotateSessionInput): Promise<OidcVaultSession>;
+  /**
+   * Delete a live public-ID record, or revoke the logical lineage through an
+   * unexpired alias when no live record exists. Aliases are not readable through
+   * `getSession` and have no issuer/client filter. Scoped/direct deletion preserves
+   * unexpired aliases while another live member survives, even in another scope.
+   */
   deleteSession(sessionId: string): Promise<void>;
+  /** Revoke a logical lineage without an issuer/client filter; see provider count/concurrency notes. */
   deleteSessionsByLogicalSessionId(input: string | DeleteSessionsByLogicalSessionIdInput): Promise<number>;
   /**
    * Record a backchannel logout JTI once until its finite future expiry.
@@ -197,7 +235,9 @@ export interface OidcVaultStoreProvider {
    * route handler, not from a multi-key store transaction.
    */
   consumeBackchannelLogoutTokenJti(input: ConsumeBackchannelLogoutTokenJtiInput): Promise<boolean>;
+  /** Delete matching subject sessions, filtering by each supplied issuer/client; string input is unscoped. */
   deleteSessionsBySubject(input: string | DeleteSessionsBySubjectInput): Promise<number>;
+  /** Delete matching provider-session IDs, filtering by each supplied issuer/client; string input is unscoped. */
   deleteSessionsByProviderSessionId(input: string | DeleteSessionsByProviderSessionIdInput): Promise<number>;
 }
 
@@ -210,6 +250,11 @@ export interface OidcVaultHookContext {
 }
 
 export interface OidcVaultErrorContext extends OidcVaultHookContext {
+  /**
+   * Original private diagnostic, separate from sanitized browser JSON. Narrow
+   * before use; provider transport errors retain the original failure in
+   * `error.cause`, while issuer-result validation supplies a TypeError directly.
+   */
   error: unknown;
 }
 
@@ -218,6 +263,13 @@ export interface OidcVaultHooks {
   onAuthorizationUrl?(context: OidcVaultHookContext): void | Promise<void>;
   onCallbackTokens?(context: OidcVaultHookContext): void | Promise<void>;
   onUserInfo?(context: OidcVaultHookContext): void | Promise<void>;
+  /**
+   * May mutate the session before persistence or veto creation by throwing.
+   * With `sessionTtlMs`, the session already carries the absolute expiry.
+   * After this hook, a valid earlier epoch-millisecond expiry is preserved;
+   * removal, extension, or an invalid timestamp restores the configured cap.
+   * Without `sessionTtlMs`, application/store lifetime policy is unchanged.
+   */
   onBeforeSessionCreate?(context: OidcVaultHookContext): void | Promise<void>;
   onSessionCreated?(context: OidcVaultHookContext): void | Promise<void>;
   onSessionRefreshed?(context: OidcVaultHookContext): void | Promise<void>;
@@ -232,13 +284,33 @@ export interface IssueTokenInput {
   res: Response;
 }
 
+/**
+ * Local application credentials returned by `OidcVaultTokenIssuer.issue`.
+ * Runtime validation copies only these fields into a fresh result; additional
+ * properties are ignored and cannot override the response's session ID/user.
+ */
 export interface OidcVaultTokenIssueResult {
+  /** Nonempty opaque token string, returned verbatim without trimming. */
   accessToken: string;
+  /** Token lifetime in seconds: a finite, nonnegative safe integer (zero is valid). */
   expiresIn: number;
+  /** Optional exact literal `Bearer`; omitted/undefined stays absent in JSON. */
   tokenType?: 'Bearer';
 }
 
+/**
+ * Trusted application token issuer for exchange and refresh. Return a non-null,
+ * non-array object satisfying `OidcVaultTokenIssueResult`; only its declared
+ * credential fields enter the response. This contains accidental extensions,
+ * not arbitrary behavior of trusted issuers/hooks with session/request/response access.
+ */
 export interface OidcVaultTokenIssuer {
+  /**
+   * Invalid results fail inside issuance rollback: revoke the session lineage
+   * (including the rotated refresh session), clear a cookie-transport session
+   * cookie, and return sanitized HTTP 500 / `OIDC_VAULT_INTERNAL_ERROR`.
+   * Field diagnostics are available privately through `hooks.onError`.
+   */
   issue(input: IssueTokenInput): Promise<OidcVaultTokenIssueResult>;
 }
 
@@ -312,9 +384,11 @@ export interface OidcVaultConfig {
    * trimming (no trailing slash is added, so `/tenant`, `/tenant/`, and
    * `/tenant//` remain distinct). Must be an absolute http(s) URL without
    * userinfo, query, or fragment; `http` is accepted for local-test
-   * providers. Required in both discovery mode (issuer only) and manual mode
-   * (issuer plus endpoints); when any manual endpoint is configured, manual
-   * endpoints are used and discovery is not performed. Discovery responses
+   * providers. Required alongside `clientId` in discovery and manual modes.
+   * Any nonempty endpoint, including `userInfoEndpoint`/`endSessionEndpoint`,
+   * selects manual mode: supply `authorizationEndpoint`, `tokenEndpoint`, and
+   * `jwksUri`; no discovery or partial overrides. Blank strings are absent
+   * after trimming. Discovery responses
    * must carry an exactly equal issuer, and ID/logout tokens are validated
    * against this exact identifier.
    */
@@ -331,14 +405,17 @@ export interface OidcVaultConfig {
 
 export interface OidcVaultLogoutResult {
   /**
-   * Local logout always commits before any upstream work: `loggedOut: true`
-   * means the local session lineage is revoked (and the session cookie is
-   * cleared under cookie transport). Local-only logout (`redirect` unset or
-   * `false`) never contacts the provider. Redirected logout (`redirect: true`)
+   * Successful live-session logout commits revocation before upstream work
+   * (and clears the session cookie under cookie transport). Known foreign
+   * live sessions instead fail with 401. Without a live session, success means
+   * stale-alias deletion was attempted; an expired alias may no longer revoke
+   * a live lineage. Stateless application access tokens are not invalidated.
+   * Local-only logout (`redirect` unset or `false`) never contacts the provider.
+   * Redirected logout (`redirect: true`)
    * treats the upstream end-session redirect as best-effort: when provider
    * discovery fails or no `endSessionEndpoint` is available, the route still
-   * returns this local success and reports the upstream failure via `onError`
-   * instead of undoing the revocation or skipping `onLogout`.
+   * returns this local success. Discovery errors reach `onError` without
+   * undoing revocation or skipping the live session's `onLogout` notification.
    */
   loggedOut: true;
 }
@@ -349,7 +426,9 @@ export interface OidcVaultBackchannelLogoutResult {
 }
 
 export interface OidcVaultExchangeResult extends Partial<OidcVaultTokenIssueResult> {
+  /** Authoritative vault handle in body transport; omitted from cookie-transport JSON. */
   sessionId?: string;
+  /** Session profile; extra token-issuer result properties cannot override it. */
   user?: OidcVaultUserProfile;
 }
 
@@ -413,6 +492,7 @@ export interface OidcVaultOptions {
    * effect; the `hooks` service object itself is retained live.
    */
   hooks?: OidcVaultHooks;
+  /** Optional local issuer; when omitted, exchange/refresh return no local token fields. */
   tokenIssuer?: OidcVaultTokenIssuer;
   /**
    * Default browser return target after backend callback completion. Required
@@ -427,13 +507,37 @@ export interface OidcVaultOptions {
    * Optional provider-registered HTTP(S) URL used in the upstream end-session
    * redirect. Only consulted for redirected logout (`redirect: true`); local
    * logout never contacts the provider, and redirected logout treats upstream
-   * metadata/endpoint failures as best-effort (local `200 { loggedOut: true }`
-   * plus `onError`, with `onLogout` still delivered).
+   * discovery failures or an absent endpoint as best-effort (local
+   * `200 { loggedOut: true }`, with `onLogout` still delivered for a live
+   * session). Discovery errors also reach `onError`.
    */
   postLogoutRedirectUri?: string;
   fetchUserInfo?: boolean;
+  /**
+   * Authorization transaction lifetime in milliseconds (default: 10 minutes).
+   * Must be a positive safe integer; construction and creation require
+   * `now() + TTL` to be an integer within JavaScript Date's epoch range.
+   */
   authorizationTransactionTtlMs?: number;
+  /**
+   * One-time exchange code lifetime in milliseconds (default: 30 seconds).
+   * Same positive-safe-integer and computed-epoch checks as
+   * `authorizationTransactionTtlMs`.
+   */
   exchangeCodeTtlMs?: number;
+  /**
+   * Opt-in absolute server-side session lifetime in milliseconds, measured
+   * from callback session creation, not login start. Must be a positive safe
+   * integer producing an integer epoch within JavaScript Date's range;
+   * checked at construction and again at creation using `now` (or Date.now).
+   *
+   * Sets `expiresAt` before `onBeforeSessionCreate` and caps it after the hook:
+   * hooks may shorten the expiry but cannot extend/remove the maximum (invalid
+   * timestamps also restore the cap). Refresh preserves the stored expiry.
+   * Independent of upstream OAuth `expires_in`. Unset retains application/
+   * store-owned lifetime behavior; no default session expiry is assigned.
+   */
+  sessionTtlMs?: number;
   sessionTransport?: OidcVaultSessionTransport;
   cookie?: OidcVaultCookieOptions;
   trustedOrigins?: string[];
@@ -441,15 +545,21 @@ export interface OidcVaultOptions {
   /**
    * Overall deadline in milliseconds for a single upstream provider HTTP
    * exchange, covering DNS/connect/TLS, response headers, and complete
-   * success/error body consumption plus stream cleanup.
+   * success/error body consumption. Cancellation is attempted promptly but
+   * never awaited: completion does not guarantee cleanup of custom streams.
+   * Defaults to 5000; must be a positive finite integer.
    *
-   * Successful discovery metadata is shared across timeout policies, but an
-   * in-flight discovery fetch honors each joining caller's own deadline
-   * without aborting the shared fetch. Remote JWKS resolvers are isolated by
+   * Successful discovery metadata is shared across timeout policies, while
+   * in-flight fetches are isolated by `(issuer, providerRequestTimeoutMs)`.
+   * Remote JWKS resolvers are isolated by
    * `(jwks_uri, providerRequestTimeoutMs)` because JOSE fixes the fetch
    * timeout at resolver creation; the package JWKS transport additionally
    * bounds JWKS bodies (1 MiB, 100 keys) that JOSE leaves unbounded.
+   * Network/reset failures are sanitized endpoint-specific 502s; original
+   * transport diagnostics are available privately via `hooks.onError`'s
+   * `error.cause`. JOSE timeouts retain `ERR_JWKS_TIMEOUT`.
    */
   providerRequestTimeoutMs?: number;
+  /** Epoch-millisecond clock, also sampled during construction to validate TTLs. Defaults to Date.now. */
   now?: () => number;
 }

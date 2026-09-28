@@ -59,11 +59,13 @@ interface ExtractEmbeddedImagesOptions {
   throwIfAborted(signal?: AbortSignal): void;
   throwIfDestroyed(): void;
   /**
-   * Reader-owned cancellation/wait contract for operator retrieval.
+   * Reader-owned cancellation/wait contract for operator and image-object retrieval.
    *
    * Reuses `PDFReader.#awaitWithSignal` so abort/destroy settle promptly
    * without cancelling upstream PDF.js work; late operator lists are dropped
    * and late rejections observed, never processed after cancellation wins.
+   * The original promise retains page ownership until settlement, so cleanup
+   * cannot discard cached objects or callback registrations during retry.
    */
   awaitWithCancellation: <T>(pending: Promise<T>) => Promise<T>;
 }

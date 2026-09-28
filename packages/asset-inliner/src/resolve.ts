@@ -1,10 +1,21 @@
 /** URL classification, decoding, and catalog lookup for transforms. */
 
 import path from 'node:path';
-import type { AssetCatalog, ResolverInput, AssetResolverAsync, AssetResolverSync } from './types.ts';
+import type { AssetCatalog, AssetDiagnostic, ResolverInput, AssetResolverAsync, AssetResolverSync } from './types.ts';
 import type { EncodedAsset } from './types.ts';
 import { InvalidOptionsError } from './errors.ts';
 import { assertSafeDataUrl } from './format.ts';
+
+/** Internal per-transform context, also forwarded through embedded CSS. */
+export const htmlResolutionContext = Symbol('htmlResolutionContext');
+export interface HtmlResolutionContext {
+  readonly baseDir?: string;
+  readonly unmappableReason?: string;
+  readonly diagnostics: AssetDiagnostic[];
+}
+export interface InternalResolutionOptions {
+  readonly [htmlResolutionContext]?: HtmlResolutionContext;
+}
 
 // ---------------------------------------------------------------------------
 // Resolver helpers — thenable detection and structural validation
@@ -425,6 +436,18 @@ export function resolveAssetReferenceSync(
     };
   }
 
+  const htmlBase = (options as InternalResolutionOptions)[htmlResolutionContext];
+  if (htmlBase?.unmappableReason) {
+    htmlBase.diagnostics.push({
+      code: 'HTML_BASE_UNMAPPABLE',
+      message: `${htmlBase.unmappableReason}; reference ${JSON.stringify(originalUrl)} left unchanged`,
+      originalUrl,
+      filePath: options.documentPath,
+      severity: 'warn',
+    });
+    return { originalUrl, skipped: true, skipReason: htmlBase.unmappableReason };
+  }
+
   const stripped = stripQueryAndFragment(classification.url);
   const decoded = decodeUrlPath(stripped); // throws on malformed/NUL
   const normalizedLogical = normalizeLogicalUrlPath(decoded);
@@ -433,6 +456,11 @@ export function resolveAssetReferenceSync(
   }
   const basename = path.posix.basename(normalizedLogical);
 
+  const absolute =
+    htmlBase?.baseDir && !normalizedLogical.startsWith('/')
+      ? path.resolve(htmlBase.baseDir, normalizedLogical)
+      : resolveLogicalPathToAbsolute(normalizedLogical, options);
+
   if (options.resolver) {
     const input: ResolverInput = Object.freeze({
       originalUrl,
@@ -440,6 +468,7 @@ export function resolveAssetReferenceSync(
       basename,
       ...(options.documentPath !== undefined ? { documentPath: options.documentPath } : {}),
       ...(options.rootDir !== undefined ? { rootDir: options.rootDir } : {}),
+      ...(htmlBase?.baseDir !== undefined ? { resolutionBaseDir: htmlBase.baseDir } : {}),
     }) as ResolverInput;
     const hookResult = (options.resolver as AssetResolverSync)(input, catalog) as unknown;
     if (isThenable(hookResult)) {
@@ -449,23 +478,14 @@ export function resolveAssetReferenceSync(
     }
     if (hookResult !== undefined && hookResult !== null) {
       validateResolverAsset(hookResult);
-      const hookResolvedPath = resolveLogicalPathToAbsolute(normalizedLogical, {
-        documentPath: options.documentPath,
-        rootDir: options.rootDir,
-      });
       return {
         originalUrl,
         asset: hookResult as EncodedAsset,
-        resolvedPath: hookResolvedPath,
+        resolvedPath: absolute,
         skipped: false,
       };
     }
   }
-
-  const absolute = resolveLogicalPathToAbsolute(normalizedLogical, {
-    documentPath: options.documentPath,
-    rootDir: options.rootDir,
-  });
 
   const exact = catalog.getByPath(absolute);
   if (exact) {

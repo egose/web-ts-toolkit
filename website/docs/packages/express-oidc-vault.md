@@ -31,12 +31,15 @@ npm install @web-ts-toolkit/express-oidc-vault-memory-store
 
 ## Requirements
 
-- Node.js `>=22.12.0`. The published CJS entry (`dist/index.js`) synchronously requires the ESM-only `jose` dependency, which needs Node's `require(esm)` support. That support is enabled by default starting with Node `22.12.0`; earlier Node 22 releases fail to load the CJS root with `ERR_REQUIRE_ESM` unless an experimental flag is passed. Both the CJS (`require`) and ESM (`import`) roots load without experimental flags on every verified runtime (`22.12.0`, `22.18.0`, `22.20.0`, `24.x`, `26.x`).
-- TypeScript consumers typecheck with `skipLibCheck: false` under strict `NodeNext`/`Bundler` settings. ESM consumers resolve the `import` declaration condition (`dist/index.d.mts`); CommonJS (`.cts`) consumers resolve the `require` condition (`dist/index.d.ts`). Both include the public Express `req.auth` augmentation.
+- Express `>=5.0.0` is the runtime peer dependency. TypeScript applications need `@types/express` and `@types/node` as development dependencies.
+- Node.js `>=22.12.0`. The published CJS entry (`index.js`) synchronously requires the ESM-only `jose` dependency, which needs Node's `require(esm)` support. That support is enabled by default starting with Node `22.12.0`; earlier Node 22 releases fail to load the CJS root with `ERR_REQUIRE_ESM` unless an experimental flag is passed. Both the CJS (`require`) and ESM (`import`) roots load without experimental flags on every verified runtime (`22.12.0`, `22.18.0`, `22.20.0`, `24.x`, `26.x`).
+- TypeScript consumers typecheck with `skipLibCheck: false` under strict `NodeNext`/`Bundler` settings. ESM consumers resolve the `import` declaration condition (`index.d.mts`); CommonJS (`.cts`) consumers resolve the `require` condition (`index.d.ts`). Both include the public Express `req.auth` augmentation. Workspace builds place these files under `dist/`; release packaging moves them to the package root and rewrites metadata accordingly. Consumer imports always use the package name.
 
 ## What It Exposes
 
 Main exports:
+
+Use **named imports from the package root**. There is no default export or public subpath API.
 
 - `createOidcVaultMiddleware(...)`
 - `createOidcVaultAccessTokenMiddleware(...)`
@@ -81,7 +84,7 @@ This is the default mode.
 
 This mode stores `sessionId` in a backend-managed cookie.
 
-- `exchange` sets the session cookie and does not need to return `sessionId` in the JSON body
+- `exchange` sets the session cookie and omits `sessionId` from the JSON body
 - `refresh` reads the cookie, rotates the session, and updates the cookie
 - `logout` reads the cookie and clears it
 - `refresh` and `logout` require the cookie and reject body-only `sessionId` values
@@ -152,6 +155,7 @@ app.use(
     frontendRedirectUri: 'https://frontend.example.com/callback',
     postLogoutRedirectUri: 'https://frontend.example.com/logged-out',
     storeProvider: createMemoryOidcVaultStore(),
+    sessionTtlMs: 8 * 60 * 60 * 1000, // Opt in to an eight-hour absolute session lifetime.
   }),
 );
 ```
@@ -162,7 +166,7 @@ Use the memory store for local development and tests. For production deployments
 
 `postLogoutRedirectUri` is optional. When configured, it must be an absolute HTTP(S) URL registered with the OIDC provider for post-logout redirects. It may be hosted on a different origin from `frontendRedirectUri` when that exact URL is provider-registered. It is only consulted for redirected logout (`redirect: true`).
 
-Local logout (`redirect` unset or `false`) never contacts the provider: it revokes the local session lineage, clears the session cookie under cookie transport, delivers `onLogout`, and returns `200 { loggedOut: true }`. Redirected logout (`redirect: true`) treats the upstream end-session redirect as best-effort: the local revocation, cookie clearing, and `onLogout` notification still commit when provider discovery fails or no `endSessionEndpoint` is available, the route still returns the local `200 { loggedOut: true }` success, and the upstream failure is reported via `onError` only.
+After live-session identity checks, local logout (`redirect` unset or `false`) never contacts the provider: it revokes the local session lineage, clears the cookie under cookie transport, delivers `onLogout` for a live session, and returns `200 { loggedOut: true }`. Redirected logout (`redirect: true`) commits the same local outcome before attempting an upstream end-session redirect. Discovery errors are reported through `onError`; errors or an absent `endSessionEndpoint` fall back to local `200 { loggedOut: true }`. With no live session, logout attempts stale-alias deletion and returns local success without `onLogout`; an expired alias may no longer identify a live lineage.
 
 Every vault route response carries `Cache-Control: no-store` (login/callback/logout redirects, exchange/refresh/logout/backchannel JSON, and error JSON including body-parser errors) so caches do not retain session/access credentials, one-time exchange codes, or authorization redirects. Only `no-store` is emitted: legacy `Pragma`/`Expires` add no protection once `no-store` is present, and no `Referrer-Policy` is set because redirect targets intentionally expose protocol-required values (provider authorization URL, frontend `?code=`, upstream `id_token_hint`) to the navigation target. This does not clear browser history, disable reverse-proxy request logging, strip `?code=` from frontend URLs/history (the frontend must still clean up the callback URL, e.g. `history.replaceState`), or hide intentional provider redirect exposure. Verify with `curl -i` (expect `Cache-Control: no-store` on `GET /auth/oidc/login`, `POST /auth/oidc/exchange`, `POST /auth/oidc/refresh`, and `POST /auth/oidc/logout`) or assert `response.headers['cache-control'] === 'no-store'` in integration tests under both transports.
 
@@ -173,21 +177,42 @@ Every vault route response carries `Cache-Control: no-store` (login/callback/log
 | `basePath`                      | `/auth/oidc`                         | Mount path for the OIDC router.                                                                                                                                                                                                                    |
 | `backendOrigin`                 | required                             | Public backend origin registered with the provider. Callback redirect URIs are derived from this pinned origin, not request host headers.                                                                                                          |
 | `storeProvider`                 | required                             | Durable vault store provider. Use Redis or MongoDB for production and multi-instance deployments.                                                                                                                                                  |
-| `config`                        | env-compatible helper input          | Provider config. `issuer` is required for discovery and manual modes so ID and logout tokens are issuer-bound.                                                                                                                                     |
+| `config`                        | required provider values             | Supply `issuer` and `clientId`, or use `resolveOidcVaultConfigFromEnv(process.env)`. Endpoint settings select manual mode; see Config Modes.                                                                                                       |
 | `frontendRedirectUri`           | unset                                | Default browser return target after backend callback completion. Required if login accepts custom `returnTo`. Validated before durable callback state; missing destination fails the callback with `500 OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI`. |
 | `postLogoutRedirectUri`         | unset                                | Optional provider-registered HTTP(S) URL used in the upstream end-session redirect. Only consulted for redirected logout (`redirect: true`); upstream failures fall back to local `200 { loggedOut: true }` with `onError`.                        |
 | `fetchUserInfo`                 | implementation default               | When enabled, UserInfo claims are fetched and merged only after the `sub` matches the verified ID token subject.                                                                                                                                   |
 | `authorizationTransactionTtlMs` | `600000`                             | TTL for one-time authorization transactions created during login.                                                                                                                                                                                  |
 | `exchangeCodeTtlMs`             | `30000`                              | TTL for one-time local exchange codes returned to the frontend callback route.                                                                                                                                                                     |
+| `sessionTtlMs`                  | unset                                | Opt-in positive safe-integer lifetime in milliseconds from callback session creation. Hooks may shorten it; refresh never extends it.                                                                                                              |
 | `sessionTransport`              | `body`                               | `body` returns and accepts JSON `sessionId`; `cookie` stores the session pointer in an `HttpOnly` cookie and rejects body-only refresh/logout IDs.                                                                                                 |
 | `cookie`                        | default cookie settings              | Cookie transport options. `httpOnly` is always enforced as `true`; unsafe names, paths, domains, and `__Secure-`/`__Host-` prefix violations are rejected.                                                                                         |
 | `trustedOrigins`                | `[]` plus `backendOrigin` internally | Browser origins allowed to call cookie-authenticated `refresh` and `logout`. Required for cross-site cookie transport.                                                                                                                             |
 | `requestBodyLimit`              | `16kb`                               | Express JSON and URL-encoded parser limit for OIDC route bodies. Increase only for known provider backchannel logout token size needs.                                                                                                             |
-| `providerRequestTimeoutMs`      | `5000`                               | Overall deadline per provider HTTP exchange (headers plus complete body and cleanup) for discovery, token, UserInfo, and remote JWKS requests. Must be a positive finite integer; validated before cache lookup.                                   |
+| `providerRequestTimeoutMs`      | `5000`                               | Deadline per provider HTTP exchange (headers plus complete body). Cancellation is attempted without awaiting cleanup. Positive finite integer; validated before cache lookup.                                                                      |
 | `hooks`                         | unset                                | Pre-commit hooks can veto operations by throwing; post-commit notification hook failures are reported to `onError` without undoing committed state.                                                                                                |
 | `tokenIssuer`                   | unset                                | Issues app-local access tokens for `exchange` and `refresh`. This lifetime is separate from upstream token and vault-session lifetimes.                                                                                                            |
 
 Construction takes an internal resolved snapshot of the options object without mutating it: normalized values are stored on the snapshot, `cookie`/`trustedOrigins`/`config` containers are shallow-copied, and `storeProvider`/`hooks`/`tokenIssuer`/`now` service references are retained live (never deep-cloned). Frozen inputs work, reused inputs are not mutated, and mutating or replacing the caller object after creation has no effect on the created router.
+
+## Absolute Session Lifetime
+
+The quick start opts in with `sessionTtlMs: 8 * 60 * 60 * 1000`. New server-side sessions receive `expiresAt = now + sessionTtlMs` at **callback session creation**, not login start. Refresh preserves that timestamp. At `now >= expiresAt`, the store treats the session as expired, so exchange and refresh can no longer use it, even if an exchange code is still live.
+
+Before `onBeforeSessionCreate`, the session already has its expiry. A hook may shorten it with a valid integer epoch-millisecond timestamp. Removing, extending, or assigning an invalid expiry restores the original cap after the hook; hook delay and changes to `createdAt` do not move that cap. For example, add this optional hook to the middleware options to shorten new sessions to one hour:
+
+```ts
+hooks: {
+  onBeforeSessionCreate({ session }) {
+    if (session?.expiresAt !== undefined) {
+      session.expiresAt = Math.min(session.expiresAt, session.createdAt + 60 * 60 * 1000);
+    }
+  },
+},
+```
+
+Omitting `sessionTtlMs` assigns no default session expiry and retains application/hook/store-owned policy. Enabling it affects new sessions; it does not retrofit existing sessions. Upstream OAuth `expires_in`, local access-token lifetime, and vault-session lifetime are independent.
+
+`authorizationTransactionTtlMs` (default 10 minutes), `exchangeCodeTtlMs` (default 30 seconds), and optional `sessionTtlMs` must be positive safe-integer numbers of milliseconds. Construction rejects zero, negative, fractional, nonnumeric, null, NaN, infinite, and unsafe values. It samples `now` (default `Date.now`): the clock and computed expiry must be integer epoch milliseconds within JavaScript Date's inclusive ±8,640,000,000,000,000 ms range, with expiry after now. Record creation rechecks computed expiries; an unusable later clock/expiry returns sanitized HTTP 500 / `OIDC_VAULT_INTERNAL_ERROR` before new transaction/session/code persistence, with the original error available to `hooks.onError`.
 
 ## Frontend Integration Example
 
@@ -196,6 +221,8 @@ The intended frontend model is:
 - `accessToken` stays in memory
 - `sessionId` is mirrored into `sessionStorage`
 - refresh calls are deduplicated so concurrent `401` responses do not race session rotation
+
+The shared promise below coordinates callers in this JavaScript context only. It does not coordinate tabs, backend instances, or response arrival order; see [Known Browser And Concurrency Limits](#known-browser-and-concurrency-limits).
 
 ```ts
 type AuthState = {
@@ -474,13 +501,23 @@ Only set `cookie.domain` (for example `.example.com`) as an advanced expansion w
 
 The package supports issuer discovery and manual endpoint configuration.
 
+Use `resolveOidcVaultConfigFromEnv(process.env)` to read the documented environment variables, or supply `config` explicitly to `createOidcVaultMiddleware`. `clientId` / `OIDC_CLIENT_ID` is always required; `scopes` / `OIDC_SCOPES` defaults to `openid email profile`.
+
 ### Issuer mode
 
-If only `OIDC_ISSUER` is set, discovery mode resolves the provider endpoints. The issuer identifier is preserved exactly after surrounding-whitespace trimming (no trailing slash is added; `/tenant`, `/tenant/`, and `/tenant//` are distinct) and the discovered issuer must exactly equal the configured issuer. Issuers must be absolute http(s) URLs without userinfo, query, or fragment; `http` is accepted for local-test providers.
+With `issuer` and `clientId` but no endpoint settings, discovery resolves the provider endpoints. The configured issuer identifier is preserved exactly after surrounding-whitespace trimming (no trailing slash is added; `/tenant`, `/tenant/`, and `/tenant//` are distinct) and the discovered issuer must exactly equal it without additional trimming. Issuers must be absolute http(s) URLs without userinfo, query, or fragment; `http` is accepted for local-test providers.
+
+Discovery may omit `userinfo_endpoint` and `end_session_endpoint`. If present, each must be a nonempty absolute HTTP(S) URL string. Null, arrays, objects, numbers, booleans, blank strings, malformed URLs, and non-HTTP(S) URLs invalidate metadata with HTTP 502 / `OIDC_VAULT_DISCOVERY_INVALID`, identifying the field without echoing its value. Failed metadata is evicted so later requests can fetch corrected metadata; only validated successes are shared across timeout policies. During redirected logout, discovery errors instead reach `onError` while local revocation still succeeds; local-only logout does not discover metadata.
 
 Provider discovery metadata and remote JWKS resolvers are cached in bounded process-wide maps. Discovery fetches are isolated by `(issuer, providerRequestTimeoutMs)` so differing instance policies never inherit each other's deadline, while settled successful metadata is additionally shared across timeouts for reuse. JWKS resolvers are isolated by `(jwks_uri, providerRequestTimeoutMs)` because JOSE fixes the fetch timeout at creation. These keys are intended to come from static middleware configuration, not request input. Successful discovery entries are reused for up to 10 minutes and both discovery and JWKS resolver maps retain at most 32 entries with oldest-entry eviction. Failed discovery requests evict only the owning policy entry so a later request can retry. Timeout options are validated before any cache lookup, so cached entries cannot bypass option validation.
 
-Discovery, token, UserInfo, and remote JWKS HTTP requests use a 5 second default overall deadline covering response headers plus complete success/error body consumption and stream cleanup; stalled or slow bodies fail with sanitized endpoint-specific timeout errors. Upstream redirects are never followed (manual handling). Set `providerRequestTimeoutMs` on `createOidcVaultMiddleware(...)` to a positive integer number of milliseconds if your provider needs a different bound. JWKS documents fetched through the JOSE resolver additionally enforce package bounds of 1 MiB and 100 keys, which JOSE itself leaves unbounded. Provider response parse errors return sanitized client messages; oversized or malformed provider bodies are not returned to callers.
+Discovery, token, UserInfo, and remote JWKS HTTP requests use a 5 second default deadline covering response headers plus complete success/error body consumption; stalled or slow bodies fail with sanitized endpoint-specific timeout errors. Cancellation is attempted promptly without awaiting its promise, so an uncooperative custom stream cannot hold up error delivery through pending cleanup. Request completion does not guarantee completed resource cleanup; the hanging-cancellation evidence uses custom streams, with no native-undici remote exploit established. Upstream redirects are never followed. Set `providerRequestTimeoutMs` to a positive integer number of milliseconds to change the bound. JWKS documents additionally enforce 1 MiB and 100-key limits. Provider response parse errors return sanitized client messages; oversized or malformed bodies are not returned to callers.
+
+Pre-header network rejection and mid-body transport reset return HTTP 502 with `OIDC_VAULT_DISCOVERY_FAILED`, `OIDC_VAULT_TOKEN_REQUEST_FAILED`, or `OIDC_VAULT_USERINFO_FAILED` and message `OIDC provider request failed.` JWKS transport failures use `OIDC_VAULT_JWKS_FAILED`; JOSE timeouts retain `ERR_JWKS_TIMEOUT`. Discovery success-body timeout/size/JSON failures retain `OIDC_VAULT_DISCOVERY_INVALID`. Original transport diagnostics are privately available as `hooks.onError` context `error.cause` (narrow the unknown error before reading it); they are not browser payload fields.
+
+### Manual mode
+
+Any nonempty endpoint (`authorizationEndpoint`, `tokenEndpoint`, `jwksUri`, `userInfoEndpoint`, or `endSessionEndpoint`) selects manual mode with no discovery. Optional endpoints are not partial discovery overrides. This also applies to the environment variables:
 
 - `OIDC_AUTHORIZATION_ENDPOINT`
 - `OIDC_TOKEN_ENDPOINT`
@@ -488,11 +525,7 @@ Discovery, token, UserInfo, and remote JWKS HTTP requests use a 5 second default
 - `OIDC_JWKS_URI`
 - `OIDC_END_SESSION_ENDPOINT`
 
-`OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, and `OIDC_SCOPES` still apply.
-
-### Manual mode
-
-If your provider metadata is not discoverable, configure the endpoints directly. Manual mode uses the configured endpoints and does not perform discovery; `issuer` is still required so ID and logout tokens are verified against the exact expected issuer.
+Undefined, empty, and whitespace-only config/env strings are absent after trimming. Manual mode requires the complete set listed below, even if only `OIDC_USERINFO_ENDPOINT` or `OIDC_END_SESSION_ENDPOINT` selected it. Complete manual configuration preserves valid optional endpoints. `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, and `OIDC_SCOPES` still apply; `issuer` binds ID and logout tokens to the exact expected issuer.
 
 ```ts
 createOidcVaultMiddleware({
@@ -530,7 +563,7 @@ Minimum required manual config:
 - Non-success token/UserInfo responses always surface 502 with a stable code/message regardless of JSON versus HTML bodies, without leaking body content or the upstream status; rejected upstream redirects never become browser-facing 3xx.
 - Present `access_token`/`id_token`/`refresh_token` fields must be non-empty strings and a present `scope` must be a string; malformed present fields are rejected rather than treated as omissions. Callback responses additionally require `id_token` and `refresh_token`, and no session is persisted until all provider checks pass. The callback destination (transaction `returnTo` or `frontendRedirectUri`) is validated before any provider call or durable session/code creation and fails with `500 OIDC_VAULT_MISSING_FRONTEND_REDIRECT_URI` when neither is configured, so a missing destination cannot strand credentials.
 - Upstream OAuth `expires_in` describes the upstream access token only. It does not set `OidcVaultSession.expiresAt` or shorten the refresh-token-backed vault session.
-- `OidcVaultSession.expiresAt`, when set by application code or store policy, is an explicit vault-session expiry in epoch milliseconds and remains enforced by store providers.
+- `OidcVaultSession.expiresAt`, assigned by `sessionTtlMs`, application code, or store policy, is an explicit vault-session expiry in epoch milliseconds and remains enforced by store providers.
 - ID tokens must include `sub`, `exp`, and `iat`.
 - ID-token `azp` must equal `clientId` when present and is required for multi-audience ID tokens.
 - UserInfo responses must be objects including a `sub` matching the verified ID-token subject before claims are merged; JSON `null` never bypasses the subject check.
@@ -600,6 +633,28 @@ createOidcVaultMiddleware({
 ```
 
 That local access token is separate from the upstream IdP token. The upstream refresh token stays only in the server-side vault.
+
+### Local issuer result contract
+
+`tokenIssuer.issue` must resolve to a non-null, non-array object with:
+
+- `accessToken`: nonempty opaque string, returned verbatim without trimming or a new whitespace policy;
+- `expiresIn`: finite nonnegative safe-integer seconds, from 0 through `Number.MAX_SAFE_INTEGER`;
+- `tokenType`: optional exact literal `'Bearer'`. Omitted/undefined stays absent in JSON; null, lowercase `'bearer'`, and other values are invalid.
+
+Only these three fields are copied once into a fresh result. Extra fields (including upstream tokens, `metadata`, `sessionId`, `user`, and `toJSON`) are ignored without evaluating their getters. The vault supplies the response session ID/profile: body transport includes `sessionId`, cookie transport omits it, and `user` is the session profile. Omitting `tokenIssuer` is supported and returns no local token fields.
+
+Malformed results return HTTP 500 with `{"code":"OIDC_VAULT_INTERNAL_ERROR","message":"Unexpected OIDC vault error."}` inside issuance rollback: the logical lineage is revoked and cookie transport clears its cookie instead of minting one. Exchange has already consumed its code; refresh has already contacted the provider and rotated the handle, and its success notification does not run. Correct the issuer and start a new login. Field-specific diagnostics are the original `hooks.onError` context `error` (narrow it before use); allowed-field getter exceptions also enter rollback.
+
+This projection contains accidental result extensions. Issuers/hooks remain trusted code with mutable session/request/response access; application profiles and deliberate secrets placed in allowed fields are not redacted.
+
+## Migration And Behavior Changes
+
+- Optional-only endpoint settings previously ignored now select manual mode and fail without the complete manual set. Supply all required manual values or remove endpoint settings to use discovery. Correct malformed optional discovery capabilities at the provider, or omit unsupported fields.
+- Invalid transaction/code TTLs previously had store-dependent behavior; supply positive safe-integer milliseconds. `sessionTtlMs` is opt-in for new sessions and never renews on refresh. Custom clocks are now sampled during construction.
+- Route each session to its owning issuer/client configuration. Known foreign live sessions now fail with 401. Correct inaccurate stored identity only from trusted provenance or require login again; do not remove identity fields to bypass the guard. Legacy omissions and shared code/alias limits remain as described below.
+- Issuers must return the declared local credential shape; previously accepted malformed results now fail with rollback. Extra result properties no longer extend/override JSON responses.
+- Provider network/reset failures now produce sanitized endpoint-specific 502s instead of generic internal errors. Cancellation no longer waits for an uncooperative cleanup promise. Alias-retention wording reflects existing SVH-05 behavior, with no store migration.
 
 ## Access Token Validation Middleware
 
@@ -837,6 +892,33 @@ Recommended hook usage:
 - `onLoginStart`, `onAuthorizationUrl`, `onCallbackTokens`, `onUserInfo`, `onBeforeSessionCreate`, and `onBeforeLogout` are pre-commit hooks. Throwing from one of these hooks vetoes the operation before related durable session state is created, rotated, or deleted.
 - `onSessionCreated`, `onSessionRefreshed`, and `onLogout` are post-commit notification hooks. Their failures are reported to `onError` but do not change a successful callback redirect, refresh response, logout response, or already-committed store mutation.
 - client error responses keep a stable `{ code, message }` shape and intentionally avoid returning raw provider, store, hook, token issuer, or access-token validator details. Use `onError` to observe the original error object for private server-side logs. The separate bearer middleware reports its original extraction/validator/hook errors through its own `onError` option.
+
+## Session Identity And Store Namespaces
+
+Exchange, refresh, and logout of a **live session** compare every stored `provider.issuer` and `provider.clientId` that is not undefined against the resolved middleware configuration. Each known field must match independently. Stored identifiers are compared verbatim, without trimming or URL canonicalization; issuer trailing-slash variants are distinct. Configuration strings still receive construction-time trimming.
+
+A known mismatch returns HTTP 401 with `{"code":"OIDC_VAULT_INVALID_SESSION","message":"Session is missing or expired."}` before discovery, upstream token use, local issuance, lifecycle hooks, rotation, or lineage deletion. It neither sets nor clears a cookie and produces no provider logout redirect. The normal `onError` observer runs without the foreign session in its context.
+
+Legacy sessions with absent `provider`, an empty provider object, or omitted/undefined identity fields remain supported. Only known fields are checked: an omitted issuer permits cross-issuer use, an omitted client ID permits cross-client use, and entirely absent identity permits both. Refresh does not backfill identity.
+
+For complete identity isolation, use separate store namespaces for **session/alias, exchange-code, and authorization-transaction records**. Live-session checks alone do not isolate shared namespaces: exchange consumes the one-time code before checking identity, so a rejected foreign exchange still spends the owner's code. When logout finds no live session, it still calls `deleteSession` through the stale-alias path without an identity check, which can revoke a foreign lineage in shared storage.
+
+### Rotation alias retention
+
+Session rotation preserves the logical session ID when the next session omits one. Rotation aliases are a finite bridge for in-flight requests: each old ID revokes its lineage only until its immediate successor's `expiresAt`; later rotations do not extend earlier aliases. After that window, use the live ID or a scoped `deleteSessionsByLogicalSessionId` / `deleteSessionsBySubject` / `deleteSessionsByProviderSessionId` call. An explicitly changed logical ID moves the new alias to that lineage; earlier aliases keep their previous lineage.
+
+Without successor `expiresAt`, memory and Redis impose no alias time limit and can accumulate arbitrarily many aliases; MongoDB uses `rotatedSessionAliasRetentionMs` (default 5 minutes). Memory eagerly retires inactive old-lineage aliases on rotation/upsert; MongoDB/Redis can retain them until expiry or explicit cleanup. Use distinct logical IDs for unrelated login families. Core refresh uses the live ID and preserves expiry. This retains the [SVH-05 decision](https://github.com/egose/web-ts-toolkit/blob/main/docs/tasks/20260908-130120-oidc-vault-stores-health-follow-up.md#task-svh-05-decide-a-portable-rotation-alias-lifetime-contract).
+
+Scoped/direct deletion preserves unexpired aliases while a live member survives, including another provider scope. Bulk counts exclude alias cleanup; memory excludes expired sessions, MongoDB can count expired rows awaiting TTL cleanup, and Redis counts actual primary deletions during one cursor traversal. MongoDB scoped deletion repeats until an empty query. Later arrivals can survive and errors can follow committed deletion; counts do not prove an empty scope. Portable plain-object/array inputs are snapshotted at invocation; opaque native objects retain backend-specific serialization without portable mutation isolation. See the shipped store READMEs for client lifecycle, safe diagnostics, and actual resource bounds (SCAN COUNT is a hint, not a cap).
+
+## Known Browser And Concurrency Limits
+
+- **Browser binding:** `state`, nonce, PKCE, and one-time codes do not bind login/callback/exchange completion to the initiating browser. A transferred callback/frontend URL can cause login/session swapping; a stolen unused exchange code can be redeemed by another browser in either transport. `exchange` has no source-origin check and accepts URL-encoded forms. CORS, `SameSite`, and `trustedOrigins` on cookie refresh/logout do not establish this missing binding.
+- **Refresh families:** local atomic rotation allows one winner, but overlapping requests can send the same upstream refresh token multiple times, including across backend instances. A single-use provider with reuse detection can revoke the entire upstream refresh family, leaving the local winner unable to refresh. Deduplicate frontend refreshes, including bootstrap and retry paths; a per-context promise is not a distributed guarantee.
+- **Cookie ordering:** a loser reaching a local rotation conflict (or a stale missing-session retry) clears the cookie. A late clear can erase the winner's cookie even while its server session remains live. Upstream-failure losers do not set a cookie. Response ordering is not enforced.
+- **Logout and stateless tokens:** local/provider/backchannel logout revoke vault refresh sessions, not outstanding stateless application access tokens. Those remain valid until their own expiry unless your validator checks application revocation state. A refresh racing logout can still return 200 and an access token after its lineage is deleted. Keep local tokens short-lived; immediate API revocation requires application-owned validation state. Vault-session expiry likewise does not revoke an already-issued stateless token.
+
+Browser-bound proofs (BOV-02-FU1), cross-instance refresh reservation (BOV-03-FU1), and stale-cookie ordering (BOV-03-FU2) remain proposed in the [boundary review](https://github.com/egose/web-ts-toolkit/blob/main/docs/tasks/20260908-070811-express-oidc-vault-boundary-review.md). The lifetime, identity, and response changes documented here do not implement those protocols.
 
 ## Security Checklist
 

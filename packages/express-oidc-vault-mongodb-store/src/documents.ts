@@ -18,7 +18,13 @@ export type AuthorizationTransactionDocument = Omit<AuthorizationTransaction, 'e
 export type ExchangeCodeDocument = Omit<ExchangeCodeRecord, 'expiresAt'> & { _id: string; expiresAt: Date };
 export type SessionDocument = Omit<OidcVaultSession, 'sessionId' | 'expiresAt'> & { _id: string; expiresAt?: Date };
 export type BackchannelLogoutTokenJtiDocument = { _id: string; expiresAt: Date };
-export type RotatedSessionAliasDocument = { _id: string; logicalSessionId: string; expiresAt: Date };
+export type RotatedSessionAliasDocument = {
+  _id: string;
+  logicalSessionId: string;
+  expiresAt: Date;
+  /** Forces a write on reuse even when lineage/expiry are identical; absent on legacy rows. */
+  revision?: number;
+};
 
 export const sessionToDocument = (session: OidcVaultSession): SessionDocument => ({
   _id: session.sessionId,

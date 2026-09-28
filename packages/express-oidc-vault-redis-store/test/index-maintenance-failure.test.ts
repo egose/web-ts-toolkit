@@ -19,6 +19,7 @@ class MaintenanceFakeClient implements OidcVaultRedisClient {
   readonly indexes = new Map<string, Map<string, number>>();
   readonly commands: string[] = [];
   readonly failOn = new Set<string>();
+  maintenanceFailure: unknown = new Error('injected maintenance failure');
   writeCount = 0;
   rotateCount = 0;
   zremRangeByScoreCalls = 0;
@@ -51,7 +52,7 @@ class MaintenanceFakeClient implements OidcVaultRedisClient {
     if (command === 'SCRIPT') return this.handleScript(rest);
 
     if (command && this.failOn.has(command)) {
-      throw new Error(`injected ${command} failure`);
+      throw this.maintenanceFailure;
     }
 
     switch (command) {
@@ -177,6 +178,50 @@ const sessionInput = (id: string) => ({
   idToken: `id-token-for-${id}`,
 });
 
+const SECRET = 'redis://synthetic-user:synthetic-password@example.invalid/?token=synthetic-token'; // pragma: allowlist secret
+const POST_COMMIT_OPERATIONS = ['createSession', 'rotateSession'] as const;
+const maintenanceFailures: Array<{ label: string; create: () => unknown }> = [
+  { label: 'error name', create: () => Object.assign(new Error('maintenance failed'), { name: SECRET }) },
+  { label: 'error message', create: () => new Error(SECRET) },
+  { label: 'string', create: () => SECRET },
+  { label: 'object fields', create: () => ({ name: SECRET, message: SECRET, code: SECRET, cause: SECRET }) },
+  { label: 'array', create: () => [SECRET] },
+  { label: 'symbol', create: () => Symbol(SECRET) },
+  { label: 'null', create: () => null },
+  { label: 'undefined', create: () => undefined },
+  {
+    label: 'throwing error accessors',
+    create: () =>
+      Object.defineProperties(new Error(), {
+        name: {
+          get: () => {
+            throw new Error(SECRET);
+          },
+        },
+        message: {
+          get: () => {
+            throw new Error(SECRET);
+          },
+        },
+      }),
+  },
+  {
+    label: 'hostile proxy',
+    create: () =>
+      new Proxy(
+        { secret: SECRET },
+        {
+          get: () => {
+            throw new Error(SECRET);
+          },
+          getPrototypeOf: () => {
+            throw new Error(SECRET);
+          },
+        },
+      ),
+  },
+];
+
 describe('SVH-02 post-commit maintenance isolation', () => {
   it.each(MAINTENANCE_COMMANDS)('createSession commits despite %s maintenance failure', async (command) => {
     const client = new MaintenanceFakeClient();
@@ -192,7 +237,6 @@ describe('SVH-02 post-commit maintenance isolation', () => {
     expect(warn).toHaveBeenCalledTimes(1);
     const message = String(warn.mock.calls[0]?.[0] ?? '');
     expect(message).toContain('createSession');
-    expect(message).toContain(command);
     expect(message).not.toContain('refresh-secret-for-sess_1');
     expect(message).not.toContain('id-token-for-sess_1');
     expect(message).not.toContain('sess_1');
@@ -225,6 +269,56 @@ describe('SVH-02 post-commit maintenance isolation', () => {
     },
   );
 
+  describe.each(POST_COMMIT_OPERATIONS)('%s secret-independent diagnostics', (operation) => {
+    it.each(maintenanceFailures)('omits $label and preserves the committed result', async ({ create }) => {
+      const client = new MaintenanceFakeClient();
+      const store = createRedisOidcVaultStore({ client, keyPrefix: 'test' });
+      const source = await store.createSession(sessionInput('source-secret-id'));
+      client.maintenanceFailure = create();
+      client.failOn.add('SCAN');
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const nextSession = { ...source, ...sessionInput('target-secret-id') };
+
+      const committed = await (operation === 'createSession'
+        ? store.createSession(nextSession)
+        : store.rotateSession({ sessionId: source.sessionId, nextSession }));
+
+      expect(committed).toEqual(nextSession);
+      expect(await store.getSession(nextSession.sessionId)).toEqual(committed);
+      expect(await store.getSession(source.sessionId)).toEqual(operation === 'rotateSession' ? null : source);
+      expect(client.writeCount).toBe(operation === 'createSession' ? 2 : 1);
+      expect(client.rotateCount).toBe(operation === 'rotateSession' ? 1 : 0);
+      // Assert every warning argument, so an attached raw cause cannot leak either.
+      expect(warn.mock.calls).toEqual([
+        [`OIDC vault Redis index maintenance failed after ${operation} and will retry on a later write.`],
+      ]);
+    });
+
+    it('still rejects mutation-command failures without a maintenance warning', async () => {
+      const client = new MaintenanceFakeClient();
+      const store = createRedisOidcVaultStore({ client, keyPrefix: 'test' });
+      const source = await store.createSession(sessionInput('sess_1'));
+      const failure = new Error('injected mutation failure');
+      const sendCommand = vi.spyOn(client, 'sendCommand').mockRejectedValueOnce(failure);
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const nextSession = { ...source, ...sessionInput('sess_2') };
+
+      await expect(
+        operation === 'createSession'
+          ? store.createSession(nextSession)
+          : store.rotateSession({ sessionId: source.sessionId, nextSession }),
+      ).rejects.toBe(failure);
+
+      expect(sendCommand).toHaveBeenCalledTimes(1);
+      expect(sendCommand.mock.calls[0]?.[0][0]).toBe('EVALSHA');
+      expect(warn).not.toHaveBeenCalled();
+      expect(await store.getSession(source.sessionId)).toEqual(source);
+      expect(await store.getSession(nextSession.sessionId)).toBeNull();
+      expect(client.writeCount).toBe(1);
+      expect(client.rotateCount).toBe(0);
+    });
+  });
+
   it('later maintenance recovers and prunes entries missed during a failed cleanup', async () => {
     const client = new MaintenanceFakeClient();
     client.injectStaleIndexMember('test:subject:user_stale', 'sess_stale', 500);
@@ -250,7 +344,7 @@ describe('SVH-02 post-commit maintenance isolation', () => {
   it('mutation failures still reject and are not confused with maintenance warnings', async () => {
     const client = new MaintenanceFakeClient();
     const store = createRedisOidcVaultStore({ client, keyPrefix: 'test' });
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     await store.createSession(sessionInput('sess_1'));
     await expect(store.createSession(sessionInput('sess_1'))).rejects.toThrow('already exists');
@@ -259,5 +353,6 @@ describe('SVH-02 post-commit maintenance isolation', () => {
     );
     expect(client.writeCount).toBe(1);
     expect(client.rotateCount).toBe(0);
+    expect(warn).not.toHaveBeenCalled();
   });
 });

@@ -192,7 +192,7 @@ Primary ownership:
 
 Finding:
 
-`distDir` and `functionsDir` are resolved against the deploy directory without rejecting absolute paths or `..`. The frontend path is passed to Vite with `--emptyOutDir`, so a sandboxed build can empty an unrelated location. Ephemeral mode is hard-coded to `/tmp/opencode`, whose existence and portability are not guaranteed.
+`distDir` and `functionsDir` are resolved against the deploy directory without rejecting absolute paths or `..`. The frontend path is passed to Vite with `--emptyOutDir`, so a sandboxed build can empty an unrelated location. Ephemeral mode is hard-coded to `<system-tmp>/opencode`, whose existence and portability are not guaranteed.
 
 References:
 
@@ -215,7 +215,7 @@ Acceptance criteria:
 - Absolute, traversal, root-equivalent, and symlink-escape output paths fail before Vite or runtime builders run.
 - Valid nested relative paths remain supported.
 - Tests prove no outside sentinel file is changed by rejected input or cleanup.
-- Ephemeral mode works without a pre-existing `/tmp/opencode` and uses the platform temp root.
+- Ephemeral mode works without a pre-existing `<system-tmp>/opencode` and uses the platform temp root.
 - Package tests pass on supported platforms.
 
 Completion evidence:

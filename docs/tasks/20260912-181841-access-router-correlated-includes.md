@@ -1172,6 +1172,13 @@ test/access-router-client.correlated-includes.integration.test.ts` —
   auto-wrapping of escape literals like ACI-02 substituted objects
   (owner ACI-06/ACI-07).
 
+- Resolution (2026-09-26): FU-ACI05-2 is implemented and verified by
+  [ARC-03](20260926-184406-access-router-residual-contracts.md#task-arc-03-match-bare-escaped-parent-markers-as-literal-records).
+  Bare escapes now receive literal `$eq` equality; explicit equality remains
+  supported. Its Completion evidence records fresh before/after real-Mongo
+  direct/root read/list/count checks. The failures and workaround above describe
+  the original server; older servers do not gain this correction automatically.
+
 ### Task ACI-06: Publish Discoverable Types And Documentation
 
 Status: completed
@@ -1308,6 +1315,12 @@ Requirements:
   `$escape` literals with `$`-keys fail at the Mongo driver (FU-ACI05-2);
   docs prescribe the `$eq`-wrapped spelling; consider server-side
   auto-wrapping (owner ACI-07).
+
+- Resolution (2026-09-26): FU-ACI06-2 is the same defect as FU-ACI05-2,
+  resolved by [ARC-03](20260926-184406-access-router-residual-contracts.md#task-arc-03-match-bare-escaped-parent-markers-as-literal-records).
+  Current server README/llms/website prose documents bare literal equality and
+  preserved explicit `$eq`; the historical workaround above remains relevant to
+  older servers. The independent release-version follow-up FU-ACI06-1 remains.
 
 Acceptance criteria:
 

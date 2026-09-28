@@ -1,5 +1,5 @@
 import { Schema, SchemaConfigurationError } from './schema';
-import { Document } from './document';
+import { Document, ParallelSaveError } from './document';
 import { Query, MutationOptionError, QueryExecutionError } from './query';
 import { Connection, defaultConnection, model, connect, disconnect } from './model';
 import { ValidationError } from './document';
@@ -16,7 +16,7 @@ import {
 import { BulkWritePartialFailureError, MutationPartialFailureError, RxCollectionAdapter } from './rx-adapter';
 
 export { Schema, SchemaConfigurationError } from './schema';
-export { Document, ValidationError } from './document';
+export { Document, ValidationError, ParallelSaveError } from './document';
 export { Query, MutationOptionError, QueryExecutionError } from './query';
 export type { LeanQueryResult } from './query';
 export { Model, Connection, defaultConnection, model, connect, disconnect } from './model';
@@ -49,6 +49,7 @@ const api = {
   Schema,
   SchemaConfigurationError,
   Document,
+  ParallelSaveError,
   Query,
   MutationOptionError,
   QueryExecutionError,

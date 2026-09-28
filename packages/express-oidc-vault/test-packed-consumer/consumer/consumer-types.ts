@@ -12,6 +12,7 @@ import {
   type OidcVaultResolvedConfig,
   type OidcVaultSession,
   type OidcVaultStoreProvider,
+  type OidcVaultTokenIssueResult,
   createOidcVaultAccessTokenMiddleware,
   createOidcVaultMiddleware,
   normalizeOidcVaultBasePath,
@@ -77,7 +78,34 @@ const options: OidcVaultOptions = {
   config,
   frontendRedirectUri: 'https://app.example.com/callback',
   storeProvider,
+  sessionTtlMs: 8 * 60 * 60 * 1000,
+  hooks: {
+    onBeforeSessionCreate({ session }) {
+      if (session?.expiresAt !== undefined) {
+        session.expiresAt = Math.min(session.expiresAt, session.createdAt + 60 * 60 * 1000);
+      }
+    },
+    onError({ error }) {
+      if (error instanceof Error && 'cause' in error) {
+        const diagnostic: unknown = error.cause;
+        void diagnostic;
+      }
+    },
+  },
+  tokenIssuer: {
+    async issue({ session }) {
+      session.provider?.issuer satisfies string | undefined;
+      session.provider?.clientId satisfies string | undefined;
+      // Type fixture only; a real issuer signs/creates its application token.
+      return { accessToken: 'local-token', expiresIn: 900, tokenType: 'Bearer' } satisfies OidcVaultTokenIssueResult;
+    },
+  },
 };
+
+options.sessionTtlMs satisfies number | undefined;
+// @ts-expect-error Session lifetime uses numeric milliseconds, not duration strings.
+const invalidLifetime: OidcVaultOptions = { ...options, sessionTtlMs: '8h' };
+void invalidLifetime;
 
 const router = createOidcVaultMiddleware(options);
 router satisfies express.Router;
@@ -113,6 +141,13 @@ app.get('/me', accessTokenMiddleware, route);
 
 const exchange = { accessToken: 'token', expiresIn: 60 } satisfies OidcVaultExchangeResult;
 void exchange;
+
+// @ts-expect-error Local issuer tokenType is the exact Bearer literal.
+const invalidTokenType: OidcVaultTokenIssueResult = { accessToken: 'token', expiresIn: 60, tokenType: 'bearer' };
+void invalidTokenType;
+// @ts-expect-error Local issuer expiry is numeric seconds, not a duration string.
+const invalidTokenExpiry: OidcVaultTokenIssueResult = { accessToken: 'token', expiresIn: '15m' };
+void invalidTokenExpiry;
 
 const conflictError = new OidcVaultStoreConflictError('conflict');
 conflictError satisfies OidcVaultStoreConflictError;

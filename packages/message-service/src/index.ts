@@ -6,6 +6,10 @@
 
 // --- Types ---
 export type {
+  MessageTransactionCleanupFailureEvent,
+  MessageTransactionCleanupFailureObserver,
+} from './types/transaction';
+export type {
   IMessageContent,
   IBaseMessage,
   IMessage,
@@ -116,6 +120,8 @@ export {
 } from './message-service';
 
 // --- Route Factory ---
+export { serializePublicMessage } from './public-message';
+export type { PublicMessageDto, PublicMessageParty, PublicMessageSource } from './public-message';
 export { createMessageRoutes } from './route-factory';
 export type {
   MessageRoutesBehaviorOptions,

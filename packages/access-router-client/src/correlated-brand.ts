@@ -21,6 +21,14 @@ export const CORRELATED_DESCRIPTOR_BRAND = Symbol('access-router-client.correlat
  * JavaScript callers, markers in forbidden positions, descriptors embedded in
  * filters or include arrays, descriptors passed to `adapter.group()`, and
  * unsupported per-call args/options supplied to `$include()`.
+ * Also thrown synchronously for cycles or query preparation beyond 64 edges
+ * (root depth 0) / 10,000 expanded visits, including primitive leaves, array
+ * holes and repeated shared references. Capture budgets combine supplied
+ * id/filter/args/options; conversion combines id/rewritten filter and effective
+ * forwarded args. `$escape` stays literal but structurally checked. Live
+ * requests remain opaque until their exposed `$$sq` metadata is checked.
+ * Preparation performs zero HTTP; structural limits are not byte/latency or
+ * arbitrary getter/proxy/exotic-instance guarantees.
  */
 export class CorrelatedIncludeError extends Error {
   constructor(message: string) {

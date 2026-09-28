@@ -6,13 +6,13 @@ import { InvalidOptionsError } from './errors.ts';
 // Finite defaults
 // ---------------------------------------------------------------------------
 
-/** Per-asset byte limit — 3 MiB. See rationale above. */
+/** Per-asset byte limit — 3 MiB (maximum override 100 MiB). */
 export const DEFAULT_MAX_ASSET_BYTES = 3 * 1024 * 1024; // 3145728
 
 /** Total encoded byte limit across batch/catalog — 15 MiB. */
 export const DEFAULT_MAX_TOTAL_BYTES = 15 * 1024 * 1024; // 15728640
 
-/** Max discovered files per traversal — 10 000. */
+/** Max discovered files — 10 000; catalog creation shares one budget across roots. */
 export const DEFAULT_MAX_FILES = 10_000;
 
 /** Max directory recursion depth — 32. */
@@ -21,7 +21,7 @@ export const DEFAULT_MAX_DEPTH = 32;
 /** Max target CSS/HTML files processed by `inlineFiles` — 500. */
 export const DEFAULT_MAX_TARGETS = 500;
 
-/** Bounded async concurrency for discovery/encoding/file orchestration — 16. */
+/** Bounded async encoding/file orchestration concurrency — 16. Discovery remains serial. */
 export const DEFAULT_CONCURRENCY = 16;
 
 /** Max target input bytes (UTF-8) per transform — 5 MiB. Bounds parser input before parsing. */
@@ -32,6 +32,9 @@ export const DEFAULT_MAX_REPLACEMENTS = 1000;
 
 /** Max transformed output bytes (UTF-8) per target — 20 MiB. Bounds projected growth per replacement. */
 export const DEFAULT_MAX_OUTPUT_BYTES = 20 * 1024 * 1024; // 20971520
+
+/** Max HTML element / CSS delimiter nesting per transform — independent of directory depth. */
+export const DEFAULT_MAX_SYNTAX_DEPTH = 256;
 
 // ---------------------------------------------------------------------------
 // Reasonable upper caps (values above are "unreasonable" and rejected)
@@ -64,6 +67,9 @@ export const MAX_REASONABLE_MAX_REPLACEMENTS = 100_000;
 /** Values >100 MiB output per target are unreasonable — would allocate ~100 MiB string. */
 export const MAX_REASONABLE_MAX_OUTPUT_BYTES = 100 * 1024 * 1024;
 
+/** Keep recursive parser-library traversal/serialization within a finite stack budget. */
+export const MAX_REASONABLE_MAX_SYNTAX_DEPTH = 512;
+
 /** Values >100 MiB inline threshold are unreasonable — would inline huge assets. */
 export const MAX_REASONABLE_MAX_INLINE_BYTES = 100 * 1024 * 1024;
 
@@ -81,6 +87,7 @@ export interface AssetInlinerPolicy {
   readonly maxTargetBytes: number;
   readonly maxReplacements: number;
   readonly maxOutputBytes: number;
+  readonly maxSyntaxDepth: number;
   readonly maxInlineBytes?: number;
 }
 
@@ -93,6 +100,7 @@ export const DEFAULT_POLICY: AssetInlinerPolicy = Object.freeze({
   concurrency: DEFAULT_CONCURRENCY,
   maxTargetBytes: DEFAULT_MAX_TARGET_BYTES,
   maxOutputBytes: DEFAULT_MAX_OUTPUT_BYTES,
+  maxSyntaxDepth: DEFAULT_MAX_SYNTAX_DEPTH,
   maxReplacements: DEFAULT_MAX_REPLACEMENTS,
 }) as AssetInlinerPolicy;
 
@@ -146,6 +154,7 @@ export function validatePolicyOptions(options: {
   readonly maxTargetBytes?: unknown;
   readonly maxReplacements?: unknown;
   readonly maxOutputBytes?: unknown;
+  readonly maxSyntaxDepth?: unknown;
   readonly maxInlineBytes?: unknown;
 }): void {
   validatePolicyValue('maxAssetBytes', options.maxAssetBytes, MAX_REASONABLE_MAX_ASSET_BYTES);
@@ -157,12 +166,14 @@ export function validatePolicyOptions(options: {
   validatePolicyValue('maxTargetBytes', options.maxTargetBytes, MAX_REASONABLE_MAX_TARGET_BYTES);
   validatePolicyValue('maxReplacements', options.maxReplacements, MAX_REASONABLE_MAX_REPLACEMENTS);
   validatePolicyValue('maxOutputBytes', options.maxOutputBytes, MAX_REASONABLE_MAX_OUTPUT_BYTES);
+  validatePolicyValue('maxSyntaxDepth', options.maxSyntaxDepth, MAX_REASONABLE_MAX_SYNTAX_DEPTH);
   validatePolicyValue('maxInlineBytes', options.maxInlineBytes, MAX_REASONABLE_MAX_INLINE_BYTES);
 }
 
 /**
  * Normalize policy options with finite defaults applied.
- * Returns a frozen snapshot where every policy key is guaranteed present.
+ * Returns a frozen snapshot with every defaulted key present. `maxInlineBytes`
+ * has no default and is absent unless supplied (maximum 100 MiB).
  */
 export function normalizePolicy(
   options: {
@@ -175,6 +186,7 @@ export function normalizePolicy(
     readonly maxTargetBytes?: number;
     readonly maxReplacements?: number;
     readonly maxOutputBytes?: number;
+    readonly maxSyntaxDepth?: number;
     readonly maxInlineBytes?: number;
   } = {},
 ): AssetInlinerPolicy {
@@ -189,6 +201,7 @@ export function normalizePolicy(
     maxTargetBytes: options.maxTargetBytes ?? DEFAULT_MAX_TARGET_BYTES,
     maxReplacements: options.maxReplacements ?? DEFAULT_MAX_REPLACEMENTS,
     maxOutputBytes: options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
+    maxSyntaxDepth: options.maxSyntaxDepth ?? DEFAULT_MAX_SYNTAX_DEPTH,
     ...(options.maxInlineBytes !== undefined ? { maxInlineBytes: options.maxInlineBytes } : {}),
   }) as AssetInlinerPolicy;
 }

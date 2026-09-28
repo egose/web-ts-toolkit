@@ -25,8 +25,8 @@ const createService = (update: ReturnType<typeof vi.fn>) =>
 const asWrapper = (m: unknown) =>
   m as Model<AbsentDoc, Partial<AbsentDoc>> & Partial<AbsentDoc> & Record<string, unknown>;
 
-describe('BND-07 absent-field characterization (no fix — documents current contract)', () => {
-  it('direct assignment to an absent optional field creates an untracked shadow property', () => {
+describe('BND-07 absent-field regressions (CLC-05 consistent assignment)', () => {
+  it('direct assignment to an absent optional field forwards to tracked data', () => {
     const update = vi.fn();
     const model = Model.create<AbsentDoc, Partial<AbsentDoc>>(
       { _id: 'doc-1', name: 'base' },
@@ -39,15 +39,14 @@ describe('BND-07 absent-field characterization (no fix — documents current con
     expect('nickname' in model).toBe(false);
     m.nickname = 'shadow-value';
 
-    // Shadow-write signature: plain own property, _data untouched, nothing dirty.
     expect(Object.hasOwn(model, 'nickname')).toBe(true);
-    expect(model.toObject()).not.toHaveProperty('nickname');
-    expect(model.isDirty()).toBe(false);
-    expect(model.isDirty('nickname')).toBe(false);
-    expect(model.get('nickname')).toBeUndefined();
+    expect(model.toObject()).toHaveProperty('nickname', 'shadow-value');
+    expect(model.isDirty()).toBe(true);
+    expect(model.isDirty('nickname')).toBe(true);
+    expect(model.get('nickname')).toBe('shadow-value');
   });
 
-  it('shadow write is omitted from save payload and survives reset as a stale wrapper property', async () => {
+  it('direct write is saved and reset restores the persisted baseline', async () => {
     const update = vi.fn().mockResolvedValue(success({ name: 'server-name' }));
     const model = Model.create<AbsentDoc, Partial<AbsentDoc>>(
       { _id: 'doc-1', name: 'base' },
@@ -61,15 +60,19 @@ describe('BND-07 absent-field characterization (no fix — documents current con
     model.set('name', 'edited');
     await model.save();
 
-    // PATCH omits the shadowed field; only the tracked edit is sent.
-    expect(update).toHaveBeenCalledWith('doc-1', { name: 'edited' }, { returningAll: false }, undefined);
-    // reset() restores _data baseline but the shadow own-property persists on the wrapper.
+    expect(update).toHaveBeenCalledWith(
+      'doc-1',
+      { name: 'edited', nickname: 'shadow-value' },
+      { returningAll: false },
+      undefined,
+    );
+    m.nickname = 'later';
     model.reset();
-    expect(model.toObject()).not.toHaveProperty('nickname');
+    expect(model.toObject()).toHaveProperty('nickname', 'shadow-value');
     expect(m.nickname).toBe('shadow-value');
   });
 
-  it('set() helper on an absent field tracks dirty and persists, diverging from direct assignment', async () => {
+  it('set() helper on an absent field tracks dirty and persists like direct assignment', async () => {
     const update = vi.fn().mockResolvedValue(success({ nickname: 'server-nick' }));
     const model = Model.create<AbsentDoc, Partial<AbsentDoc>>(
       { _id: 'doc-1', name: 'base' },
@@ -88,8 +91,8 @@ describe('BND-07 absent-field characterization (no fix — documents current con
     expect(update).toHaveBeenCalledWith('doc-1', { nickname: 'helper-value' }, { returningAll: false }, undefined);
   });
 
-  it('later set() cannot repair an existing shadow: direct read stays stale while get() sees _data', () => {
-    const update = vi.fn();
+  it('later set() and assign() agree with direct reads and save after direct assignment', async () => {
+    const update = vi.fn().mockResolvedValue(success({}));
     const model = Model.create<AbsentDoc, Partial<AbsentDoc>>(
       { _id: 'doc-1', name: 'base' },
       createService(update),
@@ -101,17 +104,20 @@ describe('BND-07 absent-field characterization (no fix — documents current con
 
     model.set('status', 'helper-status');
 
-    // _data holds the helper value and is dirty, but the own-property shadow blocks forwarder install.
     expect(model.get('status')).toBe('helper-status');
     expect(model.isDirty('status')).toBe(true);
-    expect(m.status).toBe('shadow-status');
+    expect(m.status).toBe('helper-status');
     expect(Object.hasOwn(model, 'status')).toBe(true);
-    // definePublicDataProps skips keys where `key in this` succeeds — the forwarder is never installed.
     const descriptor = Object.getOwnPropertyDescriptor(model, 'status');
-    expect(descriptor?.get).toBeUndefined();
+    expect(descriptor?.get).toBeTypeOf('function');
+    model.assign({ status: 'assigned-status' });
+    expect(m.status).toBe('assigned-status');
+    expect(model.get('status')).toBe('assigned-status');
+    await model.save();
+    expect(update).toHaveBeenCalledWith('doc-1', { status: 'assigned-status' }, { returningAll: false }, undefined);
   });
 
-  it('assign() helper on an absent field tracks dirty (helper contract works when no shadow exists)', () => {
+  it('assign() helper on an absent field tracks dirty', () => {
     const update = vi.fn();
     const model = Model.create<AbsentDoc, Partial<AbsentDoc>>(
       { _id: 'doc-1', name: 'base' },
@@ -124,7 +130,7 @@ describe('BND-07 absent-field characterization (no fix — documents current con
     expect(model.toObject()).toMatchObject({ nickname: 'assigned-value' });
   });
 
-  it('projection-omitted present-via-set field behaves like absent-optional: direct write shadows, set() persists', async () => {
+  it('projection-omitted field persists direct assignment using the captured identity', async () => {
     const update = vi.fn().mockResolvedValue(success({ name: 'server-name' }));
     // Simulates readAdvanced with select omitting `status`: only { name } projected, identity captured.
     const model = Model.create<AbsentDoc, Partial<AbsentDoc>>(
@@ -135,13 +141,15 @@ describe('BND-07 absent-field characterization (no fix — documents current con
     );
     const m = asWrapper(model);
     m.status = 'direct-shadow';
-    expect(model.isDirty('status')).toBe(false);
-    expect(model.toObject()).not.toHaveProperty('status');
+    expect(model.isDirty('status')).toBe(true);
+    expect(model.toObject()).toHaveProperty('status', 'direct-shadow');
+    await model.save();
+    expect(update).toHaveBeenCalledWith('document-id', { status: 'direct-shadow' }, { returningAll: false }, undefined);
+    expect(model.toObject()).not.toHaveProperty('_id');
 
     model.set('status', 'helper-status');
-    // After a prior shadow, the same repair failure applies to projection-omitted fields.
     expect(model.get('status')).toBe('helper-status');
-    expect(m.status).toBe('direct-shadow');
+    expect(m.status).toBe('helper-status');
   });
 
   it('reserved-name behavior is preserved: direct access stays reserved for the wrapper API', () => {

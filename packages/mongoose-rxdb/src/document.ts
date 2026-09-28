@@ -1,15 +1,20 @@
 import type { AnyDocument, CompiledPath, SchemaTypeOptions } from './types';
 import {
   applyNormalizedUpdate,
-  castValue,
+  assertDocumentValueStructure,
+  castDocumentSetValues,
   castDocumentToSchema,
+  cloneDocumentData,
+  MAX_STORAGE_DEPTH,
   documentToStorage,
   normalizeUpdatePlan,
+  WriteNormalizationError,
 } from './converter';
 import { Schema } from './schema';
 import { MiddlewareEngine, preserveErrorCause } from './middleware';
 import type { InternalModelRuntime } from './model';
 import type { RxLikeCollection } from './rx-adapter';
+import type { NormalizedProjection } from './query-compiler';
 
 const DIRTY = Symbol('dirty');
 const ORIGINAL = Symbol('original');
@@ -18,6 +23,24 @@ const DOC_ID = Symbol('documentId');
 const DOC_SCHEMA = Symbol('documentSchema');
 const DOC_MODEL = Symbol('documentModel');
 const DOC_MW = Symbol('documentMw');
+
+// Selection is provenance, not document data. Keep an owned, frozen copy behind
+// a WeakMap boundary so public properties, symbols, and query option changes
+// cannot turn a redacted subtree into a complete one. Never retain hidden data.
+type DocumentProjection = Readonly<Omit<NormalizedProjection, 'fields'>> & {
+  readonly fields: Readonly<NormalizedProjection['fields']>;
+};
+const documentProjections = new WeakMap<Document<any>, DocumentProjection>();
+const savingDocuments = new WeakSet<Document<any>>();
+
+/** A save is already active on this document instance. Await its settlement
+ * before saving again, including from hooks. Rejected overlaps run no hooks. */
+export class ParallelSaveError extends Error {
+  constructor() {
+    super('Cannot save the same document in parallel; await the active save before saving again.');
+    this.name = 'ParallelSaveError';
+  }
+}
 
 const DANGEROUS_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
 
@@ -52,9 +75,13 @@ const RESERVED_DOCUMENT_MEMBERS = new Set([
  * Hydrated document base with schema casting, validation, middleware, dirty
  * tracking, and persistence helpers. Consumer model results are usually typed
  * with `HydratedDocument<T, Methods, Virtuals>` rather than this class alone.
+ * Data ingress and live-value snapshots reject unsafe values with
+ * WriteNormalizationError. Structural limits are 50 levels (root depth zero)
+ * and 2,000 visited values per whole input/result, including defaults; these
+ * are not byte limits or limits on application callback execution.
  */
 export class Document<T extends object = AnyDocument> {
-  declare [DIRTY]: Set<string>;
+  declare [DIRTY]: Map<string, symbol>;
   declare [ORIGINAL]: Record<string, any>;
   declare [DATA]: Record<string, any>;
   declare [DOC_ID]: string | undefined;
@@ -81,37 +108,42 @@ export class Document<T extends object = AnyDocument> {
     data: Partial<T> = {},
     schema: Schema<T, any, any, any>,
     model: any,
-    opts: { isNew?: boolean; id?: string; applyDefaults?: boolean } = {},
+    opts: { isNew?: boolean; id?: string; applyDefaults?: boolean; projection?: NormalizedProjection } = {},
   ) {
     assertNoDocumentNameCollisions(schema);
     this[DOC_SCHEMA] = schema;
     this[DOC_MODEL] = model;
     this[DOC_MW] = new MiddlewareEngine(schema);
-    this[DIRTY] = new Set();
+    this[DIRTY] = new Map();
     this[DATA] = Object.create(null);
     this.isNew = opts.isNew ?? true;
-    const applyDefaults = opts.applyDefaults !== false;
+    if (opts.projection) {
+      documentProjections.set(
+        this,
+        Object.freeze({
+          ...opts.projection,
+          fields: Object.freeze({ ...opts.projection.fields }),
+        }),
+      );
+    }
+    const applyDefaults = opts.applyDefaults !== false && !documentProjections.has(this);
+    assertDocumentValueStructure(data);
     assertSafeTopLevelInput(data, schema);
-    const defaults = applyDefaults ? castDocumentToSchema({}, schema) : {};
-    const casted = cloneDocumentValue(
-      castDocumentToSchema({ ...defaults, ...cloneDocumentValue(data) }, schema, { applyDefaults }),
-    );
-    for (const [name, path] of schema.paths) {
+    const casted = castDocumentToSchema(data, schema, { applyDefaults });
+    for (const [name] of schema.paths) {
       Object.defineProperty(this, name, {
         enumerable: true,
         configurable: true,
         get: () => (this[DATA] as Record<string, any>)[name],
         set: (v: any) => {
-          const next = cloneDocumentValue(castValue(v, path));
-          (this[DATA] as Record<string, any>)[name] = next;
-          this.markModified(name);
+          this.set(name, v);
         },
       });
-      (this[DATA] as Record<string, any>)[name] = cloneDocumentValue(casted[name]);
+      if (Object.prototype.hasOwnProperty.call(casted, name)) this[DATA][name] = casted[name];
     }
     if (schema.options._id !== false) {
-      const id = (data as any)._id ?? opts.id;
-      if (id !== undefined) this[DOC_ID] = id;
+      const id = casted._id ?? opts.id;
+      if (id !== undefined) this[DOC_ID] = String(id);
       else if (this.isNew) this[DOC_ID] = this.idGenerator();
     }
     this[ORIGINAL] = this.createSnapshot();
@@ -122,7 +154,7 @@ export class Document<T extends object = AnyDocument> {
         get: () => (vt.getter ? cloneDocumentValue(vt.getter.call(this, undefined as any, vt, this)) : undefined),
         set: (v: any) => {
           if (vt.setter) {
-            vt.setter.call(this, cloneDocumentValue(v), vt, this);
+            this.set(name, v);
           }
         },
       });
@@ -144,7 +176,9 @@ export class Document<T extends object = AnyDocument> {
   }
 
   markModified(path: string): void {
-    this[DIRTY].add(path);
+    // A fresh token even for an already-marked, equal-value path prevents an
+    // older save from consuming intent recorded after its capture.
+    this[DIRTY].set(path, Symbol());
   }
 
   isModified(path?: string): boolean {
@@ -155,13 +189,13 @@ export class Document<T extends object = AnyDocument> {
   }
 
   modifiedPaths(): string[] {
-    if (this.isNew) return Array.from(this[DIRTY]);
+    if (this.isNew) return Array.from(this[DIRTY].keys());
     const current = this.createSnapshot();
     const paths = new Set<string>();
     for (const [name] of this.schema.paths) {
       if (!deepEqual(current[name], this[ORIGINAL][name])) paths.add(name);
     }
-    for (const path of this[DIRTY]) {
+    for (const path of this[DIRTY].keys()) {
       if (!deepEqual(getDottedValue(current, path), getDottedValue(this[ORIGINAL], path))) paths.add(path);
     }
     return Array.from(paths);
@@ -172,29 +206,32 @@ export class Document<T extends object = AnyDocument> {
   }
 
   private markModifiedAll(): void {
-    for (const [name] of this.schema.paths) this[DIRTY].add(name);
+    for (const [name] of this.schema.paths) this.markModified(name);
   }
 
+  /**
+   * Full-record validation. Partial reads reject with ValidationError kind
+   * `projection`; save() instead validates the merged storage candidate.
+   */
   validate(): Promise<void> {
     return this.mw.exec('validate', this, async () => validateDoc(this));
   }
 
+  /** Synchronous full-record validation; projected reads return kind `projection`. */
   validateSync(): ValidationError | undefined {
-    const storage = documentToStorage(this.toObject(), this.schema, { applyDefaults: true, allowId: true });
+    if (documentProjections.has(this)) return partialValidationError();
+    const storage = documentToStorage(this.toObject(), this.schema, { applyDefaults: this.isNew, allowId: true });
     return validateObjectAgainstSchemaSync(storage, this.schema, this);
   }
 
   toObject(opts: { virtuals?: boolean; getters?: boolean; transform?: (doc: any, ret: any) => any } = {}): any {
-    const out: any = Object.create(null);
-    if ((this as any)._id !== undefined) out._id = (this as any)._id;
-    for (const [name] of this.schema.paths) {
-      const value = (this[DATA] as Record<string, any>)[name];
-      if (value !== undefined) out[name] = cloneDocumentValue(value);
-    }
+    const out = this.createSnapshot();
+    for (const key of Object.keys(out)) if (out[key] === undefined) delete out[key];
     if (opts.virtuals) {
       for (const [name, vt] of this.schema.virtuals) {
         if (vt.getter) out[name] = cloneDocumentValue(vt.getter.call(this, undefined, vt, this));
       }
+      assertDocumentValueStructure(out);
     }
     if (opts.transform) return opts.transform(this, out);
     return out;
@@ -208,7 +245,7 @@ export class Document<T extends object = AnyDocument> {
    * BMRX-08 save semantics:
    * - Leaf-level intent: nested plain-object edits merge by dotted leaf path,
    *   so two stale documents changing disjoint leaves (`profile.a` vs
-   *   `profile.b`) both survive sequential saves. Arrays are atomic: any
+   *   `profile.b`) both survive sequential saves. Arrays are whole-value writes: any
    *   change replaces the whole array (last-writer-wins); element-level
    *   merging is never guessed.
    * - Intentional whole-object replacement: an explicit top-level assignment
@@ -226,9 +263,23 @@ export class Document<T extends object = AnyDocument> {
    *   candidate. `validate`/`save` middleware still runs exactly once per
    *   save outside the retry boundary; the in-retry check is raw schema
    *   validation without hooks.
+   * - Projected reads: only writes to fully selected paths/subtrees are safe.
+   *   Incomplete array or explicit object replacements throw
+   *   WriteNormalizationError before mutation. Missing _id also rejects, even
+   *   on unchanged saves. Partial saves run validation hooks on the redacted
+   *   document and schema validators only on the full merged storage candidate;
+   *   that candidate is never copied back to the public document.
+   * - In-flight saves: data and intent are captured after pre-save hooks.
+   *   Successful writes consume only captured intent; later edits remain for
+   *   the next save. Failed writes retain intent for retry. A post-hook failure
+   *   does not undo a successful write or its snapshot advancement.
+   * - Same-instance overlaps reject with ParallelSaveError before collection
+   *   resolution or hooks. The guard lasts through success/error post hooks
+   *   and releases on settlement. Await save() before starting another save.
    */
   async save(): Promise<this> {
-    const collection = await this.resolveCollection();
+    if (savingDocuments.has(this)) throw new ParallelSaveError();
+    savingDocuments.add(this);
     // BMRX-16: operation-local save error-hook completion. The inner
     // `mw.exec('save', ...)` already runs `save` error hooks exactly once for
     // body/pre/post failures; the outer catch runs them only for failures
@@ -240,19 +291,32 @@ export class Document<T extends object = AnyDocument> {
     // outer catch never reruns them.
     let saveErrorHandled = false;
     try {
-      if (this.schema.options.validateBeforeSave !== false) await this.validate();
+      const collection = await this.resolveCollection();
+      if (!this.isNew && this[DOC_ID] === undefined) {
+        throw new WriteNormalizationError('Cannot save a loaded document without _id; reload with _id selected.');
+      }
+      if (this.schema.options.validateBeforeSave !== false) {
+        if (documentProjections.has(this)) {
+          // A partial record cannot supply required/custom validator context.
+          // Hooks retain the redacted document; raw validation happens below
+          // on the full candidate inside the adapter retry boundary.
+          await this.mw.exec('validate', this, async () => undefined);
+        } else await this.validate();
+      }
       try {
         return await this.mw.exec('save', this, async () => {
           const data = this.toObject();
-          const storage = documentToStorage(data, this.schema, { applyDefaults: true, allowId: true });
-          const id = (this as any)._id;
+          const capturedIntent = new Map(this[DIRTY]);
+          const snapshot = cloneDocumentData(data, this.schema);
+          const id = this[DOC_ID];
           if (this.isNew) {
+            const storage = documentToStorage(data, this.schema, { applyDefaults: true, allowId: true });
             await collection.insert(storage);
             this.isNew = false;
           } else {
-            const { $set, $unset } = this.changedLeafValues(data);
+            const { $set, $unset } = this.changedLeafValues(data, capturedIntent);
             if (Object.keys($set).length === 0 && Object.keys($unset).length === 0) {
-              this.clearModified();
+              clearCapturedIntent(this[DIRTY], capturedIntent);
               return this;
             }
             const update: Record<string, Record<string, any>> = {};
@@ -264,7 +328,7 @@ export class Document<T extends object = AnyDocument> {
             const plan = normalizeUpdatePlan(update, this.schema);
             const schema = this.schema;
             const shouldValidate = schema.options.validateBeforeSave !== false;
-            await collection.incrementalModify(id, async (current: any) => {
+            await collection.incrementalModify(id!, async (current: any) => {
               const candidate = applyNormalizedUpdate(current, plan, schema);
               if (shouldValidate) {
                 await validateObjectAgainstSchema(candidate, schema, candidate);
@@ -272,8 +336,8 @@ export class Document<T extends object = AnyDocument> {
               return candidate;
             });
           }
-          this[ORIGINAL] = cloneDocumentValue(data);
-          this.clearModified();
+          this[ORIGINAL] = snapshot;
+          clearCapturedIntent(this[DIRTY], capturedIntent);
           return this;
         });
       } catch (inner) {
@@ -291,6 +355,8 @@ export class Document<T extends object = AnyDocument> {
         }
       }
       throw error;
+    } finally {
+      savingDocuments.delete(this);
     }
   }
 
@@ -323,34 +389,46 @@ export class Document<T extends object = AnyDocument> {
     return getDottedValue(this.toObject(), path);
   }
 
+  /** Cast bounded input against its schema path and atomically publish data/
+   * dirty changes. Unsafe values throw WriteNormalizationError before changes. */
   set(path: string | Record<string, any>, value?: any): this {
+    let entries: Array<[string, any]>;
     if (typeof path === 'object' && path !== null && !Array.isArray(path)) {
-      const entries = Object.entries(path);
-      const prepared = entries.map(([key, entryValue]) => ({
-        key,
-        value: this.prepareSetValue(key, entryValue),
-      }));
-      for (const { key, value: preparedValue } of prepared) {
-        this.applyPreparedSet(key, preparedValue);
-      }
+      const prototype = Object.getPrototypeOf(path);
+      if (prototype !== Object.prototype && prototype !== null)
+        throw new WriteNormalizationError('Document set() requires a plain object of path values');
+      assertDocumentValueStructure(path);
+      entries = Object.entries(path);
     } else if (typeof path === 'string') {
-      this.applyPreparedSet(path, this.prepareSetValue(path, value));
+      entries = [[path, value]];
     } else {
       throw new Error('Document set() requires a path string or a plain object of path values');
     }
+    const prepared = castDocumentSetValues(
+      entries.map(([key, entry]) => ({ key, value: entry, virtual: this.resolveSetTarget(key).target === 'virtual' })),
+      this.schema,
+      { applyDefaults: !documentProjections.has(this) },
+    );
+    // Stage every write (including dotted traversal and virtual setter writes)
+    // against owned state. Publish only once the complete candidate is safe.
+    const previous = this[DATA];
+    const dirty = this[DIRTY];
+    this[DATA] = cloneDocumentData(previous, this.schema);
+    this[DIRTY] = new Map(dirty);
+    try {
+      for (const { key, value: entry } of prepared) this.applyPreparedSet(key, entry);
+      this.createSnapshot();
+      // Keep live references to unchanged fields useful across unrelated sets.
+      // Both sides were bounded above, before this recursive comparison.
+      for (const key of Object.keys(previous)) {
+        if (deepEqual(previous[key], this[DATA][key])) this[DATA][key] = previous[key];
+      }
+    } catch (error) {
+      this[DATA] = previous;
+      this[DIRTY] = dirty;
+      throw error;
+    }
     return this;
-  }
-
-  private prepareSetValue(path: string, value: any): any {
-    const kind = this.resolveSetTarget(path);
-    if (kind.target === 'virtual') {
-      return cloneDocumentValue(value);
-    }
-    if (kind.segments.length > 1) {
-      return cloneDocumentValue(value);
-    }
-    const casted = castValue(value, kind.compiledPath);
-    return cloneDocumentValue(casted);
   }
 
   private applyPreparedSet(path: string, preparedValue: any): void {
@@ -390,29 +468,74 @@ export class Document<T extends object = AnyDocument> {
   }
 
   private createSnapshot(): Record<string, any> {
-    const out: Record<string, any> = Object.create(null);
+    const out: Record<string, any> = { ...this[DATA] };
     if (this.schema.options._id !== false && this[DOC_ID] !== undefined) out._id = this[DOC_ID];
-    for (const [name] of this.schema.paths) out[name] = cloneDocumentValue((this[DATA] as Record<string, any>)[name]);
-    return out;
+    return cloneDocumentData(out, this.schema);
   }
 
-  private changedLeafValues(data: Record<string, any>): { $set: Record<string, any>; $unset: Record<string, any> } {
-    const current = documentToStorage(data, this.schema, { applyDefaults: true, allowId: true });
-    const original = documentToStorage(this[ORIGINAL], this.schema, { applyDefaults: true, allowId: true });
+  private changedLeafValues(
+    data: Record<string, any>,
+    intentional: ReadonlyMap<string, symbol>,
+  ): { $set: Record<string, any>; $unset: Record<string, any> } {
+    // Defaults belong to insertion/explicit casting, never to a loaded diff.
+    // toObject omits undefined while snapshots may retain it; both must mean
+    // absent here, including records inserted with setDefaultsOnInsert:false.
+    const projection = documentProjections.get(this);
+    // Projected snapshots are already bounded and schema-cast. Their redacted
+    // array slots are null, not complete storage subdocuments. Diff these views
+    // directly and check completeness before normalizing only the permitted
+    // delta in save(). Never certify or persist a redacted array as a full value.
+    const current = projection ? data : documentToStorage(data, this.schema, { applyDefaults: false, allowId: true });
+    const original = projection
+      ? this[ORIGINAL]
+      : documentToStorage(this[ORIGINAL], this.schema, { applyDefaults: false, allowId: true });
     const $set: Record<string, any> = {};
     const $unset: Record<string, any> = {};
-    const intentional = this[DIRTY] as Set<string>;
     for (const [name] of this.schema.paths) {
       if (deepEqual(current[name], original[name])) continue;
       collectLeafOps(original[name], current[name], name, data, intentional, $set, $unset);
+    }
+    if (projection) {
+      for (const path of [...Object.keys($set), ...Object.keys($unset)]) {
+        if (!isCompleteProjectedPath(path, projection)) {
+          throw new WriteNormalizationError(
+            `Cannot save incomplete projected path "${path}"; reload the whole subtree before replacing it.`,
+          );
+        }
+      }
     }
     return { $set, $unset };
   }
 }
 
+function clearCapturedIntent(current: Map<string, symbol>, captured: ReadonlyMap<string, symbol>): void {
+  for (const [path, generation] of captured) {
+    if (current.get(path) === generation) current.delete(path);
+  }
+}
+
 export async function validateDoc(doc: Document<any>): Promise<void> {
-  const storage = documentToStorage(doc.toObject(), doc.schema, { applyDefaults: true, allowId: true });
+  if (documentProjections.has(doc)) throw partialValidationError();
+  const storage = documentToStorage(doc.toObject(), doc.schema, { applyDefaults: doc.isNew, allowId: true });
   await validateObjectAgainstSchema(storage, doc.schema, doc);
+}
+
+function partialValidationError(): ValidationError {
+  return new ValidationError(
+    '',
+    'projection',
+    'Cannot validate a projected document in isolation; reload without select() or use save() to validate the merged record.',
+  );
+}
+
+function isCompleteProjectedPath(path: string, projection: DocumentProjection): boolean {
+  const within = (child: string, parent: string) => child === parent || child.startsWith(`${parent}.`);
+  if (projection.mode === 'include') {
+    return Object.entries(projection.fields).some(([selected, flag]) => flag === 1 && within(path, selected));
+  }
+  return !Object.entries(projection.fields).some(
+    ([excluded, flag]) => flag === 0 && (within(path, excluded) || within(excluded, path)),
+  );
 }
 
 export async function validateObjectAgainstSchema(
@@ -682,6 +805,8 @@ function setDottedValueOnRecord(record: Record<string, any>, segments: string[],
 function splitPath(path: string): string[] {
   if (typeof path !== 'string' || path.length === 0) throw new Error(`Invalid document path: ${path}`);
   const segments = path.split('.');
+  if (segments.length > MAX_STORAGE_DEPTH)
+    throw new WriteNormalizationError('Document path exceeds the supported nesting depth');
   for (const segment of segments) {
     assertSafeKey(segment, path);
   }
@@ -710,15 +835,7 @@ function requiredMissing(opts: SchemaTypeOptions, value: any, context: any): boo
 }
 
 function cloneDocumentValue<T>(value: T): T {
-  if (value === undefined || value === null || typeof value !== 'object') return value;
-  if (value instanceof Date) return new Date(value.getTime()) as T;
-  if (Array.isArray(value)) return value.map((entry) => cloneDocumentValue(entry)) as T;
-  const out: Record<string, any> = {};
-  for (const [key, nested] of Object.entries(value as Record<string, any>)) {
-    assertSafeKey(key, `document value key "${key}"`);
-    out[key] = cloneDocumentValue(nested);
-  }
-  return out as T;
+  return cloneDocumentData(value);
 }
 
 function assertNoDocumentNameCollisions(schema: Schema<any, any, any, any>): void {
@@ -747,7 +864,13 @@ function assertNoDocumentNameCollisions(schema: Schema<any, any, any, any>): voi
 }
 
 function assertSafeTopLevelInput(data: unknown, schema: Schema<any, any, any, any>): void {
-  if (data == null || typeof data !== 'object' || Array.isArray(data)) return;
+  if (
+    data == null ||
+    typeof data !== 'object' ||
+    Array.isArray(data) ||
+    (Object.getPrototypeOf(data) !== Object.prototype && Object.getPrototypeOf(data) !== null)
+  )
+    throw new WriteNormalizationError('Document input must be a plain object');
   for (const key of Object.keys(data as Record<string, unknown>)) {
     assertSafeKey(key, `document input key "${key}"`);
     if (key === '_id') continue;
@@ -767,7 +890,7 @@ function collectLeafOps(
   currentNode: any,
   basePath: string,
   dataRoot: Record<string, any>,
-  intentional: Set<string>,
+  intentional: ReadonlyMap<string, symbol>,
   $set: Record<string, any>,
   $unset: Record<string, any>,
 ): void {

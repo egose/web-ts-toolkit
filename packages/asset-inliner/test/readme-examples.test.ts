@@ -1,155 +1,246 @@
-/**
- * AIH-11: executable README quickstart checks.
- *
- * Mirrors the runnable `packages/asset-inliner/README.md` examples (encode,
- * format, catalog/CSS, catalog/HTML, files dry-run/write, custom resolver)
- * against temp fixture assets copied from `test/fixtures/legacy`, asserting
- * each produces the intended replacements. Uses `../src/*.ts` like the other
- * package tests; the packed-consumer (V4) check separately verifies the same
- * named imports resolve from the built tarball only.
+/** AIR-06: test the shipped README text and declarations in a real npm consumer.
+ * Prerequisite: package build. Uses a repo-local ignored `_tmp*` directory for
+ * TMPDIR (defaults to `<repoRoot>/_tmp` when TMPDIR is unset or outside the repo).
+ * npm uses its own consumer manifest/lock and repo-local cache/config files.
  */
-import { describe, it, expect } from 'vitest';
-import fs from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 import {
-  builtInDefinitions,
-  createAssetCatalog,
-  createDefinitionRegistry,
-  encodeAsset,
-  encodeAssetSync,
-  formatCssUrl,
-  formatFontSource,
-  inlineCss,
-  inlineFiles,
-  inlineFilesSync,
-  inlineHtml,
-} from '../src/index.ts';
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-const FIXTURE_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), 'fixtures', 'legacy');
-const IMAGES_DIR = path.join(FIXTURE_ROOT, 'images');
-const FONTS_DIR = path.join(FIXTURE_ROOT, 'fonts');
+const packageRoot = fileURLToPath(new URL('../', import.meta.url));
+const repoRoot = path.resolve(packageRoot, '../..');
+const name = '@web-ts-toolkit/asset-inliner';
+const read = (file: string) => readFileSync(file, 'utf8');
+const manifest = JSON.parse(read(path.join(packageRoot, 'package.json')));
+const rootManifest = JSON.parse(read(path.join(repoRoot, 'package.json')));
+const protectedFiles = ['package.json', 'pnpm-lock.yaml', 'packages/asset-inliner/package.json'];
+const baseline = protectedFiles.map((file) => read(path.join(repoRoot, file)));
 
-function mkTree(): { root: string; cssDoc: string; htmlDoc: string } {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'readme-examples-'));
-  const images = path.join(root, 'images');
-  const fonts = path.join(root, 'fonts');
-  const cssDir = path.join(root, 'css');
-  const htmlDir = path.join(root, 'html');
-  for (const d of [images, fonts, cssDir, htmlDir]) fs.mkdirSync(d, { recursive: true });
-  fs.copyFileSync(path.join(IMAGES_DIR, 'apple.png'), path.join(images, 'apple.png'));
-  fs.copyFileSync(path.join(IMAGES_DIR, 'pear.png'), path.join(images, 'pear.png'));
-  fs.copyFileSync(path.join(FONTS_DIR, 'akronim-v9-latin-regular.woff2'), path.join(fonts, 'app.woff2'));
-  return { root, cssDoc: path.join(cssDir, 'site.css'), htmlDoc: path.join(htmlDir, 'site.html') };
+// Assertions are appended AFTER the verbatim block, never substituted for it.
+// Keep IDs stable: removal/renaming of a designated block must fail the test.
+const checks: Record<string, string> = {
+  encode: `assert.equal(asset.mediaType, 'image/png'); assert.equal(asset.dataUrl, 'data:image/png;base64,iVBORw=='); assert.deepEqual(syncAsset, asset);`,
+  format: `assert.equal(formatCssUrl(png), 'url(data:image/png;base64,AQID)'); assert.equal(formatFontSource(woff2), "url(data:font/woff2;base64,BAUG) format('woff2')");`,
+  css: `assert.equal(result.modified, true); assert.equal(result.replacements.length, 2); assert.deepEqual(result.diagnostics, []); assert.ok(result.content.includes("format('woff2')"));`,
+  html: `assert.equal(out.modified, true); assert.equal(out.replacements.length, 2); assert.deepEqual(out.diagnostics, []); assert.ok(out.content.includes('data:image/png;base64,AQ==')); assert.ok(out.content.includes('data:image/png;base64,Ag=='));`,
+  files: `assert.equal(existsSync(dir), false);`,
+  'custom-kind': `assert.equal(result.replacements.length, 1); assert.deepEqual(result.diagnostics, []); assert.ok(result.content.includes('data:audio/mpeg;base64,AQID'));`,
+  resolver: `assert.equal(aliasHits, 1); assert.equal(result.replacements.length, 1); assert.deepEqual(result.diagnostics, []); assert.equal(result.replacements[0]?.originalUrl, 'legacy.png'); assert.ok(result.content.includes('data:image/jxl;base64,AQID'));`,
+};
+
+let consumer: string;
+let installed: string;
+let env: NodeJS.ProcessEnv;
+let dryFiles: string[];
+let packedFiles: string[];
+let compilerFiles: string;
+
+function run(command: string, args: string[], cwd = consumer): string {
+  try {
+    return execFileSync(command, args, {
+      cwd,
+      env,
+      encoding: 'utf8',
+      stdio: 'pipe',
+      timeout: 180_000,
+      maxBuffer: 8 * 1024 * 1024,
+    });
+  } catch (error) {
+    const details = error as { message?: string; stdout?: string; stderr?: string };
+    throw new Error([details.message, details.stdout, details.stderr].filter(Boolean).join('\n'), { cause: error });
+  }
 }
 
-describe('README quickstart examples (AIH-11)', () => {
-  it('encode: file, bytes, and sync variant', async () => {
-    const { root } = mkTree();
-    const asset = await encodeAsset(path.join(root, 'images', 'apple.png'));
-    expect(asset.mediaType).toBe('image/png');
-    expect(asset.dataUrl.startsWith('data:image/png;base64,')).toBe(true);
+function node(file: string): string {
+  return run(process.execPath, ['--import', './resolution-guard.mjs', file]);
+}
 
-    const fromBytes = await encodeAsset({ data: new Uint8Array([137, 80, 78, 71]), filename: 'logo.png' });
-    expect(fromBytes.mediaType).toBe('image/png');
-
-    const syncAsset = encodeAssetSync(path.join(root, 'fonts', 'app.woff2'));
-    expect(syncAsset.mediaType).toBe('font/woff2');
-  });
-
-  it('format: css url and font source wrappers', async () => {
-    const { root } = mkTree();
-    const png = await encodeAsset(path.join(root, 'images', 'apple.png'));
-    expect(formatCssUrl(png).startsWith('url(data:image/png;base64,')).toBe(true);
-    const woff2 = await encodeAsset(path.join(root, 'fonts', 'app.woff2'));
-    const src = formatFontSource(woff2);
-    expect(src).toContain('url(data:font/woff2;base64,');
-    expect(src).toContain(`format('woff2')`);
-  });
-
-  it('inlineCss: coherent catalog + documentPath replaces image and font', async () => {
-    const { root, cssDoc } = mkTree();
-    const catalog = await createAssetCatalog([
-      path.join(root, 'images', 'apple.png'),
-      path.join(root, 'fonts', 'app.woff2'),
-    ]);
-    const css = [
-      `.hero { background: url("../images/apple.png"); }`,
-      `@font-face { font-family: 'App'; src: url('../fonts/app.woff2') format('woff2'); }`,
-    ].join('\n');
-    const result = inlineCss(css, { catalog, documentPath: cssDoc });
-    expect(result.modified).toBe(true);
-    expect(result.replacements).toHaveLength(2);
-    expect(result.replacements[0]?.originalUrl).toBe('../images/apple.png');
-    expect(result.diagnostics).toEqual([]);
-    expect(result.content).toContain('data:image/png;base64,');
-    expect(result.content).toContain('data:font/woff2;base64,');
-  });
-
-  it('inlineHtml: coherent catalog + documentPath replaces img and icon link', async () => {
-    const { root, htmlDoc } = mkTree();
-    const catalog = await createAssetCatalog([
-      path.join(root, 'images', 'apple.png'),
-      path.join(root, 'images', 'pear.png'),
-    ]);
-    const html = `<img src="../images/apple.png" alt="apple"><link rel="icon" href="../images/pear.png">`;
-    const out = inlineHtml(html, { catalog, documentPath: htmlDoc });
-    expect(out.modified).toBe(true);
-    expect(out.replacements).toHaveLength(2);
-    expect(out.content).toContain('data:image/png;base64,');
-    expect(out.diagnostics).toEqual([]);
-  });
-
-  it('inlineFiles: dry-run reports, write persists (async + sync)', async () => {
-    const { root, cssDoc } = mkTree();
-    fs.writeFileSync(cssDoc, `.hero { background: url("../images/apple.png"); }\n`);
-    const dry = await inlineFiles({ assets: [path.join(root, 'images')], targets: [cssDoc] });
-    expect(dry).toHaveLength(1);
-    expect(dry[0]?.modified).toBe(true);
-    expect(dry[0]?.written).toBe(false);
-    expect(fs.readFileSync(cssDoc, 'utf8')).toContain('../images/apple.png');
-
-    const written = await inlineFiles({
-      assets: [path.join(root, 'images')],
-      targets: [cssDoc],
-      write: true,
-    });
-    expect(written[0]?.written).toBe(true);
-    expect(fs.readFileSync(cssDoc, 'utf8')).toContain('data:image/png;base64,');
-
-    const cssDoc2 = path.join(path.dirname(cssDoc), 'second.css');
-    fs.writeFileSync(cssDoc2, `.hero { background: url("../images/pear.png"); }\n`);
-    const drySync = inlineFilesSync({ assets: [path.join(root, 'images')], targets: [cssDoc2] });
-    expect(drySync[0]?.modified).toBe(true);
-    expect(drySync[0]?.written).toBe(false);
-  });
-
-  it('custom registry + narrow resolver without parser AST knowledge', async () => {
-    const { root, cssDoc } = mkTree();
-    const custom = {
-      kind: 'audio' as const,
-      extensions: ['.mp3'],
-      mediaType: 'audio/mpeg',
-    } satisfies import('../src/index.ts').AssetTypeDefinition;
-    const tiny = await encodeAsset({
-      data: new Uint8Array([1, 2, 3]),
-      mediaType: 'audio/mpeg',
-      filename: 'ding.mp3',
-    });
-    expect(tiny.mediaType).toBe('audio/mpeg');
-
-    const registry = createDefinitionRegistry([...builtInDefinitions, custom]);
-    const catalog = await createAssetCatalog([path.join(root, 'images')], { registry });
-    const result = inlineCss(`.hero { background: url("../images/legacy.png"); }`, {
-      catalog,
-      documentPath: cssDoc,
-      resolver: (input, cat) => {
-        if (input.basename === 'legacy.png') return cat.getByBasename('apple.png');
-        return undefined;
+beforeAll(() => {
+  let tmp = process.env.TMPDIR;
+  const isRepoLocalTmp = (dir: string): boolean => {
+    try {
+      return path.isAbsolute(dir) && path.relative(repoRoot, realpathSync(dir)).startsWith('_tmp');
+    } catch {
+      return false;
+    }
+  };
+  if (!tmp || !isRepoLocalTmp(tmp)) {
+    tmp = path.join(repoRoot, '_tmp');
+    mkdirSync(tmp, { recursive: true });
+  }
+  consumer = mkdtempSync(path.join(tmp, 'asset-inliner-consumer-'));
+  installed = path.join(consumer, 'node_modules', name);
+  const cache = path.join(tmp, 'npm-cache');
+  mkdirSync(cache, { recursive: true });
+  writeFileSync(path.join(consumer, 'user.npmrc'), '');
+  writeFileSync(path.join(consumer, 'global.npmrc'), '');
+  env = {
+    ...process.env,
+    TMPDIR: tmp,
+    NODE_OPTIONS: '',
+    NODE_PATH: '',
+    npm_config_cache: cache,
+    npm_config_userconfig: path.join(consumer, 'user.npmrc'),
+    npm_config_globalconfig: path.join(consumer, 'global.npmrc'),
+    npm_config_update_notifier: 'false',
+  };
+  const dry = JSON.parse(run('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], packageRoot))[0];
+  dryFiles = dry.files.map((file: { path: string }) => file.path).sort();
+  const packed = JSON.parse(
+    run('npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', consumer], packageRoot),
+  )[0];
+  packedFiles = packed.files.map((file: { path: string }) => file.path).sort();
+  writeFileSync(
+    path.join(consumer, 'package.json'),
+    JSON.stringify({
+      name: 'asset-inliner-installed-consumer',
+      private: true,
+      type: 'module',
+      dependencies: { [name]: `file:./${packed.filename}` },
+      devDependencies: {
+        typescript: rootManifest.devDependencies.typescript,
+        '@types/node': rootManifest.devDependencies['@types/node'],
       },
+    }),
+  );
+  run('npm', ['install', '--prefix', consumer, '--workspaces=false', '--ignore-scripts', '--no-audit', '--no-fund']);
+  run('npm', ['ls', '--all', '--prefix', consumer, '--workspaces=false']);
+
+  const shippedReadme = read(path.join(installed, 'README.md'));
+  const snippets = [...shippedReadme.matchAll(/<!-- runnable: ([\w-]+) -->\s*\n```ts\n([\s\S]*?)\n```/g)];
+  expect(snippets.map((match) => match[1]).sort()).toEqual(Object.keys(checks).sort());
+  for (const [, id, source] of snippets) {
+    const assertions = `${id === 'files' ? "import { existsSync } from 'node:fs';" : "import assert from 'node:assert/strict';"}\n${checks[id]}\n`;
+    // Compile/run the unaltered block on its own, as well as the asserted copy.
+    writeFileSync(path.join(consumer, `readme-${id}.mts`), source);
+    writeFileSync(path.join(consumer, `checked-${id}.mts`), `${source}\n${assertions}`);
+  }
+  for (const fixture of ['contracts.mts', 'runtime.mjs', 'resolution-guard.mjs']) {
+    cpSync(path.join(packageRoot, 'test-consumer', fixture), path.join(consumer, fixture));
+  }
+  writeFileSync(
+    path.join(consumer, 'tsconfig.json'),
+    JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022',
+        module: 'NodeNext',
+        moduleResolution: 'NodeNext',
+        strict: true,
+        skipLibCheck: false,
+        noUncheckedIndexedAccess: true,
+        exactOptionalPropertyTypes: true,
+        types: ['node'],
+        typeRoots: ['./node_modules/@types'],
+        outDir: './compiled',
+      },
+      include: ['*.mts'],
+    }),
+  );
+  compilerFiles = run(process.execPath, ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.json', '--listFiles']);
+}, 240_000);
+
+afterAll(() => {
+  try {
+    expect(protectedFiles.map((file) => read(path.join(repoRoot, file)))).toEqual(baseline);
+  } finally {
+    if (consumer) rmSync(consumer, { recursive: true, force: true });
+  }
+});
+
+describe('real installed README and consumer contracts (AIR-06)', () => {
+  it('packs the advertised root entrypoint, declarations and exact README', () => {
+    expect(packedFiles).toEqual(dryFiles);
+    expect(packedFiles).toEqual(
+      expect.arrayContaining(['package.json', 'README.md', 'dist/index.mjs', 'dist/index.d.mts']),
+    );
+    expect(
+      packedFiles.every((file) => file === 'package.json' || file === 'README.md' || file.startsWith('dist/')),
+    ).toBe(true);
+    expect(read(path.join(installed, 'README.md'))).toBe(read(path.join(packageRoot, 'README.md')));
+    expect(JSON.parse(read(path.join(installed, 'package.json')))).toEqual(manifest);
+    for (const entry of [manifest.main, manifest.module, manifest.types, ...Object.values(manifest.exports['.'])]) {
+      expect(existsSync(path.resolve(installed, entry as string))).toBe(true);
+    }
+    expect(existsSync(path.join(consumer, 'package-lock.json'))).toBe(true);
+    expect(realpathSync(installed)).toBe(installed); // real install, no workspace symlink
+  });
+
+  it('resolves strict NodeNext declarations and compiler libraries only within this consumer', () => {
+    const files = compilerFiles.trim().split(/\r?\n/);
+    expect(files).toContain(path.join(installed, 'dist/index.d.mts'));
+    expect(files.length).toBeGreaterThan(20);
+    for (const file of files) {
+      expect(path.isAbsolute(file), file).toBe(true);
+      expect(realpathSync(file).startsWith(`${consumer}${path.sep}`), file).toBe(true);
+    }
+    const declarations = read(path.join(installed, 'dist/index.d.mts'));
+    for (const text of [
+      'readonly resolutionBaseDir?: string',
+      'readonly maxSyntaxDepth?: number',
+      'default 256',
+      'maximum 512',
+      'HTML_BASE_UNMAPPABLE',
+      'interior commas',
+      'unquoted values gain double quotes',
+      'HTML-spec recovery',
+      'maxInlineBytes',
+      'has no default',
+      'quotes/escaping',
+    ])
+      expect(declarations).toContain(text);
+    for (const internal of [
+      'assembleSourcePatches',
+      'tokenizeSrcset',
+      'createDepthLimitedTreeAdapter',
+      'HTML_BASE_CONTEXT',
+    ]) {
+      expect(declarations).not.toContain(internal);
+    }
+  });
+
+  for (const id of Object.keys(checks)) {
+    it(`executes the exact shipped runnable:${id} block and checks its outcome`, () => {
+      node(`compiled/readme-${id}.mjs`);
+      node(`compiled/checked-${id}.mjs`);
     });
-    expect(result.modified).toBe(true);
-    expect(result.replacements[0]?.mediaType).toBe('image/png');
-    expect(result.content).toContain('data:image/png;base64,');
+  }
+
+  it('runs plain Node ESM regressions and dynamic detection with locally owned dependencies', () => {
+    expect(node('runtime.mjs')).toContain('Packed runtime contracts passed');
+  });
+
+  it('fails closed when a runtime dependency is missing instead of using ancestor node_modules', () => {
+    // An existing workspace entry must also fail: absence of an ancestor copy
+    // of parse5 alone is not proof that the resolution guard is effective.
+    const workspaceEntry = pathToFileURL(path.join(packageRoot, 'dist/index.mjs')).href;
+    expect(() =>
+      run(process.execPath, [
+        '--import',
+        './resolution-guard.mjs',
+        '--input-type=module',
+        '-e',
+        `await import(${JSON.stringify(workspaceEntry)})`,
+      ]),
+    ).toThrow(/consumer boundary/);
+    const local = path.join(consumer, 'node_modules/parse5');
+    const hidden = path.join(consumer, 'hidden-parse5');
+    renameSync(local, hidden);
+    try {
+      expect(() => node('runtime.mjs')).toThrow(/consumer boundary|Cannot find package 'parse5'/);
+    } finally {
+      renameSync(hidden, local);
+    }
   });
 });

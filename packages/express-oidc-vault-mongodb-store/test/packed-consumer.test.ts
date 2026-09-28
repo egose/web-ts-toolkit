@@ -249,9 +249,9 @@ if ('MongoOidcVaultStore' in api || 'resolveCollectionNames' in api) throw new E
 
     run('node', ['consumer.mjs'], consumerDir);
     run('node', ['consumer.cjs'], consumerDir);
-  });
+  }, 30_000);
 
-  it('compiles supported public types under strict NodeNext from package-name imports', () => {
+  it('compiles ESM and CJS public types under strict NodeNext from package-name imports', () => {
     const consumerDir = stagePackedConsumer();
 
     writeFileSync(
@@ -293,13 +293,14 @@ void [provider.ready(), baseProvider];
             skipLibCheck: false,
             types: ['node'],
           },
-          include: ['consumer-types.ts'],
+          include: ['consumer-types.ts', 'consumer-types.cts'],
         },
         null,
         2,
       )}\n`,
     );
 
+    cpSync(path.resolve(consumerDir, 'consumer-types.ts'), path.resolve(consumerDir, 'consumer-types.cts'));
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext.json'], consumerDir);
   }, 30_000);
 });

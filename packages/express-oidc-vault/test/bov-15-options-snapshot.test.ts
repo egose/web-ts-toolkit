@@ -32,6 +32,9 @@ describe('BOV-15 options snapshot', () => {
       frontendRedirectUri: FRONTEND_ORIGIN,
       trustedOrigins: [FRONTEND_ORIGIN],
       cookie: { name: 'oidc_vault_session' },
+      authorizationTransactionTtlMs: 60_000,
+      exchangeCodeTtlMs: 10_000,
+      sessionTtlMs: 3_600_000,
     });
     const before = JSON.stringify({ ...options, storeProvider: undefined });
     // Freeze caller-owned data containers only: service references

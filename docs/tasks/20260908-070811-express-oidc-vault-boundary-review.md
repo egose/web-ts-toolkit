@@ -36,7 +36,7 @@ The previous core plan is completed. This is a new post-remediation objective; p
 - P2: contained correctness, maintainability, observability, consumer verification, or optional security hardening.
 - `defect` means demonstrated by inspected implementation; `improvement` means an optional stronger contract; `investigation` means a bounded experiment/decision, not a speculative mandatory fix.
 - All tasks start `pending`. Set `in_progress` only after dependencies are completed and ownership is assigned. Record blockers and their decision owner. Completion requires acceptance and verification evidence, not just a patch.
-- Use repository-relative paths in this document and follow-up notes. Do not include workstation-specific external directories. Generic temporary work may use `/tmp`.
+- Use repository-relative paths in this document and follow-up notes. Do not include workstation-specific external directories. Temporary work must use ignored repository-local `_tmp*` directories with `TMPDIR=<repo-root>/_tmp-<topic>`.
 - Keep regression tests with their fixes. New regression cases should fail on the reviewed implementation where feasible. Never manually edit `dist/`.
 - Runtime, exported types/JSDoc, README, website docs, and `CHANGELOG.md` must agree when public contracts change. Test expectations that encode an incorrect old contract must change with the fix.
 - Serialize package builds/tests. Package test scripts rebuild transitive dependencies and can race on shared `dist/` output. One coordinator owns build/test execution even when source work is parallel.

@@ -4,7 +4,7 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { MessageService } from '../../src/message-service';
 import { buildMessageArchiveSchema } from '../../src/schemas/message-archive';
 import { buildMessageRequestSchema } from '../../src/schemas/message-request';
-import { buildMessageSchema } from '../../src/schemas/message';
+import { buildMessageSchema, type MessageSchemaConfig } from '../../src/schemas/message';
 import { MESSAGE_ARCHIVE_MODEL_NAME, MESSAGE_MODEL_NAME, MESSAGE_REQUEST_MODEL_NAME } from '../../src/schemas/base';
 import { TemplateRegistry } from '../../src/template-registry';
 import type { MessageTemplate } from '../../src/types/template';
@@ -46,6 +46,7 @@ export async function createMongoMessageServiceFixture(
   options: {
     templates?: MessageTemplate[];
     barriers?: MessageServiceBarriers;
+    schemaOptions?: MessageSchemaConfig;
     serviceOptions?: Pick<
       ConstructorParameters<typeof MessageService>[0],
       | 'clientRequestLeaseMs'
@@ -55,6 +56,7 @@ export async function createMongoMessageServiceFixture(
       | 'clientRequestNow'
       | 'paymentProvider'
       | 'onPaymentCompensationFailure'
+      | 'onTransactionCleanupFailure'
     >;
   } = {},
 ): Promise<MongoMessageServiceFixture> {
@@ -67,7 +69,7 @@ export async function createMongoMessageServiceFixture(
     .asPromise();
 
   const models: MessageModels = {
-    Message: connection.model(MESSAGE_MODEL_NAME, buildMessageSchema()),
+    Message: connection.model(MESSAGE_MODEL_NAME, buildMessageSchema(options.schemaOptions)),
     MessageArchive: connection.model(MESSAGE_ARCHIVE_MODEL_NAME, buildMessageArchiveSchema()),
     MessageRequest: connection.model(MESSAGE_REQUEST_MODEL_NAME, buildMessageRequestSchema()),
   };

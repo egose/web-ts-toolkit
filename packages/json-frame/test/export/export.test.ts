@@ -6,6 +6,7 @@ import { ExportKeyCollisionError, JsonFrameValidationError } from '../../src/err
 import { createFrameState, createFrameStateFromData, type FrameState } from '../../src/frame/column';
 import { getColumnOperationCounters, resetColumnOperationCounters } from '../../src/frame/column';
 import { createDataFrame as createInternalDataFrame, DataFrame, getDataFrameState } from '../../src/frame/DataFrame';
+import { fromOrient } from '../../src/index';
 import { JSON_FRAME_MAX_DEPTH } from '../../src/json';
 import { normalizeFromOrientOptions } from '../../src/options';
 import { parseInput } from '../../src/parse';
@@ -117,6 +118,123 @@ describe('DataFrame exporters', () => {
       }
     },
   );
+
+  describe.each(['source', 'synthetic'] as const)('empty dimensions with a %s index', (indexKind) => {
+    describe.each(['zero rows', 'zero columns', 'fully empty'] as const)('%s', (shape) => {
+      it.each(['records', 'index', 'columns', 'values', 'split', 'table'] as const)(
+        'establishes payload and string round-trip fidelity for %s',
+        (orient) => {
+          const dataFields = [
+            { name: 'b', type: 'integer', custom: { unit: 'count' } },
+            { name: 'a', type: 'string', custom: { role: 'label' } },
+          ];
+          const indexField = { name: 'pk', type: 'string', custom: { role: 'index' } };
+          const metadata = { pandas_version: '1.4.0', custom: { report: 'empty-dimensions' } };
+          const input = {
+            schema: { ...metadata, fields: [...dataFields, indexField], primaryKey: ['pk'] },
+            data: [
+              { pk: 'r2', b: 2, a: 'last' },
+              { pk: 'r1', b: 1, a: 'middle' },
+              { pk: 'r0', b: 0, a: 'first' },
+            ],
+          };
+          const inputSnapshot = JSON.stringify(input);
+          const source = fromOrient(input, { orient: 'table' });
+          const sourceSnapshot = source.toTable();
+          // Filtering a synthetic index leaves gaps: table regenerates it, split retains it.
+          const indexed = indexKind === 'synthetic' ? source.resetIndex() : source;
+          const selected = indexed.filter((_row, _index, position) => position !== 1);
+          const frame =
+            shape === 'zero rows'
+              ? selected.filter(() => false)
+              : shape === 'zero columns'
+                ? selected.select()
+                : selected.select().filter(() => false);
+          const columns = shape === 'zero rows' ? ['b', 'a'] : [];
+          const index = shape === 'zero columns' ? (indexKind === 'source' ? ['r2', 'r0'] : [0, 2]) : [];
+          const rows = shape === 'zero columns' ? [{}, {}] : [];
+          const values = shape === 'zero columns' ? [[], []] : [];
+          const fields = shape === 'zero rows' ? dataFields : [];
+          const table = {
+            schema: {
+              ...metadata,
+              fields: indexKind === 'source' ? [indexField, ...fields] : fields,
+              ...(indexKind === 'source' ? { primaryKey: ['pk'] } : {}),
+            },
+            data: indexKind === 'source' ? index.map((pk) => ({ pk })) : rows,
+          };
+          const expectedPayloads = {
+            records: rows,
+            index: Object.fromEntries(index.map((label) => [String(label), {}])),
+            columns: shape === 'zero rows' ? { b: {}, a: {} } : {},
+            values,
+            split: { columns, index, data: values },
+            table,
+          };
+          expect(frame.length).toBe(index.length);
+          expect(frame.columns).toEqual(columns);
+          expect(frame.index).toEqual(index);
+          expect(frame.rows()).toEqual(rows);
+          expect(frame.toTable()).toEqual(table);
+
+          const payload = exportFrame(frame, orient);
+          const text = frame.toJSONString(orient);
+          expect(payload).toEqual(expectedPayloads[orient]);
+          expect(JSON.parse(text)).toEqual(expectedPayloads[orient]);
+
+          const losesColumns = shape === 'zero rows' && (orient === 'records' || orient === 'index');
+          const losesRows = shape === 'zero columns' && orient === 'columns';
+          const expectedColumns = losesColumns ? [] : columns;
+          const expectedRows = losesRows ? [] : rows;
+          const expectedIndex = losesRows
+            ? []
+            : orient === 'records' || orient === 'values' || (orient === 'table' && indexKind === 'synthetic')
+              ? syntheticIndex(index.length)
+              : orient === 'index' || orient === 'columns'
+                ? stringifiedIndex(index)
+                : index;
+          for (const roundTripInput of [payload, text]) {
+            const reparsed = fromOrient(roundTripInput, {
+              orient,
+              ...(orient === 'values' ? { columns } : {}),
+            });
+            expect(reparsed.length).toBe(expectedRows.length);
+            expect(reparsed.columns).toEqual(expectedColumns);
+            expect(reparsed.rows()).toEqual(expectedRows);
+            expect(reparsed.index).toEqual(expectedIndex);
+            const retainsSource =
+              orient === 'index' ||
+              orient === 'columns' ||
+              orient === 'split' ||
+              (orient === 'table' && indexKind === 'source');
+            expect(reparsed.toTable().schema.primaryKey !== undefined).toBe(retainsSource);
+            if (orient === 'table') {
+              expect(reparsed.toTable()).toEqual(table);
+              expect(reparsed.columnInfo).toEqual(frame.columnInfo);
+            }
+          }
+
+          if (orient === 'values') {
+            for (const roundTripInput of [payload, text]) {
+              expect(() => fromOrient(roundTripInput, { orient })).toThrowError(/options.columns/);
+            }
+          }
+          expect(source.toTable()).toEqual(sourceSnapshot);
+          expect(JSON.stringify(input)).toBe(inputSnapshot);
+          expect(frame.toTable()).toEqual(table);
+        },
+      );
+    });
+  });
+
+  it.each(['records', 'index'] as const)('does not restore zero-row columns via options.columns for %s', (orient) => {
+    const frame = fromOrient([], { orient: 'values', columns: ['b', 'a'] });
+    for (const input of [exportFrame(frame, orient), frame.toJSONString(orient)]) {
+      const reparsed = fromOrient(input, { orient, columns: frame.columns });
+      expect(reparsed.columns).toEqual([]);
+      expect(reparsed.length).toBe(0);
+    }
+  });
 
   it('never invents an index column in records or values exports and returns detached containers', () => {
     const frame = buildDataFrame(
@@ -541,6 +659,101 @@ describe('DataFrame exporters', () => {
         primaryKey: ['row_id'],
       },
       data: [{ row_id: 'r0', pk: 42, note: 'a' }],
+    });
+  });
+
+  describe.each([
+    ['pk', 'value', 'note'],
+    ['pk', 'note', 'value'],
+    ['value', 'pk', 'note'],
+    ['note', 'pk', 'value'],
+    ['value', 'note', 'pk'],
+    ['note', 'value', 'pk'],
+  ] as const)('colliding rename with source field order [%s, %s, %s]', (...fieldOrder) => {
+    const scenarios = [
+      { name: 'direct export', transform: (frame: DataFrame) => frame },
+      { name: 'select', transform: (frame: DataFrame) => frame.select('note', 'pk'), columns: ['note', 'pk'] },
+      { name: 'second rename', transform: (frame: DataFrame) => frame.rename({ pk: 'score' }), resolved: true },
+      { name: 'resetIndex', transform: (frame: DataFrame) => frame.resetIndex(), reset: true },
+      { name: 'filter-empty', transform: (frame: DataFrame) => frame.filter(() => false), positions: [] },
+      {
+        name: 'sort',
+        transform: (frame: DataFrame) => frame.sort((left, right) => Number(left.pk) - Number(right.pk)),
+        positions: [1, 0],
+      },
+      {
+        name: 'composed select/sort/second rename/reset/filter-empty',
+        transform: (frame: DataFrame) =>
+          frame
+            .select('pk')
+            .sort(() => 0)
+            .rename({ pk: 'score' })
+            .resetIndex()
+            .filter(() => false),
+        columns: ['score'],
+        resolved: true,
+        reset: true,
+        positions: [],
+      },
+    ];
+
+    it.each(scenarios)('preserves schema roles through $name', (scenario) => {
+      const templates = {
+        pk: { name: 'pk', type: 'string', extDtype: 'str', custom: { role: 'index', tags: ['key'] } },
+        value: { name: 'value', type: 'integer', custom: { role: 'measure', unit: 'count' } },
+        note: { name: 'note', type: 'string', custom: { role: 'annotation' } },
+      } as const;
+      const metadata = { pandas_version: '1.4.0', custom: { report: 'schema-role-regression' } };
+      const sourceRows = [
+        { pk: 'r0', value: 42, note: 'a' },
+        { pk: 'r1', value: 7, note: 'b' },
+      ];
+      const input = {
+        schema: { ...metadata, fields: fieldOrder.map((name) => templates[name]), primaryKey: ['pk'] },
+        data: sourceRows,
+      };
+      const inputSnapshot = JSON.stringify(input);
+      const source = fromOrient(input, { orient: 'table' });
+      const sourceSnapshot = source.toTable();
+      const originalColumns = fieldOrder.filter((name) => name !== 'pk');
+      const colliding = source.rename({ value: 'pk' });
+      expect(() => colliding.toTable()).toThrowError(JsonFrameValidationError);
+
+      const transformed = scenario.transform(colliding);
+      const valueName = scenario.resolved ? 'score' : 'pk';
+      const columns = scenario.columns ?? originalColumns.map((name) => (name === 'value' ? valueName : name));
+      const positions = scenario.positions ?? [0, 1];
+      const indexField = scenario.resolved ? 'pk' : 'row_id';
+      const fields = columns.map((name) => ({ ...templates[name === 'note' ? 'note' : 'value'], name }));
+      const expected = {
+        schema: {
+          ...metadata,
+          fields: scenario.reset ? fields : [{ ...templates.pk, name: indexField }, ...fields],
+          ...(scenario.reset ? {} : { primaryKey: [indexField] }),
+        },
+        data: positions.map((position) => {
+          const row = sourceRows[position]!;
+          return {
+            ...(scenario.reset ? {} : { [indexField]: row.pk }),
+            ...Object.fromEntries(columns.map((name) => [name, name === 'note' ? row.note : row.value])),
+          };
+        }),
+      };
+      const options = scenario.resolved || scenario.reset ? undefined : { indexField };
+      expect(transformed.columns).toEqual(columns);
+      expect(transformed.index).toEqual(
+        positions.map((position) => (scenario.reset ? position : sourceRows[position]!.pk)),
+      );
+      const exported = transformed.toTable(options);
+      expect(exported).toEqual(expected);
+      expect(JSON.parse(transformed.toJSONString('table', options))).toEqual(expected);
+      const roundTrip = fromOrient(exported, { orient: 'table' });
+      expect(roundTrip.columns).toEqual(columns);
+      expect(roundTrip.rows()).toEqual(transformed.rows());
+      expect(roundTrip.index).toEqual(transformed.index);
+      expect(source.columns).toEqual(originalColumns);
+      expect(source.toTable()).toEqual(sourceSnapshot);
+      expect(JSON.stringify(input)).toBe(inputSnapshot);
     });
   });
 

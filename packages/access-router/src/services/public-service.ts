@@ -133,6 +133,9 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
       { skim, includePermissions, access, populateAccess, lean },
     );
 
+    // Invalid descriptors and terminal policy denial cannot be repaired by list access.
+    if (!result.success && (result.code === Codes.BadRequest || result.code === Codes.Forbidden)) return result;
+
     // if not found, try to get the doc with 'list' access
     if (tryList && (!result.success || !result.data)) {
       const listAllowed = await this.req.macl.isAllowed(this.modelName, 'list');
@@ -189,6 +192,9 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
       },
       { skim, includePermissions, access, populateAccess, lean },
     );
+
+    // Invalid descriptors and terminal policy denial cannot be repaired by list access.
+    if (!result.success && (result.code === Codes.BadRequest || result.code === Codes.Forbidden)) return result;
 
     // if not found, try to get the doc with 'list' access
     if (tryList && (!result.success || !result.data)) {
@@ -259,6 +265,11 @@ export class PublicService<TModel = unknown> extends Service<TModel> {
     return result as SingleResult<SelectedPopulatedPublicOutput<TModel, TSelect, TPopulate>>;
   }
 
+  /**
+   * With an _id, check update-policy existence then update: terminal denial returns
+   * Forbidden, an allowed miss remains Unauthorized, and neither creates a row.
+   * Without an _id, use the create path.
+   */
   async _upsert<
     TSelect extends Projection | undefined = undefined,
     TPopulate extends Populate[] | string | undefined = undefined,

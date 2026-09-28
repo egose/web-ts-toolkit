@@ -168,6 +168,10 @@ const mergeServiceDefaults = <TDefaults extends object>(
  * Use the returned adapter's `clearCache()` on credential transitions
  * (login/logout/token refresh/tenant change) and `disposeCache()` when the
  * adapter is no longer needed to release cache timers.
+ * Eligible deduplicated callers share the transformed JSON/text body, including
+ * HTTP errors, but retain their own `validateStatus`, config and response copy.
+ * Strict JSON parse/transport failures release the slot for later requests;
+ * service calls retain their normal failure policy.
  */
 export interface AdapterOptions {
   rootRouterPath?: string;
@@ -191,7 +195,9 @@ export interface AdapterOptions {
    * Maximum number of cached entries retained per adapter. Defaults to 100.
    */
   cacheCapacity?: number;
+  /** Checked at service creation after merging; see {@link Defaults} for structural limits. */
   modelDefaults?: Defaults;
+  /** Checked at service creation after merging; see {@link DataDefaults} for structural limits. */
   dataDefaults?: DataDefaults;
 }
 
@@ -258,6 +264,15 @@ export interface DataServiceOptions {
  *   adapter's services into one root round trip. Rejected before network
  *   activity if any input has already started execution or was created by
  *   a different adapter.
+ *
+ * Group config equality ignores plain-object key order and undefined properties,
+ * but preserves array and repeated URLSearchParams value order (distinct-key
+ * reordering is accepted). Dates/URLSearchParams differ from tag-shaped plain
+ * records. Invalid or unequal configs reject before claims/dispatch, leaving
+ * original requests directly executable. Basic service calls preserve caller
+ * URLSearchParams order/duplicates on non-generated keys; generated params win
+ * (nullish values omit keys, false/zero remain). Groups send caller config once
+ * with generated options in each operation body entry.
  *
  * @example
  * const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });

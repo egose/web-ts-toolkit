@@ -4,10 +4,13 @@ import mongoose from 'mongoose';
 import type { MessageTemplate, MessageUser } from '@web-ts-toolkit/message-service';
 import {
   createMessageRoutes,
+  serializePublicMessage,
   buildMessageSchema,
   buildMessageArchiveSchema,
+  buildMessageRequestSchema,
   MESSAGE_MODEL_NAME,
   MESSAGE_ARCHIVE_MODEL_NAME,
+  MESSAGE_REQUEST_MODEL_NAME,
   defaultRegistry,
 } from '@web-ts-toolkit/message-service';
 import { UserModel, type AppRequest as AppReq } from './models';
@@ -408,6 +411,10 @@ export function registerMessageModels() {
   if (!mongoose.models[MESSAGE_ARCHIVE_MODEL_NAME]) {
     mongoose.model(MESSAGE_ARCHIVE_MODEL_NAME, buildMessageArchiveSchema());
   }
+
+  if (!mongoose.models[MESSAGE_REQUEST_MODEL_NAME]) {
+    mongoose.model(MESSAGE_REQUEST_MODEL_NAME, buildMessageRequestSchema());
+  }
 }
 
 export function registerMessageTemplates() {
@@ -451,12 +458,12 @@ export function createMessageRouteGroup() {
       limit,
       skip,
       populate: [
-        { path: 'fromUser', select: 'email displayName' },
-        { path: 'toUser', select: 'email displayName' },
+        { path: 'fromUser', model: UserModel, select: 'email displayName' },
+        { path: 'toUser', model: UserModel, select: 'email displayName' },
       ],
     });
 
-    return { success: true, data: messages };
+    return { success: true, data: messages.map(serializePublicMessage) };
   });
 
   return { router: router.original };

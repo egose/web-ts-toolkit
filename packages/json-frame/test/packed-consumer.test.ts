@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import ts from 'typescript';
 import { afterAll, describe, expect, it } from 'vitest';
 
 const publisherRequire = createRequire(require.resolve('@repo-toolkit/release-artifact')) as NodeRequire;
@@ -204,6 +205,133 @@ function installPackedConsumer(): string {
 }
 
 function writeConsumerFiles(consumerDir: string): void {
+  const ownOverrideRuntime = `
+for (const column of ['constructor', 'toString', 'hasOwnProperty', '__proto__', 'valueOf']) {
+  for (const packThreshold of [0, 1]) {
+    for (const columnTypes of [undefined, {}, { n: 'integer' }, Object.create(null), { [column]: 'float' }]) {
+      const input = [{ [column]: 1, n: 2 }];
+      const frame = fromOrient(input, { columnTypes, packThreshold });
+      const explicit = columnTypes && Object.hasOwn(columnTypes, column);
+      const expectedType = explicit ? 'float' : 'integer';
+      for (const result of [frame, frame.select(column, 'n').sort(() => 0).resetIndex().filter(() => false)]) {
+        if (result.columnInfo.get(column).type !== expectedType) throw new Error('inherited column type: ' + column);
+        const table = result.toTable();
+        if (!table.schema.fields.some(field => field.name === column && field.type === (explicit ? 'number' : 'integer'))) throw new Error('invalid table field: ' + column);
+        if (result.toJSONString('table') !== JSON.stringify(table)) throw new Error('table string mismatch');
+      }
+      if (JSON.stringify(frame.rows()) !== JSON.stringify(input)) throw new Error('prototype-named cells changed');
+    }
+  }
+}
+`;
+  const datetimeRuntime = `
+const dates = ['0000-02-29', '0001-01-01 00:00:00.1', '0099-12-31', '0100-02-28', '1900-02-28', '2000-02-29', '9999-12-31T23:59:59.999999999'];
+for (const packThreshold of [0, 1]) {
+  const input = dates.map((ts, n) => ({ ts, n }));
+  const frame = fromOrient(input, { orient: 'records', packThreshold, columnTypes: { ts: 'datetime' } });
+  const transformed = frame.sort((a, b) => b.n - a.n).filter(row => row.n >= 0).select('ts', 'n').rename({ ts: 'when' }).resetIndex();
+  const expected = [...dates].reverse();
+  if (transformed.columnInfo.get('when').type !== 'datetime') throw new Error('datetime metadata lost');
+  for (const orient of ['records', 'values', 'split', 'index', 'columns', 'table']) {
+    const restored = fromOrient(transformed.toJSONString(orient), { orient, columns: ['when', 'n'], columnTypes: { when: 'datetime' }, packThreshold });
+    if (JSON.stringify(restored.rows().map(row => row.when)) !== JSON.stringify(expected)) throw new Error('datetime cells changed in ' + orient);
+    if (restored.columnInfo.get('when').type !== 'datetime') throw new Error('datetime type lost in ' + orient);
+  }
+  const table = transformed.toTable();
+  if (!table.schema.fields.some(field => field.name === 'when' && field.type === 'datetime')) throw new Error('datetime schema lost');
+  if (JSON.stringify(frame.rows()) !== JSON.stringify(input)) throw new Error('datetime source changed');
+  if (fromOrient(input).columnInfo.get('ts').type !== 'string') throw new Error('dates inferred as datetime');
+}
+for (const ts of ['0100-02-29', '1900-02-29', '2000-02-30', '0000-01-01T24:00:00', '0001-01-01T00:00:00Z', 1704164645000]) {
+  let rejected = false;
+  try { fromOrient([{ ts: '0000-02-29' }, { ts }], { orient: 'records', columnTypes: { ts: 'datetime' } }); }
+  catch (error) { rejected = error.name === 'JsonFrameValidationError' && error.orient === 'records' && error.row === 1 && error.column === 'ts' && error.path === '$[1]["ts"]'; }
+  if (!rejected) throw new Error('expected invalid datetime rejection: ' + ts);
+}
+`;
+  const budgetRuntime = `
+const budgeted = fromOrient('[{"n":1}]', { orient: 'records', maxNodes: 3 });
+for (const [orient, nodes] of [['records', 3], ['index', 3], ['columns', 3], ['values', 3], ['split', 8], ['table', 9]]) {
+  const expected = budgeted.toJSONString(orient);
+  if (budgeted.toJSONString(orient, { maxNodes: nodes }) !== expected) throw new Error('exact budget changed output');
+  let rejected = false;
+  try { budgeted.toJSONString(orient, { maxNodes: nodes - 1 }); }
+  catch (error) { rejected = error.name === 'JsonFrameValidationError' && error.orient === orient && typeof error.path === 'string'; }
+  if (!rejected) throw new Error('expected budget rejection for ' + orient);
+}
+let invalidBudget = false;
+try { fromOrient([], { orient: 'records', maxNodes: 0 }); }
+catch (error) { invalidBudget = error.name === 'JsonFrameOptionError' && error.option === 'maxNodes'; }
+if (!invalidBudget) throw new Error('expected invalid ingestion budget');
+`;
+  const inferenceRuntime = `
+for (const orient of [undefined, 'auto', 'values']) {
+  const frame = fromOrient([[1], [null]], { orient, columns: ['n'] });
+  if (Array.isArray(frame.row(0)) || typeof frame.row(0).map !== 'undefined') throw new Error('array-shaped values row');
+  if (frame.row(0).n !== 1 || frame.row(1).n !== null) throw new Error('values cells changed');
+}
+for (const orient of [undefined, 'auto', 'records']) {
+  const sparse = fromOrient([{ n: 1 }, {}], { orient });
+  if (sparse.row(1).n !== null) throw new Error('sparse cell not null-filled');
+  if (sparse.filter(row => row.n != null && row.n.toFixed() === '1').length !== 1) throw new Error('null-safe filter failed');
+  const mixed = fromOrient([{ n: 1 }, { label: 'x' }], { orient });
+  if (mixed.row(0).label !== null || mixed.row(1).n !== null) throw new Error('heterogeneous cells not null-filled');
+  for (const key of ['metric_n', '1', 'n_metric', 'pre_n_post', 'N']) {
+    for (const known of [{}, { id: 'a', toString: 'ok' }, { metric_fixed: 2 }]) {
+      const dictionary = fromOrient([{ ...known, [key]: 1 }, { ...known }], { orient });
+      if (dictionary.row(1)[key] !== null || dictionary.row(0)[key] !== 1) throw new Error('pattern dictionary cells changed');
+      if (dictionary.row(0).metric_absent !== undefined) throw new Error('absent pattern column created');
+      const absent = fromOrient([{ ...known }], { orient });
+      if (absent.row(0)[key] !== undefined || absent.columns.includes(key)) throw new Error('absent dictionary key created');
+      if (Object.getPrototypeOf(dictionary.row(1)) !== null) throw new Error('pattern row prototype changed');
+      const unsafe = cell => cell !== undefined ? Number(cell.toFixed()) : 0;
+      for (const operation of [() => unsafe(dictionary.row(1)[key]), () => dictionary.filter(row => unsafe(row[key]) === 1), () => dictionary.sort((a, b) => unsafe(a[key]) - unsafe(b[key]))]) {
+        let threw = false;
+        try { operation(); } catch (error) { threw = error instanceof TypeError; }
+        if (!threw) throw new Error('expected undefined-only pattern guard to throw on null');
+      }
+      const scalar = cell => typeof cell === 'number' ? cell : 0;
+      if (dictionary.filter(row => typeof row[key] === 'number' && row[key].toFixed() === '1').length !== 1) throw new Error('pattern guard failed');
+      if (dictionary.sort((a, b) => scalar(a[key]) - scalar(b[key])).row(0)[key] !== null) throw new Error('pattern sort failed');
+    }
+  }
+  for (const key of ['toString', 'constructor', 'valueOf']) {
+    const members = fromOrient([{ [key]: 'ok' }, {}], { orient });
+    if (members.columns.join() !== key || members.row(1)[key] !== null) throw new Error('Object-member cell not null-filled');
+    if (Object.getPrototypeOf(members.row(1)) !== null || !Object.hasOwn(members.row(1), key)) throw new Error('unsafe row prototype');
+    if (members.filter(row => row[key] != null && row[key].toUpperCase() === 'OK').length !== 1) throw new Error('Object-member guard failed');
+    if (members.sort((a, b) => (a[key] ?? '').localeCompare(b[key] ?? '')).row(0)[key] !== null) throw new Error('Object-member sort failed');
+    if (fromOrient([{ [key]: 'ok' }], { orient }).row(0)[key] !== 'ok') throw new Error('dense Object-member cell changed');
+  }
+  for (const [input, expected] of [
+    [[{ 1: 1 }, { 1: 2 }], [[1], [2]]],
+    [[{ '1': 1 }, { '1': 2 }], [[1], [2]]],
+    [[{ 1: 1 }, { '1': 'x' }], [[1], ['x']]],
+    [[{ '1': 'x' }, { 1: 1 }], [['x'], [1]]],
+    [[{ 1: 1 }, { '1': 'x' }, {}], [[1], ['x'], [null]]],
+    [[{ id: 'a', 1: 1 }, { id: 'b', '1': 'x' }], [[1, 'a'], ['x', 'b']]],
+  ]) {
+    const numeric = fromOrient(input, { orient });
+    if (numeric.columns[0] !== '1' || JSON.stringify(numeric.toValues()) !== JSON.stringify(expected)) throw new Error('numeric alias cells changed');
+    for (const row of numeric.rows()) {
+      if (row[1] !== row['1'] || Object.getPrototypeOf(row) !== null) throw new Error('numeric alias row changed');
+    }
+  }
+}
+if (fromOrient([{ id: 'a' }]).row(0).n !== undefined) throw new Error('absent column was created');
+if (fromOrient([{ id: 'a' }]).row(0)[1] !== undefined) throw new Error('absent numeric column was created');
+`;
+  const inferenceDeclaration = readFileSync(
+    path.resolve(packageRoot, 'test-decl-consumer/inference-contract.mts'),
+    'utf8',
+  );
+  for (const extension of ['mts', 'cts', 'ts']) {
+    writeFileSync(path.resolve(consumerDir, `inference-contract.${extension}`), inferenceDeclaration);
+  }
+  const budgetDeclaration = readFileSync(path.resolve(packageRoot, 'test-decl-consumer/budget-contract.mts'), 'utf8');
+  for (const extension of ['mts', 'cts', 'ts']) {
+    writeFileSync(path.resolve(consumerDir, `budget-contract.${extension}`), budgetDeclaration);
+  }
   writeFileSync(
     path.resolve(consumerDir, 'consumer.cjs'),
     `const { AmbiguousOrientError, JsonFrameOptionError, fromOrient } = require('@web-ts-toolkit/json-frame');
@@ -236,6 +364,10 @@ try {
 }
 
 if (!sawValuesColumnsError) throw new Error('expected values-without-columns option error');
+${inferenceRuntime}
+${budgetRuntime}
+${datetimeRuntime}
+${ownOverrideRuntime}
 `,
   );
 
@@ -290,6 +422,10 @@ try {
 }
 
 if (!sawAmbiguity) throw new Error('expected columns payload to require explicit orient under auto');
+${inferenceRuntime}
+${budgetRuntime}
+${datetimeRuntime}
+${ownOverrideRuntime}
 `,
   );
 
@@ -418,7 +554,14 @@ void [typedRoundTrips, frame.row(0).city];
           esModuleInterop: true,
           types: ['node'],
         },
-        include: ['consumer.nodenext.mts', 'consumer.nodenext.cts'],
+        include: [
+          'consumer.nodenext.mts',
+          'consumer.nodenext.cts',
+          'inference-contract.mts',
+          'inference-contract.cts',
+          'budget-contract.mts',
+          'budget-contract.cts',
+        ],
       },
       null,
       2,
@@ -439,7 +582,7 @@ void [typedRoundTrips, frame.row(0).city];
           esModuleInterop: true,
           types: ['node'],
         },
-        include: ['consumer.bundler.ts'],
+        include: ['consumer.bundler.ts', 'inference-contract.ts', 'budget-contract.ts'],
       },
       null,
       2,
@@ -460,7 +603,7 @@ void [typedRoundTrips, frame.row(0).city];
           lib: ['ES2022'],
           types: [],
         },
-        include: ['consumer.browser.ts'],
+        include: ['consumer.browser.ts', 'inference-contract.ts', 'budget-contract.ts'],
       },
       null,
       2,
@@ -523,6 +666,41 @@ afterAll(() => {
 });
 
 describe('JFRAME-08 packed consumer compatibility', () => {
+  it.each([false, true])(
+    'checks source API inference with exactOptionalPropertyTypes=%s and unchecked-index guards',
+    (exactOptionalPropertyTypes) => {
+      const configPath = path.resolve(packageRoot, 'test-decl-consumer/tsconfig-source.json');
+      const config = ts.readConfigFile(configPath, ts.sys.readFile);
+      expect(config.error).toBeUndefined();
+      const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, path.dirname(configPath));
+      expect(parsed.errors).toEqual([]);
+      const fixturePath = path.resolve(packageRoot, 'test-decl-consumer/inference-contract.mts');
+      const options = { ...parsed.options, noEmit: true, noUncheckedIndexedAccess: true, exactOptionalPropertyTypes };
+      const resolved = ts.resolveModuleName(packageName, fixturePath, options, ts.sys).resolvedModule;
+      expect(resolved?.resolvedFileName).toBe(path.resolve(packageRoot, 'src/index.ts'));
+      const program = ts.createProgram([fixturePath], options);
+      const fixture = program.getSourceFile(fixturePath);
+      expect(fixture).toBeDefined();
+      // Check consumer usage against actual source types under consumer flags.
+      // Implementation bodies are checked separately by typecheck:source using
+      // the package's own settings, not consumers' exact-optional preferences.
+      const diagnostics = [
+        ...program.getOptionsDiagnostics(),
+        ...program.getGlobalDiagnostics(),
+        ...program.getSyntacticDiagnostics(),
+        ...program.getSemanticDiagnostics(fixture),
+      ];
+      expect(
+        ts.formatDiagnosticsWithColorAndContext(diagnostics, {
+          getCurrentDirectory: () => packageRoot,
+          getCanonicalFileName: (file) => file,
+          getNewLine: () => '\n',
+        }),
+      ).toBe('');
+    },
+    30_000,
+  );
+
   it('applies the real publish manifest transformation to the json-frame tarball and exposes only intended files', () => {
     const packed = preparePackedWorkspace();
     const unpackRoot = unpackTarballToDir(packed.tarball);
@@ -563,6 +741,14 @@ describe('JFRAME-08 packed consumer compatibility', () => {
       expect(declaration).toContain('non-empty `values` arrays');
       expect(declaration).toContain('nested JSON');
       expect(declaration).toContain('Table Schema format version');
+      expect(declaration).toContain('Fields missing from');
+      expect(declaration).toContain('inherited members do not supply cells');
+      expect(declaration).toContain("spellings (1 and '1') infer one string-named column");
+      expect(declaration).toContain('template patterns such as `metric_${string}` and `${number}`');
+      expect(declaration).toContain('Finite template');
+      expect(declaration).toContain('it is an assertion, not runtime schema validation');
+      expect(declaration).toContain('four-digit years 0000–9999 under proleptic Gregorian rules');
+      expect(declaration).toContain('Calendar validity does not guarantee pandas');
     }
     expect(readdirSync(unpackRoot).sort()).toEqual([
       'LICENSE',
@@ -610,9 +796,23 @@ describe('JFRAME-08 packed consumer compatibility', () => {
 
     run('node', ['consumer.cjs'], consumerDir);
     run('node', ['consumer.mjs'], consumerDir);
-    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.nodenext.json'], consumerDir);
-    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.bundler.json'], consumerDir);
-    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.browser.json'], consumerDir);
+    for (const config of ['tsconfig.nodenext.json', 'tsconfig.bundler.json', 'tsconfig.browser.json']) {
+      for (const exactOptionalPropertyTypes of ['false', 'true']) {
+        run(
+          'pnpm',
+          [
+            'exec',
+            'tsc',
+            '-p',
+            config,
+            '--noUncheckedIndexedAccess',
+            '--exactOptionalPropertyTypes',
+            exactOptionalPropertyTypes,
+          ],
+          consumerDir,
+        );
+      }
+    }
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.readme.json'], consumerDir);
 
     const installedPackageDir = path.resolve(consumerDir, 'node_modules', '@web-ts-toolkit', 'json-frame');

@@ -823,7 +823,12 @@ export const parseInput = (input: string | unknown, options: NormalizedFromOrien
     }
   })();
 
-  const jsonValue = cloneJsonCompatible(parsedValue, options.orient === 'auto' ? undefined : options.orient);
+  const jsonValue = cloneJsonCompatible(
+    parsedValue,
+    options.orient === 'auto' ? undefined : options.orient,
+    '$',
+    options.maxNodes,
+  );
   const orient = options.orient === 'auto' ? detectOrient(jsonValue) : options.orient;
 
   switch (orient) {

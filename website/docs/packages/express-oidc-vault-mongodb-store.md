@@ -79,10 +79,16 @@ const storeProvider = createMongoOidcVaultStore({
 - checks expiration during relevant reads or consumes for authorization transactions, exchange codes, backchannel logout token JTIs, and rotated-session aliases so behavior does not depend only on MongoDB's background TTL monitor timing
 - stores session records by `sessionId` and replaces them during rotation
 - creates scoped compound indexes for `subject`, `providerSessionId`, session `logicalSessionId`, and rotated-alias `logicalSessionId` so logout and backchannel logout queries can efficiently remove matching sessions and aliases
-- requires MongoDB transactions for session rotation; use a replica set or sharded deployment because standalone servers fail closed instead of using non-atomic multi-write rotation
+- requires MongoDB transactions for session rotation and inactive-lineage alias cleanup; use a replica set or sharded deployment because standalone servers fail readiness
 - readiness creates required indexes, validates collection names, and verifies transaction-capable topology before traffic is accepted
 - stores rotated-session aliases with finite expiry; sessions without explicit expiry use a 5 minute alias-retention window by default, configurable with `rotatedSessionAliasRetentionMs`
-- removes aliases when deleting by current session ID, stale rotated ID, logical session ID, subject, or provider session ID
+- scoped/direct deletion preserves unexpired aliases while another live member survives, including another issuer/client scope; inactive-lineage cleanup follows committed deletion in a snapshot transaction, with rotation alias writes protected by conflicts/retries
+
+Each alias keeps its immediate successor's deadline; later rotations do not extend it. With `A/L1 -> B/L1 -> C/L2`, B revokes L2 and retained A still targets L1. MongoDB can retain inactive old-lineage aliases after rotation/upsert until expiry or explicit cleanup; it also retains an alias under a reused create ID. Use fresh session IDs and distinct logical IDs for unrelated login families. Memory/Redis have no alias time limit without successor expiry; MongoDB uses the finite fallback above.
+
+Portable JSON-compatible plain inputs are captured at invocation, and returned data is detached. Native BSON/opaque objects retain backend serialization semantics without a portable mutation-isolation guarantee. Subject/provider-session objects filter each supplied issuer/client; strings and logical IDs are unscoped. Bulk counts exclude aliases but can include expired rows awaiting TTL cleanup. Scoped deletion repeats until an empty query; continuous arrivals can prolong it and later arrivals can survive. Cleanup can reject after deletion committed. Queries materialize affected IDs/survivors and can form large `$in` sets; there is no global logout snapshot or fixed total-work bound.
+
+The [shipped README](https://github.com/egose/web-ts-toolkit/blob/main/packages/express-oidc-vault-mongodb-store/README.md) contains the complete portable/lifecycle contract and compatibility notes.
 
 ## When To Use It
 
@@ -119,7 +125,7 @@ Creates a MongoDB-backed implementation of the core `OidcVaultStoreProvider` con
 ## Operational Notes
 
 - startup order should be: connect the MongoDB client, create the store, await `storeProvider.ready()`, then call `app.listen()` or otherwise accept traffic
-- the application owns MongoDB client shutdown; this package never closes the client
+- drain requests and other in-flight store operations before application-owned MongoDB client shutdown; this package never closes the client and ends its explicit transaction sessions on success/failure
 - TTL index cleanup in MongoDB is asynchronous, so the package also validates expiration during reads
 - rotated-session aliases are retained to bridge in-flight refresh/logout races after a session ID rotates; if a request uses a stale rotated ID after the alias expires, that stale ID no longer revokes the active logical session
 - readiness verifies the deployment reports transaction support before any store operation can run
@@ -128,6 +134,8 @@ Creates a MongoDB-backed implementation of the core `OidcVaultStoreProvider` con
 ## Security Notes
 
 Session records contain refresh tokens, ID tokens, access tokens, and related bearer-equivalent secrets. Require TLS, least-privilege MongoDB roles, encryption at rest and in backups, restricted logging/metrics/tracing/export paths, and explicit retention policies for all five store collections.
+
+Arbitrary backend errors are not sanitized for application logs. Use fixed operation names and allowlisted categories instead of raw errors, connection URLs, whole records or credential-valued metric labels.
 
 This package does not implement application-level field encryption or client-side field-level encryption. Configure those at the MongoDB/client layer if your deployment requires them.
 

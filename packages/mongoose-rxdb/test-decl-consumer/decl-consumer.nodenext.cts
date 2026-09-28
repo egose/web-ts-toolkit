@@ -82,5 +82,20 @@ async function leanContractProbe() {
 }
 
 void [api.default.Schema, api.ValidationError, api.connect, api.disconnect, api.model];
+const parallelErrorClass: typeof api.ParallelSaveError = api.default.ParallelSaveError;
+async function saveContractProbe() {
+  try {
+    await doc.save();
+  } catch (error: unknown) {
+    if (error instanceof api.ParallelSaveError) {
+      const typed: Error = error;
+      const message: string = error.message;
+      void [typed, message];
+      // @ts-expect-error overlap rejection does not report a committed write count.
+      void error.modifiedCount;
+    }
+  }
+}
+void [parallelErrorClass, saveContractProbe];
 void [storage.default, storage.createMemoryDatabase, storage.SqliteStorageError];
 void [query, doc, sqliteDbPromise, typedModelProbe, leanContractProbe];

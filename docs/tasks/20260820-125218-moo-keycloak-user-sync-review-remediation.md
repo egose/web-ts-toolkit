@@ -756,7 +756,7 @@ Completion evidence:
 - Verified: `pnpm --filter @web-ts-toolkit/moo build`
 - Verified: `pnpm --filter @web-ts-toolkit/moo test`
 - Verified: `npm pack --dry-run --json` from `packages/moo`
-- Verified: local `pnpm pack` tarball installed in `/tmp/opencode/moo-consumer/app` with local placeholder-version `@web-ts-toolkit/utils` tarball override; ESM runtime, CJS runtime, and strict NodeNext `tsc --noEmit` consumer checks passed.
+- Verified: local `pnpm pack` tarball installed in `<repo-root>/_tmp/moo-consumer/app` with local placeholder-version `@web-ts-toolkit/utils` tarball override; ESM runtime, CJS runtime, and strict NodeNext `tsc --noEmit` consumer checks passed.
 - Verified: `pnpm lint`
 - Verified: `pnpm build`
 - Verified: `pnpm test` with extended tool timeout after the first 120s run timed out without an assertion failure.

@@ -9,6 +9,8 @@ interface CollisionDocument {
   get: string;
   assign: string;
   toJSON: string;
+  nickname?: string;
+  then?: string;
 }
 
 declare const service: ModelService<CollisionDocument>;
@@ -28,6 +30,13 @@ const model = Model.create<CollisionDocument>(
 );
 
 model.name = 'ordinary direct access remains available';
+model.nickname = 'absent optional fields are directly writable';
+model.nickname = undefined;
+model.set('then', 'helper-only data');
+// @ts-expect-error then is data-only and cannot make the wrapper thenable.
+model.then = 'not a wrapper field';
+// @ts-expect-error private persistence state cannot be assigned by consumers.
+model._saveQueue = undefined;
 model.save();
 model.reset();
 

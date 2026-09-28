@@ -374,9 +374,10 @@ function resolveObjectEntries(obj: Record<string, unknown>, parent: unknown): Re
 /**
  * Single-pass pure value replacement (ACI-01 D3.3). Substituted parent
  * values are data: they are never re-scanned for operators or nested
- * markers. A marker resolving to a plain object in a bare field-value
- * position is wrapped in `$eq` so the object is matched literally and
- * cannot become executable filter syntax.
+ * markers. Escaped literals and markers resolving to plain objects in a
+ * bare field-value position are wrapped in `$eq` so the object is matched
+ * literally and cannot become executable filter syntax. Operator operands
+ * and array elements remain values without an extra equality wrapper.
  */
 function resolveValueNode(template: unknown, parent: unknown, bare: boolean): unknown {
   if (isEscapedParentRef(template)) {
@@ -388,7 +389,8 @@ function resolveValueNode(template: unknown, parent: unknown, bare: boolean): un
     ) {
       throw new CorrelatedReferenceError('Invalid $escape payload: expected { "$escape": { "$parent": "<field>" } }');
     }
-    return literalParentRefObject((inner as { $parent: string }).$parent);
+    const literal = literalParentRefObject((inner as { $parent: string }).$parent);
+    return bare ? { $eq: literal } : literal;
   }
 
   if (isParentRefMarker(template)) {

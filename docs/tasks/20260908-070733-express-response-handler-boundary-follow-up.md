@@ -18,7 +18,7 @@ Non-goals: replace Express or the CSV formatter, introduce a plugin framework, r
 - A diagnostic CSV probe with fixed-size cells, a non-retaining writable, forced GC, and an export kept active measured approximately 2.93 MB heap growth at 10,000 rows and 26.01 MB at 100,000 rows. This is preliminary evidence of retained abort-promise reactions, not a production budget or a committed benchmark. Reproduce under B-ERH-05.
 - No fresh build, package test, lint, compiler fixture, pack/install, or full repository check was run during analysis. Existing generated output may be stale; implementation agents must first reproduce on fresh output. Full tests were unnecessary for writing this review plan.
 - NodeNext default-import behavior is an investigation, not a compiler-confirmed failure. Generic writable process-error probes do not prove identical behavior for every Express socket implementation. No dependency vulnerability audit or exhaustive supported-version matrix was performed.
-- Worktree was clean at review start. All document paths are repo-relative; generic temporary consumers may use `/tmp`.
+- Worktree was clean at review start. All document paths are repo-relative; temporary consumers must use ignored repository-local `_tmp*` directories with `TMPDIR=<repo-root>/_tmp-<topic>`.
 
 ## Priorities And Working Rules
 

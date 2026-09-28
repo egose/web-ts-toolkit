@@ -71,6 +71,129 @@ export const defineOidcVaultStoreProviderConformanceSuite = (
   options: OidcVaultStoreConformanceOptions,
 ): void => {
   describe(`${providerName} store provider conformance`, () => {
+    for (const operation of ['create', 'rotate'] as const) {
+      it(`${operation} snapshots invocation data and detaches nested results`, async () => {
+        await withContext(options, `ownership-${operation}`, async ({ store }) => {
+          const input = {
+            ...createSessionInput('owned'),
+            provider: { issuer: 'issuer', clientId: 'client', nested: [{ values: ['provider'] }] },
+            user: { sub: 'user', nested: [{ values: ['user'] }] },
+            metadata: { nested: [{ values: ['metadata'] }], nil: null, flag: false },
+          };
+          if (operation === 'rotate') await store.createSession({ ...createSessionInput('source') });
+          const rotation = { sessionId: 'source', nextSession: input };
+          const expected = structuredClone(input);
+          const pending = operation === 'create' ? store.createSession(input) : store.rotateSession(rotation);
+          input.sessionId = 'mutated';
+          input.provider.issuer = 'mutated';
+          input.provider.nested[0]!.values.push('mutated');
+          input.user.nested[0]!.values[0] = 'mutated';
+          input.metadata.nested[0]!.values.splice(0);
+          rotation.sessionId = 'unrelated';
+          rotation.nextSession = createSessionInput('unrelated') as typeof input;
+          const result = await pending;
+          expect(result).toEqual(expected);
+          // Mutate through the result's actual nested objects, not replacements.
+          const nested = result as typeof input;
+          nested.provider.nested[0]!.values.push('returned');
+          nested.user.nested[0]!.values.push('returned');
+          nested.metadata.nested[0]!.values.push('returned');
+          expect(input.provider.nested[0]!.values).toEqual(['provider', 'mutated']);
+          expect(input.user.nested[0]!.values).toEqual(['mutated']);
+          expect(input.metadata.nested[0]!.values).toEqual([]);
+          const read = (await store.getSession('owned')) as typeof input;
+          expect(read).toEqual(expected);
+          read.metadata.nested[0]!.values.push('read');
+          read.user.nested[0]!.values.push('read');
+          read.provider.nested[0]!.values.push('read');
+          expect(await store.getSession('owned')).toEqual(expected);
+          expect(await store.getSession('mutated')).toBeNull();
+          if (operation === 'rotate') expect(await store.getSession('source')).toBeNull();
+        });
+      });
+    }
+
+    it('snapshots one-time records and JTI reservations at invocation', async () => {
+      await withContext(options, 'one-time-input-ownership', async ({ store, setNow }) => {
+        setNow(100);
+        const transaction = {
+          state: 'state',
+          nonce: 'nonce',
+          pkceVerifier: 'verifier',
+          codeChallenge: 'challenge',
+          createdAt: 100,
+          expiresAt: 300,
+          metadata: { nested: [{ values: ['original'] }] },
+        };
+        const expected = structuredClone(transaction);
+        const creating = store.createAuthorizationTransaction(transaction);
+        transaction.state = 'changed';
+        transaction.expiresAt = 1;
+        transaction.metadata.nested[0]!.values.push('changed');
+        await creating;
+        expect(await store.consumeAuthorizationTransaction('state')).toEqual(expected);
+        expect(await store.consumeAuthorizationTransaction('changed')).toBeNull();
+        const exchange = { code: 'code', sessionId: 'session', createdAt: 100, expiresAt: 300, returnTo: '/original' };
+        const exchanging = store.createExchangeCode(exchange);
+        Object.assign(exchange, { code: 'changed', sessionId: 'changed', expiresAt: 1, returnTo: '/changed' });
+        await exchanging;
+        expect(await store.consumeExchangeCode('code')).toEqual({
+          code: 'code',
+          sessionId: 'session',
+          createdAt: 100,
+          expiresAt: 300,
+          returnTo: '/original',
+        });
+        expect(await store.consumeExchangeCode('changed')).toBeNull();
+        const jti = { jti: 'jti', expiresAt: 300 };
+        const reserving = store.consumeBackchannelLogoutTokenJti(jti);
+        Object.assign(jti, { jti: 'changed', expiresAt: 1 });
+        expect(await reserving).toBe(true);
+        expect(await store.consumeBackchannelLogoutTokenJti({ jti: 'jti', expiresAt: 300 })).toBe(false);
+        expect(await store.consumeBackchannelLogoutTokenJti({ jti: 'changed', expiresAt: 300 })).toBe(true);
+      });
+    });
+
+    for (const method of ['subject', 'provider-session', 'logical'] as const) {
+      it(`${method} deletion snapshots its object scope at invocation`, async () => {
+        await withContext(options, `scope-ownership-${method}`, async ({ store }) => {
+          await store.createSession(createSessionInput('matched'));
+          await store.createSession({
+            ...createSessionInput('other'),
+            logicalSessionId: 'other',
+            provider: { issuer: 'other', clientId: 'other' },
+          });
+          const scope = {
+            subject: 'user_1',
+            providerSessionId: 'provider_session_1',
+            logicalSessionId: 'logical_1',
+            issuer: 'https://issuer.example.com',
+            clientId: 'client_1',
+          };
+          // Use only the appropriate discriminant in each public input.
+          const subject = { subject: scope.subject, issuer: scope.issuer, clientId: scope.clientId };
+          const provider = {
+            providerSessionId: scope.providerSessionId,
+            issuer: scope.issuer,
+            clientId: scope.clientId,
+          };
+          const logical = { logicalSessionId: scope.logicalSessionId };
+          const pending =
+            method === 'subject'
+              ? store.deleteSessionsBySubject(subject)
+              : method === 'provider-session'
+                ? store.deleteSessionsByProviderSessionId(provider)
+                : store.deleteSessionsByLogicalSessionId(logical);
+          Object.assign(subject, { subject: 'changed', issuer: 'other', clientId: 'other' });
+          Object.assign(provider, { providerSessionId: 'changed', issuer: 'other', clientId: 'other' });
+          logical.logicalSessionId = 'other';
+          expect(await pending).toBe(1);
+          expect(await store.getSession('matched')).toBeNull();
+          expect(await store.getSession('other')).not.toBeNull();
+        });
+      });
+    }
+
     it('upserts and consumes authorization transactions and exchange codes once', async () => {
       await withContext(options, 'one-time-record-upserts', async ({ store, setNow }) => {
         setNow(100);
@@ -340,6 +463,98 @@ export const defineOidcVaultStoreProviderConformanceSuite = (
       });
     });
 
+    for (const laterExpiry of ['finite', 'none'] as const) {
+      for (const offset of [-1, 0, 1]) {
+        it(`finite alias keeps its immediate successor deadline with ${laterExpiry} later expiry at offset ${offset}`, async () => {
+          await withContext(options, `alias-deadline-${laterExpiry}-${offset}`, async ({ store, setNow }) => {
+            // Future wall time keeps MongoDB's real TTL monitor out of the
+            // deterministic store-clock boundary test. Redis uses its clocked emulator.
+            const start = Date.now() + 600_000;
+            setNow(start);
+            await store.createSession({ ...createSessionInput('first'), expiresAt: start + 100 });
+            await store.rotateSession({
+              sessionId: 'first',
+              nextSession: { ...createSessionInput('second'), expiresAt: start + 200 },
+            });
+            await store.rotateSession({
+              sessionId: 'second',
+              nextSession: {
+                ...createSessionInput('third'),
+                expiresAt: laterExpiry === 'finite' ? start + 400 : undefined,
+              },
+            });
+            setNow(start + 200 + offset);
+            // Neither alias is an authentication/read handle. The original
+            // source deadline has passed, but the immediate successor controls it.
+            expect(await store.getSession('first')).toBeNull();
+            expect(await store.getSession('second')).toBeNull();
+            expect(await store.getSession('third')).not.toBeNull();
+            await store.deleteSession('first');
+            if (offset < 0) {
+              expect(await store.getSession('third')).toBeNull();
+            } else {
+              expect(await store.getSession('third')).not.toBeNull();
+              // Expiry of the earlier alias does not disable the newer one.
+              await store.deleteSession('second');
+              expect(await store.getSession('third')).toBeNull();
+            }
+          });
+        });
+      }
+    }
+
+    for (const survivor of [false, true]) {
+      for (const handle of ['earlier', 'immediate'] as const) {
+        it(`changed lineage scopes the ${handle} alias with old-lineage survivor ${survivor}`, async () => {
+          await withContext(options, `alias-lineage-${survivor}-${handle}`, async ({ store, setNow }) => {
+            const start = Date.now() + 600_000;
+            setNow(start);
+            const original = { ...createSessionInput('earlier'), expiresAt: start + 400 };
+            await store.createSession(original);
+            await store.rotateSession({
+              sessionId: 'earlier',
+              nextSession: { ...original, sessionId: 'immediate' },
+            });
+            if (survivor) {
+              await store.createSession({
+                ...original,
+                sessionId: 'old_peer',
+                provider: { issuer: 'other_issuer', clientId: 'other_client' },
+              });
+            }
+            await store.rotateSession({
+              sessionId: 'immediate',
+              nextSession: {
+                ...original,
+                sessionId: 'current',
+                logicalSessionId: 'new_lineage',
+                expiresAt: start + 800,
+              },
+            });
+            expect(await store.getSession('earlier')).toBeNull();
+            expect(await store.getSession('immediate')).toBeNull();
+            expect(await store.getSession('current')).toMatchObject({ logicalSessionId: 'new_lineage' });
+            await store.deleteSession(handle);
+            if (handle === 'earlier') {
+              // Retired aliases and retained empty-lineage aliases are both
+              // permitted; neither may be retargeted to the new lineage.
+              expect(await store.getSession('current')).not.toBeNull();
+              expect(await store.getSession('old_peer')).toBeNull();
+              await store.deleteSession('immediate');
+              expect(await store.getSession('current')).toBeNull();
+            } else {
+              expect(await store.getSession('current')).toBeNull();
+              if (survivor) {
+                expect(await store.getSession('old_peer')).not.toBeNull();
+                await store.deleteSession('earlier');
+              }
+              expect(await store.getSession('old_peer')).toBeNull();
+            }
+          });
+        });
+      }
+    }
+
     it('deletes current sessions through rotated aliases, logical IDs, subject scopes, and provider-session scopes', async () => {
       await withContext(options, 'logical-and-scoped-delete', async ({ store }) => {
         await store.createSession(createSessionInput('old_public'));
@@ -394,6 +609,51 @@ export const defineOidcVaultStoreProviderConformanceSuite = (
         expect(await store.getSession('provider_other_issuer')).not.toBeNull();
       });
     });
+
+    for (const method of ['subject', 'provider-session', 'direct'] as const) {
+      for (const differentScope of ['issuer', 'clientId'] as const) {
+        it(`${method} deletion preserves aliases of a surviving ${differentScope} scope`, async () => {
+          for (const finite of [false, true]) {
+            await withContext(options, `survivor-alias-${method}-${differentScope}-${finite}`, async ({ store }) => {
+              const matched = {
+                ...createSessionInput('matched'),
+                expiresAt: finite ? Date.now() + 600_000 : undefined,
+              };
+              const survivor = {
+                ...createSessionInput('survivor_old'),
+                expiresAt: matched.expiresAt,
+                provider: { ...matched.provider!, [differentScope]: 'other' },
+              };
+              await store.createSession(matched);
+              await store.createSession(survivor);
+              await store.rotateSession({
+                sessionId: survivor.sessionId,
+                nextSession: { ...survivor, sessionId: 'survivor_current' },
+              });
+              if (method === 'direct') {
+                await store.deleteSession(matched.sessionId);
+              } else if (method === 'subject') {
+                expect(await store.deleteSessionsBySubject({ subject: matched.subject, ...matched.provider })).toBe(1);
+              } else {
+                expect(
+                  await store.deleteSessionsByProviderSessionId({
+                    providerSessionId: matched.providerSessionId!,
+                    ...matched.provider,
+                  }),
+                ).toBe(1);
+              }
+              expect(await store.getSession(matched.sessionId)).toBeNull();
+              expect(await store.getSession('survivor_current')).not.toBeNull();
+              await store.deleteSession('survivor_old');
+              expect(await store.getSession('survivor_current')).toBeNull();
+              await store.createSession(createSessionInput('reused_lineage'));
+              await store.deleteSession('survivor_old');
+              expect(await store.getSession('reused_lineage')).not.toBeNull();
+            });
+          }
+        });
+      }
+    }
 
     it('removes rotated aliases when their logical lineage is deleted', async () => {
       await withContext(options, 'stale-alias-cleanup', async ({ store, setNow }) => {

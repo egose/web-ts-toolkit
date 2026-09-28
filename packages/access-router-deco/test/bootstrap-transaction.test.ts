@@ -1,12 +1,12 @@
 import 'reflect-metadata';
 import express from 'express';
 import mongoose from 'mongoose';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { EgoseFactoryStatic } from '../src/factory';
 import { Module, Router, RouterOptions, Prepare, Validate } from '../src/decorators';
 import { applyMethodDecorator, applyParameterDecorator } from './helpers';
 import { Document } from '../src/decorators/parameter.decorators';
-import acl from '@web-ts-toolkit/access-router';
+import acl, { createAccessRuntime } from '@web-ts-toolkit/access-router';
 
 function getAppStackLength(app: express.Express): number {
   const stack = getAppStack(app);
@@ -78,6 +78,316 @@ function dummyModel(modelName: string) {
     jsonSchema: () => ({}),
   }) as any;
 }
+
+const snapshotApiForms = [
+  ['direct', 'direct'],
+  ['underlying', 'underlying'],
+  ['direct', 'underlying'],
+  ['underlying', 'direct'],
+] as const;
+
+function transactionFixture(createAt: 'direct' | 'underlying', restoreAt: 'direct' | 'underlying') {
+  const real = createAccessRuntime();
+  // Exercise API facades without replacing the real snapshot/restore implementation.
+  const runtime: any = Object.assign(() => real(), real);
+  runtime.runtime = Object.create(real.runtime);
+  runtime.runtime.createBootstrapSnapshot = undefined;
+  runtime.runtime.restoreBootstrapSnapshot = undefined;
+  const createOwner = createAt === 'direct' ? runtime : runtime.runtime;
+  const restoreOwner = restoreAt === 'direct' ? runtime : runtime.runtime;
+  const create = vi.fn(function (this: unknown) {
+    expect(this).toBe(createOwner);
+    return real.runtime.createBootstrapSnapshot();
+  });
+  const restore = vi.fn(function (this: unknown, snapshot: any) {
+    expect(this).toBe(restoreOwner);
+    real.runtime.restoreBootstrapSnapshot(snapshot);
+  });
+  createOwner.createBootstrapSnapshot = create;
+  restoreOwner.restoreBootstrapSnapshot = restore;
+  const setters = [
+    'setGlobalOptions',
+    'setGlobalOption',
+    'setDefaultModelOptions',
+    'setDefaultModelOption',
+    'setModelOptions',
+    'setModelOption',
+    'registerModelInstance',
+    'createRouter',
+  ].map((key) => vi.spyOn(runtime, key));
+  class ModelRouter {}
+  Router(dummyModel('Pdec04User'))(ModelRouter);
+  class Defaults {}
+  RouterOptions({ idParam: 'userId' })(Defaults);
+  class TestModule {}
+  Module({
+    routers: [ModelRouter],
+    routerOptions: [Defaults],
+    options: { requestPermissionField: '_changed' },
+  })(TestModule);
+  const factory = EgoseFactoryStatic.create(runtime);
+  const app = express();
+  app.use(express.json());
+  return { real, runtime, createOwner, restoreOwner, create, restore, setters, factory, app, TestModule };
+}
+
+function catchThrown(run: () => unknown): unknown {
+  try {
+    run();
+  } catch (error) {
+    return error;
+  }
+  throw new Error('Expected bootstrap to throw');
+}
+
+describe('bootstrap snapshot and recovery failures (PDEC-04)', () => {
+  describe.each(snapshotApiForms)('create=%s restore=%s', (createAt, restoreAt) => {
+    it('fails snapshot acquisition before setters/publication and permits retry', () => {
+      const f = transactionFixture(createAt, restoreAt);
+      const before = f.real.runtime.createBootstrapSnapshot();
+      const beforeStack = [...getAppStack(f.app)!];
+      const mount = vi.spyOn(f.app, 'use');
+      const original = new Error('snapshot acquisition failed');
+      f.create.mockImplementationOnce(() => {
+        throw original;
+      });
+
+      expect(catchThrown(() => f.factory.bootstrap(f.TestModule, f.app))).toBe(original);
+      for (const setter of f.setters) expect(setter).not.toHaveBeenCalled();
+      expect(mount).not.toHaveBeenCalled();
+      expect(f.restore).not.toHaveBeenCalled();
+      expect(f.real.runtime.createBootstrapSnapshot()).toEqual(before);
+      expect(getAppStack(f.app)).toEqual(beforeStack);
+
+      const result = f.factory.bootstrap(f.TestModule, f.app);
+      expect(getAppStackLength(f.app)).toBe(beforeStack.length + 1);
+      expectSingleScopedMount(f.app, result, f.factory);
+    });
+
+    it.each(['createBootstrapSnapshot', 'restoreBootstrapSnapshot'] as const)(
+      'requires callable %s before snapshot acquisition or mutation',
+      (method) => {
+        const f = transactionFixture(createAt, restoreAt);
+        const owner = method === 'createBootstrapSnapshot' ? f.createOwner : f.restoreOwner;
+        const saved = owner[method];
+        const mount = vi.spyOn(f.app, 'use');
+        for (const unavailable of [undefined, null, false]) {
+          owner[method] = unavailable;
+          expect(() => f.factory.bootstrap(f.TestModule, f.app)).toThrow(
+            /createBootstrapSnapshot.*restoreBootstrapSnapshot/,
+          );
+          for (const setter of f.setters) expect(setter).not.toHaveBeenCalled();
+          expect(mount).not.toHaveBeenCalled();
+          expect(f.create).not.toHaveBeenCalled();
+          expect(f.restore).not.toHaveBeenCalled();
+        }
+        owner[method] = saved;
+        expectSingleScopedMount(f.app, f.factory.bootstrap(f.TestModule, f.app), f.factory);
+      },
+    );
+
+    it.each(['restore', 'cleanup', 'both'] as const)(
+      'reports original plus %s failure and attempts both recovery steps',
+      (failure) => {
+        const f = transactionFixture(createAt, restoreAt);
+        const before = f.real.runtime.createBootstrapSnapshot();
+        const stack = getAppStack(f.app)!;
+        const original = { reason: 'mount failed after publication' };
+        const restoreError = new Error('runtime restore failed');
+        const cleanupError = new Error('stack cleanup failed');
+        let failCleanup = false;
+        let cleanupAttempts = 0;
+        (f.app as any).router.stack = new Proxy(stack, {
+          set(target, key, value) {
+            if (key === 'length' && value === 1) {
+              cleanupAttempts++;
+              if (failCleanup) throw cleanupError;
+            }
+            return Reflect.set(target, key, value);
+          },
+        });
+        if (failure !== 'cleanup') {
+          f.restore.mockImplementationOnce(() => {
+            throw restoreError;
+          });
+        }
+        const use = f.app.use.bind(f.app);
+        const mount = vi.spyOn(f.app, 'use').mockImplementation((...args: any[]) => {
+          (use as any)(...args);
+          failCleanup = failure !== 'restore';
+          throw original;
+        });
+
+        const error = catchThrown(() => f.factory.bootstrap(f.TestModule, f.app)) as AggregateError;
+        expect(error).toBeInstanceOf(AggregateError);
+        expect(error.cause).toBe(original);
+        const expected: unknown[] = [original];
+        if (failure !== 'cleanup') expected.push(restoreError);
+        if (failure !== 'restore') expected.push(cleanupError);
+        expect(error.errors).toEqual(expected);
+        expected.forEach((value, index) => expect(error.errors[index]).toBe(value));
+        expect(error.message).toMatch(/recovery|uncertain/i);
+        expect(f.restore).toHaveBeenCalledTimes(1);
+        expect(cleanupAttempts).toBe(1);
+        expect(stack.length).toBe(failure === 'restore' ? 1 : 2);
+        expect(snapshotEquals(f.real.runtime.createBootstrapSnapshot(), before)).toBe(failure === 'cleanup');
+
+        // Recovery is host-owned after failed rollback. Repair both states before
+        // retrying; success demonstrates that even this failure released the tuple.
+        f.real.runtime.restoreBootstrapSnapshot(before);
+        failCleanup = false;
+        stack.length = 1;
+        mount.mockRestore();
+        expectSingleScopedMount(f.app, f.factory.bootstrap(f.TestModule, f.app), f.factory);
+        expect(stack).toHaveLength(2);
+      },
+    );
+
+    it('retains the acquired restore capability if setup replaces its API property', () => {
+      const f = transactionFixture(createAt, restoreAt);
+      const before = f.real.runtime.createBootstrapSnapshot();
+      const original = new Error('setter failed');
+      const setter = vi.spyOn(f.runtime, 'setGlobalOptions').mockImplementationOnce((options: any) => {
+        f.real.setGlobalOptions(options);
+        f.restoreOwner.restoreBootstrapSnapshot = undefined;
+        throw original;
+      });
+      const mount = vi.spyOn(f.app, 'use');
+      expect(catchThrown(() => f.factory.bootstrap(f.TestModule, f.app))).toBe(original);
+      expect(f.restore).toHaveBeenCalledTimes(1);
+      expect(f.real.runtime.createBootstrapSnapshot()).toEqual(before);
+      expect(mount).not.toHaveBeenCalled();
+      f.restoreOwner.restoreBootstrapSnapshot = f.restore;
+      setter.mockRestore();
+      expectSingleScopedMount(f.app, f.factory.bootstrap(f.TestModule, f.app), f.factory);
+    });
+  });
+
+  it('prefers direct capabilities and does not fall back after a direct acquisition failure', () => {
+    const f = transactionFixture('direct', 'direct');
+    const fallback = vi.fn(() => {
+      throw new Error('must not use fallback');
+    });
+    f.runtime.runtime.createBootstrapSnapshot = fallback;
+    f.runtime.runtime.restoreBootstrapSnapshot = fallback;
+    const original = new Error('direct acquisition failure');
+    f.create.mockImplementationOnce(() => {
+      throw original;
+    });
+    expect(catchThrown(() => f.factory.bootstrap(f.TestModule, f.app))).toBe(original);
+    for (const setter of f.setters) expect(setter).not.toHaveBeenCalled();
+    const mount = vi.spyOn(f.app, 'use').mockImplementationOnce(() => {
+      throw original;
+    });
+    expect(catchThrown(() => f.factory.bootstrap(f.TestModule, f.app))).toBe(original);
+    expect(f.restore).toHaveBeenCalledTimes(1);
+    expect(fallback).not.toHaveBeenCalled();
+    mount.mockRestore();
+    expectSingleScopedMount(f.app, f.factory.bootstrap(f.TestModule, f.app), f.factory);
+  });
+
+  it('propagates capability lookup failure before acquisition or mutation and releases the tuple', () => {
+    const f = transactionFixture('underlying', 'underlying');
+    const original = { reason: 'restore capability lookup failed' };
+    Object.defineProperty(f.restoreOwner, 'restoreBootstrapSnapshot', {
+      configurable: true,
+      get() {
+        throw original;
+      },
+    });
+    const mount = vi.spyOn(f.app, 'use');
+    expect(catchThrown(() => f.factory.bootstrap(f.TestModule, f.app))).toBe(original);
+    expect(f.create).not.toHaveBeenCalled();
+    for (const setter of f.setters) expect(setter).not.toHaveBeenCalled();
+    expect(mount).not.toHaveBeenCalled();
+    Object.defineProperty(f.restoreOwner, 'restoreBootstrapSnapshot', { value: f.restore });
+    expectSingleScopedMount(f.app, f.factory.bootstrap(f.TestModule, f.app), f.factory);
+  });
+
+  it('reports app router retrieval failure during cleanup alongside the original error', () => {
+    const f = transactionFixture('underlying', 'underlying');
+    const before = f.real.runtime.createBootstrapSnapshot();
+    const original = new Error('mount failed');
+    const cleanupError = new Error('router retrieval failed');
+    const stack: unknown[] = [];
+    const app = {
+      _getRouter: vi
+        .fn()
+        .mockReturnValueOnce(undefined)
+        .mockImplementationOnce(() => {
+          throw cleanupError;
+        })
+        .mockReturnValue({ stack }),
+      use: vi
+        .fn()
+        .mockImplementationOnce(() => {
+          throw original;
+        })
+        .mockImplementation(() => {
+          stack.push('mounted');
+        }),
+    } as unknown as express.Express;
+    const error = catchThrown(() => f.factory.bootstrap(f.TestModule, app)) as AggregateError;
+    expect(error).toBeInstanceOf(AggregateError);
+    expect(error.cause).toBe(original);
+    expect(error.errors).toEqual([original, cleanupError]);
+    expect(f.restore).toHaveBeenCalledTimes(1);
+    expect(f.real.runtime.createBootstrapSnapshot()).toEqual(before);
+    expect(() => f.factory.bootstrap(f.TestModule, app)).not.toThrow();
+    expect(stack).toHaveLength(1);
+  });
+
+  it('retains undefined original and non-Error recovery throws in the aggregate', () => {
+    const f = transactionFixture('underlying', 'underlying');
+    const before = f.real.runtime.createBootstrapSnapshot();
+    f.restore.mockImplementationOnce(() => {
+      throw null;
+    });
+    const mount = vi.spyOn(f.app, 'use').mockImplementationOnce(() => {
+      throw undefined;
+    });
+    const error = catchThrown(() => f.factory.bootstrap(f.TestModule, f.app)) as AggregateError;
+    expect(error).toBeInstanceOf(AggregateError);
+    expect(Object.hasOwn(error, 'cause')).toBe(true);
+    expect(error.cause).toBeUndefined();
+    expect(error.errors).toEqual([undefined, null]);
+    f.real.runtime.restoreBootstrapSnapshot(before);
+    mount.mockRestore();
+    expectSingleScopedMount(f.app, f.factory.bootstrap(f.TestModule, f.app), f.factory);
+  });
+
+  it.each([new Error('original'), { reason: 'original' }, 'original', undefined, null, 0])(
+    'retains exact ordinary throw %j after successful rollback and clean retry',
+    (original) => {
+      const f = transactionFixture('underlying', 'underlying');
+      const before = f.real.runtime.createBootstrapSnapshot();
+      const beforeStack = [...getAppStack(f.app)!];
+      const use = f.app.use.bind(f.app);
+      const mount = vi.spyOn(f.app, 'use').mockImplementation((...args: any[]) => {
+        (use as any)(...args);
+        throw original;
+      });
+      expect(catchThrown(() => f.factory.bootstrap(f.TestModule, f.app))).toBe(original);
+      expect(f.restore).toHaveBeenCalledTimes(1);
+      expect(f.real.runtime.createBootstrapSnapshot()).toEqual(before);
+      expect(getAppStack(f.app)).toEqual(beforeStack);
+      mount.mockRestore();
+      expectSingleScopedMount(f.app, f.factory.bootstrap(f.TestModule, f.app), f.factory);
+      expect(getAppStackLength(f.app)).toBe(beforeStack.length + 1);
+    },
+  );
+
+  it.each([null, undefined])('rejects an absent snapshot result %j before mutation', (snapshot) => {
+    const f = transactionFixture('underlying', 'underlying');
+    f.create.mockReturnValueOnce(snapshot as any);
+    const mount = vi.spyOn(f.app, 'use');
+    expect(() => f.factory.bootstrap(f.TestModule, f.app)).toThrow(/snapshot/i);
+    for (const setter of f.setters) expect(setter).not.toHaveBeenCalled();
+    expect(mount).not.toHaveBeenCalled();
+    expect(f.restore).not.toHaveBeenCalled();
+    expectSingleScopedMount(f.app, f.factory.bootstrap(f.TestModule, f.app), f.factory);
+  });
+});
 
 describe('bootstrap transactional atomicity (ARDECO-04)', () => {
   it('malformed existing hook chain leaves no package middleware and runtime unchanged (preflight)', () => {

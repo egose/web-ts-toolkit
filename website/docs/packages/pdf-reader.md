@@ -17,7 +17,46 @@ The package targets browsers, is published as ESM-only, and treats `pdfjs-dist` 
 
 ## Migration
 
-Upgrade from the older application-local reader by switching to named imports, explicit `configurePdfWorker(...)`, `page.pageImage` instead of legacy top-level image fields, and the current option names (`includeText`, `includePageImage`, `includeEmbeddedImages`). The package intentionally does not ship compatibility aliases for the old default export, deep imports, `getText`, `getDataURL`, `getImages`, `config`, `dataURL`, or `isPNG` names. Follow-up hardening keeps that API but snapshots effective headers before `sourcePolicy(...)`, rechecks borrowed byte sizes after approval, retries failed loads with a fresh attempt, settles page-stage waits promptly via one shared cancellation contract (underlying PDF.js work stays uncancellable), decodes one-bit images by declared kind, resolves shared images via `commonObjs`, and rejects invalid options/encodes with `INVALID_OPTION`/`UNSUPPORTED_ENVIRONMENT`. Page work stays serial and text/operator limits still apply after PDF.js returns complete structures — no concurrency or streaming-text API change ships in this release.
+New named root export `pdfTextToString(content)` assembles raw `PageResult.text` for local search/indexing. It preserves supplied item order, whitespace, and Unicode, skips marked-content entries, and appends one `\n` for every text item's `hasEOL: true` (including empty and final items). It guesses no spaces and trims nothing. Use `includePageImage: false` for text-only ingestion; page rendering still defaults to enabled. See the local ingestion recipe below.
+
+Signal inputs are now validated before load/page work, including an already-loaded `load()` call. Replace `null` or malformed signal placeholders with an omitted property or `undefined`; invalid values produce `INVALID_OPTION`. Native signals from other realms (such as same-origin iframes) remain supported.
+
+Upgrade from the older application-local reader by switching to named imports, explicit `configurePdfWorker(...)`, `page.pageImage` instead of legacy top-level image fields, and the current option names (`includeText`, `includePageImage`, `includeEmbeddedImages`). The package intentionally does not ship compatibility aliases for the old default export, deep imports, `getText`, `getDataURL`, `getImages`, `config`, `dataURL`, or `isPNG` names. Follow-up hardening keeps that API but snapshots effective headers before `sourcePolicy(...)`, rechecks borrowed byte sizes after approval, retries failed loads with a fresh attempt, settles page-stage waits promptly via one shared cancellation contract (active renders are cancelled; other started PDF.js work remains observed), decodes one-bit images by declared kind, resolves shared images via `commonObjs`, and rejects invalid options/encodes with `INVALID_OPTION`/`UNSUPPORTED_ENVIRONMENT`. Page work stays serial and text/operator limits still apply after PDF.js returns complete structures — no concurrency or streaming-text API change ships in this release.
+
+Synchronous abort/destroy in canvas factories or viewport callbacks now stops subsequent allocation/rendering. Already-created renders are cancelled even when cancellation precedes wait registration. Already-started promises remain observed, including late `getPage()` cleanup and a source policy that synchronously destroys the reader then rejects. Caller settlement releases the page-operation lock but does not imply uncancelled upstream work or cached-page cleanup has finished. A suspended `pages()` consumer observes cancellation when resumed or closed.
+
+**Render cancellation/failure now permanently closes the reader.** Once a render task has been created, cancellation or failure starts public PDF.js teardown automatically. The initiating call retains prompt `ABORTED` or its exact native error; explicit destruction produces `DESTROYED`. Later `load()`, `pages()` execution, and `convert()` fail with `DESTROYED` before page/image access. This intentionally replaces the earlier same-reader render-retry promise: PDF.js can clear shared images after the render promise rejects. Retry requires an explicitly created fresh reader and fresh bytes, since PDF.js may have transferred the original input. No replacement document is silently loaded. Default `includePageImage: true` conversions may enter this terminal path.
+
+Pre-render/non-render cancellation and encoding cancellation/failure after successful rendering still permit same-reader reuse, as do malformed-option rejection and callback failures before rendering. These safe retries retain shared ownership across pending acquisitions, active processing, and original stage promises. The package's `page.cleanup()` request waits until that cached-page cycle is idle. A successful retry or `state === 'loaded'` does not prove older work is finished. Idle bookkeeping is removed; never-settling work retains ownership until `destroy()`, and repeated non-render cancellation does not bound upstream work. This coordination covers package-started work, not external proxy operations or manual cleanup.
+
+`destroy()` clears retained page ownership and waits for PDF.js loading/document destruction, without waiting for orphaned acquisition/stage promises; late acquisitions receive best-effort cleanup and never start processing. Await active operation promises to observe their temporary canvas release. Awaiting cancellation alone does not guarantee deferred page cleanup or upstream completion.
+
+Automatic teardown does not wait or replace the initiating render error, and its rejection is observed internally. Explicit `destroy()` returns the same memoized promise, reporting success/failure even on repeated/reentrant calls. Handle teardown errors separately if an awaited `finally` would otherwise replace an earlier conversion error. `state === 'destroyed'` means closure started, not successful/completed teardown. Caller-created PDF workers remain caller-owned.
+
+### Fresh-reader recovery after an interrupted render
+
+After handling the original error, explicitly recover from the original `File`, not its potentially detached previous typed array. Each call obtains fresh bytes:
+
+```ts
+import { PDFReader } from '@web-ts-toolkit/pdf-reader';
+
+async function extractFresh(file: File) {
+  const maxSourceBytes = 25_000_000;
+  if (file.size > maxSourceBytes) throw new Error('PDF exceeds the local file-size limit.');
+  const recovery = new PDFReader(new Uint8Array(await file.arrayBuffer()), { limits: { maxSourceBytes } });
+  try {
+    await recovery.load();
+    return await recovery.convert({
+      pageRange: 1,
+      includeText: false,
+      includePageImage: false,
+      includeEmbeddedImages: true,
+    });
+  } finally {
+    await recovery.destroy();
+  }
+}
+```
 
 ## Example
 
@@ -27,7 +66,9 @@ import { configurePdfWorker, PDFReader } from '@web-ts-toolkit/pdf-reader';
 
 configurePdfWorker(workerUrl);
 
-const reader = new PDFReader(new Uint8Array(await file.arrayBuffer()));
+const maxSourceBytes = 25_000_000;
+if (file.size > maxSourceBytes) throw new Error('PDF exceeds the local file-size limit.');
+const reader = new PDFReader(new Uint8Array(await file.arrayBuffer()), { limits: { maxSourceBytes } });
 
 try {
   await reader.load({ deadlineMs: 15_000 });
@@ -44,6 +85,8 @@ Prefer `pages()` for large documents. Use `convert()` when retaining all page re
 Concurrent `load()` callers share one PDF.js loading task, but aborting one caller only rejects that caller. The fulfilled `load()` value is a borrowed PDF.js `PDFDocumentProxy`: inspect it or use supported PDF.js read methods if needed, but do not call `document.destroy()` while the reader owns lifecycle teardown. Call `reader.destroy()` to cancel active renders, tear down a shared in-flight load, and permanently close the reader. External proxy destruction is unsupported and can leave `reader.state` stale until a later PDF.js method fails.
 
 `load()` accepts either an `AbortSignal` or `{ signal, deadlineMs }`. `deadlineMs` is caller-local, rejects with `DEADLINE_EXCEEDED`, and does not cancel unrelated concurrent `load()` callers sharing the same PDF.js task.
+
+Both load forms and `pages({ signal })` / `convert({ signal })` validate signals structurally: boolean `aborted` and callable `addEventListener` / `removeEventListener`. Omitted or explicit `undefined` means no signal; `null`, primitives, and partial/non-callable shapes produce `INVALID_OPTION`. `load()` throws synchronously before source policy/PDF.js work, even when already loaded; conversion rejects before `getPage()` and releases its operation lock for valid reuse. `load({})` is a valid empty options bag; objects containing any of the three signal members are treated as direct signals and must satisfy the full shape. Nested signal references and load deadlines are read once per operation, while the signal's abort state remains live. Custom signal implementations must preserve working event methods and live boolean abort state while in use.
 
 `configurePdfWorker(...)` mutates PDF.js application-global worker state only when you call it, not at module evaluation. Reconfiguring it replaces the previous URL-or-port setting and can collide with other PDF.js consumers in the same JavaScript realm. If you pass an existing `Worker`, the caller still owns terminating it. For per-document isolation, pass a caller-created PDF.js `PDFWorker` on the `PDFReader` source object and retain the handle so you can destroy it explicitly:
 
@@ -85,5 +128,46 @@ Embedded-image extraction remains opt-in on the package root. The current real-b
 PDFR2-05 release-note evidence is captured in this page, the package README, and the task completion record. `CHANGELOG.md` was intentionally not edited for that compatibility-policy alignment per maintainer instruction.
 
 Page processing remains serial per reader in the public runtime API. A second overlapping `pages()` or `convert()` operation on the same loaded reader fails fast with `OPERATION_IN_PROGRESS` before acquiring another page proxy or canvas; create a separate reader for independent concurrent conversions. Calling `pages()` only creates an iterator object and does not reserve the reader until the iterator starts executing. PDFR-07 adds a real-browser benchmark under `packages/pdf-reader/benchmark/` that compares the current `pages()` path against a bounded page-level scheduler candidate (concurrency `2`, reorder window `2` retained pages) before any concurrency option is considered. The current baseline (2026-09-12, Headless Chromium `151.0.7922.34`, 1 warmup + 3 repeats) reports conversion-only, load, and load-inclusive times with global simultaneous peaks: bounded overlap reduces conversion-only time on some fixtures but loads a second document and doubles simultaneous page/canvas ownership, so the package keeps the serial API until a tighter browser memory/backpressure budget exists. The 2026-08-19 single-sample numbers remain historical only. The benchmark command is `pnpm --filter @web-ts-toolkit/pdf-reader benchmark`.
+
+## Plain Text And Local Ingestion
+
+`pdfTextToString(content: PdfTextContent): string` is a pure named root utility for already-extracted text. It preserves PDF.js item order and each string verbatim, including supplied spaces and Unicode. It appends exactly one `\n` after every text item with `hasEOL: true`, even an empty or final item. Existing newlines are not deduplicated; trailing whitespace/newlines are retained. Empty or marker-only content returns `''`; marked-content entries are skipped. XFA-style string items without `hasEOL` contribute only their string. Fragmented words are concatenated without guessed spaces.
+
+Configure the worker once as shown above. This browser recipe checks a local `File` before allocating its bytes, processes pages serially with 1-based page attribution, and displays only the current page via safe `textContent`:
+
+```ts
+import { PDFReader, pdfTextToString } from '@web-ts-toolkit/pdf-reader';
+
+async function ingestLocalPdf(
+  file: File,
+  output: HTMLPreElement,
+  indexPage: (record: { pageNumber: number; text: string }) => void | Promise<void>,
+): Promise<void> {
+  const maxSourceBytes = 25_000_000;
+  if (file.size > maxSourceBytes) throw new Error('PDF exceeds the local file-size limit.');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const reader = new PDFReader(bytes, { limits: { maxSourceBytes, maxDocumentPages: 250 } });
+
+  try {
+    await reader.load({ deadlineMs: 15_000 });
+    for await (const page of reader.pages({
+      includeText: true,
+      includePageImage: false,
+      includeEmbeddedImages: false,
+    })) {
+      if (!page.text) throw new Error(`Missing text content for page ${page.pageNumber}.`);
+      const text = pdfTextToString(page.text);
+      output.textContent = `Page ${page.pageNumber}\n${text}`;
+      await indexPage({ pageNumber: page.pageNumber, text });
+    }
+  } finally {
+    await reader.destroy();
+  }
+}
+```
+
+Supply an application-local `indexPage` callback (and a document ID when indexing multiple files). Neither the helper nor this recipe uploads document data; storage/retention belongs to that callback. With both image options disabled, the package allocates no page/embedded-image canvases. The helper itself does no parsing, canvas work, or I/O and does not mutate the content.
+
+This is not OCR or layout/reading-order reconstruction: scanned pages may yield empty text, and columns or positioned fragments remain in PDF.js-supplied order. PDF.js may already have normalized the strings before returning them. `pages()` yields complete pages, not streaming text chunks; text-item/code-unit limits still run **after PDF.js materializes each page's text**. The helper allocates a new string and imposes no additional limits. Keep extracted content out of `innerHTML`; `textContent` displays it literally.
 
 The installed package README documents resource limits, cancellation, worker alternatives, structured errors, security guidance, and embedded-image limitations in detail.

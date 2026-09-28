@@ -1,4 +1,4 @@
-import { ExportKeyCollisionError, JsonFrameOptionError, JsonFrameValidationError } from '../errors';
+import { ExportKeyCollisionError, JsonFrameValidationError } from '../errors';
 import {
   getStoredColumnValue,
   validateStoredColumnValuesForType,
@@ -6,6 +6,7 @@ import {
   type StoredColumn,
 } from '../frame/column';
 import { cloneJsonCompatible } from '../json';
+import { normalizeToTableOptions } from '../options';
 import type {
   ColumnInfo,
   ColumnsPayload,
@@ -198,23 +199,13 @@ const getDataFieldTemplates = (state: FrameState): readonly TableSchemaField[] =
 };
 
 const resolveIndexFieldName = (state: FrameState, options?: ToTableOptions): string | undefined => {
-  if (options !== undefined && (Array.isArray(options) || typeof options !== 'object' || options === null)) {
-    throw new JsonFrameOptionError('`toTable` options must be an object when provided.', 'options', options);
-  }
-
-  if (options?.indexField !== undefined && typeof options.indexField !== 'string') {
-    throw new JsonFrameOptionError(
-      '`toTable` options.indexField must be a string when provided.',
-      'indexField',
-      options.indexField,
-    );
-  }
+  const normalized = normalizeToTableOptions(options);
 
   if (state.indexKind === 'synthetic') {
     return undefined;
   }
 
-  const indexField = options?.indexField ?? state.tableIndexField ?? 'index';
+  const indexField = normalized.indexField ?? state.tableIndexField ?? 'index';
   if (state.columns.includes(indexField)) {
     throw new JsonFrameValidationError('Table export index field name must not collide with a data column.', {
       path: '$.schema.fields',

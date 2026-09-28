@@ -73,9 +73,16 @@ That lets tests control expiry behavior without waiting for real time to pass.
 - inputs and returned records are cloned with `structuredClone`, so callers retain ownership of their objects
 - expiry uses `expiresAt <= now()` as expired, and cleanup is opportunistic during reads and writes rather than a background timer
 - rotation requires a distinct unused target session ID; missing-source, same-ID, and existing-target conflicts throw `OidcVaultStoreConflictError` without changing source or target records
-- rotated public session IDs remain revocation aliases for the current logical session while that logical session is still live
+- aliases expire with their immediate successor's `expiresAt`; later rotations do not extend them. Without expiry, memory/Redis impose no time limit, unlike MongoDB's default five-minute fallback. Non-expiring alias growth has no fixed size bound
+- with `A/L1 -> B/L1 -> C/L2`, B revokes L2; retained A still revokes L1, not C. Memory retires inactive old-lineage aliases on rotation/upsert and clears alias-only target ownership on reuse. `getSession` never resolves aliases
 - `deleteSession(...)`, `deleteSessionsByLogicalSessionId(...)`, `deleteSessionsBySubject(...)`, and `deleteSessionsByProviderSessionId(...)` logically revoke live sessions and remove stale rotation aliases when no live session remains in a logical lineage
 - backchannel logout token JTI records are consumed only when `expiresAt` is a finite timestamp greater than the store clock at consume time
+
+Portable callers use fresh session IDs (memory/MongoDB upsert live duplicates, Redis rejects) and JSON-compatible plain data. Inputs are captured at invocation and returned portable data is detached. Memory uses `structuredClone`; MongoDB BSON and Redis JSON/native-object semantics differ outside that subset.
+
+Bulk deletes count live sessions, not expired records or aliases. Subject/provider-session objects filter each supplied issuer/client; string inputs and logical IDs are unscoped. A survivor in another scope preserves its unexpired aliases. Mutations run synchronously in this process, but later arrivals can survive. The 64-slot expiry sweep does not cap full key-snapshot rebuilds, full-map bulk deletion, or nested lineage/alias scans. No connection, readiness, or teardown is needed. Use fixed diagnostic categories instead of records, credentials or raw errors.
+
+The [shipped README](https://github.com/egose/web-ts-toolkit/blob/main/packages/express-oidc-vault-memory-store/README.md) contains the complete portable/lifecycle contract and compatibility notes.
 
 ## When To Use It
 

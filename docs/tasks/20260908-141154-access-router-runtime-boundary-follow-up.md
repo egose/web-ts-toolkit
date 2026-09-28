@@ -12,7 +12,7 @@ Close remaining lifecycle, resource-ownership, configuration, artifact, and publ
 - Treat config, schemas, hooks, and preload modules as trusted application code. No confirmed remote authorization bypass was established in this package.
 - Do not rewrite delegated CRUD authorization, query parsing, HTTP adapters, watchers, or bundlers. Coordinate shared lifecycle changes with [express-runtime boundary review](20260907-181731-express-runtime-boundary-review.md).
 - Prefer small enforcement boundaries and behavior-focused regressions. Do not split `src/index.ts` merely for line count or add speculative caching.
-- Use repository-relative paths in this document and subsequent evidence. Generic temporary fixtures may live under `/tmp`.
+- Use repository-relative paths in this document and subsequent evidence. Temporary fixtures must live under ignored repository-local `_tmp*` directories with `TMPDIR=<repo-root>/_tmp-<topic>`.
 - Preserve unrelated worktree changes, including concurrent OIDC-vault store work. Do not manually edit generated `dist/` files.
 
 ## Coverage And Evidence

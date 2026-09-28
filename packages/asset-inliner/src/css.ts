@@ -8,13 +8,16 @@ import postcss from 'postcss';
 import * as valueParserModule from 'postcss-value-parser';
 import type { InlineOptions, InlineResult, AssetReplacement, AssetDiagnostic } from './types.ts';
 import { InvalidOptionsError, ParseError, ResourceLimitError } from './errors.ts';
-import { classifyUrl, resolveAssetReferenceSync } from './resolve.ts';
+import { classifyUrl, resolveAssetReferenceSync, htmlResolutionContext } from './resolve.ts';
+import type { InternalResolutionOptions } from './resolve.ts';
 import { assertSafeDataUrl, escapeCssSingleQuoteString } from './format.ts';
+import { assertCssSyntaxDepth, assertCssTreeDepth } from './syntax-depth.ts';
 import {
   validatePolicyOptions,
   DEFAULT_MAX_TARGET_BYTES,
   DEFAULT_MAX_REPLACEMENTS,
   DEFAULT_MAX_OUTPUT_BYTES,
+  DEFAULT_MAX_SYNTAX_DEPTH,
 } from './policy.ts';
 
 // ---------------------------------------------------------------------------
@@ -185,7 +188,11 @@ function cssUnescape(input: string): string {
 // Public API: inlineCss
 // ---------------------------------------------------------------------------
 
-/** Inline local `url(...)` in CSS using an `AssetCatalog`. Returns original content when unchanged. */
+/**
+ * Inline local `url(...)` in CSS using an `AssetCatalog`. Returns original content when unchanged.
+ * `maxSyntaxDepth` (default 256, maximum 512) bounds mixed CSS delimiters before
+ * parsing, even without URLs. Excess throws `ResourceLimitError`; see `InlineOptions`.
+ */
 export function inlineCss(content: string, options: InlineOptions): InlineResult {
   if (typeof content !== 'string') {
     throw new InvalidOptionsError('inlineCss requires content as string');
@@ -198,6 +205,7 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
     maxTargetBytes: (options as unknown as { maxTargetBytes?: unknown }).maxTargetBytes,
     maxReplacements: (options as unknown as { maxReplacements?: unknown }).maxReplacements,
     maxOutputBytes: (options as unknown as { maxOutputBytes?: unknown }).maxOutputBytes,
+    maxSyntaxDepth: options.maxSyntaxDepth,
     maxInlineBytes: (options as unknown as { maxInlineBytes?: unknown }).maxInlineBytes,
   });
   if (
@@ -217,6 +225,7 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
     (options as unknown as { maxReplacements?: number }).maxReplacements ?? DEFAULT_MAX_REPLACEMENTS;
   const maxOutputBytes = (options as unknown as { maxOutputBytes?: number }).maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
   const maxInlineBytes = (options as unknown as { maxInlineBytes?: number }).maxInlineBytes;
+  const maxSyntaxDepth = options.maxSyntaxDepth ?? DEFAULT_MAX_SYNTAX_DEPTH;
   const shouldInline = (
     options as unknown as { shouldInline?: (asset: import('./types.ts').EncodedAsset, url: string) => boolean }
   ).shouldInline;
@@ -237,6 +246,7 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
     });
   }
 
+  assertCssSyntaxDepth(content, maxSyntaxDepth, documentPath);
   let root: postcss.Root;
   try {
     root = postcss.parse(content);
@@ -245,6 +255,7 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
     throw new ParseError(`Failed to parse CSS: ${msg}`, { cause: err });
   }
 
+  assertCssTreeDepth(root, maxSyntaxDepth, documentPath);
   const replacements: AssetReplacement[] = [];
   const diagnostics: AssetDiagnostic[] = [];
   let modified = false;
@@ -272,6 +283,7 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
       return;
     }
 
+    assertCssTreeDepth({ type: 'root', nodes: parsed.nodes }, maxSyntaxDepth, documentPath);
     const isFontFaceSrc = isFontFaceSrcDecl(decl);
 
     // Derive value start offset in original content for location mapping (decl-local, not global indexOf)
@@ -489,6 +501,7 @@ export function inlineCss(content: string, options: InlineOptions): InlineResult
       let resolved: ReturnType<typeof resolveAssetReferenceSync> extends infer R ? R : never;
       try {
         resolved = resolveAssetReferenceSync(unescapedUrl, catalog, {
+          [htmlResolutionContext]: (options as InternalResolutionOptions)[htmlResolutionContext],
           documentPath,
           rootDir,
           allowBasenameMatch,

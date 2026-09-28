@@ -140,6 +140,7 @@ export interface RootRouterOptions {
   operationAccess?: Validation;
   maxBatchEntries?: number;
   maxOrderGroups?: number;
+  /** Whole root operations per order group; separate from requestComplexity.maxBulkConcurrency persistence admission. */
   maxConcurrentOperations?: number;
 }
 
@@ -169,6 +170,7 @@ interface DocPermissions {
 
 export interface DefaultModelRouterOptions<TModel = unknown> {
   listHardLimit?: number;
+  /** Authorization metadata path (default `_permissions`); include output cannot equal, contain or descend from it. */
   documentPermissionField?: string;
   idParam?: string;
   idField?: string;
@@ -197,6 +199,11 @@ export interface ExtendedDefaultModelRouterOptions<TModel = unknown> extends Def
 export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions<TModel> {
   modelName?: string;
   basePath?: string;
+  /**
+   * Update grants define assignment boundaries: authorized leaves preserve omitted
+   * siblings; a whole-object/array grant permits replacement (no generic deep merge).
+   * Send nested JSON; literal dotted client keys are not update operators.
+   */
   permissionSchema?: PermissionSchema<AccessRouterFieldKey<TModel>>;
   alwaysSelectFields?: string[];
   docPermissions?: DocPermissions | ModelDocPermissionsHook;
@@ -205,7 +212,19 @@ export interface ModelRouterOptions<TModel = unknown> extends DefaultModelRouter
   decorate?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
   decorateAll?: ModelListHook<TModel> | Record<string, ModelListHook<TModel>>;
   validate?: ValidateRule | ModelValidateHook | Record<string, ValidateRule | ModelValidateHook>;
+  /**
+   * Trusted model hook after validation of selected client data; output is not
+   * re-filtered and may add protected/server-only fields. During update, supplied
+   * children at partial policy ancestors apply without deleting omitted siblings.
+   * Explicit null/undefined can clear/unset a parent; no output means no assignments.
+   * Use transform document setters for deliberate whole-parent replacement.
+   */
   prepare?: ModelHook<TModel> | Record<string, ModelHook<TModel>>;
+  /**
+   * Trusted live-document hook after update assignment and before save. May replace
+   * protected state explicitly with document setters; do not blindly reintroduce
+   * unfiltered context.originalData. Model hooks are not added to subdocument writes.
+   */
   transform?: ModelDocumentHook<TModel> | Record<string, ModelDocumentHook<TModel>>;
   afterPersist?: ModelDocumentHook<TModel> | Record<string, ModelDocumentHook<TModel>>;
   onChange?: Record<string, ModelChangeHook>;

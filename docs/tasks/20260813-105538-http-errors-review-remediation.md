@@ -477,7 +477,7 @@ Acceptance criteria:
 Completion evidence:
 
 - Investigated without production edits. Built release-like package output first with `pnpm --filter @web-ts-toolkit/http-errors build` so runtime measurements import `packages/http-errors/dist/index.mjs`.
-- Benchmark script: `/tmp/opencode/http-errors-benchmark.mjs` using `node --expose-gc`. Node version reported by benchmark: `v26.5.0`.
+- Benchmark script: `<repo-root>/_tmp/http-errors-benchmark.mjs` using `node --expose-gc`. Node version reported by benchmark: `v26.5.0`.
 - Datasets: small payload has `metadata=3`, `details=1`, `errors=1`; large payload has `metadata=10000`, `details=10000`, `errors=10000`. Large entries are representative caller-controlled string metadata, AIP-193 detail objects, and RFC 9457 validation entries.
 - Benchmark results:
 
@@ -494,7 +494,7 @@ Completion evidence:
 | serialize RFC 9457 validation large payload |        200 | 143.65 ms total; 718.23 us/op; 16.07 MiB heap delta     |
 
 - Direct package usage can make `metadata`, `details`, and `errors` request-controlled if an application passes raw request values into `HttpErrorOptions` or compatible serializer shapes. `express-response-handler` normalizes thrown/plain object `metadata` with `toStringRecord` and wraps non-array `details`, but does not impose byte, entry-count, or depth limits before calling `http-errors` serializers.
-- Packed artifact evidence for the utility dependency: `pnpm pack --pack-destination "/tmp/opencode"` produced `/tmp/opencode/web-ts-toolkit-http-errors-0.0.0-PLACEHOLDER.tgz` containing only `dist/index.*`, `LICENSE`, `package.json`, and `README.md`. Current `tsup` output bundles the helper implementation into `dist`, so `@web-ts-toolkit/utils` does not add extra files to this package tarball. Startup spot checks on the built output reported `6.960 ms require CJS` and `25.102 ms import ESM`; no dependency-removal threshold was demonstrated.
+- Packed artifact evidence for the utility dependency: `pnpm pack --pack-destination "<repo-root>/_tmp"` produced `<repo-root>/_tmp/web-ts-toolkit-http-errors-0.0.0-PLACEHOLDER.tgz` containing only `dist/index.*`, `LICENSE`, `package.json`, and `README.md`. Current `tsup` output bundles the helper implementation into `dist`, so `@web-ts-toolkit/utils` does not add extra files to this package tarball. Startup spot checks on the built output reported `6.960 ms require CJS` and `25.102 ms import ESM`; no dependency-removal threshold was demonstrated.
 - Recommendation: defer production changes. Normal payload construction and serialization costs are small for error-path usage. Large collections have clear linear CPU/allocation cost and can enlarge response bodies, but no maintainer-approved rejection/truncation semantics or compatibility threshold exists. Do not add arbitrary resource bounds in `http-errors`; document and enforce limits at application or framework input boundaries if a product needs them. Do not inline `toStringRecord` solely to remove the workspace dependency without stronger packed-size, startup, or maintenance evidence.
 
 ### Task HTE-09: Perform Independent Final Integration Review

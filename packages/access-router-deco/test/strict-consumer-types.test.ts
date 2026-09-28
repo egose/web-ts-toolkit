@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { cleanupConsumerDirs, runTsc, stageCleanConsumerDir, stageConsumerDir } from './consumer-stage';
 
 afterAll(() => {
@@ -310,6 +311,90 @@ describe('access-router-deco strict consumer types', () => {
     }
 
     expect(result.status).toBe(0);
+  });
+
+  it('strict-compiling callable getters fail at decoration time in the installed runtime', () => {
+    const sourceFile = path.join(consumerDir, 'callable-accessors.cts');
+    const tsconfigPath = path.join(consumerDir, 'tsconfig.callable-accessors.json');
+    writeFileSync(
+      sourceFile,
+      `
+      import 'reflect-metadata';
+      import assert from 'node:assert/strict';
+      import { RouteGuard, GlobalPermissions } from '@web-ts-toolkit/access-router-deco';
+
+      let getterCalls = 0;
+      let metadataWrites = 0;
+      const defineMetadata = Reflect.defineMetadata;
+      Reflect.defineMetadata = new Proxy(defineMetadata, {
+        apply(target, thisArg, args) {
+          metadataWrites++;
+          return Reflect.apply(target, thisArg, args);
+        },
+      });
+      try {
+        // Legacy TypedPropertyDescriptor accepts callable getters under strict
+        // checking. Exercise that exact emitted declaration, not a manual call.
+        assert.throws(() => {
+          class GetterGuard {
+            @RouteGuard('read')
+            get guard() {
+              getterCalls++;
+              return () => false;
+            }
+          }
+          void GetterGuard;
+        }, /Invalid @routeGuard target.*guard.*instance method/);
+        assert.throws(() => {
+          class GetterPermissions {
+            @GlobalPermissions()
+            get permissions() {
+              getterCalls++;
+              return () => ['admin'];
+            }
+          }
+          void GetterPermissions;
+        }, /Invalid @globalPermissions target.*permissions.*instance method/);
+        assert.equal(getterCalls, 0);
+        assert.equal(metadataWrites, 0);
+      } finally {
+        Reflect.defineMetadata = defineMetadata;
+      }
+    `,
+    );
+    writeFileSync(
+      tsconfigPath,
+      JSON.stringify(
+        {
+          compilerOptions: {
+            target: 'ES2022',
+            module: 'NodeNext',
+            moduleResolution: 'NodeNext',
+            strict: true,
+            skipLibCheck: false,
+            experimentalDecorators: true,
+            emitDecoratorMetadata: false,
+            types: ['node', 'reflect-metadata'],
+            lib: ['ES2022', 'DOM'],
+          },
+          include: ['callable-accessors.cts'],
+        },
+        null,
+        2,
+      ),
+    );
+    const result = runTsc(consumerDir, tsconfigPath);
+    if (result.status !== 0) {
+      throw new Error(`callable accessor strict consumer compile failed:\n${result.stdout}${result.stderr}`);
+    }
+    expect(result.status).toBe(0);
+    expect(
+      execFileSync(process.execPath, [path.join(consumerDir, 'callable-accessors.cjs')], {
+        cwd: consumerDir,
+        encoding: 'utf8',
+        stdio: 'pipe',
+      }),
+    ).toBe('');
   });
 
   it('resolves Express declarations via direct dependency in a clean consumer (no unrelated @types)', () => {

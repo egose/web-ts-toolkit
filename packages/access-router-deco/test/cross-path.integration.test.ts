@@ -866,18 +866,11 @@ describe('ARDECO-06 cross-path hook and router integration', () => {
     });
   });
 
-  describe('BDECO-10 module-mount versus OpenAPI path composition (current-behavior evidence)', () => {
-    // Investigation evidence for BDECO-10. Each case asserts CURRENT behavior:
-    // the module `basePath` applies only at Express mounting
-    // (`factory.ts:381 expressApp.use(basePath, expressRouter)`), while OpenAPI
-    // paths are registered as `parentPath + basePath` (model, via
-    // `ModelRouter.fullBasePath`) or plain `basename` (root). Implementation
-    // follow-up BDECO-10-F01 owns changing the OpenAPI side; live Express
-    // route matching is intentionally NOT changed by these tests.
+  describe('BDECO-10-F01 module-mount OpenAPI path composition', () => {
     const openApiPaths = (factory: EgoseFactoryStatic): string[] =>
       (factory.runtime as any).runtime.getOpenApiRoutes().map((r: any) => `${r.method.toUpperCase()} ${r.path}`);
 
-    it('P1 root: nonempty module prefix is reachable but missing from OpenAPI', async () => {
+    it('P1 root: nonempty module prefix is reachable and present in OpenAPI', async () => {
       class HealthRouter {}
       Router({ basePath: '/health', operationAccess: true })(HealthRouter);
       class TestMod {}
@@ -888,8 +881,8 @@ describe('ARDECO-06 cross-path hook and router integration', () => {
       factory.bootstrap(TestMod, app);
       await request(app).post('/api/health').send([]).expect(200);
       await request(app).post('/health').send([]).expect(404);
-      expect(openApiPaths(factory)).toContain('POST /health');
-      expect(openApiPaths(factory).some((p) => p === 'POST /api/health')).toBe(false);
+      expect(openApiPaths(factory)).toContain('POST /api/health');
+      expect(openApiPaths(factory)).not.toContain('POST /health');
     });
 
     it('P2 root: empty module prefixes agree with OpenAPI', async () => {
@@ -907,7 +900,7 @@ describe('ARDECO-06 cross-path hook and router integration', () => {
       }
     });
 
-    it('P3 model: nonempty module prefix is reachable but missing from OpenAPI (empty parent)', async () => {
+    it('P3 model: nonempty module prefix is reachable and present in OpenAPI (empty parent)', async () => {
       const modelName = 'DecoCrossB10ModelApi';
       mongoose.model(modelName, new mongoose.Schema({ title: String }));
       class UserRouter {}
@@ -920,8 +913,8 @@ describe('ARDECO-06 cross-path hook and router integration', () => {
       factory.bootstrap(TestMod, app);
       await request(app).get('/api/users/new').expect(200);
       await request(app).get('/users/new').expect(404);
-      expect(openApiPaths(factory)).toContain('GET /users/new');
-      expect(openApiPaths(factory).some((p) => p === 'GET /api/users/new')).toBe(false);
+      expect(openApiPaths(factory)).toContain('GET /api/users/new');
+      expect(openApiPaths(factory)).not.toContain('GET /users/new');
     });
 
     it('P4 model: explicit parent prefix decorates OpenAPI only, never reachable routes', async () => {
@@ -939,9 +932,8 @@ describe('ARDECO-06 cross-path hook and router integration', () => {
       // Reachable ignores parentPath entirely (Express mount uses basePath only).
       await request(app).get('/api/users/new').expect(200);
       await request(app).get('/tenant/users/new').expect(404);
-      // OpenAPI composes parentPath + basePath, still without the module mount.
-      expect(openApiPaths(factory)).toContain('GET /tenant/users/new');
-      expect(openApiPaths(factory).some((p) => p === 'GET /api/tenant/users/new')).toBe(false);
+      expect(openApiPaths(factory)).toContain('GET /api/tenant/users/new');
+      expect(openApiPaths(factory)).not.toContain('GET /tenant/users/new');
     });
 
     it('P5 model: default mount agrees only when parent is also empty/default', async () => {
@@ -973,7 +965,7 @@ describe('ARDECO-06 cross-path hook and router integration', () => {
       expect(openApiPaths(tenantFactory)).toContain('GET /tenant/users/new');
     });
 
-    it('P6 two differently mounted modules: reachable differs per mount, OpenAPI is mount-agnostic', async () => {
+    it('P6 two differently mounted modules: OpenAPI carries each mount', async () => {
       const mA = 'DecoCrossB10TwoA';
       const mB = 'DecoCrossB10TwoB';
       mongoose.model(mA, new mongoose.Schema({ x: String }));
@@ -994,11 +986,8 @@ describe('ARDECO-06 cross-path hook and router integration', () => {
       fB.bootstrap(ModB, app);
       await request(app).get('/api/widgets/new').expect(200);
       await request(app).get('/internal/widgets/new').expect(200);
-      // Neither runtime's OpenAPI carries its module mount.
-      expect(openApiPaths(fA)).toContain('GET /widgets/new');
-      expect(openApiPaths(fB)).toContain('GET /widgets/new');
-      expect(openApiPaths(fA).some((p) => p.includes('/api/'))).toBe(false);
-      expect(openApiPaths(fB).some((p) => p.includes('/internal/'))).toBe(false);
+      expect(openApiPaths(fA)).toContain('GET /api/widgets/new');
+      expect(openApiPaths(fB)).toContain('GET /internal/widgets/new');
     });
 
     it('P7 external reverse-proxy prefix composes outside Express and outside OpenAPI paths', async () => {
@@ -1017,7 +1006,7 @@ describe('ARDECO-06 cross-path hook and router integration', () => {
       await request(outer).get('/ext/api/users/new').expect(200);
       await request(outer).get('/api/users/new').expect(404);
       // The factory registers no servers[] entry and no path prefix for /ext.
-      expect(openApiPaths(factory)).toContain('GET /users/new');
+      expect(openApiPaths(factory)).toContain('GET /api/users/new');
       expect(openApiPaths(factory).some((p) => p.includes('/ext/'))).toBe(false);
     });
   });

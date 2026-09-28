@@ -42,7 +42,9 @@ export interface MessageUser {
 }
 
 export interface IMessageRelationshipMethods {
+  /** Match a string/ObjectId or populated party's `_id`; missing references never match. */
   isSender(user: MessageUser): boolean;
+  /** Match the recipient identity (including populated `_id`) or an explicit recipient role. */
   isReceiver(user: MessageUser): boolean;
 }
 
@@ -60,6 +62,10 @@ export interface IMessageMethods extends IMessageRelationshipMethods {
    * `MessageArchivedError` (archive copy exists) or `MessageNotFoundError`.
    * Deployments without transaction support throw
    * `MessageTransactionRequiredError` before writing anything.
+   * Confirmed commit resolves even if session cleanup rejects; configure
+   * `buildMessageSchema({ onTransactionCleanupFailure })` for diagnostics.
+   * Observer failures cannot change the outcome. An attached `$session()` is
+   * borrowed and never ended by this method; its caller owns cleanup.
    */
   archive(actionCd: string, archivedBy: UserId, registry: TemplateRegistry): Promise<void>;
 }

@@ -1,5 +1,13 @@
 import { JsonFrameOptionError } from './errors';
-import type { ColumnLabel, ColumnType, FromOrientOptions, Orient, ResolvedOrient } from './types';
+import type {
+  ColumnLabel,
+  ColumnType,
+  FromOrientOptions,
+  Orient,
+  ResolvedOrient,
+  ToJSONStringOptions,
+  ToTableOptions,
+} from './types';
 
 const RESOLVED_ORIENTS = [
   'records',
@@ -28,7 +36,38 @@ export interface NormalizedFromOrientOptions {
   readonly packThreshold: number;
   readonly columns?: readonly ColumnLabel[];
   readonly columnTypes?: Readonly<Partial<Record<ColumnLabel, ColumnType>>>;
+  readonly maxNodes?: number;
 }
+
+const validateMaxNodes = (maxNodes: unknown): number | undefined => {
+  if (maxNodes === undefined) return undefined;
+  if (typeof maxNodes !== 'number' || !Number.isSafeInteger(maxNodes) || maxNodes <= 0) {
+    throw new JsonFrameOptionError('`options.maxNodes` must be a positive safe integer.', 'maxNodes', maxNodes);
+  }
+  return maxNodes;
+};
+
+export const normalizeToTableOptions = (options?: ToTableOptions, method = 'toTable'): ToTableOptions => {
+  if (options === undefined) return {};
+  if (Array.isArray(options) || typeof options !== 'object' || options === null) {
+    throw new JsonFrameOptionError(`\`${method}\` options must be an object when provided.`, 'options', options);
+  }
+  const indexField = options.indexField;
+  if (indexField !== undefined && typeof indexField !== 'string') {
+    throw new JsonFrameOptionError(
+      `\`${method}\` options.indexField must be a string when provided.`,
+      'indexField',
+      indexField,
+    );
+  }
+  return indexField === undefined ? {} : { indexField };
+};
+
+export const normalizeToJSONStringOptions = (options?: ToJSONStringOptions): ToJSONStringOptions => {
+  const tableOptions = normalizeToTableOptions(options, 'toJSONString');
+  const maxNodes = validateMaxNodes(options?.maxNodes);
+  return { ...tableOptions, ...(maxNodes === undefined ? {} : { maxNodes }) };
+};
 
 export const isResolvedOrient = (value: unknown): value is ResolvedOrient =>
   typeof value === 'string' && RESOLVED_ORIENTS.includes(value as ResolvedOrient);
@@ -60,6 +99,7 @@ export const normalizeFromOrientOptions = (options?: FromOrientOptions | null): 
     );
   }
 
+  const maxNodes = validateMaxNodes(options.maxNodes);
   const packThreshold = options.packThreshold ?? DEFAULT_PACK_THRESHOLD;
   if (!Number.isFinite(packThreshold) || !Number.isInteger(packThreshold) || packThreshold < 0) {
     throw new JsonFrameOptionError(
@@ -116,27 +156,26 @@ export const normalizeFromOrientOptions = (options?: FromOrientOptions | null): 
       );
     }
 
-    const entries = Object.entries(options.columnTypes);
-    columnTypes = Object.freeze(
-      Object.fromEntries(
-        entries.map(([column, type]) => {
-          if (!isColumnType(type)) {
-            throw new JsonFrameOptionError(
-              '`options.columnTypes` values must be valid JSON Frame logical column types.',
-              `columnTypes.${column}`,
-              type,
-            );
-          }
+    // Column labels are arbitrary strings, including Object prototype names.
+    const normalized: Partial<Record<ColumnLabel, ColumnType>> = Object.create(null);
+    for (const [column, type] of Object.entries(options.columnTypes)) {
+      if (!isColumnType(type)) {
+        throw new JsonFrameOptionError(
+          '`options.columnTypes` values must be valid JSON Frame logical column types.',
+          `columnTypes.${column}`,
+          type,
+        );
+      }
 
-          return [column, type];
-        }),
-      ) as Partial<Record<ColumnLabel, ColumnType>>,
-    );
+      normalized[column] = type;
+    }
+    columnTypes = Object.freeze(normalized);
   }
 
   return {
     orient,
     packThreshold,
+    ...(maxNodes === undefined ? {} : { maxNodes }),
     ...(columns === undefined ? {} : { columns: Object.freeze([...columns]) }),
     ...(columnTypes === undefined ? {} : { columnTypes }),
   };

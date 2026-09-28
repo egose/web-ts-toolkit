@@ -16,6 +16,7 @@ export const ROUTER_MODEL = metadataKey('router.model');
 export const ROUTER_OPTIONS = metadataKey('router.options');
 export const ARGS_METADATA = metadataKey('args');
 export const OPTIONS_METADATA = metadataKey('options');
+export const METHOD_METADATA = metadataKey('method');
 
 export const GLOBAL_PERMISSIONS_WATERMARK = metadataKey('hook.globalPermissions');
 export const DOC_PERMISSIONS_WATERMARK = metadataKey('hook.docPermissions');
@@ -211,3 +212,14 @@ export const MODEL_HOOK_DEFINITIONS = HOOK_DEFINITION_LIST.filter((hook) => hook
 export const DEFAULT_MODEL_ROUTER_OPTIONS_HOOK_DEFINITIONS = MODEL_HOOK_DEFINITIONS.filter(
   (hook) => hook.defaultModelOptions,
 );
+
+/** Internal role contract shared by registration validation and placement diagnostics. */
+export const HOOK_CLASS_ROLES = {
+  module: { label: '@Module', hooks: [HOOK_DEFINITIONS.globalPermissions] },
+  modelRouter: { label: '@Router(Model)', hooks: MODEL_HOOK_DEFINITIONS },
+  modelOptions: { label: '@RouterOptions(Model)', hooks: MODEL_HOOK_DEFINITIONS },
+  defaultOptions: { label: '@RouterOptions(options) (default)', hooks: DEFAULT_MODEL_ROUTER_OPTIONS_HOOK_DEFINITIONS },
+  rootRouter: { label: '@Router(options) (root)', hooks: [] },
+} satisfies Record<string, { label: string; hooks: readonly HookDefinition[] }>;
+
+export type HookClassRole = keyof typeof HOOK_CLASS_ROLES;
