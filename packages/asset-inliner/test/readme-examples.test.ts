@@ -119,7 +119,7 @@ beforeAll(() => {
   run('npm', ['ls', '--all', '--prefix', consumer, '--workspaces=false']);
 
   const shippedReadme = read(path.join(installed, 'README.md'));
-  const snippets = [...shippedReadme.matchAll(/<!-- runnable: ([\w-]+) -->\n```ts\n([\s\S]*?)\n```/g)];
+  const snippets = [...shippedReadme.matchAll(/<!-- runnable: ([\w-]+) -->\s*\n```ts\n([\s\S]*?)\n```/g)];
   expect(snippets.map((match) => match[1]).sort()).toEqual(Object.keys(checks).sort());
   for (const [, id, source] of snippets) {
     const assertions = `${id === 'files' ? "import { existsSync } from 'node:fs';" : "import assert from 'node:assert/strict';"}\n${checks[id]}\n`;
