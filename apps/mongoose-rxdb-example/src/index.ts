@@ -40,8 +40,29 @@ async function main() {
       ? () => createSqliteDatabase({ name: 'demo', filePath: './app.db' })
       : () => createMemoryDatabase({ name: 'demo' });
   console.log(`[demo] storage mode: ${storageMode}`);
-  await conn.connect(storageFactory);
+  try {
+    await conn.connect(storageFactory);
+    await runDemo(conn);
+  } finally {
+    // Also closes after schema, validation, middleware, or storage failures.
+    await conn.disconnect();
+  }
 
+  console.log('\ndone.');
+  if (storageMode === 'sqlite') {
+    try {
+      const { existsSync, readdirSync, statSync } = await import('node:fs');
+      const cwd = process.cwd();
+      const files = existsSync('.') ? readdirSync(cwd).filter((f) => f.startsWith('app.db')) : [];
+      const total = files.reduce((sum, f) => sum + statSync(`${cwd}/${f}`).size, 0);
+      console.log(`[demo] SQLite files written under ${cwd}:`, files, `${total} bytes total`);
+    } catch (e) {
+      console.warn('[demo] could not stat SQLite files:', (e as Error).message);
+    }
+  }
+}
+
+async function runDemo(conn: Connection) {
   // 2) Schema definition reads like Mongoose.
   const userSchema = new Schema<UserDoc, UserMethods, UserStatics, UserVirtuals>(
     {
@@ -150,23 +171,9 @@ async function main() {
   console.log('\n== deleteMany / cleanup ==');
   await User.deleteMany({}).exec();
   console.log('remaining users =', await User.countDocuments({}).exec());
-
-  await conn.disconnect();
-  console.log('\ndone.');
-  if (storageMode === 'sqlite') {
-    try {
-      const { existsSync, readdirSync, statSync } = await import('node:fs');
-      const cwd = process.cwd();
-      const files = existsSync('.') ? readdirSync(cwd).filter((f) => f.startsWith('app.db')) : [];
-      const total = files.reduce((sum, f) => sum + statSync(`${cwd}/${f}`).size, 0);
-      console.log(`[demo] SQLite files written under ${cwd}:`, files, `${total} bytes total`);
-    } catch (e) {
-      console.warn('[demo] could not stat SQLite files:', (e as Error).message);
-    }
-  }
 }
 
 main().catch((err) => {
   console.error(err);
-  process.exit(1);
+  process.exitCode = 1;
 });

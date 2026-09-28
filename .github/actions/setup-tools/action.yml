@@ -5,7 +5,7 @@ runs:
   using: composite
   steps:
   - name: Setup Tools
-    uses: egose/actions/asdf-tools@07bfea5b03e310822963a15dccc885c2d3385284
+    uses: egose/actions/asdf-tools@71efad841d4b7bb6a479984abacf7111ebd44a16
 
   - name: Install python tools
     run: |

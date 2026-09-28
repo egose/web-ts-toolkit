@@ -83,3 +83,42 @@ jobs:
         pnpm --version
         pnpm --filter @web-ts-toolkit/access-router... build
         pnpm --filter @web-ts-toolkit/access-router exec vitest run --config vitest.config.ts test/packed-consumer-compatibility.test.ts --testNamePattern "supports minimum peers from release-artifact tarballs across ESM, CJS, NodeNext, and Bundler consumers"
+
+  access-router-react-minimum-node:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [supported, floating]
+    continue-on-error: ${{ matrix.lane == 'floating' }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+    - name: Setup build tools
+      uses: ./.github/actions/setup-tools
+
+    - name: Setup NPM packages
+      uses: ./.github/actions/setup-npm
+
+    - name: Install library runtime floor
+      run: asdf install nodejs 22.0.0
+
+    - name: Build installed consumer artifacts
+      run: pnpm --filter @web-ts-toolkit/access-router-react... build
+
+    - name: Verify both React majors on Node 22.0.0
+      env:
+        ACCESS_ROUTER_REACT_EXPECT_NODE: 22.0.0
+        ACCESS_ROUTER_REACT_FLOATING: ${{ matrix.lane == 'floating' && '1' || '0' }}
+        ACCESS_ROUTER_REACT_REPORT_DIR: ${{ runner.temp }}/react-consumer-reports
+      run: |
+        export ACCESS_ROUTER_REACT_CONSUMER_NODE="$(asdf where nodejs 22.0.0)/bin/node"
+        "$ACCESS_ROUTER_REACT_CONSUMER_NODE" --version
+        pnpm --filter @web-ts-toolkit/access-router-react test:packed-consumer
+
+    - name: Save resolved dependency evidence
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: react-minimum-node-${{ matrix.lane }}
+        path: ${{ runner.temp }}/react-consumer-reports
