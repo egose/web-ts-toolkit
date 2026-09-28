@@ -79,6 +79,10 @@ const toc = [{
   "id": "field-name-collisions",
   "level": 2
 }, {
+  "value": "Safe-write restrictions and migration",
+  "id": "safe-write-restrictions-and-migration",
+  "level": 3
+}, {
   "value": "Overlapping Saves",
   "id": "overlapping-saves",
   "level": 2
@@ -159,8 +163,12 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "property-access",
       children: "Property Access"
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "The model exposes document keys directly when they do not collide with model methods."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Ordinary nonreserved top-level assignment writes document data even if the key\nwas absent or omitted from a projection. It now tracks/persists like ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set"
+      }), " or\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "assign"
+      }), ", rather than creating the former untracked wrapper shadow. Direct\nreads, helper-after-direct writes, serialization, save and reset agree."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
@@ -172,6 +180,22 @@ function _createMdxContent(props) {
       }), " and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "set(...)"
       }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Both ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "new Model"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Model.create"
+      }), " preserve ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "instanceof Model"
+      }), " and constructor\nidentity. For typed direct fields use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Model.create"
+      }), " or service responses\n(", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Model & ModelData"
+      }), "); the constructor remains typed as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Model"
+      }), ". A statically\nselected projection still exposes only its selected fields; use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set"
+      }), " for an\nomitted field."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
@@ -193,7 +217,7 @@ function _createMdxContent(props) {
       }), " so ", (0,jsx_runtime.jsx)(_components.code, {
         children: "read.data"
       }), " is the non-null ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "Model<T> & T"
+        children: "Model<T> & ModelData<T>"
       }), ". The narrower guard is omitted from each one-liner for brevity."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Available helpers:"
@@ -428,6 +452,22 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: "dirty tracking is cleared"
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["For an added field, reset restores absence in ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "toObject()"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), "\nthrough both direct reads and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "get"
+      }), ", replacing the former ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " from a\nremoved field's forwarder. Forwarder slots may remain enumerable: serialize\ndocument data with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "toObject"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "toJSON"
+      }), ", not wrapper enumeration. Reverting an\nabsent field to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), " reconciles clean. Reset is local, and JSON still\nomits undefined values; this adds no server unset/delete protocol. Unsaved\ndraft reset restores the draft baseline and keeps its initial fields dirty\nfor creation."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.h2, {
       id: "assign-toobject-and-tojson",
       children: [(0,jsx_runtime.jsx)(_components.code, {
@@ -491,17 +531,72 @@ function _createMdxContent(props) {
         children: "const doc = await weirdService.read('1');\n\ntypeof doc.data.save;\n// 'function'\n\ndoc.data.get('save');\ndoc.data.set('save', 'field-value');\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["If a document field collides with a method or property name, access it with ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "get(...)"
+      children: ["Wrapper methods, internal state names (including ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_snapshot"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_saveQueue"
+      }), ")\nand inherited prototype members are reserved on direct access. Direct writes\nthrow ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "TypeError"
+      }), " before mutation; document values remain available via ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "get"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "set(...)"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "assign(...)"
+        children: "assign"
       }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "toObject()"
-      }), " instead of direct property syntax. The exported ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "ModelData<T>"
-      }), " helper and model response types omit those reserved names from the typed direct-field surface."]
+        children: "toObject"
+      }), " subject to the key/path rules below. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "then"
+      }), " is\nexplicitly helper-only: direct reads are ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), " even for callable document\ndata, and direct writes throw. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelData"
+      }), " excludes public Model members,\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "then"
+      }), ", and inherited Object-member names. Model methods are owner-bound and\nfluent calls return the same wrapper."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "safe-write-restrictions-and-migration",
+      children: "Safe-write restrictions and migration"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Direct and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "assign"
+      }), " keys must be nonempty literal strings: no ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "."
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "["
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "]"
+      }), ",\nno ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "__proto__"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "constructor"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "prototype"
+      }), ", and no numeric spelling changed\nby the path normalizer (such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "01"
+      }), "). Direct symbol writes and enumerable\nsymbol keys in ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "assign"
+      }), " throw ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "TypeError"
+      }), ". ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "assign"
+      }), " validates every key before\napplying values, so invalid later keys cannot partially apply earlier fields.\nThis is key validation, not transactional execution of arbitrary getters or\nproxies. Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "markModified"
+      }), " for nested dot/bracket paths; their existing\nforbidden-segment rules still apply."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Replace wrapper ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "defineProperty"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "delete"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "setPrototypeOf"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "preventExtensions"
+      }), ", freeze/seal, and legacy getter/setter definition helpers\nwith supported data-edit helpers. Those structural operations now throw\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "TypeError"
+      }), " before changing wrapper structure, document data or dirty state."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "overlapping-saves",
       children: "Overlapping Saves"
@@ -513,6 +608,8 @@ function _createMdxContent(props) {
       children: ["Edits made while a save is in flight remain local and dirty when they were not submitted by that save, or when they changed the same path to a newer value. The next queued or manual ", (0,jsx_runtime.jsx)(_components.code, {
         children: "save()"
       }), " sends those remaining dirty paths."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "This also applies to newly added fields. Reset during an in-flight save retains\nthe persisted baseline once that save succeeds, even if the local key was\nremoved. Unsubmitted concurrent fields retain their prior absent baseline.\nThe original and returned save models have detached snapshots/dirty sets and\nindependent save queues."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "practical-guidance",
       children: "Practical Guidance"

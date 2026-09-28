@@ -133,6 +133,40 @@ function _createMdxContent(props) {
       children: ["Paths are emitted as OpenAPI-style paths such as ", (0,jsx_runtime.jsx)(_components.code, {
         children: "/users/{id}"
       }), "."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Request bodies that accept ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "include"
+      }), " (advanced list/read bodies and root\nbatch entries) document both the legacy ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "localField"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "foreignField"
+      }), " shape\nand the correlated shape: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "mode: 'correlated'"
+      }), " with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "model"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "op"
+      }), "\n(", (0,jsx_runtime.jsx)(_components.code, {
+        children: "read"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "list"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "count"
+      }), "), explicit output ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "path"
+      }), ", exactly one of ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "id"
+      }), " or\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "filter"
+      }), ", and per-operation ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "args"
+      }), ". ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ \"$parent\": \"<field>\" }"
+      }), " markers and\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ \"$escape\": ... }"
+      }), " literals appear as plain JSON objects in the schema —\nthey carry no special OpenAPI type beyond the shared include schema, which\nreuses the same validation (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "includeItemSchema"
+      }), ") that the routes enforce,\nso the documented shape and the runtime verdicts agree."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "operation-ids",
       children: "Operation IDs"

@@ -47,8 +47,16 @@ const toc = [{
   "id": "migration",
   "level": 2
 }, {
+  "value": "Fresh-reader recovery after an interrupted render",
+  "id": "fresh-reader-recovery-after-an-interrupted-render",
+  "level": 3
+}, {
   "value": "Example",
   "id": "example",
+  "level": 2
+}, {
+  "value": "Plain Text And Local Ingestion",
+  "id": "plain-text-and-local-ingestion",
   "level": 2
 }];
 function _createMdxContent(props) {
@@ -56,9 +64,11 @@ function _createMdxContent(props) {
     code: "code",
     h1: "h1",
     h2: "h2",
+    h3: "h3",
     header: "header",
     p: "p",
     pre: "pre",
+    strong: "strong",
     ...(0,lib/* useMDXComponents */.R)(),
     ...props.components
   };
@@ -98,6 +108,28 @@ function _createMdxContent(props) {
       id: "migration",
       children: "Migration"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["New named root export ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pdfTextToString(content)"
+      }), " assembles raw ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "PageResult.text"
+      }), " for local search/indexing. It preserves supplied item order, whitespace, and Unicode, skips marked-content entries, and appends one ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "\\n"
+      }), " for every text item's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "hasEOL: true"
+      }), " (including empty and final items). It guesses no spaces and trims nothing. Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "includePageImage: false"
+      }), " for text-only ingestion; page rendering still defaults to enabled. See the local ingestion recipe below."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Signal inputs are now validated before load/page work, including an already-loaded ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "load()"
+      }), " call. Replace ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " or malformed signal placeholders with an omitted property or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), "; invalid values produce ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "INVALID_OPTION"
+      }), ". Native signals from other realms (such as same-origin iframes) remain supported."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Upgrade from the older application-local reader by switching to named imports, explicit ", (0,jsx_runtime.jsx)(_components.code, {
         children: "configurePdfWorker(...)"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
@@ -122,20 +154,76 @@ function _createMdxContent(props) {
         children: "isPNG"
       }), " names. Follow-up hardening keeps that API but snapshots effective headers before ", (0,jsx_runtime.jsx)(_components.code, {
         children: "sourcePolicy(...)"
-      }), ", rechecks borrowed byte sizes after approval, retries failed loads with a fresh attempt, settles page-stage waits promptly via one shared cancellation contract (underlying PDF.js work stays uncancellable), decodes one-bit images by declared kind, resolves shared images via ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ", rechecks borrowed byte sizes after approval, retries failed loads with a fresh attempt, settles page-stage waits promptly via one shared cancellation contract (active renders are cancelled; other started PDF.js work remains observed), decodes one-bit images by declared kind, resolves shared images via ", (0,jsx_runtime.jsx)(_components.code, {
         children: "commonObjs"
       }), ", and rejects invalid options/encodes with ", (0,jsx_runtime.jsx)(_components.code, {
         children: "INVALID_OPTION"
       }), "/", (0,jsx_runtime.jsx)(_components.code, {
         children: "UNSUPPORTED_ENVIRONMENT"
       }), ". Page work stays serial and text/operator limits still apply after PDF.js returns complete structures — no concurrency or streaming-text API change ships in this release."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Synchronous abort/destroy in canvas factories or viewport callbacks now stops subsequent allocation/rendering. Already-created renders are cancelled even when cancellation precedes wait registration. Already-started promises remain observed, including late ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "getPage()"
+      }), " cleanup and a source policy that synchronously destroys the reader then rejects. Caller settlement releases the page-operation lock but does not imply uncancelled upstream work or cached-page cleanup has finished. A suspended ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pages()"
+      }), " consumer observes cancellation when resumed or closed."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Render cancellation/failure now permanently closes the reader."
+      }), " Once a render task has been created, cancellation or failure starts public PDF.js teardown automatically. The initiating call retains prompt ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ABORTED"
+      }), " or its exact native error; explicit destruction produces ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DESTROYED"
+      }), ". Later ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "load()"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pages()"
+      }), " execution, and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "convert()"
+      }), " fail with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DESTROYED"
+      }), " before page/image access. This intentionally replaces the earlier same-reader render-retry promise: PDF.js can clear shared images after the render promise rejects. Retry requires an explicitly created fresh reader and fresh bytes, since PDF.js may have transferred the original input. No replacement document is silently loaded. Default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "includePageImage: true"
+      }), " conversions may enter this terminal path."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Pre-render/non-render cancellation and encoding cancellation/failure after successful rendering still permit same-reader reuse, as do malformed-option rejection and callback failures before rendering. These safe retries retain shared ownership across pending acquisitions, active processing, and original stage promises. The package's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "page.cleanup()"
+      }), " request waits until that cached-page cycle is idle. A successful retry or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "state === 'loaded'"
+      }), " does not prove older work is finished. Idle bookkeeping is removed; never-settling work retains ownership until ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "destroy()"
+      }), ", and repeated non-render cancellation does not bound upstream work. This coordination covers package-started work, not external proxy operations or manual cleanup."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "destroy()"
+      }), " clears retained page ownership and waits for PDF.js loading/document destruction, without waiting for orphaned acquisition/stage promises; late acquisitions receive best-effort cleanup and never start processing. Await active operation promises to observe their temporary canvas release. Awaiting cancellation alone does not guarantee deferred page cleanup or upstream completion."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Automatic teardown does not wait or replace the initiating render error, and its rejection is observed internally. Explicit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "destroy()"
+      }), " returns the same memoized promise, reporting success/failure even on repeated/reentrant calls. Handle teardown errors separately if an awaited ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "finally"
+      }), " would otherwise replace an earlier conversion error. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "state === 'destroyed'"
+      }), " means closure started, not successful/completed teardown. Caller-created PDF workers remain caller-owned."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "fresh-reader-recovery-after-an-interrupted-render",
+      children: "Fresh-reader recovery after an interrupted render"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["After handling the original error, explicitly recover from the original ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "File"
+      }), ", not its potentially detached previous typed array. Each call obtains fresh bytes:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { PDFReader } from '@web-ts-toolkit/pdf-reader';\n\nasync function extractFresh(file: File) {\n  const maxSourceBytes = 25_000_000;\n  if (file.size > maxSourceBytes) throw new Error('PDF exceeds the local file-size limit.');\n  const recovery = new PDFReader(new Uint8Array(await file.arrayBuffer()), { limits: { maxSourceBytes } });\n  try {\n    await recovery.load();\n    return await recovery.convert({\n      pageRange: 1,\n      includeText: false,\n      includePageImage: false,\n      includeEmbeddedImages: true,\n    });\n  } finally {\n    await recovery.destroy();\n  }\n}\n"
+      })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "example",
       children: "Example"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';\nimport { configurePdfWorker, PDFReader } from '@web-ts-toolkit/pdf-reader';\n\nconfigurePdfWorker(workerUrl);\n\nconst reader = new PDFReader(new Uint8Array(await file.arrayBuffer()));\n\ntry {\n  await reader.load({ deadlineMs: 15_000 });\n  for await (const page of reader.pages({ imageFormat: 'image/jpeg', pageImageOutput: 'blob' })) {\n    console.log(page.pageNumber, page.text, page.pageImage);\n  }\n} finally {\n  await reader.destroy();\n}\n"
+        children: "import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';\nimport { configurePdfWorker, PDFReader } from '@web-ts-toolkit/pdf-reader';\n\nconfigurePdfWorker(workerUrl);\n\nconst maxSourceBytes = 25_000_000;\nif (file.size > maxSourceBytes) throw new Error('PDF exceeds the local file-size limit.');\nconst reader = new PDFReader(new Uint8Array(await file.arrayBuffer()), { limits: { maxSourceBytes } });\n\ntry {\n  await reader.load({ deadlineMs: 15_000 });\n  for await (const page of reader.pages({ imageFormat: 'image/jpeg', pageImageOutput: 'blob' })) {\n    console.log(page.pageNumber, page.text, page.pageImage);\n  }\n} finally {\n  await reader.destroy();\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Prefer ", (0,jsx_runtime.jsx)(_components.code, {
@@ -171,6 +259,30 @@ function _createMdxContent(props) {
       }), ", and does not cancel unrelated concurrent ", (0,jsx_runtime.jsx)(_components.code, {
         children: "load()"
       }), " callers sharing the same PDF.js task."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Both load forms and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pages({ signal })"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "convert({ signal })"
+      }), " validate signals structurally: boolean ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "aborted"
+      }), " and callable ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "addEventListener"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "removeEventListener"
+      }), ". Omitted or explicit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), " means no signal; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), ", primitives, and partial/non-callable shapes produce ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "INVALID_OPTION"
+      }), ". ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "load()"
+      }), " throws synchronously before source policy/PDF.js work, even when already loaded; conversion rejects before ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "getPage()"
+      }), " and releases its operation lock for valid reuse. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "load({})"
+      }), " is a valid empty options bag; objects containing any of the three signal members are treated as direct signals and must satisfy the full shape. Nested signal references and load deadlines are read once per operation, while the signal's abort state remains live. Custom signal implementations must preserve working event methods and live boolean abort state while in use."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "configurePdfWorker(...)"
@@ -364,6 +476,46 @@ function _createMdxContent(props) {
       }), ", 1 warmup + 3 repeats) reports conversion-only, load, and load-inclusive times with global simultaneous peaks: bounded overlap reduces conversion-only time on some fixtures but loads a second document and doubles simultaneous page/canvas ownership, so the package keeps the serial API until a tighter browser memory/backpressure budget exists. The 2026-08-19 single-sample numbers remain historical only. The benchmark command is ", (0,jsx_runtime.jsx)(_components.code, {
         children: "pnpm --filter @web-ts-toolkit/pdf-reader benchmark"
       }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "plain-text-and-local-ingestion",
+      children: "Plain Text And Local Ingestion"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "pdfTextToString(content: PdfTextContent): string"
+      }), " is a pure named root utility for already-extracted text. It preserves PDF.js item order and each string verbatim, including supplied spaces and Unicode. It appends exactly one ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "\\n"
+      }), " after every text item with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "hasEOL: true"
+      }), ", even an empty or final item. Existing newlines are not deduplicated; trailing whitespace/newlines are retained. Empty or marker-only content returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "''"
+      }), "; marked-content entries are skipped. XFA-style string items without ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "hasEOL"
+      }), " contribute only their string. Fragmented words are concatenated without guessed spaces."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Configure the worker once as shown above. This browser recipe checks a local ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "File"
+      }), " before allocating its bytes, processes pages serially with 1-based page attribution, and displays only the current page via safe ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "textContent"
+      }), ":"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { PDFReader, pdfTextToString } from '@web-ts-toolkit/pdf-reader';\n\nasync function ingestLocalPdf(\n  file: File,\n  output: HTMLPreElement,\n  indexPage: (record: { pageNumber: number; text: string }) => void | Promise<void>,\n): Promise<void> {\n  const maxSourceBytes = 25_000_000;\n  if (file.size > maxSourceBytes) throw new Error('PDF exceeds the local file-size limit.');\n  const bytes = new Uint8Array(await file.arrayBuffer());\n  const reader = new PDFReader(bytes, { limits: { maxSourceBytes, maxDocumentPages: 250 } });\n\n  try {\n    await reader.load({ deadlineMs: 15_000 });\n    for await (const page of reader.pages({\n      includeText: true,\n      includePageImage: false,\n      includeEmbeddedImages: false,\n    })) {\n      if (!page.text) throw new Error(`Missing text content for page ${page.pageNumber}.`);\n      const text = pdfTextToString(page.text);\n      output.textContent = `Page ${page.pageNumber}\\n${text}`;\n      await indexPage({ pageNumber: page.pageNumber, text });\n    }\n  } finally {\n    await reader.destroy();\n  }\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Supply an application-local ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "indexPage"
+      }), " callback (and a document ID when indexing multiple files). Neither the helper nor this recipe uploads document data; storage/retention belongs to that callback. With both image options disabled, the package allocates no page/embedded-image canvases. The helper itself does no parsing, canvas work, or I/O and does not mutate the content."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["This is not OCR or layout/reading-order reconstruction: scanned pages may yield empty text, and columns or positioned fragments remain in PDF.js-supplied order. PDF.js may already have normalized the strings before returning them. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "pages()"
+      }), " yields complete pages, not streaming text chunks; text-item/code-unit limits still run ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "after PDF.js materializes each page's text"
+      }), ". The helper allocates a new string and imposes no additional limits. Keep extracted content out of ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "innerHTML"
+      }), "; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "textContent"
+      }), " displays it literally."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "The installed package README documents resource limits, cancellation, worker alternatives, structured errors, security guidance, and embedded-image limitations in detail."
     })]

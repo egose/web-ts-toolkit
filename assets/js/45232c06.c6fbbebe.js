@@ -45,6 +45,10 @@ const assets = {
 
 
 const toc = [{
+  "value": "Property and OpenAPI migration",
+  "id": "property-and-openapi-migration",
+  "level": 2
+}, {
   "value": "Installation",
   "id": "installation",
   "level": 2
@@ -59,6 +63,10 @@ const toc = [{
 }, {
   "value": "Runtime Ownership",
   "id": "runtime-ownership",
+  "level": 2
+}, {
+  "value": "Transactional Bootstrap",
+  "id": "transactional-bootstrap",
   "level": 2
 }, {
   "value": "TypeScript Decorator Configuration",
@@ -175,6 +183,89 @@ function _createMdxContent(props) {
       children: ["This package lets you describe ", (0,jsx_runtime.jsx)(_components.code, {
         children: "access-router"
       }), " modules, model routers, router options, and hook methods with TypeScript decorators instead of wiring everything by hand."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "property-and-openapi-migration",
+      children: "Property and OpenAPI migration"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Scoped property decorators enforce their class role at bootstrap: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "GlobalOption"
+      }), "\non modules, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DefaultModelOption"
+      }), " on default providers, and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ModelOption"
+      }), " on model\nrouters/providers. Misplaced declarations throw ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "TypeError"
+      }), ", including inherited\nand inferred-key declarations. Root routers reject all instance option properties;\nuse ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Router(options)"
+      }), ". A child remapping replaces inherited entries for either\nthe same property (including symbols) or the same option key."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["All property decorators, including legacy ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Option"
+      }), ", validate known scalar values:\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "requestPermissionField"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "documentPermissionField"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "idParam"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "idField"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "parentPath"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "queryRouteSegment"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "mutationRouteSegment"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "modelPermissionPrefix"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "modelName"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "basePath"
+      }), " require strings; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "listHardLimit"
+      }), " requires a finite\nnumber; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "requireRegisteredPopulateModels"
+      }), " requires a boolean. Optional ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), "\nremains allowed. Invalid values throw and package-controlled writes roll back.\nUnknown extension/typo keys remain allowed; this is not exhaustive validation of\nstructured policies or hooks, and decorators cannot type-check property values."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Module ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "options.basePath"
+      }), " now prefixes generated OpenAPI paths before collision\nchecks as well as mounting Express. Module ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/api"
+      }), " plus model ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/users"
+      }), " produces\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/api/users"
+      }), "; root ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/batch"
+      }), " produces ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/api/batch"
+      }), ". Shared-runtime prior entries\nare preserved. Model OpenAPI composition is module base + ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "parentPath"
+      }), " + model\nbase; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "parentPath"
+      }), " does not affect Express matching. Remove old ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "parentPath"
+      }), "\nworkarounds that equal or descend from the module mount: bootstrap rejects them\nto avoid doubled paths (segment-aware: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/apiary"
+      }), " is not beneath ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/api"
+      }), ")."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["For a reverse-proxy prefix ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/ext"
+      }), ", leave ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "parentPath"
+      }), " at its default and pass\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "servers: [{ url: '/ext' }]"
+      }), " when generating the OpenAPI router/spec. This describes\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/ext/api/users"
+      }), "; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "parentPath: '/ext'"
+      }), " would describe ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/api/ext/users"
+      }), " instead.\nExpress URLs are unchanged by this migration."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
       children: "Installation"
@@ -380,11 +471,54 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "quick-start",
       children: "Quick Start"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["This public article endpoint lets anyone read a published article by slug. It grants no list or write access and exposes only the allowed read fields (plus Access Router's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_permissions"
+      }), " metadata). Authentication is unnecessary for this public policy; request headers do not grant privileges."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import 'reflect-metadata';\nimport express from 'express';\nimport mongoose from 'mongoose';\nimport {\n  Module,\n  Router,\n  RouterOptions,\n  GlobalPermissions,\n  DocPermissions,\n  Validate,\n  Request,\n  Document,\n  Permissions,\n  EgoseFactoryStatic,\n} from '@web-ts-toolkit/access-router-deco';\n\nmongoose.model('User', new mongoose.Schema({ email: String, name: String, public: Boolean }));\n\n@Router('User', {\n  basePath: '/users',\n})\nclass UserRouter {\n  @DocPermissions('read')\n  canRead(@Document() doc: any, @Permissions() permissions: { has(permission: string): boolean }) {\n    return { read: doc.public || permissions.has('isAdmin') };\n  }\n\n  @Validate('create')\n  validateCreate(@Document() doc: { email?: string; name?: string }) {\n    if (!doc.email) return ['email is required'];\n    if (!doc.name) return false;\n    return true;\n  }\n}\n\n@RouterOptions({\n  operationAccess: {\n    list: true,\n    read: true,\n  },\n})\nclass DefaultOptions {}\n\n@Module({\n  routers: [UserRouter],\n  routerOptions: [DefaultOptions],\n  options: {\n    basePath: '/api',\n  },\n})\nclass AppModule {\n  @GlobalPermissions()\n  permissions(@Request() req: express.Request) {\n    return req.headers['x-role'] === 'admin' ? ['isAdmin'] : [];\n  }\n}\n\nconst app = express();\nconst factory = EgoseFactoryStatic.create();\nconst { runtime } = factory.bootstrap(AppModule, app);\n// Isolated runtime per factory — preferred for apps and tests. `EgoseFactory` is still available as a compatibility singleton for shared-runtime apps.\n\n// Invalid input uses controlled validation failure (false / issue array → 400), not throw or document return:\n// - validateCreate({ name: 'Ada' }) → ['email is required']\n// - validateCreate({ email: 'a@b.co' }) → false\n// - validateCreate({ email: 'a@b.co', name: 'Ada' }) → true\n"
+        children: "import 'reflect-metadata';\nimport express from 'express';\nimport mongoose from 'mongoose';\nimport { Module, Router, BaseFilter, Identifier, Id, EgoseFactoryStatic } from '@web-ts-toolkit/access-router-deco';\n\n// Call once per host-owned connection; pass the model instance, not a global name.\nexport function createArticleApp(connection: mongoose.Connection) {\n  const Article = connection.model(\n    'Article',\n    new mongoose.Schema({\n      slug: { type: String, required: true, unique: true },\n      title: { type: String, required: true },\n      body: String,\n      published: { type: Boolean, default: false },\n      internalNotes: String,\n    }),\n  );\n\n  @Router(Article, {\n    basePath: '/articles',\n    // No list fallback or computed field-permission metadata (only its empty placeholder).\n    defaults: { publicReadOptions: { includePermissions: false, tryList: false } },\n    operationAccess: {\n      read: true,\n      list: false,\n      new: false,\n      create: false,\n      update: false,\n      upsert: false,\n      delete: false,\n      distinct: false,\n      count: false,\n      subs: false,\n    },\n    permissionSchema: {\n      slug: { read: true },\n      title: { read: true },\n      body: { read: true },\n      published: false,\n      internalNotes: false,\n    },\n  })\n  class ArticleRouter {\n    @BaseFilter('read')\n    publishedOnly() {\n      return { published: true };\n    }\n\n    @Identifier()\n    bySlug(@Id() slug: string) {\n      return { slug };\n    }\n  }\n\n  @Module({\n    routers: [ArticleRouter],\n    options: { basePath: '/api', handleErrors: true },\n  })\n  class ArticleModule {}\n\n  const app = express();\n  app.use(express.json());\n  const factory = EgoseFactoryStatic.create(); // New isolated Access Router runtime.\n  const { runtime } = factory.bootstrap(ArticleModule, app);\n  return { app, runtime, Article };\n}\n"
       })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Save this as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "articles.ts"
+      }), ". Prerequisites: Node >=22, the dependencies and legacy TypeScript settings above, and a reachable MongoDB database. In an async host startup, open a dedicated connection before listening (compile TypeScript before running Node):"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import mongoose from 'mongoose';\nimport { createArticleApp } from './articles.js';\n\nasync function main() {\n  const uri = process.env.MONGODB_URI;\n  if (!uri) throw new Error('Set MONGODB_URI');\n  const connection = await mongoose.createConnection(uri).asPromise();\n  const { app, Article } = createArticleApp(connection);\n  await Article.init(); // Ensure the unique slug index exists before serving.\n  // Provision articles through a trusted seed/admin process, e.g.:\n  // await Article.create({ slug: 'welcome', title: 'Welcome', body: 'Hello', published: true });\n  const server = app.listen(3000);\n  // The host owns shutdown: close server, then await connection.close().\n  return { server, connection };\n}\nvoid main().catch((error: unknown) => {\n  console.error(error);\n  process.exitCode = 1;\n});\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["After provisioning ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "welcome"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "GET /api/articles/welcome"
+      }), " returns its public fields. A draft slug returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "404"
+      }), "; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "GET /api/articles"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "POST /api/articles"
+      }), " return ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "401"
+      }), " under Access Router's denial contract. Sending ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "x-role: admin"
+      }), " changes none of these decisions. JSON parsing is installed before routes, but parsed bodies do not authorize writes."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "operationAccess"
+      }), " authorizes operations; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "permissionSchema"
+      }), " authorizes fields. A document-permission map alone does not configure either policy. Migration note (PDEC-05): the former quickstart trusted ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "x-role"
+      }), " as an administrator grant; replace that pattern with this public policy or a host-verified principal boundary. For private/tenant workflows, authenticate in host middleware before bootstrap's mounted router, deny missing principals with a route guard, and derive tenant filters from that verified principal via ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Request()"
+      }), ". Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Context()"
+      }), " for model-hook context where supported by the hook table below. Filters restrict data; they are not authentication. Request/principal state belongs in the injected request/context, never shared class fields. Each tenant-owned connection/model should use its own factory runtime; isolation alone does not authenticate tenant selection."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["This package is a good fit when you like ", (0,jsx_runtime.jsx)(_components.code, {
         children: "access-router"
@@ -424,6 +558,67 @@ function _createMdxContent(props) {
       }), " for lifecycle inspection. Calling ", (0,jsx_runtime.jsx)(_components.code, {
         children: "bootstrap(...)"
       }), " twice with the same factory, module class, and Express app throws to avoid duplicate middleware and routes."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "transactional-bootstrap",
+      children: "Transactional Bootstrap"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "EgoseFactoryStatic.bootstrap(...)"
+      }), " snapshots package-controlled runtime state before mutation and delays publication until setup succeeds. Class roles are validated before construction; effective hook declarations are checked during configuration planning. After planning, the factory requires callable ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createBootstrapSnapshot()"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "restoreBootstrapSnapshot()"
+      }), " methods, resolving each directly on the runtime API or on its underlying ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".runtime"
+      }), " (direct methods take precedence). Missing capability, thrown acquisition errors, or an absent snapshot stop bootstrap before package preflight, setters, model registration, or mounting. The real runtime snapshot covers global/default/model options, model registrations, model refs/subs/atts, and OpenAPI registrations."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Request runtime initialization (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "factory.runtime()"
+      }), "), decorated option registration, routes, and opt-in error handlers are composed on an unmounted ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "express.Router()"
+      }), " first (init before routes and error handlers). Only after setup succeeds is that single module router mounted with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "app.use(basePath, router)"
+      }), ". On setup failure, including a final ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "app.use"
+      }), " that throws after mounting, the factory independently attempts runtime restoration and truncation of the app's mount stack to its pre-bootstrap length."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Request runtime initialization is scoped to the module router mounted at ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "basePath"
+      }), " and does not run on unrelated host routes. Two isolated modules on one app each use only their owning runtime on their own paths. Applications needing request runtime initialization outside module routes must explicitly own that middleware (for example, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "app.use(factory.runtime())"
+      }), ")."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Malformed hook chains (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Invalid hook chain for <aclKey>"
+      }), ") and duplicate validator/static-array conflicts are checked in preflight before setters, inside the snapshot boundary because runtime lookups can mutate state. When rollback succeeds, bootstrap rethrows the exact original value, including non-", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Error"
+      }), " throws. A corrected retry then behaves like a clean first attempt, with one mount and one copy of initialization, routes, hooks, and OpenAPI registrations."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Recovery failure:"
+      }), " if runtime restoration or app-stack cleanup throws, bootstrap reports an ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "AggregateError"
+      }), ". Its ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "cause"
+      }), " and first ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "errors"
+      }), " entry are the original thrown value; subsequent entries are the runtime-restore failure and/or app-cleanup failure in that order. Both recovery steps are attempted even if one fails. Failed runtime restoration leaves runtime state uncertain; failed app cleanup can leave routes mounted. The host must repair or replace the affected runtime/app before retrying. Every attempt releases the in-progress reservation, and a failed attempt is not marked bootstrapped; this permits recovery but does not prove rollback succeeded."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Migration note:"
+      }), " bootstrap previously ignored snapshot acquisition/restoration failures. Runtime adapters and test doubles must now provide working synchronous snapshot/restore capability; missing methods no longer permit unprotected setup. Ordinary successful rollback preserves error identity, while failed recovery now surfaces the original and recovery failures together."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Non-rollback boundary:"
+      }), " arbitrary user constructors and field initializers (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "new Type()"
+      }), ") executed while building the module plan are outside the transaction and are not undone. Express internals outside the mount stack (e.g., ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "app.set(...)"
+      }), ", already-sent responses) are also not rolled back. The guarantee covers only the factory's runtime state and the Express mount stack (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "app._router.stack"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "app.router.stack"
+      }), " truncation)."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "typescript-decorator-configuration",
       children: "TypeScript Decorator Configuration"
@@ -736,6 +931,12 @@ function _createMdxContent(props) {
       children: ["Migration note (BDECO-05 — fail-fast decorator targets): hook, parameter, and property decorators are instance-only and reject unsupported targets at decoration time before writing metadata. Static methods/properties/parameters, constructor parameters, and missing/invalid operations (including zero-argument JavaScript calls like ", (0,jsx_runtime.jsx)(_components.code, {
         children: "BaseFilter()"
       }), ") now throw instead of being silently skipped. Previously such declarations compiled but never registered, so a deny guard or filter could silently disappear. If you relied on static decorators, move the hook to an instance method."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Migration note (PDEC-02 — accessor hooks): method-hook decorators also reject getters, setters, missing descriptors, and non-callable or malformed method descriptors before writing hook metadata, without invoking getters. Legacy TypeScript descriptor typing can accept a callable getter such as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@RouteGuard('read') get guard() { return () => false; }"
+      }), ", but this now throws at decoration time instead of silently losing the policy. Use an instance method: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@RouteGuard('read') guard() { return false; }"
+      }), ". Ordinary, inherited, symbol-keyed, and wrapped instance methods remain supported."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
       children: [(0,jsx_runtime.jsx)(_components.thead, {
         children: (0,jsx_runtime.jsxs)(_components.tr, {
@@ -1208,6 +1409,46 @@ function _createMdxContent(props) {
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "decorateAll"
       }), ") compose base→derived."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Hook class roles are enforced at bootstrap."
+      }), " Every known effective hook declaration is checked before runtime setters or Express publication, including inherited, symbol-keyed, wrapped, and mixed allowed/disallowed declarations. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@GlobalPermissions()"
+      }), " belongs only on ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Module"
+      }), "; model hooks belong on ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Router(Model)"
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@RouterOptions(Model)"
+      }), ". Default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@RouterOptions(options)"
+      }), " accepts only ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@RouteGuard"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Identifier"
+      }), ". Root ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@Router(options)"
+      }), " accepts no hook methods; its prototype is validated without constructing the root class."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Migration note:"
+      }), " wrong-role hooks that were previously silently ignored now stop bootstrap with the class, member, hook, and valid placements in the diagnostic. Move the declaration to a provider with the intended supported scope; bootstrap does not reassign it automatically. Only effective declarations are checked: an override suppresses ancestor hook metadata, and a decorated override is checked in its own class role. Constructors of other providers still run during configuration planning and remain outside rollback."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Method-wrapper composition"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Legacy TypeScript decorators that mutate ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "descriptor.value"
+      }), " or return a replacement method descriptor retain hook declarations in either decorator order. Bootstrap invokes the effective wrapped method with the class instance as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "this"
+      }), " and explicit parameter injection, including sparse positions. Inherited and symbol-keyed methods are supported. An override replaces the ancestor's hook and parameter declarations; redecorate the override to register it."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Wrappers remain responsible for the behavior they return: forward ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "this"
+      }), ", arguments, return values/promises, and errors when preserving the original hook. Composition support does not restore behavior discarded by a wrapper or transfer declarations to a different member. ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Migration note:"
+      }), " instrumentation that previously replaced a decorated function could silently drop its guard or validator; that declared policy now remains active regardless of decorator order."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "@Validate"

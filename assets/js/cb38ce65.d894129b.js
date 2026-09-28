@@ -383,6 +383,12 @@ function _createMdxContent(props) {
           children: "Model"
         })
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "parentField"
+        }), " + ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$include(path)"
+        }), " for correlated includes"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["response and query helper types from ", (0,jsx_runtime.jsx)(_components.code, {
           children: "./types"
         })]
@@ -630,7 +636,7 @@ function _createMdxContent(props) {
           children: "ModelService"
         }), " and ", (0,jsx_runtime.jsx)(_components.code, {
           children: "DataService"
-        }), " methods, defaults, subqueries, and subdocuments"]
+        }), " methods, defaults, subqueries, correlated includes, and subdocuments"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.a, {
           href: "./model",
@@ -640,7 +646,7 @@ function _createMdxContent(props) {
         children: [(0,jsx_runtime.jsx)(_components.a, {
           href: "./typescript-and-errors",
           children: "TypeScript And Errors"
-        }), ": typed selects, response typing, and ", (0,jsx_runtime.jsx)(_components.code, {
+        }), ": typed selects, correlated output typing, response typing, and ", (0,jsx_runtime.jsx)(_components.code, {
           children: "ServiceError"
         })]
       }), "\n"]

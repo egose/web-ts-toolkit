@@ -386,6 +386,20 @@ function _createMdxContent(props) {
           children: "options"
         }), " for behavior switches such as permissions and counts"]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Root entries accept the same ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "include"
+      }), " shapes as direct routes: legacy\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "localField"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "foreignField"
+      }), " joins and correlated entries\n(", (0,jsx_runtime.jsx)(_components.code, {
+        children: "mode: 'correlated'"
+      }), " with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ \"$parent\": \"<field>\" }"
+      }), " markers resolved per\nparent against the immediate parent snapshot). Direct and root validators\nshare one schema, so verdicts agree; malformed correlated input is a\ncontrolled ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "BadRequest"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "The response wraps each operation as:"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {

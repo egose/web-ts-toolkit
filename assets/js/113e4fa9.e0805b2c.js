@@ -77,9 +77,37 @@ const toc = [{
   "id": "document",
   "level": 2
 }, {
+  "value": "In-Flight Saves And Migration",
+  "id": "in-flight-saves-and-migration",
+  "level": 3
+}, {
+  "value": "Document Value Safety And Migration",
+  "id": "document-value-safety-and-migration",
+  "level": 3
+}, {
+  "value": "Selected Documents: Save Safety And Migration",
+  "id": "selected-documents-save-safety-and-migration",
+  "level": 3
+}, {
   "value": "Query",
   "id": "query",
   "level": 2
+}, {
+  "value": "Conditional Mutation Selectors (Compatibility / Migration)",
+  "id": "conditional-mutation-selectors-compatibility--migration",
+  "level": 3
+}, {
+  "value": "Write Normalization",
+  "id": "write-normalization",
+  "level": 3
+}, {
+  "value": "Upsert Concurrency And Business Identity",
+  "id": "upsert-concurrency-and-business-identity",
+  "level": 3
+}, {
+  "value": "Read Query Semantics",
+  "id": "read-query-semantics",
+  "level": 3
 }, {
   "value": "Middleware",
   "id": "middleware",
@@ -118,6 +146,7 @@ function _createMdxContent(props) {
     code: "code",
     h1: "h1",
     h2: "h2",
+    h3: "h3",
     header: "header",
     li: "li",
     ol: "ol",
@@ -661,7 +690,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { Connection, Schema, type HookNext, type HydratedDocument } from '@web-ts-toolkit/mongoose-rxdb';\nimport { createMemoryDatabase } from '@web-ts-toolkit/mongoose-rxdb/storage';\n\ninterface User {\n  name: string;\n  age: number;\n  role: 'admin' | 'user';\n  tags: string[];\n}\n\ninterface UserMethods {\n  addTag(tag: string): string[];\n}\n\ninterface UserVirtuals {\n  isAdmin: boolean;\n}\n\ntype UserDocument = HydratedDocument<User, UserMethods, UserVirtuals>;\n\nconst conn = new Connection();\nawait conn.connect(() => createMemoryDatabase({ name: 'quickstart' }));\n\nconst userSchema = new Schema<User, UserMethods, {}, UserVirtuals>({\n  name: { type: String, required: true },\n  age: { type: Number, default: 0, min: 0, max: 150 },\n  role: { type: String, enum: ['admin', 'user'], default: 'user' },\n  tags: [String],\n});\n\nuserSchema.pre('save', function (this: UserDocument, next: HookNext) {\n  console.log('about to save', this.name);\n  next();\n});\n\nuserSchema.virtual('isAdmin').get(function (this: UserDocument) {\n  return this.role === 'admin';\n});\n\nuserSchema.method('addTag', function (this: UserDocument, tag: string) {\n  this.tags.push(tag);\n  return this.tags;\n});\n\nconst User = conn.model('User', userSchema);\n\nconst ada = await User.create({ name: 'Ada', age: 36, role: 'admin', tags: [] });\nconsole.log(ada.isAdmin); // true\nada.addTag('math');\n\nconst admins = await User.find({ role: 'admin' }).sort({ age: 1 });\nawait User.updateOne({ name: 'Ada' }, { $inc: { age: 1 } });\nawait User.deleteOne({ name: 'Ada' });\nconsole.log(admins.map((user) => user.name));\n\nawait conn.disconnect();\n"
+        children: "import { Connection, Schema, type HookNext, type HydratedDocument } from '@web-ts-toolkit/mongoose-rxdb';\nimport { createMemoryDatabase } from '@web-ts-toolkit/mongoose-rxdb/storage';\n\ninterface User {\n  name: string;\n  age: number;\n  role: 'admin' | 'user';\n  tags: string[];\n}\n\ninterface UserMethods {\n  addTag(tag: string): string[];\n}\n\ninterface UserVirtuals {\n  isAdmin: boolean;\n}\n\ntype UserDocument = HydratedDocument<User, UserMethods, UserVirtuals>;\n\nconst conn = new Connection();\n\nconst userSchema = new Schema<User, UserMethods, {}, UserVirtuals>({\n  name: { type: String, required: true },\n  age: { type: Number, default: 0, min: 0, max: 150 },\n  role: { type: String, enum: ['admin', 'user'], default: 'user' },\n  tags: [String],\n});\n\nuserSchema.pre('save', function (this: UserDocument, next: HookNext) {\n  console.log('about to save', this.name);\n  next();\n});\n\nuserSchema.virtual('isAdmin').get(function (this: UserDocument) {\n  return this.role === 'admin';\n});\n\nuserSchema.method('addTag', function (this: UserDocument, tag: string) {\n  this.tags.push(tag);\n  return this.tags;\n});\n\ntry {\n  await conn.connect(() => createMemoryDatabase({ name: 'quickstart' }));\n  const User = conn.model('User', userSchema);\n  const ada = await User.create({ name: 'Ada', age: 36, role: 'admin', tags: [] });\n  console.log(ada.isAdmin); // true\n  ada.addTag('math');\n  await ada.save();\n\n  const admins = await User.find({ role: 'admin' }).sort({ age: 1 });\n  await User.updateOne({ name: 'Ada' }, { $inc: { age: 1 } });\n  await User.deleteOne({ name: 'Ada' });\n  console.log(admins.map((user) => user.name));\n} finally {\n  await conn.disconnect();\n}\n"
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["For durable local storage, replace the memory factory with ", (0,jsx_runtime.jsx)(_components.code, {
@@ -751,9 +780,21 @@ function _createMdxContent(props) {
         children: ["Intentionally public thrown errors (", (0,jsx_runtime.jsx)(_components.code, {
           children: "WriteNormalizationError"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ParallelSaveError"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "MutationPartialFailureError"
         }), ", ", (0,jsx_runtime.jsx)(_components.code, {
           children: "BulkWritePartialFailureError"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "QueryFilterError"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "QueryOptionError"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "MutationOptionError"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ValidationError"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "SchemaConfigurationError"
         }), ") are importable from the package root for ", (0,jsx_runtime.jsx)(_components.code, {
           children: "instanceof"
         }), " narrowing; deep imports are not required."]
@@ -909,7 +950,19 @@ function _createMdxContent(props) {
         children: "schema.add()"
       }), " calls are rejected, and direct mutations to the original schema's path maps\ncannot change that model's casting, validation, public JSON Schema, or RxDB schema. ", (0,jsx_runtime.jsx)(_components.code, {
         children: "schema.clone()"
-      }), "\ncreates an independent editable copy, including independent paths, child schemas, hooks, virtuals,\noptions, and query helpers."]
+      }), "\ncreates an independent editable copy, including independent paths, child schemas, hooks, virtuals,\noptions, and query helpers.\nRequired tuples, enum arrays, and validator configuration objects are owned and sealed, recursively\nthrough nested and array-item paths. Caller rule containers are not frozen; clones retain independent\neditable rules. Methods/hooks and application callback closure state remain mutable behavior."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Literal defaults have a separate data-copy boundary. Schema construction, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "add()"
+      }), ", cloning and model\ncompilation own arrays, plain/null-prototype objects and Dates after bounded structural preflight;\ncyclic, over-depth/over-work, sparse or accessor-bearing literals throw ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "WriteNormalizationError"
+      }), "\nbefore recursive copying. Default factories are not executed by schema copying. Nonplain defaults\nretain their kind until a needed default reaches schema-aware casting: mixed Map/Set/class values\nreject before writes, while supported string/number coercions still work. Those opaque coercion\nobjects and factory callbacks remain application-owned shared behavior; resulting document data is\nindependently owned. Whole-document input/default/output budgets still apply when defaults are used."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Migration:"
+      }), " literal defaults no longer lose their kind during schema cloning/model compilation;\nunsupported mixed defaults reject rather than storing ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{}"
+      }), " or prototype-erased objects. Invalid\nliteral structure can now reject during schema construction or copying, even if a later document\nwould override that default."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Nested structure requires an explicit child ", (0,jsx_runtime.jsx)(_components.code, {
         children: "Schema"
@@ -1012,7 +1065,180 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "markModified(path)"
-      }), " is reconciled with the snapshot. It remains useful for supported mixed values, but\nunchanged and reverted paths are treated as clean. Saving an unchanged loaded document skips adapter\nmutation. The snapshot is refreshed only after successful persistence; failed saves keep their modified\npaths for retry."]
+      }), " is reconciled with the snapshot. It remains useful for supported mixed values, but\nunchanged and reverted paths are treated as clean. Saving an unchanged loaded document skips adapter\nmutation. The snapshot is refreshed only after successful persistence; failed writes keep their modified\npaths for retry."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "in-flight-saves-and-migration",
+      children: "In-Flight Saves And Migration"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Each save captures owned data and per-path replacement intent ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "after validation and pre-save hooks"
+      }), ",\nbefore persistence. Edits before capture join that write. Edits after capture stay on the live document\nfor the next save: scalar/live nested edits, assignments, both forms of ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set()"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "markModified()"
+      }), ".\nSuccess advances the snapshot to captured data and clears only the captured intent. Repeated markings\nof the same path create fresh intent even for equal values. Equal/reverted values still skip writes;\nthe newer marker controls replacement if that path changes before the next save. A no-op save consumes\nits captured clean markers. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "clearModified()"
+      }), " discards current markers, not structural differences."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Live plain-object edits merge changed leaves; explicit parent assignment, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set('parent', value)"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set('parent.nested', value)"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "markModified('parent')"
+      }), " replaces the changed subtree. Complete arrays\nare whole-array, last-writer-wins writes. Projection safety checks still apply on every save."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Await a save's settlement before starting another save on that instance. Overlaps reject with\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ParallelSaveError"
+      }), " (import from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/mongoose-rxdb"
+      }), ") before collection resolution,\nvalidation, hooks, or writes. The guard lasts through success/error post hooks, so recursive saves\nfrom hooks also reject. Rejected overlaps run no hooks and leave the active save alone. The guard\nreleases on success or failure; distinct instances retain leaf-merge/last-writer-wins semantics.\nReplace same-instance ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Promise.all([doc.save(), doc.save()])"
+      }), " with awaited saves."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Validation/save hooks still run once per admitted operation (automatic validation is skipped with\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "validateBeforeSave: false"
+      }), "); raw final-candidate validation remains inside the adapter retry boundary.\nWrite failure retains captured and later intent for retry. Post-save hook failure after a successful\nwrite does not undo that write: the snapshot has advanced and an inserted record has ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "isNew === false"
+      }), ".\nPost-hook edits remain pending; retry after settlement saves remaining edits without another insert.\nThe returned document is live and may already contain later unsaved edits."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "document-value-safety-and-migration",
+      children: "Document Value Safety And Migration"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Construction, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "create"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "insertMany"
+      }), ", direct schema-property assignment, and string/dotted/object-form\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "set()"
+      }), " check structure before cloning or casting and reject invalid values with the root-exported\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "WriteNormalizationError"
+      }), ". Mixed data accepts finite JSON primitives, dense arrays, plain/null-prototype\nobjects, and valid Dates. Map/Set/class instances, functions, symbols, bigint, non-finite numbers,\nnested undefined, sparse arrays, enumerable accessors/symbol keys, and dangerous keys reject rather\nthan silently losing data or prototypes."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Schema casts still follow the converter: numeric strings, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "\"false\""
+      }), ", bigint-to-string/number, and\ncompatible boxed/custom scalar values work. Invalid casts reject immediately; scalar array elements\nreject objects/arrays unless their element schema supports them. Dotted setters cast the addressed\npath. Declared schema fields (also within subdocuments) can be undefined/absent; mixed JSON and array\nelements cannot. Dates stay owned Date instances in documents and normalize to ISO strings in storage.\nSnapshots/serialization also normalize live nested scalar edits against their declared schema path."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The structural limits are ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "50 levels / 2,000 visited values"
+      }), ": root depth zero, aliases charged per\noccurrence, whole raw document/setter input and whole resulting document (including ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), ") bounded\nindependently. Needed default-factory results share the casting operation's budgets; overridden defaults\nare not evaluated. Insert conversion shares these whole-input-plus-default and whole-output budgets,\nincluding defaults first needed after ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "toObject()"
+      }), " omits explicit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "undefined"
+      }), ", pre-save hooks, or\ndefault-enabled upserts. These limits apply per batch document, not to string bytes or arbitrary application\ncallback execution. Public ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "castDocumentToSchema"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "castValue"
+      }), " use the same bounded checks."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Setters stage data/dirty changes and roll back on rejection, including dotted traversal and virtual\nsetter data changes; external callback side effects are outside that rollback. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "create([...])"
+      }), "\nprepares every entry including late insert defaults and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "insertMany"
+      }), " prepares every entry in either\nordered mode before writing, so bad ingress in any\nentry causes no writes. Later middleware/validation/storage failures remain non-transactional.\nLive nested edits remain supported, but invalid live values fail serialization, recursive dirty\ncomparison, and save before adapter mutation (also with save validation disabled). Correct/remove the\ninvalid value before retrying. Migration: previously erased object prototypes or stringified invalid\narray elements now reject early. Oversized insert-time defaults reject before writes instead of\nproducing unreadable records or a batch error after insertion. See the shipped README's\n", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Document Value Safety"
+      }), " contract."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "selected-documents-save-safety-and-migration",
+      children: "Selected Documents: Save Safety And Migration"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Hydrated ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "find()"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "findOne()"
+      }), " results retain private, immutable projection metadata. Keep ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), "\nselected (the default): a loaded document without it rejects ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "save()"
+      }), " with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "WriteNormalizationError"
+      }), "\nbefore mutation, even if unchanged. No new identity is inferred."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Selected scalar edits and in-place plain-object leaf changes merge into current storage, preserving\nhidden optional/required/immutable/defaulted fields. Saving never copies hidden stored values back\ninto the public document, serialization, or document hooks."
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Arrays are whole-array writes. Any changed partially selected array rejects with\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "WriteNormalizationError"
+        }), ", including visible-element edits, pushes/removals, and numeric setters.\nThere is no inferred element identity or index merge."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Explicit top-level assignment, ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "set('parent', value)"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "markModified('parent')"
+        }), " opt a changed\nsubtree into replacement. Replacement, ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "null"
+        }), ", or unset of an incomplete subtree rejects; so does\nwriting an unselected field or creating an incomplete parent. Select the whole subtree before\nreplacing it. For example, select ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "'profile'"
+        }), " for replacement; select ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "'profile.name'"
+        }), " and use\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "doc.set('profile.name', 'Grace')"
+        }), " for a leaf edit in an existing partial object.\nUse ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "set()"
+        }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "markModified()"
+        }), " to express nested replacement intent; direct mutations inside plain\nobjects follow the leaf-diff contract."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Completeness follows the projection, conservatively: even an excluded descendant that is absent\nmakes its parent incomplete, and selecting individual children does not prove parent completeness.\nEmpty projections retain full-record behavior. Unchanged projected documents with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "_id"
+        }), " skip\nmutation. Safety restrictions remain active with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "validateBeforeSave: false"
+        }), "."]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Array representation:"
+      }), " lean and hydrated projections use explicit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " for redacted array\npositions, preserving the source length and indexes. For example, selecting ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "'title members.1.name'"
+      }), "\nfrom three members returns ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "members: [null, { name: 'Ada' }, null]"
+      }), ". Selecting ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "'members.name'"
+      }), "\nalso uses ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " at positions without that field if any element contributes; if none contributes,\nthe array field is omitted. Multiple selected paths are combined. Excluding a whole numeric index\nuses ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " instead of removing/shifting that element. Nested arrays follow the same rule.\nThese placeholders expose no hidden values and are not defaults or evidence of stored ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), ";\nan actual selected ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " is indistinguishable without a fuller read. Check for ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " before\naccessing a projected element: result types do not narrow to reflect these slots. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "toObject()"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "toJSON()"
+      }), ", and JSON serialization preserve the same representation. Unchanged and selected scalar\nsaves preserve the stored arrays; placeholders are never written back as incomplete replacements.\nCaller-supplied sparse arrays and holes introduced by live mutations still reject."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["With validation enabled, partial saves run ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "validate"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "save"
+      }), " hooks once on the redacted document,\nthen run schema validators against the full merged storage candidate inside the adapter retry boundary.\nThis supports hidden required fields and cross-field rules without synthesizing defaults or exposing\nthe candidate on the document. Unchanged partial saves do not validate a candidate. Standalone\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "validate()"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "validateSync()"
+      }), " on a nonempty projection reject / return ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ValidationError"
+      }), " with\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "kind: 'projection'"
+      }), ": reload without ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "select()"
+      }), " for standalone validation, or use the validated save\npath. Hooks that call standalone validation must account for that restriction."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Migration:"
+      }), " older versions could silently discard hidden data through partial array/object\nreplacement. Reload the whole affected subtree for replacement; retain dotted leaf edits for partial\nobjects. Loaded-record validation and dirty diffing no longer apply absent defaults. Projected-out\nfields and defaults omitted by ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "setDefaultsOnInsert: false"
+      }), " stay absent after subsequent saves;\nexplicit unsets do not restore defaults. Projected setters suppress recursive defaults too.\nNew-document default application is unchanged. See the shipped README's ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Saving Selected Documents"
+      }), "\nsection for the consumer contract.\nProjected arrays now use explicit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " slots instead of holes (and whole-index exclusions no longer\ncompact indexes), so multi-element numeric/missing-field projections can hydrate and safely save."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "query",
       children: "Query"
@@ -1039,6 +1265,8 @@ function _createMdxContent(props) {
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Supported query operators: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$eq"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "$gt"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "$gte"
@@ -1054,17 +1282,21 @@ function _createMdxContent(props) {
         children: "$nin"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "$exists"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "$regex"
-      }), "\n(+", (0,jsx_runtime.jsx)(_components.code, {
-        children: "$options"
-      }), "), and top-level ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ",\nand top-level ", (0,jsx_runtime.jsx)(_components.code, {
         children: "$and"
       }), " / ", (0,jsx_runtime.jsx)(_components.code, {
         children: "$or"
       }), " / ", (0,jsx_runtime.jsx)(_components.code, {
         children: "$nor"
-      }), "."]
+      }), ". Request ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "RegExp"
+      }), " values and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$regex"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$options"
+      }), " reject with\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "QueryFilterError"
+      }), " before persistence."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Supported update operators: ", (0,jsx_runtime.jsx)(_components.code, {
         children: "$set"
@@ -1089,6 +1321,74 @@ function _createMdxContent(props) {
       }), " alias for ", (0,jsx_runtime.jsx)(_components.code, {
         children: "$set"
       }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "conditional-mutation-selectors-compatibility--migration",
+      children: "Conditional Mutation Selectors (Compatibility / Migration)"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Mutation rechecks use RxDB's own query matcher on the current record inside every native update retry.\nFor the supported compiled selectors, reads and rechecks share these semantics:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Scalar ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$eq"
+        }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$in"
+        }), " match array elements; ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$nin"
+        }), " rejects an array containing a forbidden member.\nArray-valued ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$eq"
+        }), " uses native array equality."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Equality / ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$in"
+        }), " with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "null"
+        }), " include missing fields. ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$ne: null"
+        }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$nin: [null]"
+        }), " exclude null and\nmissing fields; ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$exists"
+        }), " distinguishes them."]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Dotted selectors traverse objects and arrays; numeric segments address array indexes."
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Date-looking strings retain native string comparison, without implicit date parsing. Actual ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Date"
+        }), "\noperands normalize to stored ISO strings before selection and rechecking."]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["For updates without ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "upsert"
+      }), ", a record that loses its predicate reports zero matched/modified counts,\nor ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "null"
+      }), " from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "findOneAndUpdate"
+      }), ". The adapter does not select another record. Successful counts and\npreimages reflect the successful retry's current state. Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), " plus expected state for claims and\ntreat no-match as a lost claim; multi-record operations are per-record and non-transactional."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Deletes use the same matching semantics but remain ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "best-effort conditional"
+      }), ": a concurrent writer\ncan change a record after the final check and before native removal. Unsupported filters still reject\nat compilation. Direct adapter callers must pass compiled queries, using ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "compileQuery"
+      }), ".\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "findOneAndDelete"
+      }), " returns an observed preimage, not an atomic delete-time snapshot. For state-sensitive\nworkflows, prefer a conditional update to a terminal/soft-deleted state with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "upsert: false"
+      }), ", then physical\ncleanup under application coordination. A prior read or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), " alone cannot lock a delete."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Migration:"
+      }), " the former handwritten recheck could disagree with native reads for arrays,\nnull/missing, dotted paths, and date-looking strings. Updates now follow native matching, so a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$nin"
+      }), "\nclaim loses when a concurrent writer adds a forbidden member. See the shipped README's\n", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Conditional Mutation Selectors"
+      }), " section for the consumer contract."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "write-normalization",
+      children: "Write Normalization"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["All current write routes (", (0,jsx_runtime.jsx)(_components.code, {
         children: "create"
@@ -1139,6 +1439,8 @@ function _createMdxContent(props) {
       }), ". Pass ", (0,jsx_runtime.jsx)(_components.code, {
         children: "{ ordered: false }"
       }), " to attempt every input record and receive\nthe same partial-failure shape for all failed indexes."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Unordered duplicate IDs preserve first-occurrence priority and original input-index errors. Every\noccurrence is attempted; later duplicates normally receive native primary-key conflicts. Native bulk\npasses each contain unique IDs, so pass count is the maximum ID frequency. Partitioning now uses\nlinear dictionary work; duplicate-heavy batches still need those passes, with no throughput guarantee."
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Dates are stored as ISO-8601 strings (", (0,jsx_runtime.jsx)(_components.code, {
         children: "Date#toISOString()"
@@ -1265,6 +1567,127 @@ function _createMdxContent(props) {
       }), ", and it is rejected unless\n", (0,jsx_runtime.jsx)(_components.code, {
         children: "upsert: true"
       }), " is also set."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "upsert-concurrency-and-business-identity",
+      children: "Upsert Concurrency And Business Identity"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "updateOne"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "findOneAndUpdate"
+      }), " with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "upsert: true"
+      }), " perform ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "update, then separately insert on no\nwrite-time match"
+      }), ". This includes a selected candidate losing its predicate during a native conflict\nretry. There is no transaction, atomic secondary uniqueness, alternate-record selection,\nread-before-insert uniqueness check, or automatic retry-as-update after insert conflict."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Deterministic native-memory and persistent ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "trial-native"
+      }), " SQLite tests show:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "Interleaving"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Outcome"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: "Both calls observe no match; generated IDs"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Both can insert distinct IDs with the same business key."
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Both calls observe no match; same explicit ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "_id"
+            }), " equality"]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "One inserts; the other rejects with a native conflict, without applying its update."
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: "Selected record loses predicate during retry; generated ID"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Competing change survives; a new record is inserted even if another record remains eligible."
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsxs)(_components.td, {
+            children: ["Selected record loses predicate during retry; same explicit ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "_id"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Insertion at the occupied ID rejects; competing change survives and no alternative is updated."
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The winning caller is unspecified. Observed RxDB 17 insert conflicts have ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "code: 'CONFLICT'"
+      }), " and\npropagate as native errors, not a package-owned duplicate-key error. Validation/backend errors can\nalso reject. This evidence does not establish Premium or replication behavior."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["On insertion, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "updateOne"
+      }), " returns zero matched/modified counts plus ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "upsertedCount: 1"
+      }), " and\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "upsertedId"
+      }), ". ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "findOneAndUpdate"
+      }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "'before'"
+      }), ", returning ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "null even after insertion"
+      }), ";\nuse ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "returnDocument: 'after'"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "new: true"
+      }), " for the inserted record (lean if requested).\nInsertion starts from equality fields plus the update, not the lost candidate. The inserted data\nneed not satisfy the original filter: range/membership predicates do not supply initial values,\nand the update can change an equality field. Insert validation/default rules still apply."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Use one stable canonical ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "_id"
+        }), " per business entity, including tenant/key scope, across all writers.\nSupply it as a direct equality filter (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ _id: entityId }"
+        }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ _id: { $eq: entityId } }"
+        }), ");\nequalities inside ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$and"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$or"
+        }), " are not extracted for inserts. This relies on native primary-key\nconflicts, not an atomic uniqueness constraint on another field."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Stable IDs do not make conditional upserts transactional. An existing ID with a mismatching state\ncan cause conflict even in sequential calls. Reload after conflict and evaluate the business state;\nblindly retrying non-idempotent updates such as ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$inc"
+        }), " can apply an operation again."]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Serialize creation/read-decision-write workflows by business key across every participating writer\nwhen one local creator is needed. In-process queues do not cover other processes/tabs/devices or\nreplication. Cross-boundary coordination needs an authoritative backend providing the required\natomic constraints/transactions. A separate existence read is insufficient. Use an identity-only\ncreation filter; changing a state predicate can cause repeated inserts even with serialization."
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["For claims, use ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "_id"
+        }), " plus expected state with ", (0,jsx_runtime.jsx)(_components.strong, {
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "upsert: false"
+          })
+        }), " (the default); treat zero matches\nor null as a lost claim. Keep creation separate from conditional state transitions:"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "const claim = await Jobs.updateOne({ _id: jobId, state: 'ready' }, { $set: { state: 'claimed' } }, { upsert: false });\nif (claim.matchedCount === 0) {\n  // Missing or no longer eligible; do not create a replacement job here.\n}\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Compatibility / migration:"
+      }), " these are existing upsert semantics, not new atomic guarantees.\nReplace atomic find-or-create or claim-with-upsert assumptions with explicit identity/coordination.\nSee the shipped README's ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Upsert Concurrency And Business Identity"
+      }), " for installed-consumer guidance."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "read-query-semantics",
+      children: "Read Query Semantics"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Read query semantics are intentionally defined for the supported subset:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
@@ -1458,7 +1881,7 @@ function _createMdxContent(props) {
         children: "required"
       }), " functions and custom validators run with ", (0,jsx_runtime.jsx)(_components.code, {
         children: "this"
-      }), " bound to the\nowning document for root paths, or to the plain subdocument object for nested schema paths and\nsubdocument-array items. ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " bound to the\nowning document for root paths, or to the plain subdocument object for nested schema paths and\nsubdocument-array items. Full-document ", (0,jsx_runtime.jsx)(_components.code, {
         children: "save()"
       }), " runs ", (0,jsx_runtime.jsx)(_components.code, {
         children: "validate()"
@@ -1466,7 +1889,9 @@ function _createMdxContent(props) {
         children: "{ validateBeforeSave: false }"
       }), " skips\nautomatic save validation while leaving explicit ", (0,jsx_runtime.jsx)(_components.code, {
         children: "doc.validate()"
-      }), " unchanged."]
+      }), " available. Partial documents follow\nthe candidate-validation and standalone-validation restrictions in ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "Selected Documents"
+      }), " above."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: [(0,jsx_runtime.jsx)(_components.code, {
         children: "validateSync()"
@@ -1621,10 +2046,6 @@ function _createMdxContent(props) {
         children: "$nin"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "$exists"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "$regex"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "$options"
       }), ") pass\nthrough. ", (0,jsx_runtime.jsx)(_components.code, {
         children: "null"
       }), " and other non-object filters, invalid top-level operators, unsupported field operators, malformed logical arrays,\ndangerous keys (", (0,jsx_runtime.jsx)(_components.code, {
@@ -1639,17 +2060,19 @@ function _createMdxContent(props) {
         children: "{}"
       }), "."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Regex filters are allowed only under a strict bounded policy before adapter execution: pattern text\nmust be at most 128 characters, flags may only be ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "i"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "m"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "s"
-      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "u"
-      }), ", and duplicate/invalid flags,\nbackreferences, lookaround, repeated wildcard scans, quantified alternation, and nested quantified\ngroups such as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "^(a+)+$"
-      }), " are rejected."]
+      children: ["Request-derived regex is rejected: every ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "RegExp"
+      }), " value and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$regex"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$options"
+      }), " operator throws\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "QueryFilterError"
+      }), " before native execution, regardless of pattern size or simplicity. The builder's\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".regex()"
+      }), " records intent but fails at execution. This replaces the former bounded heuristic;\ntrusted schema ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "match"
+      }), " and custom validators keep working."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "_id",
       children: (0,jsx_runtime.jsx)(_components.code, {
@@ -1779,13 +2202,7 @@ function _createMdxContent(props) {
           children: [(0,jsx_runtime.jsx)(_components.td, {
             children: "Dirty tracking"
           }), (0,jsx_runtime.jsxs)(_components.td, {
-            children: [(0,jsx_runtime.jsx)(_components.code, {
-              children: "Document.isModified"
-            }), " / ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "modifiedPaths"
-            }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-              children: "$set"
-            }), "-only diffs on ", (0,jsx_runtime.jsx)(_components.code, {
+            children: ["Leaf set/unset diffs, explicit subtree/whole-array replacements, projection safety on ", (0,jsx_runtime.jsx)(_components.code, {
               children: "save"
             })]
           })]

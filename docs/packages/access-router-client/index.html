@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">@web-ts-toolkit/access-router-client | web-ts-toolkit</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" name="twitter:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" property="og:url" content="https://web-ts-toolkit.pages.dev/docs/packages/access-router-client/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="@web-ts-toolkit/access-router-client | web-ts-toolkit"><meta data-rh="true" name="description" content="Typed Axios-based client utilities for @web-ts-toolkit/access-router model routers, data routers, and root batch routes."><meta data-rh="true" property="og:description" content="Typed Axios-based client utilities for @web-ts-toolkit/access-router model routers, data routers, and root batch routes."><link data-rh="true" rel="icon" href="/img/logo.svg"><link data-rh="true" rel="canonical" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router-client/"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router-client/" hreflang="en"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router-client/" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Access Router Client","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router-client/"}]}</script><link rel="stylesheet" href="/assets/css/styles.376982ca.css">
-<script src="/assets/js/runtime~main.1b653f42.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.3522b6e1.js" defer="defer"></script>
 <script src="/assets/js/main.f9368f36.js" defer="defer"></script>
 </head>
 <body>
@@ -82,6 +82,7 @@ before/after migration table.</p>
 <li class=""><code>ModelService</code></li>
 <li class=""><code>DataService</code></li>
 <li class=""><code>Model</code></li>
+<li class=""><code>parentField</code> + <code>$include(path)</code> for correlated includes</li>
 <li class="">response and query helper types from <code>./types</code></li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Quxk" id="quick-start">Quick Start<a href="#quick-start" class="hash-link" aria-label="Direct link to Quick Start" title="Direct link to Quick Start" translate="no">​</a></h2>
@@ -139,9 +140,9 @@ should narrow on <code>success</code> before reading the successful list&#x27;s 
 <h2 class="anchor anchorTargetStickyNavbar_Quxk" id="package-guide">Package Guide<a href="#package-guide" class="hash-link" aria-label="Direct link to Package Guide" title="Direct link to Package Guide" translate="no">​</a></h2>
 <ul>
 <li class=""><a class="" href="/docs/packages/access-router-client/adapter">Adapter And Setup</a>: configuring <code>createAdapter(...)</code>, batching, wrapping arbitrary endpoints, and cache behavior</li>
-<li class=""><a class="" href="/docs/packages/access-router-client/services">Services</a>: <code>ModelService</code> and <code>DataService</code> methods, defaults, subqueries, and subdocuments</li>
+<li class=""><a class="" href="/docs/packages/access-router-client/services">Services</a>: <code>ModelService</code> and <code>DataService</code> methods, defaults, subqueries, correlated includes, and subdocuments</li>
 <li class=""><a class="" href="/docs/packages/access-router-client/model">Model</a>: dirty tracking, save/reset behavior, path-based updates, and collision handling</li>
-<li class=""><a class="" href="/docs/packages/access-router-client/typescript-and-errors">TypeScript And Errors</a>: typed selects, response typing, and <code>ServiceError</code></li>
+<li class=""><a class="" href="/docs/packages/access-router-client/typescript-and-errors">TypeScript And Errors</a>: typed selects, correlated output typing, response typing, and <code>ServiceError</code></li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Quxk" id="routing-notes">Routing Notes<a href="#routing-notes" class="hash-link" aria-label="Direct link to Routing Notes" title="Direct link to Routing Notes" translate="no">​</a></h2>
 <ul>

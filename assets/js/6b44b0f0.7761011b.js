@@ -43,6 +43,10 @@ const toc = [{
   "id": "built-in-validation",
   "level": 2
 }, {
+  "value": "Include Validation (Legacy And Correlated)",
+  "id": "include-validation-legacy-and-correlated",
+  "level": 2
+}, {
   "value": "Request Schemas",
   "id": "request-schemas",
   "level": 2
@@ -54,6 +58,10 @@ const toc = [{
   "value": "Helper Adapters",
   "id": "helper-adapters",
   "level": 2
+}, {
+  "value": "AJV: synchronous verdicts and tagged asynchronous data",
+  "id": "ajv-synchronous-verdicts-and-tagged-asynchronous-data",
+  "level": 3
 }, {
   "value": "<code>defineRequestSchema(...)</code>",
   "id": "definerequestschema",
@@ -81,10 +89,12 @@ function _createMdxContent(props) {
     code: "code",
     h1: "h1",
     h2: "h2",
+    h3: "h3",
     header: "header",
     li: "li",
     p: "p",
     pre: "pre",
+    strong: "strong",
     ul: "ul",
     ...(0,lib/* useMDXComponents */.R)(),
     ...props.components
@@ -140,6 +150,121 @@ function _createMdxContent(props) {
           children: "select"
         })]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "include-validation-legacy-and-correlated",
+      children: "Include Validation (Legacy And Correlated)"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "include"
+      }), " entries are validated by the shared ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "includeItemSchema"
+      }), ", reused\nidentically by direct model routes and grouped root entries, so both paths\nreturn the same verdicts. Two variants are accepted:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.strong, {
+          children: "Legacy"
+        }), " (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "mode"
+        }), " absent or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "'legacy'"
+        }), "): requires\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "localField"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "foreignField"
+        }), " for batched joins."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.strong, {
+          children: "Correlated"
+        }), " (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "mode: 'correlated'"
+        }), "): requires ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "model"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "op"
+        }), "\n(", (0,jsx_runtime.jsx)(_components.code, {
+          children: "'read'"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "'list'"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "'count'"
+        }), "), and an explicit output ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "path"
+        }), "; exactly one\nof ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "id"
+        }), " (identifier reads) or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "filter"
+        }), " (filter reads, lists, counts) must\nbe present. ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "localField"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "foreignField"
+        }), " must be absent. Args are\nallowlisted per operation (reads ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ select, sort, include }"
+        }), "; lists add\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ skip, limit, page, pageSize }"
+        }), "; counts take no args) and wire ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "options"
+        }), "\nmust be absent or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{}"
+        }), ". A legacy-shaped entry carrying ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$parent"
+        }), " markers\nis ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "BadRequest"
+        }), " — never silently reinterpreted."]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Marker rules enforced at validation: ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ \"$parent\": \"<field>\" }"
+      }), " (exactly\none own key, non-empty string value, dotted paths allowed except\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "__proto__"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "prototype"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "constructor"
+      }), " segments) only in supported filter\nvalue positions; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ \"$escape\": { \"$parent\": \"<field>\" } }"
+      }), " matches the\nliteral object. Bare ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ note: { $escape: { $parent: 'x' } } }"
+      }), " resolves to\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ note: { $eq: { $parent: 'x' } } }"
+      }), ", consistent with bare substituted parent\nobjects. Explicit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$eq"
+      }), " remains equivalent; operator operands and array elements\nreceive the literal without another equality wrapper. Escape resolution is\nsingle-pass and never reads parent data, even if ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "x"
+      }), " is absent, null or changed.\nMalformed escapes are rejected and expanded operands still consume complexity\nbudgets. The corrected bare form requires an updated server; older servers with\nthe bare-escape defect still need explicit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$eq"
+      }), ".\nMarkers in ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$$sq"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$$date"
+      }), " subtrees, as object keys, in root\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$text"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$where"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$comment"
+      }), ", in ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "populate.match"
+      }), ", or in ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sort"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "select"
+      }), " are\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "BadRequest"
+      }), ". Output ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "path"
+      }), " must be a non-empty valid field path (not\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "_id"
+      }), ", no ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$"
+      }), " prefix); duplicate correlated paths in one include array are\nrejected. Direct count bodies reject ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "include"
+      }), " entirely."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["After shape validation, shared service preflight also rejects any legacy/correlated\noutput path overlapping the receiving model's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "documentPermissionField"
+      }), " (equal,\nancestor or descendant, including equivalent legacy bracket paths). Nested receiving\nmodels use their own settings, before target persistence. Direct HTTP returns 400;\nthe affected root entry returns statusCode 400/code ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "bad_request"
+      }), " in its HTTP 200\nenvelope. Legacy grouped-count schema cast failures are also controlled BadRequest."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "request-schemas",
       children: "Request Schemas"
@@ -245,6 +370,48 @@ function _createMdxContent(props) {
           children: "fromVine(validator)"
         })]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "ajv-synchronous-verdicts-and-tagged-asynchronous-data",
+      children: "AJV: synchronous verdicts and tagged asynchronous data"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Install ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ajv"
+      }), " in the application; access-router has no mandatory AJV runtime dependency.\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "fromAjv"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "AjvValidatorLike<T>"
+      }), " are root exports."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { Ajv, type AsyncSchema } from 'ajv';\nimport { fromAjv } from '@web-ts-toolkit/access-router';\n\nconst ajv = new Ajv();\nconst sync = fromAjv<boolean>(ajv.compile<boolean>({ type: 'boolean' }));\nconst asyncSchema: AsyncSchema = { $async: true, type: 'boolean' };\nconst asyncData = fromAjv(ajv.compile<boolean>(asyncSchema));\nawait sync(false);      // { success: true, data: false }\nawait asyncData(false); // { success: true, data: false }\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Sync boolean results are verdicts: true returns input (with any in-place AJV\nmutations), false returns issues snapshotted from mutable ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "validate.errors"
+      }), " before\nanother call. Tagged ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$async: true"
+      }), " promises/thenables return validated data:\nfalse, true, null, scalars and objects all succeed with the fulfilled value.\nAsync paths never consult shared errors. Real AJV ValidationError rejections\n(", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ajv: true"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "validation: true"
+      }), ", errors array) retain input-local diagnostics under\nconcurrency; other throws/rejections propagate unchanged as operational failures."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.strong, {
+        children: "Migration:"
+      }), " untagged promises/thenables now reject with a configuration TypeError\nand are observed to prevent unhandled rejection; synchronous non-boolean returns\nalso reject. Pass genuine compiled validators directly without casts or tag-dropping\nwrappers. Structural async validators require a literal ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$async: true as const"
+      }), "\nand data/rejection semantics. Do not merely tag an async boolean-verdict wrapper:\nits false/true would now be successful data. Convert it to a ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "RequestSchemaValidator"
+      }), "\nwith explicit result objects, or return validated data and reject AJV validation\nerrors. An ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "errors"
+      }), " property alone no longer identifies validation failure.\nAJV's async type extends its sync type with overloads, so a sync-typed reference can\nhide the tag; runtime discrimination remains authoritative. Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "fromAjv<T>(sync)"
+      }), "\nfor explicit structural sync output types; genuine AJV sync/async types infer output\nvia their type guard, structural async types via their promise. An ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "AsyncSchema"
+      }), "-typed\nschema selects AJV's async compile/compileAsync overload without casts; inline\nschemas can match its earlier sync overload even with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$async: true"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "definerequestschema",
       children: (0,jsx_runtime.jsx)(_components.code, {

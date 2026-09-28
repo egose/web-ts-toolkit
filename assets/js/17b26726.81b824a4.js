@@ -63,6 +63,10 @@ const toc = [{
   "id": "mutation-input-types",
   "level": 2
 }, {
+  "value": "Correlated Include Output Typing",
+  "id": "correlated-include-output-typing",
+  "level": 2
+}, {
   "value": "Important Response Types",
   "id": "important-response-types",
   "level": 2
@@ -330,6 +334,115 @@ function _createMdxContent(props) {
         children: "you are bridging older code that expects a custom shape"
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "correlated-include-output-typing",
+      children: "Correlated Include Output Typing"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "$include(path)"
+      }), " carries an explicit result generic defaulting to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "unknown"
+      }), ",\nand the outer awaited type gains the output path via ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "WithCorrelatedOutputs"
+      }), ".\nBecause TypeScript has no partial type-argument inference, the generic order\nis path-first: write ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".$include<'org', Org>('org')"
+      }), " so the literal path is\npreserved in both the untyped (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$include('org')"
+      }), ") and explicitly typed forms.\nA lone result generic in first position is rejected by the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "string"
+      }), "\nconstraint instead of silently dropping the merge."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "What the types promise — and what they do not:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["reads contribute ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Out | null"
+        }), " (no guaranteed match is typed), lists\ncontribute ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Out[]"
+        }), ", counts contribute ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "number"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["inner values are plain: never ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Model"
+        }), "-wrapped, matching the legacy\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "lean: true"
+        }), " payloads that travel over the wire"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["nothing is inferred from partial projections: selecting ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "['name']"
+        }), " does\nnot narrow ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Out"
+        }), ", and no parent-path validation without a parent type is\nclaimed"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["legacy ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Include"
+        }), " entries and wide (non-literal) paths contribute nothing,\nso outer types without correlated payloads are exactly their previous\nshape"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Reference positions accept ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ParentRef"
+      }), " markers in bare field values, field\noperators (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$eq"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$ne"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$gt"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$gte"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$lt"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$lte"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$in"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$nin"
+      }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$regex"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$options"
+      }), ", nested ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$not"
+      }), "), ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$in"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$nin"
+      }), " elements and whole\nvalues, and inside ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$and"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$or"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$nor"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$elemMatch"
+      }), " subtrees — via the\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "CorrelatedFilterQuery"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "CorrelatedQuerySelector"
+      }), " types. Strict\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "FilterQuery"
+      }), " shapes reject every reference form at compile time (with a\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$parent?: never"
+      }), " guard), while the correlated overloads admit them; the\nruntime scan enforces the same boundary for unchecked JavaScript callers.\nBare array elements, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$exists"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$type"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$mod"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$regex"
+      }), " on non-strings, and\nbare markers as whole ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$and"
+      }), " clauses or whole filters stay type-rejected\n(the server verdict remains authoritative at runtime). ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{ $escape: ... }"
+      }), "\nliterals are data, so escape-only filters stay executable. Existing ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$$sq"
+      }), "\nsubquery values and the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ServerSideCast"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "DottedPathFilter"
+      }), " escape hatches\nkeep working alongside markers."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "important-response-types",
       children: "Important Response Types"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
@@ -499,9 +612,23 @@ function _createMdxContent(props) {
           children: "UnsupportedServiceDefaultValueError"
         }), " — runtime error thrown for invalid\nservice defaults (functions, symbols, bigints, non-finite numbers, invalid\n", (0,jsx_runtime.jsx)(_components.code, {
           children: "Date"
-        }), " values, non-plain instances, cycles). It is defined in\n", (0,jsx_runtime.jsx)(_components.code, {
+        }), " values, non-plain instances, cycles) or the separate 64-edge /\n10,000-expanded-visit defaults budget. It is defined in\n", (0,jsx_runtime.jsx)(_components.code, {
           children: "src/services/shared.ts"
         }), " and is not re-exported from the package root."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "CorrelatedIncludeError"
+        }), " — package-root export for invalid correlated inputs\nand cyclic/over-budget query preparation (64 edges / 10,000 expanded visits).\nPreparation throws synchronously before HTTP; see\n", (0,jsx_runtime.jsx)(_components.a, {
+          href: "./services#client-preparation-limits",
+          children: "Client preparation limits"
+        }), "."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "TypeError"
+        }), " — direct writes to reserved model members, invalid direct/assign\nkeys, or structural wrapper mutation; see\n", (0,jsx_runtime.jsx)(_components.a, {
+          href: "./model#safe-write-restrictions-and-migration",
+          children: "Safe-write restrictions"
+        }), "."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["The full root API is locked by the package's runtime/type export contract test\n(", (0,jsx_runtime.jsx)(_components.code, {

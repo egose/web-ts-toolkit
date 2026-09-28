@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Configuration | web-ts-toolkit</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" name="twitter:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" property="og:url" content="https://web-ts-toolkit.pages.dev/docs/packages/access-router/configuration"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Configuration | web-ts-toolkit"><meta data-rh="true" name="description" content="Global Options"><meta data-rh="true" property="og:description" content="Global Options"><link data-rh="true" rel="icon" href="/img/logo.svg"><link data-rh="true" rel="canonical" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/configuration"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/configuration" hreflang="en"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/configuration" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Access Router","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/"},{"@type":"ListItem","position":2,"name":"Configuration","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/configuration"}]}</script><link rel="stylesheet" href="/assets/css/styles.376982ca.css">
-<script src="/assets/js/runtime~main.1b653f42.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.3522b6e1.js" defer="defer"></script>
 <script src="/assets/js/main.f9368f36.js" defer="defer"></script>
 </head>
 <body>
@@ -33,6 +33,10 @@
 <li class=""><code>operationAccess</code> defaults to <code>false</code></li>
 <li class=""><code>modelPermissionPrefix</code> defaults to an empty string</li>
 </ul>
+<p>Include output cannot equal, descend from, or contain <code>documentPermissionField</code>,
+including dotted custom fields and equivalent legacy bracket paths. Nested include
+levels use the receiving model&#x27;s setting; violations are BadRequest before target
+persistence. See <a class="" href="/docs/packages/access-router/services#safe-include-output-and-exact-counts">Services</a>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Quxk" id="model-router-options">Model Router Options<a href="#model-router-options" class="hash-link" aria-label="Direct link to Model Router Options" title="Direct link to Model Router Options" translate="no">​</a></h2>
 <p>Common model options:</p>
 <ul>
@@ -65,6 +69,46 @@
 <li class=""><code>queryRouteSegment</code></li>
 <li class=""><code>mutationRouteSegment</code></li>
 </ul>
+<h2 class="anchor anchorTargetStickyNavbar_Quxk" id="request-complexity-and-correlated-limits">Request Complexity And Correlated Limits<a href="#request-complexity-and-correlated-limits" class="hash-link" aria-label="Direct link to Request Complexity And Correlated Limits" title="Direct link to Request Complexity And Correlated Limits" translate="no">​</a></h2>
+<p><code>requestComplexity</code> bounds apply to every read/list/count request, including
+correlated-include templates and their per-parent expansions:</p>
+<ul>
+<li class=""><code>maxDepth</code> (default <code>8</code>), <code>maxNodes</code> (default <code>500</code>),
+<code>maxLogicalClauses</code> (default <code>50</code>), <code>maxInValues</code> (default <code>100</code>),
+<code>maxBulkItems</code> (default <code>100</code>), <code>maxIncludeCount</code> (default <code>10</code>),
+<code>maxSubQueryCount</code> (default <code>10</code>), <code>maxBulkConcurrency</code> (default <code>10</code>),
+<code>maxHookConcurrency</code> (default <code>10</code>)</li>
+<li class=""><code>maxCorrelatedQueries</code> (default <code>100</code>): cumulative inner target executions per
+request/runtime (each executed per-parent read/list/count counts 1; nested levels
+multiply). Exceeding it fails the request/affected root entry.</li>
+<li class=""><code>maxCorrelatedDepth</code> (default <code>5</code>): nesting depth of correlated includes.</li>
+</ul>
+<p>Each correlated entry counts toward <code>maxIncludeCount</code> and its markers count
+as nodes; template <code>$in</code> lengths count toward <code>maxInValues</code>. After
+per-parent substitution the expanded filter is revalidated against
+<code>maxNodes</code>/<code>maxDepth</code>/<code>maxInValues</code>/<code>maxLogicalClauses</code>, so a short template
+expanding against a large parent array can still be rejected. Prefer tight parent
+filters and small per-parent limits to bound relationship work.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Quxk" id="persistence-admission">Persistence admission<a href="#persistence-admission" class="hash-link" aria-label="Direct link to Persistence admission" title="Direct link to Persistence admission" translate="no">​</a></h3>
+<p><code>maxBulkConcurrency</code> bounds awaited adapter/document persistence operations across
+model-service calls, root entries, subqueries, legacy includes and nested correlated
+levels sharing one request/runtime. Each request and runtime has an independent pool;
+services capture their runtime at construction. Admission awaits lazy queries,
+save/delete and service-triggered post-write populate. Bulk create admits one
+singleton-array adapter call per item, preserving result order and submitting every
+item even if another rejects.</p>
+<p>Recursive orchestration holds no permit while awaiting descendants, so limit <code>1</code>
+supports nested includes. Internal map/run bounds remain per invocation.
+<code>RootRouter.maxConcurrentOperations</code> separately limits whole root operations per
+order group. Permits release on success/error with FIFO transfer; release does not
+cancel submitted siblings or refund the cumulative correlated-query budget.</p>
+<p>This is an adapter-operation ceiling, not a count of MongoDB driver commands: one
+operation can issue multiple commands via Mongoose middleware/populate. Router ACL,
+prepare, afterPersist and decorate run outside the permit; Mongoose middleware is
+inside the awaited operation. Direct DB/network calls in trusted hooks are outside
+admission. This is not a process-wide connection limit, transaction/optimistic-edit
+guard or throughput guarantee. Controlled nested-query tests measured peak collection
+calls falling from 9 to 3 at limit 3; that does not bound arbitrary middleware fan-out.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Quxk" id="openapi-router-options">OpenAPI Router Options<a href="#openapi-router-options" class="hash-link" aria-label="Direct link to OpenAPI Router Options" title="Direct link to OpenAPI Router Options" translate="no">​</a></h2>
 <p><code>createOpenApiRouter(...)</code> accepts:</p>
 <ul>
@@ -114,6 +158,6 @@
 <li class=""><a class="" href="/docs/packages/access-router/routing">Routing</a></li>
 <li class=""><a class="" href="/docs/packages/access-router/hooks">Hooks</a></li>
 <li class=""><a class="" href="/docs/packages/access-router/validation">Validation</a></li>
-</ul></div></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/packages/access-router/routing"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Routing</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/packages/access-router/services"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Services</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_V25v thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#global-options" class="table-of-contents__link toc-highlight">Global Options</a></li><li><a href="#default-model-options" class="table-of-contents__link toc-highlight">Default Model Options</a></li><li><a href="#model-router-options" class="table-of-contents__link toc-highlight">Model Router Options</a></li><li><a href="#openapi-router-options" class="table-of-contents__link toc-highlight">OpenAPI Router Options</a></li><li><a href="#data-router-options" class="table-of-contents__link toc-highlight">Data Router Options</a></li><li><a href="#option-apis" class="table-of-contents__link toc-highlight">Option APIs</a></li><li><a href="#related-pages" class="table-of-contents__link toc-highlight">Related Pages</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/packages">Packages Overview</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/packages/access-router">Access Router</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/packages/access-router-runtime">Access Router Runtime</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Community</div><ul class="footer__items clean-list"></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/egose/web-ts-toolkit" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink__tJh"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 web-ts-toolkit. Built with Docusaurus.</div></div></div></footer></div>
+</ul></div></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/packages/access-router/routing"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Routing</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/packages/access-router/services"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Services</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_V25v thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#global-options" class="table-of-contents__link toc-highlight">Global Options</a></li><li><a href="#default-model-options" class="table-of-contents__link toc-highlight">Default Model Options</a></li><li><a href="#model-router-options" class="table-of-contents__link toc-highlight">Model Router Options</a></li><li><a href="#request-complexity-and-correlated-limits" class="table-of-contents__link toc-highlight">Request Complexity And Correlated Limits</a><ul><li><a href="#persistence-admission" class="table-of-contents__link toc-highlight">Persistence admission</a></li></ul></li><li><a href="#openapi-router-options" class="table-of-contents__link toc-highlight">OpenAPI Router Options</a></li><li><a href="#data-router-options" class="table-of-contents__link toc-highlight">Data Router Options</a></li><li><a href="#option-apis" class="table-of-contents__link toc-highlight">Option APIs</a></li><li><a href="#related-pages" class="table-of-contents__link toc-highlight">Related Pages</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/packages">Packages Overview</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/packages/access-router">Access Router</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/packages/access-router-runtime">Access Router Runtime</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Community</div><ul class="footer__items clean-list"></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/egose/web-ts-toolkit" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink__tJh"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 web-ts-toolkit. Built with Docusaurus.</div></div></div></footer></div>
 </body>
 </html>

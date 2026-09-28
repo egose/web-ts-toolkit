@@ -51,6 +51,14 @@ const toc = [{
   "id": "model-router-options",
   "level": 2
 }, {
+  "value": "Request Complexity And Correlated Limits",
+  "id": "request-complexity-and-correlated-limits",
+  "level": 2
+}, {
+  "value": "Persistence admission",
+  "id": "persistence-admission",
+  "level": 3
+}, {
   "value": "OpenAPI Router Options",
   "id": "openapi-router-options",
   "level": 2
@@ -73,6 +81,7 @@ function _createMdxContent(props) {
     code: "code",
     h1: "h1",
     h2: "h2",
+    h3: "h3",
     header: "header",
     li: "li",
     p: "p",
@@ -182,6 +191,13 @@ function _createMdxContent(props) {
           children: "modelPermissionPrefix"
         }), " defaults to an empty string"]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Include output cannot equal, descend from, or contain ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "documentPermissionField"
+      }), ",\nincluding dotted custom fields and equivalent legacy bracket paths. Nested include\nlevels use the receiving model's setting; violations are BadRequest before target\npersistence. See ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./services#safe-include-output-and-exact-counts",
+        children: "Services"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "model-router-options",
       children: "Model Router Options"
@@ -293,6 +309,96 @@ function _createMdxContent(props) {
           children: "mutationRouteSegment"
         })
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "request-complexity-and-correlated-limits",
+      children: "Request Complexity And Correlated Limits"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "requestComplexity"
+      }), " bounds apply to every read/list/count request, including\ncorrelated-include templates and their per-parent expansions:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "maxDepth"
+        }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "8"
+        }), "), ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "maxNodes"
+        }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "500"
+        }), "),\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "maxLogicalClauses"
+        }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "50"
+        }), "), ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "maxInValues"
+        }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "100"
+        }), "),\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "maxBulkItems"
+        }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "100"
+        }), "), ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "maxIncludeCount"
+        }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "10"
+        }), "),\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "maxSubQueryCount"
+        }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "10"
+        }), "), ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "maxBulkConcurrency"
+        }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "10"
+        }), "),\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "maxHookConcurrency"
+        }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "10"
+        }), ")"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "maxCorrelatedQueries"
+        }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "100"
+        }), "): cumulative inner target executions per\nrequest/runtime (each executed per-parent read/list/count counts 1; nested levels\nmultiply). Exceeding it fails the request/affected root entry."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "maxCorrelatedDepth"
+        }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "5"
+        }), "): nesting depth of correlated includes."]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Each correlated entry counts toward ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "maxIncludeCount"
+      }), " and its markers count\nas nodes; template ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$in"
+      }), " lengths count toward ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "maxInValues"
+      }), ". After\nper-parent substitution the expanded filter is revalidated against\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "maxNodes"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "maxDepth"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "maxInValues"
+      }), "/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "maxLogicalClauses"
+      }), ", so a short template\nexpanding against a large parent array can still be rejected. Prefer tight parent\nfilters and small per-parent limits to bound relationship work."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "persistence-admission",
+      children: "Persistence admission"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "maxBulkConcurrency"
+      }), " bounds awaited adapter/document persistence operations across\nmodel-service calls, root entries, subqueries, legacy includes and nested correlated\nlevels sharing one request/runtime. Each request and runtime has an independent pool;\nservices capture their runtime at construction. Admission awaits lazy queries,\nsave/delete and service-triggered post-write populate. Bulk create admits one\nsingleton-array adapter call per item, preserving result order and submitting every\nitem even if another rejects."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Recursive orchestration holds no permit while awaiting descendants, so limit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "1"
+      }), "\nsupports nested includes. Internal map/run bounds remain per invocation.\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "RootRouter.maxConcurrentOperations"
+      }), " separately limits whole root operations per\norder group. Permits release on success/error with FIFO transfer; release does not\ncancel submitted siblings or refund the cumulative correlated-query budget."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "This is an adapter-operation ceiling, not a count of MongoDB driver commands: one\noperation can issue multiple commands via Mongoose middleware/populate. Router ACL,\nprepare, afterPersist and decorate run outside the permit; Mongoose middleware is\ninside the awaited operation. Direct DB/network calls in trusted hooks are outside\nadmission. This is not a process-wide connection limit, transaction/optimistic-edit\nguard or throughput guarantee. Controlled nested-query tests measured peak collection\ncalls falling from 9 to 3 at limit 3; that does not bound arbitrary middleware fan-out."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "openapi-router-options",
       children: "OpenAPI Router Options"

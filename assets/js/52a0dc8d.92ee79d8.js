@@ -63,6 +63,14 @@ const toc = [{
   "id": "subqueries",
   "level": 2
 }, {
+  "value": "Correlated Includes",
+  "id": "correlated-includes",
+  "level": 2
+}, {
+  "value": "Client preparation limits",
+  "id": "client-preparation-limits",
+  "level": 3
+}, {
   "value": "Subdocument Helpers",
   "id": "subdocument-helpers",
   "level": 2
@@ -107,6 +115,12 @@ function _createMdxContent(props) {
     p: "p",
     pre: "pre",
     strong: "strong",
+    table: "table",
+    tbody: "tbody",
+    td: "td",
+    th: "th",
+    thead: "thead",
+    tr: "tr",
     ul: "ul",
     ...(0,lib/* useMDXComponents */.R)(),
     ...props.components
@@ -463,6 +477,277 @@ function _createMdxContent(props) {
       }), " root-query metadata expected by the server."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "That gives you a way to express server-side dependent queries without manually constructing the low-level root-router payload."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "correlated-includes",
+      children: "Correlated Includes"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["A correlated include runs a target query ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "per parent document"
+      }), " using values\nfrom that parent. Build the inner query with the familiar service methods,\nreference parent fields explicitly with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "parentField()"
+      }), ", and attach the\nresult with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$include(path)"
+      }), ":"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "import { parentField } from '@web-ts-toolkit/access-router-client';\n\nconst userWithIncludes = await userService.readAdvanced('user-id-1', {\n  include: [\n    orgService\n      .readAdvanced(parentField('orgId'), { select: ['name', 'description'] })\n      .$include('org'),\n    postService\n      .listAdvanced(\n        { authorId: parentField('_id'), reviewerId: parentField('managerId'), title: '$special' },\n        { select: ['title'], sort: { createdAt: -1 }, limit: 5 },\n      )\n      .$include('posts'),\n    postService.countAdvanced({ authorId: parentField('_id') }).$include('postCount'),\n  ],\n});\nvoid userWithIncludes;\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "All seven builders compose this way:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.table, {
+      children: [(0,jsx_runtime.jsx)(_components.thead, {
+        children: (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.th, {
+            children: "Method"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Reference position"
+          }), (0,jsx_runtime.jsx)(_components.th, {
+            children: "Inner operation"
+          })]
+        })
+      }), (0,jsx_runtime.jsxs)(_components.tbody, {
+        children: [(0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "read(id)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "identifier argument"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "read"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "readAdvanced(id, args)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "identifier argument"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "read"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "readAdvancedFilter(filter, args)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "filter argument"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "read"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "list(args)"
+            }), " + ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "$include(path, { filter })"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "supplemental filter"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "list"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "listAdvanced(filter, args)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "filter argument"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "list"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsxs)(_components.td, {
+            children: [(0,jsx_runtime.jsx)(_components.code, {
+              children: "count()"
+            }), " + ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "$include(path, { filter })"
+            })]
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "supplemental filter"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "count"
+            })
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "countAdvanced(filter)"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "filter argument"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "count"
+            })
+          })]
+        })]
+      })]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "const basicPosts = postService.list({ limit: 5 }).$include('posts', {\n  filter: { authorId: parentField('_id') },\n});\nvoid basicPosts;\n"
+      })
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Reference scope and result-shape notes:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["References resolve against the ", (0,jsx_runtime.jsx)(_components.strong, {
+          children: "immediate parent"
+        }), " document on the outer\nserver. Nested includes inside ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "args.include"
+        }), " bind to the target doc of\nthe enclosing include, never to the outer parent."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Plain strings are never references: ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "title: '$special'"
+        }), " keeps its literal\nquery meaning. Match a literal ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ $parent: 'x' }"
+        }), " object with\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ $escape: { $parent: 'x' } }"
+        }), " (use the ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$eq"
+        }), "-wrapped form when the\nliteral sits in a bare field position)."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Reads attach the doc or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "null"
+        }), ", lists attach arrays, counts attach\nnumbers. A missing or ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "null"
+        }), " reference skips the target query and attaches\nthe same no-match shape (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "null"
+        }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "[]"
+        }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "0"
+        }), ")."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Identifier reads preserve the target's configured identifier behavior\n(custom id fields included). Lists apply ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "limit"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "page"
+        }), " per parent\n(contrast with legacy ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "localField"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "foreignField"
+        }), " includes, whose batch\npagination applies across the whole parent set); counts use count\nsemantics, never a capped list count."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Conversion is synchronous and performs zero HTTP calls. A call carrying\nreferences returns a frozen, non-thenable descriptor — it cannot be\nawaited into data or grouped; convert it with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$include()"
+        }), " first.\nReference-free calls keep their ordinary lazy/grouped behavior."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Descriptors are transport-inert: the inner query always executes on the\n", (0,jsx_runtime.jsx)(_components.strong, {
+          children: "outer"
+        }), " server under the outer request context. Mixing adapters in one\ninclude tree is allowed at build time and never dispatches to the inner\nservice's transport."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Supported inner args are allowlisted per operation: reads forward\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "select"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sort"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "include"
+        }), ", lists additionally forward per-parent\npagination (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "skip"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "limit"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "page"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "pageSize"
+        }), "), basic ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "read"
+        }), "/", (0,jsx_runtime.jsx)(_components.code, {
+          children: "count"
+        }), " carry\nno args. Explicit ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "populate"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "tasks"
+        }), ", execution-only options (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "skim"
+        }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "includePermissions"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "includeCount"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "tryList"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "populateAccess"
+        }), ",\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ignoreCache"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "includeExtraHeaders"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sq"
+        }), "), or transport config on a\nreference-bearing call throws at ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "$include()"
+        }), "; the same keys inherited\nfrom service/adapter defaults are silently dropped. ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "options"
+        }), " on the wire\nentry must stay empty."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Referenced parent fields are loaded internally for resolution even when\nomitted from ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "select"
+        }), ", then trimmed from output unless selected (or\noverride-selected). A policy-forbidden reference still resolves — only its\nquery effects are visible, never the value itself. Sibling include output\nand ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "decorate"
+        }), "/task output never feed references (stable pre-include\nsnapshot)."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Execution is bounded per request (", (0,jsx_runtime.jsx)(_components.code, {
+          children: "maxCorrelatedQueries"
+        }), " total inner\nexecutions, ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "maxCorrelatedDepth"
+        }), " nesting depth); exceeding either fails the\nwhole request. Target authorization denials and runtime errors fail the\nwhole parent request — partial per-parent error shapes are never attached."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Typed output needs an explicit result generic with the path first:\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: ".$include<'org', Org>('org')"
+        }), ". Without it the path is still attached but\ntyped ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "unknown"
+        }), "; nothing is inferred from partial projections, reads admit\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "null"
+        }), ", and nested values stay plain (never ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Model"
+        }), "-wrapped)."]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Requires a server with correlated-include support. Older servers silently\ndrop the new entries instead of executing them — check the server release\nnotes for the minimum version."
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "client-preparation-limits",
+      children: "Client preparation limits"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Filter scanning, correlated capture/copy, and subquery rewriting now reject\ncycles, depth over ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "64 edges"
+      }), " (each root is depth 0), or over ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "10,000\nexpanded value visits"
+      }), " per boundary with synchronous ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "CorrelatedIncludeError"
+      }), ".\nThis includes reference-free and supplemental ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$include()"
+      }), " filters. Preparation\nperforms zero HTTP and does not execute lazy requests or freeze caller containers."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Count containers, primitive leaves, array slots (including holes), and each\nrepeated shared-object occurrence. Shared acyclic references are supported.\nCapture combines supplied id/filter/args/options; undefined optional roots are\nabsent. Conversion combines id or rewritten filter with effective forwarded\nargs, including defaults. Internal wire-envelope keys do not count toward the\nfilter-only budget. A conversion can exceed its aggregate budget even if the\nindividual builder inputs fit, especially after ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$$sq"
+      }), " metadata expansion."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "$escape"
+      }), " contents stay literal during marker scanning and rewriting but are\nstill structurally checked. Live requests remain opaque until their ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "__query"
+      }), "\nbecomes ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$$sq"
+      }), " wire data, which is checked before copying. Reduce oversized\nfilters/args instead of relying on previously unbounded preparation. These\nplain-object/array structural limits are not byte limits, latency guarantees,\nor bounds on arbitrary getter/proxy/exotic-instance behavior. Service defaults\nhave a ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./adapter#service-defaults",
+        children: "separate normalization budget"
+      }), "; server\nexecution limits remain separate as well."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "subdocument-helpers",
       children: "Subdocument Helpers"

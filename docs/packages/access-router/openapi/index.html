@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">OpenAPI | web-ts-toolkit</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" name="twitter:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" property="og:url" content="https://web-ts-toolkit.pages.dev/docs/packages/access-router/openapi"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="OpenAPI | web-ts-toolkit"><meta data-rh="true" name="description" content="access-router registers generated routes into an internal OpenAPI registry and can expose that registry as JSON and Swagger UI."><meta data-rh="true" property="og:description" content="access-router registers generated routes into an internal OpenAPI registry and can expose that registry as JSON and Swagger UI."><link data-rh="true" rel="icon" href="/img/logo.svg"><link data-rh="true" rel="canonical" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/openapi"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/openapi" hreflang="en"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/openapi" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Access Router","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/"},{"@type":"ListItem","position":2,"name":"OpenAPI","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/openapi"}]}</script><link rel="stylesheet" href="/assets/css/styles.376982ca.css">
-<script src="/assets/js/runtime~main.1b653f42.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.3522b6e1.js" defer="defer"></script>
 <script src="/assets/js/main.f9368f36.js" defer="defer"></script>
 </head>
 <body>
@@ -31,6 +31,15 @@
 <li class="">route tags and operation ids</li>
 </ul>
 <p>Paths are emitted as OpenAPI-style paths such as <code>/users/{id}</code>.</p>
+<p>Request bodies that accept <code>include</code> (advanced list/read bodies and root
+batch entries) document both the legacy <code>localField</code>/<code>foreignField</code> shape
+and the correlated shape: <code>mode: &#x27;correlated&#x27;</code> with <code>model</code>, <code>op</code>
+(<code>read</code>/<code>list</code>/<code>count</code>), explicit output <code>path</code>, exactly one of <code>id</code> or
+<code>filter</code>, and per-operation <code>args</code>. <code>{ &quot;$parent&quot;: &quot;&lt;field&gt;&quot; }</code> markers and
+<code>{ &quot;$escape&quot;: ... }</code> literals appear as plain JSON objects in the schema —
+they carry no special OpenAPI type beyond the shared include schema, which
+reuses the same validation (<code>includeItemSchema</code>) that the routes enforce,
+so the documented shape and the runtime verdicts agree.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Quxk" id="operation-ids">Operation IDs<a href="#operation-ids" class="hash-link" aria-label="Direct link to Operation IDs" title="Direct link to Operation IDs" translate="no">​</a></h2>
 <p>Generated operation ids follow the router naming conventions, for example:</p>
 <ul>

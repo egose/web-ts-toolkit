@@ -184,10 +184,16 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Low-level entrypoints:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
-      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "@web-ts-toolkit/access-router/advanced"
-        })
+        }), " (also re-exports the\ncorrelated-include wire types ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "ParentRef"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "CorrelatedInclude"
+        }), ", and\n", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Include"
+        }), " without deep imports)"]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
           children: "@web-ts-toolkit/access-router/processors"

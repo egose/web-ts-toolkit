@@ -1,7 +1,7 @@
 "use strict";
-(globalThis["webpackChunkwebsite"] ||= []).push([[646],{
+(globalThis["webpackChunkwebsite"] ||= []).push([[79],{
 
-/***/ 8336
+/***/ 1010
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 // ESM COMPAT FLAG
@@ -13,12 +13,12 @@ __webpack_require__.d(__webpack_exports__, {
   contentTitle: () => (/* binding */ contentTitle),
   "default": () => (/* binding */ MDXContent),
   frontMatter: () => (/* binding */ frontMatter),
-  metadata: () => (/* reexport */ site_docs_packages_json_frame_md_586_namespaceObject),
+  metadata: () => (/* reexport */ site_docs_packages_express_oidc_vault_mongodb_store_md_bed_namespaceObject),
   toc: () => (/* binding */ toc)
 });
 
-;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-json-frame-md-586.json
-const site_docs_packages_json_frame_md_586_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/json-frame","title":"@web-ts-toolkit/json-frame","description":"Normalize pandas DataFrame.to_json() payloads into one immutable, column-major DataFrame API for TypeScript.","source":"@site/docs/packages/json-frame.md","sourceDirName":"packages","slug":"/packages/json-frame","permalink":"/docs/packages/json-frame","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":20,"frontMatter":{"sidebar_label":"JSON Frame","sidebar_position":20},"sidebar":"packagesSidebar","previous":{"title":"Create Access Router Starter","permalink":"/docs/packages/create-access-router-mongo-starter"},"next":{"title":"Asset Inliner","permalink":"/docs/packages/asset-inliner"}}');
+;// ./.docusaurus/docusaurus-plugin-content-docs/default/site-docs-packages-express-oidc-vault-mongodb-store-md-bed.json
+const site_docs_packages_express_oidc_vault_mongodb_store_md_bed_namespaceObject = /*#__PURE__*/JSON.parse('{"id":"packages/express-oidc-vault-mongodb-store","title":"@web-ts-toolkit/express-oidc-vault-mongodb-store","description":"MongoDB-backed store provider for @web-ts-toolkit/express-oidc-vault.","source":"@site/docs/packages/express-oidc-vault-mongodb-store.md","sourceDirName":"packages","slug":"/packages/express-oidc-vault-mongodb-store","permalink":"/docs/packages/express-oidc-vault-mongodb-store","draft":false,"unlisted":false,"tags":[],"version":"current","sidebarPosition":9,"frontMatter":{"sidebar_label":"OIDC Vault MongoDB Store","sidebar_position":9},"sidebar":"packagesSidebar","previous":{"title":"OIDC Vault Redis Store","permalink":"/docs/packages/express-oidc-vault-redis-store"},"next":{"title":"Overview","permalink":"/docs/packages/access-router/"}}');
 // EXTERNAL MODULE: ./node_modules/.pnpm/react@19.2.8/node_modules/react/jsx-runtime.js
 var jsx_runtime = __webpack_require__(1987);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@mdx-js+react@3.1.1_@types+react@19.2.18_react@19.2.8/node_modules/@mdx-js/react/lib/index.js
@@ -27,14 +27,14 @@ var lib = __webpack_require__(7008);
 var Tabs = __webpack_require__(362);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@docusaurus+theme-classic@3.10.2_@types+react@19.2.18_clean-css@5.3.3_cssnano@6.1.2_pos_a99ada86901ab04f139167b245219288/node_modules/@docusaurus/theme-classic/lib/theme/TabItem/index.js + 1 modules
 var TabItem = __webpack_require__(4340);
-;// ./docs/packages/json-frame.md
+;// ./docs/packages/express-oidc-vault-mongodb-store.md
 
 
 const frontMatter = {
-	sidebar_label: 'JSON Frame',
-	sidebar_position: 20
+	sidebar_label: 'OIDC Vault MongoDB Store',
+	sidebar_position: 9
 };
-const contentTitle = '@web-ts-toolkit/json-frame';
+const contentTitle = '@web-ts-toolkit/express-oidc-vault-mongodb-store';
 
 const assets = {
 
@@ -49,43 +49,49 @@ const toc = [{
   "id": "installation",
   "level": 2
 }, {
-  "value": "Import",
-  "id": "import",
-  "level": 2
-}, {
   "value": "Quick Start",
   "id": "quick-start",
   "level": 2
 }, {
-  "value": "Supported Orients",
-  "id": "supported-orients",
+  "value": "Custom collection names",
+  "id": "custom-collection-names",
+  "level": 3
+}, {
+  "value": "Behavior",
+  "id": "behavior",
   "level": 2
 }, {
-  "value": "Table Schema",
-  "id": "table-schema",
+  "value": "When To Use It",
+  "id": "when-to-use-it",
   "level": 2
 }, {
-  "value": "Logical Types",
-  "id": "logical-types",
+  "value": "API",
+  "id": "api",
   "level": 2
 }, {
-  "value": "Immutability",
-  "id": "immutability",
+  "value": "Operational Notes",
+  "id": "operational-notes",
   "level": 2
 }, {
-  "value": "Limits And Errors",
-  "id": "limits-and-errors",
+  "value": "Security Notes",
+  "id": "security-notes",
   "level": 2
 }, {
-  "value": "Types",
-  "id": "types",
+  "value": "Scoped Deletion Indexes",
+  "id": "scoped-deletion-indexes",
+  "level": 2
+}, {
+  "value": "Related Packages",
+  "id": "related-packages",
   "level": 2
 }];
 function _createMdxContent(props) {
   const _components = {
+    a: "a",
     code: "code",
     h1: "h1",
     h2: "h2",
+    h3: "h3",
     header: "header",
     li: "li",
     p: "p",
@@ -97,19 +103,15 @@ function _createMdxContent(props) {
   return (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, {
     children: [(0,jsx_runtime.jsx)(_components.header, {
       children: (0,jsx_runtime.jsx)(_components.h1, {
-        id: "web-ts-toolkitjson-frame",
+        id: "web-ts-toolkitexpress-oidc-vault-mongodb-store",
         children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "@web-ts-toolkit/json-frame"
+          children: "@web-ts-toolkit/express-oidc-vault-mongodb-store"
         })
       })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Normalize pandas ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "DataFrame.to_json()"
-      }), " payloads into one immutable, column-major ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "DataFrame"
-      }), " API for TypeScript."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "The package accepts JSON strings or parsed JSON values for all six pandas DataFrame JSON orients and exports back to each supported orient without runtime dependencies."
+      children: ["MongoDB-backed store provider for ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "@web-ts-toolkit/express-oidc-vault"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "installation",
       children: "Installation"
@@ -120,7 +122,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "npm install @web-ts-toolkit/json-frame\n"
+            children: "npm install @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-mongodb-store express mongodb\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -129,7 +131,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "yarn add @web-ts-toolkit/json-frame\n"
+            children: "yarn add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-mongodb-store express mongodb\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -138,7 +140,7 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "pnpm add @web-ts-toolkit/json-frame\n"
+            children: "pnpm add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-mongodb-store express mongodb\n"
           })
         })
       }), (0,jsx_runtime.jsx)(TabItem/* default */.A, {
@@ -147,180 +149,253 @@ function _createMdxContent(props) {
         children: (0,jsx_runtime.jsx)(_components.pre, {
           children: (0,jsx_runtime.jsx)(_components.code, {
             className: "language-bash",
-            children: "bun add @web-ts-toolkit/json-frame\n"
+            children: "bun add @web-ts-toolkit/express-oidc-vault @web-ts-toolkit/express-oidc-vault-mongodb-store express mongodb\n"
           })
         })
       })]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "import",
-      children: "Import"
-    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
-      children: (0,jsx_runtime.jsx)(_components.code, {
-        className: "language-ts",
-        children: "import { fromOrient } from '@web-ts-toolkit/json-frame';\n"
-      })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "The package root is named-export only. There is no default export and no supported deep import path."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "quick-start",
       children: "Quick Start"
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import { fromOrient } from '@web-ts-toolkit/json-frame';\n\ninterface WeatherRow {\n  city: string;\n  temp: number;\n}\n\nconst frame = fromOrient<WeatherRow>('[{\"city\":\"Paris\",\"temp\":21},{\"city\":\"Rome\",\"temp\":30}]');\nconst hottest = frame.sort((left, right) => right.temp - left.temp).row(0);\nconst split = frame.toSplit();\n\nvoid [hottest, split];\n"
+        children: "import express from 'express';\nimport { MongoClient } from 'mongodb';\nimport { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { createMongoOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-mongodb-store';\n\nconst app = express();\nconst mongo = new MongoClient(process.env.MONGODB_URI!);\n\nawait mongo.connect();\n\nconst storeProvider = createMongoOidcVaultStore({\n  db: mongo.db('app-auth'),\n});\n\nawait storeProvider.ready();\n\napp.use(\n  createOidcVaultMiddleware({\n    basePath: '/auth/oidc',\n    backendOrigin: 'https://api.example.com',\n    config: {\n      issuer: process.env.OIDC_ISSUER,\n      clientId: process.env.OIDC_CLIENT_ID,\n      clientSecret: process.env.OIDC_CLIENT_SECRET,\n    },\n    frontendRedirectUri: 'https://frontend.example.com/callback',\n    postLogoutRedirectUri: 'https://frontend.example.com/logged-out',\n    storeProvider,\n  }),\n);\n\nconst server = app.listen(3000);\n\nprocess.once('SIGTERM', async () => {\n  server.close();\n  await mongo.close();\n});\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["For a store-only snippet without Express wiring, see the ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Quick Start"
+      }), " section in the package README."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "custom-collection-names",
+      children: "Custom collection names"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "If your deployment needs explicit collection naming, pass the collection names up front:"
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "const storeProvider = createMongoOidcVaultStore({\n  db: mongo.db('app-auth'),\n  authorizationTransactionsCollectionName: 'auth_oidc_transactions',\n  exchangeCodesCollectionName: 'auth_oidc_exchange_codes',\n  sessionsCollectionName: 'auth_oidc_sessions',\n  backchannelLogoutTokenJtisCollectionName: 'auth_oidc_backchannel_logout_jtis',\n  rotatedSessionAliasesCollectionName: 'auth_oidc_rotated_session_aliases',\n});\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "supported-orients",
-      children: "Supported Orients"
+      id: "behavior",
+      children: "Behavior"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "records"
-        })
+        children: "uses separate collections for authorization transactions, exchange codes, sessions, backchannel logout token JTIs, and rotated-session aliases"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "index"
-        })
+        children: "creates TTL indexes on expiring records"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "columns"
-        })
+        children: "checks expiration during relevant reads or consumes for authorization transactions, exchange codes, backchannel logout token JTIs, and rotated-session aliases so behavior does not depend only on MongoDB's background TTL monitor timing"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["stores session records by ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sessionId"
+        }), " and replaces them during rotation"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["creates scoped compound indexes for ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "subject"
+        }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "providerSessionId"
+        }), ", session ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "logicalSessionId"
+        }), ", and rotated-alias ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "logicalSessionId"
+        }), " so logout and backchannel logout queries can efficiently remove matching sessions and aliases"]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "values"
-        })
+        children: "requires MongoDB transactions for session rotation and inactive-lineage alias cleanup; use a replica set or sharded deployment because standalone servers fail readiness"
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "split"
-        })
+        children: "readiness creates required indexes, validates collection names, and verifies transaction-capable topology before traffic is accepted"
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["stores rotated-session aliases with finite expiry; sessions without explicit expiry use a 5 minute alias-retention window by default, configurable with ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "rotatedSessionAliasRetentionMs"
+        })]
       }), "\n", (0,jsx_runtime.jsx)(_components.li, {
-        children: (0,jsx_runtime.jsx)(_components.code, {
-          children: "table"
-        })
+        children: "scoped/direct deletion preserves unexpired aliases while another live member survives, including another issuer/client scope; inactive-lineage cleanup follows committed deletion in a snapshot transaction, with rotation alias writes protected by conflicts/retries"
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "split"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "table"
-      }), " preserve source row order exactly. ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "index"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "columns"
-      }), " derive row order from JavaScript object property enumeration; integer-like keys such as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "\"10\""
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "\"2\""
-      }), " enumerate in numeric order after ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JSON.parse()"
-      }), " or when supplied as parsed objects. Use ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "split"
-      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "table"
-      }), " when exact row order matters for integer-like labels."]
+      children: ["Each alias keeps its immediate successor's deadline; later rotations do not extend it. With ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "A/L1 -> B/L1 -> C/L2"
+      }), ", B revokes L2 and retained A still targets L1. MongoDB can retain inactive old-lineage aliases after rotation/upsert until expiry or explicit cleanup; it also retains an alias under a reused create ID. Use fresh session IDs and distinct logical IDs for unrelated login families. Memory/Redis have no alias time limit without successor expiry; MongoDB uses the finite fallback above."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Non-empty ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "values"
-      }), " arrays are auto-detected, but every ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "values"
-      }), " payload requires ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "options.columns"
-      }), " because the orient carries no column labels. Empty ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "values"
-      }), " input requires both ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "orient: 'values'"
-      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "columns"
-      }), "."]
+      children: ["Portable JSON-compatible plain inputs are captured at invocation, and returned data is detached. Native BSON/opaque objects retain backend serialization semantics without a portable mutation-isolation guarantee. Subject/provider-session objects filter each supplied issuer/client; strings and logical IDs are unscoped. Bulk counts exclude aliases but can include expired rows awaiting TTL cleanup. Scoped deletion repeats until an empty query; continuous arrivals can prolong it and later arrivals can survive. Cleanup can reject after deletion committed. Queries materialize affected IDs/survivors and can form large ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "$in"
+      }), " sets; there is no global logout snapshot or fixed total-work bound."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/packages/express-oidc-vault-mongodb-store/README.md",
+        children: "shipped README"
+      }), " contains the complete portable/lifecycle contract and compatibility notes."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "table-schema",
-      children: "Table Schema"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "toTable()"
-      }), " emits Table Schema JSON. Source index labels must be unique before table export because emitted primary keys must be unique; duplicate source index labels are rejected rather than silently omitting or weakening ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "primaryKey"
-      }), "."]
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["In Table Schema payloads, ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "schema.pandas_version"
-      }), " is the Table Schema format version emitted by pandas, commonly ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "\"1.4.0\""
-      }), "; it is not the installed pandas package version."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "logical-types",
-      children: "Logical Types"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "columnInfo"
-      }), " exposes logical type metadata. For non-table inputs, ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "options.columnTypes"
-      }), " validates explicit logical types against every non-null cell before packing or export. Values are never coerced. ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "datetime"
-      }), " accepts pandas-style timezone-naive ISO date/datetime strings for generated Table Schema output, not numeric epochs. ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "categorical"
-      }), " accepts non-null scalar JSON cells and exports as Table Schema ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "type: 'any'"
-      }), " with ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "extDtype: 'category'"
-      }), " when no source field metadata is being preserved."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "immutability",
-      children: "Immutability"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "DataFrame"
-      }), " contract is structural and shallow. Frame-owned arrays, row records, exporter containers, table schema records, and internal maps are protected from direct mutation or are freshly allocated. Nested JSON object or array cell values are not deep-frozen or deep-cloned on every read/export; if caller code mutates one of those nested values after obtaining it from ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "row()"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "rows()"
-      }), ", or an exporter, another read of the same cell may observe that mutation."]
+      id: "when-to-use-it",
+      children: "When To Use It"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Clone nested object/array cells at your application boundary if you need deep immutability."
+      children: "Use MongoDB when:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "your team already standardizes on MongoDB"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "you want OIDC vault data in the same operational platform as the rest of the app"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Redis is not available or not preferred in your environment"
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "This is a strong fit when your application already depends on MongoDB operationally and you prefer to keep auth-vault data alongside the rest of your infrastructure."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "limits-and-errors",
-      children: "Limits And Errors"
+      id: "api",
+      children: "API"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "createMongoOidcVaultStore(options)"
+      })
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
-        children: "JSON_FRAME_MAX_DEPTH"
-      }), " is ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "1000"
-      }), ". JSON arrays and objects are counted from the parsed root at depth ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "0"
-      }), "; an array or object reached at depth ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "1000"
-      }), " is accepted, and one reached at depth ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "1001"
-      }), " fails with ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonFrameValidationError"
-      }), " before package traversal can exhaust the JavaScript stack."]
+      children: ["Creates a MongoDB-backed implementation of the core ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultStoreProvider"
+      }), " contract with an additional ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ready()"
+      }), " startup check."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "OidcVaultMongoStoreProvider"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["extends ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "OidcVaultStoreProvider"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "ready()"
+        }), ": waits for collection-name validation, required index creation, and transaction-topology verification"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        children: "MongoOidcVaultStoreOptions"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "db"
+        }), ": MongoDB database handle"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "authorizationTransactionsCollectionName?"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "exchangeCodesCollectionName?"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "sessionsCollectionName?"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "backchannelLogoutTokenJtisCollectionName?"
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.code, {
+          children: "rotatedSessionAliasesCollectionName?"
+        })
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "rotatedSessionAliasRetentionMs?"
+        }), ": finite positive alias retention for sessions without explicit expiry, defaulting to 5 minutes"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "now?"
+        }), ": override clock source for tests"]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "operational-notes",
+      children: "Operational Notes"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["startup order should be: connect the MongoDB client, create the store, await ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "storeProvider.ready()"
+        }), ", then call ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "app.listen()"
+        }), " or otherwise accept traffic"]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "drain requests and other in-flight store operations before application-owned MongoDB client shutdown; this package never closes the client and ends its explicit transaction sessions on success/failure"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "TTL index cleanup in MongoDB is asynchronous, so the package also validates expiration during reads"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "rotated-session aliases are retained to bridge in-flight refresh/logout races after a session ID rotates; if a request uses a stale rotated ID after the alias expires, that stale ID no longer revokes the active logical session"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "readiness verifies the deployment reports transaction support before any store operation can run"
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "standalone MongoDB servers without transactions cannot rotate sessions with this provider; migrate to a replica set or sharded deployment before enabling refresh flows"
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "security-notes",
+      children: "Security Notes"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Session records contain refresh tokens, ID tokens, access tokens, and related bearer-equivalent secrets. Require TLS, least-privilege MongoDB roles, encryption at rest and in backups, restricted logging/metrics/tracing/export paths, and explicit retention policies for all five store collections."
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Arbitrary backend errors are not sanitized for application logs. Use fixed operation names and allowlisted categories instead of raw errors, connection URLs, whole records or credential-valued metric labels."
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "This package does not implement application-level field encryption or client-side field-level encryption. Configure those at the MongoDB/client layer if your deployment requires them."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "scoped-deletion-indexes",
+      children: "Scoped Deletion Indexes"
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "The sessions collection creates these deletion indexes:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "subject_scope_idx"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ subject: 1, 'provider.issuer': 1, 'provider.clientId': 1 }"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "provider_session_scope_idx"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ providerSessionId: 1, 'provider.issuer': 1, 'provider.clientId': 1 }"
+        })]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "logical_session_idx"
+        }), ": ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "{ logicalSessionId: 1 }"
+        })]
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Structured errors include ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonFrameParseError"
+      children: ["Representative ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "explain('executionStats')"
+      }), " evidence used a dataset with 2 repeated identities, 10 issuers, 10 clients, and 10 duplicate sessions per issuer/client scope. With only single-field identity indexes, scoped delete lookups examined all 1,000 matching identity documents. With the compound indexes above, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "subject/providerSessionId + issuer"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonFrameOptionError"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonFrameValidationError"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "AmbiguousOrientError"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "UnsupportedFeatureError"
+        children: "subject/providerSessionId + clientId"
       }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "ExportKeyCollisionError"
-      }), ". Scalar diagnostic values are retained directly. Arrays, objects, functions, symbols, bigints, undefined values, and cyclic containers are replaced with small frozen summaries so retaining an error does not retain caller-owned payloads."]
+        children: "subject/providerSessionId + issuer + clientId"
+      }), " examined 100, 100, and 10 documents respectively, matching the scoped result set size in that dataset."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "The package creates one compound index per public scoped identity delete path rather than one index per optional-filter permutation. The leading identity key still supports identity-only deletes, while issuer/client scoped deletes avoid broad scans in multi-tenant collections. Very large deployments should still expect deletion cost to scale with the number of sessions being revoked inside the selected issuer/client scope."
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
-      id: "types",
-      children: "Types"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["The root export includes ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "DataFrame"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "FromOrientOptions"
-      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "JsonValue"
-      }), ", payload types for every orient, Table Schema metadata types, column/index types, and error classes. Normal domain row interfaces with JSON-compatible known properties can be used as ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "DataFrame"
-      }), " row models without adding a catch-all index signature."]
+      id: "related-packages",
+      children: "Related Packages"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.a, {
+          href: "./express-oidc-vault",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/express-oidc-vault"
+          })
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.a, {
+          href: "./express-oidc-vault-memory-store",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/express-oidc-vault-memory-store"
+          })
+        })
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: (0,jsx_runtime.jsx)(_components.a, {
+          href: "./express-oidc-vault-redis-store",
+          children: (0,jsx_runtime.jsx)(_components.code, {
+            children: "@web-ts-toolkit/express-oidc-vault-redis-store"
+          })
+        })
+      }), "\n"]
     })]
   });
 }

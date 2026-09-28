@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Hooks | web-ts-toolkit</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" name="twitter:image" content="https://web-ts-toolkit.pages.dev/img/social-card.svg"><meta data-rh="true" property="og:url" content="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Hooks | web-ts-toolkit"><meta data-rh="true" name="description" content="Model and data routers support request-time hooks for ACL decisions, filtering, decoration, and persistence side effects."><meta data-rh="true" property="og:description" content="Model and data routers support request-time hooks for ACL decisions, filtering, decoration, and persistence side effects."><link data-rh="true" rel="icon" href="/img/logo.svg"><link data-rh="true" rel="canonical" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks" hreflang="en"><link data-rh="true" rel="alternate" href="https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Access Router","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/"},{"@type":"ListItem","position":2,"name":"Hooks","item":"https://web-ts-toolkit.pages.dev/docs/packages/access-router/hooks"}]}</script><link rel="stylesheet" href="/assets/css/styles.376982ca.css">
-<script src="/assets/js/runtime~main.1b653f42.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.3522b6e1.js" defer="defer"></script>
 <script src="/assets/js/main.f9368f36.js" defer="defer"></script>
 </head>
 <body>
@@ -27,15 +27,36 @@
 <h2 class="anchor anchorTargetStickyNavbar_Quxk" id="common-hook-signatures">Common Hook Signatures<a href="#common-hook-signatures" class="hash-link" aria-label="Direct link to Common Hook Signatures" title="Direct link to Common Hook Signatures" translate="no">​</a></h2>
 <p>All of these hooks run with <code>this</code> bound to the current Express request.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Quxk" id="basefilter"><code>baseFilter</code><a href="#basefilter" class="hash-link" aria-label="Direct link to basefilter" title="Direct link to basefilter" translate="no">​</a></h3>
-<p>Return a filter, or <code>true</code> / <code>null</code> / <code>undefined</code> to leave the query unmodified.</p>
+<p>Return a filter, or <code>true</code> / <code>null</code> / <code>undefined</code> to leave the query unmodified.
+Return <code>false</code> for terminal query denial. Model-service <code>exists</code> returns Forbidden,
+not a successful miss, and public read <code>tryList</code> cannot revive that denial.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Quxk" id="overridefilter"><code>overrideFilter</code><a href="#overridefilter" class="hash-link" aria-label="Direct link to overridefilter" title="Direct link to overridefilter" translate="no">​</a></h3>
-<p>Rewrite the caller-provided filter before the base filter is applied.</p>
+<p>Rewrite the caller-provided filter before the base filter is applied.
+An existing false filter skips this hook; returning false also denies the query.
+See <a class="" href="/docs/packages/access-router/services#denial-versus-a-missing-row">service denial contracts</a> for internal
+overrides, existence results and HTTP status mapping.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Quxk" id="validate"><code>validate</code><a href="#validate" class="hash-link" aria-label="Direct link to validate" title="Direct link to validate" translate="no">​</a></h3>
 <p>Return <code>true</code> to allow the write, <code>false</code> to reject it, or an error array to surface validation errors.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Quxk" id="prepare"><code>prepare</code><a href="#prepare" class="hash-link" aria-label="Direct link to prepare" title="Direct link to prepare" translate="no">​</a></h3>
-<p>Normalize incoming data before it is written.</p>
+<p>Trusted application hook after validation of selected client data. Output is not
+re-filtered and may add protected/server-only fields, including dotted Mongoose paths.
+For updates, plain-object/array output at strict ancestors of admitted policy paths
+applies supplied children while preserving omitted siblings. Other paths remain whole
+assignments. Returning an empty partial container or omitting a parent does not delete
+it; explicit null/undefined can clear/unset it. An entirely null/undefined result
+supplies no assignments. Do not blindly copy unfiltered <code>context.originalData</code> back in.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Quxk" id="transform"><code>transform</code><a href="#transform" class="hash-link" aria-label="Direct link to transform" title="Direct link to transform" translate="no">​</a></h3>
-<p>Mutate the live Mongoose document before save.</p>
+<p>Mutate the live Mongoose document after authorized update assignment and before save.
+For intentional whole-parent replacement use <code>doc.set(&#x27;profile&#x27;, replacement)</code>.
+Migration: prepare hooks that relied on omitted children deleting a partial parent
+must now make that replacement explicit here (or grant the client the whole field).
+The update order is validation → prepare → assigned-document transform → save →
+afterPersist → changes; snapshots/diffs reflect persistence. Subdocument writes retain
+their own lifecycle and do not gain these model hooks.</p>
+<p>Router lifecycle hooks run outside persistence admission. Mongoose middleware runs
+inside its awaited adapter/document operation, which may issue multiple driver
+commands; direct DB/network calls from application hooks are not governed by
+<code>maxBulkConcurrency</code>. See <a class="" href="/docs/packages/access-router/configuration#persistence-admission">Configuration</a>.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Quxk" id="afterpersist"><code>afterPersist</code><a href="#afterpersist" class="hash-link" aria-label="Direct link to afterpersist" title="Direct link to afterpersist" translate="no">​</a></h3>
 <p>Run after persistence and before response shaping.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Quxk" id="beforedelete--afterdelete"><code>beforeDelete</code> / <code>afterDelete</code><a href="#beforedelete--afterdelete" class="hash-link" aria-label="Direct link to beforedelete--afterdelete" title="Direct link to beforedelete--afterdelete" translate="no">​</a></h3>

@@ -79,6 +79,10 @@ const toc = [{
   "id": "root-batching-with-group",
   "level": 2
 }, {
+  "value": "Config comparison and ordered params",
+  "id": "config-comparison-and-ordered-params",
+  "level": 3
+}, {
   "value": "<code>throwOnError</code> batch policy",
   "id": "throwonerror-batch-policy",
   "level": 3
@@ -324,6 +328,14 @@ function _createMdxContent(props) {
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "www-authenticate"
       }), ") are excluded from cache keys\nregardless of the partition token."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "The token is captured as the request enters the cache and framed separately\nfrom the typed body, so delimiter-like text cannot merge partition/body\nboundaries. Choose a token for every response-affecting identity/tenant context;\nredacting credential headers does not infer that identity."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Eligible concurrent callers share one transformed JSON/text body, including\nHTTP error bodies, regardless of which caller starts first. Response copies and\nconfig belong to each caller, which applies its own ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "validateStatus"
+      }), ". Strict\nJSON parse failures and transport failures reject attached Axios callers and\nrelease the slot for a later request; service calls retain their normal\nfailure/", (0,jsx_runtime.jsx)(_components.code, {
+        children: "throwOnError"
+      }), " policy."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Browser cookie credentials controlled by ", (0,jsx_runtime.jsx)(_components.code, {
         children: "withCredentials"
@@ -506,6 +518,35 @@ function _createMdxContent(props) {
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "The service method call still wins if you pass explicit values later."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Defaults accept null, strings, booleans, finite numbers, valid Dates, plain\nobjects and arrays; Dates and containers are detached per request. Unsupported\nvalues or cycles throw synchronous ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "UnsupportedServiceDefaultValueError"
+      }), "\n(not a package-root export)."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Normalization allows ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "64 edges"
+      }), " from the entire defaults bag (depth 0) and\n", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "10,000 expanded value visits"
+      }), " across all operations together. Count the bag,\nargs/options containers, primitive/Date leaves, array slots including holes,\nand repeated shared-object occurrences. Direct service constructors validate\nsupplied defaults; adapter factories validate the effective shallow-merged\nadapter/service bag when creating each service. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createAdapter"
+      }), " itself does not\nnormalize defaults. Overridden fields do not count; two valid bags can exceed\nthe merged budget. Generated empty option bags are added after validation.\nEach per-request default clone checks its selected value as a fresh root with\nthe same limits. Frozen inputs and request-shaped values have no exemption."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Limit errors use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Service defaults depth limit 64 exceeded at <path>"
+      }), " or\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Service defaults node limit 10000 exceeded at <path>"
+      }), "; cycle errors use\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Service defaults do not support circular value at <path>"
+      }), ". Paths start at\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "defaults"
+      }), " with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: ".key"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "[index]"
+      }), ". Reduce the effective defaults bag when\nmigrating from unbounded inputs. These are structural work limits, not byte\nlimits or bounds on arbitrary getters/proxies/exotic behavior. Correlated\nconversion has its own ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./services#client-preparation-limits",
+        children: "aggregate budget"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Defaults are most useful when:"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
@@ -588,6 +629,17 @@ function _createMdxContent(props) {
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "The grouped result is an array of normalized response objects in the same order as the input requests."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "config-comparison-and-ordered-params",
+      children: "Config comparison and ordered params"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Grouping compares normalized configs: plain-object key order is ignored and\nundefined object properties are omitted; arrays remain ordered. Valid Dates\ncompare by timestamp and AxiosHeaders by JSON form. URLSearchParams compare\nwith distinct keys sorted, preserving each key's repeated-value order:\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "mode=first&mode=second"
+      }), " differs from ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "mode=second&mode=first"
+      }), ". Tag-shaped plain\nobjects are not equal to actual Dates or URLSearchParams. Functions,\ncancellation controls, unsupported instances, and cycles reject before claims\nor dispatch. Original requests remain directly executable after failed config\nvalidation. Migrate groups that relied on these former collisions by aligning\nconfigs or executing separately."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Basic model list/read/create/upsert/update, data list, and basic subdocument\ncalls clone caller URLSearchParams before merging generated service params.\nNon-generated entries retain order, duplicates and blanks. Generated keys\nreplace every caller duplicate; nullish generated values omit the key\n(including undefined pagination defaults), while false/zero are retained.\nOrdinary object params retain Axios merge behavior. Grouped transport sends\ncaller config once, with generated operation options in each body entry."
     }), "\n", (0,jsx_runtime.jsxs)(_components.h3, {
       id: "throwonerror-batch-policy",
       children: [(0,jsx_runtime.jsx)(_components.code, {

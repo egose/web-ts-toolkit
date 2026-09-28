@@ -114,6 +114,18 @@ function _createMdxContent(props) {
           children: "interfaces/*"
         })]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Runtime-context functions are internal and are not exported here. Use root exports\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createAccessRuntime"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "AccessRuntime"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "defaultRuntime"
+      }), " for runtime ownership, or\nthe root default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "acl"
+      }), " API for default-runtime router creation. ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "/advanced"
+      }), " exports\nneither runtime instances nor router-creation helpers."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "common-validation-imports",
       children: "Common Validation Imports"

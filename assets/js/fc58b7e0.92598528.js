@@ -198,14 +198,23 @@ function _createMdxContent(props) {
         children: "null"
       }), " / ", (0,jsx_runtime.jsx)(_components.code, {
         children: "undefined"
-      }), " to leave the query unmodified."]
+      }), " to leave the query unmodified.\nReturn ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "false"
+      }), " for terminal query denial. Model-service ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "exists"
+      }), " returns Forbidden,\nnot a successful miss, and public read ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "tryList"
+      }), " cannot revive that denial."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "overridefilter",
       children: (0,jsx_runtime.jsx)(_components.code, {
         children: "overrideFilter"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Rewrite the caller-provided filter before the base filter is applied."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Rewrite the caller-provided filter before the base filter is applied.\nAn existing false filter skips this hook; returning false also denies the query.\nSee ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./services#denial-versus-a-missing-row",
+        children: "service denial contracts"
+      }), " for internal\noverrides, existence results and HTTP status mapping."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "validate",
       children: (0,jsx_runtime.jsx)(_components.code, {
@@ -222,15 +231,26 @@ function _createMdxContent(props) {
       children: (0,jsx_runtime.jsx)(_components.code, {
         children: "prepare"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Normalize incoming data before it is written."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Trusted application hook after validation of selected client data. Output is not\nre-filtered and may add protected/server-only fields, including dotted Mongoose paths.\nFor updates, plain-object/array output at strict ancestors of admitted policy paths\napplies supplied children while preserving omitted siblings. Other paths remain whole\nassignments. Returning an empty partial container or omitting a parent does not delete\nit; explicit null/undefined can clear/unset it. An entirely null/undefined result\nsupplies no assignments. Do not blindly copy unfiltered ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "context.originalData"
+      }), " back in."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "transform",
       children: (0,jsx_runtime.jsx)(_components.code, {
         children: "transform"
       })
-    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
-      children: "Mutate the live Mongoose document before save."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Mutate the live Mongoose document after authorized update assignment and before save.\nFor intentional whole-parent replacement use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "doc.set('profile', replacement)"
+      }), ".\nMigration: prepare hooks that relied on omitted children deleting a partial parent\nmust now make that replacement explicit here (or grant the client the whole field).\nThe update order is validation → prepare → assigned-document transform → save →\nafterPersist → changes; snapshots/diffs reflect persistence. Subdocument writes retain\ntheir own lifecycle and do not gain these model hooks."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Router lifecycle hooks run outside persistence admission. Mongoose middleware runs\ninside its awaited adapter/document operation, which may issue multiple driver\ncommands; direct DB/network calls from application hooks are not governed by\n", (0,jsx_runtime.jsx)(_components.code, {
+        children: "maxBulkConcurrency"
+      }), ". See ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "./configuration#persistence-admission",
+        children: "Configuration"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "afterpersist",
       children: (0,jsx_runtime.jsx)(_components.code, {

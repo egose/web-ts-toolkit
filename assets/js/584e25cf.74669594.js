@@ -89,6 +89,10 @@ const toc = [{
   "id": "public-options-and-defaults",
   "level": 2
 }, {
+  "value": "Absolute Session Lifetime",
+  "id": "absolute-session-lifetime",
+  "level": 2
+}, {
   "value": "Frontend Integration Example",
   "id": "frontend-integration-example",
   "level": 2
@@ -141,6 +145,14 @@ const toc = [{
   "id": "local-access-token-example",
   "level": 2
 }, {
+  "value": "Local issuer result contract",
+  "id": "local-issuer-result-contract",
+  "level": 3
+}, {
+  "value": "Migration And Behavior Changes",
+  "id": "migration-and-behavior-changes",
+  "level": 2
+}, {
   "value": "Access Token Validation Middleware",
   "id": "access-token-validation-middleware",
   "level": 2
@@ -151,6 +163,18 @@ const toc = [{
 }, {
   "value": "Hook Examples",
   "id": "hook-examples",
+  "level": 2
+}, {
+  "value": "Session Identity And Store Namespaces",
+  "id": "session-identity-and-store-namespaces",
+  "level": 2
+}, {
+  "value": "Rotation alias retention",
+  "id": "rotation-alias-retention",
+  "level": 3
+}, {
+  "value": "Known Browser And Concurrency Limits",
+  "id": "known-browser-and-concurrency-limits",
   "level": 2
 }, {
   "value": "Security Checklist",
@@ -176,6 +200,7 @@ function _createMdxContent(props) {
     li: "li",
     p: "p",
     pre: "pre",
+    strong: "strong",
     table: "table",
     tbody: "tbody",
     td: "td",
@@ -315,10 +340,18 @@ function _createMdxContent(props) {
       children: "Requirements"
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Express ", (0,jsx_runtime.jsx)(_components.code, {
+          children: ">=5.0.0"
+        }), " is the runtime peer dependency. TypeScript applications need ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "@types/express"
+        }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "@types/node"
+        }), " as development dependencies."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["Node.js ", (0,jsx_runtime.jsx)(_components.code, {
           children: ">=22.12.0"
         }), ". The published CJS entry (", (0,jsx_runtime.jsx)(_components.code, {
-          children: "dist/index.js"
+          children: "index.js"
         }), ") synchronously requires the ESM-only ", (0,jsx_runtime.jsx)(_components.code, {
           children: "jose"
         }), " dependency, which needs Node's ", (0,jsx_runtime.jsx)(_components.code, {
@@ -352,22 +385,28 @@ function _createMdxContent(props) {
         }), " settings. ESM consumers resolve the ", (0,jsx_runtime.jsx)(_components.code, {
           children: "import"
         }), " declaration condition (", (0,jsx_runtime.jsx)(_components.code, {
-          children: "dist/index.d.mts"
+          children: "index.d.mts"
         }), "); CommonJS (", (0,jsx_runtime.jsx)(_components.code, {
           children: ".cts"
         }), ") consumers resolve the ", (0,jsx_runtime.jsx)(_components.code, {
           children: "require"
         }), " condition (", (0,jsx_runtime.jsx)(_components.code, {
-          children: "dist/index.d.ts"
+          children: "index.d.ts"
         }), "). Both include the public Express ", (0,jsx_runtime.jsx)(_components.code, {
           children: "req.auth"
-        }), " augmentation."]
+        }), " augmentation. Workspace builds place these files under ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "dist/"
+        }), "; release packaging moves them to the package root and rewrites metadata accordingly. Consumer imports always use the package name."]
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "what-it-exposes",
       children: "What It Exposes"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Main exports:"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "named imports from the package root"
+      }), ". There is no default export or public subpath API."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
@@ -524,9 +563,9 @@ function _createMdxContent(props) {
       children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "exchange"
-        }), " sets the session cookie and does not need to return ", (0,jsx_runtime.jsx)(_components.code, {
+        }), " sets the session cookie and omits ", (0,jsx_runtime.jsx)(_components.code, {
           children: "sessionId"
-        }), " in the JSON body"]
+        }), " from the JSON body"]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "refresh"
@@ -769,7 +808,7 @@ function _createMdxContent(props) {
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
-        children: "import express from 'express';\nimport { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';\n\nconst app = express();\n\napp.use(\n  createOidcVaultMiddleware({\n    basePath: '/auth/oidc',\n    backendOrigin: 'https://api.example.com',\n    config: {\n      issuer: process.env.OIDC_ISSUER,\n      clientId: process.env.OIDC_CLIENT_ID,\n      clientSecret: process.env.OIDC_CLIENT_SECRET,\n    },\n    frontendRedirectUri: 'https://frontend.example.com/callback',\n    postLogoutRedirectUri: 'https://frontend.example.com/logged-out',\n    storeProvider: createMemoryOidcVaultStore(),\n  }),\n);\n"
+        children: "import express from 'express';\nimport { createOidcVaultMiddleware } from '@web-ts-toolkit/express-oidc-vault';\nimport { createMemoryOidcVaultStore } from '@web-ts-toolkit/express-oidc-vault-memory-store';\n\nconst app = express();\n\napp.use(\n  createOidcVaultMiddleware({\n    basePath: '/auth/oidc',\n    backendOrigin: 'https://api.example.com',\n    config: {\n      issuer: process.env.OIDC_ISSUER,\n      clientId: process.env.OIDC_CLIENT_ID,\n      clientSecret: process.env.OIDC_CLIENT_SECRET,\n    },\n    frontendRedirectUri: 'https://frontend.example.com/callback',\n    postLogoutRedirectUri: 'https://frontend.example.com/logged-out',\n    storeProvider: createMemoryOidcVaultStore(),\n    sessionTtlMs: 8 * 60 * 60 * 1000, // Opt in to an eight-hour absolute session lifetime.\n  }),\n);\n"
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "Use the memory store for local development and tests. For production deployments, use the Redis or MongoDB store package."
@@ -796,25 +835,25 @@ function _createMdxContent(props) {
         children: "redirect: true"
       }), ")."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Local logout (", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["After live-session identity checks, local logout (", (0,jsx_runtime.jsx)(_components.code, {
         children: "redirect"
       }), " unset or ", (0,jsx_runtime.jsx)(_components.code, {
         children: "false"
-      }), ") never contacts the provider: it revokes the local session lineage, clears the session cookie under cookie transport, delivers ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ") never contacts the provider: it revokes the local session lineage, clears the cookie under cookie transport, delivers ", (0,jsx_runtime.jsx)(_components.code, {
         children: "onLogout"
-      }), ", and returns ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " for a live session, and returns ", (0,jsx_runtime.jsx)(_components.code, {
         children: "200 { loggedOut: true }"
       }), ". Redirected logout (", (0,jsx_runtime.jsx)(_components.code, {
         children: "redirect: true"
-      }), ") treats the upstream end-session redirect as best-effort: the local revocation, cookie clearing, and ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "onLogout"
-      }), " notification still commit when provider discovery fails or no ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "endSessionEndpoint"
-      }), " is available, the route still returns the local ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "200 { loggedOut: true }"
-      }), " success, and the upstream failure is reported via ", (0,jsx_runtime.jsx)(_components.code, {
+      }), ") commits the same local outcome before attempting an upstream end-session redirect. Discovery errors are reported through ", (0,jsx_runtime.jsx)(_components.code, {
         children: "onError"
-      }), " only."]
+      }), "; errors or an absent ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "endSessionEndpoint"
+      }), " fall back to local ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "200 { loggedOut: true }"
+      }), ". With no live session, logout attempts stale-alias deletion and returns local success without ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onLogout"
+      }), "; an expired alias may no longer identify a live lineage."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Every vault route response carries ", (0,jsx_runtime.jsx)(_components.code, {
         children: "Cache-Control: no-store"
@@ -904,11 +943,15 @@ function _createMdxContent(props) {
               children: "config"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "env-compatible helper input"
+            children: "required provider values"
           }), (0,jsx_runtime.jsxs)(_components.td, {
-            children: ["Provider config. ", (0,jsx_runtime.jsx)(_components.code, {
+            children: ["Supply ", (0,jsx_runtime.jsx)(_components.code, {
               children: "issuer"
-            }), " is required for discovery and manual modes so ID and logout tokens are issuer-bound."]
+            }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "clientId"
+            }), ", or use ", (0,jsx_runtime.jsx)(_components.code, {
+              children: "resolveOidcVaultConfigFromEnv(process.env)"
+            }), ". Endpoint settings select manual mode; see Config Modes."]
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
@@ -975,6 +1018,16 @@ function _createMdxContent(props) {
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
             children: "TTL for one-time local exchange codes returned to the frontend callback route."
+          })]
+        }), (0,jsx_runtime.jsxs)(_components.tr, {
+          children: [(0,jsx_runtime.jsx)(_components.td, {
+            children: (0,jsx_runtime.jsx)(_components.code, {
+              children: "sessionTtlMs"
+            })
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "unset"
+          }), (0,jsx_runtime.jsx)(_components.td, {
+            children: "Opt-in positive safe-integer lifetime in milliseconds from callback session creation. Hooks may shorten it; refresh never extends it."
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
@@ -1054,7 +1107,7 @@ function _createMdxContent(props) {
               children: "5000"
             })
           }), (0,jsx_runtime.jsx)(_components.td, {
-            children: "Overall deadline per provider HTTP exchange (headers plus complete body and cleanup) for discovery, token, UserInfo, and remote JWKS requests. Must be a positive finite integer; validated before cache lookup."
+            children: "Deadline per provider HTTP exchange (headers plus complete body). Cancellation is attempted without awaiting cleanup. Positive finite integer; validated before cache lookup."
           })]
         }), (0,jsx_runtime.jsxs)(_components.tr, {
           children: [(0,jsx_runtime.jsx)(_components.td, {
@@ -1101,6 +1154,52 @@ function _createMdxContent(props) {
         children: "now"
       }), " service references are retained live (never deep-cloned). Frozen inputs work, reused inputs are not mutated, and mutating or replacing the caller object after creation has no effect on the created router."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "absolute-session-lifetime",
+      children: "Absolute Session Lifetime"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The quick start opts in with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sessionTtlMs: 8 * 60 * 60 * 1000"
+      }), ". New server-side sessions receive ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "expiresAt = now + sessionTtlMs"
+      }), " at ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "callback session creation"
+      }), ", not login start. Refresh preserves that timestamp. At ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "now >= expiresAt"
+      }), ", the store treats the session as expired, so exchange and refresh can no longer use it, even if an exchange code is still live."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Before ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onBeforeSessionCreate"
+      }), ", the session already has its expiry. A hook may shorten it with a valid integer epoch-millisecond timestamp. Removing, extending, or assigning an invalid expiry restores the original cap after the hook; hook delay and changes to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createdAt"
+      }), " do not move that cap. For example, add this optional hook to the middleware options to shorten new sessions to one hour:"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
+      children: (0,jsx_runtime.jsx)(_components.code, {
+        className: "language-ts",
+        children: "hooks: {\n  onBeforeSessionCreate({ session }) {\n    if (session?.expiresAt !== undefined) {\n      session.expiresAt = Math.min(session.expiresAt, session.createdAt + 60 * 60 * 1000);\n    }\n  },\n},\n"
+      })
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Omitting ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sessionTtlMs"
+      }), " assigns no default session expiry and retains application/hook/store-owned policy. Enabling it affects new sessions; it does not retrofit existing sessions. Upstream OAuth ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "expires_in"
+      }), ", local access-token lifetime, and vault-session lifetime are independent."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "authorizationTransactionTtlMs"
+      }), " (default 10 minutes), ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "exchangeCodeTtlMs"
+      }), " (default 30 seconds), and optional ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sessionTtlMs"
+      }), " must be positive safe-integer numbers of milliseconds. Construction rejects zero, negative, fractional, nonnumeric, null, NaN, infinite, and unsafe values. It samples ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "now"
+      }), " (default ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "Date.now"
+      }), "): the clock and computed expiry must be integer epoch milliseconds within JavaScript Date's inclusive ±8,640,000,000,000,000 ms range, with expiry after now. Record creation rechecks computed expiries; an unusable later clock/expiry returns sanitized HTTP 500 / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OIDC_VAULT_INTERNAL_ERROR"
+      }), " before new transaction/session/code persistence, with the original error available to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "hooks.onError"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "frontend-integration-example",
       children: "Frontend Integration Example"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
@@ -1121,6 +1220,11 @@ function _createMdxContent(props) {
           children: "401"
         }), " responses do not race session rotation"]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["The shared promise below coordinates callers in this JavaScript context only. It does not coordinate tabs, backend instances, or response arrival order; see ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "#known-browser-and-concurrency-limits",
+        children: "Known Browser And Concurrency Limits"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
@@ -1305,21 +1409,51 @@ function _createMdxContent(props) {
       children: "Config Modes"
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "The package supports issuer discovery and manual endpoint configuration."
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "resolveOidcVaultConfigFromEnv(process.env)"
+      }), " to read the documented environment variables, or supply ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "config"
+      }), " explicitly to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "createOidcVaultMiddleware"
+      }), ". ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "clientId"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OIDC_CLIENT_ID"
+      }), " is always required; ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "scopes"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OIDC_SCOPES"
+      }), " defaults to ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "openid email profile"
+      }), "."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
       id: "issuer-mode",
       children: "Issuer mode"
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["If only ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "OIDC_ISSUER"
-      }), " is set, discovery mode resolves the provider endpoints. The issuer identifier is preserved exactly after surrounding-whitespace trimming (no trailing slash is added; ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["With ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "issuer"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "clientId"
+      }), " but no endpoint settings, discovery resolves the provider endpoints. The configured issuer identifier is preserved exactly after surrounding-whitespace trimming (no trailing slash is added; ", (0,jsx_runtime.jsx)(_components.code, {
         children: "/tenant"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "/tenant/"
       }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "/tenant//"
-      }), " are distinct) and the discovered issuer must exactly equal the configured issuer. Issuers must be absolute http(s) URLs without userinfo, query, or fragment; ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " are distinct) and the discovered issuer must exactly equal it without additional trimming. Issuers must be absolute http(s) URLs without userinfo, query, or fragment; ", (0,jsx_runtime.jsx)(_components.code, {
         children: "http"
       }), " is accepted for local-test providers."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Discovery may omit ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "userinfo_endpoint"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "end_session_endpoint"
+      }), ". If present, each must be a nonempty absolute HTTP(S) URL string. Null, arrays, objects, numbers, booleans, blank strings, malformed URLs, and non-HTTP(S) URLs invalidate metadata with HTTP 502 / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OIDC_VAULT_DISCOVERY_INVALID"
+      }), ", identifying the field without echoing its value. Failed metadata is evicted so later requests can fetch corrected metadata; only validated successes are shared across timeout policies. During redirected logout, discovery errors instead reach ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onError"
+      }), " while local revocation still succeeds; local-only logout does not discover metadata."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
       children: ["Provider discovery metadata and remote JWKS resolvers are cached in bounded process-wide maps. Discovery fetches are isolated by ", (0,jsx_runtime.jsx)(_components.code, {
         children: "(issuer, providerRequestTimeoutMs)"
@@ -1327,11 +1461,44 @@ function _createMdxContent(props) {
         children: "(jwks_uri, providerRequestTimeoutMs)"
       }), " because JOSE fixes the fetch timeout at creation. These keys are intended to come from static middleware configuration, not request input. Successful discovery entries are reused for up to 10 minutes and both discovery and JWKS resolver maps retain at most 32 entries with oldest-entry eviction. Failed discovery requests evict only the owning policy entry so a later request can retry. Timeout options are validated before any cache lookup, so cached entries cannot bypass option validation."]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["Discovery, token, UserInfo, and remote JWKS HTTP requests use a 5 second default overall deadline covering response headers plus complete success/error body consumption and stream cleanup; stalled or slow bodies fail with sanitized endpoint-specific timeout errors. Upstream redirects are never followed (manual handling). Set ", (0,jsx_runtime.jsx)(_components.code, {
+      children: ["Discovery, token, UserInfo, and remote JWKS HTTP requests use a 5 second default deadline covering response headers plus complete success/error body consumption; stalled or slow bodies fail with sanitized endpoint-specific timeout errors. Cancellation is attempted promptly without awaiting its promise, so an uncooperative custom stream cannot hold up error delivery through pending cleanup. Request completion does not guarantee completed resource cleanup; the hanging-cancellation evidence uses custom streams, with no native-undici remote exploit established. Upstream redirects are never followed. Set ", (0,jsx_runtime.jsx)(_components.code, {
         children: "providerRequestTimeoutMs"
-      }), " on ", (0,jsx_runtime.jsx)(_components.code, {
-        children: "createOidcVaultMiddleware(...)"
-      }), " to a positive integer number of milliseconds if your provider needs a different bound. JWKS documents fetched through the JOSE resolver additionally enforce package bounds of 1 MiB and 100 keys, which JOSE itself leaves unbounded. Provider response parse errors return sanitized client messages; oversized or malformed provider bodies are not returned to callers."]
+      }), " to a positive integer number of milliseconds to change the bound. JWKS documents additionally enforce 1 MiB and 100-key limits. Provider response parse errors return sanitized client messages; oversized or malformed bodies are not returned to callers."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Pre-header network rejection and mid-body transport reset return HTTP 502 with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OIDC_VAULT_DISCOVERY_FAILED"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OIDC_VAULT_TOKEN_REQUEST_FAILED"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OIDC_VAULT_USERINFO_FAILED"
+      }), " and message ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OIDC provider request failed."
+      }), " JWKS transport failures use ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OIDC_VAULT_JWKS_FAILED"
+      }), "; JOSE timeouts retain ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "ERR_JWKS_TIMEOUT"
+      }), ". Discovery success-body timeout/size/JSON failures retain ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OIDC_VAULT_DISCOVERY_INVALID"
+      }), ". Original transport diagnostics are privately available as ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "hooks.onError"
+      }), " context ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "error.cause"
+      }), " (narrow the unknown error before reading it); they are not browser payload fields."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "manual-mode",
+      children: "Manual mode"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Any nonempty endpoint (", (0,jsx_runtime.jsx)(_components.code, {
+        children: "authorizationEndpoint"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "tokenEndpoint"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "jwksUri"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "userInfoEndpoint"
+      }), ", or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "endSessionEndpoint"
+      }), ") selects manual mode with no discovery. Optional endpoints are not partial discovery overrides. This also applies to the environment variables:"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
       children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
         children: (0,jsx_runtime.jsx)(_components.code, {
@@ -1355,20 +1522,19 @@ function _createMdxContent(props) {
         })
       }), "\n"]
     }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: [(0,jsx_runtime.jsx)(_components.code, {
+      children: ["Undefined, empty, and whitespace-only config/env strings are absent after trimming. Manual mode requires the complete set listed below, even if only ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OIDC_USERINFO_ENDPOINT"
+      }), " or ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "OIDC_END_SESSION_ENDPOINT"
+      }), " selected it. Complete manual configuration preserves valid optional endpoints. ", (0,jsx_runtime.jsx)(_components.code, {
         children: "OIDC_CLIENT_ID"
       }), ", ", (0,jsx_runtime.jsx)(_components.code, {
         children: "OIDC_CLIENT_SECRET"
       }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
         children: "OIDC_SCOPES"
-      }), " still apply."]
-    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
-      id: "manual-mode",
-      children: "Manual mode"
-    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
-      children: ["If your provider metadata is not discoverable, configure the endpoints directly. Manual mode uses the configured endpoints and does not perform discovery; ", (0,jsx_runtime.jsx)(_components.code, {
+      }), " still apply; ", (0,jsx_runtime.jsx)(_components.code, {
         children: "issuer"
-      }), " is still required so ID and logout tokens are verified against the exact expected issuer."]
+      }), " binds ID and logout tokens to the exact expected issuer."]
     }), "\n", (0,jsx_runtime.jsx)(_components.pre, {
       children: (0,jsx_runtime.jsx)(_components.code, {
         className: "language-ts",
@@ -1443,7 +1609,9 @@ function _createMdxContent(props) {
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: [(0,jsx_runtime.jsx)(_components.code, {
           children: "OidcVaultSession.expiresAt"
-        }), ", when set by application code or store policy, is an explicit vault-session expiry in epoch milliseconds and remains enforced by store providers."]
+        }), ", assigned by ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sessionTtlMs"
+        }), ", application code, or store policy, is an explicit vault-session expiry in epoch milliseconds and remains enforced by store providers."]
       }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
         children: ["ID tokens must include ", (0,jsx_runtime.jsx)(_components.code, {
           children: "sub"
@@ -1511,6 +1679,76 @@ function _createMdxContent(props) {
       })
     }), "\n", (0,jsx_runtime.jsx)(_components.p, {
       children: "That local access token is separate from the upstream IdP token. The upstream refresh token stays only in the server-side vault."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "local-issuer-result-contract",
+      children: "Local issuer result contract"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: [(0,jsx_runtime.jsx)(_components.code, {
+        children: "tokenIssuer.issue"
+      }), " must resolve to a non-null, non-array object with:"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "accessToken"
+        }), ": nonempty opaque string, returned verbatim without trimming or a new whitespace policy;"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "expiresIn"
+        }), ": finite nonnegative safe-integer seconds, from 0 through ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "Number.MAX_SAFE_INTEGER"
+        }), ";"]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.code, {
+          children: "tokenType"
+        }), ": optional exact literal ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "'Bearer'"
+        }), ". Omitted/undefined stays absent in JSON; null, lowercase ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "'bearer'"
+        }), ", and other values are invalid."]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Only these three fields are copied once into a fresh result. Extra fields (including upstream tokens, ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "metadata"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sessionId"
+      }), ", ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "user"
+      }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "toJSON"
+      }), ") are ignored without evaluating their getters. The vault supplies the response session ID/profile: body transport includes ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "sessionId"
+      }), ", cookie transport omits it, and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "user"
+      }), " is the session profile. Omitting ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "tokenIssuer"
+      }), " is supported and returns no local token fields."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Malformed results return HTTP 500 with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{\"code\":\"OIDC_VAULT_INTERNAL_ERROR\",\"message\":\"Unexpected OIDC vault error.\"}"
+      }), " inside issuance rollback: the logical lineage is revoked and cookie transport clears its cookie instead of minting one. Exchange has already consumed its code; refresh has already contacted the provider and rotated the handle, and its success notification does not run. Correct the issuer and start a new login. Field-specific diagnostics are the original ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "hooks.onError"
+      }), " context ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "error"
+      }), " (narrow it before use); allowed-field getter exceptions also enter rollback."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "This projection contains accidental result extensions. Issuers/hooks remain trusted code with mutable session/request/response access; application profiles and deliberate secrets placed in allowed fields are not redacted."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "migration-and-behavior-changes",
+      children: "Migration And Behavior Changes"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Optional-only endpoint settings previously ignored now select manual mode and fail without the complete manual set. Supply all required manual values or remove endpoint settings to use discovery. Correct malformed optional discovery capabilities at the provider, or omit unsupported fields."
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: ["Invalid transaction/code TTLs previously had store-dependent behavior; supply positive safe-integer milliseconds. ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "sessionTtlMs"
+        }), " is opt-in for new sessions and never renews on refresh. Custom clocks are now sampled during construction."]
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Route each session to its owning issuer/client configuration. Known foreign live sessions now fail with 401. Correct inaccurate stored identity only from trusted provenance or require login again; do not remove identity fields to bypass the guard. Legacy omissions and shared code/alias limits remain as described below."
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Issuers must return the declared local credential shape; previously accepted malformed results now fail with rollback. Extra result properties no longer extend/override JSON responses."
+      }), "\n", (0,jsx_runtime.jsx)(_components.li, {
+        children: "Provider network/reset failures now produce sanitized endpoint-specific 502s instead of generic internal errors. Cancellation no longer waits for an uncooperative cleanup promise. Alias-retention wording reflects existing SVH-05 behavior, with no store migration."
+      }), "\n"]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "access-token-validation-middleware",
       children: "Access Token Validation Middleware"
@@ -1649,6 +1887,91 @@ function _createMdxContent(props) {
           children: "onError"
         }), " option."]
       }), "\n"]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "session-identity-and-store-namespaces",
+      children: "Session Identity And Store Namespaces"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Exchange, refresh, and logout of a ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "live session"
+      }), " compare every stored ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "provider.issuer"
+      }), " and ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "provider.clientId"
+      }), " that is not undefined against the resolved middleware configuration. Each known field must match independently. Stored identifiers are compared verbatim, without trimming or URL canonicalization; issuer trailing-slash variants are distinct. Configuration strings still receive construction-time trimming."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["A known mismatch returns HTTP 401 with ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "{\"code\":\"OIDC_VAULT_INVALID_SESSION\",\"message\":\"Session is missing or expired.\"}"
+      }), " before discovery, upstream token use, local issuance, lifecycle hooks, rotation, or lineage deletion. It neither sets nor clears a cookie and produces no provider logout redirect. The normal ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "onError"
+      }), " observer runs without the foreign session in its context."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Legacy sessions with absent ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "provider"
+      }), ", an empty provider object, or omitted/undefined identity fields remain supported. Only known fields are checked: an omitted issuer permits cross-issuer use, an omitted client ID permits cross-client use, and entirely absent identity permits both. Refresh does not backfill identity."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["For complete identity isolation, use separate store namespaces for ", (0,jsx_runtime.jsx)(_components.strong, {
+        children: "session/alias, exchange-code, and authorization-transaction records"
+      }), ". Live-session checks alone do not isolate shared namespaces: exchange consumes the one-time code before checking identity, so a rejected foreign exchange still spends the owner's code. When logout finds no live session, it still calls ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "deleteSession"
+      }), " through the stale-alias path without an identity check, which can revoke a foreign lineage in shared storage."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.h3, {
+      id: "rotation-alias-retention",
+      children: "Rotation alias retention"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Session rotation preserves the logical session ID when the next session omits one. Rotation aliases are a finite bridge for in-flight requests: each old ID revokes its lineage only until its immediate successor's ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "expiresAt"
+      }), "; later rotations do not extend earlier aliases. After that window, use the live ID or a scoped ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "deleteSessionsByLogicalSessionId"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "deleteSessionsBySubject"
+      }), " / ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "deleteSessionsByProviderSessionId"
+      }), " call. An explicitly changed logical ID moves the new alias to that lineage; earlier aliases keep their previous lineage."]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Without successor ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "expiresAt"
+      }), ", memory and Redis impose no alias time limit and can accumulate arbitrarily many aliases; MongoDB uses ", (0,jsx_runtime.jsx)(_components.code, {
+        children: "rotatedSessionAliasRetentionMs"
+      }), " (default 5 minutes). Memory eagerly retires inactive old-lineage aliases on rotation/upsert; MongoDB/Redis can retain them until expiry or explicit cleanup. Use distinct logical IDs for unrelated login families. Core refresh uses the live ID and preserves expiry. This retains the ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/docs/tasks/20260908-130120-oidc-vault-stores-health-follow-up.md#task-svh-05-decide-a-portable-rotation-alias-lifetime-contract",
+        children: "SVH-05 decision"
+      }), "."]
+    }), "\n", (0,jsx_runtime.jsx)(_components.p, {
+      children: "Scoped/direct deletion preserves unexpired aliases while a live member survives, including another provider scope. Bulk counts exclude alias cleanup; memory excludes expired sessions, MongoDB can count expired rows awaiting TTL cleanup, and Redis counts actual primary deletions during one cursor traversal. MongoDB scoped deletion repeats until an empty query. Later arrivals can survive and errors can follow committed deletion; counts do not prove an empty scope. Portable plain-object/array inputs are snapshotted at invocation; opaque native objects retain backend-specific serialization without portable mutation isolation. See the shipped store READMEs for client lifecycle, safe diagnostics, and actual resource bounds (SCAN COUNT is a hint, not a cap)."
+    }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
+      id: "known-browser-and-concurrency-limits",
+      children: "Known Browser And Concurrency Limits"
+    }), "\n", (0,jsx_runtime.jsxs)(_components.ul, {
+      children: ["\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.strong, {
+          children: "Browser binding:"
+        }), " ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "state"
+        }), ", nonce, PKCE, and one-time codes do not bind login/callback/exchange completion to the initiating browser. A transferred callback/frontend URL can cause login/session swapping; a stolen unused exchange code can be redeemed by another browser in either transport. ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "exchange"
+        }), " has no source-origin check and accepts URL-encoded forms. CORS, ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "SameSite"
+        }), ", and ", (0,jsx_runtime.jsx)(_components.code, {
+          children: "trustedOrigins"
+        }), " on cookie refresh/logout do not establish this missing binding."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.strong, {
+          children: "Refresh families:"
+        }), " local atomic rotation allows one winner, but overlapping requests can send the same upstream refresh token multiple times, including across backend instances. A single-use provider with reuse detection can revoke the entire upstream refresh family, leaving the local winner unable to refresh. Deduplicate frontend refreshes, including bootstrap and retry paths; a per-context promise is not a distributed guarantee."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.strong, {
+          children: "Cookie ordering:"
+        }), " a loser reaching a local rotation conflict (or a stale missing-session retry) clears the cookie. A late clear can erase the winner's cookie even while its server session remains live. Upstream-failure losers do not set a cookie. Response ordering is not enforced."]
+      }), "\n", (0,jsx_runtime.jsxs)(_components.li, {
+        children: [(0,jsx_runtime.jsx)(_components.strong, {
+          children: "Logout and stateless tokens:"
+        }), " local/provider/backchannel logout revoke vault refresh sessions, not outstanding stateless application access tokens. Those remain valid until their own expiry unless your validator checks application revocation state. A refresh racing logout can still return 200 and an access token after its lineage is deleted. Keep local tokens short-lived; immediate API revocation requires application-owned validation state. Vault-session expiry likewise does not revoke an already-issued stateless token."]
+      }), "\n"]
+    }), "\n", (0,jsx_runtime.jsxs)(_components.p, {
+      children: ["Browser-bound proofs (BOV-02-FU1), cross-instance refresh reservation (BOV-03-FU1), and stale-cookie ordering (BOV-03-FU2) remain proposed in the ", (0,jsx_runtime.jsx)(_components.a, {
+        href: "https://github.com/egose/web-ts-toolkit/blob/main/docs/tasks/20260908-070811-express-oidc-vault-boundary-review.md",
+        children: "boundary review"
+      }), ". The lifetime, identity, and response changes documented here do not implement those protocols."]
     }), "\n", (0,jsx_runtime.jsx)(_components.h2, {
       id: "security-checklist",
       children: "Security Checklist"
