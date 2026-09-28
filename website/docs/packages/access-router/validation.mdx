@@ -28,7 +28,7 @@ identically by direct model routes and grouped root entries, so both paths
 return the same verdicts. Two variants are accepted:
 
 - **Legacy** (`mode` absent or `'legacy'`): requires
-  `localField`/`foreignField` as before; behavior is unchanged.
+  `localField`/`foreignField` for batched joins.
 - **Correlated** (`mode: 'correlated'`): requires `model`, `op`
   (`'read'`/`'list'`/`'count'`), and an explicit output `path`; exactly one
   of `id` (identifier reads) or `filter` (filter reads, lists, counts) must
@@ -42,11 +42,26 @@ Marker rules enforced at validation: `{ "$parent": "<field>" }` (exactly
 one own key, non-empty string value, dotted paths allowed except
 `__proto__`/`prototype`/`constructor` segments) only in supported filter
 value positions; `{ "$escape": { "$parent": "<field>" } }` matches the
-literal object. Markers in `$$sq`/`$$date` subtrees, as object keys, in root
+literal object. Bare `{ note: { $escape: { $parent: 'x' } } }` resolves to
+`{ note: { $eq: { $parent: 'x' } } }`, consistent with bare substituted parent
+objects. Explicit `$eq` remains equivalent; operator operands and array elements
+receive the literal without another equality wrapper. Escape resolution is
+single-pass and never reads parent data, even if `x` is absent, null or changed.
+Malformed escapes are rejected and expanded operands still consume complexity
+budgets. The corrected bare form requires an updated server; older servers with
+the bare-escape defect still need explicit `$eq`.
+Markers in `$$sq`/`$$date` subtrees, as object keys, in root
 `$text`/`$where`/`$comment`, in `populate.match`, or in `sort`/`select` are
 `BadRequest`. Output `path` must be a non-empty valid field path (not
 `_id`, no `$` prefix); duplicate correlated paths in one include array are
 rejected. Direct count bodies reject `include` entirely.
+
+After shape validation, shared service preflight also rejects any legacy/correlated
+output path overlapping the receiving model's `documentPermissionField` (equal,
+ancestor or descendant, including equivalent legacy bracket paths). Nested receiving
+models use their own settings, before target persistence. Direct HTTP returns 400;
+the affected root entry returns statusCode 400/code `bad_request` in its HTTP 200
+envelope. Legacy grouped-count schema cast failures are also controlled BadRequest.
 
 ## Request Schemas
 
@@ -94,6 +109,46 @@ Helpers exported by `@web-ts-toolkit/access-router`:
 - schema/helper adapters: `fromYup(schema)`, `fromJoi(schema)`, `fromAjv(validate)`
 - schema/helper adapters: `fromValibot(schema, safeParse)`, `fromArkType(type)`
 - schema/helper adapters: `fromIoTs(codec)`, `fromSuperstruct(struct, validate)`, `fromVine(validator)`
+
+### AJV: synchronous verdicts and tagged asynchronous data
+
+Install `ajv` in the application; access-router has no mandatory AJV runtime dependency.
+`fromAjv` and `AjvValidatorLike<T>` are root exports.
+
+```ts
+import { Ajv, type AsyncSchema } from 'ajv';
+import { fromAjv } from '@web-ts-toolkit/access-router';
+
+const ajv = new Ajv();
+const sync = fromAjv<boolean>(ajv.compile<boolean>({ type: 'boolean' }));
+const asyncSchema: AsyncSchema = { $async: true, type: 'boolean' };
+const asyncData = fromAjv(ajv.compile<boolean>(asyncSchema));
+await sync(false);      // { success: true, data: false }
+await asyncData(false); // { success: true, data: false }
+```
+
+Sync boolean results are verdicts: true returns input (with any in-place AJV
+mutations), false returns issues snapshotted from mutable `validate.errors` before
+another call. Tagged `$async: true` promises/thenables return validated data:
+false, true, null, scalars and objects all succeed with the fulfilled value.
+Async paths never consult shared errors. Real AJV ValidationError rejections
+(`ajv: true`, `validation: true`, errors array) retain input-local diagnostics under
+concurrency; other throws/rejections propagate unchanged as operational failures.
+
+**Migration:** untagged promises/thenables now reject with a configuration TypeError
+and are observed to prevent unhandled rejection; synchronous non-boolean returns
+also reject. Pass genuine compiled validators directly without casts or tag-dropping
+wrappers. Structural async validators require a literal `$async: true as const`
+and data/rejection semantics. Do not merely tag an async boolean-verdict wrapper:
+its false/true would now be successful data. Convert it to a `RequestSchemaValidator`
+with explicit result objects, or return validated data and reject AJV validation
+errors. An `errors` property alone no longer identifies validation failure.
+AJV's async type extends its sync type with overloads, so a sync-typed reference can
+hide the tag; runtime discrimination remains authoritative. Use `fromAjv<T>(sync)`
+for explicit structural sync output types; genuine AJV sync/async types infer output
+via their type guard, structural async types via their promise. An `AsyncSchema`-typed
+schema selects AJV's async compile/compileAsync overload without casts; inline
+schemas can match its earlier sync overload even with `$async: true`.
 
 ## `defineRequestSchema(...)`
 

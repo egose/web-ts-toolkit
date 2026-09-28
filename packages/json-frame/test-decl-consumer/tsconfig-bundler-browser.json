@@ -9,5 +9,5 @@
     "lib": ["ES2022"],
     "types": []
   },
-  "include": ["*.browser.ts"]
+  "include": ["*.browser.ts", "inference-contract.mts", "budget-contract.mts"]
 }

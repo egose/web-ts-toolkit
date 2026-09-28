@@ -27,10 +27,15 @@ All of these hooks run with `this` bound to the current Express request.
 ### `baseFilter`
 
 Return a filter, or `true` / `null` / `undefined` to leave the query unmodified.
+Return `false` for terminal query denial. Model-service `exists` returns Forbidden,
+not a successful miss, and public read `tryList` cannot revive that denial.
 
 ### `overrideFilter`
 
 Rewrite the caller-provided filter before the base filter is applied.
+An existing false filter skips this hook; returning false also denies the query.
+See [service denial contracts](./services#denial-versus-a-missing-row) for internal
+overrides, existence results and HTTP status mapping.
 
 ### `validate`
 
@@ -38,11 +43,28 @@ Return `true` to allow the write, `false` to reject it, or an error array to sur
 
 ### `prepare`
 
-Normalize incoming data before it is written.
+Trusted application hook after validation of selected client data. Output is not
+re-filtered and may add protected/server-only fields, including dotted Mongoose paths.
+For updates, plain-object/array output at strict ancestors of admitted policy paths
+applies supplied children while preserving omitted siblings. Other paths remain whole
+assignments. Returning an empty partial container or omitting a parent does not delete
+it; explicit null/undefined can clear/unset it. An entirely null/undefined result
+supplies no assignments. Do not blindly copy unfiltered `context.originalData` back in.
 
 ### `transform`
 
-Mutate the live Mongoose document before save.
+Mutate the live Mongoose document after authorized update assignment and before save.
+For intentional whole-parent replacement use `doc.set('profile', replacement)`.
+Migration: prepare hooks that relied on omitted children deleting a partial parent
+must now make that replacement explicit here (or grant the client the whole field).
+The update order is validation → prepare → assigned-document transform → save →
+afterPersist → changes; snapshots/diffs reflect persistence. Subdocument writes retain
+their own lifecycle and do not gain these model hooks.
+
+Router lifecycle hooks run outside persistence admission. Mongoose middleware runs
+inside its awaited adapter/document operation, which may issue multiple driver
+commands; direct DB/network calls from application hooks are not governed by
+`maxBulkConcurrency`. See [Configuration](./configuration#persistence-admission).
 
 ### `afterPersist`
 

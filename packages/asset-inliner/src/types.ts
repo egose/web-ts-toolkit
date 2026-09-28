@@ -107,6 +107,7 @@ export type DiagnosticCode =
   | 'FILESYSTEM_ERROR'
   | 'UNSUPPORTED_TYPE'
   | 'RESOLVE_ERROR'
+  | 'HTML_BASE_UNMAPPABLE'
   | 'INLINE_SKIPPED';
 
 /** Structured diagnostic for skipped or failed references. */
@@ -114,6 +115,7 @@ export interface AssetDiagnostic {
   readonly code: DiagnosticCode;
   readonly message: string;
   readonly originalUrl?: string;
+  /** For HTML with an applicable base href, the actual containing document (if supplied), never a synthetic base path. */
   readonly filePath?: string;
   readonly severity: 'warn' | 'error';
 }
@@ -137,7 +139,9 @@ export interface InlineResult {
  * never read) or by the post-read actual-bytes check (growth race) — the
  * result carries `content: ''`, `modified: false`, `written: false`, and a
  * `RESOURCE_LIMIT` diagnostic. Rejected bodies are never loaded just to fill
- * the result. Other failures (parse/resolver/filesystem) retain the read
+ * the result. Syntax-depth, replacement-count and output-byte limit failures
+ * also discard result content and replacements and never write the target.
+ * Other failures (parse/resolver/filesystem) retain the read
  * body in `content` where one was read.
  */
 export interface InlineFileResult extends InlineResult {
@@ -234,7 +238,11 @@ export interface CatalogOptions extends EncodeOptions, DiscoveryOptions {
 
 /** Narrow input for a custom resolver hook — no parser AST knowledge required. */
 export interface ResolverInput {
-  /** Original URL text as it appeared in source (including query/fragment). */
+  /**
+   * URL text passed to resolution, including query/fragment. Transforms normally
+   * decode HTML entities/CSS escapes first; the style decoder-disagreement
+   * fallback retains raw HTML entities. Standalone resolvers use caller input.
+   */
   readonly originalUrl: string;
   /** Decoded logical path without query/fragment, percent-decoded for filesystem matching. POSIX-style with forward slashes. */
   readonly decodedPath: string;
@@ -242,6 +250,14 @@ export interface ResolverInput {
   readonly basename: string;
   /** Document path of the containing CSS/HTML file, if available. */
   readonly documentPath?: string;
+  /**
+   * Absolute directory selected by the first applicable HTML base href, when
+   * present and locally mappable (also for embedded CSS). `documentPath` remains
+   * the actual containing file, and `decodedPath` remains the reference's own
+   * path. Relative paths use this directory; root-relative paths still use
+   * `rootDir`/cwd. Absent for no-base HTML, standalone CSS/resolution utilities.
+   */
+  readonly resolutionBaseDir?: string;
   /** Explicit root for `documentPath`-less content. */
   readonly rootDir?: string;
 }
@@ -274,11 +290,24 @@ export type AssetResolverAsync = (
  */
 export type AssetResolver = AssetResolverAsync;
 
-/** Options for pure CSS/HTML inlining over an existing catalog. */
+/**
+ * Options for pure CSS/HTML inlining over an existing catalog.
+ * HTML srcset resolves complete decoded URL tokens, including interior commas.
+ * Invalid candidate descriptors are preserved without resolver calls; valid
+ * descriptors and separators retain their source spelling when patched.
+ * HTML selects the first HTML-namespace `<base href>` in parsed tree order
+ * before transforming, ignoring inert template content and bases without href.
+ * Relative/root-relative bases map under the filesystem contract; empty href
+ * selects the document fallback and prevents later bases from taking effect.
+ * Entities are decoded once. Remote/protocol-relative and unmappable bases
+ * preserve local-looking references with `HTML_BASE_UNMAPPABLE` warnings and
+ * no lookup/resolver calls. HTML-disallowed data:/javascript: bases use fallback.
+ * No base fetching/rewriting or browser-origin/CSP inference is performed.
+ */
 export interface InlineOptions {
   /** Immutable catalog to resolve local references against. */
   readonly catalog: AssetCatalog;
-  /** Absolute path of the containing document for relative resolution; or explicit root. */
+  /** Actual containing file; relative resolution uses its directory unless HTML supplies a mappable base href. */
   readonly documentPath?: string;
   /** Explicit root for `documentPath`-less content. */
   readonly rootDir?: string;
@@ -302,8 +331,23 @@ export interface InlineOptions {
    * Maximum transformed output bytes (UTF-8) per target. Finite positive safe integer.
    * Default `20971520` (20 MiB, `DEFAULT_MAX_OUTPUT_BYTES`). Values > `104857600` (100 MiB) rejected as unreasonable.
    * Enforced per replacement via pessimistic projection (`original + sum delta`) with safe-integer arithmetic before insertion.
+   * Includes HTML output quotes/escaping and CSS font hints; changed output is
+   * checked again after assembly or fallback serialization. No truncation.
    */
   readonly maxOutputBytes?: number;
+  /**
+   * Maximum syntax nesting, independent of filesystem `maxDepth`. Positive safe
+   * integer; default 256 (`DEFAULT_MAX_SYNTAX_DEPTH`), maximum 512.
+   * HTML counts parsed element ancestors including the element itself, implied
+   * elements and template content; document/fragment roots, text and comments add
+   * zero. CSS counts simultaneously open unescaped `{`, `(` and `[` delimiters
+   * outside strings/comments (including blocks, functions and custom properties).
+   * Embedded CSS, when enabled, has its own depth starting at zero per chunk,
+   * including decoded style attributes and inert template content.
+   * Checked even without asset references, before recursive walking/serialization.
+   * Excess throws `ResourceLimitError`; file APIs report `RESOURCE_LIMIT`, no write.
+   */
+  readonly maxSyntaxDepth?: number;
   /**
    * Selective inlining threshold — assets whose `byteLength` exceeds this value
    * are left as external references with a structured `INLINE_SKIPPED` diagnostic
@@ -326,16 +370,20 @@ export interface InlineOptions {
    * Opt-in embedded CSS processing for `inlineHtml` (default `false`).
    * When `true`, `<style>` element text and `style` attribute values are
    * transformed with the same CSS semantics as `inlineCss`: local `url(...)`
-   * resolve relative to the HTML `documentPath`/`rootDir`, remote and `data:`
-   * URLs are left untouched, and the same target/replacement/output limits apply.
-   * Malformed embedded CSS produces a `PARSE_ERROR` diagnostic and leaves the
+   * respect the effective HTML base (otherwise `documentPath`/`rootDir`), remote and `data:`
+   * URLs are left untouched, and the same target/replacement/output/syntax limits apply.
+   * Within resource limits, malformed embedded CSS produces a `PARSE_ERROR` diagnostic and leaves the
    * chunk unchanged — it never corrupts the surrounding HTML. Replacement
    * locations are mapped back to HTML source offsets.
+   * Rewritten style attributes preserve attribute boundaries: unquoted values
+   * gain double quotes, and values are escaped for their quote context, including
+   * the raw-source decoder fallback. Added quotes and entity expansion count
+   * toward `maxOutputBytes`. `<style>` element text is not HTML-entity decoded.
    */
   readonly inlineEmbeddedCss?: boolean;
 }
 
-/** Options for file-level orchestration (`inlineFiles`). */
+/** Options for file-level orchestration (`inlineFiles`). HTML targets share `InlineOptions`' base-href contract. */
 export interface InlineFilesOptions extends CatalogOptions {
   /** Target CSS/HTML files or directories to process (lexical, deduplicated). */
   readonly targets: readonly string[] | string;
@@ -355,7 +403,8 @@ export interface InlineFilesOptions extends CatalogOptions {
   readonly resolver?: AssetResolverSync;
   /**
    * Maximum target input bytes (UTF-8) per file. Finite positive safe integer.
-   * Default `5242880` (5 MiB). Enforced before parser invocation; per-target `RESOURCE_LIMIT` diagnostic with `written:false`, no partial write.
+   * Default `5242880` (5 MiB), maximum `52428800` (50 MiB). Enforced before parser invocation;
+   * per-target `RESOURCE_LIMIT` diagnostic with `written:false`, no partial write.
    * Regular files get a `stat` metadata preflight so oversized bodies are
    * rejected before reading/decoding (result `content: ''`); a post-read
    * actual-bytes check still rejects growth races and also discards the body.
@@ -365,14 +414,23 @@ export interface InlineFilesOptions extends CatalogOptions {
   readonly maxTargetBytes?: number;
   /**
    * Maximum replacements per target file. Finite positive safe integer.
-   * Default `1000`. Enforced before each data URL insertion; per-target diagnostic on exceed.
+   * Default `1000`, maximum `100000`. Enforced before each data URL insertion; per-target diagnostic on exceed.
    */
   readonly maxReplacements?: number;
   /**
    * Maximum transformed output bytes (UTF-8) per target file. Finite positive safe integer.
-   * Default `20971520` (20 MiB). Enforced per replacement via projection with safe-integer arithmetic.
+   * Default `20971520` (20 MiB), maximum `104857600` (100 MiB).
+   * Enforced via projection including quotes/escaping/font hints and checked
+   * again on changed output; per-target `RESOURCE_LIMIT`, no write on exceed.
    */
   readonly maxOutputBytes?: number;
+  /**
+   * Syntax nesting limit forwarded to each CSS/HTML target; default 256, maximum
+   * 512, independent of filesystem `maxDepth`. See `InlineOptions.maxSyntaxDepth`
+   * for counting (including opt-in embedded CSS). Excess yields a per-target
+   * `RESOURCE_LIMIT` diagnostic with `written: false`, even without replacements.
+   */
+  readonly maxSyntaxDepth?: number;
   /**
    * Selective inlining threshold — assets whose `byteLength` exceeds this value
    * are left as external references with a structured `INLINE_SKIPPED` diagnostic

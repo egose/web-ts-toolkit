@@ -1,5 +1,7 @@
 import type { RxCollection, RxDocument } from './rx-types';
-import { applyProjection, type CompiledQuery } from './query-compiler';
+import { applyProjection, translateFilter, type CompiledQuery } from './query-compiler';
+import { createSelectorMatcher } from './selector-matcher';
+import { partitionBulkInsert } from './bulk-insert-passes';
 
 export interface PersistenceRecord {
   _id: string;
@@ -232,7 +234,7 @@ export class RxCollectionAdapter implements RxLikeCollection {
     const doc = await this.queryOneDoc(compiled);
     if (!doc) return null;
     const before = toPersistenceRecord(doc.toJSON());
-    if (!matchesSelector(before, compiled.selector)) return null;
+    if (!this.selectorMatcher(compiled.selector)(before)) return null;
     const removed = await this.removeIfMatches(doc, compiled.selector);
     return removed ? before : null;
   }
@@ -273,13 +275,15 @@ export class RxCollectionAdapter implements RxLikeCollection {
     selector: CompiledQuery['selector'],
     updater: AtomicUpdater,
   ): Promise<{ matched: boolean; modified: boolean; before: RxLikeDoc | null; after: RxLikeDoc | null }> {
+    // Compile once, but evaluate against the current record on every retry.
+    const matches = this.selectorMatcher(selector);
     let matched = false;
     let modified = false;
     let before: RxLikeDoc | null = null;
     let after: RxLikeDoc | null = null;
     await doc.incrementalModify(async (currentDoc: any) => {
       const current = toPersistenceRecord(currentDoc);
-      if (!matchesSelector(current, selector)) {
+      if (!matches(current)) {
         matched = false;
         modified = false;
         before = null;
@@ -304,7 +308,7 @@ export class RxCollectionAdapter implements RxLikeCollection {
    */
   private async removeIfMatches(doc: RxDocument, selector: CompiledQuery['selector']): Promise<boolean> {
     const latest = toPersistenceRecord(doc.toJSON());
-    if (!matchesSelector(latest, selector)) return false;
+    if (!this.selectorMatcher(selector)(latest)) return false;
     await doc.remove();
     return true;
   }
@@ -314,6 +318,10 @@ export class RxCollectionAdapter implements RxLikeCollection {
     if (compiled.sort) query = query.sort(compiled.sort as any);
     const doc: RxDocument | null = await query.exec();
     return doc ?? null;
+  }
+
+  private selectorMatcher(selector: CompiledQuery['selector']): (record: PersistenceRecord) => boolean {
+    return createSelectorMatcher(selector, this.native().schema?.jsonSchema);
   }
 
   private async queryDocs(compiled: CompiledQuery): Promise<RxDocument[]> {
@@ -343,31 +351,15 @@ export class RxCollectionAdapter implements RxLikeCollection {
    * non-string `_id` bypass partitioning via sequential unordered inserts so
    * error attribution never guesses. Ordered mode stays sequential and is
    * unchanged. No read-before-insert uniqueness check is performed; all
-   * conflicts come from native write errors.
+   * conflicts come from native write errors. Partitioning uses a per-ID
+   * occurrence counter for linear work; duplicate native writes still require
+   * the same number of passes.
    */
   private async insertManyUnordered(docs: PersistenceRecord[]): Promise<BulkInsertResult> {
     if (!docs.every((doc) => typeof doc?._id === 'string')) {
       return this.insertManySequential(docs, false);
     }
-    const passes: Array<{ docs: PersistenceRecord[]; indexes: number[] }> = [];
-    const passIdSets: Array<Set<string>> = [];
-    for (let index = 0; index < docs.length; index++) {
-      const id = (docs[index] as PersistenceRecord)._id;
-      let placed = false;
-      for (let pass = 0; pass < passes.length; pass++) {
-        if (!passIdSets[pass].has(id)) {
-          passes[pass].docs.push(docs[index]);
-          passes[pass].indexes.push(index);
-          passIdSets[pass].add(id);
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) {
-        passes.push({ docs: [docs[index]], indexes: [index] });
-        passIdSets.push(new Set([id]));
-      }
-    }
+    const passes = partitionBulkInsert(docs);
     const native = this.native() as RxCollection<any> & {
       bulkInsert?: (docs: PersistenceRecord[]) => Promise<{ success?: RxDocument[]; error?: unknown[] }>;
     };
@@ -425,166 +417,13 @@ export class RxCollectionAdapter implements RxLikeCollection {
 }
 
 /**
- * Mango selector matcher used to recheck conditional-mutation predicates
- * inside the native retry boundary (BMRX-07). Supports the operator surface
- * produced by `translateFilter` (`$and`/`$or`/`$nor` plus per-field
- * `$eq`/`$ne`/`$gt`/`$gte`/`$lt`/`$lte`/`$in`/`$nin`/`$exists`); dotted field
- * paths resolve through own properties only with numeric segments addressing
- * array indexes. `$regex` never reaches matching (rejected at compile time)
- * and evaluates to no-match defensively. Plain (non-operator) conditions are
- * treated as `$eq` for robustness against hand-built selectors.
+ * Match a persistence record using RxDB semantics and the supported selector
+ * normalization policy (including Date operands). Unsupported filters throw
+ * `QueryFilterError`. Retained for source-level compatibility; this helper is
+ * not an exported package entrypoint. Mutation retries reuse a compiled matcher.
  */
 export function matchesSelector(record: PersistenceRecord, selector: Record<string, any> | undefined): boolean {
-  const sel = selector ?? {};
-  for (const [key, condition] of Object.entries(sel)) {
-    if (key === '$and') {
-      if (!Array.isArray(condition)) return false;
-      if (!(condition as any[]).every((sub) => matchesSelector(record, sub))) return false;
-      continue;
-    }
-    if (key === '$or') {
-      if (!Array.isArray(condition)) return false;
-      if (!(condition as any[]).some((sub) => matchesSelector(record, sub))) return false;
-      continue;
-    }
-    if (key === '$nor') {
-      if (!Array.isArray(condition)) return false;
-      if ((condition as any[]).some((sub) => matchesSelector(record, sub))) return false;
-      continue;
-    }
-    if (key.startsWith('$')) return false;
-    if (!matchesFieldCondition(getOwnDottedValue(record, key), hasOwnValue(record, key), condition)) return false;
-  }
-  return true;
-}
-
-function matchesFieldCondition(value: unknown, present: boolean, condition: unknown): boolean {
-  if (
-    condition !== null &&
-    typeof condition === 'object' &&
-    !Array.isArray(condition) &&
-    !(condition instanceof Date)
-  ) {
-    const entries = Object.entries(condition as Record<string, unknown>);
-    if (entries.length === 0) return valueEquals(value, condition);
-    if (!entries.every(([k]) => k.startsWith('$'))) return valueEquals(value, condition);
-    for (const [op, operand] of entries) {
-      switch (op) {
-        case '$eq':
-          if (!valueEquals(value, operand)) return false;
-          break;
-        case '$ne':
-          if (valueEquals(value, operand)) return false;
-          break;
-        case '$gt':
-          if (!(compareValues(value, operand) > 0)) return false;
-          break;
-        case '$gte':
-          if (!(compareValues(value, operand) >= 0)) return false;
-          break;
-        case '$lt':
-          if (!(compareValues(value, operand) < 0)) return false;
-          break;
-        case '$lte':
-          if (!(compareValues(value, operand) <= 0)) return false;
-          break;
-        case '$in':
-          if (!Array.isArray(operand)) return false;
-          if (!(operand as unknown[]).some((entry) => valueEquals(value, entry))) return false;
-          break;
-        case '$nin':
-          if (!Array.isArray(operand)) return false;
-          if ((operand as unknown[]).some((entry) => valueEquals(value, entry))) return false;
-          break;
-        case '$exists':
-          if ((operand === true ? present : !present) !== true) return false;
-          break;
-        case '$regex':
-        case '$options':
-          return false;
-        default:
-          return false;
-      }
-    }
-    return true;
-  }
-  return valueEquals(value, condition);
-}
-
-function getOwnDottedValue(record: Record<string, any>, path: string): unknown {
-  const segments = path.split('.');
-  let cursor: unknown = record;
-  for (const segment of segments) {
-    if (cursor === null || cursor === undefined || typeof cursor !== 'object') return undefined;
-    if (Array.isArray(cursor)) {
-      if (!/^(0|[1-9]\d*)$/.test(segment)) return undefined;
-      const index = Number(segment);
-      if (!Object.prototype.hasOwnProperty.call(cursor, String(index))) return undefined;
-      cursor = (cursor as unknown[])[index];
-      continue;
-    }
-    if (!Object.prototype.hasOwnProperty.call(cursor, segment)) return undefined;
-    cursor = (cursor as Record<string, any>)[segment];
-  }
-  return cursor;
-}
-
-function hasOwnValue(record: Record<string, any>, path: string): boolean {
-  const segments = path.split('.');
-  let cursor: unknown = record;
-  for (const segment of segments) {
-    if (cursor === null || cursor === undefined || typeof cursor !== 'object') return false;
-    if (Array.isArray(cursor)) {
-      if (!/^(0|[1-9]\d*)$/.test(segment)) return false;
-      if (!Object.prototype.hasOwnProperty.call(cursor, String(segment))) return false;
-      cursor = (cursor as unknown[])[Number(segment)];
-      continue;
-    }
-    if (!Object.prototype.hasOwnProperty.call(cursor, segment)) return false;
-    cursor = (cursor as Record<string, any>)[segment];
-  }
-  return true;
-}
-
-function toComparable(value: unknown): number | string | null {
-  if (value instanceof Date) return value.getTime();
-  if (typeof value === 'number') return Number.isNaN(value) ? null : value;
-  if (typeof value === 'string') {
-    const asTime = Date.parse(value);
-    if (!Number.isNaN(asTime) && /^\d{4}-\d{2}-\d{2}/.test(value)) return asTime;
-    return value;
-  }
-  return null;
-}
-
-function compareValues(left: unknown, right: unknown): number {
-  const leftComparable = toComparable(left instanceof Date ? left : left);
-  const rightComparable = toComparable(right instanceof Date ? right : right);
-  if (typeof leftComparable === 'number' && typeof rightComparable === 'number') {
-    return leftComparable < rightComparable ? -1 : leftComparable > rightComparable ? 1 : 0;
-  }
-  if (typeof leftComparable === 'string' && typeof rightComparable === 'string') {
-    return leftComparable < rightComparable ? -1 : leftComparable > rightComparable ? 1 : 0;
-  }
-  return NaN;
-}
-
-function valueEquals(left: unknown, right: unknown): boolean {
-  if (left instanceof Date || right instanceof Date) {
-    const leftTime = left instanceof Date ? left.getTime() : tryParseDate(left);
-    const rightTime = right instanceof Date ? right.getTime() : tryParseDate(right);
-    if (leftTime !== null && rightTime !== null) return leftTime === rightTime;
-    if (left instanceof Date || right instanceof Date) return false;
-  }
-  if (left === right) return true;
-  if (typeof left === 'number' && typeof right === 'number' && Number.isNaN(left) && Number.isNaN(right)) return true;
-  return stableStringify(left) === stableStringify(right);
-}
-
-function tryParseDate(value: unknown): number | null {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(value)) return null;
-  const time = Date.parse(value);
-  return Number.isNaN(time) ? null : time;
+  return createSelectorMatcher(translateFilter(selector))(record);
 }
 
 function sanitizeMutationResult(current: PersistenceRecord, proposed: any): PersistenceRecord {

@@ -37,16 +37,39 @@ import {
 } from './options';
 import { assertTransactionSupport, ensureStoreIndexes } from './topology';
 
+// Own portable containers before yielding, without coercing native BSON values
+// or custom serialization hooks. Opaque, non-plain values retain backend semantics;
+// the ownership guarantee applies to the documented JSON-portable value domain.
+const snapshotInput = <T>(input: T, seen = new WeakMap<object, unknown>()): T => {
+  if (input === null || typeof input !== 'object') return input;
+  const prototype = Object.getPrototypeOf(input);
+  if (!Array.isArray(input) && prototype !== Object.prototype && prototype !== null) return input;
+  if (seen.has(input)) return seen.get(input) as T;
+  const copy = (Array.isArray(input) ? new Array(input.length) : Object.create(prototype)) as T;
+  seen.set(input, copy);
+  for (const key of Reflect.ownKeys(input)) {
+    if (Object.prototype.propertyIsEnumerable.call(input, key)) {
+      Object.defineProperty(copy, key, {
+        value: snapshotInput(Reflect.get(input, key), seen),
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    }
+  }
+  return copy;
+};
+
 const toSubjectDeleteInput = (input: string | DeleteSessionsBySubjectInput): DeleteSessionsBySubjectInput =>
-  typeof input === 'string' ? { subject: input } : input;
+  typeof input === 'string' ? { subject: input } : { ...input };
 
 const toProviderSessionDeleteInput = (
   input: string | DeleteSessionsByProviderSessionIdInput,
-): DeleteSessionsByProviderSessionIdInput => (typeof input === 'string' ? { providerSessionId: input } : input);
+): DeleteSessionsByProviderSessionIdInput => (typeof input === 'string' ? { providerSessionId: input } : { ...input });
 
 const toLogicalSessionDeleteInput = (
   input: string | DeleteSessionsByLogicalSessionIdInput,
-): DeleteSessionsByLogicalSessionIdInput => (typeof input === 'string' ? { logicalSessionId: input } : input);
+): DeleteSessionsByLogicalSessionIdInput => (typeof input === 'string' ? { logicalSessionId: input } : { ...input });
 
 const isDuplicateKeyError = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && 'code' in error && error.code === 11000;
@@ -112,6 +135,7 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
   }
 
   async createAuthorizationTransaction(input: AuthorizationTransactionInput): Promise<void> {
+    input = snapshotInput({ ...input });
     await this.waitUntilReady();
     await this.authorizationTransactions.replaceOne({ _id: input.state }, authorizationTransactionToDocument(input), {
       upsert: true,
@@ -130,6 +154,7 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
   }
 
   async createExchangeCode(input: ExchangeCodeRecordInput): Promise<void> {
+    input = { ...input };
     await this.waitUntilReady();
     await this.exchangeCodes.replaceOne({ _id: input.code }, exchangeCodeToDocument(input), { upsert: true });
   }
@@ -146,6 +171,7 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
   }
 
   async createSession(input: OidcVaultSessionInput): Promise<OidcVaultSession> {
+    input = snapshotInput({ ...input });
     await this.waitUntilReady();
     const timestamp = this.now();
     const session: OidcVaultSession = {
@@ -171,6 +197,7 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
   }
 
   async rotateSession(input: RotateSessionInput): Promise<OidcVaultSession> {
+    input = { sessionId: input.sessionId, nextSession: snapshotInput({ ...input.nextSession }) };
     await this.waitUntilReady();
 
     if (input.nextSession.sessionId === input.sessionId) {
@@ -197,7 +224,7 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
       const result = await this.sessions.deleteOne({ _id: sessionId });
 
       if (result.deletedCount === 1) {
-        await this.deleteRotatedSessionAliasesByLogicalSessionId(logicalSessionId);
+        await this.deleteAliasesForInactiveLogicalSessions([logicalSessionId]);
         return;
       }
 
@@ -218,14 +245,15 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
   }
 
   async deleteSessionsByLogicalSessionId(input: string | DeleteSessionsByLogicalSessionIdInput): Promise<number> {
-    await this.waitUntilReady();
     const resolved = toLogicalSessionDeleteInput(input);
+    await this.waitUntilReady();
     const result = await this.sessions.deleteMany({ logicalSessionId: resolved.logicalSessionId });
-    await this.deleteRotatedSessionAliasesByLogicalSessionId(resolved.logicalSessionId);
+    await this.deleteAliasesForInactiveLogicalSessions([resolved.logicalSessionId]);
     return result.deletedCount;
   }
 
   async consumeBackchannelLogoutTokenJti(input: ConsumeBackchannelLogoutTokenJtiInput): Promise<boolean> {
+    input = { ...input };
     await this.waitUntilReady();
     const now = this.now();
 
@@ -264,8 +292,8 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
   }
 
   async deleteSessionsBySubject(input: string | DeleteSessionsBySubjectInput): Promise<number> {
-    await this.waitUntilReady();
     const resolved = toSubjectDeleteInput(input);
+    await this.waitUntilReady();
     const filter: Filter<SessionDocument> = { subject: resolved.subject };
 
     if (resolved.issuer !== undefined) {
@@ -281,8 +309,8 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
   }
 
   async deleteSessionsByProviderSessionId(input: string | DeleteSessionsByProviderSessionIdInput): Promise<number> {
-    await this.waitUntilReady();
     const resolved = toProviderSessionDeleteInput(input);
+    await this.waitUntilReady();
     const filter: Filter<SessionDocument> = { providerSessionId: resolved.providerSessionId };
 
     if (resolved.issuer !== undefined) {
@@ -369,6 +397,9 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
           logicalSessionId,
           expiresAt: this.getRotatedSessionAliasExpiresAt(nextSession, now),
         },
+        // A no-op alias update would not conflict with an older cleanup
+        // snapshot. Every rotation must write, even with identical values.
+        $inc: { revision: 1 },
       },
       { upsert: true, session },
     );
@@ -411,7 +442,7 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
 
       const result = await this.sessions.deleteMany(filter);
       deletedCount += result.deletedCount;
-      await this.rotatedSessionAliases.deleteMany({ logicalSessionId: { $in: logicalSessionIds } });
+      await this.deleteAliasesForInactiveLogicalSessions(logicalSessionIds);
     }
   }
 
@@ -421,8 +452,47 @@ export class MongoOidcVaultStore implements OidcVaultMongoStoreProvider {
     );
   }
 
-  private async deleteRotatedSessionAliasesByLogicalSessionId(logicalSessionId: string): Promise<void> {
-    await this.rotatedSessionAliases.deleteMany({ logicalSessionId });
+  private async deleteAliasesForInactiveLogicalSessions(logicalSessionIds: string[]): Promise<void> {
+    // Session deletion has already committed. Keep only the liveness check and
+    // alias removal in a snapshot transaction: an alias inserted by a later
+    // rotation is invisible to this delete, and changing an observed alias
+    // causes a write conflict/retry. A plain check followed by deleteMany could
+    // erase that new rotation's revocation handle. Do not put session deletion
+    // in this snapshot: concurrent scoped deletes could each see the other's
+    // soon-to-be-deleted member and both preserve an inactive lineage's aliases.
+    const session = this.db.client.startSession();
+
+    try {
+      await session.withTransaction(
+        async () => {
+          const live = await this.sessions
+            .find(
+              {
+                $and: [
+                  {
+                    $or: [
+                      { logicalSessionId: { $in: logicalSessionIds } },
+                      { logicalSessionId: { $exists: false }, _id: { $in: logicalSessionIds } },
+                    ],
+                  },
+                  { $nor: [{ expiresAt: { $lte: new Date(this.now()) } }] },
+                ],
+              },
+              { session, projection: { _id: 1, logicalSessionId: 1 } },
+            )
+            .toArray();
+          const survivingIds = new Set(live.map((record) => record.logicalSessionId ?? record._id));
+          const inactiveIds = logicalSessionIds.filter((id) => !survivingIds.has(id));
+
+          if (inactiveIds.length > 0) {
+            await this.rotatedSessionAliases.deleteMany({ logicalSessionId: { $in: inactiveIds } }, { session });
+          }
+        },
+        { readConcern: { level: 'snapshot' } },
+      );
+    } finally {
+      await session.endSession();
+    }
   }
 
   private async isExpiredAndCleanup<T extends ExpirableDocument>(

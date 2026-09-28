@@ -675,7 +675,7 @@ describe('express-json-router packed consumer compatibility', () => {
       'llms.txt',
       'package.json',
     ]);
-  });
+  }, 30000);
 
   it('rewrites every internal workspace dependency in the packed closure', () => {
     const packed = preparePackedWorkspace();

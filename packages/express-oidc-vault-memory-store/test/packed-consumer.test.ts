@@ -337,6 +337,8 @@ describe('MEM-06 packed-package consumer compatibility', () => {
   it('installs staged tarballs and runs CJS, ESM, NodeNext, Bundler, and README consumers', () => {
     const consumerDir = installPackedConsumer();
     copyConsumerSources(consumerDir);
+    // Exercise the require declaration branch with the same public API checks.
+    cpSync(path.resolve(consumerDir, 'consumer-types.ts'), path.resolve(consumerDir, 'consumer-types.cts'));
 
     run('node', ['consumer.cjs'], consumerDir);
     run('node', ['consumer.mjs'], consumerDir);

@@ -129,6 +129,22 @@ const validateDiscoveredHttpUrl = (value: string, fieldName: string): string => 
   return url.toString();
 };
 
+const validateOptionalDiscoveredHttpUrl = (value: unknown, fieldName: string): string | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return validateDiscoveredHttpUrl(
+    getRequiredString(
+      value,
+      `OIDC discovery response ${fieldName} must be a non-empty string when present.`,
+      'OIDC_VAULT_DISCOVERY_INVALID',
+      502,
+    ),
+    fieldName,
+  );
+};
+
 export const buildWellKnownUrl = (issuer: string): URL => {
   const normalizedIssuer = issuer.endsWith('/') ? issuer : `${issuer}/`;
   return new URL('.well-known/openid-configuration', normalizedIssuer);
@@ -166,6 +182,24 @@ const isAbortError = (error: unknown): boolean =>
 const createProviderTimeoutError = (errorCode: string): OidcVaultHttpError =>
   new OidcVaultHttpError(502, errorCode, 'OIDC provider request timed out.');
 
+const createProviderTransportError = (errorCode: string, cause: unknown): OidcVaultHttpError => {
+  const error = new OidcVaultHttpError(502, errorCode, 'OIDC provider request failed.');
+  // Keep the original transport diagnostic available to onError, but out of
+  // enumerable error properties and the public error payload.
+  Object.defineProperty(error, 'cause', { value: cause, configurable: true, writable: true });
+
+  return error;
+};
+
+/** Attempt cleanup now without letting a custom stream's cancellation gate completion. */
+const cancelBestEffort = (cancel: () => Promise<void> | undefined): void => {
+  try {
+    void cancel()?.catch(() => {});
+  } catch {
+    // Synchronous throws and asynchronous rejection must not replace the result.
+  }
+};
+
 type ProviderFetchState = {
   response: Response;
   /** Abort signal armed at the provider deadline; stays active through body consumption. */
@@ -201,7 +235,7 @@ const fetchProvider = async (
       throw createProviderTimeoutError(errorCode);
     }
 
-    throw error;
+    throw createProviderTransportError(errorCode, error);
   }
 };
 
@@ -219,7 +253,12 @@ const readBoundedResponseText = async (
   response: Response,
   limit: number,
   errorCode: string,
-  options: { truncate?: boolean; signal?: AbortSignal; timeoutAsTimeoutError?: boolean } = {},
+  options: {
+    truncate?: boolean;
+    signal?: AbortSignal;
+    timeoutAsTimeoutError?: boolean;
+    transportErrorCode?: string;
+  } = {},
 ): Promise<string> => {
   if (!response.body) {
     return '';
@@ -236,11 +275,7 @@ const readBoundedResponseText = async (
 
   if (signal) {
     if (signal.aborted) {
-      try {
-        await reader.cancel();
-      } catch {
-        // Cancel is best-effort cleanup; the timeout error below is authoritative.
-      }
+      cancelBestEffort(() => reader.cancel());
       reader.releaseLock();
       throwBoundedReadTimeout(errorCode, options.timeoutAsTimeoutError === true);
     }
@@ -265,15 +300,10 @@ const readBoundedResponseText = async (
         result = abortPromise === undefined ? await reader.read() : await Promise.race([reader.read(), abortPromise]);
       } catch (error) {
         if (signal?.aborted === true || isAbortError(error)) {
-          try {
-            await reader.cancel();
-          } catch {
-            // Cancel is best-effort cleanup; the timeout error below is authoritative.
-          }
           throwBoundedReadTimeout(errorCode, options.timeoutAsTimeoutError === true);
         }
 
-        throw error;
+        throw createProviderTransportError(options.transportErrorCode ?? errorCode, error);
       }
 
       if (result.done) {
@@ -283,12 +313,6 @@ const readBoundedResponseText = async (
       size += result.value.byteLength;
 
       if (size > limit) {
-        try {
-          await reader.cancel();
-        } catch {
-          // Cancel is best-effort cleanup; the size error below is authoritative.
-        }
-
         if (options.truncate === true) {
           return `${text.slice(0, limit)}...`;
         }
@@ -302,6 +326,7 @@ const readBoundedResponseText = async (
     if (signal !== undefined && onAbort !== undefined) {
       signal.removeEventListener('abort', onAbort);
     }
+    cancelBestEffort(() => reader.cancel());
     reader.releaseLock();
   }
 
@@ -339,15 +364,11 @@ const createBoundedJwksFetch = (timeoutMs: number): FetchImplementation => {
         throw timeoutError;
       }
 
-      throw error;
+      throw createProviderTransportError('OIDC_VAULT_JWKS_FAILED', error);
     }
 
     if (response.status !== 200) {
-      try {
-        await response.body?.cancel();
-      } catch {
-        // Cleanup is best-effort; JOSE reports the non-200 status below.
-      }
+      cancelBestEffort(() => response.body?.cancel());
 
       return response;
     }
@@ -429,10 +450,11 @@ export const readJsonResponse = async (
   response: globalThis.Response,
   errorCode: string,
   invalidJsonMessage = 'OIDC provider returned invalid JSON.',
-  readOptions: { signal?: AbortSignal } = {},
+  readOptions: { signal?: AbortSignal; transportErrorCode?: string } = {},
 ): Promise<Record<string, unknown>> => {
   const text = await readBoundedResponseText(response, DEFAULT_PROVIDER_JSON_BODY_LIMIT, errorCode, {
     signal: readOptions.signal,
+    transportErrorCode: readOptions.transportErrorCode,
   });
 
   if (!text) {
@@ -548,7 +570,7 @@ async function discoverIssuerMetadata(
           response,
           'OIDC_VAULT_DISCOVERY_INVALID',
           'OIDC discovery response is malformed JSON.',
-          { signal },
+          { signal, transportErrorCode: 'OIDC_VAULT_DISCOVERY_FAILED' },
         );
 
         const authorizationEndpoint = validateDiscoveredHttpUrl(
@@ -593,24 +615,17 @@ async function discoverIssuerMetadata(
           authorizationEndpoint,
           tokenEndpoint,
           jwksUri,
-          userInfoEndpoint:
-            typeof discovered.userinfo_endpoint === 'string'
-              ? validateDiscoveredHttpUrl(discovered.userinfo_endpoint, 'userinfo_endpoint')
-              : undefined,
-          endSessionEndpoint:
-            typeof discovered.end_session_endpoint === 'string'
-              ? validateDiscoveredHttpUrl(discovered.end_session_endpoint, 'end_session_endpoint')
-              : undefined,
+          userInfoEndpoint: validateOptionalDiscoveredHttpUrl(discovered.userinfo_endpoint, 'userinfo_endpoint'),
+          endSessionEndpoint: validateOptionalDiscoveredHttpUrl(
+            discovered.end_session_endpoint,
+            'end_session_endpoint',
+          ),
         } satisfies DiscoveredOidcProviderMetadata;
       } finally {
         done();
         // Best-effort stream cleanup so a validation failure after headers
         // cannot leave a stalled body holding the socket open.
-        try {
-          await response.body?.cancel();
-        } catch {
-          // Cleanup is best-effort; the parsed result or thrown error above wins.
-        }
+        cancelBestEffort(() => response.body?.cancel());
       }
     })();
 
@@ -732,11 +747,7 @@ export async function requestToken(
     return json as OidcTokenResponse;
   } finally {
     done();
-    try {
-      await response.body?.cancel();
-    } catch {
-      // Cleanup is best-effort; the parsed result or thrown error above wins.
-    }
+    cancelBestEffort(() => response.body?.cancel());
   }
 }
 
@@ -856,10 +867,6 @@ export async function fetchUserInfo(
     return json;
   } finally {
     done();
-    try {
-      await response.body?.cancel();
-    } catch {
-      // Cleanup is best-effort; the parsed result or thrown error above wins.
-    }
+    cancelBestEffort(() => response.body?.cancel());
   }
 }

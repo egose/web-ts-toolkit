@@ -29,9 +29,72 @@ These methods are what the built-in HTTP routes call internally.
 
 ### Important behavior
 
-- `_read(..., { tryList: true })` can fall back from `read` access to `list` access
+- `_read(id, args, { tryList: true })` and `_readFilter(filter, args, options)` can
+  fall back from an authorized read miss to list access, subject to list operation
+  access. `tryList` defaults to true. Forbidden and BadRequest never retry.
 - `_update(..., { returningAll: false })` trims the response to the updated fields
 - `_upsert(...)` only supports the default `_id` identifier
+
+### Denial versus a missing row
+
+Model service `findOne`, `find`, `updateOne` and `upsert` accept trusted
+`args.overrides.filter`; `findById` and `updateById` accept `args.overrides.idFilter`.
+False is terminal Forbidden, with no fallback filter/identifier generation or
+persistence, including client subqueries. Omitted/undefined/null uses normal
+generation. Object filter overrides replace generated row policy; object idFilter
+overrides replace identifier resolution and still receive row policy.
+
+`exists(filter, options?)` applies read row policy by default (`options.access`
+changes it). Allowed matches/misses yield successful true/false, or an `{ _id }`
+record/null with `includeId: true`. Explicit/base/override false returns a Forbidden
+ErrorResult before adapter dispatch in both modes. This replaces the former
+successful false/null denial result; check `success` before `data`.
+
+Public reads no longer retry a terminal read denial through list policy. Public
+`_upsert` with an `_id` now propagates denied update-policy existence as Forbidden
+instead of Unauthorized; an allowed miss remains Unauthorized. Neither case creates
+or updates a row. Generated direct routes use HTTP 403 and root batches use entry
+403 within HTTP 200. Custom Express handlers own response serialization: returning
+an ErrorResult or calling `res.json(result)` does not automatically set status 403.
+
+### Safe include output and exact counts
+
+Legacy and correlated include `path` values are output-only. They cannot equal,
+descend from, or contain the receiving model's `documentPermissionField` (default
+`_permissions`). With `auth.policy.permissions`, `auth`, `auth.policy` and
+`auth.policy.permissions.canReadSecret` reject; `lineItemCount` or the sibling
+`auth.policy.permissionsExtra` do not overlap. Equivalent legacy bracket paths
+follow the same rule. The entire supported include tree is preflighted with each
+nested receiving model's setting before target persistence. BadRequest returns direct
+HTTP 400 or root entry 400/`bad_request` within HTTP 200; malformed reads do not fall
+back to list access. Ordinary output collisions remain supported.
+
+Legacy `op: 'count'` uses one grouped aggregate per include execution for all parents,
+counting distinct authorized target documents independently of listHardLimit and
+include pagination. Duplicate local/foreign array keys or documents matching multiple
+local keys do not inflate a parent's count; misses yield zero. The target schema casts
+the authorized match (including tenant filters) and foreign operands before/after
+unwind, retaining original parent-key association for normalized ObjectId/String keys
+and query setters. Invalid casts return controlled BadRequest rather than zero.
+Terminal false count row policy retains legacy omitted output; the grouped service
+returns Forbidden. Operation denials prevent target work.
+
+Casting does not execute `countDocuments` middleware/plugins or consume a persistence
+permit; the aggregate is admitted and runs aggregate middleware. Arbitrary model
+aggregate pipelines are not auto-cast. Express count authorization in router operation
+and row policies. Correlated counts instead execute per parent through count semantics.
+
+### Nested updates
+
+With only `'profile.public': { update: true }`, send nested JSON
+`{ profile: { public: 'New display name' } }`: protected/omitted siblings survive.
+This holds for updateOne/updateById, existing-row upsert and single/bulk subdocuments.
+Whole-parent grants permit replacement and remove omitted children; whole arrays
+replace, while explicit indexed leaf grants patch only that path. Whole grants take
+priority over overlapping leaves. Admitted null clears the field; an empty/null client
+container supplies no descendant leaves. Literal dotted client keys are ignored by
+selection, not interpreted as update operators. See [Hooks](./hooks) for trusted
+prepare/transform behavior and its omission compatibility change.
 
 ## Correlated Includes
 
@@ -90,6 +153,28 @@ Service methods return one of these shapes:
 - `ErrorResult`
 
 List results include `count`, and may include `totalCount` when count support is enabled.
+
+### Successful subdocument writes with hidden output
+
+Create/single/bulk update response data requires post-save parent read operation/row
+access. Full-array create output, including POST `[]`, additionally intersects
+`subs.<sub>.list` AND `.read` guards/row filters. Targeted single/bulk updates require
+sub read only, not list access. All use read fields plus `_id`; visible counts and
+stored array order are preserved. Bulk request order does not reorder the response;
+service `addFirst` still governs insertion order, without adding an HTTP option.
+
+A denied response guard, terminal false policy or no readable match hides output
+without failing the committed write:
+
+| Operation | Service/root fields (all `success: true`) | Direct HTTP; root entry status |
+| --- | --- | --- |
+| Create | `kind: 'list', code: 'created', data: [], count: 0` | `[]`, 201; 201 |
+| Bulk update | `kind: 'list', code: 'success', data: [], count: 0` | `[]`, 200; 200 |
+| Single update | `kind: 'single', code: 'success', data: null` | JSON `null`, 200; 200 |
+
+Root keeps its HTTP 200 envelope. Do not retry successful empty responses. Actual
+write denials and validation/persistence failures retain errors. Visibility adds at
+most one parent query and resolves applicable row policies once per mutation.
 
 ## Permissions Helper
 

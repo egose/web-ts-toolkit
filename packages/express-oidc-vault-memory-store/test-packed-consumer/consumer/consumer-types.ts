@@ -13,7 +13,7 @@ const options: MemoryOidcVaultStoreOptions = {
 
 const configuredProvider: OidcVaultStoreProvider = createMemoryOidcVaultStore(options);
 
-await configuredProvider.createSession({
+void configuredProvider.createSession({
   sessionId: 'session-id',
   subject: 'subject',
   refreshToken: 'refresh-token',

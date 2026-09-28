@@ -22,7 +22,7 @@ import type {
   UpdateQuery,
 } from './types';
 import type { RxDatabase } from './rx-types';
-import { convertToRxJsonSchema, documentToStorage, storageToDocument } from './converter';
+import { castDocumentToSchema, convertToRxJsonSchema, documentToStorage, storageToDocument } from './converter';
 import { MiddlewareEngine } from './middleware';
 
 /**
@@ -54,8 +54,16 @@ export interface ModelBase<
   countDocuments(filter?: FilterQuery<T>): Query<number, T, Schema<T, TMethods, TStatics, TVirtuals>>;
   findById(id: string): Promise<HydratedDocument<T, TMethods, TVirtuals> | null>;
   create(doc: Partial<T>): Promise<HydratedDocument<T, TMethods, TVirtuals>>;
+  /** Prepares every entry, including late insert defaults, before the first save.
+   * Invalid input/default budgets throw WriteNormalizationError before writes;
+   * later middleware, validation and storage failures remain nontransactional. */
   create(docs: Partial<T>[]): Promise<HydratedDocument<T, TMethods, TVirtuals>[]>;
   insertMany(docs: Partial<T>[], options?: InsertManyOptions): Promise<HydratedDocument<T, TMethods, TVirtuals>[]>;
+  /**
+   * Rechecks the native selector on each write retry; no alternative record is
+   * selected after predicate loss. Without upsert, a lost claim returns zero
+   * counts. With upsert, no match triggers a separate insert; see UpdateOneOptions.
+   */
   updateOne(
     filter: FilterQuery<T>,
     update: UpdateQuery<T>,
@@ -66,28 +74,38 @@ export interface ModelBase<
     update: UpdateQuery<T>,
     options?: UpdateManyOptions,
   ): Query<UpdateResult, T, Schema<T, TMethods, TStatics, TVirtuals>>;
+  /** Best-effort conditional delete: writers can change data between the final check and removal. */
   deleteOne(
     filter: FilterQuery<T>,
     options?: DeleteOneOptions,
   ): Query<DeleteResult, T, Schema<T, TMethods, TStatics, TVirtuals>>;
+  /** Per-record best-effort deletes, without a transaction; failures can retain earlier removals. */
   deleteMany(
     filter: FilterQuery<T>,
     options?: DeleteManyOptions,
   ): Query<DeleteResult, T, Schema<T, TMethods, TStatics, TVirtuals>>;
+  /**
+   * Retry-time native predicate check, without alternate-record selection.
+   * Upsert is nontransactional; a lost predicate can trigger insertion or an ID
+   * conflict. Default 'before' returns null on insertion; use 'after' for its data.
+   */
   findOneAndUpdate(
     filter: FilterQuery<T>,
     update: UpdateQuery<T>,
     options?: FindOneAndUpdateOptions & { lean?: false },
   ): Query<HydratedDocument<T, TMethods, TVirtuals> | null, T, Schema<T, TMethods, TStatics, TVirtuals>>;
+  /** Lean variant; the same nontransactional upsert and retry-time predicate contract applies. */
   findOneAndUpdate(
     filter: FilterQuery<T>,
     update: UpdateQuery<T>,
     options: FindOneAndUpdateOptions & { lean: true },
   ): Query<LeanResult<T> | null, T, Schema<T, TMethods, TStatics, TVirtuals>>;
+  /** Best-effort conditional removal; the returned preimage is not an atomic delete-time snapshot. */
   findOneAndDelete(
     filter: FilterQuery<T>,
     options?: FindOneAndDeleteOptions & { lean?: false },
   ): Query<HydratedDocument<T, TMethods, TVirtuals> | null, T, Schema<T, TMethods, TStatics, TVirtuals>>;
+  /** Lean variant of best-effort removal, without an atomic delete-time preimage. */
   findOneAndDelete(
     filter: FilterQuery<T>,
     options: FindOneAndDeleteOptions & { lean: true },
@@ -713,9 +731,21 @@ async function insertDocuments<T extends object>(
 ): Promise<Document<T>[]> {
   const run = async () => {
     if (options.runSaveMiddleware) {
+      // Reject unsafe ingress anywhere in the batch before the first save.
+      const instances = docs.map((input) => new Document<T>(input, schema, model, { isNew: true }));
+      for (const instance of instances) {
+        // Serialization omits explicit undefined fields. Materialize the late
+        // insert defaults for every entry before saving any entry, retaining
+        // the checked results rather than evaluating factories again in save.
+        // Keep document-form Dates and explicit nested undefined values: a
+        // storage round-trip here would omit them and resurrect their defaults.
+        const prepared = castDocumentToSchema(instance.toObject(), schema);
+        delete prepared._id;
+        instance.set(prepared);
+        documentToStorage(instance.toObject(), schema, { applyDefaults: true, allowId: true });
+      }
       const out: Document<T>[] = [];
-      for (const input of docs) {
-        const inst = new Document<T>(input, schema, model, { isNew: true });
+      for (const inst of instances) {
         await inst.save();
         out.push(inst);
       }

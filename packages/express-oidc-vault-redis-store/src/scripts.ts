@@ -207,7 +207,48 @@ end
 return 1
 `;
 
+// Used both by a successful deletion and by alias-only logout after all
+// primaries expired. Redis key TTL, keyed identity and lineage determine liveness.
+const LIVE_LINEAGE_HELPER = `
+local function hasLiveMember(logicalIndexKey, sessionKeyPrefix, logicalSessionId, excludedId)
+  local members = redis.call('ZRANGE', logicalIndexKey, 0, -1)
+  for _, memberId in ipairs(members) do
+    if memberId ~= excludedId then
+      local value = redis.call('GET', sessionKeyPrefix .. memberId)
+      if value ~= false then
+        local ok, member = pcall(cjson.decode, value)
+        if ok and type(member) == 'table' and member['sessionId'] == memberId
+          and (member['logicalSessionId'] or memberId) == logicalSessionId then
+          return true
+        end
+      end
+    end
+  end
+  return false
+end
+`;
+
+export const CLEANUP_INACTIVE_ALIASES_SCRIPT = `
+${LIVE_LINEAGE_HELPER}
+if hasLiveMember(KEYS[1], ARGV[1], ARGV[3], nil) then
+  return 0
+end
+local aliases = redis.call('ZRANGE', KEYS[2], 0, -1)
+for _, aliasId in ipairs(aliases) do
+  redis.call('DEL', ARGV[2] .. aliasId)
+end
+return redis.call('DEL', KEYS[2])
+`;
+
+export const buildCleanupInactiveAliasesCommand = (keys: RedisOidcVaultStoreKeys, logicalSessionId: string): string[] =>
+  evalCommand(
+    CLEANUP_INACTIVE_ALIASES_SCRIPT,
+    [keys.logicalSessionIndex(logicalSessionId), keys.rotatedSessionAliasIndex(logicalSessionId)],
+    [keys.sessionPrefix(), keys.rotatedSessionAliasPrefix(), logicalSessionId],
+  );
+
 export const DELETE_SESSION_SCRIPT = `
+${LIVE_LINEAGE_HELPER}
 local expected = cjson.decode(ARGV[1])
 local scopeKind = ARGV[2]
 local scopeValue = ARGV[3]
@@ -287,7 +328,16 @@ local function deleteRecord(sessionKey, session)
     assertZsetOrMissing(providerIndexKeyPrefix .. session['providerSessionId'])
   end
 
-  local aliasSessionIds = redis.call('ZRANGE', aliasIndexKey, 0, -1)
+  -- Check actual primaries, not just scores: TTL is authoritative and stale
+  -- logical memberships must not keep a terminated lineage's aliases alive.
+  -- This check and deletion share the script's atomic boundary with rotation.
+  local logicalIndexKey = logicalIndexKeyPrefix .. logicalSessionId
+  local hasSurvivor = hasLiveMember(logicalIndexKey, sessionKeyPrefix, logicalSessionId, sessionId)
+
+  local aliasSessionIds = {}
+  if not hasSurvivor then
+    aliasSessionIds = redis.call('ZRANGE', aliasIndexKey, 0, -1)
+  end
 
   if redis.call('DEL', sessionKey) == 0 then
     return 0
@@ -304,7 +354,9 @@ local function deleteRecord(sessionKey, session)
     redis.call('DEL', aliasKeyPrefix .. aliasSessionId)
   end
 
-  redis.call('DEL', aliasIndexKey)
+  if not hasSurvivor then
+    redis.call('DEL', aliasIndexKey)
+  end
 
   return 1
 end
@@ -494,6 +546,34 @@ end
 
 export const buildCompareAndDeleteCommand = (key: string, observedValue: string): string[] =>
   evalCommand(COMPARE_AND_DELETE_SCRIPT, [key], [observedValue]);
+
+/**
+ * Repairs only a stale membership: the primary must still be absent (including
+ * after compare-and-delete repair) or equal the observed non-owner payload.
+ * A changed primary may own a freshly written membership, so preserve it.
+ * The primary check and ZREM must run together, including after primary repair.
+ */
+export const REPAIR_SESSION_INDEX_SCRIPT = `
+local current = redis.call('GET', KEYS[1])
+
+if current == false or (ARGV[3] == '1' and current == ARGV[2]) then
+  return redis.call('ZREM', KEYS[2], ARGV[1])
+end
+
+return 0
+`;
+
+export const buildRepairSessionIndexCommand = (
+  sessionKey: string,
+  indexKey: string,
+  sessionId: string,
+  observedValue: string | null,
+): string[] =>
+  evalCommand(
+    REPAIR_SESSION_INDEX_SCRIPT,
+    [sessionKey, indexKey],
+    [sessionId, observedValue ?? '', observedValue === null ? '0' : '1'],
+  );
 
 export const buildWriteSessionCommand = (keys: RedisOidcVaultStoreKeys, session: OidcVaultSession): string[] =>
   evalCommand(

@@ -12,6 +12,7 @@ const freezeColumnInfo = (info: ColumnInfo): ColumnInfo => Object.freeze({ ...in
 
 const DATETIME_PATTERN =
   /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})(?:[T ](?<hour>\d{2}):(?<minute>\d{2}):(?<second>\d{2})(?:\.(?<fraction>\d{1,9}))?)?$/;
+const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
 
 export type StoredColumn = readonly JsonValue[] | Int32Array | Float64Array;
 
@@ -166,15 +167,11 @@ const isPandasNaiveIsoDatetime = (value: string): boolean => {
     return false;
   }
 
-  const normalized = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
-  return (
-    normalized.getUTCFullYear() === year &&
-    normalized.getUTCMonth() === month - 1 &&
-    normalized.getUTCDate() === day &&
-    normalized.getUTCHours() === hour &&
-    normalized.getUTCMinutes() === minute &&
-    normalized.getUTCSeconds() === second
-  );
+  // Proleptic Gregorian rules include year 0000 as a leap year. Calendar
+  // arithmetic avoids Date.UTC's remapping of years 0–99 to 1900–1999.
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = month === 2 && leapYear ? 29 : DAYS_IN_MONTH[month - 1]!;
+  return day >= 1 && day <= daysInMonth;
 };
 
 const isScalarCategory = (value: unknown): boolean =>
@@ -483,8 +480,14 @@ const buildFrameState = (
     }
 
     const inferred = inferColumnType(values);
-    const resolvedType = schemaTypes.get(column) ?? options.columnTypes?.[column] ?? inferred.type;
-    if (schemaTypes.has(column) === false && options.columnTypes?.[column] !== undefined) {
+    // Internal state entrypoints also accept dictionaries: never treat inherited
+    // members as overrides, and use the same own value for resolution/validation.
+    const explicitType =
+      options.columnTypes !== undefined && Object.prototype.hasOwnProperty.call(options.columnTypes, column)
+        ? options.columnTypes[column]
+        : undefined;
+    const resolvedType = schemaTypes.get(column) ?? explicitType ?? inferred.type;
+    if (schemaTypes.has(column) === false && explicitType !== undefined) {
       validateColumnValuesForType({
         column,
         columnIndex,

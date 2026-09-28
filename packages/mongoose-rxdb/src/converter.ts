@@ -169,24 +169,20 @@ function defaultIndexes(schema: SchemaLike): string[][] {
   return out;
 }
 
+/** Cast and own document data with bounded cycle/depth/work checks before
+ * coercion. Unsupported data and invalid casts throw WriteNormalizationError.
+ * Limits: 50 levels (root depth zero), 2,000 visited values, aliases charged per
+ * occurrence. Raw input and output are bounded as wholes, including defaults.
+ * Default factories run only for missing fields; their results share budgets. */
 export function castDocumentToSchema(doc: any, schema: SchemaLike, opts: { applyDefaults?: boolean } = {}): any {
-  if (doc == null) return doc;
-  if (Array.isArray(doc)) return doc.map((d) => castDocumentToSchema(d, schema, opts));
-  const out: any = { ...doc };
-  for (const [name, path] of schema.paths) {
-    if (!(name in out)) {
-      if (opts.applyDefaults !== false && path.options.default !== undefined) {
-        const rawDefault =
-          typeof path.options.default === 'function' ? path.options.default() : cloneValue(path.options.default);
-        out[name] = castValue(rawDefault, path, opts);
-      }
-      continue;
-    }
-    out[name] = castValue(out[name], path, opts);
-  }
-  return out;
+  const raw = valueState();
+  inspectValueStructure(doc, '', 0, raw);
+  return copyDataValue(doc, '', 0, valueState(), { schema, cast: true, applyDefaults: opts.applyDefaults, raw });
 }
 
+/** Normalize a complete write with shared raw-input/default and output budgets.
+ * Needed defaults are checked before casts/maps, including insert-time defaults
+ * introduced after document serialization. Throws WriteNormalizationError. */
 export function documentToStorage(
   doc: any,
   schema: SchemaLike,
@@ -195,21 +191,17 @@ export function documentToStorage(
   if (doc == null || typeof doc !== 'object' || Array.isArray(doc)) {
     throw new WriteNormalizationError('Document write value must be an object');
   }
-  const out: any = Object.create(null);
-  for (const key of Object.keys(doc)) assertWritableInputPath(key, schema, opts.allowId === true);
-  if (opts.allowId && (doc as any)._id !== undefined) out._id = normalizeId((doc as any)._id);
-
-  for (const [name, path] of schema.paths) {
-    if (hasOwn(doc, name)) {
-      const raw = (doc as any)[name];
-      if (raw === undefined) continue;
-      out[name] = valueToStorage(raw, path, { applyDefaults: opts.applyDefaults });
-    } else if (opts.applyDefaults && path.options.default !== undefined) {
-      const value = typeof path.options.default === 'function' ? path.options.default() : path.options.default;
-      out[name] = valueToStorage(value, path, { applyDefaults: opts.applyDefaults });
-    }
-  }
-  return out;
+  const raw = valueState();
+  inspectValueStructure(doc, '', 0, raw);
+  return copyDataValue(doc, '', 0, valueState(), {
+    schema,
+    cast: true,
+    applyDefaults: opts.applyDefaults === true,
+    raw,
+    storage: true,
+    storageDates: true,
+    allowId: opts.allowId === true,
+  });
 }
 
 export function storageToDocument(doc: any, schema: SchemaLike): any {
@@ -505,41 +497,41 @@ function storageDeepEqual(left: any, right: any): boolean {
   return true;
 }
 
+/** Cast and own one schema value, preserving Dates. Applies the storage scalar
+ * cast policy after bounded structural checks; rejects with WriteNormalizationError. */
 export function castValue(value: any, path: CompiledPath, opts: { applyDefaults?: boolean } = {}): any {
-  if (value === undefined || value === null) return value;
-  if (path.isArray) {
-    if (!Array.isArray(value))
-      return [castValue(value, { ...path, isArray: false, type: path.arrayItemType ?? 'mixed' }, opts)];
-    const itemPath: CompiledPath = {
-      ...path,
-      name: `${path.name}[]`,
-      isArray: false,
-      type: path.arrayItemType ?? 'mixed',
-    };
-    return value.map((v) =>
-      path.subSchema ? castDocumentToSchema(v, path.subSchema, opts) : castValue(v, itemPath, opts),
-    );
-  }
-  switch (path.type) {
-    case 'string':
-      return typeof value === 'string' ? value : String(value);
-    case 'number': {
-      const n = typeof value === 'number' ? value : Number(value);
-      return Number.isFinite(n) ? n : value;
-    }
-    case 'boolean':
-      if (typeof value === 'boolean') return value;
-      if (value === 'true' || value === 1 || value === '1') return true;
-      if (value === 'false' || value === 0 || value === '0') return false;
-      return Boolean(value);
-    case 'date':
-      return value instanceof Date ? value : new Date(value);
-    case 'object':
-      if (path.subSchema) return castDocumentToSchema(value, path.subSchema, opts);
-      return value;
-    default:
-      return value;
-  }
+  const raw = valueState();
+  inspectValueStructure(value, path.name, 0, raw);
+  return copyDataValue(value, path.name, 0, valueState(), {
+    path,
+    cast: true,
+    allowUndefined: true,
+    applyDefaults: opts.applyDefaults,
+    raw,
+  });
+}
+
+/** Internal atomic setter preparation: all operands/defaults share budgets.
+ * Immutable initialization is allowed; save compares against stored data. */
+export function castDocumentSetValues(
+  entries: Array<{ key: string; value: any; virtual: boolean }>,
+  schema: SchemaLike,
+  opts: { applyDefaults?: boolean },
+): Array<{ key: string; value: any }> {
+  const raw = valueState();
+  const copied = valueState();
+  raw.count = copied.count = 1; // the setter envelope
+  for (const { key, value } of entries) inspectValueStructure(value, key, 1, raw);
+  return entries.map(({ key, value, virtual }) => ({
+    key,
+    value: copyDataValue(value, key, 1, copied, {
+      path: virtual ? undefined : resolveWritablePath(key, schema, false, true).path,
+      cast: !virtual,
+      allowUndefined: true,
+      applyDefaults: opts.applyDefaults,
+      raw,
+    }),
+  }));
 }
 
 function normalizeReplacementUpdate(update: any, schema: SchemaLike, allowImmutable: boolean): NormalizedUpdatePlan {
@@ -1026,56 +1018,212 @@ function isBareArrayElementPath(pathName: string, schema: SchemaLike): boolean {
   return false;
 }
 
-function cloneSafePlain(
-  value: any,
-  pathName: string,
-  depth = 0,
-  seen: Set<object> = new Set(),
-  state: { count: number } = { count: 0 },
-): any {
-  state.count += 1;
-  if (state.count > MAX_STORAGE_NODES) {
-    throw new WriteNormalizationError(`Path ${pathName} exceeds the supported storage size limit`);
-  }
-  if (value === undefined) {
-    throw new WriteNormalizationError(`Path ${pathName} does not support undefined; omit the field or use null`);
-  }
-  if (value === null) return null;
-  const valueType = typeof value;
-  if (valueType === 'string' || valueType === 'boolean') return value;
-  if (valueType === 'number') {
-    if (!Number.isFinite(value)) throw new WriteNormalizationError(`Path ${pathName} requires a finite number`);
-    return value;
-  }
-  if (valueType !== 'object') {
-    throw new WriteNormalizationError(`Path ${pathName} requires a JSON-compatible value, not ${valueType}`);
-  }
-  if (depth > MAX_STORAGE_DEPTH) {
-    throw new WriteNormalizationError(`Path ${pathName} exceeds the supported nesting depth`);
-  }
-  if (value instanceof Date) return dateToStorage(value, pathName);
-  if (seen.has(value)) throw new WriteNormalizationError(`Path ${pathName} contains a cyclic reference`);
-  if (Array.isArray(value)) {
-    seen.add(value);
-    try {
-      return value.map((entry, index) => cloneSafePlain(entry, `${pathName}.${index}`, depth + 1, seen, state));
-    } finally {
-      seen.delete(value);
-    }
-  }
-  if (!isPlainObject(value))
-    throw new WriteNormalizationError(`Path ${pathName} requires a plain object, array, date, or primitive value`);
-  seen.add(value);
+function cloneSafePlain(value: any, pathName: string): any {
+  return copyDataValue(value, pathName, 0, valueState(), { storageDates: true });
+}
+
+type ValueState = { count: number; seen: Set<object> };
+const valueState = (): ValueState => ({ count: 0, seen: new Set() });
+
+function visitValue<R>(value: any, path: string, depth: number, state: ValueState, visit: () => R): R {
+  if (++state.count > MAX_STORAGE_NODES)
+    throw new WriteNormalizationError(`Path ${path} exceeds the supported storage size limit`);
+  if (depth > MAX_STORAGE_DEPTH) throw new WriteNormalizationError(`Path ${path} exceeds the supported nesting depth`);
+  const object = value !== null && typeof value === 'object';
+  if (object && state.seen.has(value)) throw new WriteNormalizationError(`Path ${path} contains a cyclic reference`);
+  if (Array.isArray(value) && value.length > MAX_STORAGE_NODES - state.count)
+    throw new WriteNormalizationError(`Path ${path} exceeds the supported storage size limit`);
+  if (object) state.seen.add(value);
   try {
-    const out: any = Object.create(null);
-    for (const [key, nested] of Object.entries(value)) {
-      splitPath(key);
-      out[key] = cloneSafePlain(nested, `${pathName}.${key}`, depth + 1, seen, state);
-    }
-    return out;
+    return visit();
   } finally {
-    seen.delete(value);
+    if (object) state.seen.delete(value);
   }
+}
+
+// Read only own data properties. Accessors and extra array properties are not
+// JSON data; rejecting them also avoids executing getters before the boundary.
+function* dataEntries(value: object): Generator<[string, any]> {
+  for (const key of Object.getOwnPropertySymbols(value)) {
+    if (Object.prototype.propertyIsEnumerable.call(value, key))
+      throw new WriteNormalizationError('Document values do not support symbol keys');
+  }
+  for (const key in value) {
+    if (!hasOwn(value, key)) continue;
+    splitPath(key);
+    const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
+    if (!('value' in descriptor)) throw new WriteNormalizationError('Document values do not support accessors');
+    if (Array.isArray(value) && (!isArrayIndexSegment(key) || Number(key) >= value.length))
+      throw new WriteNormalizationError('Document arrays do not support extra properties');
+    yield [key, descriptor.value];
+  }
+}
+
+/** Structural preflight is deliberately cast-neutral: schema scalar casts may
+ * accept e.g. bigint or boxed numbers. Never clone/erase their prototypes first.
+ * Mixed-value kind checks happen in the same bounded copier used by storage. */
+export function assertDocumentValueStructure(value: any): void {
+  inspectValueStructure(value, '', 0, valueState());
+}
+
+/** Internal schema-default ownership boundary, not a schema-config copier.
+ * Preflight before recursion, but do not cast: raw defaults must still count
+ * against the eventual whole-document budget. Opaque nonplain values retain
+ * their identity (and private coercion state) until schema-aware ingress casts
+ * or rejects them. Factories, like other application callbacks, stay shared. */
+export function cloneSchemaDefault<T>(value: T): T {
+  assertDocumentValueStructure(value);
+  return copySchemaDefault(value);
+}
+
+function copySchemaDefault<T>(value: T): T {
+  if (value instanceof Date) return new Date(value.getTime()) as T;
+  if (Array.isArray(value) || isPlainObject(value)) {
+    const out: any = Array.isArray(value) ? [] : Object.create(Object.getPrototypeOf(value));
+    for (const [key, nested] of dataEntries(value)) out[key] = copySchemaDefault(nested);
+    return out;
+  }
+  return value;
+}
+
+function inspectValueStructure(value: any, path: string, depth: number, state: ValueState): void {
+  visitValue(value, path, depth, state, () => {
+    if (!value || typeof value !== 'object' || value instanceof Date) return;
+    let entries = 0;
+    for (const [key, nested] of dataEntries(value)) {
+      entries++;
+      inspectValueStructure(nested, `${path}.${key}`, depth + 1, state);
+    }
+    if (Array.isArray(value) && entries !== value.length)
+      throw new WriteNormalizationError(`Path ${path} does not support sparse arrays`);
+  });
+}
+
+type CopyDataOptions = {
+  schema?: SchemaLike;
+  path?: CompiledPath;
+  cast?: boolean;
+  applyDefaults?: boolean;
+  allowUndefined?: boolean;
+  storageDates?: boolean;
+  storage?: boolean;
+  allowId?: boolean;
+  raw?: ValueState;
+};
+
+/** Internal owned snapshot boundary. Schema context permits absent schema
+ * fields (also in subdocuments), but never undefined inside mixed JSON data. */
+export function cloneDocumentData(value: any, schema?: SchemaLike): any {
+  assertDocumentValueStructure(value);
+  return copyDataValue(value, '', 0, valueState(), { schema, allowUndefined: true });
+}
+
+function copyDataValue(value: any, name: string, depth: number, state: ValueState, opts: CopyDataOptions): any {
+  if (opts.path?.isArray && value != null && !Array.isArray(value)) value = [value];
+  return visitValue(value, name, depth, state, () => {
+    if (value === undefined) {
+      if (opts.allowUndefined) return undefined;
+      throw new WriteNormalizationError(`Path ${name} does not support undefined; omit the field or use null`);
+    }
+    if (value === null) return null;
+    const path = opts.path;
+    const schema = opts.schema ?? path?.subSchema;
+    if (path?.isArray) {
+      const values = Array.isArray(value) ? value : [value];
+      const item = arrayElementPath(`${name}[]`, path);
+      return values.map((entry, index) => {
+        if (opts.storage && path.subSchema && !isPlainObject(entry))
+          throw new WriteNormalizationError(`Array element for ${name} must be a single subdocument object`);
+        if (
+          item.type !== 'mixed' &&
+          item.type !== 'object' &&
+          item.type !== 'array' &&
+          entry !== null &&
+          typeof entry === 'object' &&
+          !(entry instanceof Date)
+        )
+          throw new WriteNormalizationError(
+            `Array element for ${name} requires a ${item.type} value, not an object or array`,
+          );
+        return copyDataValue(entry, `${name}.${index}`, depth + 1, state, {
+          ...opts,
+          schema: undefined,
+          path: item,
+          allowUndefined: false,
+          allowId: false,
+        });
+      });
+    }
+    // Live nested writes can bypass setters. Snapshot scalar values through
+    // the same schema cast policy, before any prototype-erasing copy. This
+    // retains legitimate casts while mixed data remains strictly JSON + Date.
+    if (path && ['string', 'number', 'boolean', 'date'].includes(path.type)) {
+      try {
+        const stored = valueToStorage(value, path);
+        return path.type === 'date' && !opts.storageDates ? new Date(stored) : stored;
+      } catch (error) {
+        if (error instanceof WriteNormalizationError) throw error;
+        throw new WriteNormalizationError(`Path ${name} cannot be cast to ${path.type}`);
+      }
+    }
+    if (schema && (opts.storage || !Array.isArray(value)) && !isPlainObject(value))
+      throw new WriteNormalizationError(`Path ${name} requires a plain document object`);
+    if (value instanceof Date) {
+      const iso = dateToStorage(value, name);
+      return opts.storageDates ? iso : new Date(iso);
+    }
+    if (Array.isArray(value)) {
+      const out: any[] = [];
+      for (const [key, entry] of dataEntries(value))
+        out[Number(key)] = copyDataValue(entry, `${name}.${key}`, depth + 1, state, { ...opts, allowUndefined: false });
+      if (Object.keys(out).length !== value.length)
+        throw new WriteNormalizationError(`Path ${name} does not support sparse arrays`);
+      return out;
+    }
+    if (isPlainObject(value)) {
+      const out: any = Object.create(null);
+      for (const [key, nested] of dataEntries(value)) {
+        const child = schema?.paths.get(key);
+        if (schema && opts.storage) {
+          assertWritableInputPath(key, schema, opts.allowId === true);
+          if (nested === undefined) continue;
+          if (key === '_id' && opts.allowId) {
+            out[key] = visitValue(nested, `${name}.${key}`, depth + 1, state, () => normalizeId(nested));
+            continue;
+          }
+          if (!child) continue;
+        }
+        out[key] = copyDataValue(nested, `${name}.${key}`, depth + 1, state, {
+          ...opts,
+          schema: undefined,
+          path: child,
+          allowUndefined: !!child || (!!schema && key === '_id'),
+          allowId: false,
+        });
+      }
+      if (schema && opts.cast && opts.applyDefaults !== false) {
+        for (const [key, child] of schema.paths) {
+          if (hasOwn(value, key) || child.options.default === undefined) continue;
+          const fallback = child.options.default;
+          const raw = typeof fallback === 'function' ? fallback() : fallback;
+          inspectValueStructure(raw, `${name}.${key}`, depth + 1, opts.raw!);
+          out[key] = copyDataValue(raw, `${name}.${key}`, depth + 1, state, {
+            ...opts,
+            schema: undefined,
+            path: child,
+            allowUndefined: !opts.storage,
+            allowId: false,
+          });
+        }
+      }
+      return out;
+    }
+    if (typeof value === 'string' || typeof value === 'boolean') return value;
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    throw new WriteNormalizationError(
+      `Path ${name} requires a JSON-compatible plain object, array, date, or primitive value`,
+    );
+  });
 }
 
 function cloneValue(value: any): any {

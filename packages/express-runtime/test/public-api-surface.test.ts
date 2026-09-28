@@ -150,7 +150,8 @@ function getModuleExportNames(entryFile: string): string[] {
 describe('public API export surface', () => {
   it('keeps the root package type exports exact', () => {
     expect(getModuleExportNames('src/index.ts')).toEqual(rootTypeExportNames);
-  });
+    // Includes cold synchronous TypeScript program construction under workspace load.
+  }, 30_000);
 
   it('keeps the /cli subpath type exports exact', () => {
     expect(getModuleExportNames('src/cli-api.ts')).toEqual(cliTypeExportNames);

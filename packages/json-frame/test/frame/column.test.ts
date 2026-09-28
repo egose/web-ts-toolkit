@@ -2,13 +2,19 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { fromOrient } from '../../src';
 import { JsonFrameOptionError, JsonFrameValidationError } from '../../src/errors';
-import { createFrameState, materializeColumn, materializeFrameData } from '../../src/frame/column';
+import {
+  createFrameState,
+  createFrameStateFromData,
+  materializeColumn,
+  materializeFrameData,
+} from '../../src/frame/column';
 import { createDataFrame as createInternalDataFrame, getDataFrameState } from '../../src/frame/DataFrame';
 import { DEFAULT_PACK_THRESHOLD, normalizeFromOrientOptions } from '../../src/options';
 import { parseInput } from '../../src/parse';
 import type { ParsedFrame } from '../../src/parse';
-import type { JsonValue, ResolvedOrient } from '../../src/types';
+import type { ColumnType, FromOrientOptions, JsonValue, ResolvedOrient } from '../../src/types';
 
 const INT32_MIN = -2147483648;
 const INT32_MAX = 2147483647;
@@ -192,6 +198,297 @@ describe('createFrameState', () => {
     expect(storedColumn).toEqual(['NYC', 'LA', 'SF']);
     expect(storedColumn).not.toBe(parsedColumn);
     expect(materializeColumn(storedColumn!)).toEqual(['NYC', 'LA', 'SF']);
+  });
+});
+
+describe('own-key logical overrides (JFP-01)', () => {
+  const labels = ['constructor', 'toString', 'hasOwnProperty', '__proto__', 'valueOf'];
+  const cases = labels.flatMap((column) =>
+    [false, true].flatMap((nullPrototype) =>
+      ['omitted', 'empty', 'unrelated', 'explicit'].map((override) => ({ column, nullPrototype, override })),
+    ),
+  );
+
+  it.each(cases)(
+    'preserves $column with $override overrides (null prototype: $nullPrototype)',
+    ({ column, nullPrototype, override }) => {
+      const input = [
+        { [column]: 3, n: 2 },
+        { [column]: 1, n: 1 },
+      ];
+      const original = JSON.stringify(input);
+      const prototypeSnapshot = Object.getOwnPropertyDescriptors(Object.prototype);
+      const columnTypes: Partial<Record<string, ColumnType>> = nullPrototype ? Object.create(null) : {};
+      if (override === 'unrelated') columnTypes.n = 'integer';
+      if (override === 'explicit') Object.defineProperty(columnTypes, column, { value: 'float', enumerable: true });
+      const descriptors = Object.getOwnPropertyDescriptors(columnTypes);
+      const expectedType = override === 'explicit' ? 'float' : 'integer';
+      const schemaType = override === 'explicit' ? 'number' : 'integer';
+
+      for (const packThreshold of [0, 1]) {
+        const options: FromOrientOptions = Object.assign(nullPrototype ? Object.create(null) : {}, {
+          packThreshold,
+          ...(override === 'omitted' ? {} : { columnTypes }),
+        });
+        const frame = fromOrient(input, options);
+        expect(frame.columnInfo.get(column)).toEqual({ type: expectedType, nullable: false });
+        expect(frame.rows()).toEqual(input);
+        const stored = getDataFrameState(frame).data.get(column);
+        if (packThreshold === 0) expect(Array.isArray(stored)).toBe(true);
+        else expect(stored).toBeInstanceOf(override === 'explicit' ? Float64Array : Int32Array);
+        const transformed = frame
+          .sort((a, b) => Number(a.n) - Number(b.n))
+          .filter(() => true)
+          .select(column, 'n')
+          .rename({ [column]: 'renamed' })
+          .rename({ renamed: column })
+          .resetIndex();
+        expect(transformed.rows()).toEqual([...input].reverse());
+        for (const result of [frame, transformed, transformed.filter(() => false)]) {
+          expect(result.columnInfo.get(column)).toEqual({ type: expectedType, nullable: false });
+          const table = result.toTable();
+          expect(table.schema.fields).toContainEqual({ name: column, type: schemaType });
+          expect(JSON.parse(result.toJSONString('table'))).toEqual(table);
+          expect(JSON.parse(result.toJSONString('records'))).toEqual(result.rows());
+          const restored = fromOrient(table, { orient: 'table', packThreshold });
+          expect(restored.rows()).toEqual(result.rows());
+          expect(restored.columnInfo.get(column)).toEqual(result.columnInfo.get(column));
+        }
+        expect(frame.rows()).toEqual(input);
+        expect(Object.getPrototypeOf(options)).toBe(nullPrototype ? null : Object.prototype);
+      }
+      expect(JSON.stringify(input)).toBe(original);
+      expect(Object.getOwnPropertyDescriptors(columnTypes)).toEqual(descriptors);
+      expect(Object.getPrototypeOf(columnTypes)).toBe(nullPrototype ? null : Object.prototype);
+      expect(Object.getOwnPropertyDescriptors(Object.prototype)).toEqual(prototypeSnapshot);
+    },
+  );
+
+  it.each(labels)('validates own %s overrides and retains table precedence', (column) => {
+    for (const packThreshold of [0, 1]) {
+      const columnTypes = { [column]: 'string' } as const;
+      try {
+        fromOrient([{ [column]: null }, { [column]: 1 }], { orient: 'records', columnTypes, packThreshold });
+        throw new Error('expected own override rejection');
+      } catch (error) {
+        expect(error).toBeInstanceOf(JsonFrameValidationError);
+        expect(error).toMatchObject({
+          orient: 'records',
+          path: `$[1][${JSON.stringify(column)}]`,
+          row: 1,
+          column,
+          value: 1,
+        });
+      }
+      const input = {
+        schema: { fields: [{ name: column, type: 'number', description: 'source metadata' }] },
+        data: [{ [column]: 1 }],
+      };
+      const original = JSON.stringify(input);
+      const frame = fromOrient(input, { orient: 'table', columnTypes, packThreshold });
+      expect(frame.columnInfo.get(column)).toEqual({ type: 'float', nullable: false });
+      expect(frame.rows()).toEqual(input.data);
+      for (const result of [
+        frame,
+        frame
+          .select(column)
+          .sort(() => 0)
+          .resetIndex()
+          .filter(() => false),
+      ]) {
+        expect(result.columnInfo.get(column)).toEqual({ type: 'float', nullable: false });
+        expect(result.toTable().schema.fields).toContainEqual(input.schema.fields[0]);
+        expect(JSON.parse(result.toJSONString('table'))).toEqual(result.toTable());
+      }
+      expect(JSON.stringify(input)).toBe(original);
+    }
+  });
+
+  it.each([
+    ['parsed', createFrameState],
+    ['data', createFrameStateFromData],
+  ] as const)('ignores inherited overrides at the internal %s entry boundary', (_name, createState) => {
+    const columns = [...labels, 'n'];
+    const parsed: ParsedFrame = {
+      orient: 'records',
+      columns,
+      index: [0],
+      indexKind: 'synthetic',
+      data: new Map(columns.map((column) => [column, [1]])),
+    };
+    const inherited = Object.fromEntries(columns.map((column) => [column, 'string']));
+    Object.defineProperty(inherited, 'valueOf', {
+      get() {
+        throw new Error('inherited override read');
+      },
+    });
+    for (const columnTypes of [{}, Object.create(inherited)] as Partial<Record<string, ColumnType>>[]) {
+      for (const packThreshold of [0, 1]) {
+        const state = createState(parsed, { orient: 'records', columnTypes, packThreshold });
+        for (const column of columns) {
+          expect(state.columnInfo.get(column)).toEqual({ type: 'integer', nullable: false });
+          expect(materializeColumn(state.data.get(column)!)).toEqual([1]);
+          expect(state.data.get(column) instanceof Int32Array).toBe(packThreshold === 1);
+        }
+      }
+    }
+    const own = Object.create(inherited) as Partial<Record<string, ColumnType>>;
+    own.constructor = 'float';
+    const state = createState(parsed, { orient: 'records', columnTypes: own, packThreshold: 1 });
+    expect(state.columnInfo.get('constructor')).toEqual({ type: 'float', nullable: false });
+    expect(state.data.get('constructor')).toBeInstanceOf(Float64Array);
+    own.constructor = 'string';
+    expect(() => createState(parsed, { orient: 'records', columnTypes: own, packThreshold: 1 })).toThrowError(
+      JsonFrameValidationError,
+    );
+  });
+});
+
+describe('four-digit datetime calendar contract (JFC-04)', () => {
+  it.each([
+    '0000-01-01',
+    '0000-02-29',
+    '0001-01-01',
+    '0004-02-29',
+    '0099-12-31',
+    '0100-02-28',
+    '0400-02-29',
+    '1582-10-10', // Proleptic Gregorian: no historical calendar cutover gap.
+    '1900-02-28',
+    '2000-02-29',
+    '2024-04-30',
+    '9996-02-29',
+    '9999-12-31',
+    '0000-02-29T00:00:00',
+    '0001-01-01 23:59:59',
+    '0099-12-31T23:59:59.1',
+    '2000-02-29 12:34:56.123456',
+    '9999-12-31T23:59:59.999999999',
+  ])('accepts calendar-valid %s without coercion', (ts) => {
+    const frame = fromOrient([{ ts }], { columnTypes: { ts: 'datetime' } });
+    expect(frame.row(0).ts).toBe(ts);
+    expect(frame.columnInfo.get('ts')).toEqual({ type: 'datetime', nullable: false });
+    expect(frame.toTable().data[0]!.ts).toBe(ts);
+    expect(fromOrient([{ ts }]).columnInfo.get('ts')).toEqual({ type: 'string', nullable: false });
+  });
+
+  it.each([
+    '0000-02-30',
+    '0001-02-29',
+    '0099-02-29',
+    '0100-02-29',
+    '1900-02-29',
+    '2000-02-30',
+    '2100-02-29',
+    '2024-00-01',
+    '2024-13-01',
+    '2024-01-00',
+    '2024-01-32',
+    '2024-04-31',
+    '2024-06-31',
+    '2024-09-31',
+    '2024-11-31',
+    '2024-01-01T24:00:00',
+    '2024-01-01T23:60:00',
+    '2024-01-01T23:59:60',
+    '2024-01-01T00:00:00Z',
+    '2024-01-01T00:00:00+00:00',
+    '2024-01-01T00:00:00-05:00',
+    '2024-01-01T00:00:00.',
+    '2024-01-01T00:00:00.1234567890',
+    '2024-01-01.1',
+    '2024-01-01T00:00',
+    '2024-01-01t00:00:00',
+    '2024-1-01',
+    '2024-01-1',
+    '2024-01-01T0:00:00',
+    '999-01-01',
+    '10000-01-01',
+    '-0001-01-01',
+    '+0001-01-01',
+    ' 2024-01-01',
+    '2024-01-01 ',
+    '',
+    0,
+    1704164645000,
+  ])('rejects invalid datetime %s with cell diagnostics', (ts) => {
+    try {
+      fromOrient([{ ts: null }, { ts }], { orient: 'records', columnTypes: { ts: 'datetime' } });
+      throw new Error('expected datetime rejection');
+    } catch (error) {
+      expect(error).toBeInstanceOf(JsonFrameValidationError);
+      expect(error).toMatchObject({ orient: 'records', path: '$[1]["ts"]', row: 1, column: 'ts', value: ts });
+    }
+  });
+
+  it.each([
+    ['records', [{ ts: '0000-02-29' }, { ts: '0100-02-29' }], '$[1]["ts"]'],
+    ['values', [['0000-02-29'], ['0100-02-29']], '$[1][0]'],
+    ['split', { columns: ['ts'], index: ['a', 'b'], data: [['0000-02-29'], ['0100-02-29']] }, '$.data[1][0]'],
+    ['index', { a: { ts: '0000-02-29' }, b: { ts: '0100-02-29' } }, '$["b"]["ts"]'],
+    ['columns', { ts: { a: '0000-02-29', b: '0100-02-29' } }, '$["ts"]["b"]'],
+  ] as const)('validates parsed and raw %s dates with orient-specific paths', (orient, input, cellPath) => {
+    for (const payload of [input, JSON.stringify(input)]) {
+      try {
+        fromOrient(payload, { orient, columns: ['ts'], columnTypes: { ts: 'datetime' } });
+        throw new Error('expected datetime rejection');
+      } catch (error) {
+        expect(error).toBeInstanceOf(JsonFrameValidationError);
+        expect(error).toMatchObject({ orient, path: cellPath, row: 1, column: 'ts', value: '0100-02-29' });
+      }
+    }
+  });
+
+  it.each([0, 1])('preserves dates and metadata through transforms/exports at packThreshold %i', (packThreshold) => {
+    const input = [
+      { ts: '9999-12-31T23:59:59.999999999', n: 3 },
+      { ts: '0000-02-29 00:00:00.000000001', n: 1 },
+      { ts: null, n: 0 },
+      { ts: '0099-01-01', n: 2 },
+    ];
+    const original = JSON.stringify(input);
+    const frame = fromOrient(input, { orient: 'records', packThreshold, columnTypes: { ts: 'datetime' } });
+    expect(getDataFrameState(frame).data.get('n') instanceof Int32Array).toBe(packThreshold === 1);
+    expect(Array.isArray(getDataFrameState(frame).data.get('ts'))).toBe(true);
+    expect(frame.columnInfo.get('ts')).toEqual({ type: 'datetime', nullable: true });
+    const transformed = frame
+      .filter((row) => row.ts !== null)
+      .sort((a, b) => a.n - b.n)
+      .select('ts', 'n')
+      .rename({ ts: 'when' })
+      .resetIndex();
+    const expected = [
+      { when: input[1]!.ts, n: 1 },
+      { when: input[3]!.ts, n: 2 },
+      { when: input[0]!.ts, n: 3 },
+    ];
+    expect(transformed.rows()).toEqual(expected);
+    expect(transformed.columnInfo.get('when')).toEqual({ type: 'datetime', nullable: false });
+    expect(transformed.toTable().schema.fields).toContainEqual({ name: 'when', type: 'datetime' });
+    const exports = {
+      records: transformed.toRecords(),
+      values: transformed.toValues(),
+      split: transformed.toSplit(),
+      index: transformed.toIndex(),
+      columns: transformed.toColumns(),
+      table: transformed.toTable(),
+    };
+    for (const orient of Object.keys(exports) as ResolvedOrient[]) {
+      const text = transformed.toJSONString(orient);
+      expect(JSON.parse(text)).toEqual(exports[orient]);
+      for (const payload of [exports[orient], text]) {
+        const restored = fromOrient(payload, {
+          orient,
+          columns: ['when', 'n'],
+          columnTypes: { when: 'datetime' },
+          packThreshold,
+        });
+        expect(restored.rows()).toEqual(expected);
+        expect(restored.columnInfo.get('when')).toEqual({ type: 'datetime', nullable: false });
+      }
+    }
+    expect(frame.rows()).toEqual(input);
+    expect(JSON.stringify(input)).toBe(original);
   });
 });
 

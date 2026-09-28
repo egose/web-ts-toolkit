@@ -21,17 +21,62 @@ afterAll(async () => {
 });
 
 function writeRuntimeConsumers(consumerDir: string): void {
+  const runtimeContracts = `
+async function checkParallelSave() {
+  const doc = new api.Document({ name: 'first' }, new api.Schema({ name: String }), {
+    collection: { insert: async (data) => data }
+  });
+  const first = doc.save();
+  try {
+    await doc.save();
+    throw new Error('expected overlapping save rejection');
+  } catch (error) {
+    if (!(error instanceof api.ParallelSaveError) || error.name !== 'ParallelSaveError') throw error;
+  }
+  await first;
+  if (doc.isNew) throw new Error('first save did not complete');
+  await doc.save();
+}
+async function checkProjection() {
+  const assert = await import('node:assert/strict');
+  const connection = new api.Connection();
+  await connection.connect(() => createMemoryDatabase({ name: 'packed_projection_slots' }));
+  try {
+    const M = connection.model('ProjectedSlots', new api.Schema({ title: String,
+      members: [new api.Schema({ name: String, secret: String })] }));
+    const members = [{ secret: 'private-a' }, { name: 'Ada', secret: 'private-b' }, { secret: 'private-c' }]; // pragma: allowlist secret
+    await M.create({ title: 'before', members });
+    for (const selection of ['title members.1.name', 'title members.name']) {
+      const query = M.findOne().select(selection);
+      const lean = await query.clone().lean();
+      const doc = await query;
+      assert.deepEqual(JSON.parse(JSON.stringify(doc)), JSON.parse(JSON.stringify(lean)));
+      assert.deepEqual(JSON.parse(JSON.stringify(doc.members)), [null, { name: 'Ada' }, null]);
+      assert.equal(Object.hasOwn(doc.members, 0), true);
+      await doc.save();
+      doc.title = selection;
+      await doc.save();
+      doc.members[1].name = 'unsafe';
+      await assert.rejects(doc.save(), api.WriteNormalizationError);
+      assert.deepEqual(JSON.parse(JSON.stringify((await M.findOne().lean()).members)), members);
+    }
+  } finally { await connection.disconnect(); }
+}
+checkParallelSave().then(checkProjection).catch((error) => { console.error(error); process.exitCode = 1; });
+`;
   writeProjectFile(
     consumerDir,
     'consumer.mjs',
-    `import api, { Schema, Connection, model, connect, disconnect } from '@web-ts-toolkit/mongoose-rxdb';
+    `import api, { Schema, Connection, ParallelSaveError, model, connect, disconnect } from '@web-ts-toolkit/mongoose-rxdb';
 import storageDefault, { createMemoryDatabase, createSqliteDatabase } from '@web-ts-toolkit/mongoose-rxdb/storage';
 
 if (api.Schema !== Schema) throw new Error('root default Schema mismatch');
+if (api.ParallelSaveError !== ParallelSaveError) throw new Error('root default ParallelSaveError mismatch');
 if (typeof Connection !== 'function') throw new Error('missing Connection named export');
 if (typeof model !== 'function' || typeof connect !== 'function' || typeof disconnect !== 'function') throw new Error('missing root functions');
 if (storageDefault !== createMemoryDatabase) throw new Error('storage default mismatch');
 if (typeof createSqliteDatabase !== 'function') throw new Error('missing createSqliteDatabase');
+${runtimeContracts}
 `,
   );
   writeProjectFile(
@@ -39,12 +84,15 @@ if (typeof createSqliteDatabase !== 'function') throw new Error('missing createS
     'consumer.cjs',
     `const api = require('@web-ts-toolkit/mongoose-rxdb');
 const storage = require('@web-ts-toolkit/mongoose-rxdb/storage');
+const { createMemoryDatabase } = storage;
 
 if (api.default.Schema !== api.Schema) throw new Error('root default Schema mismatch');
+if (api.default.ParallelSaveError !== api.ParallelSaveError) throw new Error('root default ParallelSaveError mismatch');
 if (typeof api.Connection !== 'function') throw new Error('missing Connection named export');
 if (typeof api.model !== 'function' || typeof api.connect !== 'function' || typeof api.disconnect !== 'function') throw new Error('missing root functions');
 if (storage.default !== storage.createMemoryDatabase) throw new Error('storage default mismatch');
 if (typeof storage.createSqliteDatabase !== 'function') throw new Error('missing createSqliteDatabase');
+${runtimeContracts}
 `,
   );
   writeProjectFile(
@@ -102,66 +150,13 @@ await conn.disconnect();
 }
 
 function writeReadmeQuickstart(consumerDir: string): void {
-  writeProjectFile(
-    consumerDir,
-    'readme-quickstart.mts',
-    `import { Connection, Schema, type HookNext, type HydratedDocument } from '@web-ts-toolkit/mongoose-rxdb';
-import { createMemoryDatabase } from '@web-ts-toolkit/mongoose-rxdb/storage';
-
-interface User {
-  name: string;
-  age: number;
-  role: 'admin' | 'user';
-  tags: string[];
-}
-
-interface UserMethods {
-  addTag(tag: string): string[];
-}
-
-interface UserVirtuals {
-  isAdmin: boolean;
-}
-
-type UserDocument = HydratedDocument<User, UserMethods, UserVirtuals>;
-
-const conn = new Connection();
-await conn.connect(() => createMemoryDatabase({ name: 'quickstart' }));
-
-const userSchema = new Schema<User, UserMethods, {}, UserVirtuals>({
-  name: { type: String, required: true },
-  age: { type: Number, default: 0, min: 0, max: 150 },
-  role: { type: String, enum: ['admin', 'user'], default: 'user' },
-  tags: [String],
-});
-
-userSchema.pre('save', function (this: UserDocument, next: HookNext) {
-  console.log('about to save', this.name);
-  next();
-});
-
-userSchema.virtual('isAdmin').get(function (this: UserDocument) {
-  return this.role === 'admin';
-});
-
-userSchema.method('addTag', function (this: UserDocument, tag: string) {
-  this.tags.push(tag);
-  return this.tags;
-});
-
-const User = conn.model('User', userSchema);
-
-const ada = await User.create({ name: 'Ada', age: 36, role: 'admin', tags: [] });
-console.log(ada.isAdmin);
-ada.addTag('math');
-
-const admins = await User.find({ role: 'admin' }).sort({ age: 1 });
-await User.updateOne({ name: 'Ada' }, { $inc: { age: 1 } });
-await User.deleteOne({ name: 'Ada' });
-console.log(admins.map((user) => user.name));
-await conn.disconnect();
-`,
+  const readme = readFileSync(
+    path.join(consumerDir, 'node_modules', '@web-ts-toolkit', 'mongoose-rxdb', 'README.md'),
+    'utf8',
   );
+  const quickstart = readme.match(/## Quick Start\s+```ts\n([\s\S]*?)\n```/);
+  if (!quickstart) throw new Error('Packed README is missing the canonical TypeScript quickstart');
+  writeProjectFile(consumerDir, 'readme-quickstart.mts', quickstart[1]);
 }
 
 function copyDeclConsumers(consumerDir: string): void {
@@ -216,6 +211,7 @@ describe('MRX-01 packed consumer harness', () => {
     });
     expect(containsDisallowedPublishedValue(manifest)).toBe(false);
     expect(packed.contents[packageName]).toContain('package/package.json');
+    expect(packed.contents[packageName]).toContain('package/README.md');
     expect(packed.contents[packageName]).toContain('package/index.js');
     expect(packed.contents[packageName]).toContain('package/index.mjs');
     expect(packed.contents[packageName]).toContain('package/index.d.ts');
@@ -276,6 +272,21 @@ describe('MRX-01 packed consumer harness', () => {
   it('compiles strict NodeNext and Bundler installed-consumer fixtures with skipLibCheck disabled', async () => {
     const consumerDir = await installPackedConsumer();
     copyDeclConsumers(consumerDir);
+
+    for (const file of ['index.d.ts', 'index.d.mts']) {
+      const declaration = readFileSync(
+        path.join(consumerDir, 'node_modules', '@web-ts-toolkit', 'mongoose-rxdb', file),
+        'utf8',
+      );
+      // Installed hovers must carry the new error and high-risk behavioral contracts.
+      expect(declaration).toContain('class ParallelSaveError extends Error');
+      expect(declaration).toContain('Same-instance overlaps reject with ParallelSaveError');
+      expect(declaration).toContain('validateSync() reject / return ValidationError');
+      expect(declaration).toContain('Retained arrays preserve indexes with null for redacted positions');
+      expect(declaration).toContain('Stable IDs do not');
+      expect(declaration).toContain('50 levels');
+      expect(declaration).toContain('Best-effort conditional delete');
+    }
 
     await runChecked('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext.json', '--noEmit'], {
       cwd: consumerDir,

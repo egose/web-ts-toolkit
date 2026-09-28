@@ -196,8 +196,13 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
       updatedAt: input.updatedAt ?? timestamp,
     };
 
+    const previousSession = this.sessions.get(session.sessionId);
+    const previousLogicalSessionId = previousSession?.logicalSessionId ?? previousSession?.sessionId;
     this.sessions.set(session.sessionId, session);
     this.rotatedSessionAliases.delete(session.sessionId);
+    if (previousLogicalSessionId !== undefined && previousLogicalSessionId !== session.logicalSessionId) {
+      this.removeAliasesForInactiveLogicalSession(previousLogicalSessionId, timestamp);
+    }
     return cloneRecord(session);
   }
 
@@ -208,7 +213,7 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
 
     if (session && isExpiredRecord(session, now)) {
       this.sessions.delete(sessionId);
-      this.removeAliasesForInactiveLogicalSession(session.logicalSessionId ?? session.sessionId);
+      this.removeAliasesForInactiveLogicalSession(session.logicalSessionId ?? session.sessionId, now);
       return null;
     }
 
@@ -222,7 +227,7 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
 
     if (sourceSession && isExpiredRecord(sourceSession, timestamp)) {
       this.sessions.delete(input.sessionId);
-      this.removeAliasesForInactiveLogicalSession(sourceSession.logicalSessionId ?? sourceSession.sessionId);
+      this.removeAliasesForInactiveLogicalSession(sourceSession.logicalSessionId ?? sourceSession.sessionId, timestamp);
     }
 
     const liveSourceSession = this.sessions.get(input.sessionId);
@@ -237,12 +242,7 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
 
     const existingTargetSession = this.sessions.get(input.nextSession.sessionId);
 
-    if (existingTargetSession && isExpiredRecord(existingTargetSession, timestamp)) {
-      this.sessions.delete(input.nextSession.sessionId);
-      this.removeAliasesForInactiveLogicalSession(
-        existingTargetSession.logicalSessionId ?? existingTargetSession.sessionId,
-      );
-    } else if (existingTargetSession) {
+    if (existingTargetSession && !isExpiredRecord(existingTargetSession, timestamp)) {
       throw new OidcVaultStoreConflictError('OIDC vault session rotation target already exists.');
     }
 
@@ -255,12 +255,27 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
       updatedAt: nextSession.updatedAt ?? timestamp,
     };
 
+    // Clone before retiring any target ownership so a rejected replacement
+    // leaves the source and target lineages' revocation handles intact.
+    if (existingTargetSession) {
+      this.sessions.delete(session.sessionId);
+      this.removeAliasesForInactiveLogicalSession(
+        existingTargetSession.logicalSessionId ?? existingTargetSession.sessionId,
+        timestamp,
+      );
+    }
+
+    const previousLogicalSessionId = liveSourceSession.logicalSessionId ?? liveSourceSession.sessionId;
     this.sessions.delete(input.sessionId);
     this.sessions.set(session.sessionId, session);
+    this.rotatedSessionAliases.delete(session.sessionId);
     this.rotatedSessionAliases.set(input.sessionId, {
       logicalSessionId: session.logicalSessionId ?? session.sessionId,
       expiresAt: session.expiresAt,
     });
+    if (previousLogicalSessionId !== session.logicalSessionId) {
+      this.removeAliasesForInactiveLogicalSession(previousLogicalSessionId, timestamp);
+    }
     return cloneRecord(session);
   }
 
@@ -275,7 +290,7 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
       const logicalSessionId = session.logicalSessionId ?? session.sessionId;
       this.sessions.delete(sessionId);
       this.rotatedSessionAliases.delete(sessionId);
-      this.removeAliasesForInactiveLogicalSession(logicalSessionId);
+      this.removeAliasesForInactiveLogicalSession(logicalSessionId, now);
       return;
     }
 
@@ -311,7 +326,7 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
       }
     }
 
-    this.removeAliasesForInactiveLogicalSessions(expiredLogicalSessionIds);
+    this.removeAliasesForInactiveLogicalSessions(expiredLogicalSessionIds, now);
     this.removeAliasesForLogicalSession(resolved.logicalSessionId);
 
     return deleted;
@@ -356,8 +371,8 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
       }
     }
 
-    this.removeAliasesForInactiveLogicalSessions(expiredLogicalSessionIds);
-    this.removeAliasesForInactiveLogicalSessions(logicalSessionIds);
+    this.removeAliasesForInactiveLogicalSessions(expiredLogicalSessionIds, now);
+    this.removeAliasesForInactiveLogicalSessions(logicalSessionIds, now);
 
     return deleted;
   }
@@ -383,8 +398,8 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
       }
     }
 
-    this.removeAliasesForInactiveLogicalSessions(expiredLogicalSessionIds);
-    this.removeAliasesForInactiveLogicalSessions(logicalSessionIds);
+    this.removeAliasesForInactiveLogicalSessions(expiredLogicalSessionIds, now);
+    this.removeAliasesForInactiveLogicalSessions(logicalSessionIds, now);
 
     return deleted;
   }
@@ -485,33 +500,33 @@ class MemoryOidcVaultStore implements OidcVaultStoreProvider {
       }
     }
 
-    this.removeAliasesForInactiveLogicalSessions(expiredLogicalSessionIds);
+    this.removeAliasesForInactiveLogicalSessions(expiredLogicalSessionIds, now);
   }
 
-  private removeAliasesForInactiveLogicalSessions(logicalSessionIds: Iterable<string>): void {
+  private removeAliasesForInactiveLogicalSessions(logicalSessionIds: Iterable<string>, now: number): void {
     for (const logicalSessionId of logicalSessionIds) {
-      this.removeAliasesForInactiveLogicalSession(logicalSessionId);
+      this.removeAliasesForInactiveLogicalSession(logicalSessionId, now);
     }
   }
 
-  private removeAliasesForInactiveLogicalSession(logicalSessionId: string): void {
-    if (!this.hasLiveSessionForLogicalSession(logicalSessionId)) {
+  private removeAliasesForInactiveLogicalSession(logicalSessionId: string, now: number): void {
+    if (!this.hasLiveSessionForLogicalSession(logicalSessionId, now)) {
       this.removeAliasesForLogicalSession(logicalSessionId);
     }
   }
 
   /**
    * Residual cost note (SVH-04): liveness is a full scan of `sessions`
-   * (early-out on the first live member), so per expired logical lineage the
-   * cleanup work is proportional to live sessions, not to the 64-entry sweep
+   * (early-out on the first live member), so per retired logical lineage the
+   * cleanup work is proportional to retained sessions, not to the 64-entry sweep
    * batch. Visits are counted in `sweepWork.aliasSessionVisits` so this
    * nested cost stays measurable and is never implied to be constant-time.
    */
-  private hasLiveSessionForLogicalSession(logicalSessionId: string): boolean {
+  private hasLiveSessionForLogicalSession(logicalSessionId: string, now: number): boolean {
     for (const session of this.sessions.values()) {
       this.sweepWork.aliasSessionVisits += 1;
 
-      if ((session.logicalSessionId ?? session.sessionId) === logicalSessionId) {
+      if ((session.logicalSessionId ?? session.sessionId) === logicalSessionId && !isExpiredRecord(session, now)) {
         return true;
       }
     }

@@ -235,6 +235,7 @@ import {
   PDFReader,
   PdfReaderError,
   configurePdfWorker,
+  pdfTextToString,
   type ConvertOptions,
   type PageResult,
 } from '@web-ts-toolkit/pdf-reader';
@@ -251,7 +252,8 @@ const options: ConvertOptions = {
 };
 const pages: AsyncGenerator<PageResult> = reader.pages(options);
 
-document.querySelector<HTMLDivElement>('#app')!.textContent = [workerUrl, PdfReaderError.name].join(' | ');
+const text = pdfTextToString({ items: [], styles: {}, lang: null });
+document.querySelector<HTMLDivElement>('#app')!.textContent = [workerUrl, PdfReaderError.name, text].join(' | ');
 
 void [reader, pages];
 `,
@@ -305,6 +307,9 @@ describe('PDFR-02 packed consumer compatibility', () => {
     expect(packedManifest.scripts).toBeUndefined();
     expect(containsDisallowedPublishedValue(packedManifest)).toBe(false);
     expect(readFileSync(path.resolve(unpackRoot, 'README.md'), 'utf8')).toContain('ESM-only');
+    const declarations = readFileSync(path.resolve(unpackRoot, 'index.d.mts'), 'utf8');
+    expect(declarations).toContain('pdfTextToString(content: PdfTextContent): string');
+    expect(declarations).toContain('existing newlines are not deduplicated');
     expect(readdirSync(unpackRoot).sort()).toEqual([
       'LICENSE',
       'README.md',

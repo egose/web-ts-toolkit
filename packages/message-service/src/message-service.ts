@@ -41,6 +41,7 @@ import {
 } from './errors';
 import type { MessageModelRole, PaymentSessionCompensationFailure } from './errors';
 import { isDuplicateKeyError, runMessageTransaction } from './persistence';
+import type { MessageTransactionCleanupFailureObserver } from './types/transaction';
 import type { TransactionCapableActiveModel } from './persistence';
 
 // Re-export the shared failure contract so `src/index.ts`, routes, and
@@ -83,6 +84,13 @@ export interface MessageServiceOptions {
    * created for a message batch that did not commit.
    */
   onPaymentCompensationFailure?: (event: PaymentCompensationFailureEvent) => void | Promise<void>;
+  /**
+   * Observes `endSession()` rejection for service-owned batch/action transactions.
+   * Confirmed commits and primary transaction errors are preserved even if this
+   * observer throws/rejects. Awaited best-effort diagnostics; keep it bounded.
+   * Configure `buildMessageSchema` separately for direct document `archive()`.
+   */
+  onTransactionCleanupFailure?: MessageTransactionCleanupFailureObserver;
   adminRoles?: string[];
   registry?: TemplateRegistry;
   /**
@@ -210,6 +218,8 @@ interface ActionClaim {
   message: IMessage;
   actionAttemptId: string;
   actionOwnerToken: string;
+  /** Only a newly created attempt can be discarded on pre-handler denial. */
+  fresh: boolean;
 }
 
 /**
@@ -293,6 +303,7 @@ export class MessageService {
   private expirePaymentSession?: (sessionId: string) => Promise<void>;
   private refundPaymentSession?: (sessionId: string) => Promise<void>;
   private onPaymentCompensationFailure?: (event: PaymentCompensationFailureEvent) => void | Promise<void>;
+  private onTransactionCleanupFailure?: MessageTransactionCleanupFailureObserver;
   private adminRoles: string[];
   private registry: TemplateRegistry;
   private defaultListLimit: number;
@@ -312,6 +323,7 @@ export class MessageService {
     this.expirePaymentSession = this.paymentProvider?.expireSession.bind(this.paymentProvider);
     this.refundPaymentSession = this.paymentProvider?.refundPayment.bind(this.paymentProvider);
     this.onPaymentCompensationFailure = options.onPaymentCompensationFailure;
+    this.onTransactionCleanupFailure = options.onTransactionCleanupFailure;
     this.adminRoles = options.adminRoles ?? [];
     this.registry = options.registry ?? defaultRegistry;
     this.maxListLimit = this.validatePositiveIntegerOption('maxListLimit', options.maxListLimit ?? MAX_LIST_LIMIT);
@@ -695,8 +707,12 @@ export class MessageService {
    * message is missing, the user has no sender/receiver relationship (unless
    * `isAdmin`), or the template is unknown. Admin (`isAdmin`) and archived
    * views return the resolved `uiTemplate` with an empty action list without
-   * evaluating action `condition` predicates. Eligible active listings
-   * evaluate conditions against the persisted message; action labels and
+   * evaluating action `condition` predicates. All listings
+   * read the requested id from the configured store. Relationships are
+   * checked on canonical stored IDs before optional presentation population.
+   * Conditions see that read snapshot with `populate` applied (mutations still
+   * check unpopulated atomic claims); this does not reserve an action or prevent
+   * subsequent host writes. Action labels and
    * confirmations render from persisted `message.payload` (missing values
    * render empty), distinct from creation-time `templateData`.
    */
@@ -707,19 +723,16 @@ export class MessageService {
       /** Authenticated caller; required. Validated before any effect. */
       user: MessageUser;
       permissions?: Record<string, boolean>;
+      /** @deprecated Ignored. The requested id is always re-read from storage; omit this option. */
       message?: IMessage | IMessageArchive;
       isAdmin?: boolean;
+      /** Presentation population for eligible active conditions, after relationship authorization. */
       populate?: string | string[] | mongoose.PopulateOptions | mongoose.PopulateOptions[];
     },
   ): Promise<{ uiTemplate: UiTemplate; actions: InterpolatedAction[] } | null> {
     const user = requireMessageUserId((options as { user?: unknown } | undefined)?.user);
     const authorizedUser = { ...(options as { user?: MessageUser }).user!, _id: user };
-    const message =
-      (options as { message?: IMessage | IMessageArchive; populate?: unknown }).message ??
-      (await this.findMessage(messageId, {
-        populate: (options as { populate?: string | string[] | mongoose.PopulateOptions | mongoose.PopulateOptions[] })
-          .populate,
-      }));
+    const message = await this.findMessage(messageId);
     if (!message) return null;
 
     if (!(options as { isAdmin?: boolean }).isAdmin) {
@@ -742,6 +755,12 @@ export class MessageService {
     // without filtering actions.
     if (options.isAdmin || this.isArchivedMessage(message)) {
       return { uiTemplate: resolveUiTemplate(template.uiTemplate, usertype), actions: [] };
+    }
+
+    if (options.populate) {
+      // Populate only after authorizing canonical stored identities. Missing or
+      // projected-away user references must not determine relationship grants.
+      await message.populate(options.populate);
     }
 
     // Eligible active listings evaluate conditions against the persisted
@@ -768,8 +787,10 @@ export class MessageService {
    * User-facing operation: `data.user` is validated before any template or
    * model effect. Authorization and handler selection bind to the persisted
    * claim, not the caller-supplied `data.message` copy. Archived messages
-   * apply a sender/receiver relationship gate before disclosing attempt IDs
-   * or notification state. Returns the handler's value (`unknown`; templates
+   * are re-read by id on their owning connection and apply a stored
+   * sender/receiver relationship gate before disclosing current attempt IDs
+   * or notification state. A missing archive throws `MessageNotFoundError`.
+   * Returns the handler's value (`unknown`; templates
    * document their own shape).
    */
   async handleAction(
@@ -785,19 +806,11 @@ export class MessageService {
     const userId = this.requireUserId(data.user);
     const authorizedUser = { ...data.user, _id: userId };
     if (this.isArchivedMessage(data.message)) {
-      // Relationship gate before disclosing archived outcomes: unrelated callers
-      // receive a stable denial without attempt IDs or notification state.
-      // Authorized (sender/receiver) retries remain available even when the
-      // template has been removed.
-      this.authorizeArchivedOutcome(data.message, authorizedUser);
-      if (data.message.actionNotificationState === 'pending' || data.message.actionNotificationState === 'failed') {
-        throw new ActionNotificationPendingError(
-          String(data.message._id),
-          data.message.actionAttemptId ?? '',
-          undefined,
-        );
-      }
-      throw new MessageArchivedError(String(data.message._id));
+      const archived = (await this.resolveModel('archive', data.message).findById(
+        data.message._id,
+      )) as IMessageArchive | null;
+      if (!archived) throw new MessageNotFoundError(String(data.message._id));
+      this.throwArchivedOutcome(archived, authorizedUser);
     }
 
     // Fast-fail pre-checks against the caller-supplied copy. These are not
@@ -821,8 +834,8 @@ export class MessageService {
     // Authoritative authorization + handler/template selection bound to the
     // persisted document returned by the atomic claim. Covers changed
     // templateCd, recipient (toUser/fromUser), roles (toRoles), and
-    // condition-relevant payload data. A denied claim is released via the
-    // fenced retryable path so legitimate retries are not stranded.
+    // condition-relevant payload data. A fresh denied claim restores action
+    // choice; retries/takeovers retain their possibly-effectful attempt.
     let authorizedAction: MessageAction;
     try {
       authorizedAction = this.authorizeClaimedAction(templateCd, actionCd, claim.message, authorizedUser, {
@@ -830,13 +843,7 @@ export class MessageService {
       });
     } catch (authError) {
       try {
-        await this.markActionRetryable(
-          claim.message._id,
-          claim.actionAttemptId,
-          claim.actionOwnerToken,
-          authError,
-          claim.message,
-        );
+        await this.releaseDeniedActionClaim(claim, authError);
       } catch (releaseError) {
         if (!(releaseError instanceof ActionConflictError)) {
           throw releaseError;
@@ -1100,7 +1107,10 @@ export class MessageService {
     // `MessageTransactionRequiredError` when the model has no session
     // capability — there is no sessionless fallback.
     try {
-      return await runMessageTransaction(Message, operation);
+      return await runMessageTransaction(Message, operation, {
+        operation: 'createBatch',
+        onTransactionCleanupFailure: this.onTransactionCleanupFailure,
+      });
     } catch (error) {
       await this.compensatePaymentSessions(docs, error, scope);
       throw error;
@@ -1225,6 +1235,7 @@ export class MessageService {
         message: firstClaim,
         actionAttemptId: firstClaim.actionAttemptId,
         actionOwnerToken: firstClaim.actionOwnerToken,
+        fresh: true,
       };
     }
 
@@ -1244,6 +1255,7 @@ export class MessageService {
         message: retryClaim,
         actionAttemptId: retryClaim.actionAttemptId,
         actionOwnerToken: retryClaim.actionOwnerToken,
+        fresh: false,
       };
     }
 
@@ -1251,13 +1263,7 @@ export class MessageService {
       messageId,
     )) as IMessageArchive | null;
     if (archived) {
-      // Same relationship gate as the direct archived path: do not disclose
-      // attempt IDs or notification state to unrelated callers.
-      this.authorizeArchivedOutcome(archived, user);
-      if (archived.actionNotificationState === 'pending' || archived.actionNotificationState === 'failed') {
-        throw new ActionNotificationPendingError(String(messageId), archived.actionAttemptId ?? '', undefined);
-      }
-      throw new MessageArchivedError(String(messageId));
+      this.throwArchivedOutcome(archived, user);
     }
 
     throw new ActionConflictError(String(messageId));
@@ -1276,6 +1282,15 @@ export class MessageService {
     if (!message.isSender(user) && !message.isReceiver(user)) {
       throw new ActionNotAllowedError();
     }
+  }
+
+  /** Call only with an authoritative, unpopulated archive read. */
+  private throwArchivedOutcome(message: IMessageArchive, user: MessageUser): never {
+    this.authorizeArchivedOutcome(message, user);
+    if (message.actionNotificationState === 'pending' || message.actionNotificationState === 'failed') {
+      throw new ActionNotificationPendingError(String(message._id), message.actionAttemptId ?? '', undefined);
+    }
+    throw new MessageArchivedError(String(message._id));
   }
 
   /**
@@ -1311,6 +1326,37 @@ export class MessageService {
       throw new ActionNotAllowedError();
     }
     return action;
+  }
+
+  private async releaseDeniedActionClaim(claim: ActionClaim, error: unknown): Promise<void> {
+    const { message, actionAttemptId, actionOwnerToken } = claim;
+    if (!claim.fresh) {
+      // A retry/takeover may already have external effects, even if this owner
+      // never ran the handler. Keep its stable deduplication key and action.
+      await this.markActionRetryable(message._id, actionAttemptId, actionOwnerToken, error, message);
+      return;
+    }
+
+    const Message = this.resolveModel('active', message);
+    const updated = (await Message.updateOne(
+      { _id: message._id, actionState: 'processing', actionAttemptId, actionOwnerToken },
+      {
+        $set: {
+          actionState: 'active',
+          actionCd: null,
+          actionAttemptId: null,
+          actionOwnerToken: null,
+          actionClaimedBy: null,
+          actionClaimedAt: null,
+          actionLeaseExpiresAt: null,
+          actionFailureMessage: null,
+        },
+      },
+    )) as { matchedCount?: number; n?: number };
+    if ((updated.matchedCount ?? updated.n ?? 0) !== 1) {
+      // Never clear a replacement owner's attempt after lease takeover.
+      throw new ActionConflictError(String(message._id));
+    }
   }
 
   private async markActionRetryable(
@@ -1409,7 +1455,10 @@ export class MessageService {
     // transaction on the owning connection. Missing session capability fails
     // closed — there is no sessionless fallback.
     try {
-      await runMessageTransaction(Message, operation);
+      await runMessageTransaction(Message, operation, {
+        operation: 'actionArchive',
+        onTransactionCleanupFailure: this.onTransactionCleanupFailure,
+      });
     } catch (error) {
       await this.markActionRetryable(messageId, actionAttemptId, actionOwnerToken, error, message);
       throw error;

@@ -63,6 +63,7 @@ const publicRuntimeExports = [
   'PaymentSessionCompensationError',
   'PaymentSessionCompensationAggregateError',
   'createMessageRoutes',
+  'serializePublicMessage',
 ] as const;
 
 function readQuickStartExample(): string {
@@ -80,6 +81,83 @@ function readReadmeTypescriptBlocks(): string[] {
 }
 
 function writeConsumerFiles(consumerDir: string): void {
+  const publicExample = readReadmeTypescriptBlocks().find((block) =>
+    block.includes('export async function publicInbox'),
+  );
+  if (!publicExample) throw new Error('README publicInbox example missing');
+  writeFileSync(path.resolve(consumerDir, 'readme-public-message.ts'), publicExample);
+  const publicTypes = `
+import { serializePublicMessage, MessageService as ReadService, type InterpolatedAction as ReadAction, type UiTemplate as ReadUiTemplate, type PublicMessageDto, type PublicMessageParty, type PublicMessageSource } from '@web-ts-toolkit/message-service';
+import type { IMessage as PublicActive, IMessageArchive as PublicArchive } from '@web-ts-toolkit/message-service';
+declare const publicActive: PublicActive;
+declare const publicArchive: PublicArchive;
+const activeDto: PublicMessageDto = serializePublicMessage(publicActive);
+const archiveDto: PublicMessageDto = serializePublicMessage(publicArchive);
+const dtoId: string = activeDto._id;
+const dtoDate: string = activeDto.createdAt;
+const attemptId: string | null = archiveDto.actionAttemptId;
+const archiveDate: string | undefined = archiveDto.archivedAt;
+const publicParty: PublicMessageParty = { _id: 'user', displayName: 'User', email: 'user@example.test' };
+const populatedSource: PublicMessageSource = { ...publicActive, fromUser: publicParty };
+serializePublicMessage(populatedSource);
+// @ts-expect-error operational diagnostics are not public DTO fields
+activeDto.actionFailureMessage;
+// @ts-expect-error worker ownership is private
+archiveDto.actionOwnerToken;
+// @ts-expect-error request bookkeeping is private
+activeDto.clientRequestId;
+// @ts-expect-error arbitrary populated user secrets are not declared
+publicParty.password;
+// @ts-expect-error public dates are serialized strings
+const rawDate: Date = activeDto.createdAt;
+void [dtoId, dtoDate, attemptId, archiveDate, rawDate];
+declare const readService: ReadService;
+async function authoritativeActions(): Promise<{ uiTemplate: ReadUiTemplate; actions: ReadAction[] } | null> {
+  // The deprecated supplied copy remains type-compatible, but is ignored at runtime.
+  await readService.getActions(String(publicActive._id), 'receiver', {
+    user: { _id: 'receiver' }, message: publicActive, populate: ['fromUser', 'toUser'],
+  });
+  return readService.getActions(String(publicArchive._id), 'sender', {
+    user: { _id: 'sender' }, message: publicArchive, populate: { path: 'fromUser', select: 'displayName' },
+  });
+}
+void authoritativeActions;
+`;
+  const cleanupTypes = `
+import {
+  MessageService as CleanupService,
+  createMessageRoutes as cleanupRoutes,
+  buildMessageSchema as cleanupSchema,
+  type MessageTransactionCleanupFailureEvent,
+  type MessageTransactionCleanupFailureObserver,
+} from '@web-ts-toolkit/message-service';
+const cleanupObserver: MessageTransactionCleanupFailureObserver = async (event) => {
+  const stage: 'endSession' = event.stage;
+  const operation: 'createBatch' | 'actionArchive' | 'directArchive' = event.operation;
+  if (event.outcome === 'failed') {
+    const primary: unknown = event.originalError;
+    void primary;
+  } else {
+    const absent: undefined = event.originalError;
+    void absent;
+  }
+  void stage;
+  void operation;
+};
+const cleanupService = new CleanupService({ onTransactionCleanupFailure: cleanupObserver });
+cleanupSchema({ onTransactionCleanupFailure: cleanupObserver });
+cleanupRoutes({ getModel: (name) => { throw new Error(name); }, onTransactionCleanupFailure: cleanupObserver });
+cleanupRoutes({ service: cleanupService });
+// @ts-expect-error injection cannot silently discard a construction observer
+cleanupRoutes({ service: cleanupService, onTransactionCleanupFailure: cleanupObserver });
+const cleanupEvent: MessageTransactionCleanupFailureEvent = {
+  operation: 'createBatch', stage: 'endSession', outcome: 'committed', error: new Error('cleanup'),
+};
+// @ts-expect-error failed diagnostics must include the primary transaction error
+const incompleteCleanup: MessageTransactionCleanupFailureEvent = { operation: 'directArchive', stage: 'endSession', outcome: 'failed', error: null };
+void cleanupEvent;
+void incompleteCleanup;
+`;
   writeFileSync(
     path.resolve(consumerDir, 'consumer.mjs'),
     `import { MessageService, TemplateRegistry, buildMessageSchema } from '@web-ts-toolkit/message-service';
@@ -166,6 +244,8 @@ void replayContract;
 void replayNarrowing;
 void requiredActionUser;
 void registered;
+${cleanupTypes}
+${publicTypes}
 `,
   );
   writeFileSync(
@@ -187,6 +267,8 @@ const template: MessageTemplate = {
 
 registry.register(template);
 messageService.buildMessageRequestSchema();
+${cleanupTypes}
+${publicTypes}
 `,
   );
   writeFileSync(
@@ -395,8 +477,148 @@ void error;
 void ids;
 void runtimeValues;
 void (undefined as unknown as DeclaredTypes);
+${cleanupTypes}
+${publicTypes}
 `,
   );
+  for (const format of ['mjs', 'cjs']) {
+    writeFileSync(
+      path.resolve(consumerDir, `public-message.${format}`),
+      `
+${format === 'cjs' ? "const mod = require('@web-ts-toolkit/message-service');" : "import * as mod from '@web-ts-toolkit/message-service';"}
+${format === 'cjs' ? "const mongoose = require('mongoose'); const assert = require('node:assert/strict');" : "import mongoose from 'mongoose'; import assert from 'node:assert/strict';"}
+const Model = mongoose.model('PackedPublic', mod.buildMessageSchema());
+const doc = new Model({
+  templateCd: 'public', receiverContent: { title: 'Business', long: 'Body', short: 'Summary' },
+  actionOwnerToken: 'PRIVATE_TOKEN', actionFailureMessage: 'PRIVATE_DIAGNOSTIC',
+  clientRequestId: 'PRIVATE_REQUEST', paymentSession: 'business-payment',
+  createdAt: new Date(), updatedAt: new Date(),
+});
+const dto = mod.serializePublicMessage(doc);
+assert.equal(dto._id, String(doc._id));
+assert.equal(dto.receiverContent.title, 'Business');
+assert.equal(dto.paymentSession, 'business-payment');
+assert.equal(dto.createdAt, doc.createdAt.toISOString());
+assert.equal(JSON.stringify(dto).includes('PRIVATE'), false);
+assert.equal(doc.actionOwnerToken, 'PRIVATE_TOKEN');
+assert.equal(typeof doc.archive, 'function');
+const archive = mod.serializePublicMessage({
+  ...doc.toObject(), archivedAt: new Date(), archivedBy: { _id: doc._id, secret: 'PRIVATE_USER' }, // pragma: allowlist secret
+  fromUser: { _id: doc._id, displayName: 'Sender', password: 'PRIVATE_PASSWORD' }, // pragma: allowlist secret
+  actionAttemptId: 'business-attempt', actionNotificationState: 'failed', actionNotificationError: 'PRIVATE_NOTIFICATION',
+});
+assert.deepEqual(archive.fromUser, { _id: String(doc._id), displayName: 'Sender' });
+assert.equal(archive.archivedBy, String(doc._id));
+assert.equal(archive.actionAttemptId, 'business-attempt');
+assert.equal(archive.actionNotificationState, 'failed');
+assert.equal(JSON.stringify(archive).includes('PRIVATE'), false);
+`,
+    );
+    writeFileSync(
+      path.resolve(consumerDir, `transaction-cleanup.${format}`),
+      `
+(async () => {
+  const assert = (await import('node:assert/strict')).default;
+  const mongoose = (await import('mongoose')).default;
+  const { MongoMemoryReplSet } = await import('mongodb-memory-server');
+  const mod = ${format === 'cjs' ? "require('@web-ts-toolkit/message-service')" : "await import('@web-ts-toolkit/message-service')"};
+  const replSet = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
+  const connection = await mongoose.createConnection(replSet.getUri()).asPromise();
+  const events = [];
+  const cleanupError = new Error('packed cleanup rejected');
+  const observer = async (event) => { events.push(event); throw new Error('packed observer rejected'); };
+  try {
+    const Message = connection.model(mod.MESSAGE_MODEL_NAME, mod.buildMessageSchema({ onTransactionCleanupFailure: observer }));
+    const Archive = connection.model(mod.MESSAGE_ARCHIVE_MODEL_NAME, mod.buildMessageArchiveSchema());
+    const Request = connection.model(mod.MESSAGE_REQUEST_MODEL_NAME, mod.buildMessageRequestSchema());
+    await Promise.all([Message.init(), Archive.init(), Request.init()]);
+    const start = connection.startSession.bind(connection);
+    connection.startSession = async () => {
+      const session = await start();
+      const end = session.endSession.bind(session);
+      session.endSession = async () => { await end(); throw cleanupError; };
+      return session;
+    };
+    const registry = new mod.TemplateRegistry();
+    const receiver = new mongoose.Types.ObjectId();
+    let prepared = 0;
+    let expired = 0;
+    let notified = 0;
+    registry.register({
+      templateCd: 'packed-cleanup', type: 'request', description: 'Packed cleanup', paymentCd: 'pay',
+      senderContent: { title: 'S', long: 'S', short: 'S' }, receiverContent: { title: 'R', long: 'R', short: 'R' },
+      uiTemplate: 'default-message',
+      prepareMessage: async ({ user }) => ({ fromUser: user._id, toUser: receiver, payload: {} }),
+      actions: [{ actionCd: 'approve', name: 'Approve', variant: 'success', sender: false, receiver: true,
+        runHandler: async () => 'approved',
+        senderNotification: async () => { notified++; return { title: 'Approved', long: 'Approved' }; },
+      }],
+    });
+    const { service } = mod.createMessageRoutes({
+      getModel: (name) => connection.model(name), registry, onTransactionCleanupFailure: observer,
+      paymentProvider: { createSession: async () => 'packed-payment-' + (++prepared), expireSession: async () => { expired++; }, refundPayment: async () => {} },
+    });
+    assert.throws(() => mod.createMessageRoutes({ service, onTransactionCleanupFailure: observer }), mod.InvalidMessageServiceOptionError);
+    const input = { templateCd: 'packed-cleanup', user: { _id: new mongoose.Types.ObjectId() }, clientRequestId: 'packed-key' };
+    const [message] = await service.createMessage(input);
+    const [replay] = await service.createMessage(input);
+    assert.equal(String(message._id), String(replay._id));
+    assert.equal(prepared, 1);
+    assert.equal(expired, 0);
+    assert.equal((await Request.findOne({ clientRequestId: 'packed-key' })).state, 'completed');
+    assert.equal(await service.handleAction('packed-cleanup', 'approve', { message, user: { _id: receiver } }), 'approved');
+    assert.equal(notified, 1);
+    assert.equal((await Archive.findById(message._id)).actionNotificationState, 'sent');
+    assert.equal(await Message.countDocuments({ _id: message._id }), 0);
+    const [direct] = await service.createMessage({ ...input, clientRequestId: undefined });
+    await direct.archive('approve', receiver, registry);
+    assert.equal((await Archive.findById(direct._id)).actionNotificationState, 'none');
+    assert.equal(await Message.countDocuments({ _id: direct._id }), 0);
+    assert.deepEqual(events.map(({ operation, outcome }) => [operation, outcome]), [
+      ['createBatch', 'committed'], ['actionArchive', 'committed'], ['directArchive', 'committed'],
+    ]);
+    for (const event of events) {
+      assert.equal(event.stage, 'endSession');
+      assert.equal(event.error, cleanupError);
+      assert.equal('originalError' in event, false);
+    }
+    // MSGR-04 installed ESM/CJS contracts reuse the real MongoDB lifecycle above.
+    const readOptions = { user: { _id: receiver }, message };
+    assert.deepEqual(await service.getActions(String(message._id), 'receiver', readOptions), {
+      uiTemplate: 'default-message', actions: [],
+    });
+    assert.equal(await service.getActions(String(new mongoose.Types.ObjectId()), 'receiver', readOptions), null);
+    const staleArchive = await service.findMessageOrThrow(String(message._id));
+    await Archive.updateOne({ _id: message._id }, { $set: { toUser: new mongoose.Types.ObjectId() } });
+    assert.equal(await service.getActions(String(message._id), 'receiver', { ...readOptions, message: staleArchive }), null);
+    await assert.rejects(service.handleAction('packed-cleanup', 'approve', {
+      message: staleArchive, user: { _id: receiver },
+    }), mod.ActionNotAllowedError);
+    await Archive.updateOne({ _id: message._id }, { $set: { actionNotificationState: 'failed', actionAttemptId: 'current-attempt' } });
+    await assert.rejects(service.handleAction('removed', 'removed', {
+      message: staleArchive, user: input.user,
+    }), (error) => error instanceof mod.ActionNotificationPendingError && error.actionAttemptId === 'current-attempt');
+    const User = connection.model('PackedReadUser', new mongoose.Schema({ displayName: String }));
+    await User.create({ _id: input.user._id, displayName: 'Sender' });
+    const populated = await service.findMessageOrThrow(String(message._id), { populate: { path: 'fromUser', model: User } });
+    assert.equal(populated.isSender(input.user), true);
+    await User.deleteMany({});
+    const missing = await service.findMessageOrThrow(String(message._id), { populate: { path: 'fromUser', model: User } });
+    assert.equal(missing.isSender(input.user), false);
+    assert.equal(missing.isSender({ _id: 'null' }), false);
+    await Archive.deleteOne({ _id: message._id });
+    await assert.rejects(service.handleAction('removed', 'removed', {
+      message: staleArchive, user: input.user,
+    }), mod.MessageNotFoundError);
+  } finally {
+    await connection.dropDatabase();
+    await connection.close();
+    await replSet.stop();
+  }
+})().catch((error) => { console.error(error); process.exitCode = 1; });
+`,
+    );
+  }
   writeFileSync(path.resolve(consumerDir, 'readme-quick-start.ts'), `${readQuickStartExample()}\n`);
   // MSGF-13: compile primary standalone snippets against the packed package
   // with explicit host fixtures. The quick start above covers the mount flow;
@@ -821,7 +1043,12 @@ try {
           esModuleInterop: true,
           types: ['node'],
         },
-        include: ['readme-quick-start.ts', 'readme-providers.ts', 'readme-create-action.ts'],
+        include: [
+          'readme-quick-start.ts',
+          'readme-providers.ts',
+          'readme-create-action.ts',
+          'readme-public-message.ts',
+        ],
       },
       null,
       2,
@@ -881,6 +1108,13 @@ describe('MessageService packed-package consumer harness', () => {
     ]) {
       expect(packed.contents['@web-ts-toolkit/message-service']).toContain(file);
     }
+    for (const declaration of ['index.d.ts', 'index.d.mts']) {
+      const text = readFileSync(path.resolve(packed.tempRoot, '_web-ts-toolkit_message-service', declaration), 'utf8');
+      expect(text).toContain('@deprecated Ignored. The requested id is always re-read from storage; omit this option.');
+      expect(text).toContain(
+        'Presentation population for eligible active conditions, after relationship authorization.',
+      );
+    }
   }, 30_000);
 
   it('loads ESM and CommonJS package-name imports from a freshly installed tarball', () => {
@@ -889,6 +1123,8 @@ describe('MessageService packed-package consumer harness', () => {
 
     run('node', ['consumer.mjs'], consumerDir);
     run('node', ['consumer.cjs'], consumerDir);
+    run('node', ['public-message.mjs'], consumerDir);
+    run('node', ['public-message.cjs'], consumerDir);
     run('node', ['dual-package-state.cjs'], consumerDir);
   }, 60_000);
 
@@ -923,7 +1159,14 @@ describe('MessageService packed-package consumer harness', () => {
 
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-nodenext.json', '--noEmit'], consumerDir);
     run('pnpm', ['exec', 'tsc', '-p', 'tsconfig-bundler.json', '--noEmit'], consumerDir);
-  }, 60_000);
+  }, 120_000);
+
+  it('preserves real-MongoDB cleanup outcomes, observers and authoritative reads through packed ESM and CommonJS APIs', () => {
+    const consumerDir = installPackedConsumer();
+    writeConsumerFiles(consumerDir);
+    run('node', ['transaction-cleanup.mjs'], consumerDir);
+    run('node', ['transaction-cleanup.cjs'], consumerDir);
+  }, 120_000);
 
   it('keeps documented runtime exports present in the installed package', () => {
     const consumerDir = installPackedConsumer();

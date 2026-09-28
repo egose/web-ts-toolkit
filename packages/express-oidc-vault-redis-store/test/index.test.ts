@@ -1,12 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { defineOidcVaultStoreProviderConformanceSuite } from '../../express-oidc-vault/test/store-provider-conformance';
 import { createRedisOidcVaultStore, type OidcVaultRedisClient } from '../src/index';
 import {
   DELETE_SESSION_SCRIPT,
+  CLEANUP_INACTIVE_ALIASES_SCRIPT,
   COMPARE_AND_DELETE_SCRIPT,
+  NON_EXPIRING_INDEX_SCORE,
+  REPAIR_SESSION_INDEX_SCRIPT,
   ROTATE_SESSION_SCRIPT,
   WRITE_SESSION_SCRIPT,
 } from '../src/scripts.js';
@@ -264,6 +267,20 @@ class FakeRedisClient implements OidcVaultRedisClient {
       return this.evalCompareAndDelete(keys, scriptArgs);
     }
 
+    if (script === REPAIR_SESSION_INDEX_SCRIPT) {
+      const [sessionKey, indexKey] = keys;
+      const [sessionId, observed, hasObserved] = scriptArgs;
+      this.pruneExpired(sessionKey!);
+      const current = this.records.get(sessionKey!)?.value;
+      return current === undefined || (hasObserved === '1' && current === observed)
+        ? Number(this.removeSortedIndexMember(indexKey!, sessionId!))
+        : 0;
+    }
+
+    if (script === CLEANUP_INACTIVE_ALIASES_SCRIPT) {
+      return this.cleanupInactiveAliases(keys[0]!, keys[1]!, scriptArgs[0]!, scriptArgs[1]!, scriptArgs[2]!);
+    }
+
     throw new Error('Unsupported EVAL script.');
   }
 
@@ -474,13 +491,13 @@ class FakeRedisClient implements OidcVaultRedisClient {
         this.removeSortedIndexMember(`${providerPrefix}${session.providerSessionId}`, session.sessionId);
       }
 
-      const aliasIndexKey = `${aliasIndexPrefix}${logicalSessionIdFor(session)}`;
-
-      for (const aliasSessionId of this.getSortedIndexMembers(aliasIndexKey)) {
-        this.records.delete(`${aliasPrefix}${aliasSessionId}`);
-      }
-
-      this.sortedIndexes.delete(aliasIndexKey);
+      this.cleanupInactiveAliases(
+        `${logicalPrefix}${logicalSessionIdFor(session)}`,
+        `${aliasIndexPrefix}${logicalSessionIdFor(session)}`,
+        sessionKeyPrefix,
+        aliasPrefix!,
+        logicalSessionIdFor(session),
+      );
 
       return 1;
     };
@@ -513,6 +530,30 @@ class FakeRedisClient implements OidcVaultRedisClient {
     }
 
     return deleted;
+  }
+
+  private cleanupInactiveAliases(
+    logicalKey: string,
+    aliasKey: string,
+    sessionPrefix: string,
+    aliasPrefix: string,
+    logicalId: string,
+  ): number {
+    for (const id of this.getSortedIndexMembers(logicalKey)) {
+      const key = `${sessionPrefix}${id}`;
+      this.pruneExpired(key);
+      const raw = this.records.get(key)?.value;
+      if (raw) {
+        try {
+          const member = JSON.parse(raw);
+          if (member?.sessionId === id && (member.logicalSessionId ?? id) === logicalId) return 0;
+        } catch {
+          /* Malformed primaries do not own the lineage. */
+        }
+      }
+    }
+    for (const id of this.getSortedIndexMembers(aliasKey)) this.records.delete(`${aliasPrefix}${id}`);
+    return Number(this.sortedIndexes.delete(aliasKey));
   }
 
   private evalRotateSession(keys: string[], args: string[]): number {
@@ -796,10 +837,13 @@ describe('createRedisOidcVaultStore', () => {
       idToken: 'id_valid',
     });
     client.injectRecord('test:session:sess_corrupt', '{"sessionId":"sess_corrupt","refreshToken":"secret_refresh"');
-    client.injectSortedIndexMember('test:subject:user_1', 'sess_corrupt', -1);
+    client.injectSortedIndexMember('test:subject:user_1', 'sess_corrupt', NON_EXPIRING_INDEX_SCORE);
+    const sendCommand = vi.spyOn(client, 'sendCommand');
 
     expect(await store.deleteSessionsBySubject('user_1')).toBe(1);
-    expect(await store.getSession('sess_corrupt')).toBeNull();
+    expect(sendCommand).toHaveBeenCalledWith(['MGET', 'test:session:sess_corrupt', 'test:session:sess_valid']);
+    expect(await client.get('test:session:sess_corrupt')).toBeNull();
+    expect(await client.sendCommand(['ZRANGE', 'test:subject:user_1', '0', '-1'])).toEqual([]);
     expect(await store.getSession('sess_valid')).toBeNull();
   });
 
@@ -1221,7 +1265,8 @@ describe('createRedisOidcVaultStore', () => {
     expect(mgetCount).toBeLessThanOrEqual(40);
     expect(client.commands.filter((command) => command === 'GET')).toHaveLength(0);
     expect(elapsedMs).toBeLessThan(10_000);
-  }, 20_000);
+    // Allow fixture setup under workspace load; the revocation itself keeps its 10s assertion.
+  }, 60_000);
 
   it('applies concurrent indexed revocation to the scan view and leaves later additions for a later call', async () => {
     const client = new FakeRedisClient();

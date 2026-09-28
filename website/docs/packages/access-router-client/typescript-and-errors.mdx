@@ -251,8 +251,16 @@ inline literals:
   prevents treating the wrapper as a draft and accidentally creating a copy.
 - `UnsupportedServiceDefaultValueError` — runtime error thrown for invalid
   service defaults (functions, symbols, bigints, non-finite numbers, invalid
-  `Date` values, non-plain instances, cycles). It is defined in
+  `Date` values, non-plain instances, cycles) or the separate 64-edge /
+  10,000-expanded-visit defaults budget. It is defined in
   `src/services/shared.ts` and is not re-exported from the package root.
+- `CorrelatedIncludeError` — package-root export for invalid correlated inputs
+  and cyclic/over-budget query preparation (64 edges / 10,000 expanded visits).
+  Preparation throws synchronously before HTTP; see
+  [Client preparation limits](./services#client-preparation-limits).
+- `TypeError` — direct writes to reserved model members, invalid direct/assign
+  keys, or structural wrapper mutation; see
+  [Safe-write restrictions](./model#safe-write-restrictions-and-migration).
 
 The full root API is locked by the package's runtime/type export contract test
 (`access-router-client.exports.unit.test.ts`); any accidental addition or

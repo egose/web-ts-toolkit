@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 /**
  * PDFR-01: Real-Browser PDF.js Integration Fixtures.
@@ -60,8 +60,7 @@ function decodeFixture(b64: string): Uint8Array {
 
 function textOf(page: PageResult | undefined): string {
   if (!page?.text) return '';
-  const items = (page.text as unknown as { items: Array<{ str?: string }> }).items;
-  return items.map((item) => item.str ?? '').join('');
+  return pkg.pdfTextToString(page.text);
 }
 
 /**
@@ -172,6 +171,42 @@ function createRenderStartAbortCanvasFactory(controller: AbortController): {
 }
 
 describe('PDFR-01 real-browser PDF.js integration', () => {
+  it('ingests real fixture text with page attribution and no package canvas allocation', async () => {
+    applyWorkerConfig();
+    const canvasFactory = vi.fn((): HTMLCanvasElement => {
+      throw new Error('Text-only ingestion must not allocate a package canvas.');
+    });
+    const reader = new PDFReader(decodeFixture(multiB64), { canvasFactory });
+    const records: Array<{ pageNumber: number; text: string }> = [];
+    const expectedRecords = [
+      { pageNumber: 1, text: 'Page 1 text' },
+      { pageNumber: 2, text: 'Page 2 landscape' },
+      { pageNumber: 3, text: 'Page 3 image-page' },
+    ];
+    const output = document.createElement('pre');
+    try {
+      await reader.load();
+      for await (const page of reader.pages({
+        includeText: true,
+        includePageImage: false,
+        includeEmbeddedImages: false,
+      })) {
+        expect(page.text).toBeDefined();
+        expect(page.pageImage).toBeUndefined();
+        if (!page.text) throw new Error('Missing fixture text.');
+        const text = pkg.pdfTextToString(page.text);
+        records.push({ pageNumber: page.pageNumber, text });
+        output.textContent = `Page ${page.pageNumber}\n${text}`;
+        expect(output.textContent).toBe(`Page ${page.pageNumber}\n${expectedRecords[page.pageIndex].text}`);
+      }
+      expect(records).toEqual(expectedRecords);
+      expect(canvasFactory).not.toHaveBeenCalled();
+    } finally {
+      await reader.destroy();
+      await assertNoLeakedDocument(reader);
+    }
+  });
+
   it('does not mutate PDF.js worker globals at module evaluation and the built bundle contains no Vite-only worker import', () => {
     // Importing the built bundle alone must not configure the worker. That
     // remains an explicit application boundary via `configurePdfWorker(...)`.
@@ -648,6 +683,85 @@ describe('PDFR-01 real-browser PDF.js integration', () => {
     }
   }, 120_000);
 
+  it.each(['direct', 'nested'] as const)('uses iframe signals: %s load and conversion (PDFR4-03)', async (mode) => {
+    applyWorkerConfig();
+    const iframe = document.createElement('iframe');
+    document.body.append(iframe);
+    const realm = iframe.contentWindow as Window & typeof globalThis;
+    const controller = new realm.AbortController();
+    expect(controller.signal).not.toBeInstanceOf(AbortSignal);
+    expect(controller.signal).toBeInstanceOf(realm.AbortSignal);
+    let releasePolicy!: () => void;
+    const policyGate = new Promise<void>((resolve) => {
+      releasePolicy = resolve;
+    });
+    const sourcePolicy = vi.fn(() => policyGate);
+    const reader = new PDFReader(decodeFixture(sampleB64), { sourcePolicy });
+    const load = (signal: AbortSignal) => (mode === 'direct' ? reader.load(signal) : reader.load({ signal }));
+    let releaseText!: () => void;
+    const textGate = new Promise<void>((resolve) => {
+      releaseText = resolve;
+    });
+    try {
+      const preAborted = new realm.AbortController();
+      preAborted.abort();
+      expect(() => load(preAborted.signal)).toThrowError(expect.objectContaining({ code: 'ABORTED' }));
+      expect(sourcePolicy).not.toHaveBeenCalled();
+      const add = vi.spyOn(controller.signal, 'addEventListener');
+      const remove = vi.spyOn(controller.signal, 'removeEventListener');
+      const pending = load(controller.signal);
+      const cancelled = expect(pending).rejects.toMatchObject({ code: 'ABORTED' });
+      expect(sourcePolicy).toHaveBeenCalledOnce();
+      controller.abort();
+      await cancelled;
+      expect(add).toHaveBeenCalledOnce();
+      expect(remove).toHaveBeenCalledWith('abort', add.mock.calls[0]?.[1]);
+      releasePolicy();
+
+      const active = new realm.AbortController();
+      const documentProxy = await load(active.signal);
+      await expect(load(active.signal)).resolves.toBe(documentProxy);
+      expect(() => load(controller.signal)).toThrowError(expect.objectContaining({ code: 'ABORTED' }));
+      const page = await documentProxy.getPage(1);
+      const getTextContent = page.getTextContent.bind(page);
+      let textStarted!: () => void;
+      const started = new Promise<void>((resolve) => {
+        textStarted = resolve;
+      });
+      vi.spyOn(page, 'getTextContent').mockImplementationOnce(async (...args) => {
+        const text = await getTextContent(...args);
+        textStarted();
+        await textGate;
+        return text;
+      });
+      const pageAdd = vi.spyOn(active.signal, 'addEventListener');
+      const pageRemove = vi.spyOn(active.signal, 'removeEventListener');
+      const conversion = reader.convert({ signal: active.signal, includePageImage: false });
+      const conversionCancelled = expect(conversion).rejects.toMatchObject({ code: 'ABORTED' });
+      await started;
+      active.abort();
+      await conversionCancelled;
+      expect(pageAdd).toHaveBeenCalled();
+      for (const [event, callback] of pageAdd.mock.calls) expect(pageRemove).toHaveBeenCalledWith(event, callback);
+      expect(reader.state).toBe('loaded');
+      releaseText();
+      const success = new realm.AbortController();
+      const successAdd = vi.spyOn(success.signal, 'addEventListener');
+      const successRemove = vi.spyOn(success.signal, 'removeEventListener');
+      const results = await reader.convert({ signal: success.signal, includePageImage: false });
+      expect(textOf(results[0])).toContain('Page 1 text');
+      expect(successAdd).toHaveBeenCalled();
+      for (const [event, callback] of successAdd.mock.calls)
+        expect(successRemove).toHaveBeenCalledWith(event, callback);
+    } finally {
+      releasePolicy();
+      releaseText();
+      await reader.destroy();
+      iframe.remove();
+      await assertNoLeakedDocument(reader);
+    }
+  });
+
   it('extracts a cross-page shared image on every page via the document-wide store (PDFR3-13)', async () => {
     applyWorkerConfig();
     // PDFR3-07 reproduced this as a defect: the same image Ref painted on
@@ -699,6 +813,227 @@ describe('PDFR-01 real-browser PDF.js integration', () => {
     }
   }, 120_000);
 
+  it('preserves real cached images across cancel/immediate retry (PDFR4-02)', async () => {
+    applyWorkerConfig();
+    const reader = new PDFReader(decodeFixture(embeddedSharedB64));
+    const gate = Promise.withResolvers<void>();
+    const firstStarted = Promise.withResolvers<void>();
+    const retryStarted = Promise.withResolvers<void>();
+    try {
+      const doc = await reader.load();
+      const page = await doc.getPage(1);
+      expect(await doc.getPage(1)).toBe(page);
+      // Gate actual PDF.js operator generation, not just delivery of an already
+      // completed list. getOperatorList still creates/caches its real intent
+      // state and both conversions wait on the same PDF.js promise.
+      const internal = page as typeof page & { _pumpOperatorList: (...args: unknown[]) => void };
+      const pump = internal._pumpOperatorList.bind(page);
+      vi.spyOn(internal, '_pumpOperatorList').mockImplementation((...args) => {
+        void gate.promise.then(() => pump(...args));
+      });
+      const getOperators = page.getOperatorList.bind(page);
+      const promises: ReturnType<typeof getOperators>[] = [];
+      vi.spyOn(page, 'getOperatorList').mockImplementation((...args) => {
+        const pending = getOperators(...args);
+        promises.push(pending);
+        if (promises.length === 1) firstStarted.resolve();
+        else retryStarted.resolve();
+        return pending;
+      });
+      const cleanup = vi.spyOn(page, 'cleanup');
+      const options = { pageRange: 1, includeText: false, includePageImage: false, includeEmbeddedImages: true };
+      const controller = new AbortController();
+      const cancelled = reader.convert({ ...options, signal: controller.signal });
+      await firstStarted.promise;
+      controller.abort();
+      await expect(cancelled).rejects.toMatchObject({ code: 'ABORTED' });
+      expect(cleanup).not.toHaveBeenCalled();
+      const retried = reader.convert(options);
+      await retryStarted.promise;
+      expect(promises[1]).toBe(promises[0]);
+      expect(cleanup).not.toHaveBeenCalled();
+      gate.resolve();
+      const [result] = await retried;
+      expect(result?.images).toHaveLength(2);
+      expect(cleanup).toHaveBeenCalledOnce();
+      const expected = Array.from({ length: 64 }, () => [255, 0, 0, 255]).flat();
+      for (const image of result?.images ?? []) {
+        const decoded = await pixelsOfDataUrl(image.dataUrl);
+        expect([decoded.width, decoded.height]).toEqual([8, 8]);
+        expect(decoded.data).toEqual(expected);
+      }
+    } finally {
+      gate.resolve();
+      await reader.destroy();
+      vi.restoreAllMocks();
+      await assertNoLeakedDocument(reader);
+    }
+  }, 60_000);
+
+  it.each(['abort', 'error'] as const)(
+    'render %s: fresh retry (PDFR4-06)',
+    async (outcome) => {
+      applyWorkerConfig();
+      const reader = new PDFReader(decodeFixture(embeddedSharedB64));
+      const freshReader = new PDFReader(decodeFixture(embeddedSharedB64));
+      const gate = Promise.withResolvers<void>();
+      const renderStarted = Promise.withResolvers<void>();
+      const lostImage = Promise.withResolvers<never>();
+      void lostImage.promise.catch(() => undefined);
+      const nativeError = new Error('native render setup failure');
+      try {
+        const doc = await reader.load();
+        const page = await doc.getPage(1);
+        const getPage = vi.spyOn(doc, 'getPage');
+        // Coordinator-approved replacement of the PDFR4-05 same-reader recovery
+        // assertion. The old failure/pixel-loss evidence remains in the task file
+        // and render-intents.browser.ts; safe recovery now requires fresh bytes.
+        // Keep the real stream reader and render-cancellation behavior. Delay
+        // chunk delivery, rather than replacing render/operator promises.
+        const internal = page as typeof page & { _renderPageChunk: (...args: unknown[]) => void };
+        const deliverChunk = internal._renderPageChunk.bind(page);
+        vi.spyOn(internal, '_renderPageChunk').mockImplementation((...args) => {
+          void gate.promise.then(() => {
+            if (!page.destroyed) deliverChunk(...args);
+          });
+        });
+        const store = page.objs as {
+          has(id: string): boolean;
+          get(id: string, callback?: (value: unknown) => void): unknown;
+          resolve(id: string, value: unknown): void;
+          clear(): void;
+        };
+        const liveIds = new Set<string>();
+        const clearedIds = new Set<string>();
+        const resolveObject = store.resolve.bind(store);
+        const clearObjects = store.clear.bind(store);
+        const getObject = store.get.bind(store);
+        vi.spyOn(store, 'resolve').mockImplementation((id, value) => {
+          liveIds.add(id);
+          clearedIds.delete(id);
+          resolveObject(id, value);
+        });
+        vi.spyOn(store, 'clear').mockImplementation(() => {
+          for (const id of liveIds) clearedIds.add(id);
+          liveIds.clear();
+          clearObjects();
+        });
+        vi.spyOn(store, 'get').mockImplementation((id, callback) => {
+          if (clearedIds.has(id) && !store.has(id)) {
+            lostImage.reject(new Error(`Retry requested previously resolved image ${id} after PDF.js cleared it.`));
+          }
+          return getObject(id, callback);
+        });
+        const render = page.render.bind(page);
+        vi.spyOn(page, 'render').mockImplementation((params) => {
+          const task = render({
+            ...params,
+            ...(outcome === 'error' ? { optionalContentConfigPromise: Promise.reject(nativeError) } : {}),
+          });
+          renderStarted.resolve();
+          return task;
+        });
+        const getOperators = vi.spyOn(page, 'getOperatorList');
+        const controller = new AbortController();
+        const cancelled = reader.convert({ pageRange: 1, includeText: false, signal: controller.signal });
+        await renderStarted.promise;
+        if (outcome === 'abort') {
+          controller.abort();
+          await expect(cancelled).rejects.toMatchObject({ code: 'ABORTED' });
+        } else await expect(cancelled).rejects.toBe(nativeError);
+        expect(reader.state).toBe('destroyed');
+        const options = {
+          pageRange: 1,
+          includeText: false,
+          includePageImage: false,
+          includeEmbeddedImages: true,
+        };
+        await expect(reader.convert(options)).rejects.toMatchObject({ code: 'DESTROYED' });
+        await expect(reader.pages(options).next()).rejects.toMatchObject({ code: 'DESTROYED' });
+        expect(() => reader.load()).toThrow(expect.objectContaining({ code: 'DESTROYED' }));
+        expect(getPage).toHaveBeenCalledOnce();
+        expect(getOperators).not.toHaveBeenCalled();
+        gate.resolve();
+        const destroying = reader.destroy();
+        expect(reader.destroy()).toBe(destroying);
+        await destroying;
+        await freshReader.load();
+        // A lost-object event fails immediately instead of waiting for a timeout
+        // on the callback PDF.js can no longer fulfill.
+        const [result] = await Promise.race([freshReader.convert(options), lostImage.promise]);
+        expect(result?.images).toHaveLength(2);
+        const expected = Array.from({ length: 64 }, () => [255, 0, 0, 255]).flat();
+        for (const image of result?.images ?? []) {
+          const decoded = await pixelsOfDataUrl(image.dataUrl);
+          expect([decoded.width, decoded.height]).toEqual([8, 8]);
+          expect(decoded.data).toEqual(expected);
+        }
+      } finally {
+        gate.resolve();
+        await reader.destroy();
+        await freshReader.destroy();
+        vi.restoreAllMocks();
+        await assertNoLeakedDocument(reader);
+        await assertNoLeakedDocument(freshReader);
+      }
+    },
+    60_000,
+  );
+
+  it.each([
+    ['canvasFactory', 'abort'],
+    ['canvasFactory', 'destroy'],
+    ['viewportScale', 'abort'],
+    ['viewportScale', 'destroy'],
+  ] as const)('stops real PDF.js work after synchronous %s %s (PDFR4-01)', async (boundary, lifecycle) => {
+    applyWorkerConfig();
+    const controller = new AbortController();
+    const canvas = document.createElement('canvas');
+    const cancel = () => (lifecycle === 'abort' ? controller.abort() : void reader.destroy());
+    const canvasFactory = vi.fn(() => {
+      cancel();
+      return canvas;
+    });
+    const reader = new PDFReader(decodeFixture(sampleB64), { canvasFactory });
+    try {
+      const documentProxy = await reader.load();
+      const page = await documentProxy.getPage(1);
+      const render = vi.spyOn(page, 'render');
+      const viewport = vi.spyOn(page, 'getViewport');
+      const cleanup = vi.spyOn(page, 'cleanup');
+      const getContext = vi.spyOn(canvas, 'getContext');
+      await expect(
+        reader.convert({
+          signal: controller.signal,
+          includeText: false,
+          viewportScale:
+            boundary === 'viewportScale'
+              ? () => {
+                  cancel();
+                  return 2;
+                }
+              : 2,
+        }),
+      ).rejects.toMatchObject({ code: lifecycle === 'abort' ? 'ABORTED' : 'DESTROYED' });
+      expect(render).not.toHaveBeenCalled();
+      expect(getContext).not.toHaveBeenCalled();
+      expect(viewport).toHaveBeenCalledOnce();
+      expect(cleanup).toHaveBeenCalledOnce();
+      expect(canvasFactory).toHaveBeenCalledTimes(boundary === 'canvasFactory' ? 1 : 0);
+      expect([canvas.width, canvas.height]).toEqual(boundary === 'canvasFactory' ? [0, 0] : [300, 150]);
+      if (lifecycle === 'abort') {
+        // No render/text/operator work was started by the cancelled operation.
+        // A real-peer text-only retry verifies that its reader lock is released.
+        const [retried] = await reader.convert({ includePageImage: false });
+        expect(textOf(retried)).toBe('Page 1 text');
+      }
+    } finally {
+      await reader.destroy();
+      await assertNoLeakedDocument(reader);
+      vi.restoreAllMocks();
+    }
+  });
+
   it('cancels an active render and surfaces ABORTED without leaving a live canvas or page', async () => {
     applyWorkerConfig();
     const bytes = decodeFixture(multiB64);
@@ -727,8 +1062,8 @@ describe('PDFR-01 real-browser PDF.js integration', () => {
       await expect(iterate).rejects.toMatchObject({ code: 'ABORTED' });
       expect(collected).toHaveLength(0);
       expect(renderHook.getPageImageEncodeCount()).toBe(0);
-      // The `pages()` generator's `finally` block released the active page
-      // even on the abort path; the reader's `destroy()` must be a no-op.
+      // Automatic public teardown has started; explicit destruction joins it.
+      expect(reader.state).toBe('destroyed');
       await expect(reader.destroy()).resolves.toBeUndefined();
     } finally {
       await reader.destroy();

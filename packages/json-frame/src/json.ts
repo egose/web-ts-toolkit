@@ -90,6 +90,21 @@ const throwValidation = (
   });
 };
 
+// One counter per traversal, shared by cloning and validation. Charge before
+// inspecting/allocating a node; aliases consume budget again on every path.
+const createNodeBudget = (maxNodes: number | undefined, orient: ResolvedOrient | undefined) => {
+  let remaining = maxNodes;
+  return (value: unknown, path: PathNode): void => {
+    if (remaining === undefined) return;
+    if (remaining === 0) {
+      throwValidation(`JSON traversal exceeds maxNodes budget of ${maxNodes}.`, path, value, orient);
+    }
+    remaining -= 1;
+  };
+};
+
+type NodeBudget = ReturnType<typeof createNodeBudget>;
+
 const cloneScalar = (value: unknown, path: PathNode, orient: ResolvedOrient | undefined): JsonValue | undefined => {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') {
     return value;
@@ -121,7 +136,9 @@ const createFrame = (
   depth: number,
   ancestors: Set<object>,
   orient: ResolvedOrient | undefined,
+  charge: NodeBudget,
 ): { readonly value: JsonValue; readonly frame?: ContainerFrame } => {
+  charge(source, path);
   const scalar = cloneScalar(source, path, orient);
   if (scalar !== undefined) {
     return { value: scalar };
@@ -186,7 +203,9 @@ const createValidateFrame = (
   depth: number,
   ancestors: Set<object>,
   orient: ResolvedOrient | undefined,
+  charge: NodeBudget,
 ): ValidateFrame | undefined => {
+  charge(source, path);
   const scalar = cloneScalar(source, path, orient);
   if (scalar !== undefined) {
     return undefined;
@@ -231,8 +250,8 @@ const createValidateFrame = (
  * is tracked, so repeated references to the same acyclic container are visited
  * once per occurrence (detached semantics): validation work grows with the
  * expanded output that native `JSON.stringify()` will subsequently produce.
- * No breadth/work budget is enforced here; see the serialization
- * documentation for the remaining shared-reference expansion limit.
+ * Optional maxNodes bounds this traversal's scalar/container occurrences,
+ * including the root. It does not bound payload construction or native hooks.
  *
  * Validation reads own enumerable properties and array elements, which invokes
  * caller-installed getters and `Proxy` traps on reachable values. Native
@@ -240,9 +259,10 @@ const createValidateFrame = (
  * non-enumerable ones invisible to this traversal. Hooks are caller
  * responsibility; the package does not sandbox arbitrary JavaScript.
  */
-export const assertJsonCompatible = (value: unknown, orient?: ResolvedOrient, path = '$'): void => {
+export const assertJsonCompatible = (value: unknown, orient?: ResolvedOrient, path = '$', maxNodes?: number): void => {
   const ancestors = new Set<object>();
-  const root = createValidateFrame(value, rootPath(path), 0, ancestors, orient);
+  const charge = createNodeBudget(maxNodes, orient);
+  const root = createValidateFrame(value, rootPath(path), 0, ancestors, orient, charge);
   const stack = root === undefined ? [] : [root];
 
   while (stack.length > 0) {
@@ -262,7 +282,7 @@ export const assertJsonCompatible = (value: unknown, orient?: ResolvedOrient, pa
         throwValidation('Sparse arrays are not valid JSON input.', childPath, frame.source, orient);
       }
 
-      const child = createValidateFrame(frame.source[index], childPath, frame.depth + 1, ancestors, orient);
+      const child = createValidateFrame(frame.source[index], childPath, frame.depth + 1, ancestors, orient, charge);
       if (child !== undefined) {
         stack.push(child);
       }
@@ -278,16 +298,22 @@ export const assertJsonCompatible = (value: unknown, orient?: ResolvedOrient, pa
     const key = frame.keys[frame.index]!;
     frame.index += 1;
     const childPath = childPropertyPath(frame.path, key);
-    const child = createValidateFrame(frame.source[key], childPath, frame.depth + 1, ancestors, orient);
+    const child = createValidateFrame(frame.source[key], childPath, frame.depth + 1, ancestors, orient, charge);
     if (child !== undefined) {
       stack.push(child);
     }
   }
 };
 
-export const cloneJsonCompatible = (value: unknown, orient?: ResolvedOrient, path = '$'): JsonValue => {
+export const cloneJsonCompatible = (
+  value: unknown,
+  orient?: ResolvedOrient,
+  path = '$',
+  maxNodes?: number,
+): JsonValue => {
   const ancestors = new Set<object>();
-  const root = createFrame(value, rootPath(path), 0, ancestors, orient);
+  const charge = createNodeBudget(maxNodes, orient);
+  const root = createFrame(value, rootPath(path), 0, ancestors, orient, charge);
   const stack = root.frame === undefined ? [] : [root.frame];
 
   while (stack.length > 0) {
@@ -307,7 +333,7 @@ export const cloneJsonCompatible = (value: unknown, orient?: ResolvedOrient, pat
         throwValidation('Sparse arrays are not valid JSON input.', childPath, frame.source, orient);
       }
 
-      const child = createFrame(frame.source[index], childPath, frame.depth + 1, ancestors, orient);
+      const child = createFrame(frame.source[index], childPath, frame.depth + 1, ancestors, orient, charge);
       frame.target.push(child.value);
       if (child.frame !== undefined) {
         stack.push(child.frame);
@@ -324,7 +350,7 @@ export const cloneJsonCompatible = (value: unknown, orient?: ResolvedOrient, pat
     const key = frame.keys[frame.index]!;
     frame.index += 1;
     const childPath = childPropertyPath(frame.path, key);
-    const child = createFrame(frame.source[key], childPath, frame.depth + 1, ancestors, orient);
+    const child = createFrame(frame.source[key], childPath, frame.depth + 1, ancestors, orient, charge);
     frame.target[key] = child.value;
     if (child.frame !== undefined) {
       stack.push(child.frame);

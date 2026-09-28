@@ -772,6 +772,249 @@ describe('createMemoryOidcVaultStore', () => {
   });
 });
 
+describe('memory alias ownership transitions (STB-04)', () => {
+  const sessionInput = (sessionId: string, logicalSessionId: string, expiresAt?: number) => ({
+    sessionId,
+    logicalSessionId,
+    subject: 'user_1',
+    providerSessionId: 'provider_1',
+    provider: { issuer: 'https://issuer.example.com', clientId: 'client_1' },
+    refreshToken: `refresh_${sessionId}`,
+    idToken: `id_${sessionId}`,
+    expiresAt,
+  });
+
+  type AliasInternals = MemoryStoreInternals & {
+    rotatedSessionAliases: Map<string, { logicalSessionId: string; expiresAt?: number }>;
+    sessionSweep: { keys: string[]; position: number };
+  };
+
+  describe.each(['upsert', 'rotation'] as const)('%s', (operation) => {
+    it.each(['none', 'live', 'expired'] as const)(
+      'retires the old lineage only without a live survivor (other member: %s)',
+      async (survivor) => {
+        let now = 100;
+        const store = createMemoryOidcVaultStore({ now: () => now });
+        const internals = store as unknown as AliasInternals;
+
+        // Keep the expired peer beyond the next 64-slot create sweep. A map
+        // entry alone must not qualify as a live member during the transition.
+        for (let i = 0; i < 70; i += 1) {
+          await store.createSession(sessionInput(`filler_${i}`, 'unrelated'));
+        }
+        await store.createSession(sessionInput('old', 'L1'));
+        await store.rotateSession({ sessionId: 'old', nextSession: sessionInput('current', 'L1', 1000) });
+        if (survivor !== 'none') {
+          await store.createSession({
+            ...sessionInput('peer', 'L1', survivor === 'expired' ? 200 : undefined),
+            provider: { issuer: 'https://other.example.com', clientId: 'other_client' },
+          });
+        }
+        internals.sessionSweep.keys = [...internals.sessions.keys()];
+        internals.sessionSweep.position = 0;
+        now = 200;
+
+        const next = sessionInput(operation === 'upsert' ? 'current' : 'next', 'L2', 2000);
+        if (operation === 'upsert') {
+          await store.createSession(next);
+        } else {
+          await store.rotateSession({ sessionId: 'current', nextSession: next });
+        }
+
+        if (survivor === 'expired') {
+          expect(internals.sessions.has('peer')).toBe(true);
+        }
+        expect(internals.rotatedSessionAliases.has('old')).toBe(survivor === 'live');
+        await store.createSession(sessionInput('reused_lineage', 'L1'));
+        await store.deleteSession('old');
+        expect(await store.getSession('reused_lineage')).toEqual(
+          survivor === 'live' ? null : expect.objectContaining({ sessionId: 'reused_lineage' }),
+        );
+        if (survivor === 'live') {
+          expect(await store.getSession('peer')).toBeNull();
+        }
+        // Earlier aliases are never retargeted to L2; only the immediate
+        // rotation source becomes a revocation handle for the new lineage.
+        expect(await store.getSession(next.sessionId)).toMatchObject({ logicalSessionId: 'L2' });
+        if (operation === 'rotation') {
+          await store.deleteSession('current');
+          expect(await store.getSession('next')).toBeNull();
+        }
+      },
+    );
+
+    it.each(['logical', 'subject', 'provider', 'direct', 'expiry-read', 'expiry-sweep'] as const)(
+      'clears an alias-only target ownership before replacement %s removal',
+      async (removal) => {
+        let now = 100;
+        const store = createMemoryOidcVaultStore({ now: () => now });
+        const internals = store as unknown as AliasInternals;
+        const formerScope = { issuer: 'https://former.example.com', clientId: 'former_client' };
+        await store.createSession(sessionInput('target', 'former'));
+        await store.rotateSession({
+          sessionId: 'target',
+          nextSession: { ...sessionInput('former_current', 'former', 1000), provider: formerScope },
+        });
+        await store.createSession(sessionInput('other_alias', 'former'));
+        await store.rotateSession({
+          sessionId: 'other_alias',
+          nextSession: { ...sessionInput('former_peer', 'former', 1000), provider: formerScope },
+        });
+        const replacement = sessionInput('target', 'replacement', 200);
+        if (operation === 'upsert') {
+          await store.createSession(replacement);
+        } else {
+          await store.createSession(sessionInput('source', 'replacement'));
+          await store.rotateSession({ sessionId: 'source', nextSession: replacement });
+          expect(await store.getSession('source')).toBeNull();
+        }
+        expect(await store.getSession('target')).toMatchObject(replacement);
+        expect(internals.rotatedSessionAliases.has('target')).toBe(false);
+        expect(internals.rotatedSessionAliases.get('other_alias')).toMatchObject({ logicalSessionId: 'former' });
+
+        if (removal === 'logical') {
+          expect(await store.deleteSessionsByLogicalSessionId('replacement')).toBe(1);
+        } else if (removal === 'subject') {
+          expect(await store.deleteSessionsBySubject({ subject: replacement.subject, ...replacement.provider })).toBe(
+            1,
+          );
+        } else if (removal === 'provider') {
+          expect(
+            await store.deleteSessionsByProviderSessionId({
+              providerSessionId: replacement.providerSessionId,
+              ...replacement.provider,
+            }),
+          ).toBe(1);
+        } else if (removal === 'direct') {
+          await store.deleteSession('target');
+        } else {
+          now = 200;
+          if (removal === 'expiry-read') {
+            expect(await store.getSession('target')).toBeNull();
+          } else {
+            await store.deleteSession('missing_sweep_trigger');
+            expect(internals.sessions.has('target')).toBe(false);
+          }
+        }
+        expect(await store.getSession('target')).toBeNull();
+        await store.deleteSession('target');
+        expect(await store.getSession('former_current')).not.toBeNull();
+        expect(await store.getSession('former_peer')).not.toBeNull();
+        await store.deleteSession('other_alias');
+        expect(await store.getSession('former_current')).toBeNull();
+        expect(await store.getSession('former_peer')).toBeNull();
+      },
+    );
+
+    it('preserves source-lineage and target aliases when cloning fails', async () => {
+      const store = createMemoryOidcVaultStore({ now: () => 100 });
+      const internals = store as unknown as AliasInternals;
+      await store.createSession(sessionInput('old', 'L1'));
+      await store.rotateSession({ sessionId: 'old', nextSession: sessionInput('current', 'L1', 1000) });
+      await store.createSession(sessionInput('target', 'former'));
+      await store.rotateSession({ sessionId: 'target', nextSession: sessionInput('former_current', 'former', 1000) });
+      const recordsBefore = [...internals.sessions.entries()];
+      const aliasesBefore = [...internals.rotatedSessionAliases.entries()];
+      const invalid = {
+        ...sessionInput(operation === 'upsert' ? 'current' : 'target', 'L2'),
+        metadata: { invalid: () => undefined },
+      };
+      await expect(
+        operation === 'upsert'
+          ? store.createSession(invalid)
+          : store.rotateSession({ sessionId: 'current', nextSession: invalid }),
+      ).rejects.toThrow();
+      expect([...internals.sessions.entries()]).toEqual(recordsBefore);
+      expect([...internals.rotatedSessionAliases.entries()]).toEqual(aliasesBefore);
+      // Also exercise failed create directly over an alias-only ID.
+      await expect(store.createSession({ ...invalid, sessionId: 'target' })).rejects.toThrow();
+      expect([...internals.rotatedSessionAliases.entries()]).toEqual(aliasesBefore);
+      await store.deleteSession('target');
+      expect(await store.getSession('former_current')).toBeNull();
+      expect(await store.getSession('current')).not.toBeNull();
+      await store.deleteSession('old');
+      expect(await store.getSession('current')).toBeNull();
+    });
+  });
+
+  it.each(['missing', 'same-id', 'live-target'] as const)(
+    'preserves aliases on %s rotation conflict',
+    async (conflict) => {
+      const store = createMemoryOidcVaultStore({ now: () => 100 });
+      const internals = store as unknown as AliasInternals;
+      await store.createSession(sessionInput('old', 'L1'));
+      await store.rotateSession({ sessionId: 'old', nextSession: sessionInput('current', 'L1', 1000) });
+      await store.createSession(sessionInput('target', 'former'));
+      await store.rotateSession({ sessionId: 'target', nextSession: sessionInput('former_current', 'former', 1000) });
+      const recordsBefore = [...internals.sessions.entries()];
+      const aliasesBefore = [...internals.rotatedSessionAliases.entries()];
+      await expect(
+        store.rotateSession({
+          sessionId: conflict === 'missing' ? 'missing' : 'current',
+          nextSession: sessionInput(
+            conflict === 'same-id' ? 'current' : conflict === 'live-target' ? 'former_current' : 'target',
+            'L2',
+          ),
+        }),
+      ).rejects.toBeInstanceOf(OidcVaultStoreConflictError);
+      expect([...internals.sessions.entries()]).toEqual(recordsBefore);
+      expect([...internals.rotatedSessionAliases.entries()]).toEqual(aliasesBefore);
+      await store.deleteSession('target');
+      expect(await store.getSession('former_current')).toBeNull();
+      expect(await store.getSession('current')).not.toBeNull();
+      await store.deleteSession('old');
+      expect(await store.getSession('current')).toBeNull();
+    },
+  );
+
+  it('does not extend a surviving earlier alias expiry during a lineage-changing rotation', async () => {
+    let now = 100;
+    const store = createMemoryOidcVaultStore({ now: () => now });
+    await store.createSession(sessionInput('old', 'L1'));
+    await store.rotateSession({ sessionId: 'old', nextSession: sessionInput('current', 'L1', 200) });
+    await store.createSession(sessionInput('peer', 'L1', 1000));
+    await store.rotateSession({ sessionId: 'current', nextSession: sessionInput('next', 'L2', 1000) });
+    now = 200;
+    await store.deleteSession('old');
+    expect(await store.getSession('peer')).not.toBeNull();
+    expect(await store.getSession('next')).not.toBeNull();
+    await store.deleteSession('current');
+    expect(await store.getSession('next')).toBeNull();
+    expect(await store.getSession('peer')).not.toBeNull();
+  });
+
+  it('leaves an expired target lineage intact on clone failure and retires it on successful reuse', async () => {
+    let now = 100;
+    const store = createMemoryOidcVaultStore({ now: () => now });
+    const internals = store as unknown as AliasInternals;
+    await store.createSession(sessionInput('old', 'L1'));
+    await store.rotateSession({ sessionId: 'old', nextSession: sessionInput('current', 'L1', 1000) });
+    await store.createSession(sessionInput('target_old', 'former'));
+    await store.rotateSession({ sessionId: 'target_old', nextSession: sessionInput('target', 'former', 200) });
+    const recordsBefore = [...internals.sessions.entries()];
+    const aliasesBefore = [...internals.rotatedSessionAliases.entries()];
+    now = 200;
+    await expect(
+      store.rotateSession({
+        sessionId: 'current',
+        nextSession: { ...sessionInput('target', 'L2'), metadata: { invalid: () => undefined } },
+      }),
+    ).rejects.toThrow();
+    expect([...internals.sessions.entries()]).toEqual(recordsBefore);
+    expect([...internals.rotatedSessionAliases.entries()]).toEqual(aliasesBefore);
+
+    await store.rotateSession({ sessionId: 'current', nextSession: sessionInput('target', 'L2') });
+    expect(internals.rotatedSessionAliases.has('target_old')).toBe(false);
+    expect(internals.rotatedSessionAliases.has('old')).toBe(false);
+    await store.createSession(sessionInput('former_reused', 'former'));
+    await store.deleteSession('target_old');
+    expect(await store.getSession('former_reused')).not.toBeNull();
+    await store.deleteSession('current');
+    expect(await store.getSession('target')).toBeNull();
+    expect(await store.getSession('former_reused')).not.toBeNull();
+  });
+});
+
 describe('memory store sweep traversal bounds (SVH-04)', () => {
   type SweepStateInternals = {
     keys: string[];

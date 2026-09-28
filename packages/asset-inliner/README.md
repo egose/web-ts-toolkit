@@ -32,115 +32,143 @@ import {
 
 ## Quick examples
 
-### Encode a single file or bytes
+Each block below (and the custom resolver block later) is a standalone runnable
+TypeScript ESM module with complete imports. Save one as `example.mts` in your
+own project after installing the package. For example, with TypeScript and
+`@types/node` installed:
+
+```sh
+npx tsc example.mts --module NodeNext --moduleResolution NodeNext --target ES2022 --strict --skipLibCheck false --outDir example-dist
+node example-dist/example.mjs
+```
+
+The examples use in-memory bytes; the disk example creates and removes its own
+temporary assets. No repository fixtures are shipped or required. Tiny byte
+samples demonstrate extension-based encoding, not image/font validity. Blocks
+elsewhere labeled **illustrative fragment** require the indicated application inputs.
+
+### Encode bytes (async and sync)
+
+<!-- runnable: encode -->
 
 ```ts
 import { encodeAsset, encodeAssetSync } from '@web-ts-toolkit/asset-inliner';
 
-// from a file path (async, supports detection modes); paths are relative to the package root
-const asset = await encodeAsset('test/fixtures/legacy/images/apple.png');
+const bytes = new Uint8Array([137, 80, 78, 71]);
+const asset = await encodeAsset({ data: bytes, filename: 'logo.png' });
 console.log(asset.mediaType); // 'image/png'
 console.log(asset.dataUrl); // 'data:image/png;base64,...'
 
-// from bytes with explicit metadata (works for SVG / custom types)
-const bytes = new Uint8Array([137, 80, 78, 71]);
-const fromBytes = await encodeAsset({ data: bytes, filename: 'logo.png' });
-
-// sync variant — deterministic extension lookup only (same import block, no re-import)
-const syncAsset = encodeAssetSync('test/fixtures/legacy/fonts/akronim-v9-latin-regular.woff2');
+// Sync uses deterministic extension lookup too; no I/O for byte inputs.
+const syncAsset = encodeAssetSync({ data: bytes, filename: 'logo.png' });
+console.log(syncAsset.dataUrl === asset.dataUrl); // true
 ```
 
 ### Format for CSS
 
+<!-- runnable: format -->
+
 ```ts
 import { encodeAsset, formatCssUrl, formatFontSource } from '@web-ts-toolkit/asset-inliner';
 
-const png = await encodeAsset('test/fixtures/legacy/images/apple.png');
-formatCssUrl(png); // 'url(data:image/png;base64,...)'
+const png = await encodeAsset({ data: new Uint8Array([1, 2, 3]), filename: 'logo.png' });
+console.log(formatCssUrl(png)); // url(data:image/png;base64,...)
 
-const woff2 = await encodeAsset('test/fixtures/legacy/fonts/akronim-v9-latin-regular.woff2');
-formatFontSource(woff2); // 'url(data:font/woff2;base64,...) format('woff2')'
+const woff2 = await encodeAsset({ data: new Uint8Array([4, 5, 6]), filename: 'app.woff2' });
+console.log(formatFontSource(woff2)); // url(data:font/woff2;base64,...) format('woff2')
 // formatFontSource throws InvalidOptionsError when fontFormat is missing
 ```
 
 ### Inline CSS (pure, synchronous over a catalog)
 
+<!-- runnable: css -->
+
 ```ts
 import { createAssetCatalog, inlineCss } from '@web-ts-toolkit/asset-inliner';
 
-// Runnable from the package root: catalog paths and documentPath share one
-// fixture tree, so default exact-path resolution finds both references.
 const catalog = await createAssetCatalog([
-  'test/fixtures/legacy/images/apple.png',
-  'test/fixtures/legacy/fonts/akronim-v9-latin-regular.woff2',
+  { data: new Uint8Array([1, 2, 3]), filename: 'apple.png' },
+  { data: new Uint8Array([4, 5, 6]), filename: 'app.woff2' },
 ]);
 const css = `
-  .hero { background: url("../images/apple.png"); }
-  @font-face { font-family: 'Akronim'; src: url('../fonts/akronim-v9-latin-regular.woff2') format('woff2'); }
+  .hero { background: url("apple.png"); }
+  @font-face { font-family: 'App'; src: url('app.woff2'); }
 `;
-const result = inlineCss(css, { catalog, documentPath: 'test/fixtures/legacy/css/site.css' });
+// Byte inputs have filenames, not filesystem source paths. Opt into unique
+// basename matching; duplicate filenames report ambiguity instead of guessing.
+const result = inlineCss(css, { catalog, allowBasenameMatch: true });
 
-if (result.modified) {
-  console.log(result.replacements[0]?.originalUrl); // '../images/apple.png'
-  console.log(result.diagnostics); // [] or warn/error for unresolved
-}
+console.log(result.modified, result.replacements.length); // true, 2
+console.log(result.content); // image and font data URLs; font gets format('woff2')
 ```
 
 ### Inline HTML (pure, synchronous)
 
+<!-- runnable: html -->
+
 ```ts
 import { createAssetCatalog, inlineHtml } from '@web-ts-toolkit/asset-inliner';
 
-// Runnable from the package root: same fixture tree as the CSS example.
 const catalog = await createAssetCatalog([
-  'test/fixtures/legacy/images/apple.png',
-  'test/fixtures/legacy/images/pear.png',
+  { data: new Uint8Array([1]), filename: 'apple.png' },
+  { data: new Uint8Array([2]), filename: 'pear.png' },
 ]);
-const html = `<img src="../images/apple.png" alt="apple"><link rel="icon" href="../images/pear.png">`;
-const out = inlineHtml(html, { catalog, documentPath: 'test/fixtures/legacy/html/site.html' });
-// out.modified === true; both references are replaced with data URLs.
+const html = `<img src="apple.png" alt="apple"><link rel="icon" href="pear.png">`;
+const out = inlineHtml(html, { catalog, allowBasenameMatch: true });
+console.log(out.modified, out.replacements.length); // true, 2
 // Targets handled: img[src], img[srcset], source[src|srcset], icon link[href]
 // (explicit allowlist), video[poster] where kind === 'image'. Unchanged content
-// is returned byte-for-byte; malformed HTML never throws. See "Target syntax"
-// below for srcset descriptors, document-vs-fragment detection, and patch behavior.
+// is returned byte-for-byte. HTML parser recovery accepts malformed markup,
+// but resource limits and invalid options/resolver results can still throw.
 ```
 
 ### Process files on disk (dry-run vs write)
 
+<!-- runnable: files -->
+
 ```ts
+import assert from 'node:assert/strict';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { inlineFiles, inlineFilesSync } from '@web-ts-toolkit/asset-inliner';
 
-// Illustrative fragment — './assets' and './styles' stand in for your own
-// directories (runnable temp-fixture equivalent in test/readme-examples.test.ts).
+const dir = await mkdtemp(join(tmpdir(), 'asset-inliner-example-'));
+try {
+  const image = join(dir, 'apple.png');
+  const target = join(dir, 'app.css');
+  const css = '.hero { background: url("apple.png"); }';
+  await writeFile(image, new Uint8Array([1, 2, 3]));
+  await writeFile(target, css);
 
-// Dry-run by default — no writes, one result per target in lexical order
-const dry = await inlineFiles({
-  assets: ['./assets'],
-  targets: ['./styles', './pages/index.html'],
-});
-for (const r of dry) {
-  console.log(r.filePath, r.modified, r.replacements.length, r.written); // written is always false here
+  // Real file paths use exact-path matching by default.
+  const options = { assets: [image], targets: [target] };
+  const dry = await inlineFiles(options);
+  const drySync = inlineFilesSync(options);
+  assert.equal(dry[0]?.modified, true);
+  assert.equal(dry[0]?.written, false);
+  assert.deepEqual(drySync, dry);
+  assert.equal(await readFile(target, 'utf8'), css);
+
+  // Opt-in write: same-directory temp + rename, mode preserved.
+  const written = await inlineFiles({ ...options, write: true });
+  assert.equal(written[0]?.written, true);
+  assert.equal(await readFile(target, 'utf8'), written[0]?.content);
+  console.log(written[0]?.replacements.length); // 1
+} finally {
+  await rm(dir, { recursive: true, force: true });
 }
-
-// Opt-in write — same-directory temp + rename, mode preserved, temp cleaned up on failure
-const written = await inlineFiles({
-  assets: ['./assets'],
-  targets: ['./styles/app.css'],
-  write: true,
-});
-
-// Sync variant mirrors async with sync I/O (same import block, no re-import)
-const drySync = inlineFilesSync({ assets: ['./assets'], targets: ['./styles'] });
 ```
 
 ### Custom asset kind without changing encoder
+
+<!-- runnable: custom-kind -->
 
 ```ts
 import {
   builtInDefinitions,
   createAssetCatalog,
   createDefinitionRegistry,
-  encodeAsset,
   inlineCss,
 } from '@web-ts-toolkit/asset-inliner';
 import type { AssetTypeDefinition } from '@web-ts-toolkit/asset-inliner';
@@ -150,26 +178,22 @@ const custom = {
   extensions: ['.mp3'],
   mediaType: 'audio/mpeg',
 } satisfies AssetTypeDefinition;
-// explicit mediaType wins even for formats outside file-type
-const tiny = await encodeAsset({ data: new Uint8Array([1, 2, 3]), mediaType: 'audio/mpeg', filename: 'ding.mp3' });
-
 // build a catalog that includes custom definitions (immutable, no global mutation)
 const registry = createDefinitionRegistry([...builtInDefinitions, custom]);
 // reuse already-validated registry without re-normalizing definitions
-const catalog = await createAssetCatalog(['test/fixtures/legacy/images'], { registry });
+const catalog = await createAssetCatalog([{ data: new Uint8Array([1, 2, 3]), filename: 'ding.mp3' }], {
+  registry,
+  allowedKinds: ['audio'],
+});
 
-// narrow custom matcher — no parser AST knowledge required;
-// runnable from the package root with the CSS shape from the quickstart above
-const css = `.hero { background: url("../images/apple.png"); }`;
+// A CSS custom property can carry a custom asset kind; HTML image targets
+// remain image-only. This encodes bytes; it does not validate an MP3 stream.
+const css = `:root { --notification: url("ding.mp3"); }`;
 const result = inlineCss(css, {
   catalog,
-  documentPath: 'test/fixtures/legacy/css/site.css',
-  resolver: (input, catalog) => {
-    // input: { originalUrl, decodedPath, basename, documentPath, rootDir }
-    if (input.basename === 'legacy.png') return catalog.getByBasename('apple.png');
-    return undefined; // fall back to default exact/basename matching
-  },
+  allowBasenameMatch: true,
 });
+console.log(result.content); // :root { --notification: url(data:audio/mpeg;base64,AQID); }
 ```
 
 ## API surface (named exports only)
@@ -208,6 +232,8 @@ Errors: `AssetInlinerError` + `UnsupportedAssetError`, `AmbiguousDefinitionError
 - `content`: async-only `file-type` signature detection (bounded to 4100 bytes). Useful when filename is absent. Throws `UnsupportedAssetError` if detected type not in allowed registry.
 - `verify`: async-only comparison of detected binary metadata with expected (explicit or extension). Throws `DetectionMismatchError` on mismatch; no detection for text formats like SVG falls back to expected.
 
+**Illustrative fragment** — import the encoder functions as above and supply your own files:
+
 ```ts
 await encodeAsset('./assets/no-name.bin', { detection: 'content' }); // detects via bytes
 await encodeAsset('./assets/logo.png', { detection: 'verify' }); // verifies extension vs bytes
@@ -225,10 +251,11 @@ All numeric policies are validated (negative, zero, non-finite, fractional, unsa
 | `maxAssetBytes`   | 3 MiB (3145728)   | 100 MiB        | Prevents accidental video/audio; allows large fonts/images; checked from file metadata before reading, re-checked on the bytes actually read, and enforced before `toString('base64')`                                                                                                                                                    |
 | `maxTotalBytes`   | 15 MiB            | 500 MiB        | Caps batch/catalog blow-up (~1.33× expansion + `data:` prefix); enforced with the default even when the option is omitted                                                                                                                                                                                                                 |
 | `maxTargetBytes`  | 5 MiB (5242880)   | 50 MiB         | Bounds CSS/HTML parser input before parsing (UTF-8 bytes); pure transforms throw `ResourceLimitError`, `inlineFiles` converts to per-target `RESOURCE_LIMIT` diagnostic with `written:false`, no partial write                                                                                                                            |
+| `maxSyntaxDepth`  | 256               | 512            | Bounds HTML element and CSS delimiter nesting, including opt-in embedded CSS; independent of directory `maxDepth`, checked even without references                                                                                                                                                                                        |
 | `maxReplacements` | 1000              | 100 000        | Caps replacements per target to prevent one 3 MiB data URL repeated thousands of times allocating gigabytes; enforced before each insertion with safe-integer arithmetic                                                                                                                                                                  |
-| `maxOutputBytes`  | 20 MiB (20971520) | 100 MiB        | Caps projected transformed output (original + sum delta per replacement, where delta is `dataUrlBytes - originalUrlBytes` plus font `format(...)`); enforced per replacement before insertion, safe-integer, no truncated return                                                                                                          |
+| `maxOutputBytes`  | 20 MiB (20971520) | 100 MiB        | Caps projected transformed output (original + sum replacement deltas, including HTML quotes/escaping and CSS font hints); checked before insertion and again on changed output after assembly/fallback serialization, safe-integer, no truncated return                                                                                   |
 | `maxFiles`        | 10 000            | 100 000        | Traversal guard                                                                                                                                                                                                                                                                                                                           |
-| `maxDepth`        | 32                | 256            | Catches symlink cycles                                                                                                                                                                                                                                                                                                                    |
+| `maxDepth`        | 32                | 256            | Bounds directory nesting; followed symlinks also have separate cycle detection                                                                                                                                                                                                                                                            |
 | `maxTargets`      | 500               | 5 000          | CSS/HTML entrypoints guard (`inlineFiles`)                                                                                                                                                                                                                                                                                                |
 | `concurrency`     | 16                | 64             | Bounds parallel catalog encoding and target writes; discovery traversal itself is serial and deterministic                                                                                                                                                                                                                                |
 | `maxInlineBytes`  | — (no default)    | 100 MiB        | Selective inlining threshold — assets whose `byteLength` exceeds this value are left as external references with a structured `INLINE_SKIPPED` diagnostic (`warn`, not error); distinct from hard `maxAssetBytes`/`maxTotalBytes` which remain fail-closed; also available as synchronous `shouldInline(asset, url) => boolean` predicate |
@@ -237,12 +264,17 @@ Defaults are **effective even when an option is omitted**: batch encoders and ca
 
 Changed contracts from recent fixes (also reflected in `dist/index.d.mts` JSDoc):
 
+- HTML source patches are assembled in one pass over the original source after sorting/validation, including srcset spans. Output bytes, locations, unchanged-source identity, overlap/invalid-patch serialization fallback, and all limits retain the same contracts; this reduces repeated expanded-output copying without raising limits.
+- `inlineHtml`, `inlineCss`, `inlineFiles`, and `inlineFilesSync` now enforce **`maxSyntaxDepth`**, default **256**, maximum **512**, independently of filesystem `maxDepth`. `DEFAULT_MAX_SYNTAX_DEPTH`, `MAX_REASONABLE_MAX_SYNTAX_DEPTH`, `DEFAULT_POLICY`, and `normalizePolicy` expose the same policy. Excess throws `ResourceLimitError` in pure transforms; file transforms report a per-target `RESOURCE_LIMIT` with `content: ''`, no replacements/write, preserve the original file on disk, and continue processing other targets. This applies even when no assets would be replaced. HTML counts element ancestors **including the element itself**, implied elements (`html`, `head`, `body`), and template content; document/fragment roots, text and comments add zero. Insertion-time checks bound parser recovery too, and an iterative final-tree check protects traversal/full-tree serialization. Thus a fragment with 256 nested divs is at the default limit; a document's `html`/`body` ancestors also consume depth. CSS uses a conservative lexical bound: simultaneously open unescaped `{`, `(` and `[` delimiters outside quoted strings and comments count together, including block/function nesting, selectors, custom properties and malformed/unclosed groups; only matching closing delimiters reduce depth. For example, `a{background:url(a.png)}` has depth 2. The bound runs before parsing and no-reference fast paths, with parser-tree checks before walking/stringifying. With `inlineEmbeddedCss: true`, each style chunk starts its own CSS depth at zero (not added to HTML depth), including entity-decoded style attributes, raw-source decoder fallback, missing source locations and inert template content. `<style>` text remains raw text; with embedded CSS disabled its CSS syntax is not inspected. Quotes/comments/escaped delimiters do not falsely consume CSS depth. Exact boundaries remain accepted; no truncation or stack-error recovery is used.
+- HTML now determines the first applicable `<base href>` **before** transforming any references. This applies to simple attributes, img/source srcset, opt-in style attributes/elements, and async/sync file APIs. Relative and root-relative bases select the mapped local directory instead of the physical document directory; same-name assets in the latter no longer win accidentally. Remote/protocol-relative or unmappable bases preserve local-looking references (including `/root-relative` ones) with a warning `HTML_BASE_UNMAPPABLE` per supported reference, before catalog lookup, basename fallback, or custom resolver calls. Existing remote/data/blob/fragment-only reference skips remain unchanged. No fetching or base rewriting occurs. See the matching contract below for precedence, mapping, and resolver context.
+- `img[srcset]` / `source[srcset]` now tokenize complete entity-decoded URL candidates using HTML URL/descriptor states. Interior commas belong to **all** URLs: `apple,pear.png 1x` resolves the whole filename, and `https://example.test/a,apple.png 1x` stays untouched without resolving a local suffix. Trailing URL commas delimit descriptorless candidates; repeated separators are preserved. Only ASCII whitespace separates URLs from descriptors. Valid descriptors (nonnegative finite `x`, positive integer `w`, and HTML's future-compatible positive `h` paired with `w`) are preserved; duplicate/conflicting/unknown descriptors and malformed parenthesized descriptors leave that candidate untouched without resolver calls or asset diagnostics. This corrects earlier comma-splitting assumptions: `a.png,b.png` is **one URL**, while `a.png, b.png` and `a.png 1x,b.png 2x` are two candidates. Missing separators such as `a.png 1x b.png 2x` are not repaired. Source patches preserve descriptors, separators, remote/data URLs, and unrelated entity spelling; replacements report original URL source offsets, including decoded commas/whitespace, CRLF, and named-reference decoder fallback. Full-tree serialization may normalize markup/whitespace; missing source locations are reported as offset `-1` rather than guessed. Pure and async/sync file transforms share this contract.
+- With `inlineEmbeddedCss: true`, rewritten `style` attributes preserve their attribute boundaries and CSS suffixes: originally unquoted values gain double quotes, and values are escaped for the output quote context. This also applies to the raw-source fallback when the source-map decoder disagrees with the HTML parser; existing entity references are decoded only once. Added quotes and escaping expansion count toward `maxOutputBytes` in pure, async-file, and sync-file transforms; a file that exceeds the limit is not written. `<style>` elements retain HTML raw-text semantics (no HTML-entity decoding).
 - `maxFiles` is one catalog-wide budget across all roots; overlapping roots, duplicates, and canonical aliases are deduplicated, not double-counted. In-memory byte (`{ data }`) inputs sit outside the file-only `maxFiles` policy and remain bounded by `maxAssetBytes`/`maxTotalBytes`.
 - Resolver and catalog data URLs must match `data:<type>/<subtype>;base64,<strict-base64>` — values with charset/parameters, fragments, or delimiter-bearing payloads are rejected with `INVALID_OPTIONS` before any mutation, including standalone `formatCssUrl`/`formatFontSource` calls and caller-supplied catalogs. Encoded bytes stay opaque (no SVG sanitization).
 - Detector alias: `image/x-icon` normalizes to canonical `image/vnd.microsoft.icon` for content/verify checks (explicit caller `mediaType` is never aliased; genuine mismatches still reject). Media types with URL-significant punctuation are rejected with `INVALID_OPTIONS` instead of emitting fragment-bearing URLs.
 - Font hints are CSS-escaped (quotes, backslashes, line breaks) on both the automatic `@font-face` path and `formatFontSource`; ordinary hints are byte-identical.
 
-Override per-operation:
+Override per-operation (**illustrative fragment**, using your own files and the imports above):
 
 ```ts
 await encodeAsset('./assets/large.woff2', { maxAssetBytes: 5 * 1024 * 1024 });
@@ -257,23 +289,27 @@ await inlineFiles({ assets: ['./assets'], targets: ['./styles'], maxTargets: 100
 
 Extensions are normalized case-insensitively with leading dot; duplicates are rejected at registry construction.
 
-**Audio/video:** No built-in definitions. Tiny audio/video can be inlined via custom `AssetTypeDefinition` and `allowedKinds` (see `src/policy.ts` and `test/policy.test.ts`). WebVTT, WASM, PDF, archives, office/executable/script/stylesheet/`application/*` remain out-of-scope as default inline targets by design.
+**Audio/video:** No built-in definitions. Tiny audio/video can be inlined via custom `AssetTypeDefinition` and `allowedKinds` (see the runnable custom-kind example above). WebVTT, WASM, PDF, archives, office/executable/script/stylesheet/`application/*` remain out-of-scope as default inline targets by design.
 
 **Target syntax:**
 
 - CSS: every syntactically valid local `url(...)` in any declaration value (backgrounds, masks, borders, cursors, `list-style-image`, generated content, custom properties `--*`, gradients, comma-separated `@font-face src` alternatives, `image-set()` and other nested functions; any function-name casing). `format(...)` is added only for `kind === 'font' && fontFormat` inside `@font-face src` when no following `format(...)` exists. URL token values are CSS-unescaped before classification while the original spelling is kept for diagnostics and replacement records; entity-encoded HTML attribute values resolve in decoded space with source-mapped replacement ranges. Existing `data:`/remote URLs are preserved; malformed values produce a controlled `INVALID_OPTIONS` diagnostic and no partial mutation.
-- HTML: `img[src]`, `img[srcset]` + `source[srcset]` (descriptors `1x`/`2x`/`100w` preserved, `data:`-URL commas handled atomically), `source[src]`, icon `link[href]` (explicit allowlist: `icon`, `apple-touch-icon`, `apple-touch-icon-precomposed`, `mask-icon`, `fluid-icon`, and `shortcut` + `icon` — `iconic`/`nonicon` untouched), `video[poster]` where `kind === 'image'`. Other elements/attributes (`a[href]`, `script[src]`, stylesheet links, …) are not inlined. Replacements patch targeted attribute ranges so unrelated markup stays byte-identical (fallback to full serialization if a patch is invalid); `location` identifies the URL token, not the attribute start. Opt-in `inlineEmbeddedCss: true` processes `<style>` text and `style` attributes with `inlineCss` semantics and shared limits; malformed chunks yield a `PARSE_ERROR` diagnostic and are left unchanged. JS templates, shadow DOM, and runtime fetching are explicitly out of scope.
+- HTML: `img[src]`, `img[srcset]` + `source[srcset]` (valid descriptors preserved, interior commas in all URL schemes handled atomically; see changed-contract notes above), `source[src]`, icon `link[href]` (explicit allowlist: `icon`, `apple-touch-icon`, `apple-touch-icon-precomposed`, `mask-icon`, `fluid-icon`, and `shortcut` + `icon` — `iconic`/`nonicon` untouched), `video[poster]` where `kind === 'image'`. Other elements/attributes (`a[href]`, `script[src]`, stylesheet links, …) are not inlined. Replacements patch targeted attribute ranges so unrelated markup stays byte-identical (fallback to full serialization if a patch is invalid); `location` identifies the URL token, not the attribute start. Opt-in `inlineEmbeddedCss: true` processes `<style>` text and `style` attributes with `inlineCss` semantics and shared limits; within resource limits, malformed chunks yield a `PARSE_ERROR` diagnostic and are left unchanged. JS templates, shadow DOM, and runtime fetching are explicitly out of scope.
 
 ## Matching and filesystem contract
 
+Resolver URL text is the value passed to resolution, not necessarily literal source text: transforms normally decode HTML entities/CSS escapes first. The existing style decoder-disagreement fallback retains raw HTML entities; standalone resolver utilities use their caller's input. Source locations and replacement records retain their existing contracts.
+
 - Catalog keys use normalized absolute paths (`path.resolve`). Basename-only fallback is opt-in (`allowBasenameMatch: true`); duplicates throw `AmbiguousAssetError` with frozen `candidates` — iteration order never picks a winner.
 - References resolve relative to `documentPath` (file being transformed) or explicit `rootDir` for in-memory content. Absolute `/` URLs resolve relative to `rootDir`/`cwd`. Query `?...` and fragment `#...` are stripped for matching and never placed into filesystem paths; the replaced data URL does not retain them. Percent-encoding is decoded via `decodeURIComponent`; malformed or NUL-containing paths throw `InvalidOptionsError`.
+- **HTML base mapping:** select the first HTML-namespace base with an `href` in parsed tree order, including a base appearing after asset references. Bases without `href`, foreign-namespace bases, and bases in inert template content do not participate. Later bases never override the first. An empty/whitespace-only, query-only, or fragment-only href uses the document fallback directory. As in HTML, `data:`/`javascript:` base hrefs use fallback but still prevent later bases from winning. parse5 decodes href entities once; URL edge C0/space trimming and ASCII tab/newline removal precede mapping. Relative bases anchor at the physical document directory (or `rootDir`/cwd); `/` bases anchor at `rootDir`/cwd. A trailing slash or final `.`/`..` denotes a directory; otherwise the last segment denotes a document. Query/fragment stripping, one percent decode, and path normalization follow the existing filesystem contract (including slash/backslash normalization). Root-relative **asset** URLs continue to use `rootDir`/cwd under local bases. No-base behavior is unchanged.
+- **Base limitations and identity:** absolute schemes such as `file:`/`blob:`/custom schemes are not mapped to local files, and malformed/NUL percent-encoded bases are unmappable. These and remote/protocol-relative bases leave local-looking references unchanged with `HTML_BASE_UNMAPPABLE`; no browser origin, CSP, or runtime DOM mutations are inferred. This is filesystem mapping, not a browser URL/fetch implementation. For based HTML, diagnostic `filePath` remains the actual containing `documentPath` (absent for in-memory content); attempted asset paths remain in resolution messages and replacement `resolvedPath`. Custom hooks keep the actual `documentPath`, original parsed reference (HTML entities/CSS escapes decoded), and reference-relative `decodedPath`; the new optional `resolutionBaseDir` supplies the absolute effective directory separately, also for embedded CSS. It is absent without an HTML base. A root-relative `decodedPath` still anchors at `rootDir`/cwd, not `resolutionBaseDir`.
 - `data:`, `blob:`, protocol-relative `//`, fragment-only `#...`, and any scheme URL (`http:`, `mailto:`, etc.) are skipped before filesystem work.
 - Discovery accepts one or many paths/roots and traverses in one deterministic order: **lexical depth-first entry order** — each sorted directory entry (and, for directories, its entire subtree) is processed before the next sibling entry. Caller order is retained between roots.
 - Containment is **canonical**: `traversalRoot` and every accepted file/directory are canonicalized with `realpath` before comparison, so a regular file reached through a symlinked ancestor resolves outside the root and is rejected with `FilesystemError` — even when the final path component is not a symlink. Escaping the root is possible only via the explicit `allowTraversalEscape: true` option. `followSymlinks: false` (default) never follows a symlink directory entry; with cycle detection when `followSymlinks: true`.
 - Aliases are deduplicated by canonical identity (`realpath`); the first-seen logical (lexical) path is reported and used for diagnostics. Traversal is serial, so result order never depends on parallel completion; the `concurrency` option is validated for API compatibility but does **not** accelerate discovery (it bounds catalog encoding and target writes).
 - Residual risk: containment is validated at discovery time. A path component can still be swapped (e.g. a directory replaced by a symlink) between discovery and a later read or write; closing that TOCTOU window would require descriptor-relative (`openat`-style) traversal, which this package does not implement.
-- `inlineCss` throws `ParseError` only when the stylesheet is unparseable; per-URL issues (unresolved, ambiguous, malformed percent or malformed CSS escapes, NUL) emit `diagnostics` and leave the `url(...)` unchanged (no partial mutation). Replacement `location` for CSS is the URL token offset (`offset` 0-based, `line` 1-based, `column` 1-based) derived from declaration-local parser indexes. `inlineHtml` never throws on malformed markup or `<img>` without `src` (HTML spec recovery).
+- `inlineCss` throws `ParseError` when the stylesheet is unparseable; per-URL issues (unresolved, ambiguous, malformed percent or malformed CSS escapes, NUL) emit `diagnostics` and leave the `url(...)` unchanged (no partial mutation). Replacement `location` for CSS is the URL token offset (`offset` 0-based, `line` 1-based, `column` 1-based) derived from declaration-local parser indexes. `inlineHtml` uses HTML-spec recovery for malformed markup and accepts `<img>` without `src`. This is not a no-throw guarantee: byte/count/syntax limits throw `ResourceLimitError` even on malformed input, and invalid options or resolver results can throw `InvalidOptionsError`.
 
 ## Dry-run vs write
 
@@ -291,26 +327,39 @@ Extensions are normalized case-insensitively with leading dot; duplicates are re
 
 Registries are immutable values — pass `definitions` per operation or via `createDefinitionRegistry([...builtInDefinitions, custom])`. No process-global mutable registry exists.
 
+<!-- runnable: resolver -->
+
 ```ts
-import { createDefinitionRegistry, inlineCss } from '@web-ts-toolkit/asset-inliner';
+import {
+  builtInDefinitions,
+  createAssetCatalog,
+  createDefinitionRegistry,
+  inlineCss,
+} from '@web-ts-toolkit/asset-inliner';
 
 const registry = createDefinitionRegistry([
   ...builtInDefinitions,
   { kind: 'image', extensions: ['.jxl'], mediaType: 'image/jxl' },
 ]);
 
-const catalog = await createAssetCatalog(['./assets'], { definitions: registry.definitions });
+const catalog = await createAssetCatalog([{ data: new Uint8Array([1, 2, 3]), filename: 'alias.jxl' }], { registry });
+const css = '.hero { background: url("legacy.png"); }';
+let aliasHits = 0;
 
 // narrow custom matcher — no parser AST knowledge required
 const result = inlineCss(css, {
   catalog,
-  documentPath: '/project/src/app.css',
   resolver: (input, catalog) => {
-    // input: { originalUrl, decodedPath, basename, documentPath, rootDir }
-    if (input.basename === 'legacy.png') return catalog.getByPath('/project/assets/alias.png');
+    // ResolverInput also supplies optional documentPath, rootDir, resolutionBaseDir.
+    if (input.basename === 'legacy.png') {
+      aliasHits++;
+      return catalog.getByBasename('alias.jxl');
+    }
     return undefined; // fall back to default exact/basename matching
   },
 });
+console.log(aliasHits, result.replacements.length); // 1, 1 — alias branch actually ran
+console.log(result.content); // .hero { background: url(data:image/jxl;base64,AQID); }
 ```
 
 The hook is invoked only for local URLs that passed `data:`/`blob:`/remote/fragment skipping and decoded without error. In sync mode, async resolvers throw `InvalidOptionsError`.
@@ -329,6 +378,8 @@ All errors extend `AssetInlinerError` and carry a stable `code`:
 - `FILESYSTEM_ERROR` (`FilesystemError`) — missing path, permission, or failed atomic write; `path`, `operation`, `cause` preserved
 
 Raw asset bytes are never included in messages; `candidates`/`conflictingMediaTypes` are frozen snapshots.
+
+**Illustrative fragment** — replace the file path with your own asset:
 
 ```ts
 import { encodeAsset, ResourceLimitError, UnsupportedAssetError } from '@web-ts-toolkit/asset-inliner';

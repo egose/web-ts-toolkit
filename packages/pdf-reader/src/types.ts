@@ -44,7 +44,7 @@ export type PageImageOutputMode = 'data-url' | 'blob';
  */
 export type PdfReaderState = 'new' | 'loading' | 'loaded' | 'iterating' | 'failed' | 'destroyed';
 
-/** PDF.js text output without requiring consumers to import PDF.js internals. */
+/** PDF.js text output; use `pdfTextToString` to assemble plain text without importing PDF.js internals. */
 export type PdfTextContent = Awaited<ReturnType<PDFPageProxy['getTextContent']>>;
 
 export interface PdfReaderLimits {
@@ -127,7 +127,13 @@ export interface PdfReaderOptions {
 }
 
 export interface LoadOptions {
-  /** Cancels only the current load caller, not other callers sharing the same underlying PDF.js task. */
+  /**
+   * Cancels only the current load caller, not other callers sharing the same underlying PDF.js task.
+   * Structurally validated across realms: boolean `aborted`, callable
+   * `addEventListener`/`removeEventListener`. Omitted/`undefined` means no
+   * signal; `null` and malformed values throw `INVALID_OPTION` before loading,
+   * including when the document is already loaded.
+   */
   signal?: AbortSignal;
   /** Caller-local deadline in milliseconds for waiting on `load()`. Must be a positive finite number not exceeding 2,147,483,647 (the maximum browser/Node timer delay); larger values are rejected with `INVALID_OPTION`. */
   deadlineMs?: number;
@@ -153,7 +159,13 @@ export interface ConvertOptions {
   includeText?: boolean;
   /** Best-effort embedded raster extraction under `page.images`. Defaults to `false`. */
   includeEmbeddedImages?: boolean;
-  /** Stops between expensive steps and settles pending page/text/operator/render waits promptly. Upstream PDF.js work is uncancellable and observed only for cleanup; a suspended pages() consumer observes cancellation on resume. */
+  /**
+   * Stops between expensive steps, including after canvas/viewport callbacks, and settles page-stage waits promptly. Active renders are cancelled. Cancellation/failure of an already-created render permanently closes the reader and starts public teardown; the initiating call keeps ABORTED/native error, while later operations reject DESTROYED. Retry requires a fresh reader and fresh bytes. Pre-render/non-render cancellation and encoding cancellation after successful rendering permit same-reader reuse; other started PDF.js work stays observed, and cleanup waits for cached-page ownership to become idle (or destruction). A suspended pages() consumer observes cancellation on resume.
+   * Structurally validated across realms: boolean `aborted`, callable
+   * `addEventListener`/`removeEventListener`. Omitted/`undefined` means no
+   * signal; `null` and malformed values reject with `INVALID_OPTION` before
+   * page acquisition and release the operation lock for valid reuse.
+   */
   signal?: AbortSignal;
 }
 

@@ -10,5 +10,5 @@
     "lib": ["ES2022"],
     "types": ["node"]
   },
-  "include": ["consumer-types.ts"]
+  "include": ["consumer-types.ts", "consumer-types.cts"]
 }

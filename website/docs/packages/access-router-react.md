@@ -15,7 +15,7 @@ React hooks for `@web-ts-toolkit/access-router-client` model services.
 npm install react @web-ts-toolkit/access-router-react @web-ts-toolkit/access-router-client
 ```
 
-Peer dependencies: `react ^18 || ^19` and `@web-ts-toolkit/access-router-client`. The package's own test suite runs a React 18 verification lane alongside the React 19 primary lane. Published builds target `ES2022`; direct Node consumers should use Node `>=20`, while browser apps can bundle the package with an ES2022-capable toolchain.
+Peer dependencies: `react ^18 || ^19` and `@web-ts-toolkit/access-router-client`. The package's own test suite runs a React 18 verification lane alongside the React 19 primary lane. Published builds target `ES2022`; direct Node consumers require Node `>=22`, matching the required client and utility packages. The former `>=20` declaration understated that dependency floor. Browser apps can bundle with an ES2022-capable toolchain. Compatibility CI exercises packed CJS/ESM hooks and strict NodeNext/Bundler consumers on Node 22.0.0 with matching React 18/19 types; builds/install tools retain the newer repository runtime. The supported lane asserts direct dependency pins and archives resolved trees/lockfiles per run. The package maintainer updates pins with dependency changes; a separate floating canary is non-blocking.
 
 ## Factory
 

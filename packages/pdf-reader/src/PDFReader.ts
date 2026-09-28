@@ -5,6 +5,9 @@ import { extractEmbeddedImages } from './embeddedImages';
 import { PdfReaderError } from './errors';
 import { isValidBlobForMime, isValidDataUrlForMime, MAX_TIMER_MS, resolveSafeCanvasDimensions } from './canvasGuards';
 import { assertPositiveFinite, resolveConvertOptions, resolvePageNumbers } from './options';
+import { PageResources } from './pageResources';
+import type { PageLease } from './pageResources';
+import { resolveSignal } from './signal';
 import type {
   ConvertOptions,
   LoadOptions,
@@ -102,6 +105,11 @@ interface HeaderInspection {
 
 type SourceKind = PdfReaderSourceInfo['kind'];
 
+/** Private envelope: preserve the initiating outcome across automatic teardown. */
+class InterruptedRender {
+  constructor(readonly reason: unknown) {}
+}
+
 /** Browser PDF reader with bounded canvas allocation and deterministic cleanup. */
 export class PDFReader {
   readonly #source: PdfSource;
@@ -115,6 +123,7 @@ export class PDFReader {
   #destroyPromise?: Promise<void>;
   readonly #destroyController = new AbortController();
   readonly #activeRenderTasks = new Set<RenderTask>();
+  readonly #pageResources = new PageResources();
   #activePageOperation = false;
   #activePageWorkCount = 0;
   #destroyed = false;
@@ -149,13 +158,20 @@ export class PDFReader {
    * use supported PDF.js read methods, but must not call `destroy()` on the
    * proxy while the reader owns lifecycle teardown. Call `reader.destroy()` to
    * release document and worker resources.
+   * After explicit destruction or automatic closure of an interrupted render,
+   * throws `DESTROYED` synchronously before validating options or starting work.
+   *
+   * Signals are structurally validated across realms: boolean `aborted` and
+   * callable `addEventListener`/`removeEventListener`. Omitted/`undefined`
+   * means no signal; `null` and malformed values throw `INVALID_OPTION`
+   * synchronously, even when already loaded, before policy/PDF.js work.
    */
   public load(signal?: AbortSignal): Promise<PDFDocumentProxy>;
   public load(options?: LoadOptions): Promise<PDFDocumentProxy>;
   public load(options?: AbortSignal | LoadOptions): Promise<PDFDocumentProxy> {
+    this.#throwIfDestroyed();
     const resolved = this.#resolveLoadOptions(options);
     this.#throwIfAborted(resolved.signal);
-    this.#throwIfDestroyed();
     if (this.#document) return Promise.resolve(this.#document);
 
     return this.#load(resolved);
@@ -180,14 +196,25 @@ export class PDFReader {
    *
    * Page-stage waits (`getPage`, text, operator list, render, encoding) settle
    * promptly with `ABORTED`/`DESTROYED` via the shared cancellation/wait
-   * contract, but racing never cancels the underlying PDF.js work: it keeps
-   * running in the background, owned only for cleanup observation. A late
-   * `getPage()` fulfillment is cleaned exactly once and never processed;
-   * late text/operator values are dropped and late rejections observed, so a
-   * subsequent conversion may safely acquire the same reader/page immediately
-   * after the prior operation settles. A suspended generator only observes
-   * abort/destroy on the next `next()`/`return()`; destruction cannot force
-   * suspended consumer code to run.
+   * contract. Active renders are cancelled; racing other PDF.js work does not
+   * stop it. Already-started promises remain observed even if a synchronous
+   * callback aborts/destroys before wait registration. Late `getPage()` values
+   * are never processed; late text/operator values are dropped. Page cleanup
+   * is deferred until package-owned acquisitions, processing, and upstream
+   * stage promises for that cached page are idle, including safe retries.
+   * Canvas factories and viewport callbacks are followed by lifecycle checks
+   * before subsequent allocation/rendering. Caller settlement releases the
+   * operation lock, but does not imply upstream work has finished.
+   * Cancellation/failure of an already-created render permanently closes the
+   * reader and starts public PDF.js teardown. The initiating call retains
+   * `ABORTED` or the native error; later operations reject `DESTROYED`. Retry
+   * with a fresh reader and fresh bytes (PDF.js may have transferred the input).
+   * Pre-render and non-render failures, and encoding cancellation/failure after
+   * successful rendering, do not automatically close the reader.
+   * A suspended generator only observes abort/destroy on the next
+   * `next()`/`return()`; destruction cannot force suspended consumer code to run.
+   * Malformed signals (including `null`) reject with `INVALID_OPTION` before
+   * page acquisition. Omitted/`undefined` signals are accepted.
    */
   public async *pages(options: ConvertOptions = {}): AsyncGenerator<PageResult> {
     let ownsPageOperation = false;
@@ -207,38 +234,38 @@ export class PDFReader {
       for (let pageNumber = start; pageNumber <= Math.min(end, documentProxy.numPages); pageNumber += 1) {
         this.#throwIfDestroyed();
         this.#throwIfAborted(resolved.signal);
-        let page: PDFPageProxy | undefined;
+        const lease = this.#pageResources.acquire(pageNumber);
         let ownsActivePageWork = false;
         try {
           this.#activePageWorkCount += 1;
           ownsActivePageWork = true;
-          // Shared cancellation/wait contract: settles promptly on abort/destroy
-          // without cancelling upstream PDF.js work. A late fulfillment is owned
-          // only for cleanup observation (exactly one cleanup, no later
-          // processing), so sequential reuse after settle cannot overlap it.
-          page = await this.#awaitWithSignal(
-            documentProxy.getPage(pageNumber),
+          const page = await this.#awaitWithSignal(
+            lease.acquire(() => documentProxy.getPage(pageNumber)),
             resolved.signal,
-            undefined,
-            (latePage) => {
-              try {
-                (latePage as PDFPageProxy | undefined)?.cleanup();
-              } catch {
-                // Background cleanup is best-effort; the caller already settled.
-              }
-            },
           );
-          const result = await this.#processPage(page, pageNumber, documentProxy.numPages, resolved);
-          page.cleanup();
-          page = undefined;
+          const result = await this.#processPage(page, pageNumber, documentProxy.numPages, resolved, lease);
+          lease.release();
           this.#activePageWorkCount -= 1;
           ownsActivePageWork = false;
           yield result;
         } catch (error) {
+          if (error instanceof InterruptedRender) {
+            // Capture explicit destruction/abort BEFORE automatic destruction
+            // changes state. A rejected RenderTask is not a stream-idle boundary.
+            const reason = this.#destroyed
+              ? this.#createDestroyedError()
+              : resolved.signal?.aborted
+                ? this.#createAbortedError()
+                : error.reason;
+            // Observe teardown without delaying/masking the initiating error.
+            // Explicit destroy() still reports the memoized teardown outcome.
+            void this.destroy().catch(() => undefined);
+            throw reason;
+          }
           this.#rethrowLifecycleError(error, resolved.signal);
         } finally {
           if (ownsActivePageWork) this.#activePageWorkCount -= 1;
-          page?.cleanup();
+          lease.release();
         }
       }
     } finally {
@@ -262,22 +289,37 @@ export class PDFReader {
    * rejects.
    *
    * In-flight page-stage waiters settle promptly with `DESTROYED`, but their
-   * upstream PDF.js work is uncancellable and continues in the background for
-   * cleanup observation only. This method waits for PDF.js loading/document
-   * destruction, not for orphaned `getPage`/text/operator continuations, which
-   * never start later processing. It cannot force a suspended `pages()`
-   * consumer to resume; that consumer observes destruction on next resume.
+   * uncancellable getPage/text/operator work stays observed in the background.
+   * Active renders are cancelled. This method waits for PDF.js loading/document
+   * destruction, not for orphaned `getPage`/text/operator/image-object
+   * continuations, which never start later processing. It clears retained
+   * page ownership; late acquisitions receive best-effort cleanup. Await
+   * active operations to observe their temporary canvas release. It cannot
+   * force a suspended `pages()` consumer to resume; that consumer observes
+   * destruction on next resume.
+   * Render cancellation/failure also starts this teardown automatically without
+   * awaiting it or replacing the initiating error. This method always returns
+   * the same teardown promise, including its rejection; call it to observe that
+   * outcome. Automatic teardown rejection is observed even if you never do.
    */
-  public async destroy(): Promise<void> {
+  public destroy(): Promise<void> {
     if (this.#destroyPromise) return this.#destroyPromise;
+    let resolveDestroy!: () => void;
+    let rejectDestroy!: (error: unknown) => void;
+    // Publish before callbacks: reentrant destroy() joins the same outcome.
+    this.#destroyPromise = new Promise<void>((resolve, reject) => {
+      resolveDestroy = resolve;
+      rejectDestroy = reject;
+    });
     this.#destroyed = true;
-    this.#destroyController.abort();
     const loadingTask = this.#loadingTask;
     const loadingState = this.#loadingState;
     this.#loadingTask = undefined;
     this.#document = undefined;
     this.#loadingState = undefined;
-    this.#destroyPromise = (async () => {
+    void (async () => {
+      this.#destroyController.abort();
+      this.#pageResources.destroy();
       for (const renderTask of this.#activeRenderTasks) renderTask.cancel();
       if (loadingTask) {
         await loadingTask.destroy();
@@ -286,8 +328,8 @@ export class PDFReader {
       if (!loadingState) return;
       loadingState.destroyed = true;
       await this.#destroyLoadStateTask(loadingState);
-    })();
-    await this.#destroyPromise;
+    })().then(resolveDestroy, rejectDestroy);
+    return this.#destroyPromise;
   }
 
   async #processPage(
@@ -295,8 +337,11 @@ export class PDFReader {
     pageNumber: number,
     numPages: number,
     options: ReturnType<typeof resolveConvertOptions>,
+    lease: PageLease,
   ): Promise<PageResult> {
-    const viewport = this.#resolveViewport(page, options.viewportScale);
+    this.#throwIfDestroyed();
+    this.#throwIfAborted(options.signal);
+    const viewport = this.#resolveViewport(page, options.viewportScale, options.signal);
     const result: PageResult = {
       numPages,
       pageNumber,
@@ -309,10 +354,7 @@ export class PDFReader {
     this.#throwIfDestroyed();
     if (options.includeText) {
       try {
-        // Same shared contract as getPage/render: prompt ABORTED/DESTROYED,
-        // late text dropped, late rejection observed, page still cleaned by
-        // the pages() owner. Upstream PDF.js text work is not cancelled.
-        const text = await this.#awaitWithSignal(page.getTextContent(), options.signal);
+        const text = await this.#awaitWithSignal(lease.track(page.getTextContent()), options.signal);
         this.#enforceTextLimits(text);
         result.text = text;
       } catch (error) {
@@ -325,7 +367,7 @@ export class PDFReader {
       try {
         result.images = await extractEmbeddedImages(page, viewport, {
           signal: options.signal,
-          createCanvas: this.#createCanvas,
+          createCanvas: () => this.#createCanvasWithSignal(options.signal),
           maxPixels: this.#limits.maxEmbeddedImagePixels,
           maxImages: this.#limits.maxEmbeddedImages,
           maxTotalPixels: this.#limits.maxEmbeddedImagePixelsTotal,
@@ -335,7 +377,8 @@ export class PDFReader {
           throwIfDestroyed: () => this.#throwIfDestroyed(),
           // Reuses the reader's single cancellation/wait contract so operator
           // retrieval settles promptly without cancelling upstream PDF.js work.
-          awaitWithCancellation: <T>(pending: Promise<T>) => this.#awaitWithSignal(pending, options.signal),
+          awaitWithCancellation: <T>(pending: Promise<T>) =>
+            this.#awaitWithSignal(lease.track(pending), options.signal),
         });
       } catch (error) {
         this.#rethrowLifecycleError(error, options.signal);
@@ -344,14 +387,24 @@ export class PDFReader {
     this.#throwIfAborted(options.signal);
     this.#throwIfDestroyed();
     if (options.includePageImage) {
-      const canvas = this.#allocateCanvas(viewport.width, viewport.height, this.#limits.maxCanvasPixels, 'page');
+      const canvas = this.#allocateCanvas(
+        viewport.width,
+        viewport.height,
+        this.#limits.maxCanvasPixels,
+        'page',
+        options.signal,
+      );
       try {
+        this.#throwIfDestroyed();
+        this.#throwIfAborted(options.signal);
         const context = canvas.getContext('2d');
+        this.#throwIfDestroyed();
+        this.#throwIfAborted(options.signal);
         if (!context) {
           throw this.#createUnsupportedEnvironmentError(`Failed to create a 2D canvas context for page ${pageNumber}.`);
         }
         const renderTask = page.render({ canvas, canvasContext: context, viewport });
-        await this.#waitForRender(renderTask, options.signal);
+        await this.#waitForRender(renderTask, lease, options.signal);
         result.pageImage = await this.#encodePageImage(
           canvas,
           options.imageFormat,
@@ -426,10 +479,14 @@ export class PDFReader {
     return { kind: 'blob', mimeType, blob };
   }
 
-  #resolveViewport(page: PDFPageProxy, viewportScale: ViewportScale): PageViewport {
+  #resolveViewport(page: PDFPageProxy, viewportScale: ViewportScale, signal?: AbortSignal): PageViewport {
     if (typeof viewportScale === 'number') return page.getViewport({ scale: viewportScale });
     const base = page.getViewport({ scale: 1 });
+    this.#throwIfDestroyed();
+    this.#throwIfAborted(signal);
     const scale = viewportScale(base.width, base.height);
+    this.#throwIfDestroyed();
+    this.#throwIfAborted(signal);
     assertPositiveFinite(scale, 'viewportScale callback result');
     return page.getViewport({ scale });
   }
@@ -486,7 +543,33 @@ export class PDFReader {
     });
   }
 
-  #allocateCanvas(width: number, height: number, limit: number, subject: string): HTMLCanvasElement {
+  #createCanvasWithSignal(signal?: AbortSignal): HTMLCanvasElement {
+    this.#throwIfDestroyed();
+    this.#throwIfAborted(signal);
+    const canvas = this.#createCanvas();
+    try {
+      // The application factory may synchronously abort/destroy. Release its
+      // canvas before returning control to either page or embedded allocation.
+      this.#throwIfDestroyed();
+      this.#throwIfAborted(signal);
+    } catch (error) {
+      try {
+        this.#releaseCanvas(canvas);
+      } catch {
+        // Preserve the lifecycle outcome if a custom canvas cannot be reset.
+      }
+      throw error;
+    }
+    return canvas;
+  }
+
+  #allocateCanvas(
+    width: number,
+    height: number,
+    limit: number,
+    subject: string,
+    signal?: AbortSignal,
+  ): HTMLCanvasElement {
     const { pixelWidth, pixelHeight } = resolveSafeCanvasDimensions(
       width,
       height,
@@ -494,7 +577,7 @@ export class PDFReader {
       'CANVAS_LIMIT_EXCEEDED',
       subject,
     );
-    const canvas = this.#createCanvas();
+    const canvas = this.#createCanvasWithSignal(signal);
     try {
       canvas.width = pixelWidth;
       canvas.height = pixelHeight;
@@ -509,16 +592,24 @@ export class PDFReader {
     return canvas;
   }
 
-  async #waitForRender(renderTask: RenderTask, signal?: AbortSignal): Promise<void> {
+  async #waitForRender(renderTask: RenderTask, lease: PageLease, signal?: AbortSignal): Promise<void> {
     const abort = () => renderTask.cancel();
     this.#activeRenderTasks.add(renderTask);
     signal?.addEventListener('abort', abort, { once: true });
     try {
-      await this.#awaitWithSignal(renderTask.promise, signal);
+      // Observe before cancelling: render() itself can reenter application
+      // code and cancel before this task is registered with the reader.
+      const waiting = this.#awaitWithSignal(lease.track(renderTask.promise), signal);
+      try {
+        if (signal?.aborted || this.#destroyed) abort();
+      } finally {
+        // Even a custom cancel() failure must not orphan the waiter.
+        await waiting;
+      }
       this.#throwIfDestroyed();
       this.#throwIfAborted(signal);
     } catch (error) {
-      this.#rethrowLifecycleError(error, signal);
+      throw new InterruptedRender(error);
     } finally {
       signal?.removeEventListener('abort', abort);
       this.#activeRenderTasks.delete(renderTask);
@@ -643,25 +734,18 @@ export class PDFReader {
    * operator-list, render, and deadline waits.
    *
    * Caller-local `signal`/`deadlineMs` settle only that waiter; reader
-   * destruction settles every waiter. Racing never cancels the underlying
-   * PDF.js work: the upstream promise keeps running, owned only for cleanup
-   * observation. When abort/destroy wins first, a late fulfillment is handed
-   * to `onLateValue` (used to clean a late page exactly once, never to start
-   * later processing) and a late rejection is observed so it cannot become an
-   * unhandled rejection or a late published result. The callback-based Blob
-   * encoder follows the same settle-once/late-ignore contract.
+   * destruction settles every waiter. Racing alone never cancels underlying
+   * PDF.js work (render cancellation is owned by #waitForRender/destroy).
+   * Observation precedes lifecycle checks, including when the upstream call
+   * synchronously reentered application code. When abort/destroy wins first,
+   * a late fulfillment is dropped and a late rejection is observed so it
+   * cannot become an unhandled rejection or a late published result. The
+   * callback-based Blob encoder follows the same settle-once/late-ignore contract.
    */
-  async #awaitWithSignal<T>(
-    promise: Promise<T>,
-    signal?: AbortSignal,
-    deadlineMs?: number,
-    onLateValue?: (value: T) => void,
-  ): Promise<T> {
-    this.#throwIfAborted(signal);
-    this.#throwIfDestroyed();
-
+  async #awaitWithSignal<T>(promise: Promise<T>, signal?: AbortSignal, deadlineMs?: number): Promise<T> {
     return await new Promise<T>((resolve, reject) => {
       let settled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const onAbort = () => settle(() => reject(this.#createAbortedError()));
       const onDestroy = () => settle(() => reject(this.#createDestroyedError()));
       const cleanup = () => {
@@ -675,25 +759,13 @@ export class PDFReader {
         cleanup();
         callback();
       };
-      const timer =
-        deadlineMs === undefined
-          ? undefined
-          : setTimeout(() => settle(() => reject(this.#createDeadlineExceededError())), deadlineMs);
-      signal?.addEventListener('abort', onAbort, { once: true });
-      this.#destroyController.signal.addEventListener('abort', onDestroy, { once: true });
+      // The upstream call has already run, and may have synchronously caused
+      // abort/destroy. Own both outcomes before checking lifecycle state, so
+      // even early cancellation retains late-value/rejection observation.
       promise
         .then(
           (value) => {
-            if (settled) {
-              if (onLateValue) {
-                try {
-                  onLateValue(value);
-                } catch {
-                  // Background cleanup must not surface after the caller settled.
-                }
-              }
-              return;
-            }
+            if (settled) return;
             settle(() => resolve(value));
           },
           (error) => {
@@ -704,6 +776,13 @@ export class PDFReader {
           },
         )
         .catch(() => undefined);
+      signal?.addEventListener('abort', onAbort, { once: true });
+      this.#destroyController.signal.addEventListener('abort', onDestroy, { once: true });
+      if (signal?.aborted) onAbort();
+      else if (this.#destroyed) onDestroy();
+      if (!settled && deadlineMs !== undefined) {
+        timer = setTimeout(() => settle(() => reject(this.#createDeadlineExceededError())), deadlineMs);
+      }
     });
   }
 
@@ -747,29 +826,28 @@ export class PDFReader {
   }
 
   #resolveLoadOptions(options?: AbortSignal | LoadOptions): ResolvedLoadOptions {
-    if (!options) return {};
+    if (options === undefined) return {};
     if (options === null || typeof options !== 'object' || Array.isArray(options)) {
       throw new PdfReaderError('INVALID_OPTION', 'Load options must be an object or an AbortSignal.');
     }
-    if (this.#isAbortSignal(options)) return { signal: options };
+    // Any signal member selects the direct-signal overload, so partial
+    // signals cannot silently fall through as empty options. `{}` remains
+    // a valid LoadOptions bag. Inherited members support native/other realms.
+    if ('aborted' in options || 'addEventListener' in options || 'removeEventListener' in options) {
+      return { signal: resolveSignal(options) };
+    }
     const candidate = options as LoadOptions;
-    if (candidate.deadlineMs !== undefined) {
-      if (
-        !Number.isFinite(candidate.deadlineMs) ||
-        (candidate.deadlineMs as number) <= 0 ||
-        (candidate.deadlineMs as number) > MAX_TIMER_MS
-      ) {
+    const signal = resolveSignal(candidate.signal);
+    const deadlineMs = candidate.deadlineMs;
+    if (deadlineMs !== undefined) {
+      if (!Number.isFinite(deadlineMs) || deadlineMs <= 0 || deadlineMs > MAX_TIMER_MS) {
         throw new PdfReaderError(
           'INVALID_OPTION',
           `deadlineMs must be a positive finite number not exceeding ${MAX_TIMER_MS}.`,
         );
       }
     }
-    return { signal: candidate.signal, deadlineMs: candidate.deadlineMs };
-  }
-
-  #isAbortSignal(value: AbortSignal | LoadOptions): value is AbortSignal {
-    return 'aborted' in value && 'addEventListener' in value && 'removeEventListener' in value;
+    return { signal, deadlineMs };
   }
 
   #enforceSourcePolicy(source: PdfReaderSourceInfo): Promise<void> | void {

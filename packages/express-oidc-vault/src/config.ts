@@ -25,6 +25,13 @@ const MANUAL_CONFIG_REQUIREMENTS: Array<
   keyof Pick<OidcVaultConfig, 'issuer' | 'authorizationEndpoint' | 'tokenEndpoint' | 'jwksUri'>
 > = ['issuer', 'authorizationEndpoint', 'tokenEndpoint', 'jwksUri'];
 
+const MANUAL_CONFIG_SELECTORS: Array<
+  keyof Pick<
+    OidcVaultConfig,
+    'authorizationEndpoint' | 'tokenEndpoint' | 'jwksUri' | 'userInfoEndpoint' | 'endSessionEndpoint'
+  >
+> = ['authorizationEndpoint', 'tokenEndpoint', 'jwksUri', 'userInfoEndpoint', 'endSessionEndpoint'];
+
 const normalizeOptionalString = (value?: string): string | undefined => {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
@@ -106,10 +113,11 @@ const withOptionalValue = <Key extends keyof OidcVaultResolvedConfig>(
  * Resolve OIDC configuration from application input.
  *
  * Issuer discovery mode is selected only when an issuer is configured without
- * any manual endpoint fields. When any manual endpoint field is present,
- * manual mode is selected: discovery is not used and the configured endpoints
- * are used directly. `issuer` remains required in manual mode so ID tokens
- * and logout tokens stay issuer-bound.
+ * any nonempty manual endpoint fields. Any such field, including optional
+ * `userInfoEndpoint` or `endSessionEndpoint`, selects manual mode: discovery
+ * is not used, and `issuer`, `authorizationEndpoint`, `tokenEndpoint`, and
+ * `jwksUri` are all required. Blank strings are treated as absent after trimming.
+ * `issuer` keeps ID tokens and logout tokens issuer-bound.
  *
  * The issuer identifier is syntax-validated (absolute http/https URL without
  * userinfo, query, or fragment) but otherwise preserved exactly as configured
@@ -122,9 +130,7 @@ export function resolveOidcVaultConfig(config: OidcVaultConfig = {}): OidcVaultR
   const clientId = normalizeOptionalString(config.clientId);
   const clientSecret = normalizeOptionalString(config.clientSecret);
   const scopes = normalizeOptionalString(config.scopes) ?? DEFAULT_OIDC_SCOPES;
-  const hasManualEndpoints = MANUAL_CONFIG_REQUIREMENTS.some(
-    (key) => key !== 'issuer' && normalizeOptionalString(config[key]),
-  );
+  const hasManualEndpoints = MANUAL_CONFIG_SELECTORS.some((key) => normalizeOptionalString(config[key]));
 
   if (!clientId) {
     throw new Error('OIDC clientId is required.');

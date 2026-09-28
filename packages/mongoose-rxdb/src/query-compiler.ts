@@ -479,6 +479,7 @@ export function compileQuery<T extends object>(
  * - Missing source fields are omitted (inclusion) or left as a no-op
  *   (exclusion). Numeric segments address array indexes: out-of-bounds or
  *   missing indexes are omitted (inclusion) or left as a no-op (exclusion).
+ *   Retained arrays preserve length/indexes with null for redacted positions.
  */
 export function normalizeProjection(projection: QueryOptions['projection']): NormalizedProjection | undefined {
   if (!projection) return undefined;
@@ -558,9 +559,9 @@ export function applyProjection<T extends Record<string, any>>(record: T, projec
 /**
  * Copies one include path from source into target, array-aware.
  * Non-numeric segments applied to an array are mapped over every element;
- * numeric segments address a single array index. Missing fields/indexes are
- * omitted without creating placeholders beyond preserving array positions
- * that actually contributed a value.
+ * numeric segments address a single array index. An array is omitted if no
+ * element contributes; otherwise redacted positions are explicit nulls, never
+ * sparse input for hydration. Merge paths into existing slots before filling.
  */
 function applyIncludePath(target: Record<string, any>, source: Record<string, any>, segments: string[]): void {
   if (segments.length === 0) return;
@@ -579,11 +580,10 @@ function applyIncludePath(target: Record<string, any>, source: Record<string, an
   }
   if (child == null || typeof child !== 'object') return;
   if (Array.isArray(child)) {
-    const slot: unknown[] = [];
+    const slot: unknown[] = Array.isArray(target[segment]) ? target[segment] : [];
     applyIncludeIntoArray(slot, child, rest);
     // Only attach the array when at least one element contributed.
-    if (slot.length > 0 && slot.some((entry) => entry !== undefined)) {
-      // Preserve positions: holes stay holes so indexes keep their meaning.
+    if (slot.length > 0) {
       (target as Record<string, any>)[segment] = slot;
     }
     return;
@@ -603,24 +603,27 @@ function applyIncludeIntoArray(target: unknown[], source: unknown[], segments: s
     const child = (source as unknown[])[index];
     if (rest.length === 0) {
       target[index] = cloneProjectedValue(child);
-      if (target.length < source.length) target.length = source.length;
+      fillRedactedPositions(target, source.length);
       return;
     }
     if (child == null || typeof child !== 'object') return;
     if (Array.isArray(child)) {
-      const slot: unknown[] = [];
+      const slot: unknown[] = Array.isArray(target[index]) ? target[index] : [];
       applyIncludeIntoArray(slot, child, rest);
       if (slot.length > 0) {
         target[index] = slot;
-        if (target.length < source.length) target.length = source.length;
+        fillRedactedPositions(target, source.length);
       }
       return;
     }
-    const slot: Record<string, any> = Object.create(null);
+    const slot: Record<string, any> =
+      target[index] && typeof target[index] === 'object' && !Array.isArray(target[index])
+        ? target[index]
+        : Object.create(null);
     applyIncludePath(slot, child as Record<string, any>, rest);
     if (Object.keys(slot).length > 0) {
       target[index] = slot;
-      if (target.length < source.length) target.length = source.length;
+      fillRedactedPositions(target, source.length);
     }
     return;
   }
@@ -629,7 +632,7 @@ function applyIncludeIntoArray(target: unknown[], source: unknown[], segments: s
     const child = (source as unknown[])[index];
     if (child == null || typeof child !== 'object') continue;
     if (Array.isArray(child)) {
-      const slot: unknown[] = [];
+      const slot: unknown[] = Array.isArray(target[index]) ? (target[index] as unknown[]) : [];
       applyIncludeIntoArray(slot, child, segments);
       if (slot.length > 0) target[index] = slot;
       continue;
@@ -642,7 +645,13 @@ function applyIncludeIntoArray(target: unknown[], source: unknown[], segments: s
     applyIncludePath(slot, child as Record<string, any>, segments);
     if (Object.keys(slot).length > before) target[index] = slot;
   }
-  if (target.length > 0) target.length = source.length;
+  if (target.length > 0) fillRedactedPositions(target, source.length);
+}
+
+function fillRedactedPositions(target: unknown[], length: number): void {
+  for (let index = 0; index < length; index++) {
+    if (!hasOwn(target, String(index))) target[index] = null;
+  }
 }
 
 /**
@@ -677,7 +686,7 @@ function applyExcludeFromArray(target: unknown[], segments: string[]): void {
     const index = Number(segment);
     if (!hasOwn(target, segment) || index >= target.length) return;
     if (rest.length === 0) {
-      target.splice(index, 1);
+      target[index] = null;
       return;
     }
     const child = target[index];

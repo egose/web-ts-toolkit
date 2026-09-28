@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
 
 const pdfjs = vi.hoisted(() => ({
@@ -1984,6 +1984,647 @@ describe('PDFReader', () => {
     expect(pdfjs.getDocument).not.toHaveBeenCalled();
   });
 
+  describe('cached-page lifetime (PDFR4-02)', () => {
+    const noImages = { includePageImage: false, includeText: false };
+    const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+    it.each(['old-first', 'retry-first', 'shared-promise'] as const)(
+      'protects pending same-proxy acquisitions (%s)',
+      async (order) => {
+        const pdf = createPdfHarness({ numPages: 1 });
+        const old = createDeferred<PDFPageProxy>();
+        const retry = order === 'shared-promise' ? old : createDeferred<PDFPageProxy>();
+        const text = createDeferred<Awaited<ReturnType<PDFPageProxy['getTextContent']>>>();
+        const textStarted = createDeferred<void>();
+        vi.mocked(pdf.documentProxy.getPage).mockReturnValueOnce(old.promise).mockReturnValueOnce(retry.promise);
+        pdf.page.getTextContent = () => {
+          textStarted.resolve();
+          return text.promise;
+        };
+        const reader = new PDFReader(new Uint8Array([1]));
+        await reader.load();
+        const controller = new AbortController();
+        const cancelled = reader.convert({ ...noImages, signal: controller.signal });
+        controller.abort();
+        await expect(cancelled).rejects.toMatchObject({ code: 'ABORTED' });
+        const retried = reader.convert({ includePageImage: false });
+        if (order === 'old-first') {
+          old.resolve(pdf.page);
+          await flush();
+          expect(pdf.page.cleanup).not.toHaveBeenCalled();
+        }
+        retry.resolve(pdf.page);
+        await textStarted.promise;
+        if (order === 'retry-first') old.resolve(pdf.page);
+        await flush();
+        expect(pdf.page.cleanup).not.toHaveBeenCalled();
+        await expect(reader.convert(noImages)).rejects.toMatchObject({ code: 'OPERATION_IN_PROGRESS' });
+        text.resolve({ items: [{ str: 'retry text' }], styles: {}, lang: null } as never);
+        const [result] = await retried;
+        expect(result?.text?.items).toEqual([{ str: 'retry text' }]);
+        expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+        // An idle cycle is removed: a later conversion cleans independently.
+        await reader.convert(noImages);
+        expect(pdf.page.cleanup).toHaveBeenCalledTimes(2);
+        await reader.destroy();
+      },
+    );
+
+    it.each(['getTextContent', 'getOperatorList'] as const)(
+      'retains cancelled %s through a pending retry acquisition and processing',
+      async (stage) => {
+        const pdf = createPdfHarness({ numPages: 1 });
+        const old = createDeferred<never>();
+        const started = createDeferred<void>();
+        const retryPage = createDeferred<PDFPageProxy>();
+        const retryText = createDeferred<Awaited<ReturnType<PDFPageProxy['getTextContent']>>>();
+        const retryStarted = createDeferred<void>();
+        pdf.page[stage] = () => {
+          started.resolve();
+          return old.promise;
+        };
+        vi.mocked(pdf.documentProxy.getPage).mockResolvedValueOnce(pdf.page).mockReturnValueOnce(retryPage.promise);
+        const reader = new PDFReader(new Uint8Array([1]));
+        await reader.load();
+        const controller = new AbortController();
+        const cancelled = reader.convert({
+          ...noImages,
+          includeText: stage === 'getTextContent',
+          includeEmbeddedImages: stage === 'getOperatorList',
+          signal: controller.signal,
+        });
+        await started.promise;
+        controller.abort();
+        await expect(cancelled).rejects.toMatchObject({ code: 'ABORTED' });
+        expect(pdf.page.cleanup).not.toHaveBeenCalled();
+        pdf.page.getTextContent = () => {
+          retryStarted.resolve();
+          return retryText.promise;
+        };
+        const retried = reader.convert({ includePageImage: false });
+        old.reject(new Error('late upstream failure'));
+        await flush();
+        expect(pdf.page.cleanup).not.toHaveBeenCalled();
+        retryPage.resolve(pdf.page);
+        await retryStarted.promise;
+        expect(pdf.page.cleanup).not.toHaveBeenCalled();
+        retryText.resolve({ items: [], styles: {}, lang: null });
+        await expect(retried).resolves.toHaveLength(1);
+        expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+        await reader.destroy();
+      },
+    );
+
+    it.each(['fulfill', 'reject'] as const)(
+      'retains an old acquisition after retry succeeds, then cleans once on late %s',
+      async (outcome) => {
+        const pdf = createPdfHarness({ numPages: 1 });
+        const old = createDeferred<PDFPageProxy>();
+        vi.mocked(pdf.documentProxy.getPage).mockReturnValueOnce(old.promise);
+        const reader = new PDFReader(new Uint8Array([1]));
+        await reader.load();
+        const controller = new AbortController();
+        const cancelled = reader.convert({ ...noImages, signal: controller.signal });
+        controller.abort();
+        await expect(cancelled).rejects.toMatchObject({ code: 'ABORTED' });
+        await reader.convert(noImages);
+        expect(pdf.page.cleanup).not.toHaveBeenCalled();
+        if (outcome === 'fulfill') old.resolve(pdf.page);
+        else old.reject(new Error('late acquisition failure'));
+        await flush();
+        expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+        await reader.destroy();
+      },
+    );
+
+    it('keeps pending image-object callbacks alive across cancellation and retry', async () => {
+      const pdf = createPdfHarness({ numPages: 1 });
+      const canvas = createCanvasHarness();
+      const callbacks: Array<(image: unknown) => void> = [];
+      const firstWaiting = createDeferred<void>();
+      const retryWaiting = createDeferred<void>();
+      vi.mocked(pdf.page.getOperatorList).mockResolvedValue({ fnArray: [5], argsArray: [['image']] } as never);
+      pdf.page.objs = {
+        has: () => false,
+        get: (_id: string, callback: (image: unknown) => void) => {
+          callbacks.push(callback);
+          if (callbacks.length === 1) firstWaiting.resolve();
+          else retryWaiting.resolve();
+        },
+      } as never;
+      // Model PDFObjects.clear(): old registered callbacks cannot be resolved
+      // by a future object-store entry if cleanup discards them.
+      vi.mocked(pdf.page.cleanup).mockImplementation(() => {
+        callbacks.length = 0;
+        return true;
+      });
+      const reader = new PDFReader(new Uint8Array([1]), { canvasFactory: () => canvas.canvas });
+      await reader.load();
+      const controller = new AbortController();
+      const options = { ...noImages, includeEmbeddedImages: true };
+      const cancelled = reader.convert({ ...options, signal: controller.signal });
+      await firstWaiting.promise;
+      controller.abort();
+      await expect(cancelled).rejects.toMatchObject({ code: 'ABORTED' });
+      expect(callbacks).toHaveLength(1);
+      const retried = reader.convert(options);
+      await retryWaiting.promise;
+      expect(callbacks).toHaveLength(2);
+      for (const callback of [...callbacks]) callback({ width: 1, height: 1, data: new Uint8Array([255, 0, 0]) });
+      const [result] = await retried;
+      expect(result?.images).toHaveLength(1);
+      expect(canvas.context.putImageData).toHaveBeenCalledOnce();
+      expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+      await reader.destroy();
+    });
+
+    it.each(['fulfill', 'reject'] as const)(
+      'closes cancelled render ownership before late %s and rejects retry (PDFR4-06)',
+      async (outcome) => {
+        const render = createDeferred<void>();
+        const started = createDeferred<void>();
+        const pdf = createPdfHarness({ numPages: 1, renderPromise: render.promise });
+        vi.mocked(pdf.page.render).mockImplementation(() => {
+          started.resolve();
+          return pdf.renderTask;
+        });
+        const reader = new PDFReader(new Uint8Array([1]), { canvasFactory: () => createCanvasHarness().canvas });
+        await reader.load();
+        const controller = new AbortController();
+        const cancelled = reader.convert({ includeText: false, signal: controller.signal });
+        await started.promise;
+        controller.abort();
+        await expect(cancelled).rejects.toMatchObject({ code: 'ABORTED' });
+        expect(pdf.renderTask.cancel).toHaveBeenCalledOnce();
+        const iterator = reader.pages(noImages);
+        await expect(iterator.next()).rejects.toMatchObject({ code: 'DESTROYED' });
+        await iterator.return(undefined);
+        expect(reader.state).toBe('destroyed');
+        expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+        expect(pdf.loadingTask.destroy).toHaveBeenCalledOnce();
+        if (outcome === 'fulfill') render.resolve();
+        else render.reject(new Error('late render rejection'));
+        await flush();
+        expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+        await reader.destroy();
+      },
+    );
+
+    it('destroys retained cycles without waiting and deduplicates late same-proxy acquisitions', async () => {
+      const pdf = createPdfHarness({ numPages: 1 });
+      const old = createDeferred<PDFPageProxy>();
+      const retry = createDeferred<PDFPageProxy>();
+      vi.mocked(pdf.documentProxy.getPage).mockReturnValueOnce(old.promise).mockReturnValueOnce(retry.promise);
+      const reader = new PDFReader(new Uint8Array([1]));
+      await reader.load();
+      const controller = new AbortController();
+      const cancelled = reader.convert({ ...noImages, signal: controller.signal });
+      controller.abort();
+      await expect(cancelled).rejects.toMatchObject({ code: 'ABORTED' });
+      const retried = reader.convert(noImages);
+      const rejected = expect(retried).rejects.toMatchObject({ code: 'DESTROYED' });
+      await reader.destroy();
+      await rejected;
+      old.resolve(pdf.page);
+      retry.resolve(pdf.page);
+      await flush();
+      expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+      expect(pdf.page.getViewport).not.toHaveBeenCalled();
+      expect(pdf.loadingTask.destroy).toHaveBeenCalledOnce();
+    });
+
+    it('releases synchronous acquisition failure and preserves stage errors if cleanup throws', async () => {
+      const pdf = createPdfHarness({ numPages: 1 });
+      const failure = new Error('native failure');
+      vi.mocked(pdf.documentProxy.getPage).mockImplementationOnce(() => {
+        throw failure;
+      });
+      const reader = new PDFReader(new Uint8Array([1]));
+      await reader.load();
+      await expect(reader.convert(noImages)).rejects.toBe(failure);
+      vi.mocked(pdf.page.getTextContent).mockRejectedValueOnce(failure);
+      vi.mocked(pdf.page.cleanup).mockImplementationOnce(() => {
+        throw new Error('cleanup failure');
+      });
+      await expect(reader.convert({ includePageImage: false })).rejects.toBe(failure);
+      await expect(reader.convert(noImages)).resolves.toHaveLength(1);
+      expect(pdf.page.cleanup).toHaveBeenCalledTimes(2);
+      await reader.destroy();
+    });
+  });
+
+  describe('terminal render ownership (PDFR4-06)', () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+    beforeEach(() => {
+      unhandled.length = 0;
+      process.on('unhandledRejection', onUnhandled);
+    });
+    afterEach(async () => {
+      await flush();
+      process.removeListener('unhandledRejection', onUnhandled);
+      expect(unhandled).toEqual([]);
+    });
+
+    it.each([
+      ['abort', 'resolve'],
+      ['abort', 'reject'],
+      ['abort', 'throw'],
+      ['native', 'resolve'],
+      ['native', 'reject'],
+      ['native', 'throw'],
+    ] as const)('preserves %s before stream teardown %s and rejects all reuse', async (outcome, cleanupOutcome) => {
+      const render = createDeferred<void>();
+      const streamTeardown = createDeferred<void>();
+      const started = createDeferred<void>();
+      const pdf = createPdfHarness({ numPages: 1, renderPromise: render.promise });
+      const canvas = createCanvasHarness();
+      const reader = new PDFReader(new Uint8Array([1]), { canvasFactory: () => canvas.canvas });
+      const controller = new AbortController();
+      const nativeError = new Error('native render failure');
+      const cleanupError = new Error('public document teardown failed');
+      let destroyCalls = 0;
+      // Plain methods: vi.fn observes returned promises and could hide leaks.
+      pdf.loadingTask.destroy = () => {
+        destroyCalls += 1;
+        if (cleanupOutcome === 'throw') throw cleanupError;
+        return streamTeardown.promise;
+      };
+      vi.mocked(pdf.page.render).mockImplementation(() => {
+        started.resolve();
+        return pdf.renderTask;
+      });
+      vi.mocked(pdf.renderTask.cancel).mockImplementation(() => render.reject(new Error('render cancelled')));
+      vi.mocked(pdf.page.cleanup).mockImplementation(() => {
+        throw new Error('best-effort page cleanup failure');
+      });
+      await reader.load();
+      const converting = reader.convert({ signal: controller.signal, includeText: false });
+      await started.promise;
+      if (outcome === 'abort') controller.abort();
+      else render.reject(nativeError);
+      if (outcome === 'abort') await expect(converting).rejects.toMatchObject({ code: 'ABORTED' });
+      else await expect(converting).rejects.toBe(nativeError);
+      // RenderTask rejected, but the modeled internal stream remains live until
+      // public teardown settles. Closing is immediate, not a wait for that gate.
+      expect(destroyCalls).toBe(1);
+      expect(reader.state).toBe('destroyed');
+      expect(reader.numPages).toBeUndefined();
+      expect(canvas.canvas.width).toBe(0);
+      expect(canvas.canvas.height).toBe(0);
+      expect(() => reader.load()).toThrow(expect.objectContaining({ code: 'DESTROYED' }));
+      expect(() => reader.load(controller.signal)).toThrow(expect.objectContaining({ code: 'DESTROYED' }));
+      await expect(reader.convert({ includeEmbeddedImages: true })).rejects.toMatchObject({ code: 'DESTROYED' });
+      const retry = reader.pages({ includePageImage: false });
+      await expect(retry.next()).rejects.toMatchObject({ code: 'DESTROYED' });
+      await retry.return(undefined);
+      expect(pdf.documentProxy.getPage).toHaveBeenCalledOnce();
+      expect(pdf.page.getOperatorList).not.toHaveBeenCalled();
+      if (cleanupOutcome === 'resolve') streamTeardown.resolve();
+      else streamTeardown.reject(cleanupError);
+      // For a synchronous throw the unused gate must not create its own leak.
+      if (cleanupOutcome === 'throw') void streamTeardown.promise.catch(() => undefined);
+      await flush();
+      expect(unhandled).toEqual([]);
+      const destroying = reader.destroy();
+      expect(reader.destroy()).toBe(destroying);
+      if (cleanupOutcome === 'resolve') await expect(destroying).resolves.toBeUndefined();
+      else await expect(destroying).rejects.toBe(cleanupError);
+      expect(destroyCalls).toBe(1);
+      expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+    });
+
+    it('publishes explicit destruction before reentrant public teardown callbacks', async () => {
+      const render = createDeferred<void>();
+      const started = createDeferred<void>();
+      const teardown = createDeferred<void>();
+      const pdf = createPdfHarness({ numPages: 1, renderPromise: render.promise });
+      const reader = new PDFReader(new Uint8Array([1]), { canvasFactory: () => createCanvasHarness().canvas });
+      let reentrant: Promise<void> | undefined;
+      pdf.loadingTask.destroy = () => {
+        reentrant = reader.destroy();
+        return teardown.promise;
+      };
+      vi.mocked(pdf.page.render).mockImplementation(() => {
+        started.resolve();
+        return pdf.renderTask;
+      });
+      await reader.load();
+      const converting = reader.convert({ includeText: false });
+      await started.promise;
+      const destroying = reader.destroy();
+      expect(reentrant).toBe(destroying);
+      await expect(converting).rejects.toMatchObject({ code: 'DESTROYED' });
+      expect(pdf.renderTask.cancel).toHaveBeenCalledOnce();
+      render.reject(new Error('late render error'));
+      const failure = new Error('explicit teardown error');
+      teardown.reject(failure);
+      await expect(destroying).rejects.toBe(failure);
+      await expect(reader.destroy()).rejects.toBe(failure);
+    });
+
+    it.each(['canvasFactory', 'getContext', 'viewportScale'] as const)(
+      'permits reuse after %s throws before rendering',
+      async (boundary) => {
+        const pdf = createPdfHarness({ numPages: 1 });
+        const canvas = createCanvasHarness();
+        const failure = new Error('application callback failure');
+        const fail = () => {
+          throw failure;
+        };
+        const reader = new PDFReader(new Uint8Array([1]), {
+          canvasFactory: boundary === 'canvasFactory' ? fail : () => canvas.canvas,
+        });
+        if (boundary === 'getContext') vi.mocked(canvas.canvas.getContext).mockImplementationOnce(fail);
+        await reader.load();
+        await expect(
+          reader.convert({ includeText: false, viewportScale: boundary === 'viewportScale' ? fail : 2 }),
+        ).rejects.toBe(failure);
+        expect(pdf.page.render).not.toHaveBeenCalled();
+        expect(pdf.loadingTask.destroy).not.toHaveBeenCalled();
+        await expect(reader.convert({ includePageImage: false })).resolves.toHaveLength(1);
+        await reader.destroy();
+      },
+    );
+
+    it.each(['abort', 'error'] as const)('permits reuse after successful render and encoding %s', async (outcome) => {
+      const pdf = createPdfHarness({ numPages: 1 });
+      const canvas = createCanvasHarness();
+      const encoding = createDeferred<void>();
+      const controller = new AbortController();
+      let finish!: BlobCallback;
+      canvas.canvas.toBlob = (callback) => {
+        finish = callback;
+        encoding.resolve();
+      };
+      const reader = new PDFReader(new Uint8Array([1]), { canvasFactory: () => canvas.canvas });
+      await reader.load();
+      const converting = reader.convert({ pageImageOutput: 'blob', signal: controller.signal });
+      await encoding.promise;
+      if (outcome === 'abort') controller.abort();
+      else finish(null);
+      await expect(converting).rejects.toMatchObject({
+        code: outcome === 'abort' ? 'ABORTED' : 'UNSUPPORTED_ENVIRONMENT',
+      });
+      expect(reader.state).toBe('loaded');
+      expect(pdf.renderTask.cancel).not.toHaveBeenCalled();
+      expect(pdf.loadingTask.destroy).not.toHaveBeenCalled();
+      await expect(reader.convert({ includePageImage: false })).resolves.toHaveLength(1);
+      finish(new Blob(['late'], { type: 'image/png' }));
+      await reader.destroy();
+    });
+  });
+
+  describe('reentrant early cancellation (PDFR4-01)', () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+
+    beforeEach(() => {
+      unhandled.length = 0;
+      process.on('unhandledRejection', onUnhandled);
+    });
+
+    afterEach(async () => {
+      // Cross an event-loop boundary so Node has delivered unhandled rejection
+      // events. Do not pre-catch upstream promises: the reader must own them.
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      process.removeListener('unhandledRejection', onUnhandled);
+      expect(unhandled).toEqual([]);
+    });
+
+    describe.each(['abort', 'destroy'] as const)('%s', (lifecycle) => {
+      const code = lifecycle === 'abort' ? 'ABORTED' : 'DESTROYED';
+
+      it.each(['canvasFactory', 'getContext', 'viewportScale'] as const)(
+        'stops subsequent work after %s cancels synchronously',
+        async (boundary) => {
+          const pdf = createPdfHarness({ numPages: 1 });
+          const canvas = createCanvasHarness();
+          const controller = new AbortController();
+          const cancel = () => (lifecycle === 'abort' ? controller.abort() : void reader.destroy());
+          const canvasFactory = vi.fn(() => {
+            if (boundary === 'canvasFactory') cancel();
+            return canvas.canvas;
+          });
+          const reader = new PDFReader(new Uint8Array([1]), { canvasFactory });
+          if (boundary === 'getContext') {
+            vi.mocked(canvas.canvas.getContext).mockImplementation(() => {
+              cancel();
+              return canvas.context;
+            });
+          }
+          await reader.load();
+          await expect(
+            reader.convert({
+              signal: controller.signal,
+              includeText: false,
+              viewportScale:
+                boundary === 'viewportScale'
+                  ? () => {
+                      cancel();
+                      return 2;
+                    }
+                  : 2,
+            }),
+          ).rejects.toMatchObject({ code });
+
+          expect(pdf.page.render).not.toHaveBeenCalled();
+          expect(pdf.page.getTextContent).not.toHaveBeenCalled();
+          expect(pdf.page.getOperatorList).not.toHaveBeenCalled();
+          expect(canvas.canvas.toDataURL).not.toHaveBeenCalled();
+          expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+          expect(canvas.canvas.width).toBe(0);
+          expect(canvas.canvas.height).toBe(0);
+          if (boundary === 'viewportScale') {
+            expect(pdf.page.getViewport).toHaveBeenCalledOnce();
+            expect(canvasFactory).not.toHaveBeenCalled();
+          } else if (boundary === 'canvasFactory') {
+            expect(canvas.canvas.getContext).not.toHaveBeenCalled();
+          }
+          if (lifecycle === 'abort') {
+            expect(reader.state).toBe('loaded');
+            await expect(reader.convert({ includePageImage: false })).resolves.toHaveLength(1);
+          }
+          await reader.destroy();
+        },
+      );
+
+      it('cancels and observes a render created before wait registration', async () => {
+        const render = createDeferred<void>();
+        const pdf = createPdfHarness({ numPages: 1, renderPromise: render.promise });
+        const canvas = createCanvasHarness();
+        const controller = new AbortController();
+        const reader = new PDFReader(new Uint8Array([1]), { canvasFactory: () => canvas.canvas });
+        vi.mocked(pdf.page.render).mockImplementationOnce(() => {
+          if (lifecycle === 'abort') controller.abort();
+          else void reader.destroy();
+          return pdf.renderTask;
+        });
+        await reader.load();
+        await expect(reader.convert({ signal: controller.signal, includeText: false })).rejects.toMatchObject({ code });
+        // Rejection is deliberately later than caller settlement; cancellation
+        // must not rely on PDF.js rejecting its render promise promptly.
+        expect(reader.state).toBe('destroyed');
+        expect(pdf.loadingTask.destroy).toHaveBeenCalledOnce();
+        render.reject(new Error('late reentrant render rejection'));
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(pdf.renderTask.cancel).toHaveBeenCalledOnce();
+        expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+        expect(canvas.canvas.toDataURL).not.toHaveBeenCalled();
+        expect(canvas.canvas.width).toBe(0);
+        expect(canvas.canvas.height).toBe(0);
+        await reader.destroy();
+      });
+
+      it('stops embedded-image allocation after the canvas factory cancels', async () => {
+        const pdf = createPdfHarness({ numPages: 1 });
+        const canvas = createCanvasHarness();
+        const controller = new AbortController();
+        vi.mocked(pdf.page.getOperatorList).mockResolvedValue({
+          fnArray: [6],
+          argsArray: [[{ width: 1, height: 1, data: new Uint8Array([10, 20, 30]) }]],
+        } as never);
+        const reader = new PDFReader(new Uint8Array([1]), {
+          canvasFactory: () => {
+            if (lifecycle === 'abort') controller.abort();
+            else void reader.destroy();
+            return canvas.canvas;
+          },
+        });
+        await reader.load();
+        await expect(
+          reader.convert({
+            signal: controller.signal,
+            includeText: false,
+            includePageImage: false,
+            includeEmbeddedImages: true,
+          }),
+        ).rejects.toMatchObject({ code });
+        expect(canvas.canvas.getContext).not.toHaveBeenCalled();
+        expect(canvas.canvas.toDataURL).not.toHaveBeenCalled();
+        expect(canvas.canvas.width).toBe(0);
+        expect(canvas.canvas.height).toBe(0);
+        expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+        await reader.destroy();
+      });
+
+      it.each([
+        ['fulfill', 'immediate'],
+        ['reject', 'immediate'],
+        ['fulfill', 'late'],
+        ['reject', 'late'],
+      ] as const)('owns getPage %s (%s) when acquisition cancels synchronously', async (outcome, timing) => {
+        const pdf = createPdfHarness({ numPages: 1 });
+        const pending = createDeferred<PDFPageProxy>();
+        const controller = new AbortController();
+        const reader = new PDFReader(new Uint8Array([1]));
+        const finish = () =>
+          outcome === 'fulfill' ? pending.resolve(pdf.page) : pending.reject(new Error('early getPage rejection'));
+        const originalGetPage = pdf.documentProxy.getPage;
+        // A vi.fn returning a promise observes it internally to track its
+        // settlement; use a plain method so it cannot hide a missing observer.
+        pdf.documentProxy.getPage = () => {
+          pdf.documentProxy.getPage = originalGetPage;
+          if (lifecycle === 'abort') controller.abort();
+          else void reader.destroy();
+          if (timing === 'immediate') finish();
+          return pending.promise;
+        };
+        await reader.load();
+        await expect(reader.convert({ signal: controller.signal })).rejects.toMatchObject({ code });
+        if (timing === 'late') {
+          expect(pdf.page.cleanup).not.toHaveBeenCalled();
+          finish();
+        }
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(pdf.page.cleanup).toHaveBeenCalledTimes(outcome === 'fulfill' ? 1 : 0);
+        expect(pdf.page.getViewport).not.toHaveBeenCalled();
+        expect(pdf.page.render).not.toHaveBeenCalled();
+        if (lifecycle === 'abort') {
+          expect(reader.state).toBe('loaded');
+          await expect(reader.convert({ includePageImage: false })).resolves.toHaveLength(1);
+        }
+        await reader.destroy();
+      });
+
+      it.each(['getTextContent', 'getOperatorList'] as const)(
+        'observes %s rejection after synchronous cancellation',
+        async (stage) => {
+          const pdf = createPdfHarness({ numPages: 1 });
+          const pending = createDeferred<never>();
+          const controller = new AbortController();
+          const reader = new PDFReader(new Uint8Array([1]));
+          pdf.page[stage] = () => {
+            if (lifecycle === 'abort') controller.abort();
+            else void reader.destroy();
+            return pending.promise;
+          };
+          await reader.load();
+          await expect(
+            reader.convert({
+              signal: controller.signal,
+              includeText: stage === 'getTextContent',
+              includeEmbeddedImages: stage === 'getOperatorList',
+            }),
+          ).rejects.toMatchObject({ code });
+          if (lifecycle === 'abort') expect(pdf.page.cleanup).not.toHaveBeenCalled();
+          pending.reject(new Error('late page-stage rejection'));
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+          expect(pdf.page.render).not.toHaveBeenCalled();
+          await reader.destroy();
+        },
+      );
+    });
+
+    it('observes the derived policy rejection after the policy synchronously destroys the reader', async () => {
+      const pending = createDeferred<void>();
+      const reader = new PDFReader('/private.pdf', {
+        sourcePolicy: () => {
+          void reader.destroy();
+          return pending.promise;
+        },
+      });
+      await expect(reader.load()).rejects.toMatchObject({ code: 'DESTROYED' });
+      pending.reject(new Error('private policy details'));
+      expect(pdfjs.getDocument).not.toHaveBeenCalled();
+      expect(reader.state).toBe('destroyed');
+      await reader.destroy();
+    });
+
+    it.each(['getPage', 'getTextContent', 'render'] as const)(
+      'preserves ordinary %s failure identity and releases the lock',
+      async (stage) => {
+        const pdf = createPdfHarness({ numPages: 1 });
+        const failure = new Error(`native PDF.js ${stage} failure`);
+        const reader = new PDFReader(new Uint8Array([1]), { canvasFactory: () => createCanvasHarness().canvas });
+        if (stage === 'getPage') vi.mocked(pdf.documentProxy.getPage).mockRejectedValueOnce(failure);
+        else if (stage === 'getTextContent') vi.mocked(pdf.page.getTextContent).mockRejectedValueOnce(failure);
+        else
+          vi.mocked(pdf.page.render).mockImplementationOnce(
+            () =>
+              ({
+                promise: Promise.reject(failure),
+                cancel: vi.fn(),
+              }) as unknown as RenderTask,
+          );
+        await reader.load();
+        await expect(reader.convert()).rejects.toBe(failure);
+        expect(pdf.page.cleanup).toHaveBeenCalledTimes(stage === 'getPage' ? 0 : 1);
+        if (stage === 'render') {
+          expect(reader.state).toBe('destroyed');
+          await expect(reader.convert({ includePageImage: false })).rejects.toMatchObject({ code: 'DESTROYED' });
+        } else {
+          expect(reader.state).toBe('loaded');
+          await expect(reader.convert({ includePageImage: false })).resolves.toHaveLength(1);
+        }
+        await reader.destroy();
+      },
+    );
+  });
+
   it('aborts a deferred getPage promptly and cleans up the late page exactly once', async () => {
     const pdf = createPdfHarness({ numPages: 1 });
     const getPageDeferred = createDeferred<PDFPageProxy>();
@@ -2015,8 +2656,7 @@ describe('PDFReader', () => {
     expect(pdf.page.render).not.toHaveBeenCalled();
     expect(reader.state).toBe('loaded');
 
-    // Sequential reuse cannot overlap the orphaned work: the next conversion
-    // acquires the reader/page fresh after the lock was released.
+    // This later conversion starts a new ownership cycle after old work settled.
     vi.mocked(pdf.documentProxy.getPage).mockResolvedValue(pdf.page);
     await expect(
       reader.convert({ includePageImage: false, includeText: false, includeEmbeddedImages: false }),
@@ -2113,6 +2753,193 @@ describe('PDFReader', () => {
       reader.convert({ includePageImage: false, includeText: false, includeEmbeddedImages: true }),
     ).resolves.toHaveLength(1);
     expect(pdf.page.cleanup).toHaveBeenCalledTimes(2);
+  });
+
+  describe('signal boundary validation', () => {
+    const listener = () => undefined;
+    const invalidSignals: Array<{ name: string; value: unknown }> = [
+      { name: 'null', value: null },
+      { name: 'false', value: false },
+      { name: 'true', value: true },
+      { name: 'zero', value: 0 },
+      { name: 'number', value: 1 },
+      { name: 'empty string', value: '' },
+      { name: 'string', value: 'signal' },
+      { name: 'symbol', value: Symbol('signal') },
+      { name: 'bigint', value: 1n },
+      { name: 'function', value: listener },
+      { name: 'array', value: [] },
+      { name: 'empty object', value: {} },
+      { name: 'only aborted', value: { aborted: false } },
+      { name: 'only add', value: { addEventListener: listener } },
+      { name: 'only remove', value: { removeEventListener: listener } },
+      { name: 'missing aborted', value: { addEventListener: listener, removeEventListener: listener } },
+      { name: 'missing add', value: { aborted: false, removeEventListener: listener } },
+      { name: 'missing remove', value: { aborted: false, addEventListener: listener } },
+      {
+        name: 'non-boolean aborted',
+        value: { aborted: 'false', addEventListener: listener, removeEventListener: listener },
+      },
+      {
+        name: 'undefined aborted',
+        value: { aborted: undefined, addEventListener: listener, removeEventListener: listener },
+      },
+      { name: 'non-callable add', value: { aborted: false, addEventListener: true, removeEventListener: listener } },
+      { name: 'non-callable remove', value: { aborted: false, addEventListener: listener, removeEventListener: {} } },
+      {
+        name: 'aborted but malformed',
+        value: { aborted: true, addEventListener: listener, removeEventListener: null },
+      },
+    ];
+
+    it.each(invalidSignals)(
+      'rejects $name load signals before policy/load and on the loaded fast path',
+      async ({ name, value }) => {
+        const pdf = createPdfHarness({ numPages: 1 });
+        const sourcePolicy = vi.fn();
+        const reader = new PDFReader(new Uint8Array([1]), { sourcePolicy });
+        // An empty object is a valid LoadOptions bag, but never a valid nested signal.
+        const inputs = name === 'empty object' ? [{ signal: value }] : [value, { signal: value }];
+        try {
+          for (const input of inputs) {
+            expect(() => reader.load(input as never)).toThrowError(expect.objectContaining({ code: 'INVALID_OPTION' }));
+          }
+          expect(reader.state).toBe('new');
+          expect(sourcePolicy).not.toHaveBeenCalled();
+          expect(pdfjs.getDocument).not.toHaveBeenCalled();
+          await reader.load();
+          for (const input of inputs) {
+            expect(() => reader.load(input as never)).toThrowError(expect.objectContaining({ code: 'INVALID_OPTION' }));
+          }
+          expect(sourcePolicy).toHaveBeenCalledOnce();
+          expect(pdfjs.getDocument).toHaveBeenCalledOnce();
+          expect(pdf.documentProxy.getPage).not.toHaveBeenCalled();
+          await expect(reader.load()).resolves.toBe(pdf.documentProxy);
+        } finally {
+          await reader.destroy();
+        }
+      },
+    );
+
+    it.each(invalidSignals)('rejects $name conversion signals before getPage', async ({ value }) => {
+      const pdf = createPdfHarness({ numPages: 1 });
+      const reader = new PDFReader(new Uint8Array([1]));
+      await reader.load();
+      // Fail synchronously if validation is bypassed: the old missing-remove
+      // bug would otherwise hang the test inside settlement cleanup.
+      vi.mocked(pdf.documentProxy.getPage).mockImplementation(() => {
+        throw new Error('getPage must not start');
+      });
+      try {
+        const options = { signal: value, includePageImage: false } as never;
+        await expect(reader.convert(options)).rejects.toMatchObject({ code: 'INVALID_OPTION' });
+        await expect(reader.pages(options).next()).rejects.toMatchObject({ code: 'INVALID_OPTION' });
+        expect(pdf.documentProxy.getPage).not.toHaveBeenCalled();
+        expect(reader.state).toBe('loaded');
+        vi.mocked(pdf.documentProxy.getPage).mockResolvedValue(pdf.page);
+        await expect(reader.convert({ includePageImage: false })).resolves.toHaveLength(1);
+        expect(pdf.page.cleanup).toHaveBeenCalledOnce();
+      } finally {
+        await reader.destroy();
+      }
+    });
+
+    it.each([undefined, {}, { signal: undefined }])('accepts omitted/undefined signals: %j', async (options) => {
+      const pdf = createPdfHarness({ numPages: 1 });
+      const reader = new PDFReader(new Uint8Array([1]));
+      try {
+        await expect(reader.load(options)).resolves.toBe(pdf.documentProxy);
+        await expect(reader.load(options)).resolves.toBe(pdf.documentProxy);
+        await expect(reader.convert({ ...options, includePageImage: false })).resolves.toHaveLength(1);
+      } finally {
+        await reader.destroy();
+      }
+    });
+
+    it.each(['direct load', 'nested load', 'conversion'] as const)(
+      'preserves native cancellation and listener cleanup for %s',
+      async (boundary) => {
+        const pdf = createPdfHarness({ numPages: 1 });
+        const gate = createDeferred<void>();
+        const entered = createDeferred<void>();
+        const reader = new PDFReader(new Uint8Array([1]), {
+          sourcePolicy:
+            boundary === 'conversion'
+              ? undefined
+              : () => {
+                  entered.resolve();
+                  return gate.promise;
+                },
+        });
+        const controller = new AbortController();
+        const add = vi.spyOn(controller.signal, 'addEventListener');
+        const remove = vi.spyOn(controller.signal, 'removeEventListener');
+        try {
+          if (boundary === 'conversion') {
+            await reader.load();
+            vi.mocked(pdf.page.getTextContent).mockImplementation(async () => {
+              entered.resolve();
+              await gate.promise;
+              return { items: [], styles: {}, lang: null };
+            });
+          }
+          const pending =
+            boundary === 'conversion'
+              ? reader.convert({ signal: controller.signal, includePageImage: false })
+              : boundary === 'direct load'
+                ? reader.load(controller.signal)
+                : reader.load({ signal: controller.signal });
+          const cancelled = expect(pending).rejects.toMatchObject({ code: 'ABORTED' });
+          await entered.promise;
+          controller.abort();
+          await cancelled;
+          expect(add).toHaveBeenCalled();
+          for (const [event, callback] of add.mock.calls) expect(remove).toHaveBeenCalledWith(event, callback);
+          gate.resolve();
+          await expect(reader.load()).resolves.toBe(pdf.documentProxy);
+          await expect(reader.convert({ includePageImage: false })).resolves.toHaveLength(1);
+        } finally {
+          gate.resolve();
+          await reader.destroy();
+        }
+      },
+    );
+
+    it('reads nested signal and deadline options once while preserving live abort state', async () => {
+      const pdf = createPdfHarness({ numPages: 1 });
+      const reader = new PDFReader(new Uint8Array([1]));
+      const controller = new AbortController();
+      const signal = vi.fn().mockReturnValueOnce(controller.signal).mockReturnValue({});
+      const deadline = vi.fn().mockReturnValueOnce(1000).mockReturnValue(-1);
+      try {
+        await expect(
+          reader.load({
+            get signal() {
+              return signal();
+            },
+            get deadlineMs() {
+              return deadline();
+            },
+          }),
+        ).resolves.toBe(pdf.documentProxy);
+        expect(signal).toHaveBeenCalledOnce();
+        expect(deadline).toHaveBeenCalledOnce();
+        signal.mockReset().mockReturnValueOnce(controller.signal).mockReturnValue({});
+        controller.abort();
+        await expect(
+          reader.convert({
+            get signal() {
+              return signal();
+            },
+            includePageImage: false,
+          }),
+        ).rejects.toMatchObject({ code: 'ABORTED' });
+        expect(signal).toHaveBeenCalledOnce();
+        expect(pdf.documentProxy.getPage).not.toHaveBeenCalled();
+      } finally {
+        await reader.destroy();
+      }
+    });
   });
 
   it('rejects invalid runtime convert options with INVALID_OPTION before page work', async () => {

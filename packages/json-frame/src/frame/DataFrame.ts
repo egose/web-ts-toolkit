@@ -1,6 +1,7 @@
 import { JsonFrameValidationError } from '../errors';
 import { exportColumns, exportIndex, exportRecords, exportSplit, exportTable, exportValues } from '../export/payload';
 import { assertJsonCompatible } from '../json';
+import { normalizeToJSONStringOptions } from '../options';
 import type {
   ColumnInfo,
   ColumnsPayload,
@@ -223,49 +224,50 @@ export class DataFrame<TRow extends JsonCompatibleRow<TRow> = RowRecord> {
    * Validation performs one full traversal without cloning, then native
    * serialization performs a second pass. Repeated references are visited per
    * occurrence (detached semantics), so both passes expand aliases exactly as
-   * `JSON.stringify()` does; no breadth/work budget is enforced. Validation
+   * `JSON.stringify()` does. Optional maxNodes bounds validation occurrences
+   * (root, wrappers, metadata and scalars included), independently per call;
+   * no default quota or inherited ingestion budget applies. It does not bound
+   * payload construction, key allocation, bytes, or native hooks. Validation
    * reads own enumerable properties and array elements, invoking
    * caller-installed getters/`Proxy` traps, and native serialization may
    * additionally invoke `toJSON` hooks. Hooks are caller responsibility; the
    * package does not sandbox arbitrary JavaScript.
    */
   toJSONString(orient: ResolvedOrient, options?: ToJSONStringOptions): string {
+    const normalized = normalizeToJSONStringOptions(options);
+    let payload: JsonValue;
     switch (orient) {
       case 'records': {
-        const payload = this.toRecords();
-        assertJsonCompatible(payload, orient);
-        return JSON.stringify(payload);
+        payload = this.toRecords();
+        break;
       }
       case 'index': {
-        const payload = this.toIndex();
-        assertJsonCompatible(payload, orient);
-        return JSON.stringify(payload);
+        payload = this.toIndex();
+        break;
       }
       case 'columns': {
-        const payload = this.toColumns();
-        assertJsonCompatible(payload, orient);
-        return JSON.stringify(payload);
+        payload = this.toColumns();
+        break;
       }
       case 'values': {
-        const payload = this.toValues();
-        assertJsonCompatible(payload, orient);
-        return JSON.stringify(payload);
+        payload = this.toValues();
+        break;
       }
       case 'split': {
-        const payload = this.toSplit();
-        assertJsonCompatible(payload, orient);
-        return JSON.stringify(payload);
+        payload = this.toSplit();
+        break;
       }
       case 'table': {
-        const payload = this.toTable(options);
-        assertJsonCompatible(payload, orient);
-        return JSON.stringify(payload);
+        payload = this.toTable(normalized);
+        break;
       }
       default: {
         const exhaustive: never = orient;
         throw new JsonFrameValidationError('Unsupported export orient.', { value: exhaustive });
       }
     }
+    assertJsonCompatible(payload, orient, '$', normalized.maxNodes);
+    return JSON.stringify(payload);
   }
 
   row(position: number): Readonly<TRow> {
@@ -412,7 +414,7 @@ export class DataFrame<TRow extends JsonCompatibleRow<TRow> = RowRecord> {
       seen.add(column);
     }
 
-    const renamedSchema = this.#renameSchema(mapping);
+    const renamedSchema = this.#renameSchema(mapping, nextColumns);
     return this.#rebuild<RowRecord>({
       columns: nextColumns,
       sourceColumns: this.#state.columns,
@@ -553,15 +555,17 @@ export class DataFrame<TRow extends JsonCompatibleRow<TRow> = RowRecord> {
     };
   }
 
-  #renameSchema(mapping: Readonly<Record<string, string>>): TransformSchema {
+  #renameSchema(mapping: Readonly<Record<string, string>>, nextColumns: readonly string[]): TransformSchema {
     if (this.#state.tableSchema === undefined) {
       return {};
     }
 
     const names = this.#state.tableSchema.fields.map((field) => field.name);
-    if (new Set(names).size === names.length) {
-      // Unique names: index name cannot collide with a data column, so the
-      // order-preserving name check keeps the index identity untouched.
+    const collidesWithIndex =
+      this.#state.tableIndexField !== undefined && nextColumns.includes(this.#state.tableIndexField);
+    if (new Set(names).size === names.length && !collidesWithIndex) {
+      // Preserve source field order only when both source and result names
+      // are unambiguous.
       const columnNames = new Set(this.#state.columns);
       const fields = this.#state.tableSchema.fields.map((field) => {
         if (!columnNames.has(field.name)) {
@@ -578,8 +582,9 @@ export class DataFrame<TRow extends JsonCompatibleRow<TRow> = RowRecord> {
     }
 
     const { indexTemplate, dataInColumnOrder } = partitionSchemaFields(this.#state);
-    // Duplicate names: data templates align to the pre-rename columns; the
-    // index identity is never renamed even when a data column takes its name.
+    // Existing or newly introduced duplicate names require canonical order.
+    // Partition pre-rename identities before a data column takes the index
+    // name, so an arbitrarily positioned source index stays the first template.
     const fields: TableSchemaField[] = [];
     if (this.#state.tableIndexField !== undefined && indexTemplate !== undefined) {
       fields.push(cloneField(indexTemplate));

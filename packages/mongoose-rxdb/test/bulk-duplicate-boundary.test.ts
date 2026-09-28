@@ -39,6 +39,31 @@ function nativeBulkCounter(adapter: unknown): { get(): number } {
 }
 
 describe('BMRX-22 unordered bulk duplicates', () => {
+  it('retains every native duplicate conflict and the first winner for a duplicate-heavy memory batch', async () => {
+    const conn = new Connection();
+    await conn.connect(() => createMemoryDatabase({ name: `rmrx06_heavy_${nextSuffix()}` }));
+    try {
+      const suffix = nextSuffix();
+      const Model = conn.model<BulkDoc>(`Rmrx06Heavy${suffix}`, makeSchema(), `rmrx06_heavy_${suffix}`);
+      const counter = nativeBulkCounter(await Model.resolveCollection!());
+      const docs = Array.from({ length: 64 }, (_, n) => ({ _id: 'dup', name: `Occurrence ${n}`, n }));
+      const error = await Model.insertMany(docs as any, { ordered: false }).catch((err) => err);
+      expect(error).toBeInstanceOf(BulkWritePartialFailureError);
+      expect(error.insertedCount).toBe(1);
+      expect(error.insertedIds).toEqual(['dup']);
+      expect(error.records).toEqual([docs[0]]);
+      expect(error.errors.map((entry: { index: number }) => entry.index)).toEqual(
+        Array.from({ length: 63 }, (_, n) => n + 1),
+      );
+      expect(error.errors.every((entry: { error: { status: number } }) => entry.error.status === 409)).toBe(true);
+      expect(counter.get()).toBe(64);
+      expect(await Model.countDocuments({}).exec()).toBe(1);
+      expect((await Model.findById('dup'))?.toObject()).toEqual(docs[0]);
+    } finally {
+      await conn.disconnect();
+    }
+  });
+
   it('persists the first duplicate and unrelated IDs with exact failed indexes on real memory', async () => {
     const conn = new Connection();
     await conn.connect(() => createMemoryDatabase({ name: `bmrx22_dup_${nextSuffix()}` }));

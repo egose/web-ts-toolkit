@@ -32,8 +32,10 @@ import {
   type DeleteSessionScriptScope,
   type RedisScriptRunnerClient,
   RedisScriptRunner,
+  buildCleanupInactiveAliasesCommand,
   buildCompareAndDeleteCommand,
   buildDeleteSessionCommand,
+  buildRepairSessionIndexCommand,
   buildRotateSessionCommand,
   buildWriteSessionCommand,
 } from './scripts.js';
@@ -104,25 +106,27 @@ export interface RedisOidcVaultStoreOptions {
 const INDEX_CLEANUP_SCAN_COUNT = 100;
 const INDEX_REVOCATION_SCAN_COUNT = 250;
 
-/**
- * Renders a maintenance failure for operational diagnostics without leaking
- * bearer-equivalent data. Only the error name/code and a truncated message
- * are kept; keys, session IDs, and stored record contents are never included
- * because `cleanupStaleIndexKeys` failures carry no record payloads by
- * construction and callers must not add any.
- */
-const sanitizeMaintenanceCause = (error: unknown): string => {
-  if (error instanceof Error) {
-    const name = error.name || 'Error';
-    const message = error.message.slice(0, 200);
-    return message ? `${name}: ${message}` : name;
+// Copy portable containers, not a JSON round-trip: native values and custom
+// toJSON hooks must still reach the existing serializer unchanged. Ownership of
+// opaque, non-plain values is outside the documented portable value domain.
+const snapshotInput = <T>(input: T, seen = new WeakMap<object, unknown>()): T => {
+  if (input === null || typeof input !== 'object') return input;
+  const prototype = Object.getPrototypeOf(input);
+  if (!Array.isArray(input) && prototype !== Object.prototype && prototype !== null) return input;
+  if (seen.has(input)) return seen.get(input) as T;
+  const copy = (Array.isArray(input) ? new Array(input.length) : Object.create(prototype)) as T;
+  seen.set(input, copy);
+  for (const key of Reflect.ownKeys(input)) {
+    if (Object.prototype.propertyIsEnumerable.call(input, key)) {
+      Object.defineProperty(copy, key, {
+        value: snapshotInput(Reflect.get(input, key), seen),
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    }
   }
-
-  if (typeof error === 'string') {
-    return error.slice(0, 200) || 'unknown maintenance error';
-  }
-
-  return 'unknown maintenance error';
+  return copy;
 };
 
 const isRecord = (value: unknown): value is Record<PropertyKey, unknown> => typeof value === 'object' && value !== null;
@@ -135,15 +139,15 @@ const isUnsupportedClusterClient = (client: OidcVaultRedisClient): boolean =>
   Array.isArray(client.slots);
 
 const toSubjectDeleteInput = (input: string | DeleteSessionsBySubjectInput): DeleteSessionsBySubjectInput =>
-  typeof input === 'string' ? { subject: input } : input;
+  typeof input === 'string' ? { subject: input } : { ...input };
 
 const toProviderSessionDeleteInput = (
   input: string | DeleteSessionsByProviderSessionIdInput,
-): DeleteSessionsByProviderSessionIdInput => (typeof input === 'string' ? { providerSessionId: input } : input);
+): DeleteSessionsByProviderSessionIdInput => (typeof input === 'string' ? { providerSessionId: input } : { ...input });
 
 const toLogicalSessionDeleteInput = (
   input: string | DeleteSessionsByLogicalSessionIdInput,
-): DeleteSessionsByLogicalSessionIdInput => (typeof input === 'string' ? { logicalSessionId: input } : input);
+): DeleteSessionsByLogicalSessionIdInput => (typeof input === 'string' ? { logicalSessionId: input } : { ...input });
 
 const matchesProviderScope = (
   session: OidcVaultSession,
@@ -189,10 +193,8 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
   }
 
   async consumeAuthorizationTransaction(state: string): Promise<AuthorizationTransaction | null> {
-    return this.consumeJson(
-      this.keys.authorizationTransaction(state),
-      'authorization transaction',
-      validateAuthorizationTransaction,
+    return this.consumeJson(this.keys.authorizationTransaction(state), 'authorization transaction', (value) =>
+      validateAuthorizationTransaction(value, state),
     );
   }
 
@@ -201,7 +203,9 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
   }
 
   async consumeExchangeCode(code: string): Promise<ExchangeCodeRecord | null> {
-    return this.consumeJson(this.keys.exchangeCode(code), 'exchange code', validateExchangeCodeRecord);
+    return this.consumeJson(this.keys.exchangeCode(code), 'exchange code', (value) =>
+      validateExchangeCodeRecord(value, code),
+    );
   }
 
   /**
@@ -211,14 +215,15 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
    * Result policy (SVH-02): once `writeSessionRecord` reports success the
    * session is committed and this method resolves with the session even if
    * post-commit index maintenance (`SCAN`/`TYPE`/`TIME`/`ZREMRANGEBYSCORE`)
-   * fails. A maintenance failure is reported once via a sanitized
-   * `console.warn` (operation name plus error code/message only; no session
-   * IDs, keys, or token material) and is retried opportunistically by a later
-   * `createSession`/`rotateSession` call. Mutation-command failures (the
+   * fails. A maintenance failure is reported once via a fixed-text
+   * `console.warn` identifying only the operation (no adapter error details,
+   * session IDs, keys, or token material) and is retried opportunistically by
+   * a later `createSession`/`rotateSession` call. Mutation-command failures (the
    * atomic write script) still reject, and this method never retries a
    * committed mutation.
    */
   async createSession(input: OidcVaultSessionInput): Promise<OidcVaultSession> {
+    input = snapshotInput({ ...input });
     const timestamp = this.now();
     const session: OidcVaultSession = {
       ...input,
@@ -239,10 +244,13 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
   }
 
   async getSession(sessionId: string): Promise<OidcVaultSession | null> {
-    return this.getJson(this.keys.session(sessionId), 'session', validateSession, { deleteMalformed: true });
+    return this.getJson(this.keys.session(sessionId), 'session', (value) => validateSession(value, sessionId), {
+      deleteMalformed: true,
+    });
   }
 
   async rotateSession(input: RotateSessionInput): Promise<OidcVaultSession> {
+    input = { sessionId: input.sessionId, nextSession: snapshotInput({ ...input.nextSession }) };
     const previousSession = await this.getSession(input.sessionId);
 
     if (!previousSession) {
@@ -286,7 +294,6 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
 
       if (logicalSessionId) {
         await this.deleteSessionsByLogicalSessionId(logicalSessionId);
-        await this.deleteRotatedSessionAliasesByLogicalSessionId(logicalSessionId);
       }
 
       // SVH-03: the session key was observed missing or malformed above. A
@@ -295,12 +302,11 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
       // only when it still holds malformed data; a valid replacement belongs
       // to a new generation (genuine logout of a live ID goes through the
       // branch below or a scoped logical revocation, never this cleanup).
-      await this.deleteSessionKeyIfMalformed(this.keys.session(sessionId));
+      await this.deleteSessionKeyIfMalformed(sessionId);
       return;
     }
 
     await this.deleteSessionRecord(session, { kind: 'single' });
-    await this.deleteRotatedSessionAliasesByLogicalSessionId(session.logicalSessionId ?? session.sessionId);
   }
 
   async deleteSessionsByLogicalSessionId(input: string | DeleteSessionsByLogicalSessionIdInput): Promise<number> {
@@ -408,7 +414,8 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
    * (same-ID reuse after the earlier read) is preserved; genuine logout of a
    * live session never reaches this branch.
    */
-  private async deleteSessionKeyIfMalformed(sessionKey: string): Promise<void> {
+  private async deleteSessionKeyIfMalformed(sessionId: string): Promise<void> {
+    const sessionKey = this.keys.session(sessionId);
     let raw: string | null;
 
     try {
@@ -422,7 +429,7 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     }
 
     try {
-      parseStoredJson(raw, 'session', validateSession);
+      parseStoredJson(raw, 'session', (value) => validateSession(value, sessionId));
     } catch (error) {
       if (error instanceof OidcVaultRedisStoreRecordError) {
         await this.deleteMalformedValueIfUnchanged(sessionKey, raw);
@@ -456,7 +463,7 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
 
   /**
    * Runs optional post-commit index maintenance without letting it masquerade
-   * as a failed mutation. Any failure is reported once via a sanitized
+   * as a failed mutation. Any failure is reported once via a fixed-text
    * warning and swallowed so the already-committed session result stands; the
    * next successful create/rotate retries the incremental scan from the
    * retained cursor. Never retries the committed mutation itself.
@@ -464,10 +471,10 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
   private async runPostCommitIndexMaintenance(operation: 'createSession' | 'rotateSession'): Promise<void> {
     try {
       await this.cleanupStaleIndexKeys();
-    } catch (error) {
-      console.warn(
-        `OIDC vault Redis index maintenance failed after ${operation} and will retry on a later write. Cause: ${sanitizeMaintenanceCause(error)}`,
-      );
+    } catch {
+      // Adapter errors may contain credentials or hostile accessors/proxies.
+      // Never inspect or format the thrown value, even to classify the cause.
+      console.warn(`OIDC vault Redis index maintenance failed after ${operation} and will retry on a later write.`);
     }
   }
 
@@ -535,11 +542,6 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     return seconds * 1000 + Math.floor(microseconds / 1000);
   }
 
-  private async getSessionIdsFromIndex(indexKey: string): Promise<string[]> {
-    const response = await this.sendCommand(['ZRANGE', indexKey, '0', '-1']);
-    return Array.isArray(response) ? response.filter((value): value is string => typeof value === 'string') : [];
-  }
-
   private async scanSessionIdsFromIndex(
     indexKey: string,
     cursor: string,
@@ -564,7 +566,9 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     return { cursor: response[0], sessionIds };
   }
 
-  private async getSessionRecords(sessionIds: string[]): Promise<Array<OidcVaultSession | null>> {
+  private async getSessionRecords(
+    sessionIds: string[],
+  ): Promise<Array<{ session: OidcVaultSession | null; raw: string | null }>> {
     if (sessionIds.length === 0) {
       return [];
     }
@@ -576,17 +580,19 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     }
 
     return Promise.all(
-      response.map(async (value, index) => {
+      sessionIds.map(async (sessionId, index) => {
+        const value: unknown = response[index];
+        const raw = typeof value === 'string' ? value : null;
+
         try {
-          return typeof value === 'string' ? parseStoredJson(value, 'session', validateSession) : null;
+          return { session: parseStoredJson(raw, 'session', (parsed) => validateSession(parsed, sessionId)), raw };
         } catch (error) {
           if (error instanceof OidcVaultRedisStoreRecordError && typeof value === 'string') {
             // SVH-03: batched repair removes only the observed malformed
             // payload; a fresh same-ID record created after the MGET survives.
-            // The stale index membership is still pruned by the caller and
-            // later valid members are still revoked.
-            await this.deleteMalformedValueIfUnchanged(this.keys.session(sessionIds[index]!), value);
-            return null;
+            // The caller also guards membership repair against a replacement.
+            await this.deleteMalformedValueIfUnchanged(this.keys.session(sessionId), value);
+            return { session: null, raw };
           }
 
           throw error;
@@ -595,8 +601,14 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
     );
   }
 
-  private async removeSessionIdFromIndex(indexKey: string, sessionId: string): Promise<void> {
-    await this.sendCommand(['ZREM', indexKey, sessionId]);
+  private async removeSessionIdFromIndex(
+    indexKey: string,
+    sessionId: string,
+    observedRaw: string | null,
+  ): Promise<void> {
+    await this.runScript(
+      buildRepairSessionIndexCommand(this.keys.session(sessionId), indexKey, sessionId, observedRaw),
+    );
   }
 
   private async deleteSessionsFromIndex(
@@ -621,25 +633,25 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
       const sessions = await this.getSessionRecords(batch.sessionIds);
 
       for (const [index, sessionId] of batch.sessionIds.entries()) {
-        const session = sessions[index];
+        const { session, raw } = sessions[index] ?? { session: null, raw: null };
 
         if (!session) {
-          await this.removeSessionIdFromIndex(indexKey, sessionId);
+          await this.removeSessionIdFromIndex(indexKey, sessionId, raw);
           continue;
         }
 
         if ('logicalSessionId' in scope && (session.logicalSessionId ?? session.sessionId) !== scope.logicalSessionId) {
-          await this.removeSessionIdFromIndex(indexKey, sessionId);
+          await this.removeSessionIdFromIndex(indexKey, sessionId, raw);
           continue;
         }
 
         if ('subject' in scope && session.subject !== scope.subject) {
-          await this.removeSessionIdFromIndex(indexKey, sessionId);
+          await this.removeSessionIdFromIndex(indexKey, sessionId, raw);
           continue;
         }
 
         if ('providerSessionId' in scope && session.providerSessionId !== scope.providerSessionId) {
-          await this.removeSessionIdFromIndex(indexKey, sessionId);
+          await this.removeSessionIdFromIndex(indexKey, sessionId, raw);
           continue;
         }
 
@@ -650,11 +662,16 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
         const revoked = await this.deleteSessionRecord(session, this.toDeleteScriptScope(scope));
 
         if (revoked > 0) {
-          await this.deleteRotatedSessionAliasesByLogicalSessionId(session.logicalSessionId ?? session.sessionId);
           deleted += revoked;
         }
       }
     } while (cursor !== '0');
+
+    // Successful delete scripts already own cleanup. The empty logical path
+    // still needs to retire aliases when the last primary expired before logout.
+    if (deleted === 0 && 'logicalSessionId' in scope) {
+      await this.runScript(buildCleanupInactiveAliasesCommand(this.keys, scope.logicalSessionId));
+    }
 
     return deleted;
   }
@@ -679,19 +696,6 @@ class RedisOidcVaultStore implements OidcVaultStoreProvider {
       issuer: scope.issuer,
       clientId: scope.clientId,
     };
-  }
-
-  private async deleteRotatedSessionAliasesByLogicalSessionId(logicalSessionId: string): Promise<void> {
-    const aliasIndexKey = this.keys.rotatedSessionAliasIndex(logicalSessionId);
-    await this.cleanupExpiredIndexMembers(aliasIndexKey);
-    const aliasSessionIds = await this.getSessionIdsFromIndex(aliasIndexKey);
-
-    if (aliasSessionIds.length === 0) {
-      return;
-    }
-
-    await this.client.del(aliasSessionIds.map((sessionId) => this.keys.rotatedSessionAlias(sessionId)));
-    await this.client.del(aliasIndexKey);
   }
 
   private async sendCommand(args: string[]): Promise<unknown> {

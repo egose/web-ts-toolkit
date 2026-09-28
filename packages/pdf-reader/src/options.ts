@@ -1,4 +1,5 @@
 import { PdfReaderError } from './errors';
+import { resolveSignal } from './signal';
 import type { ConvertOptions, PageRange, ViewportScale } from './types';
 
 export interface ResolvedConvertOptions {
@@ -36,7 +37,7 @@ export function resolveConvertOptions(options: ConvertOptions): ResolvedConvertO
     pageImageOutput: options.pageImageOutput ?? 'data-url',
     includeText: options.includeText ?? true,
     includeEmbeddedImages: options.includeEmbeddedImages ?? false,
-    signal: options.signal,
+    signal: resolveSignal(raw.signal),
   };
 
   if (typeof resolved.viewportScale === 'number') {

@@ -145,12 +145,13 @@ describe('MSGF-08 rendering/action separation', () => {
       ],
     };
     const service = new MessageService({ getModel: (() => ({}) as never) as never, registry: buildRegistry(template) });
+    const lookup = vi.spyOn(service, 'findMessage');
 
     // Eligible: ready=true lists the action with payload-based label.
     condition.mockClear();
+    lookup.mockResolvedValueOnce(receiverDoc({ ready: true, label: 'PayloadLabel' }));
     const eligible = await service.getActions('msg-1', 'receiver', {
       user: { _id: 'u2' },
-      message: receiverDoc({ ready: true, label: 'PayloadLabel' }),
     });
     expect(condition).toHaveBeenCalled();
     expect(eligible!.uiTemplate).toBe('r-view');
@@ -164,18 +165,18 @@ describe('MSGF-08 rendering/action separation', () => {
 
     // Eligible but condition false: filtered out.
     condition.mockClear();
+    lookup.mockResolvedValueOnce(receiverDoc({ ready: false, label: 'PayloadLabel' }));
     const denied = await service.getActions('msg-1', 'receiver', {
       user: { _id: 'u2' },
-      message: receiverDoc({ ready: false, label: 'PayloadLabel' }),
     });
     expect(condition).toHaveBeenCalled();
     expect(denied!.actions).toEqual([]);
 
     // Admin view skips conditions and returns empty actions with the right view.
     condition.mockClear();
+    lookup.mockResolvedValueOnce(receiverDoc({ ready: true, label: 'PayloadLabel' }));
     const admin = await service.getActions('msg-1', 'receiver', {
       user: { _id: 'u2' },
-      message: receiverDoc({ ready: true, label: 'PayloadLabel' }),
       isAdmin: true,
     });
     expect(condition).not.toHaveBeenCalled();
@@ -183,9 +184,9 @@ describe('MSGF-08 rendering/action separation', () => {
 
     // Archived view skips conditions as well.
     condition.mockClear();
+    lookup.mockResolvedValueOnce(receiverDoc({ ready: true, label: 'PayloadLabel' }, { archivedAt: new Date() }));
     const archived = await service.getActions('msg-1', 'receiver', {
       user: { _id: 'u2' },
-      message: receiverDoc({ ready: true, label: 'PayloadLabel' }, { archivedAt: new Date() }),
     });
     expect(condition).not.toHaveBeenCalled();
     expect(archived).toEqual({ uiTemplate: 'r-view', actions: [] });
@@ -252,9 +253,9 @@ describe('MSGF-08 rendering/action separation', () => {
     const created = await service.createMessage({ templateCd: 'render-sep', user: { _id: 'u1' }, payload: {} });
     expect((created[0] as any).senderContent.title).toBe('Hello ContentName');
 
+    vi.spyOn(service, 'findMessage').mockResolvedValueOnce(receiverDoc({ name: 'PayloadName' }));
     const listed = await service.getActions('msg-0', 'receiver', {
       user: { _id: 'u2' },
-      message: receiverDoc({ name: 'PayloadName' }),
     });
     expect(listed!.actions[0].name).toBe('Approve PayloadName');
     expect(listed!.actions[0].confirmation).toMatchObject({

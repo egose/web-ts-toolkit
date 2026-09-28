@@ -777,6 +777,7 @@ describe('watch supervisor — injectable seams and deterministic cleanup', () =
 
     const sleeperPath = join(dir, 'child-sleeper.mjs');
     const sigtermReceipt = join(dir, 'sleeper-sigterm.receipt');
+    const sleeperReady = join(dir, 'sleeper-ready.receipt');
     writeFileSync(
       sleeperPath,
       [
@@ -786,6 +787,7 @@ describe('watch supervisor — injectable seams and deterministic cleanup', () =
         `  try { writeFileSync(receipt, '1'); } catch {}`,
         `  setTimeout(() => process.exit(0), 500);`,
         `});`,
+        `writeFileSync(process.argv[3], '1');`,
         `setInterval(() => {}, 1000);`,
         ``,
       ].join('\n'),
@@ -807,7 +809,8 @@ describe('watch supervisor — injectable seams and deterministic cleanup', () =
         `const readyFile = ${JSON.stringify(readyFile)};`,
         `const sleeperPath = ${JSON.stringify(sleeperPath)};`,
         `const sigtermReceipt = ${JSON.stringify(sigtermReceipt)};`,
-        `const forkImpl = () => spawn(process.execPath, [sleeperPath, sigtermReceipt], { stdio: 'inherit' });`,
+        `const sleeperReady = ${JSON.stringify(sleeperReady)};`,
+        `const forkImpl = () => spawn(process.execPath, [sleeperPath, sigtermReceipt, sleeperReady], { stdio: 'inherit' });`,
         `const controller = runWithWatch(`,
         `  { appPath: './app.js', options: {}, tsconfigPath: undefined, require: [], env: [], watch: [watchDir], watchExt: ['ts'], watchDelay: 50 },`,
         `  { fork: forkImpl, killTimeoutMs: 1500, exit: (code) => process.exit(code), installSignalHandlers: true },`,
@@ -839,13 +842,14 @@ describe('watch supervisor — injectable seams and deterministic cleanup', () =
 
     try {
       const deadline = Date.now() + 10_000;
-      while (!existsSync(readyFile) && Date.now() < deadline) {
+      while ((!existsSync(readyFile) || !existsSync(sleeperReady)) && Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 25));
       }
       expect(existsSync(readyFile)).toBe(true);
+      expect(existsSync(sleeperReady)).toBe(true);
       const grandchildPid = Number(readFileSync(readyFile, 'utf8').trim());
       expect(Number.isInteger(grandchildPid) && grandchildPid > 0).toBe(true);
-      // Readiness barrier: grandchild really alive.
+      // Readiness barrier: grandchild alive AND its SIGTERM handler installed.
       expect(() => process.kill(grandchildPid, 0)).not.toThrow();
 
       // First OS signal starts graceful shutdown; the sleeper's receipt proves
@@ -906,5 +910,6 @@ describe('watch supervisor — injectable seams and deterministic cleanup', () =
     // Parent process listener baseline unchanged (owned-only removal).
     expect(process.listenerCount('SIGINT')).toBe(beforeSIGINT);
     expect(process.listenerCount('SIGTERM')).toBe(beforeSIGTERM);
-  });
+    // The bounded readiness, shutdown and cleanup polls may exceed Vitest's default 5s.
+  }, 60_000);
 });

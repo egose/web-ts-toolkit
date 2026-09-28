@@ -20,6 +20,7 @@ import {
 } from './message-service';
 import type { MessageServiceOptions } from './message-service';
 import { hasExplicitPermissionGrant } from './template-engine';
+import { serializePublicMessage } from './public-message';
 
 // ---------------------------------------------------------------------------
 // Action code validation
@@ -252,6 +253,7 @@ export interface MessageRoutesInjectionOptions extends MessageRoutesBehaviorOpti
   modelNames?: never;
   paymentProvider?: never;
   onPaymentCompensationFailure?: never;
+  onTransactionCleanupFailure?: never;
   adminRoles?: never;
   registry?: never;
   defaultListLimit?: never;
@@ -283,6 +285,7 @@ const SERVICE_CONSTRUCTION_KEYS = [
   'modelNames',
   'paymentProvider',
   'onPaymentCompensationFailure',
+  'onTransactionCleanupFailure',
   'adminRoles',
   'registry',
   'defaultListLimit',
@@ -316,7 +319,7 @@ const SERVICE_CONSTRUCTION_KEYS = [
  * paths.
  *
  * Routes:
- *   POST /new/:templateCd        — create message from template
+ *   POST /new/:templateCd        — create/replay as PublicMessageDto[]
  *   GET  /:id/actions/:usertype  — get available actions for a message
  *   POST /:id/action/:actionCd   — execute an action (POST)
  *
@@ -357,6 +360,7 @@ export function createMessageRoutes(options: MessageRoutesOptions): {
       modelNames: construction.modelNames,
       paymentProvider: construction.paymentProvider,
       onPaymentCompensationFailure: construction.onPaymentCompensationFailure,
+      onTransactionCleanupFailure: construction.onTransactionCleanupFailure,
       adminRoles: construction.adminRoles,
       registry: construction.registry,
       defaultListLimit: construction.defaultListLimit,
@@ -385,7 +389,7 @@ export function createMessageRoutes(options: MessageRoutesOptions): {
     assertValidClientRequestId(hasClientRequestId ? clientRequestId : undefined);
 
     try {
-      return await service.createMessage({
+      const messages = await service.createMessage({
         templateCd,
         user,
         roles,
@@ -396,6 +400,7 @@ export function createMessageRoutes(options: MessageRoutesOptions): {
         req,
         clientRequestId: hasClientRequestId ? clientRequestId : undefined,
       });
+      return messages.map(serializePublicMessage);
     } catch (error) {
       mapServiceError(error);
     }

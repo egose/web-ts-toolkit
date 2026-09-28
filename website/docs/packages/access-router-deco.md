@@ -9,6 +9,37 @@ Decorator-based configuration for `@web-ts-toolkit/access-router`.
 
 This package lets you describe `access-router` modules, model routers, router options, and hook methods with TypeScript decorators instead of wiring everything by hand.
 
+## Property and OpenAPI migration
+
+Scoped property decorators enforce their class role at bootstrap: `GlobalOption`
+on modules, `DefaultModelOption` on default providers, and `ModelOption` on model
+routers/providers. Misplaced declarations throw `TypeError`, including inherited
+and inferred-key declarations. Root routers reject all instance option properties;
+use `@Router(options)`. A child remapping replaces inherited entries for either
+the same property (including symbols) or the same option key.
+
+All property decorators, including legacy `Option`, validate known scalar values:
+`requestPermissionField`, `documentPermissionField`, `idParam`, `idField`,
+`parentPath`, `queryRouteSegment`, `mutationRouteSegment`, `modelPermissionPrefix`,
+`modelName`, and `basePath` require strings; `listHardLimit` requires a finite
+number; `requireRegisteredPopulateModels` requires a boolean. Optional `undefined`
+remains allowed. Invalid values throw and package-controlled writes roll back.
+Unknown extension/typo keys remain allowed; this is not exhaustive validation of
+structured policies or hooks, and decorators cannot type-check property values.
+
+Module `options.basePath` now prefixes generated OpenAPI paths before collision
+checks as well as mounting Express. Module `/api` plus model `/users` produces
+`/api/users`; root `/batch` produces `/api/batch`. Shared-runtime prior entries
+are preserved. Model OpenAPI composition is module base + `parentPath` + model
+base; `parentPath` does not affect Express matching. Remove old `parentPath`
+workarounds that equal or descend from the module mount: bootstrap rejects them
+to avoid doubled paths (segment-aware: `/apiary` is not beneath `/api`).
+
+For a reverse-proxy prefix `/ext`, leave `parentPath` at its default and pass
+`servers: [{ url: '/ext' }]` when generating the OpenAPI router/spec. This describes
+`/ext/api/users`; `parentPath: '/ext'` would describe `/api/ext/users` instead.
+Express URLs are unchanged by this migration.
+
 ## Installation
 
 ```bash npm2yarn
@@ -43,74 +74,104 @@ The package root transitively pulls `reflect-metadata` via decorators, but an ex
 
 ## Quick Start
 
+This public article endpoint lets anyone read a published article by slug. It grants no list or write access and exposes only the allowed read fields (plus Access Router's `_id` and `_permissions` metadata). Authentication is unnecessary for this public policy; request headers do not grant privileges.
+
 ```ts
 import 'reflect-metadata';
 import express from 'express';
 import mongoose from 'mongoose';
-import {
-  Module,
-  Router,
-  RouterOptions,
-  GlobalPermissions,
-  DocPermissions,
-  Validate,
-  Request,
-  Document,
-  Permissions,
-  EgoseFactoryStatic,
-} from '@web-ts-toolkit/access-router-deco';
+import { Module, Router, BaseFilter, Identifier, Id, EgoseFactoryStatic } from '@web-ts-toolkit/access-router-deco';
 
-mongoose.model('User', new mongoose.Schema({ email: String, name: String, public: Boolean }));
+// Call once per host-owned connection; pass the model instance, not a global name.
+export function createArticleApp(connection: mongoose.Connection) {
+  const Article = connection.model(
+    'Article',
+    new mongoose.Schema({
+      slug: { type: String, required: true, unique: true },
+      title: { type: String, required: true },
+      body: String,
+      published: { type: Boolean, default: false },
+      internalNotes: String,
+    }),
+  );
 
-@Router('User', {
-  basePath: '/users',
-})
-class UserRouter {
-  @DocPermissions('read')
-  canRead(@Document() doc: any, @Permissions() permissions: { has(permission: string): boolean }) {
-    return { read: doc.public || permissions.has('isAdmin') };
+  @Router(Article, {
+    basePath: '/articles',
+    // No list fallback or computed field-permission metadata (only its empty placeholder).
+    defaults: { publicReadOptions: { includePermissions: false, tryList: false } },
+    operationAccess: {
+      read: true,
+      list: false,
+      new: false,
+      create: false,
+      update: false,
+      upsert: false,
+      delete: false,
+      distinct: false,
+      count: false,
+      subs: false,
+    },
+    permissionSchema: {
+      slug: { read: true },
+      title: { read: true },
+      body: { read: true },
+      published: false,
+      internalNotes: false,
+    },
+  })
+  class ArticleRouter {
+    @BaseFilter('read')
+    publishedOnly() {
+      return { published: true };
+    }
+
+    @Identifier()
+    bySlug(@Id() slug: string) {
+      return { slug };
+    }
   }
 
-  @Validate('create')
-  validateCreate(@Document() doc: { email?: string; name?: string }) {
-    if (!doc.email) return ['email is required'];
-    if (!doc.name) return false;
-    return true;
-  }
+  @Module({
+    routers: [ArticleRouter],
+    options: { basePath: '/api', handleErrors: true },
+  })
+  class ArticleModule {}
+
+  const app = express();
+  app.use(express.json());
+  const factory = EgoseFactoryStatic.create(); // New isolated Access Router runtime.
+  const { runtime } = factory.bootstrap(ArticleModule, app);
+  return { app, runtime, Article };
 }
-
-@RouterOptions({
-  operationAccess: {
-    list: true,
-    read: true,
-  },
-})
-class DefaultOptions {}
-
-@Module({
-  routers: [UserRouter],
-  routerOptions: [DefaultOptions],
-  options: {
-    basePath: '/api',
-  },
-})
-class AppModule {
-  @GlobalPermissions()
-  permissions(@Request() req: express.Request) {
-    return req.headers['x-role'] === 'admin' ? ['isAdmin'] : [];
-  }
-}
-
-const app = express();
-const factory = EgoseFactoryStatic.create();
-const { runtime } = factory.bootstrap(AppModule, app);
-// Isolated runtime per factory — preferred for apps and tests. `EgoseFactory` is still available as a compatibility singleton for shared-runtime apps.
-
-// Invalid input uses controlled validation failure (false / issue array → 400), not throw or document return:
-// - validateCreate({ name: 'Ada' }) → ['email is required']
-// - validateCreate({ email: 'a@b.co' }) → false
-// - validateCreate({ email: 'a@b.co', name: 'Ada' }) → true
 ```
+
+Save this as `articles.ts`. Prerequisites: Node >=22, the dependencies and legacy TypeScript settings above, and a reachable MongoDB database. In an async host startup, open a dedicated connection before listening (compile TypeScript before running Node):
+
+```ts
+import mongoose from 'mongoose';
+import { createArticleApp } from './articles.js';
+
+async function main() {
+  const uri = process.env.MONGODB_URI;
+  if (!uri) throw new Error('Set MONGODB_URI');
+  const connection = await mongoose.createConnection(uri).asPromise();
+  const { app, Article } = createArticleApp(connection);
+  await Article.init(); // Ensure the unique slug index exists before serving.
+  // Provision articles through a trusted seed/admin process, e.g.:
+  // await Article.create({ slug: 'welcome', title: 'Welcome', body: 'Hello', published: true });
+  const server = app.listen(3000);
+  // The host owns shutdown: close server, then await connection.close().
+  return { server, connection };
+}
+void main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});
+```
+
+After provisioning `welcome`, `GET /api/articles/welcome` returns its public fields. A draft slug returns `404`; `GET /api/articles` and `POST /api/articles` return `401` under Access Router's denial contract. Sending `x-role: admin` changes none of these decisions. JSON parsing is installed before routes, but parsed bodies do not authorize writes.
+
+`operationAccess` authorizes operations; `permissionSchema` authorizes fields. A document-permission map alone does not configure either policy. Migration note (PDEC-05): the former quickstart trusted `x-role` as an administrator grant; replace that pattern with this public policy or a host-verified principal boundary. For private/tenant workflows, authenticate in host middleware before bootstrap's mounted router, deny missing principals with a route guard, and derive tenant filters from that verified principal via `@Request()`. Use `@Context()` for model-hook context where supported by the hook table below. Filters restrict data; they are not authentication. Request/principal state belongs in the injected request/context, never shared class fields. Each tenant-owned connection/model should use its own factory runtime; isolation alone does not authenticate tenant selection.
 
 This package is a good fit when you like `access-router`'s hooks and configuration model but want to express them through decorators and classes instead of building option objects manually.
 
@@ -136,6 +197,22 @@ factory.bootstrap(AppModule, app);
 ```
 
 The bootstrap result exposes the bound `runtime` and mounted Express `router` for lifecycle inspection. Calling `bootstrap(...)` twice with the same factory, module class, and Express app throws to avoid duplicate middleware and routes.
+
+## Transactional Bootstrap
+
+`EgoseFactoryStatic.bootstrap(...)` snapshots package-controlled runtime state before mutation and delays publication until setup succeeds. Class roles are validated before construction; effective hook declarations are checked during configuration planning. After planning, the factory requires callable `createBootstrapSnapshot()` and `restoreBootstrapSnapshot()` methods, resolving each directly on the runtime API or on its underlying `.runtime` (direct methods take precedence). Missing capability, thrown acquisition errors, or an absent snapshot stop bootstrap before package preflight, setters, model registration, or mounting. The real runtime snapshot covers global/default/model options, model registrations, model refs/subs/atts, and OpenAPI registrations.
+
+Request runtime initialization (`factory.runtime()`), decorated option registration, routes, and opt-in error handlers are composed on an unmounted `express.Router()` first (init before routes and error handlers). Only after setup succeeds is that single module router mounted with `app.use(basePath, router)`. On setup failure, including a final `app.use` that throws after mounting, the factory independently attempts runtime restoration and truncation of the app's mount stack to its pre-bootstrap length.
+
+Request runtime initialization is scoped to the module router mounted at `basePath` and does not run on unrelated host routes. Two isolated modules on one app each use only their owning runtime on their own paths. Applications needing request runtime initialization outside module routes must explicitly own that middleware (for example, `app.use(factory.runtime())`).
+
+Malformed hook chains (`Invalid hook chain for <aclKey>`) and duplicate validator/static-array conflicts are checked in preflight before setters, inside the snapshot boundary because runtime lookups can mutate state. When rollback succeeds, bootstrap rethrows the exact original value, including non-`Error` throws. A corrected retry then behaves like a clean first attempt, with one mount and one copy of initialization, routes, hooks, and OpenAPI registrations.
+
+**Recovery failure:** if runtime restoration or app-stack cleanup throws, bootstrap reports an `AggregateError`. Its `cause` and first `errors` entry are the original thrown value; subsequent entries are the runtime-restore failure and/or app-cleanup failure in that order. Both recovery steps are attempted even if one fails. Failed runtime restoration leaves runtime state uncertain; failed app cleanup can leave routes mounted. The host must repair or replace the affected runtime/app before retrying. Every attempt releases the in-progress reservation, and a failed attempt is not marked bootstrapped; this permits recovery but does not prove rollback succeeded.
+
+**Migration note:** bootstrap previously ignored snapshot acquisition/restoration failures. Runtime adapters and test doubles must now provide working synchronous snapshot/restore capability; missing methods no longer permit unprotected setup. Ordinary successful rollback preserves error identity, while failed recovery now surfaces the original and recovery failures together.
+
+**Non-rollback boundary:** arbitrary user constructors and field initializers (`new Type()`) executed while building the module plan are outside the transaction and are not undone. Express internals outside the mount stack (e.g., `app.set(...)`, already-sent responses) are also not rolled back. The guarantee covers only the factory's runtime state and the Express mount stack (`app._router.stack` / `app.router.stack` truncation).
 
 ## TypeScript Decorator Configuration
 
@@ -305,6 +382,8 @@ These decorators map directly to `access-router` option keys. Every hook method 
 
 Migration note (BDECO-05 — fail-fast decorator targets): hook, parameter, and property decorators are instance-only and reject unsupported targets at decoration time before writing metadata. Static methods/properties/parameters, constructor parameters, and missing/invalid operations (including zero-argument JavaScript calls like `BaseFilter()`) now throw instead of being silently skipped. Previously such declarations compiled but never registered, so a deny guard or filter could silently disappear. If you relied on static decorators, move the hook to an instance method.
 
+Migration note (PDEC-02 — accessor hooks): method-hook decorators also reject getters, setters, missing descriptors, and non-callable or malformed method descriptors before writing hook metadata, without invoking getters. Legacy TypeScript descriptor typing can accept a callable getter such as `@RouteGuard('read') get guard() { return () => false; }`, but this now throws at decoration time instead of silently losing the policy. Use an instance method: `@RouteGuard('read') guard() { return false; }`. Ordinary, inherited, symbol-keyed, and wrapped instance methods remain supported.
+
 | Decorator              | Maps to             | Scope / Valid Class Role                                           | Operations                                                                                    | Result Shape (`MaybePromise<…>`)                                                                                                       |
 | ---------------------- | ------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `@GlobalPermissions()` | `globalPermissions` | `@Module` only                                                     | —                                                                                             | `GlobalPermissionValue` (`string \| string[] \| Record<string,boolean> \| null \| undefined`)                                          |
@@ -323,6 +402,16 @@ Migration note (BDECO-05 — fail-fast decorator targets): hook, parameter, and 
 | `@AfterDelete()`       | `afterDelete`       | `@Router(Model)` / `@RouterOptions(Model)`                         | —                                                                                             | `void`                                                                                                                                 |
 
 Most decorators take the same operation names you would use in plain `access-router` options, such as `create`, `read`, `update`, `list`, or `delete`. Scalar hooks (`globalPermissions`, `docPermissions`, `baseFilter`, `overrideFilter`, `validate`, `routeGuard`, `identifier`, `beforeDelete`, `afterDelete`) reject duplicate keys on the same class; array hooks (`prepare`, `transform`, `afterPersist`, `decorate`, `decorateAll`) compose base→derived.
+
+**Hook class roles are enforced at bootstrap.** Every known effective hook declaration is checked before runtime setters or Express publication, including inherited, symbol-keyed, wrapped, and mixed allowed/disallowed declarations. `@GlobalPermissions()` belongs only on `@Module`; model hooks belong on `@Router(Model)` or `@RouterOptions(Model)`. Default `@RouterOptions(options)` accepts only `@RouteGuard` and `@Identifier`. Root `@Router(options)` accepts no hook methods; its prototype is validated without constructing the root class.
+
+**Migration note:** wrong-role hooks that were previously silently ignored now stop bootstrap with the class, member, hook, and valid placements in the diagnostic. Move the declaration to a provider with the intended supported scope; bootstrap does not reassign it automatically. Only effective declarations are checked: an override suppresses ancestor hook metadata, and a decorated override is checked in its own class role. Constructors of other providers still run during configuration planning and remain outside rollback.
+
+**Method-wrapper composition**
+
+Legacy TypeScript decorators that mutate `descriptor.value` or return a replacement method descriptor retain hook declarations in either decorator order. Bootstrap invokes the effective wrapped method with the class instance as `this` and explicit parameter injection, including sparse positions. Inherited and symbol-keyed methods are supported. An override replaces the ancestor's hook and parameter declarations; redecorate the override to register it.
+
+Wrappers remain responsible for the behavior they return: forward `this`, arguments, return values/promises, and errors when preserving the original hook. Composition support does not restore behavior discarded by a wrapper or transfer declarations to a different member. **Migration note:** instrumentation that previously replaced a decorated function could silently drop its guard or validator; that declared policy now remains active regardless of decorator order.
 
 `@Validate`: return `true` on success, `false` or an issue array such as `['email is required']` on invalid input — do not `throw` for expected invalid input nor return the document, and the typed hook now fails to compile if you return a document.
 

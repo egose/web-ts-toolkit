@@ -14,6 +14,11 @@ Use `@web-ts-toolkit/access-router/advanced` when you need the lower-level contr
 - symbols such as `MIDDLEWARE`, `DATA_MIDDLEWARE`, `CORE`, `PERMISSIONS`, and `PERMISSION_KEYS`
 - the full interface/type surface from `interfaces/*`
 
+Runtime-context functions are internal and are not exported here. Use root exports
+`createAccessRuntime`, `AccessRuntime` and `defaultRuntime` for runtime ownership, or
+the root default `acl` API for default-runtime router creation. `/advanced` exports
+neither runtime instances nor router-creation helpers.
+
 ## Common Validation Imports
 
 ```ts

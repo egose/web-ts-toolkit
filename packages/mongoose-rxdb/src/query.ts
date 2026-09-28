@@ -1,7 +1,7 @@
 import type { FilterQuery, LeanResult, QueryOptions, UpdateQuery } from './types';
 import type { RxLikeCollection, RxLikeDoc } from './rx-adapter';
 import type { InternalModelRuntime } from './model';
-import { cloneBoundedInput, compileQuery, QueryFilterError } from './query-compiler';
+import { cloneBoundedInput, compileQuery, QueryFilterError, type NormalizedProjection } from './query-compiler';
 import { Document, validateObjectAgainstSchema } from './document';
 import { applyNormalizedUpdate, documentToStorage, normalizeUpdatePlan, storageToDocument } from './converter';
 import { Schema } from './schema';
@@ -219,6 +219,15 @@ export class Query<
     return this;
   }
 
+  /**
+   * Select visible fields; keep _id for saving. Selected leaf edits can be saved,
+   * but incomplete array/object replacements throw WriteNormalizationError.
+   * Nonempty projected documents cannot be validated standalone: validate() /
+   * validateSync() reject / return ValidationError kind 'projection'. A validated
+   * save checks the full merged storage candidate without exposing hidden data.
+   * Retained arrays preserve indexes with null for redacted positions in lean
+   * and hydrated results. Result types do not narrow for omitted fields/null slots.
+   */
   select(projection: Record<string, 0 | 1> | string): this {
     this.options.projection = cloneBoundedInput(projection);
     return this;
@@ -341,7 +350,7 @@ export class Query<
   ): Promise<any[]> {
     const records = await this.collection!.find(compiled);
     if (state.options.lean) return records.map((record) => storageToDocument(record, this.schema));
-    return Promise.all(records.map((record) => this.hydrate(record)));
+    return Promise.all(records.map((record) => this.hydrate(record, compiled.projection)));
   }
 
   private async runFindOne(
@@ -350,7 +359,7 @@ export class Query<
   ): Promise<any | null> {
     const doc = await this.collection!.findOne({ ...compiled, limit: 1 });
     if (!doc) return null;
-    return state.options.lean ? storageToDocument(doc, this.schema) : this.hydrate(doc);
+    return state.options.lean ? storageToDocument(doc, this.schema) : this.hydrate(doc, compiled.projection);
   }
 
   private async runCount(compiled: ReturnType<typeof compileQuery>): Promise<number> {
@@ -442,7 +451,7 @@ export class Query<
     return this.hydrate(raw);
   }
 
-  private async hydrate(raw: RxLikeDoc): Promise<Document<DocType>> {
+  private async hydrate(raw: RxLikeDoc, projection?: NormalizedProjection): Promise<Document<DocType>> {
     const doc = new Document<DocType>(
       storageToDocument(raw, this.schema) as unknown as Partial<DocType>,
       this.schema,
@@ -451,6 +460,7 @@ export class Query<
         isNew: false,
         id: raw._id,
         applyDefaults: false,
+        projection,
       },
     );
     return this.mw.exec('init', doc, async () => doc);

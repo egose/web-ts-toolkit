@@ -8,13 +8,19 @@ import * as parse5 from 'parse5';
 import type { InlineOptions, InlineResult, AssetReplacement, AssetDiagnostic } from './types.ts';
 import { InvalidOptionsError, ParseError, ResourceLimitError } from './errors.ts';
 import { inlineCss } from './css.ts';
-import { classifyUrl, resolveAssetReferenceSync } from './resolve.ts';
+import { classifyUrl, resolveAssetReferenceSync, htmlResolutionContext } from './resolve.ts';
+import type { HtmlResolutionContext } from './resolve.ts';
+import { findHtmlBase, mapHtmlBase } from './html-base.ts';
 import { assertSafeDataUrl } from './format.ts';
+import { tokenizeSrcset } from './srcset.ts';
+import { assembleSourcePatches, type SourcePatch as Patch } from './source-patches.ts';
+import { assertCssSyntaxDepth, assertHtmlSyntaxDepth, boundedHtmlTreeAdapter } from './syntax-depth.ts';
 import {
   validatePolicyOptions,
   DEFAULT_MAX_TARGET_BYTES,
   DEFAULT_MAX_REPLACEMENTS,
   DEFAULT_MAX_OUTPUT_BYTES,
+  DEFAULT_MAX_SYNTAX_DEPTH,
 } from './policy.ts';
 
 // ---------------------------------------------------------------------------
@@ -45,81 +51,6 @@ function isDocumentHtml(content: string): boolean {
   if (/^<!doctype/i.test(trimmed)) return true;
   if (/^<html[\s>]/i.test(trimmed)) return true;
   return false;
-}
-
-// ---------------------------------------------------------------------------
-// srcset helpers — standards-aware split preserving data URLs atomically
-// ---------------------------------------------------------------------------
-
-/**
- * Split a srcset attribute value into candidate strings without corrupting data URLs.
- * Implements the HTML `srcset` parsing algorithm in a standards-aware way:
- * - Splits on commas that are candidate separators, not commas inside a `data:` URL payload.
- * - Handles descriptors (`1x`, `2x`, `100w`), ASCII whitespace (space, tab, newline, form-feed, carriage-return),
- *   empty candidates (consecutive commas / whitespace-only), and literal commas inside data URLs atomically.
- * - For `data:` URLs the URL token extends to the next ASCII whitespace (including any literal commas), so
- *   `data:text/plain,hello,world,again 1x` is one candidate, not three.
- */
-function splitSrcsetPreservingDataUrls(input: string): string[] {
-  if (input.trim() === '') return [];
-  const candidates: string[] = [];
-  const len = input.length;
-  let pos = 0;
-  while (pos < len) {
-    while (pos < len && isAsciiWhitespace(input[pos] as string)) pos++;
-    if (pos >= len) break;
-    if (input[pos] === ',') {
-      pos++;
-      continue;
-    }
-    const candidateStart = pos;
-    const isData = input.slice(pos, pos + 5).toLowerCase() === 'data:';
-    let candidateEnd: number;
-    if (isData) {
-      let ws = pos;
-      while (ws < len && !isAsciiWhitespace(input[ws] as string)) ws++;
-      if (ws === len) {
-        candidateEnd = len;
-      } else {
-        // If the character before whitespace is a comma, that comma is the candidate separator
-        // for a descriptor-less data URL (e.g. "data:text/plain,a,b,c, next"). Treat it as separator.
-        if (ws > candidateStart && input[ws - 1] === ',') {
-          let after = ws;
-          while (after < len && isAsciiWhitespace(input[after] as string)) after++;
-          if (after < len) {
-            candidateEnd = ws - 1;
-            const raw = input.slice(candidateStart, candidateEnd);
-            if (raw.trim() !== '') candidates.push(raw);
-            pos = candidateEnd;
-            if (pos < len && input[pos] === ',') pos++;
-            continue;
-          }
-        }
-        const nextComma = input.indexOf(',', ws);
-        if (nextComma === -1) candidateEnd = len;
-        else candidateEnd = nextComma;
-      }
-    } else {
-      const nextComma = input.indexOf(',', pos);
-      if (nextComma === -1) candidateEnd = len;
-      else candidateEnd = nextComma;
-    }
-    const rawCandidate = input.slice(candidateStart, candidateEnd);
-    if (rawCandidate.trim() !== '') candidates.push(rawCandidate);
-    pos = candidateEnd;
-    if (pos < len && input[pos] === ',') pos++;
-  }
-  return candidates;
-}
-
-function extractUrlAndDescriptor(candidate: string): { url: string; descriptor: string } {
-  const trimmed = candidate.trim();
-  if (trimmed === '') return { url: '', descriptor: '' };
-  const match = trimmed.match(/^(\S+)(?:\s+(.*))?$/);
-  if (!match) return { url: trimmed, descriptor: '' };
-  const url = (match[1] ?? '').trim();
-  const descriptor = (match[2] ?? '').trim();
-  return { url, descriptor };
 }
 
 // ---------------------------------------------------------------------------
@@ -438,22 +369,72 @@ function decodeHtmlAttrValue(raw: string): { text: string; map: number[] } {
 }
 
 /**
+ * Srcset-only fallback for the narrow decoder: let the existing HTML parser
+ * decode each character reference in attribute context (including its full
+ * named table), retaining original offsets. Literal CR/CRLF normalize before
+ * reference decoding; numeric CR remains CR. Cache only within this attribute.
+ */
+function decodeSrcsetAttrFallback(raw: string): { text: string; map: number[] } {
+  let text = '';
+  const map: number[] = [];
+  const cache = new Map<string, string>();
+  const reference = /&(?:#[xX][0-9a-fA-F]+;?|#[0-9]+;?|[A-Za-z0-9]+;?)/y;
+  for (let i = 0; i < raw.length; ) {
+    reference.lastIndex = i;
+    const match = raw[i] === '&' ? reference.exec(raw) : null;
+    if (match) {
+      const spelling = match[0];
+      // '=' after a semicolonless named reference suppresses decoding in an
+      // attribute. Include that lookahead without consuming it in our map.
+      const lookahead = raw[i + spelling.length] === '=' ? '=' : '';
+      const key = spelling + lookahead;
+      let value = cache.get(key);
+      if (value === undefined) {
+        // The matched alphabet contains no markup/quote delimiters.
+        const tree = parse5.parseFragment(`<i a="${key}">`);
+        value = (tree.childNodes[0] as parse5.DefaultTreeAdapterMap['element']).attrs[0]!.value;
+        if (lookahead) value = value.slice(0, -1);
+        cache.set(key, value);
+      }
+      for (let k = 0; k < value.length; k++) map.push(i + (value === spelling ? k : 0));
+      text += value;
+      i += spelling.length;
+    } else {
+      const ch = raw[i]!;
+      map.push(i);
+      text += ch === '\r' ? '\n' : ch === '\0' ? '�' : ch;
+      i += ch === '\r' && raw[i + 1] === '\n' ? 2 : 1;
+    }
+  }
+  map.push(raw.length);
+  return { text, map };
+}
+
+/**
  * Re-encode transformed CSS text for an HTML attribute-value patch. Escapes
  * `&`/`<`/`>` plus the active quote character so the patched value reparses
  * to the same attribute without acquiring new markup or breaking out of the
  * attribute. Validated data URLs contain none of these characters, so actual
- * replacements pass through byte-identical.
+ * replacements pass through byte-identical. Raw-source decoder fallback keeps
+ * existing references; decoded CSS escapes ampersands to avoid a second decode.
  */
-function escapeHtmlAttrValue(text: string, activeQuote: string | null): string {
+function escapeHtmlAttrValue(text: string, activeQuote: string, preserveEntities = false): string {
   let out = '';
   for (const ch of text) {
-    if (ch === '&') out += '&amp;';
+    if (ch === '&' && !preserveEntities) out += '&amp;';
     else if (ch === '<') out += '&lt;';
     else if (ch === '>') out += '&gt;';
-    else if (activeQuote !== null && ch === activeQuote) out += activeQuote === '"' ? '&quot;' : '&#39;';
+    else if (ch === activeQuote) out += activeQuote === '"' ? '&quot;' : '&#39;';
+    else if (ch === '\r' && !preserveEntities) out += '&#13;';
     else out += ch;
   }
   return out;
+}
+
+/** Serialize the whole style value, adding a quoted context for unquoted input. */
+function serializeStyleAttrValue(text: string, quote: string | null, preserveEntities = false): string {
+  const escaped = escapeHtmlAttrValue(text, quote ?? '"', preserveEntities);
+  return quote === null ? `"${escaped}"` : escaped;
 }
 
 /** Active quote character for an attribute value range (`null` if unquoted). */
@@ -463,82 +444,6 @@ function activeQuoteChar(content: string, range: { valueStart: number; valueEnd:
   return q === '"' || q === "'" ? q : null;
 }
 
-/** Split a decoded srcset value into candidates with decoded offsets. */
-function splitSrcsetWithOffsets(input: string): Array<{ text: string; start: number; end: number }> {
-  const out: Array<{ text: string; start: number; end: number }> = [];
-  if (input.trim() === '') return out;
-  const len = input.length;
-  let pos = 0;
-  while (pos < len) {
-    while (pos < len && isAsciiWhitespace(input[pos] as string)) pos++;
-    if (pos >= len) break;
-    if (input[pos] === ',') {
-      pos++;
-      continue;
-    }
-    const candidateStart = pos;
-    const isData = input.slice(pos, pos + 5).toLowerCase() === 'data:';
-    let candidateEnd: number;
-    if (isData) {
-      let ws = pos;
-      while (ws < len && !isAsciiWhitespace(input[ws] as string)) ws++;
-      if (ws === len) {
-        candidateEnd = len;
-      } else {
-        if (ws > candidateStart && input[ws - 1] === ',') {
-          let after = ws;
-          while (after < len && isAsciiWhitespace(input[after] as string)) after++;
-          if (after < len) {
-            candidateEnd = ws - 1;
-            const raw = input.slice(candidateStart, candidateEnd);
-            if (raw.trim() !== '') out.push({ text: raw, start: candidateStart, end: candidateEnd });
-            pos = candidateEnd;
-            if (pos < len && input[pos] === ',') pos++;
-            continue;
-          }
-        }
-        const nextComma = input.indexOf(',', ws);
-        if (nextComma === -1) candidateEnd = len;
-        else candidateEnd = nextComma;
-      }
-    } else {
-      const nextComma = input.indexOf(',', pos);
-      if (nextComma === -1) candidateEnd = len;
-      else candidateEnd = nextComma;
-    }
-    const rawCandidate = input.slice(candidateStart, candidateEnd);
-    if (rawCandidate.trim() !== '') out.push({ text: rawCandidate, start: candidateStart, end: candidateEnd });
-    pos = candidateEnd;
-    if (pos < len && input[pos] === ',') pos++;
-  }
-  return out;
-}
-
-/** Extract URL + descriptor with decoded offsets (ASCII-whitespace split). */
-function extractUrlAndDescriptorOffsets(candidate: { text: string; start: number }): {
-  url: string;
-  descriptor: string;
-  urlStart: number;
-  urlEnd: number;
-} {
-  const text = candidate.text;
-  const len = text.length;
-  let s = 0;
-  while (s < len && isAsciiWhitespace(text[s] as string)) s++;
-  let e = len;
-  while (e > s && isAsciiWhitespace(text[e - 1] as string)) e--;
-  if (s >= e) return { url: '', descriptor: '', urlStart: candidate.start + s, urlEnd: candidate.start + s };
-  let urlEndRel = s;
-  while (urlEndRel < e && !isAsciiWhitespace(text[urlEndRel] as string)) urlEndRel++;
-  const url = text.slice(s, urlEndRel);
-  let dStart = urlEndRel;
-  while (dStart < e && isAsciiWhitespace(text[dStart] as string)) dStart++;
-  const descriptor = text.slice(dStart, e);
-  return { url, descriptor, urlStart: candidate.start + s, urlEnd: candidate.start + urlEndRel };
-}
-
-type Patch = { start: number; end: number; newValue: string };
-
 // ---------------------------------------------------------------------------
 // Traversal
 // ---------------------------------------------------------------------------
@@ -547,6 +452,7 @@ function walkAndInline(
   node: Parse5Element,
   ctx: {
     catalog: InlineOptions['catalog'];
+    htmlBase?: HtmlResolutionContext;
     documentPath?: string;
     rootDir?: string;
     allowBasenameMatch?: boolean;
@@ -563,6 +469,7 @@ function walkAndInline(
     maxInlineBytes?: number;
     shouldInline?: (asset: import('./types.ts').EncodedAsset, url: string) => boolean;
     inlineEmbeddedCss?: boolean;
+    maxSyntaxDepth: number;
   },
 ): void {
   const tag = (node.tagName ?? node.nodeName ?? '').toLowerCase();
@@ -629,6 +536,7 @@ function handleSimpleAttr(
   attrNameLower: string,
   ctx: {
     catalog: InlineOptions['catalog'];
+    htmlBase?: HtmlResolutionContext;
     documentPath?: string;
     rootDir?: string;
     allowBasenameMatch?: boolean;
@@ -657,6 +565,7 @@ function handleSimpleAttr(
   let resolved: ReturnType<typeof resolveAssetReferenceSync>;
   try {
     resolved = resolveAssetReferenceSync(raw, ctx.catalog!, {
+      [htmlResolutionContext]: ctx.htmlBase,
       documentPath: ctx.documentPath,
       rootDir: ctx.rootDir,
       allowBasenameMatch: ctx.allowBasenameMatch,
@@ -846,14 +755,14 @@ function handleSimpleAttr(
  * byte-identical. Validated data URLs need no re-encoding for this context.
  */
 function handleSrcsetDecoded(
-  element: Parse5Element,
   attr: Parse5Attr,
-  valueRange: { valueStart: number; valueEnd: number },
+  valueRange: { valueStart: number; valueEnd: number } | null,
   rawSrcset: string,
   decoded: string,
   map: number[],
   ctx: {
     catalog: InlineOptions['catalog'];
+    htmlBase?: HtmlResolutionContext;
     documentPath?: string;
     rootDir?: string;
     allowBasenameMatch?: boolean;
@@ -871,43 +780,34 @@ function handleSrcsetDecoded(
     shouldInline?: (asset: import('./types.ts').EncodedAsset, url: string) => boolean;
   },
 ): void {
-  const candidates = splitSrcsetWithOffsets(decoded);
+  const candidates = tokenizeSrcset(decoded);
   if (candidates.length === 0) return;
 
   let anyChanged = false;
-  const newCandidates: string[] = [];
-  const spanPatches: Array<{ relStart: number; relEnd: number; newValue: string }> = [];
+  const spanPatches: Array<{ relStart: number; relEnd: number; urlStart: number; urlEnd: number; newValue: string }> =
+    [];
 
   for (const candidate of candidates) {
-    const { url, descriptor, urlStart, urlEnd } = extractUrlAndDescriptorOffsets(candidate);
-    if (!url) {
-      newCandidates.push(candidate.text.trim());
-      continue;
-    }
+    const { url, urlStart, urlEnd } = candidate;
     // Map the decoded URL token to its original-source span. The sentinel
     // `map[decoded.length]` keeps end-exclusive spans sound at the tail.
     if (urlStart < 0 || urlEnd > decoded.length || urlStart >= urlEnd) {
-      newCandidates.push(descriptor ? `${url} ${descriptor}` : url);
       continue;
     }
     const relStart = map[urlStart] as number;
     const relEnd = map[urlEnd] as number;
     if (relStart < 0 || relEnd > rawSrcset.length || relStart >= relEnd) {
-      newCandidates.push(descriptor ? `${url} ${descriptor}` : url);
       continue;
     }
-    const keep = (): void => {
-      newCandidates.push(descriptor ? `${url} ${descriptor}` : url);
-    };
     const cls = classifyUrl(url);
     if (cls.kind === 'skip') {
-      keep();
       continue;
     }
 
     let resolved: ReturnType<typeof resolveAssetReferenceSync>;
     try {
       resolved = resolveAssetReferenceSync(url, ctx.catalog!, {
+        [htmlResolutionContext]: ctx.htmlBase,
         documentPath: ctx.documentPath,
         rootDir: ctx.rootDir,
         allowBasenameMatch: ctx.allowBasenameMatch,
@@ -931,12 +831,10 @@ function handleSrcsetDecoded(
         severity: 'error',
         filePath: ctx.documentPath,
       } as AssetDiagnostic);
-      keep();
       continue;
     }
 
     if ((resolved as { skipped: boolean }).skipped) {
-      keep();
       continue;
     }
     const res = resolved as { asset?: unknown; resolvedPath?: string; skipped: boolean };
@@ -948,7 +846,6 @@ function handleSrcsetDecoded(
         filePath: res.resolvedPath ?? ctx.documentPath,
         severity: 'warn',
       } as AssetDiagnostic);
-      keep();
       continue;
     }
     const asset = res.asset as import('./types.ts').EncodedAsset;
@@ -960,7 +857,6 @@ function handleSrcsetDecoded(
         filePath: res.resolvedPath ?? ctx.documentPath,
         severity: 'warn',
       } as AssetDiagnostic);
-      keep();
       continue;
     }
 
@@ -985,7 +881,6 @@ function handleSrcsetDecoded(
         filePath: resolvedPath,
         severity: 'warn',
       } as AssetDiagnostic);
-      keep();
       continue;
     }
     if (ctx.shouldInline !== undefined) {
@@ -1013,7 +908,6 @@ function handleSrcsetDecoded(
           filePath: resolvedPath,
           severity: 'warn',
         } as AssetDiagnostic);
-        keep();
         continue;
       }
     }
@@ -1053,8 +947,8 @@ function handleSrcsetDecoded(
 
     // Location points at the original-source spelling, so duplicate entity
     // references report distinct offsets with correct line/column.
-    const locOffset = valueRange.valueStart + relStart;
-    const lc = offsetToLineCol(ctx.content, locOffset);
+    const locOffset = valueRange ? valueRange.valueStart + relStart : -1;
+    const lc = locOffset >= 0 ? offsetToLineCol(ctx.content, locOffset) : { line: undefined, column: undefined };
     ctx.replacements.push(
       Object.freeze({
         originalUrl: url,
@@ -1065,25 +959,44 @@ function handleSrcsetDecoded(
         location: { offset: locOffset, line: lc.line, column: lc.column },
       }) as AssetReplacement,
     );
-    spanPatches.push({ relStart, relEnd, newValue: asset.dataUrl });
-    newCandidates.push(descriptor ? `${asset.dataUrl} ${descriptor}` : asset.dataUrl);
+    spanPatches.push({ relStart, relEnd, urlStart, urlEnd, newValue: asset.dataUrl });
     anyChanged = true;
   }
 
   if (!anyChanged) return;
   // Splice replacements into the raw slice so separators, descriptors, and
   // unrelated entities remain byte-identical.
-  let patched = rawSrcset;
-  for (const p of [...spanPatches].sort((a, b) => b.relStart - a.relStart)) {
-    patched = patched.slice(0, p.relStart) + p.newValue + patched.slice(p.relEnd);
+  const patched = assembleSourcePatches(
+    rawSrcset,
+    spanPatches.map((p) => ({
+      start: p.relStart,
+      end: p.relEnd,
+      newValue: p.newValue,
+    })),
+  );
+  const patchedDecoded = assembleSourcePatches(
+    decoded,
+    spanPatches.map((p) => ({
+      start: p.urlStart,
+      end: p.urlEnd,
+      newValue: p.newValue,
+    })),
+  );
+  // Decoded spans come directly from the tokenizer's disjoint URL tokens.
+  if (patchedDecoded === null) throw new Error('Invalid decoded srcset patch spans');
+  attr.value = patchedDecoded;
+  ctx.modified.value = true;
+  if (patched === null) {
+    ctx.patchValid.value = false;
+    return;
   }
   // Unquoted srcset values gain double quotes in the source patch so Base64
-  // padding and the data-URL comma stay inside one token when reparsed (+2
-  // bytes of escaping expansion counted toward output limits). The fallback
-  // serialize path keeps the raw value — parse5 quotes on serialize.
+  // padding stays inside one attribute when reparsed. Quotes and any escaping
+  // expansion count toward output limits. The full-tree fallback uses the
+  // patched decoded value, including untouched/invalid candidates.
   let patchSrcset = patched;
-  if (!isQuotedAttrValue(ctx.content, valueRange)) {
-    const quoted = `"${patched}"`;
+  if (valueRange && !isQuotedAttrValue(ctx.content, valueRange)) {
+    const quoted = `"${escapeHtmlAttrValue(patched, '"', true)}"`;
     const extra = byteLengthUtf8(quoted) - byteLengthUtf8(patched);
     const nextProjected = addSafe(ctx.projectedBytes.value, extra, ctx.maxOutputBytes, ctx.documentPath);
     if (nextProjected > ctx.maxOutputBytes) {
@@ -1099,16 +1012,11 @@ function handleSrcsetDecoded(
     ctx.projectedBytes.value = nextProjected;
     patchSrcset = quoted;
   }
-  ctx.patches.push({ start: valueRange.valueStart, end: valueRange.valueEnd, newValue: patchSrcset });
-  if (
-    valueRange.valueStart < 0 ||
-    valueRange.valueEnd > ctx.content.length ||
-    valueRange.valueStart >= valueRange.valueEnd
-  ) {
+  if (valueRange) {
+    ctx.patches.push({ start: valueRange.valueStart, end: valueRange.valueEnd, newValue: patchSrcset });
+  } else {
     ctx.patchValid.value = false;
   }
-  attr.value = newCandidates.join(', ');
-  ctx.modified.value = true;
 }
 
 function handleSrcsetAttr(
@@ -1116,6 +1024,7 @@ function handleSrcsetAttr(
   attrNameLower: string,
   ctx: {
     catalog: InlineOptions['catalog'];
+    htmlBase?: HtmlResolutionContext;
     documentPath?: string;
     rootDir?: string;
     allowBasenameMatch?: boolean;
@@ -1143,283 +1052,19 @@ function handleSrcsetAttr(
   else rawSrcset = attr.value;
   if (rawSrcset.trim() === '') return;
 
-  // AIH-08: decode character references once (the parser already decoded
-  // `attr.value`) with a decoded-to-source map. Proceed on the mapped path
-  // only when our decode agrees with the parser-provided value; otherwise
-  // fall back to raw-source parsing below so entities outside the narrow
-  // table (or newline normalization) can neither double-decode nor mis-map.
+  // Always tokenize in the parser's decoded space. Raw-source tokenization
+  // can invent URL boundaries when an entity encodes whitespace or a comma.
   if (valueRange) {
-    const range = valueRange as { valueStart: number; valueEnd: number };
-    const decoded = decodeHtmlAttrValue(rawSrcset);
-    if (decoded.text === attr.value) {
-      handleSrcsetDecoded(element, attr, range, rawSrcset, decoded.text, decoded.map, ctx);
-      return;
-    }
-  }
-
-  const candidatesRaw = splitSrcsetPreservingDataUrls(rawSrcset);
-  if (candidatesRaw.length === 0) return;
-
-  let anyChanged = false;
-  const newCandidates: string[] = [];
-  // For URL token locations, track search position inside rawSrcset
-  let searchPos = 0;
-
-  for (const rawCandidate of candidatesRaw) {
-    const trimmedForCheck = rawCandidate.trim();
-    if (trimmedForCheck === '') {
-      continue;
-    }
-    const { url, descriptor } = extractUrlAndDescriptor(rawCandidate);
-    if (!url) {
-      newCandidates.push(rawCandidate.trim());
-      // advance searchPos past this candidate
-      const idx = rawSrcset.indexOf(rawCandidate, searchPos);
-      if (idx !== -1) searchPos = idx + rawCandidate.length;
-      continue;
-    }
-    const cls = classifyUrl(url);
-    if (cls.kind === 'skip') {
-      newCandidates.push(descriptor ? `${url} ${descriptor}` : url);
-      const idx = rawSrcset.indexOf(url, searchPos);
-      if (idx !== -1) searchPos = idx + url.length;
-      continue;
-    }
-
-    let resolved: ReturnType<typeof resolveAssetReferenceSync>;
-    try {
-      resolved = resolveAssetReferenceSync(url, ctx.catalog!, {
-        documentPath: ctx.documentPath,
-        rootDir: ctx.rootDir,
-        allowBasenameMatch: ctx.allowBasenameMatch,
-        resolver: ctx.resolver,
-      } as unknown as Parameters<typeof resolveAssetReferenceSync>[2]);
-    } catch (err) {
-      if (
-        err instanceof InvalidOptionsError &&
-        String((err as Error).message)
-          .toLowerCase()
-          .includes('resolver')
-      ) {
-        throw err;
-      }
-      const code = (err as { code?: string }).code ?? 'RESOLVE_ERROR';
-      const msg = err instanceof Error ? err.message : String(err);
-      ctx.diagnostics.push({
-        code,
-        message: msg,
-        originalUrl: url,
-        severity: 'error',
-        filePath: ctx.documentPath,
-      } as AssetDiagnostic);
-      newCandidates.push(descriptor ? `${url} ${descriptor}` : url);
-      const idx = rawSrcset.indexOf(url, searchPos);
-      if (idx !== -1) searchPos = idx + url.length;
-      continue;
-    }
-
-    if ((resolved as { skipped: boolean }).skipped) {
-      newCandidates.push(descriptor ? `${url} ${descriptor}` : url);
-      const idx = rawSrcset.indexOf(url, searchPos);
-      if (idx !== -1) searchPos = idx + url.length;
-      continue;
-    }
-    const res = resolved as { asset?: unknown; resolvedPath?: string; skipped: boolean };
-    if (!res.asset) {
-      ctx.diagnostics.push({
-        code: 'UNRESOLVED_REFERENCE',
-        message: `Unresolved asset reference "${url}" (resolved to "${res.resolvedPath ?? ''}")`,
-        originalUrl: url,
-        filePath: res.resolvedPath ?? ctx.documentPath,
-        severity: 'warn',
-      } as AssetDiagnostic);
-      newCandidates.push(descriptor ? `${url} ${descriptor}` : url);
-      const idx = rawSrcset.indexOf(url, searchPos);
-      if (idx !== -1) searchPos = idx + url.length;
-      continue;
-    }
-    const asset = res.asset as import('./types.ts').EncodedAsset;
-    if (asset.kind !== 'image') {
-      ctx.diagnostics.push({
-        code: 'UNSUPPORTED_KIND',
-        message: `Asset "${url}" resolved to kind "${asset.kind}" but srcset only supports "image" (audio/video deferred per ASSET-08)`,
-        originalUrl: url,
-        filePath: res.resolvedPath ?? ctx.documentPath,
-        severity: 'warn',
-      } as AssetDiagnostic);
-      newCandidates.push(descriptor ? `${url} ${descriptor}` : url);
-      const idx = rawSrcset.indexOf(url, searchPos);
-      if (idx !== -1) searchPos = idx + url.length;
-      continue;
-    }
-
-    const resolvedPath = res.resolvedPath ?? asset.sourcePath ?? asset.filename ?? url;
-    // Shared structural boundary: same contract as resolver returns. A
-    // delimiter-bearing dataUrl (quotes, spaces, parens, extra commas) could
-    // otherwise add srcset candidates — fail closed before limits/mutation.
-    try {
-      assertSafeDataUrl(asset.dataUrl);
-    } catch (err) {
-      throw new InvalidOptionsError(
-        `Invalid resolver asset dataUrl for "${url}" — must match "data:<type>/<subtype>;base64,<base64>" with a safe media type and strict Base64 payload`,
-        { cause: err },
-      );
-    }
-    // Selective inlining policy — distinct from hard resource limits.
-    if (typeof ctx.maxInlineBytes === 'number' && asset.byteLength > ctx.maxInlineBytes) {
-      ctx.diagnostics.push({
-        code: 'INLINE_SKIPPED',
-        message: `Asset "${url}" (${asset.byteLength} bytes) exceeds maxInlineBytes ${ctx.maxInlineBytes} — left as external reference`,
-        originalUrl: url,
-        filePath: resolvedPath,
-        severity: 'warn',
-      } as AssetDiagnostic);
-      newCandidates.push(descriptor ? `${url} ${descriptor}` : url);
-      const idx = rawSrcset.indexOf(url, searchPos);
-      if (idx !== -1) searchPos = idx + url.length;
-      continue;
-    }
-    if (ctx.shouldInline !== undefined) {
-      let decision: unknown;
-      try {
-        decision = ctx.shouldInline(asset, url);
-      } catch (err) {
-        throw new InvalidOptionsError(
-          `shouldInline predicate threw: ${err instanceof Error ? err.message : String(err)}`,
-          { cause: err },
-        );
-      }
-      if (
-        decision !== null &&
-        typeof decision === 'object' &&
-        typeof (decision as { then?: unknown }).then === 'function'
-      ) {
-        throw new InvalidOptionsError('shouldInline must be synchronous — returned a thenable');
-      }
-      if (!decision) {
-        ctx.diagnostics.push({
-          code: 'INLINE_SKIPPED',
-          message: `Asset "${url}" skipped by shouldInline predicate — left as external reference`,
-          originalUrl: url,
-          filePath: resolvedPath,
-          severity: 'warn',
-        } as AssetDiagnostic);
-        newCandidates.push(descriptor ? `${url} ${descriptor}` : url);
-        const idx = rawSrcset.indexOf(url, searchPos);
-        if (idx !== -1) searchPos = idx + url.length;
-        continue;
-      }
-    }
-    const nextCount = addSafe(ctx.replacements.length, 1, ctx.maxReplacements, ctx.documentPath);
-    if (nextCount > ctx.maxReplacements) {
-      throw new ResourceLimitError(`Replacement count ${nextCount} exceeds maxReplacements ${ctx.maxReplacements}`, {
-        limit: ctx.maxReplacements,
-        actual: nextCount,
-        path: ctx.documentPath,
-      });
-    }
-    const dataUrlBytes = byteLengthUtf8(asset.dataUrl);
-    const origBytes = byteLengthUtf8(url);
-    if (!Number.isSafeInteger(dataUrlBytes) || !Number.isSafeInteger(origBytes)) {
-      throw new ResourceLimitError(`Unsafe integer byte length for replacement`, {
-        limit: ctx.maxOutputBytes,
-        actual: dataUrlBytes,
-        path: ctx.documentPath,
-      });
-    }
-    const delta = subSafe(dataUrlBytes, origBytes, ctx.documentPath);
-    const nextProjected = addSafe(ctx.projectedBytes.value, delta, ctx.maxOutputBytes, ctx.documentPath);
-    if (nextProjected > ctx.maxOutputBytes) {
-      throw new ResourceLimitError(
-        `Projected output bytes ${nextProjected} exceeds maxOutputBytes ${ctx.maxOutputBytes}`,
-        {
-          limit: ctx.maxOutputBytes,
-          actual: nextProjected,
-          path: ctx.documentPath,
-        },
-      );
-    }
-    ctx.projectedBytes.value = nextProjected;
-
-    // Location: URL token offset inside original content, not attribute start
-    let locOffset: number;
-    if (valueRange) {
-      const idxInRaw = rawSrcset.indexOf(url, searchPos);
-      if (idxInRaw !== -1) {
-        locOffset = valueRange.valueStart + idxInRaw;
-        searchPos = idxInRaw + url.length;
-      } else {
-        const off = ctx.content.indexOf(url);
-        locOffset = off === -1 ? -1 : off;
-        searchPos += url.length;
-      }
-    } else {
-      const off = ctx.content.indexOf(url);
-      locOffset = off === -1 ? -1 : off;
-      searchPos += url.length;
-    }
-    const lc = locOffset !== -1 ? offsetToLineCol(ctx.content, locOffset) : { line: undefined, column: undefined };
-    const loc =
-      locOffset !== -1
-        ? { offset: locOffset, line: (lc as { line: number }).line, column: (lc as { column: number }).column }
-        : { offset: -1 };
-
-    ctx.replacements.push(
-      Object.freeze({
-        originalUrl: url,
-        resolvedPath,
-        mediaType: asset.mediaType,
-        kind: asset.kind,
-        byteLength: asset.byteLength,
-        location: { offset: loc.offset, line: loc.line, column: loc.column },
-      }) as AssetReplacement,
-    );
-    newCandidates.push(descriptor ? `${asset.dataUrl} ${descriptor}` : asset.dataUrl);
-    anyChanged = true;
-    // For non-replaced candidates we already advanced searchPos; for replaced we did too
-    if (valueRange) {
-      // searchPos already updated
-    }
-  }
-
-  if (!anyChanged) return;
-  const rawNewSrcset = newCandidates.join(', ');
-  // Unquoted srcset values gain double quotes in the source patch so Base64
-  // padding and the data-URL comma stay inside one token when reparsed (+2
-  // bytes of escaping expansion counted toward output limits). The fallback
-  // serialize path keeps the raw value — parse5 quotes on serialize.
-  let patchSrcset = rawNewSrcset;
-  if (valueRange && !isQuotedAttrValue(ctx.content, valueRange)) {
-    const quoted = `"${rawNewSrcset}"`;
-    const extra = byteLengthUtf8(quoted) - byteLengthUtf8(rawNewSrcset);
-    const nextProjected = addSafe(ctx.projectedBytes.value, extra, ctx.maxOutputBytes, ctx.documentPath);
-    if (nextProjected > ctx.maxOutputBytes) {
-      throw new ResourceLimitError(
-        `Projected output bytes ${nextProjected} exceeds maxOutputBytes ${ctx.maxOutputBytes}`,
-        {
-          limit: ctx.maxOutputBytes,
-          actual: nextProjected,
-          path: ctx.documentPath,
-        },
-      );
-    }
-    ctx.projectedBytes.value = nextProjected;
-    patchSrcset = quoted;
-  }
-  if (valueRange) {
-    ctx.patches.push({ start: valueRange.valueStart, end: valueRange.valueEnd, newValue: patchSrcset });
-    if (
-      valueRange.valueStart < 0 ||
-      valueRange.valueEnd > ctx.content.length ||
-      valueRange.valueStart >= valueRange.valueEnd
-    ) {
-      ctx.patchValid.value = false;
-    }
+    let decoded = decodeHtmlAttrValue(rawSrcset);
+    if (decoded.text !== attr.value) decoded = decodeSrcsetAttrFallback(rawSrcset);
+    // If source mapping cannot be verified, preserve this attribute rather
+    // than guessing a URL span. No resolver sees a raw entity spelling.
+    if (decoded.text !== attr.value) return;
+    handleSrcsetDecoded(attr, valueRange, rawSrcset, decoded.text, decoded.map, ctx);
   } else {
-    ctx.patchValid.value = false;
+    const map = Array.from({ length: attr.value.length + 1 }, (_, i) => i);
+    handleSrcsetDecoded(attr, null, attr.value, attr.value, map, ctx);
   }
-  attr.value = rawNewSrcset;
-  ctx.modified.value = true;
 }
 
 // ---------------------------------------------------------------------------
@@ -1429,6 +1074,7 @@ function handleSrcsetAttr(
 
 type InlineCtx = {
   catalog: InlineOptions['catalog'];
+  htmlBase?: HtmlResolutionContext;
   documentPath?: string;
   rootDir?: string;
   allowBasenameMatch?: boolean;
@@ -1445,6 +1091,7 @@ type InlineCtx = {
   maxInlineBytes?: number;
   shouldInline?: (asset: import('./types.ts').EncodedAsset, url: string) => boolean;
   inlineEmbeddedCss?: boolean;
+  maxSyntaxDepth: number;
 };
 
 /**
@@ -1458,17 +1105,20 @@ function handleEmbeddedCssChunk(
   chunkEnd: number,
   ctx: InlineCtx,
   applyFallback: (newChunk: string) => void,
+  serializeChunk: (newChunk: string) => string = (newChunk) => newChunk,
 ): void {
   if (chunkStart < 0 || chunkEnd > ctx.content.length || chunkStart > chunkEnd) {
     ctx.patchValid.value = false;
     return;
   }
   const cssText = ctx.content.slice(chunkStart, chunkEnd);
+  assertCssSyntaxDepth(cssText, ctx.maxSyntaxDepth, ctx.documentPath);
   if (!/url\s*\(/i.test(cssText)) return; // fast path: nothing to inline
 
   let result: InlineResult;
   try {
     result = inlineCss(cssText, {
+      [htmlResolutionContext]: ctx.htmlBase,
       catalog: ctx.catalog!,
       documentPath: ctx.documentPath,
       rootDir: ctx.rootDir,
@@ -1476,6 +1126,7 @@ function handleEmbeddedCssChunk(
       resolver: ctx.resolver,
       maxReplacements: ctx.maxReplacements,
       maxOutputBytes: ctx.maxOutputBytes,
+      maxSyntaxDepth: ctx.maxSyntaxDepth,
       maxInlineBytes: ctx.maxInlineBytes,
       shouldInline: ctx.shouldInline,
     } as InlineOptions);
@@ -1509,7 +1160,8 @@ function handleEmbeddedCssChunk(
     });
   }
   // Shared projected-output limit: chunk delta applied to the HTML projection.
-  const delta = subSafe(byteLengthUtf8(result.content), byteLengthUtf8(cssText), ctx.documentPath);
+  const serialized = serializeChunk(result.content);
+  const delta = subSafe(byteLengthUtf8(serialized), byteLengthUtf8(cssText), ctx.documentPath);
   const nextProjected = addSafe(ctx.projectedBytes.value, delta, ctx.maxOutputBytes, ctx.documentPath);
   if (nextProjected > ctx.maxOutputBytes) {
     throw new ResourceLimitError(
@@ -1546,7 +1198,7 @@ function handleEmbeddedCssChunk(
     );
   }
 
-  ctx.patches.push({ start: chunkStart, end: chunkEnd, newValue: result.content });
+  ctx.patches.push({ start: chunkStart, end: chunkEnd, newValue: serialized });
   ctx.modified.value = true;
   applyFallback(result.content);
 }
@@ -1597,9 +1249,21 @@ function handleStyleAttr(element: Parse5Element, ctx: InlineCtx): void {
   const raw = ctx.content.slice(range.valueStart, range.valueEnd);
   const decoded = decodeHtmlAttrValue(raw);
   if (decoded.text !== attr.value) {
-    handleEmbeddedCssChunk(range.valueStart, range.valueEnd, ctx, (newChunk) => {
-      attr.value = newChunk;
-    });
+    const quote = activeQuoteChar(ctx.content, range);
+    handleEmbeddedCssChunk(
+      range.valueStart,
+      range.valueEnd,
+      ctx,
+      (newChunk) => {
+        // Raw-source CSS still contains HTML references. Decode exactly once
+        // with parse5 for the tree serializer, rather than double-encoding them.
+        // The wrapper escapes literal delimiters while retaining those references.
+        const wrapped = serializeStyleAttrValue(newChunk, null, true);
+        const fragment = parse5.parseFragment(`<div style=${wrapped}></div>`);
+        attr.value = (fragment.childNodes[0] as parse5.DefaultTreeAdapterMap['element']).attrs[0]!.value;
+      },
+      (newChunk) => serializeStyleAttrValue(newChunk, quote, true),
+    );
     return;
   }
   if (!/url\s*\(/i.test(decoded.text)) return; // fast path: nothing to inline
@@ -1607,6 +1271,7 @@ function handleStyleAttr(element: Parse5Element, ctx: InlineCtx): void {
   let result: InlineResult;
   try {
     result = inlineCss(decoded.text, {
+      [htmlResolutionContext]: ctx.htmlBase,
       catalog: ctx.catalog!,
       documentPath: ctx.documentPath,
       rootDir: ctx.rootDir,
@@ -1614,6 +1279,7 @@ function handleStyleAttr(element: Parse5Element, ctx: InlineCtx): void {
       resolver: ctx.resolver,
       maxReplacements: ctx.maxReplacements,
       maxOutputBytes: ctx.maxOutputBytes,
+      maxSyntaxDepth: ctx.maxSyntaxDepth,
       maxInlineBytes: ctx.maxInlineBytes,
       shouldInline: ctx.shouldInline,
     } as InlineOptions);
@@ -1646,12 +1312,10 @@ function handleStyleAttr(element: Parse5Element, ctx: InlineCtx): void {
       path: ctx.documentPath,
     });
   }
-  // Re-encode for the HTML attribute context: escape `&`/`<`/`>` plus the
-  // active quote so the patch reparses to the same attribute without
-  // acquiring new markup. Validated data URLs contain none of these
-  // characters, so actual replacements pass through byte-identical.
+  // Serialize the whole value in a quoted context, including newly added
+  // quotes in the projection. Decoded whitespace must not split an attribute.
   const quote = activeQuoteChar(ctx.content, range);
-  const escaped = escapeHtmlAttrValue(result.content, quote);
+  const escaped = serializeStyleAttrValue(result.content, quote);
   // Shared projected-output limit, accounted against the original source
   // spelling (which may contain character references), not the decoded text.
   const delta = subSafe(byteLengthUtf8(escaped), byteLengthUtf8(raw), ctx.documentPath);
@@ -1701,7 +1365,33 @@ function handleStyleAttr(element: Parse5Element, ctx: InlineCtx): void {
 // Public API: inlineHtml
 // ---------------------------------------------------------------------------
 
-/** Inline local image references in HTML using an `AssetCatalog`. Prefers source-location patches; falls back to serialization when patches invalid. */
+/**
+ * Inline local image references in HTML using an `AssetCatalog`.
+ * The first HTML `<base href>` in parsed tree order applies to all references,
+ * including opt-in embedded CSS and references before the base. Template bases
+ * are inert; missing href is ignored; empty href selects document fallback.
+ * Relative/root-relative bases map locally; remote or unmappable bases preserve
+ * references with `HTML_BASE_UNMAPPABLE` diagnostics before resolver hooks.
+ * `documentPath` stays the real file; hooks receive `resolutionBaseDir` separately.
+ * No fetching or base rewriting; root-relative assets still use `rootDir`/cwd
+ * under local bases. See `InlineOptions` for decoding and fallback limitations.
+ * `img`/`source` srcset URLs are complete ASCII-whitespace-delimited tokens:
+ * interior commas belong to every URL scheme; trailing commas delimit candidates.
+ * Invalid descriptors are left untouched without resolver calls. Valid descriptors
+ * and source spelling outside replaced URLs are preserved by source patches;
+ * entity-decoded URLs report original-source offsets (or -1 without source data).
+ * Prefers source-location patches; falls back to serialization when patches are invalid.
+ * With `inlineEmbeddedCss`, rewritten style attributes retain their boundaries:
+ * unquoted values gain double quotes and CSS is escaped for the output context,
+ * including the raw-source decoder fallback. Added quotes/escaping count toward
+ * `maxOutputBytes`. Style-element content retains HTML raw-text semantics.
+ * `maxSyntaxDepth` (default 256, maximum 512) bounds parsed element nesting,
+ * including implied elements and template content, before recursive traversal
+ * and serialization. Opt-in embedded CSS is checked separately per chunk even
+ * without URLs. Excess throws `ResourceLimitError`; see `InlineOptions`.
+ * HTML-spec recovery accepts malformed markup, but does not bypass resource
+ * limits. Invalid options/resolver results can also throw `InvalidOptionsError`.
+ */
 export function inlineHtml(content: string, options: InlineOptions): InlineResult {
   if (typeof content !== 'string') {
     throw new InvalidOptionsError('inlineHtml requires content as string');
@@ -1714,6 +1404,7 @@ export function inlineHtml(content: string, options: InlineOptions): InlineResul
     maxTargetBytes: (options as unknown as { maxTargetBytes?: unknown }).maxTargetBytes,
     maxReplacements: (options as unknown as { maxReplacements?: unknown }).maxReplacements,
     maxOutputBytes: (options as unknown as { maxOutputBytes?: unknown }).maxOutputBytes,
+    maxSyntaxDepth: options.maxSyntaxDepth,
     maxInlineBytes: (options as unknown as { maxInlineBytes?: unknown }).maxInlineBytes,
   });
   if (
@@ -1743,6 +1434,7 @@ export function inlineHtml(content: string, options: InlineOptions): InlineResul
     options as unknown as { shouldInline?: (asset: import('./types.ts').EncodedAsset, url: string) => boolean }
   ).shouldInline;
   const inlineEmbeddedCss = (options as unknown as { inlineEmbeddedCss?: boolean }).inlineEmbeddedCss ?? false;
+  const maxSyntaxDepth = options.maxSyntaxDepth ?? DEFAULT_MAX_SYNTAX_DEPTH;
 
   const targetBytes = byteLengthUtf8(content);
   if (!Number.isSafeInteger(targetBytes)) {
@@ -1771,18 +1463,17 @@ export function inlineHtml(content: string, options: InlineOptions): InlineResul
 
   let tree: Parse5Element;
   try {
+    const parseOptions = {
+      sourceCodeLocationInfo: true,
+      treeAdapter: boundedHtmlTreeAdapter(maxSyntaxDepth, isDoc, documentPath),
+    };
     if (isDoc) {
-      tree = parse5.parse(content, { sourceCodeLocationInfo: true } as unknown as Record<
-        string,
-        unknown
-      >) as unknown as Parse5Element;
+      tree = parse5.parse(content, parseOptions) as unknown as Parse5Element;
     } else {
-      tree = parse5.parseFragment(content, { sourceCodeLocationInfo: true } as unknown as Record<
-        string,
-        unknown
-      >) as unknown as Parse5Element;
+      tree = parse5.parseFragment(content, parseOptions) as unknown as Parse5Element;
     }
-  } catch {
+  } catch (err) {
+    if (err instanceof ResourceLimitError) throw err;
     // parse5 never throws on malformed per spec, but defensive: return unchanged with diagnostic
     diagnostics.push({
       code: 'PARSE_ERROR',
@@ -1798,7 +1489,11 @@ export function inlineHtml(content: string, options: InlineOptions): InlineResul
     }) as InlineResult;
   }
 
+  assertHtmlSyntaxDepth(tree, maxSyntaxDepth, inlineEmbeddedCss, documentPath);
+  const baseHref = findHtmlBase(tree);
+  const htmlBase = baseHref === undefined ? undefined : { ...mapHtmlBase(baseHref, options), diagnostics };
   walkAndInline(tree, {
+    htmlBase,
     catalog,
     documentPath,
     rootDir,
@@ -1816,7 +1511,16 @@ export function inlineHtml(content: string, options: InlineOptions): InlineResul
     maxInlineBytes,
     shouldInline,
     inlineEmbeddedCss,
+    maxSyntaxDepth,
   });
+
+  // A mapped base changes lookup, never the containing document's identity.
+  // Keep attempted asset paths in diagnostic messages/replacement resolvedPath.
+  if (htmlBase) {
+    for (let i = 0; i < diagnostics.length; i++) {
+      diagnostics[i] = { ...diagnostics[i]!, filePath: documentPath };
+    }
+  }
 
   if (!modified.value) {
     return Object.freeze({
@@ -1830,42 +1534,7 @@ export function inlineHtml(content: string, options: InlineOptions): InlineResul
   // Attempt source-location patching so unrelated markup remains byte-identical.
   let newContent: string | null = null;
   if (patchValid.value && patches.length > 0) {
-    const sorted = [...patches].sort((a, b) => a.start - b.start);
-    let valid = true;
-    for (let i = 0; i < sorted.length; i++) {
-      const p = sorted[i] as Patch;
-      if (
-        typeof p.start !== 'number' ||
-        typeof p.end !== 'number' ||
-        p.start < 0 ||
-        p.end > content.length ||
-        p.start >= p.end ||
-        !Number.isSafeInteger(p.start) ||
-        !Number.isSafeInteger(p.end)
-      ) {
-        valid = false;
-        break;
-      }
-      if (!Number.isSafeInteger(Buffer.byteLength(p.newValue, 'utf8'))) {
-        valid = false;
-        break;
-      }
-      if (i > 0) {
-        const prev = sorted[i - 1] as Patch;
-        if (prev.end > p.start) {
-          valid = false;
-          break;
-        }
-      }
-    }
-    if (valid) {
-      const desc = [...patches].sort((a, b) => b.start - a.start);
-      let patched = content;
-      for (const p of desc) {
-        patched = patched.slice(0, p.start) + p.newValue + patched.slice(p.end);
-      }
-      newContent = patched;
-    }
+    newContent = assembleSourcePatches(content, patches);
   }
 
   if (newContent === null) {

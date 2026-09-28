@@ -144,7 +144,8 @@ console.log('subprocess-projection-safe');
     const numericInclude = applyProjection(record as never, normalizeProjection('members.0.name')!);
     expect(numericInclude.members).toHaveLength(2);
     expect(numericInclude.members[0]).toEqual({ name: 'a' });
-    expect(numericInclude.members[1]).toBeUndefined();
+    expect(numericInclude.members[1]).toBeNull();
+    expect(Object.hasOwn(numericInclude.members, 1)).toBe(true);
 
     // Out-of-bounds numeric include is omitted.
     const oobInclude = applyProjection(record as never, normalizeProjection('members.9.name')!);

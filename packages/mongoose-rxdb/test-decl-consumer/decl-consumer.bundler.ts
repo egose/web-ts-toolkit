@@ -2,6 +2,7 @@ import {
   BulkWritePartialFailureError,
   Connection,
   MutationPartialFailureError,
+  ParallelSaveError,
   Schema,
   WriteNormalizationError,
   type HydratedDocument,
@@ -82,7 +83,13 @@ async function leanContractProbe() {
     await User.updateOne({ name: 'Ada' }, { $inc: { age: 1 } });
   } catch (error) {
     if (error instanceof WriteNormalizationError) void error.message;
-    else if (error instanceof MutationPartialFailureError) void error.matchedCount;
+    else if (error instanceof ParallelSaveError) {
+      const typed: Error = error;
+      const message: string = error.message;
+      void [typed, message];
+      // @ts-expect-error overlap rejection does not report a committed write count.
+      void error.modifiedCount;
+    } else if (error instanceof MutationPartialFailureError) void error.matchedCount;
     else if (error instanceof BulkWritePartialFailureError) void error.insertedCount;
   }
   return [leanMany, restored, upd, optLean];

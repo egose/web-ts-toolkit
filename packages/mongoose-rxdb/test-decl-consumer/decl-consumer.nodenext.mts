@@ -3,6 +3,7 @@ import api, {
   Connection,
   Document,
   MutationPartialFailureError,
+  ParallelSaveError,
   Query,
   QueryFilterError,
   Schema,
@@ -75,6 +76,21 @@ const conn = new Connection();
 const UserModel: UserModel = conn.model('User', schema);
 const query: Query<UserDocument[], User> = UserModel.find({ name: 'Ada' });
 const doc = new Document<User>({ name: 'Ada', age: 36 }, schema, UserModel);
+const parallelErrorClass: typeof ParallelSaveError = api.ParallelSaveError;
+async function saveContractProbe() {
+  try {
+    await doc.save();
+  } catch (error: unknown) {
+    if (error instanceof ParallelSaveError) {
+      const typed: Error = error;
+      const message: string = error.message;
+      void [typed, message];
+      // @ts-expect-error overlap rejection does not report a committed write count.
+      void error.modifiedCount;
+    }
+  }
+}
+void [parallelErrorClass, saveContractProbe];
 const filtered = sanitizeFilter<User>({ age: { $gte: 18 } });
 const sqliteOptions: CreateSqliteDatabaseOptions = { filePath: './app.db', allowMemoryFallback: true };
 const backend: SqliteBackend = 'trial-native';
