@@ -15,14 +15,14 @@ import {
   OPTIONS_METADATA,
   ARGS_METADATA,
   HookParamtypes,
-  HOOK_DEFINITIONS,
-  MODEL_HOOK_DEFINITIONS,
-  DEFAULT_MODEL_ROUTER_OPTIONS_HOOK_DEFINITIONS,
+  HOOK_DEFINITION_LIST,
+  HOOK_CLASS_ROLES,
   ROOT_ROUTER_WATERMARK,
   ROUTER_WATERMARK,
   DEFAULT_MODEL_ROUTER_OPTIONS_WATERMARK,
   MODEL_ROUTER_OPTIONS_WATERMARK,
   type HookDefinition,
+  type HookClassRole,
 } from './constants';
 import {
   getMetadata,
@@ -31,7 +31,7 @@ import {
   getAllMethodNames,
   getMethodDescriptor,
   getMethodOwner,
-  getMetadataKeysStartWith,
+  getMethodMetadataReader,
   getOwnMetadataListFromPrototypeChain,
   isRootRouter,
   isModelRouter,
@@ -39,6 +39,8 @@ import {
   isModelRouterOptions,
 } from './metadata';
 import type { BootstrapResult, RouterModel, Type } from './interfaces';
+import type { OptionMetadata, OptionScope } from './decorators/property.decorators';
+import { validatePropertyOptionValue } from './property-options';
 
 type HookParamMetadata = { index: number; type: HookParamtypes };
 type HookConfig = HookDefinition;
@@ -66,6 +68,7 @@ type OptionSetter = (aclKey: string, value: unknown) => void;
 type OptionGetter = (aclKey: string) => any;
 type ModuleOptions = GlobalOptions & { basePath?: string; handleErrors?: boolean };
 type InstanceRecord = Record<string | symbol, unknown>;
+type RuntimeSnapshot = { restore: () => void };
 
 const normalizeErrorStatus = (status: unknown): number => {
   if (typeof status !== 'number' || !Number.isInteger(status)) return 500;
@@ -295,21 +298,26 @@ export class EgoseFactoryStatic {
    *   does not roll back those user-code side effects.
    * - **Inside rollback:** package-controlled runtime state (global/default/model
    *   options, model instance registrations, model refs/subs/atts, OpenAPI
-   *   registrations) is snapshotted via `createBootstrapSnapshot()` (when
-   *   available) after user construction but before any potentially mutating
-   *   preflight or setter, and restored via `restoreBootstrapSnapshot()`
-   *   on any failure. Preflight runs inside the guarded region so a
+   *   registrations) is snapshotted via `createBootstrapSnapshot()` after user
+   *   construction but before any potentially mutating preflight or setter.
+   *   Both snapshot/restore methods are required, directly on the API or its
+   *   underlying runtime; acquisition/capability failures stop before mutation.
+   *   On failure, runtime restore and app-stack cleanup are attempted independently.
+   *   Preflight runs inside the guarded region so a
    *   default-runtime lazy model lookup that later conflicts leaves the
    *   snapshot unchanged. Host `expressApp` publication is delayed until all
    *   registration and router construction succeed; on failure the app's internal
-   *   stack is truncated to its pre-bootstrap length so no package middleware
-   *   remains mounted. If the final `expressApp.use(...)` itself throws, runtime
-   *   state is also restored and the tuple remains retryable.
+   *   stack is truncated to its pre-bootstrap length. This includes a throwing
+   *   final `expressApp.use(...)`. Successful rollback rethrows the exact original
+   *   value. Recovery failures throw `AggregateError` with the original first in
+   *   `errors` and as `cause`, followed by runtime restore/app cleanup failures.
+   *   Failed recovery leaves the affected state uncertain and requires host
+   *   recovery before retry; rollback success is not guaranteed if recovery throws.
    * - **Ownership:** an in-progress tuple is reserved before user
    *   constructors/callbacks execute; reentrant bootstrap for the same
    *   module/app is rejected before nested publication and the reservation
-   *   is released on failure. `markBootstrapped` is set only after the final
-   *   mount succeeds, so retrying a failed module/app tuple behaves like a
+   *   is always released. `markBootstrapped` is set only after the final
+   *   mount succeeds, so retrying after successful rollback behaves like a
    *   clean first attempt with exactly one mounted module router (request
    *   runtime initialization scoped inside it) and one copy of every
    *   route/hook. Independent module/app tuples are unaffected.
@@ -321,7 +329,7 @@ export class EgoseFactoryStatic {
   public bootstrap(module: Type, expressApp: Express): BootstrapResult {
     this.assertNotBootstrapped(module, expressApp);
     this.markBootstrapInProgress(module, expressApp);
-    let runtimeSnapshot: unknown | null = null;
+    let runtimeSnapshot: RuntimeSnapshot | null = null;
     let appStackCapture: { stack: any[] | null; length: number } | null = null;
     try {
       const routers = getOwnMetadata(module, MODULE_ROUTERS) || [];
@@ -368,8 +376,12 @@ export class EgoseFactoryStatic {
 
       for (let x = 0; x < routers.length; x++) {
         const router = routers[x];
-        if (isRootRouter(router)) this.bootstrapRootRouter(router, expressRouter);
-        else if (isModelRouter(router)) this.bootstrapModelRouter(plan.routers[x]!, expressRouter);
+        const build = () => {
+          if (isRootRouter(router)) this.bootstrapRootRouter(router, expressRouter);
+          else if (isModelRouter(router)) this.bootstrapModelRouter(plan.routers[x]!, expressRouter, basePath);
+        };
+        if (basePath && basePath !== '/') this.runtime.runtime.withOpenApiPathPrefix(basePath, build);
+        else build();
       }
 
       if (handleErrors) {
@@ -381,8 +393,27 @@ export class EgoseFactoryStatic {
 
       return { runtime: this.runtime, router: expressRouter! };
     } catch (err) {
-      this.restoreRuntimeSnapshot(runtimeSnapshot);
-      if (appStackCapture) this.restoreAppStack(expressApp, appStackCapture);
+      const recoveryErrors: unknown[] = [];
+      const failedSteps: string[] = [];
+      try {
+        if (runtimeSnapshot) this.restoreRuntimeSnapshot(runtimeSnapshot);
+      } catch (restoreError) {
+        recoveryErrors.push(restoreError);
+        failedSteps.push('runtime restore');
+      }
+      try {
+        if (appStackCapture) this.restoreAppStack(expressApp, appStackCapture);
+      } catch (cleanupError) {
+        recoveryErrors.push(cleanupError);
+        failedSteps.push('app-stack cleanup');
+      }
+      if (recoveryErrors.length) {
+        throw new AggregateError(
+          [err, ...recoveryErrors],
+          `Bootstrap failed and recovery failed (${failedSteps.join(', ')}); affected state is uncertain and requires host recovery before retry`,
+          { cause: err },
+        );
+      }
       throw err;
     } finally {
       this.clearBootstrapInProgress(module, expressApp);
@@ -428,38 +459,31 @@ export class EgoseFactoryStatic {
     apps.add(expressApp);
   }
 
-  private createRuntimeSnapshot(): unknown | null {
+  private createRuntimeSnapshot(): RuntimeSnapshot {
     const anyRuntime: any = this.runtime as any;
-    try {
-      if (typeof anyRuntime.createBootstrapSnapshot === 'function') {
-        return anyRuntime.createBootstrapSnapshot();
-      }
-      if (anyRuntime.runtime && typeof anyRuntime.runtime.createBootstrapSnapshot === 'function') {
-        return anyRuntime.runtime.createBootstrapSnapshot();
-      }
-    } catch {
-      // ignore snapshot creation errors
-      return null;
+    // Resolve each method independently: API facades may expose one directly
+    // and the other on .runtime. Preserve direct-method precedence and `this`.
+    const createOwner = typeof anyRuntime.createBootstrapSnapshot === 'function' ? anyRuntime : anyRuntime.runtime;
+    const restoreOwner = typeof anyRuntime.restoreBootstrapSnapshot === 'function' ? anyRuntime : anyRuntime.runtime;
+    const create = createOwner?.createBootstrapSnapshot;
+    const restore = restoreOwner?.restoreBootstrapSnapshot;
+    if (typeof create !== 'function' || typeof restore !== 'function') {
+      throw new Error(
+        'EgoseFactory.bootstrap() requires callable createBootstrapSnapshot() and restoreBootstrapSnapshot() on the runtime API or its underlying runtime',
+      );
     }
-    return null;
+    // Capture the restore capability before acquiring the snapshot or invoking
+    // setup callbacks; rollback must not depend on a later method lookup.
+    const restoreSnapshot = restore.bind(restoreOwner);
+    const snapshot = create.call(createOwner);
+    if (snapshot == null) {
+      throw new Error('EgoseFactory.bootstrap() createBootstrapSnapshot() returned no snapshot');
+    }
+    return { restore: () => restoreSnapshot(snapshot) };
   }
 
-  private restoreRuntimeSnapshot(snapshot: unknown | null): void {
-    if (snapshot == null) return;
-    const anyRuntime: any = this.runtime as any;
-    try {
-      if (typeof anyRuntime.restoreBootstrapSnapshot === 'function') {
-        anyRuntime.restoreBootstrapSnapshot(snapshot);
-        return;
-      }
-      if (anyRuntime.runtime && typeof anyRuntime.runtime.restoreBootstrapSnapshot === 'function') {
-        anyRuntime.runtime.restoreBootstrapSnapshot(snapshot);
-        return;
-      }
-    } catch {
-      // best-effort restore; original error is more important
-      void 0;
-    }
+  private restoreRuntimeSnapshot(snapshot: RuntimeSnapshot): void {
+    snapshot.restore();
   }
 
   private getExpressStack(app: Express): any[] | null {
@@ -467,12 +491,8 @@ export class EgoseFactoryStatic {
     if (a._router?.stack && Array.isArray(a._router.stack)) return a._router.stack;
     if (a.router?.stack && Array.isArray(a.router.stack)) return a.router.stack;
     if (typeof a._getRouter === 'function') {
-      try {
-        const r = a._getRouter();
-        if (r?.stack && Array.isArray(r.stack)) return r.stack;
-      } catch {
-        // ignore router retrieval errors
-      }
+      const r = a._getRouter();
+      if (r?.stack && Array.isArray(r.stack)) return r.stack;
     }
     return null;
   }
@@ -638,7 +658,7 @@ export class EgoseFactoryStatic {
     expressRouter.use(rootRouter.routes);
   }
 
-  private bootstrapModelRouter(prepared: PreparedClass, expressRouter: Router) {
+  private bootstrapModelRouter(prepared: PreparedClass, expressRouter: Router, moduleBasePath: string) {
     const DecoRouter = prepared.Type;
     const model = getOwnMetadata(DecoRouter, ROUTER_MODEL) as RouterModel;
     const modelName = resolveRouterModelName(model);
@@ -657,6 +677,13 @@ export class EgoseFactoryStatic {
       { modelName, isDefault: false },
     );
 
+    const mount = moduleBasePath.replace(/\/+$/, '');
+    const parent = this.runtime.getModelOption(modelName, 'parentPath');
+    if (mount && typeof parent === 'string' && (parent === mount || parent.startsWith(`${mount}/`))) {
+      throw new TypeError(
+        `Model ${modelName} parentPath repeats module mount ${mount}; remove the old OpenAPI mount workaround and use servers for an external proxy prefix`,
+      );
+    }
     const modelRouter =
       typeof model === 'string' ? this.runtime.createRouter(modelName, {}) : this.runtime.createRouter(model, {});
 
@@ -701,7 +728,7 @@ export class EgoseFactoryStatic {
   }
 
   private registerPropertyOptions(instance: object, setOption: OptionSetter) {
-    const optionProps: { optionKey: string; propertyKey: string }[] = getOwnMetadataListFromPrototypeChain(
+    const optionProps = getOwnMetadataListFromPrototypeChain<OptionMetadata>(
       Object.getPrototypeOf(instance),
       OPTIONS_METADATA,
       'optionKey',
@@ -710,7 +737,8 @@ export class EgoseFactoryStatic {
     for (let x = 0; x < optionProps.length; x++) {
       const optionProp = optionProps[x];
       const value = (instance as InstanceRecord)[optionProp.propertyKey];
-      setOption(optionProp.optionKey, value);
+      validatePropertyOptionValue(optionProp, value);
+      setOption(optionProp.optionKey as string, value);
     }
   }
 
@@ -947,19 +975,17 @@ export class EgoseFactoryStatic {
     this.validateModuleRoles(module, routers, routerOptions);
 
     const moduleInstance = new module();
-    const modulePlan = this.compileRegistrationPlan(moduleInstance, [HOOK_DEFINITIONS.globalPermissions]);
+    const modulePlan = this.compileRegistrationPlan(moduleInstance, 'module');
     const preparedRouterOptions: PreparedClass[] = [];
     const preparedRouters: (PreparedClass | undefined)[] = [];
 
     for (const DecoRouterOptions of routerOptions) {
-      const hooks = isDefaultModelRouterOptions(DecoRouterOptions)
-        ? DEFAULT_MODEL_ROUTER_OPTIONS_HOOK_DEFINITIONS
-        : MODEL_HOOK_DEFINITIONS;
+      const role = isDefaultModelRouterOptions(DecoRouterOptions) ? 'defaultOptions' : 'modelOptions';
       const instance = new DecoRouterOptions();
       preparedRouterOptions.push({
         Type: DecoRouterOptions,
         instance,
-        plan: this.compileRegistrationPlan(instance, hooks),
+        plan: this.compileRegistrationPlan(instance, role),
       });
     }
 
@@ -969,9 +995,12 @@ export class EgoseFactoryStatic {
         preparedRouters.push({
           Type: DecoRouter,
           instance,
-          plan: this.compileRegistrationPlan(instance, MODEL_HOOK_DEFINITIONS),
+          plan: this.compileRegistrationPlan(instance, 'modelRouter'),
         });
       } else {
+        // Root routers have no hook host instance. Validate their effective
+        // prototype declarations without running constructors/field initializers.
+        this.compileRegistrationPlan(DecoRouter.prototype, 'rootRouter', DecoRouter.prototype);
         preparedRouters.push(undefined);
       }
     }
@@ -1022,7 +1051,8 @@ export class EgoseFactoryStatic {
   }
 
   /**
-   * Build the per-instance registration plan.
+   * Build the registration plan and validate all known hooks against the class role.
+   * Root routers supply their prototype directly and are never constructed.
    * Method enumeration via `getAllMethodNames` is base-to-derived and symbol-safe:
    * - distinct methods from Base→Child→GrandChild yield in that order for array hooks,
    *   so base normalization runs before child specialization;
@@ -1031,8 +1061,32 @@ export class EgoseFactoryStatic {
    * Property inheritance (`registerPropertyOptions` via `getOwnMetadataListFromPrototypeChain`)
    * remains independently base-to-derived with child replacement.
    */
-  private compileRegistrationPlan(instance: object, hooks: readonly HookConfig[]): ClassRegistrationPlan {
-    const methodNames = [...getAllMethodNames(Object.getPrototypeOf(instance))];
+  private compileRegistrationPlan(
+    instance: object,
+    role: HookClassRole,
+    prototype: object = Object.getPrototypeOf(instance),
+  ): ClassRegistrationPlan {
+    const propertyScope: OptionScope | undefined =
+      role === 'module'
+        ? 'global'
+        : role === 'defaultOptions'
+          ? 'default'
+          : role === 'modelRouter' || role === 'modelOptions'
+            ? 'model'
+            : undefined;
+    for (const option of getOwnMetadataListFromPrototypeChain<OptionMetadata>(
+      prototype,
+      OPTIONS_METADATA,
+      'optionKey',
+    )) {
+      if (!propertyScope || (option.scope && option.scope !== propertyScope)) {
+        throw new TypeError(
+          `Invalid option scope on ${describeTarget(instance, option.propertyKey)}: ${option.scope ?? 'legacy'} option ${String(option.optionKey)} is not supported on ${HOOK_CLASS_ROLES[role].label}`,
+        );
+      }
+    }
+    const methodNames = [...getAllMethodNames(prototype)];
+    const { label, hooks }: { label: string; hooks: readonly HookConfig[] } = HOOK_CLASS_ROLES[role];
     const registrations: HookRegistration[] = [];
 
     for (const methodName of methodNames) {
@@ -1040,39 +1094,41 @@ export class EgoseFactoryStatic {
       // descriptor/metadata lookup per effective method. Previously this loop
       // filtered every hook definition via isHookMethod which re-traversed
       // the prototype chain per hook (O(methods * hooks * prototypes)).
-      // Now we fetch the owner/descriptor once, then check watermarks
-      // directly on the method value (no extra prototype walk).
+      // Fetch the owner/descriptor once and read its member anchor plus legacy
+      // function metadata (no extra prototype walk per hook).
       const owner = getMethodOwner(instance, methodName);
       if (!owner) continue;
       const descriptor = Reflect.getOwnPropertyDescriptor(owner, methodName);
       if (!descriptor || typeof descriptor.value !== 'function') continue;
-      const fnValue = descriptor.value;
+      const metadata = getMethodMetadataReader(owner, methodName, descriptor.value);
 
-      let matchedHook: HookConfig | null = null;
-      let matchCount = 0;
-      for (const hook of hooks) {
-        if (getMetadata(fnValue, hook.watermark)) {
-          matchedHook = hook;
-          matchCount++;
-          if (matchCount > 1) break;
-        }
+      // Discover every known family in this same bounded traversal. Filtering
+      // to allowed hooks first would silently drop wrong-role declarations,
+      // including a disallowed family mixed with otherwise valid hooks.
+      const matches = HOOK_DEFINITION_LIST.filter((hook) => metadata.get(hook.watermark));
+      if (matches.length === 0) continue;
+      const targetName = describeTarget(instance, methodName);
+      for (const hook of matches) {
+        if (hooks.includes(hook)) continue;
+        const placements = Object.values(HOOK_CLASS_ROLES)
+          .filter((entry) => (entry.hooks as readonly HookConfig[]).includes(hook))
+          .map((entry) => entry.label);
+        throw new Error(
+          `Invalid decorator configuration on ${targetName}: ${describeHookDecorator(hook)} is not supported on ${label}; valid placement: ${placements.join(', ')}. Move the hook to a provider with a supported role`,
+        );
       }
-      if (matchCount === 0) continue;
-      if (matchCount > 1) {
-        const matches = hooks.filter((h) => getMetadata(fnValue, h.watermark));
-        const targetName = describeTarget(instance, methodName);
+      if (matches.length > 1) {
         throw new Error(
           `Invalid decorator configuration on ${targetName}: multiple hook decorators (${matches
             .map(describeHookDecorator)
             .join(', ')}) are not supported; split each hook onto its own method`,
         );
       }
-      const hook = matchedHook!;
+      const hook = matches[0];
 
-      const targetName = describeTarget(instance, methodName);
       const params = this.getMethodParamMetadataFromOwner(owner, instance, methodName);
       this.validateMethodParams(params, hook, targetName);
-      const rawKeys = getMetadataKeysStartWith(fnValue, hook.optionKey);
+      const rawKeys = metadata.keysStartWith(hook.optionKey);
       const metadataKeys = rawKeys.filter((k) => this.isValidHookMetadataKey(k, hook));
       if (metadataKeys.length === 0) continue;
       registrations.push({

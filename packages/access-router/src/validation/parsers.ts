@@ -5,6 +5,7 @@ import { validateRequestComplexity } from '../request-complexity';
 import { stringOrStringArray } from './common';
 import type {
   AjvErrorObjectLike,
+  AjvValidationErrorLike,
   AjvValidatorLike,
   ArkTypeErrorsLike,
   ArkTypeLike,
@@ -292,26 +293,33 @@ export function fromJoi<TSchema extends JoiSchemaLike>(schema: TSchema): Request
  * diagnostics via mutable `validator.errors`; those errors are snapshotted
  * synchronously before any suspension so concurrent same-turn validations do
  * not observe another input's diagnostics. Asynchronous AJV schemas
- * (`$async: true`) return a promise that resolves with validated data on
- * success or rejects with a `ValidationError` carrying an `errors` array on
- * failure; rejection-carried errors are normalized, while any other rejection
- * propagates unchanged as an operational exception.
+ * (`$async: true`) resolve with validated data, including false/true/null.
+ * AJV `ValidationError` rejections (`ajv: true`, `validation: true`, `errors`
+ * array) are normalized; other throws/rejections preserve operational identity.
+ * Async paths never read shared `validator.errors`.
+ *
+ * Untagged promises/thenables throw TypeError and are observed to prevent
+ * unhandled rejection. Migrate async boolean-verdict wrappers to a custom
+ * RequestSchemaValidator, or retain `$async: true` and return data/reject AJV
+ * validation errors. Sync validators must return boolean verdicts. Real AJV
+ * sync/async validators are accepted without casts; no runtime AJV import is used.
+ * Output is inferred from genuine AJV's type-guard overload (including its async
+ * subtype); structural async output is inferred from the promise. Pass TValue
+ * explicitly for a structural sync boolean validator without a type guard.
  */
+export function fromAjv<TValue>(
+  validator: AjvValidatorLike<TValue> & ((value: unknown) => value is TValue),
+): RequestSchemaValidator<TValue>;
+/** Adapts structural AJV validators with the same sync-verdict / tagged-async-data contract. */
+export function fromAjv<TValue = unknown>(validator: AjvValidatorLike<TValue>): RequestSchemaValidator<TValue>;
 export function fromAjv<TValue = unknown>(validator: AjvValidatorLike<TValue>): RequestSchemaValidator<TValue> {
   return async (value: unknown): Promise<RequestSchemaResult<TValue>> => {
-    const outcome = validator(value);
-    if (isThenable<TValue | boolean>(outcome)) {
+    if (validator.$async === true) {
       try {
-        const data = await outcome;
-        if (data === false) {
-          return {
-            success: false,
-            issues: normalizeAjvIssues(validator.errors ?? []),
-          };
-        }
+        const data = await validator(value);
         return {
           success: true,
-          data: (data === true ? value : data) as TValue,
+          data,
         };
       } catch (error) {
         if (!isAjvValidationError(error)) {
@@ -319,12 +327,23 @@ export function fromAjv<TValue = unknown>(validator: AjvValidatorLike<TValue>): 
         }
         return {
           success: false,
-          issues: normalizeAjvIssues(error.errors ?? []),
+          issues: normalizeAjvIssues(error.errors),
         };
       }
     }
 
-    const errorsSnapshot = validator.errors ? [...validator.errors] : [];
+    const outcome = validator(value);
+    if (isThenable(outcome)) {
+      // JS consumers and AJV's overloaded/erased function types can bypass the
+      // structural contract. Observe rejections, but never await shared errors.
+      void Promise.resolve(outcome).catch(() => {});
+      throw new TypeError(
+        'fromAjv: promise/thenable validators must declare $async: true and resolve with validated data',
+      );
+    }
+    if (typeof outcome !== 'boolean') {
+      throw new TypeError('fromAjv: synchronous validators must return a boolean verdict');
+    }
     if (outcome) {
       return {
         success: true,
@@ -334,7 +353,9 @@ export function fromAjv<TValue = unknown>(validator: AjvValidatorLike<TValue>): 
 
     return {
       success: false,
-      issues: normalizeAjvIssues(errorsSnapshot),
+      // Normalize immediately, copying message/path before another call can
+      // replace the errors array or mutate its entries.
+      issues: normalizeAjvIssues(validator.errors ?? []),
     };
   };
 }
@@ -651,22 +672,22 @@ function isArkTypeErrors(value: unknown): value is ArkTypeErrorsLike {
   return record.arkKind === 'errors' || record[' arkKind'] === 'errors';
 }
 
-function isThenable<T>(value: unknown): value is Promise<T> {
+function isThenable(value: unknown): value is PromiseLike<unknown> {
   return (
-    typeof value === 'object' &&
+    (typeof value === 'object' || typeof value === 'function') &&
     value !== null &&
     'then' in value &&
     typeof (value as Record<string, unknown>).then === 'function'
   );
 }
 
-function isAjvValidationError(error: unknown): error is { errors?: ReadonlyArray<AjvErrorObjectLike> | null } {
+function isAjvValidationError(error: unknown): error is AjvValidationErrorLike {
   if (typeof error !== 'object' || error === null || !('errors' in error)) {
     return false;
   }
 
-  const errors = (error as Record<string, unknown>).errors;
-  return errors == null || Array.isArray(errors);
+  const candidate = error as Record<string, unknown>;
+  return candidate.ajv === true && candidate.validation === true && Array.isArray(candidate.errors);
 }
 
 function isVineValidationError(error: unknown): error is VineValidationErrorLike {

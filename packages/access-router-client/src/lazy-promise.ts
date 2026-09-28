@@ -15,6 +15,12 @@ interface ExecutionClaim {
 }
 
 const executionClaims = new WeakMap<object, ExecutionClaim>();
+const wrappedRequests = new WeakSet<object>();
+
+// Internal identity check: literal/wire records cannot acquire request opacity
+// merely by carrying __op/__query (or copying callable request properties).
+export const isWrappedLazyRequest = (value: unknown): boolean =>
+  typeof value === 'object' && value !== null && wrappedRequests.has(value);
 
 export const claimLazyRequest = (request: object, mode: ExecutionMode, owner?: symbol): void => {
   const claim = executionClaims.get(request);
@@ -139,5 +145,6 @@ export const wrapLazyPromise = <T, M = undefined>(promiseFn: () => Promise<T>, m
   // The cast is necessary because `Object.defineProperty` dynamically merges
   // `meta` onto `prom`, which TypeScript cannot statically verify. The
   // runtime shape matches `M & LazyRequest<T>`.
+  wrappedRequests.add(prom);
   return prom as M & LazyRequest<T>;
 };

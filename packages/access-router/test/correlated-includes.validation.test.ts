@@ -108,6 +108,49 @@ describe('correlated include protocol validation (ACI-02)', () => {
     expectAgreement(filterInclude('list', 'posts', { authorId: parentRef('a.b.c') }), true);
   });
 
+  it.each(['read', 'list', 'count'])(
+    'accepts literal escapes in supported %s filter positions on direct/root routes',
+    (op) => {
+      const escaped = { $escape: parentRef('x') };
+      for (const filter of [
+        { note: escaped },
+        { note: { $eq: escaped } },
+        { note: { $ne: escaped } },
+        { note: [escaped] },
+        { note: { $in: [escaped] } },
+        { $and: [{ note: escaped }] },
+        { $or: [{ note: escaped }] },
+        { $nor: [{ note: escaped }] },
+        { items: { $elemMatch: { note: escaped } } },
+      ]) {
+        expectAgreement(filterInclude(op, 'literal', filter), true);
+      }
+    },
+  );
+
+  it('rejects malformed escapes and forbidden escape positions on direct/root routes', () => {
+    const escaped = { $escape: parentRef('x') };
+    for (const invalid of [
+      { $escape: { $parent: '' } },
+      { $escape: { $parent: 'x', extra: true } },
+      { $escape: escaped },
+      { ...escaped, extra: true },
+    ]) {
+      for (const note of [invalid, { $eq: invalid }, { $in: [invalid] }]) {
+        expectAgreement(filterInclude('list', 'literal', { note }), false);
+      }
+    }
+    for (const filter of [
+      escaped,
+      { $and: [escaped] },
+      { $or: [escaped] },
+      { $nor: [escaped] },
+      { items: { $elemMatch: escaped } },
+    ]) {
+      expectAgreement(filterInclude('list', 'literal', filter), false);
+    }
+  });
+
   it('rejects markers in forbidden positions', () => {
     // inside $$sq payloads
     expectAgreement(

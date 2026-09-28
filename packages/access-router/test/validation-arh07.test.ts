@@ -26,7 +26,7 @@ function makeAjvValidator(
     },
     { errors: null as typeof errors | null },
   );
-  return fromAjv(validate as never);
+  return fromAjv(validate);
 }
 
 function resolveFragmentPointer(root: unknown, pointer: string): unknown {

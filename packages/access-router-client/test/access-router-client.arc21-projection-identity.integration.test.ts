@@ -46,26 +46,36 @@ describe('access-router-client projection identity and count argument (ARC-21)',
       expect(readProjected.data._id).toBeUndefined();
       expect(readProjected.data.name).toBe('admin-user');
 
-      // Use the tracked `set()` entry point so dirty state is captured even
-      // for the projected `name` field (direct property assignment on a
-      // field absent from the initial projection is not tracked by the
-      // proxy; this matches the documented contract in `model.ts` — use
-      // `set`, `assign`, or `markModified` for tracked writes).
-      readProjected.data.set('name', 'arc21-admin-projected');
+      // CLC-05: ordinary assignment tracks both present and omitted fields.
+      expect(readProjected.data.role).toBeUndefined();
+      readProjected.data.name = 'arc21-admin-projected';
+      readProjected.data.role = 'owner';
       expect(readProjected.data.isDirty('name')).toBe(true);
+      expect(readProjected.data.isDirty('role')).toBe(true);
 
       // save() must route to PATCH /users/<adminId>, NOT to POST /users.
+      protocolRequests.length = 0;
       const saved = await readProjected.data.save(headers);
       expect(saved.success).toBe(true);
+      expect(protocolRequests).toEqual([
+        {
+          method: 'PATCH',
+          path: `/api/users/${String(seedState.admin._id)}`,
+          query: { returning_all: 'false', include_permissions: 'true' },
+          body: { name: 'arc21-admin-projected', role: 'owner' },
+        },
+      ]);
 
       // The original document is updated in place — no duplicate was
       // created. Reload the doc through a default read to confirm.
       const reloaded = await services.userService.read(String(seedState.admin._id), undefined, headers);
       expect(reloaded.success).toBe(true);
       expect(reloaded.data.name).toBe('arc21-admin-projected');
+      expect(reloaded.data.role).toBe('owner');
 
       // Cleanup: restore the seeded name so other tests stay deterministic.
       reloaded.data.set('name', 'admin-user');
+      reloaded.data.role = 'admin';
       await reloaded.data.save(headers);
     });
   });

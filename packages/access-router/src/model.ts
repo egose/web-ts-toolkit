@@ -1,7 +1,9 @@
 import mongoose from 'mongoose';
+import { cloneDeep } from '@web-ts-toolkit/utils';
 import { Sort, Filter, Projection, Populate } from './interfaces';
 import { getActiveRuntime } from './runtime-context';
 import { defaultRuntime, type AccessRuntime } from './runtime';
+import type { RequestConcurrencyScheduler } from './helpers/concurrency';
 
 export interface FindProps {
   filter: Filter;
@@ -33,6 +35,34 @@ export interface ModelAdapter {
   countDocuments(filter?: Filter): any;
   distinct(field: string, conditions?: Filter): any;
   aggregate(pipeline: unknown[]): any;
+  // Synchronous query casting only; custom adapters may retain identity semantics.
+  castFilter?(filter: Record<string, unknown>): Record<string, unknown>;
+}
+
+// Wrap the service's adapter, including overrides used by custom/test services.
+// Awaiting the lazy query here covers execution, not just builder construction.
+// Keep adapter receivers and document/model identities intact.
+export function admitModelPersistence(adapter: ModelAdapter, scheduler: RequestConcurrencyScheduler): ModelAdapter {
+  return {
+    modelName: adapter.modelName,
+    mongooseModel: adapter.mongooseModel,
+    new: () => adapter.new(),
+    // Mongoose create(array) otherwise starts all document saves at once. Keep
+    // the adapter's array input/output contract, with one permit per item; all
+    // items are submitted even if one rejects, as with unordered create(array).
+    create: (data) =>
+      Array.isArray(data)
+        ? Promise.all(data.map((item) => scheduler.work(async () => (await adapter.create([item]))[0])))
+        : scheduler.work(() => adapter.create(data)),
+    find: (props) => scheduler.work(() => adapter.find(props)),
+    findOne: (props) => scheduler.work(() => adapter.findOne(props)),
+    exists: (filter) => scheduler.work(() => adapter.exists(filter)),
+    countDocuments: (filter) => scheduler.work(() => adapter.countDocuments(filter)),
+    distinct: (field, conditions) => scheduler.work(() => adapter.distinct(field, conditions)),
+    aggregate: (pipeline) => scheduler.work(() => adapter.aggregate(pipeline)),
+    // Casting builds no persistence work and must not acquire a recursive permit.
+    ...(adapter.castFilter ? { castFilter: (filter: Record<string, unknown>) => adapter.castFilter!(filter) } : {}),
+  };
 }
 
 class Model {
@@ -98,6 +128,12 @@ class Model {
   // see https://mongoosejs.com/docs/api.html#query_Query-countDocuments
   countDocuments(filter = {}): mongoose.Query<number, any> {
     return this.mongooseModel.countDocuments(filter);
+  }
+
+  /** Cast a copy using this model's query schema/setters, without executing query middleware or persistence. */
+  castFilter(filter: Record<string, unknown>): Record<string, unknown> {
+    const query = this.mongooseModel.countDocuments(cloneDeep(filter));
+    return query.cast(this.mongooseModel);
   }
 
   // see https://mongoosejs.com/docs/api.html#model_Model.distinct

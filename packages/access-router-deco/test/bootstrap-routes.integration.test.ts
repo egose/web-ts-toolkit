@@ -37,6 +37,10 @@ const createErrorRuntime = () => {
     getDefaultModelOption: vi.fn(),
     registerModelInstance: vi.fn(),
     createRouter: vi.fn(() => ({ routes })),
+    runtime: createAccessRuntime().runtime,
+    // Stateless request-error fixture; satisfy the bootstrap transaction contract.
+    createBootstrapSnapshot: vi.fn(() => ({})),
+    restoreBootstrapSnapshot: vi.fn(),
   } as any);
 };
 

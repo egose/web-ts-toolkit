@@ -526,7 +526,7 @@ describe('ARDECO-05 inherited hook order and symbol support', () => {
   });
 });
 
-describe('BDECO-09 property scope evidence (investigation only, asserts current behavior)', () => {
+describe('BDECO-09-F01 property scope and remapping contracts', () => {
   function bootstrapModule(ModuleClass: Function, modelName: string) {
     const factory = EgoseFactoryStatic.create();
     setupModel(factory.runtime, modelName);
@@ -534,7 +534,7 @@ describe('BDECO-09 property scope evidence (investigation only, asserts current 
     return factory.runtime as any;
   }
 
-  it('BDECO-09/E1: GlobalOption on a default-options provider lands in default model options, not global', () => {
+  it('BDECO-09/E1: rejects GlobalOption on a default-options provider', () => {
     class DefaultOpts {
       field = 'MY_FIELD';
     }
@@ -544,13 +544,10 @@ describe('BDECO-09 property scope evidence (investigation only, asserts current 
     Router('BDECO09E1')(R as any);
     class M {}
     Module({ routers: [R as any], routerOptions: [DefaultOpts as any] })(M as any);
-    const runtime = bootstrapModule(M, 'BDECO09E1');
-    // Current behavior (no scope validation): written via setDefaultModelOption.
-    expect(runtime.getDefaultModelOption('requestPermissionField')).toBe('MY_FIELD');
-    expect(runtime.getGlobalOption('requestPermissionField')).not.toBe('MY_FIELD');
+    expect(() => bootstrapModule(M, 'BDECO09E1')).toThrow(/Invalid option scope/);
   });
 
-  it('BDECO-09/E2: ModelOption on a Module class lands in global options, not model options', () => {
+  it('BDECO-09/E2: rejects ModelOption on a Module class', () => {
     class M {
       seg = '/evil';
     }
@@ -558,12 +555,10 @@ describe('BDECO-09 property scope evidence (investigation only, asserts current 
     class R {}
     Router('BDECO09E2')(R as any);
     Module({ routers: [R as any] })(M as any);
-    const runtime = bootstrapModule(M, 'BDECO09E2');
-    expect(runtime.getGlobalOption('basePath')).toBe('/evil');
-    expect(runtime.getModelOption('BDECO09E2', 'basePath')).not.toBe('/evil');
+    expect(() => bootstrapModule(M, 'BDECO09E2')).toThrow(/Invalid option scope/);
   });
 
-  it('BDECO-09/E3: DefaultModelOption on a model Router lands in model options, not default options', () => {
+  it('BDECO-09/E3: rejects DefaultModelOption on a model Router', () => {
     class R {
       p = 'zzz';
     }
@@ -571,9 +566,7 @@ describe('BDECO-09 property scope evidence (investigation only, asserts current 
     Router('BDECO09E3')(R as any);
     class M {}
     Module({ routers: [R as any] })(M as any);
-    const runtime = bootstrapModule(M, 'BDECO09E3');
-    expect(runtime.getModelOption('BDECO09E3', 'idParam')).toBe('zzz');
-    expect(runtime.getDefaultModelOption('idParam')).not.toBe('zzz');
+    expect(() => bootstrapModule(M, 'BDECO09E3')).toThrow(/Invalid option scope/);
   });
 
   it('BDECO-09/E4: inferred keys and legacy Option accept typo keys verbatim (metadata + stored option)', () => {
@@ -596,7 +589,7 @@ describe('BDECO-09 property scope evidence (investigation only, asserts current 
     expect(runtime.getModelOption('BDECO09E4', 'operationAcess')).toBe(true);
   });
 
-  it('BDECO-09/E5: property values are not validated (string listHardLimit stored verbatim)', () => {
+  it('BDECO-09/E5: rejects a string listHardLimit', () => {
     class R {
       limit: any = 'not-a-number';
     }
@@ -604,11 +597,10 @@ describe('BDECO-09 property scope evidence (investigation only, asserts current 
     Router('BDECO09E5')(R as any);
     class M {}
     Module({ routers: [R as any] })(M as any);
-    const runtime = bootstrapModule(M, 'BDECO09E5');
-    expect(runtime.getModelOption('BDECO09E5', 'listHardLimit')).toBe('not-a-number');
+    expect(() => bootstrapModule(M, 'BDECO09E5')).toThrow(/Invalid option value.*listHardLimit/);
   });
 
-  it('BDECO-09/E6: child remapping same property to a different key duplicates (both read child value)', () => {
+  it('BDECO-09/E6: child remapping removes the old key', () => {
     class Base {
       myProp = 'base';
     }
@@ -622,8 +614,7 @@ describe('BDECO-09 property scope evidence (investigation only, asserts current 
       OPTIONS_METADATA,
       'optionKey',
     ) as any[];
-    // Current behavior: dedupe is by optionKey only, so the stale base mapping survives.
-    expect(merged).toHaveLength(2);
+    expect(merged).toEqual([{ optionKey: 'keyB', propertyKey: 'myProp' }]);
     const instance = new Child() as any;
     for (const entry of merged) {
       expect(entry.propertyKey).toBe('myProp');
@@ -694,13 +685,12 @@ describe('BDECO-09 property scope evidence (investigation only, asserts current 
     ]);
   });
 
-  it('BDECO-09/E10: scoped decorators store no scope discriminator', () => {
+  it('BDECO-09/E10: scoped decorators retain their declared scope', () => {
     class X {
       f = 'permissions';
     }
     (GlobalOption('requestPermissionField') as PropertyDecorator)(X.prototype, 'f');
     const own = Reflect.getOwnMetadata(OPTIONS_METADATA, X.prototype) as any[];
-    expect(own).toEqual([{ optionKey: 'requestPermissionField', propertyKey: 'f' }]);
-    expect('scope' in own[0]).toBe(false);
+    expect(own).toEqual([{ optionKey: 'requestPermissionField', propertyKey: 'f', scope: 'global' }]);
   });
 });

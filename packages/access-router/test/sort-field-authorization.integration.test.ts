@@ -211,7 +211,9 @@ describe('sort field authorization (ART-04)', () => {
       'bravo',
       'alpha',
     ]);
-  });
+    // Both fixture constructions precede four ordering checks; construction alone
+    // takes about 27s under workspace load. Keep a bounded per-test allowance.
+  }, 60_000);
 
   it('matches model and data rejection semantics and ignores client projection for denied sort fields', async () => {
     const { app: modelApp } = await createModelSortApp();

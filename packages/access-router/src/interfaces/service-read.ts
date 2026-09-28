@@ -12,5 +12,6 @@ export interface PublicReadOptions {
   populateAccess?: PopulateAccess;
   lean?: boolean;
   includePermissions?: boolean;
+  /** Retry an authorized read miss with list access (default true); requires list operation access. Forbidden/BadRequest never retry. */
   tryList?: boolean;
 }

@@ -2,8 +2,18 @@ import { AxiosRequestConfig } from 'axios';
 import { isPlainObject, mapValues } from '@web-ts-toolkit/utils';
 import { FilterQuery, WrapOptions } from './types';
 import { CorrelatedIncludeError, isCorrelatedIncludeDescriptor } from './correlated-brand';
+import { isEscapeLiteral, isLazyRequestLike, validateQueryInputs, validateQueryWireInputs } from './query-traversal';
 
 export function replaceSubQuery<T>(filter: FilterQuery<T>): unknown {
+  validateQueryInputs('replaceSubQuery', filter);
+  const rewritten = replaceSubQueryInner(filter);
+  // Rewriting exposes live __query metadata without traversing it. Validate
+  // that expanded wire graph before a caller clones or serializes the result.
+  validateQueryWireInputs('replaceSubQuery', rewritten);
+  return rewritten;
+}
+
+function replaceSubQueryInner(filter: unknown): unknown {
   // ACI-04: reference-bearing descriptors are data-less placeholders, never
   // subquery sources. Reject them with a controlled error instead of
   // rewriting them into `$$sq` metadata or recursing into them as plain
@@ -16,6 +26,12 @@ export function replaceSubQuery<T>(filter: FilterQuery<T>): unknown {
     );
   }
   if (!isPlainObject(filter)) return filter;
+  // A live request can also arrive as an array element (or the helper root).
+  // Keep the same opacity as validation; never walk its enumerable properties.
+  if (isLazyRequestLike(filter)) return { $$sq: (filter as Record<string, unknown>).__query };
+  // Escapes carry literal data, including request/marker-shaped records.
+  // Structural validation above still bounds their copy/serialization work.
+  if (isEscapeLiteral(filter)) return filter;
 
   const ret: Record<string, unknown> = mapValues(filter, (val: unknown): unknown => {
     if (isCorrelatedIncludeDescriptor(val)) {
@@ -24,18 +40,12 @@ export function replaceSubQuery<T>(filter: FilterQuery<T>): unknown {
           'call $include(path) on it first, or restructure the query',
       );
     }
-    if (isPlainObject(val) && '__op' in val && val.__op && '__query' in val && val.__query) {
-      return {
-        $$sq: val.__query,
-      };
-    }
-
     if (isPlainObject(val)) {
-      return replaceSubQuery(val);
+      return replaceSubQueryInner(val);
     }
 
     if (Array.isArray(val)) {
-      return val.map((v): unknown => replaceSubQuery(v));
+      return val.map((v): unknown => replaceSubQueryInner(v));
     }
 
     return val;

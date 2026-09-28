@@ -30,6 +30,12 @@ export interface ModuleMetadata {
   routers: Type[];
   /** Classes decorated with `@RouterOptions` — exactly one default or model role per entry (own watermark, no `@Router`). */
   routerOptions?: Type[];
+  /**
+   * `basePath` mounts Express routes and prefixes their OpenAPI paths before
+   * collision checks. Models compose module base + parentPath + model base;
+   * `parentPath` never changes Express matching. Remove old parentPath mount
+   * workarounds; use OpenAPI `servers` for an external reverse-proxy prefix.
+   */
   options?: GlobalOptions & { basePath?: string; handleErrors?: boolean };
 }
 

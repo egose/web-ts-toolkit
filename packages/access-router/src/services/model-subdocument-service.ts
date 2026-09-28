@@ -1,5 +1,6 @@
 import { forEach, get, pick } from '@web-ts-toolkit/utils';
 import { filterCollection, findElement, findElementById, genSubPopulate, toObject } from '../helpers';
+import { applyUpdate } from '../helpers/apply-update';
 import type {
   ErrorResult,
   Filter,
@@ -20,6 +21,55 @@ import type {
 import { Codes } from '../enums';
 import { validateClientFilter } from './base';
 import type { Service } from './service';
+
+type IsOperationAllowed = (access: string) => Promise<boolean>;
+type Persist = <T>(operation: () => T | PromiseLike<T>) => Promise<T>;
+
+// Mutation output uses read fields. Only create enumerates the full array, so it
+// additionally requires list access/rows. Targeted updates do not require list.
+// Resolve policies once for the response, never once per row. Denial hides output
+// rather than turning an already-persisted write into a retryable error.
+async function visibleMutationRows<TModel>(
+  service: Service<TModel>,
+  isAllowed: IsOperationAllowed,
+  parentId: unknown,
+  sub: SubdocumentName,
+  rows: Record<string, unknown>[],
+  response: 'create' | 'single' | 'bulk',
+): Promise<Record<string, unknown>[]> {
+  const accesses = ['read', `subs.${sub}.read`];
+  if (response === 'create') accesses.push(`subs.${sub}.list`);
+  const allowed = await Promise.all(accesses.map(isAllowed));
+  if (allowed.some((value) => !value)) return [];
+
+  const parentFilter = await service.genFilter('read', { _id: parentId } as Filter<TModel>);
+  if (parentFilter === false) return [];
+  // The write lookup projects only `sub`; parent row policies may depend on any
+  // persisted field and need MongoDB's query/casting semantics after the save.
+  const parent = await service.findRawParentDoc({
+    filter: { $and: [{ _id: parentId }, parentFilter] } as Filter<TModel>,
+    select: '_id',
+    populate: [],
+    lean: true,
+  });
+  if (!parent) return [];
+
+  const targetFilter =
+    response === 'create'
+      ? {}
+      : response === 'single'
+        ? { _id: rows[0]?._id }
+        : { _id: { $in: rows.map((row) => row._id) } };
+  const [readFilter, listFilter, select] = await Promise.all([
+    service.genFilter(`subs.${sub}.read`, targetFilter as Filter<TModel>),
+    response === 'create' ? service.genFilter(`subs.${sub}.list`) : Promise.resolve({}),
+    service.genQuerySelect('read', null, false, [sub, 'sub']),
+  ]);
+  if (readFilter === false || listFilter === false) return [];
+
+  const visible = filterCollection(filterCollection(rows, listFilter), readFilter);
+  return select ? visible.map((row) => pick(toObject(row), select.concat('_id'))) : visible;
+}
 
 export async function listSub<TModel>(
   service: Service<TModel>,
@@ -78,6 +128,8 @@ export async function readSub<TModel>(
 
 export async function updateSub<TModel>(
   service: Service<TModel>,
+  persist: Persist,
+  isAllowed: IsOperationAllowed,
   id: SubdocumentId,
   sub: SubdocumentName,
   subId: SubdocumentId,
@@ -87,27 +139,28 @@ export async function updateSub<TModel>(
   if (!parentDoc) return { success: false, kind: 'error', code: Codes.NotFound };
   const result = get(parentDoc, sub) as Record<string, unknown>[];
 
-  const [subFilter, subReadSelect, subUpdateSelect] = await Promise.all([
+  const [subFilter, subUpdateSelect] = await Promise.all([
     service.genFilter(`subs.${sub}.update`, { _id: subId } as Filter<TModel>),
-    service.genQuerySelect('read', null, false, [sub, 'sub']),
     service.genQuerySelect('update', null, false, [sub, 'sub']),
   ]);
 
   if (subFilter === false) return { success: false, kind: 'error', code: Codes.Forbidden };
 
-  let subdoc = findElement(result, subFilter) as Record<string, unknown> | undefined;
+  const subdoc = findElement(result, subFilter) as Record<string, unknown> | undefined;
   if (!subdoc) return { success: false, kind: 'error', code: Codes.NotFound };
 
   const allowedData = pick(data, subUpdateSelect);
-  Object.assign(subdoc, allowedData);
+  applyUpdate(subdoc, allowedData, subUpdateSelect);
 
-  await parentDoc.save();
-  if (subReadSelect) subdoc = pick(toObject(subdoc), subReadSelect.concat(['_id']));
-  return { success: true, kind: 'single', code: Codes.Success, data: subdoc };
+  await persist(() => parentDoc.save());
+  const visible = await visibleMutationRows(service, isAllowed, parentDoc._id, sub, [subdoc], 'single');
+  return { success: true, kind: 'single', code: Codes.Success, data: visible[0] ?? null };
 }
 
 export async function bulkUpdateSub<TModel>(
   service: Service<TModel>,
+  persist: Persist,
+  isAllowed: IsOperationAllowed,
   id: SubdocumentId,
   sub: SubdocumentName,
   data: SubdocumentBulkUpdateInput,
@@ -126,30 +179,33 @@ export async function bulkUpdateSub<TModel>(
   if (!parentDoc) return { success: false, kind: 'error', code: Codes.NotFound };
   let result = get(parentDoc, sub) as SubdocumentBulkRecord[];
 
-  const [subFilter, subReadSelect, subUpdateSelect] = await Promise.all([
+  const [subFilter, subUpdateSelect] = await Promise.all([
     service.genFilter(`subs.${sub}.update`, { _id: { $in: data.map((v) => v._id) } } as Filter<TModel>),
-    service.genQuerySelect('read', null, false, [sub, 'sub']),
     service.genQuerySelect('update', null, false, [sub, 'sub']),
   ]);
 
   if (subFilter === false) return { success: false, kind: 'error', code: Codes.Forbidden };
 
-  result = filterCollection(result, subFilter);
+  // A trusted override may replace the ID predicate, but only payload targets
+  // are updated and eligible for this targeted mutation response.
+  result = filterCollection(result, subFilter).filter((subdoc) => findElementById(data, subdoc._id as string));
   forEach(result, (subdoc: SubdocumentBulkRecord) => {
     const tdata = findElementById(data, subdoc._id as string);
     if (!tdata) return;
 
     const allowedData = pick(tdata as object, subUpdateSelect);
-    Object.assign(subdoc, allowedData);
+    applyUpdate(subdoc, allowedData, subUpdateSelect);
   });
 
-  await parentDoc.save();
-  if (subReadSelect) result = result.map((v) => pick(toObject(v), subReadSelect.concat(['_id'])));
+  await persist(() => parentDoc.save());
+  result = await visibleMutationRows(service, isAllowed, parentDoc._id, sub, result, 'bulk');
   return { success: true, kind: 'list', code: Codes.Success, data: result, count: result.length };
 }
 
 export async function createSub<TModel>(
   service: Service<TModel>,
+  persist: Persist,
+  isAllowed: IsOperationAllowed,
   id: SubdocumentId,
   sub: SubdocumentName,
   data: SubdocumentCreateInput,
@@ -171,10 +227,7 @@ export async function createSub<TModel>(
   if (!parentDoc) return { success: false, kind: 'error', code: Codes.NotFound };
   let result = get(parentDoc, sub) as Record<string, unknown>[];
 
-  const [subCreateSelect, subReadSelect] = await Promise.all([
-    service.genQuerySelect('create', null, false, [sub, 'sub']),
-    service.genQuerySelect('read', null, false, [sub, 'sub']),
-  ]);
+  const subCreateSelect = await service.genQuerySelect('create', null, false, [sub, 'sub']);
 
   const allowedData = Array.isArray(data)
     ? data.map((row) => pick(row as SubdocumentRecord, subCreateSelect))
@@ -185,13 +238,14 @@ export async function createSub<TModel>(
     addFirst === true ? result.unshift(allowedData) : result.push(allowedData);
   }
 
-  await parentDoc.save();
-  if (subReadSelect) result = result.map((v) => pick(toObject(v), subReadSelect.concat(['_id'])));
+  await persist(() => parentDoc.save());
+  result = await visibleMutationRows(service, isAllowed, parentDoc._id, sub, result, 'create');
   return { success: true, kind: 'list', code: Codes.Created, data: result, count: result.length };
 }
 
 export async function deleteSub<TModel>(
   service: Service<TModel>,
+  persist: Persist,
   id: SubdocumentId,
   sub: SubdocumentName,
   subId: SubdocumentId,
@@ -215,7 +269,7 @@ export async function deleteSub<TModel>(
   if (!subdoc) return { success: false, kind: 'error', code: Codes.NotFound };
 
   await ('deleteOne' in subdoc ? subdoc.deleteOne?.() : subdoc.remove?.());
-  await parentDoc.save();
+  await persist(() => parentDoc.save());
   return { success: true, kind: 'single', code: Codes.Success, data: subdoc._id };
 }
 

@@ -43,8 +43,24 @@ contracts. When upgrading from the previous client contract:
 
 Grouped entry `headers` are now `{}` because the root protocol has no
 per-operation headers. Structured grouped failure fields remain in `raw`.
-The complete release-level before/after record is in the repository
-`CHANGELOG.md`.
+
+Additional business-contract corrections in this release:
+
+- **Optional/projected fields:** direct assignment to an absent nonreserved
+  top-level field now tracks and saves it, instead of creating an untracked
+  wrapper shadow. Use helpers for reserved names and nested paths; remove code
+  that redefines, deletes, freezes, or replaces the model wrapper's structure.
+  See [Model writes and reset](#model-writes-and-reset) for key restrictions.
+- **Cache parity:** partition/body boundaries and body types no longer collide.
+  Deduplicated HTTP errors share the transformed JSON/text body regardless of
+  caller order; each caller still applies its own `validateStatus`.
+- **Query params and grouping:** basic service calls now retain ordered
+  `URLSearchParams` alongside generated options. Reversing repeated values or
+  substituting a tag-shaped plain object for a `Date`/`URLSearchParams` value
+  no longer counts as equal grouped config; align configs or execute separately.
+- **Preparation limits:** cyclic, over-deep, or excessive expanded inputs now
+  throw controlled errors synchronously. Reduce oversized query/default bags
+  according to [Input preparation limits](#input-preparation-limits).
 
 ## Quick Start
 
@@ -168,6 +184,46 @@ and result-shape notes:
   `@web-ts-toolkit/access-router` README "Correlated Includes" section).
   Older servers silently drop the new entries instead of executing them.
 
+### Input preparation limits
+
+Client query preparation allows **64 edges from each input root** (root depth 0) and **10,000 expanded value visits per preparation boundary**. Containers,
+primitive leaves, array slots (including holes), and every repeated occurrence
+of a shared acyclic object count. Shared references are allowed; cycles reject.
+
+- The bounds apply before plain-object/array filter scanning, correlated
+  capture, snapshot copying, and subquery rewriting, including reference-free
+  filters and supplemental `$include()` filters.
+- Capture combines supplied id/filter/args/options in one budget; undefined
+  optional roots are absent. Conversion combines the id or rewritten filter
+  with effective forwarded args, including defaults. Internal wire-envelope
+  keys do not consume the filter-only budget. Conversion may exceed its budget
+  even when individual builder inputs fit.
+- `$escape` contents remain literal but are structurally checked. Live lazy
+  requests stay opaque until their `__query` becomes `$$sq` wire data, which is
+  checked before copying. Plain records carrying `__op`/`__query` are still fully
+  bounded and detached inside literals and exposed metadata; those keys do not
+  grant live-request opacity there. Validation does not execute requests or freeze
+  caller-owned containers. Invalid inputs throw `CorrelatedIncludeError`
+  synchronously with zero HTTP from preparation.
+
+Service defaults have a **separate 64-edge / 10,000-visit budget**. The entire
+defaults bag is depth 0, and all operation args/options share the budget;
+primitive/valid `Date` leaves, array holes, and repeated references count.
+Direct `ModelService`/`DataService` construction checks supplied defaults;
+adapter factories check the effective shallow-merged adapter/service bag when
+creating each service (`createAdapter` itself does not normalize defaults).
+Overridden fields do not count; two valid bags may exceed the merged budget.
+Generated empty option bags are added afterward. Each per-request default
+clone also checks its selected value as a fresh root. Cycles or unsupported
+values, depth, or work throw `UnsupportedServiceDefaultValueError`
+synchronously, with a path starting at `defaults` (`.key` / `[index]`). This
+error is not a root export. Defaults have no opaque-request or frozen-input
+exemption; supported values remain detached per request.
+
+These are structural work limits, not byte-size limits, latency guarantees,
+or bounds on arbitrary getters, proxies, or exotic-instance behavior. They
+are separate from the server's correlated-query execution limits.
+
 ## Contract
 
 The full website docs at
@@ -194,6 +250,14 @@ consumer needs:
   serializers always bypass caching. `cacheTTL` is measured in milliseconds;
   `cacheTTL: 0` (the default) disables the cache entirely, while enabled caches
   retain at most 100 entries by default.
+  The partition is captured when the request enters the cache and occupies a
+  separate key component from the typed body. Choose a token that distinguishes
+  every response-affecting identity/tenant context; redaction does not infer
+  identity for you. Eligible concurrent callers share one transformed body,
+  including JSON HTTP error bodies, with independent response copies and
+  caller-owned config. Each applies its own `validateStatus`. Strict JSON parse
+  failures and transport failures reject attached Axios callers and release
+  the slot for a later request; service calls apply their normal failure policy.
   `clearCache()` drops every cached entry; `disposeCache()`
   drops entries and releases cache timers (call on adapter teardown so timers
   do not keep a Node process alive).
@@ -211,6 +275,22 @@ consumer needs:
   batchable. Group results preserve input order. Group entry `headers` are
   empty because the root protocol supplies only outer batch headers, not
   per-operation headers.
+- **Grouped config equality:** plain-object key order is ignored and undefined
+  object properties are omitted. Arrays remain ordered; valid `Date` values
+  compare by timestamp, `AxiosHeaders` by their JSON form, and
+  `URLSearchParams` by key with repeated values in their original order.
+  Distinct-key reordering is accepted; `mode=first&mode=second` differs from
+  `mode=second&mode=first`. Dates and URLSearchParams are distinct from plain
+  objects that mimic their internal tags. Functions, cancellation controls,
+  unsupported instances, and cycles reject. Config validation happens before
+  claiming requests or dispatch, so rejected members can still execute directly.
+- **Generated query params:** basic model list/read/create/upsert/update, data
+  list, and basic subdocument calls clone caller `URLSearchParams`, retaining
+  non-generated entries in order (including duplicates and blanks). Generated
+  keys replace all caller duplicates; nullish generated values omit the key,
+  including undefined pagination defaults. `false` and `0` are retained.
+  Plain-object params keep Axios merge behavior. Grouped transport sends the
+  caller config once; generated per-operation options live in each body entry.
 - **Response narrowing:** `Response<TRaw, TData = TRaw, TError = unknown>` is a discriminated
   union of `SuccessResult<TRaw, TData>` and `FailureResult<TError>`. Branch on
   `result.success` — on the `true` branch both `raw` and `data` are non-null;
@@ -238,23 +318,64 @@ TUpdateInput, TUpsertInput>(...)` when request schemas differ from the
   `SubDocumentMutationInput<S>` (`Partial<S>` for object subdocuments) by
   default and can be customized through `subs<S, K, TCreateInput,
 TUpdateInput>(...)`.
-- **Nested model edits:** `Model<T>` tracks modified top-level paths and
+- **Model edits:** direct nonreserved top-level assignment tracks fields even
+  when absent or omitted from a projection, just like `set`/`assign`.
+  `Model<T>` tracks modified top-level paths and
   reconciles writes against the last loaded/saved snapshot. Direct mutation
   of nested objects/arrays (`obj.arr.push(...)`, `obj.sub.field = x`) is
   **not** tracked. Use `set('path.to.field', value)` (applies + reconciles)
   or `markModified('topLevelField')` after a direct mutation (forces dirty
   without reconciling). Reverting a value to its snapshot clears the dirty
   flag. `save()` persists only tracked modified top-level fields; if `_id`
-  exists it calls `update(...)`, otherwise it calls `create(...)`. Multiple
+  or captured persistence identity exists it calls `update(...)`. Only drafts
+  without identity call `create(...)`; existing identity-less projections throw
+  `MissingPersistenceIdentityError`. Multiple
   overlapping `save()` calls on the same wrapper are serialized in call order.
-  Document fields named like model methods (`save`, `reset`, `set`, `get`,
-  `assign`, `toJSON`, etc.) are reserved for the wrapper API on direct
-  property access; use `get(...)`, `set(...)`, `assign(...)`, or `toObject()`
-  for those data fields. The exported `ModelData<T>` helper reflects that
-  reserved-name contract in response and `Model.create(...)` types.
+  See [Model writes and reset](#model-writes-and-reset) for reserved fields,
+  safe-write restrictions, and local reset semantics.
 - **Supported runtimes:** Node 22+ and modern evergreen browsers (see
   [Supported Runtimes](#supported-runtimes) and
   [Browser And Node Support](#browser-and-node-support) above).
+
+### Model writes and reset
+
+Wrapper methods, internal state names (such as `_snapshot` and `_saveQueue`),
+and inherited prototype members are reserved on direct access. Assigning them
+throws `TypeError`; read/write their document values through `get`, `set`,
+`assign`, or `toObject` subject to the key/path rules below. `then` is helper-only:
+direct reads return `undefined` and direct writes throw, even if the document
+stores a function there. `ModelData` excludes `then` and inherited Object-member
+names as well as public Model members. Model methods are owner-bound; fluent
+methods return the same wrapper.
+
+Direct assignment and `assign` accept nonempty literal string keys: no `.`,
+`[` or `]`, no `__proto__`, `constructor`, or `prototype`, and no numeric
+spelling that the path normalizer would change (such as `01`). Symbol writes
+and enumerable symbol keys in `assign` throw `TypeError`. `assign` validates
+all keys before applying values, so an invalid later key does not partially
+apply earlier fields. This is key validation, not transactional execution of
+caller getters/proxies. Nested dot/bracket paths belong to `set` and
+`markModified`; their existing forbidden-segment rules still apply.
+
+Structural wrapper mutation (`defineProperty`, `delete`, `setPrototypeOf`,
+`preventExtensions`, freeze/seal, or legacy getter/setter definition helpers)
+throws `TypeError` before changing data, structure, or dirty state. Use
+`toObject`/`toJSON` for document serialization instead of wrapper enumeration.
+
+`reset()` restores the local baseline: newly added fields become absent in
+`toObject()` and read as `undefined` through direct access and `get` (rather
+than the former `null` from a removed field's forwarder). Forwarder slots may
+remain enumerable. Reverting an absent field to `undefined` reconciles clean;
+JSON still omits undefined values. Neither assignment nor reset introduces a
+server unset/delete protocol. Reset during a save retains the persisted
+baseline when that save succeeds; unsubmitted concurrent fields retain their
+prior absent baseline. The original and returned save wrappers have independent
+snapshots, dirty state, and save queues.
+
+Both `new Model` and `Model.create` preserve `instanceof Model`; constructor
+typing remains `Model`, while `Model.create` and service responses expose
+`ModelData` for typed direct fields. A projection's static selected shape still
+controls which fields TypeScript exposes; use `set` for an omitted field.
 
 ## Primary Exports
 
@@ -410,6 +531,27 @@ such as `useCacheInterceptors`, `cloneConfigWithCacheBypass`,
 are intentionally not exported. Configure caching through `AdapterOptions`
 (`cacheTTL`, `cachePartition`, `cacheCapacity`); control an existing cache
 through the returned adapter's `clearCache()` and `disposeCache()` methods.
+
+## Optional fields and ordered params example
+
+The server may omit `nickname`; ordinary assignment still tracks it. The
+caller-owned `params` retains both `mode` entries in order, while generated
+service options take precedence on their own keys.
+
+```ts
+import { createAdapter } from '@web-ts-toolkit/access-router-client';
+
+type User = { _id?: string; name: string; nickname?: string };
+const adapter = createAdapter({ baseURL: 'http://localhost:3000/api' });
+const users = adapter.createModelService<User>({ modelName: 'User', basePath: 'users' });
+const params = new URLSearchParams('mode=second&mode=first');
+const result = await users.read('user-1', { includePermissions: true }, { params });
+
+if (result.success) {
+  result.data.nickname = 'Ada';
+  await result.data.save();
+}
+```
 
 ## Browser And Node Support
 

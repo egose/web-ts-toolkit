@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -329,21 +329,11 @@ function prepareReleaseArtifactWorkspace(): ReleaseArtifactWorkspace {
   }
 
   const artifactRoot = path.resolve(workspaceRoot, 'dist', `web-ts-toolkit-${testVersion}`);
-  if (!existsSync(artifactRoot)) {
-    // `pnpm build-artifact` walks every `package.json` under `packages/` and
-    // requires each `bin` entry's file to exist as a regular file (it runs
-    // `lstatSync` against it during command discovery). The access-router test
-    // script only builds access-router and its transitive `workspace:`
-    // dependencies (`pnpm --filter @web-ts-toolkit/access-router... build`),
-    // so CLI-only packages outside that closure — e.g.
-    // `@web-ts-toolkit/access-router-runtime`,
-    // `create-access-router-mongo-starter`, and `@web-ts-toolkit/express-runtime`
-    // — may ship an unbuilt `dist/` on a fresh CI runner and trip `Bin entry
-    // must be an existing regular file`. The workspace is built up-front in
-    // `beforeAll` (see the describe block) so every package's compiled outputs
-    // are present before artifact assembly runs.
-    run('pnpm', ['build-artifact', '--version', testVersion], workspaceRoot);
-  }
+  // Rebuild once per suite invocation: an existing version directory may contain
+  // another worktree revision. The in-process cache above avoids repeated builds.
+  // Artifact command discovery requires compiled bin entries from packages outside
+  // access-router's dependency closure; beforeAll builds missing bin outputs first.
+  run('pnpm', ['build-artifact', '--version', testVersion], workspaceRoot);
 
   const packageDirs = Object.fromEntries(
     workspacePackages.map((pkg) => [
@@ -698,7 +688,7 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
   // workspace + artifact assembly. Without this, the first artifact test body
   // would absorb the cost of `pnpm --recursive --if-present build` +
   // `pnpm build-artifact --version <testVersion>` (~40-90s on a fresh runner)
-  // and routinely blow past the 60s per-test cap. Both `prepare*Workspace`
+  // unnecessarily consume the installed-consumer test budget. Both `prepare*Workspace`
   // helpers are idempotent and cache their result, so priming here is a no-op
   // for the test bodies.
   beforeAll(() => {
@@ -828,6 +818,25 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
     }
   });
 
+  it('packs and assembles the current JavaScript, declaration graph and shipped docs', () => {
+    const packed = preparePackedWorkspace();
+    const packedRoot = unpackTarballToDir(packed.tarballs['@web-ts-toolkit/access-router']);
+    const artifactRoot = prepareReleaseArtifactWorkspace().packageDirs['@web-ts-toolkit/access-router'];
+    const distRoot = path.resolve(packageRoot, 'dist');
+    const emitted = readdirSync(distRoot).filter((file) => /\.(?:js|mjs|ts|mts)$/.test(file));
+    expect(emitted).toEqual(expect.arrayContaining(['index.mjs', 'index.d.mts', 'advanced.d.ts', 'processors.js']));
+    for (const file of emitted) {
+      const current = readFileSync(path.resolve(distRoot, file), 'utf8');
+      expect(readFileSync(path.resolve(packedRoot, file), 'utf8'), `packed ${file}`).toBe(current);
+      expect(readFileSync(path.resolve(artifactRoot, 'dist', file), 'utf8'), `artifact ${file}`).toBe(current);
+    }
+    for (const file of ['README.md', 'llms.txt']) {
+      const current = readFileSync(path.resolve(packageRoot, file), 'utf8');
+      expect(readFileSync(path.resolve(packedRoot, file), 'utf8'), `packed ${file}`).toBe(current);
+      expect(readFileSync(path.resolve(artifactRoot, file), 'utf8'), `artifact ${file}`).toBe(current);
+    }
+  });
+
   it.each([
     ['minimum peers', '5.0.0', '8.0.0'],
     ['current majors', '5.2.1', '9.8.0'],
@@ -837,7 +846,8 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
       const consumerDir = installPackedConsumer(expressVersion, mongooseVersion);
       runConsumerSmokeTests(consumerDir, { fullDeclarationCheck: _label === 'current majors' });
     },
-    60000,
+    // Includes install, runtime smoke and three compiler invocations under suite load.
+    180000,
   );
 
   it.each([
@@ -849,6 +859,6 @@ describe('ARF-09 packed-package compatibility using the real release-artifact pi
       const consumerDir = installArtifactConsumer(expressVersion, mongooseVersion);
       runConsumerSmokeTests(consumerDir, { fullDeclarationCheck: _label === 'current majors' });
     },
-    60000,
+    180000,
   );
 });

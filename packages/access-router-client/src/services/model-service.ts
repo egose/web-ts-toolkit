@@ -1,4 +1,4 @@
-import { AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
+import { AxiosRequestConfig, AxiosInstance } from 'axios';
 import {
   FilterQuery,
   CorrelatedFilterQuery,
@@ -59,6 +59,7 @@ import {
   processListResult,
 } from './shared';
 import { makeRequest } from './request';
+import { mergeServiceParams } from './request-config';
 import { buildSubDocumentOps } from './sub-ops';
 import {
   assertNoTransportConfig,
@@ -181,17 +182,15 @@ export class ModelService<
         this._axios
           .get(
             this._basePath,
-            mergeConfig(reqConfig, {
-              params: {
-                skip,
-                limit,
-                page,
-                page_size: pageSize,
-                skim,
-                include_permissions: includePermissions,
-                include_count: includeCount,
-                include_extra_headers: includeExtraHeaders,
-              },
+            mergeServiceParams(reqConfig, {
+              skip,
+              limit,
+              page,
+              page_size: pageSize,
+              skim,
+              include_permissions: includePermissions,
+              include_count: includeCount,
+              include_extra_headers: includeExtraHeaders,
             }),
           )
           .then((res) => this.handleSuccess<ListModelResponse<T, TData>>(res))
@@ -439,7 +438,7 @@ export class ModelService<
     return makeRequest<ModelResponse<T, TData> | ArrayModelResponse<T, TData>>(
       () =>
         this._axios
-          .post(this._basePath, data, mergeConfig(reqConfig, { params: { include_permissions: includePermissions } }))
+          .post(this._basePath, data, mergeServiceParams(reqConfig, { include_permissions: includePermissions }))
           .then((res) => this.handleSuccess<ModelResponse<T, TData> | ArrayModelResponse<T, TData>>(res))
           .then((result: ModelResponse<T, TData> | ArrayModelResponse<T, TData>) => {
             // ARC-21: the server echoes `_id` on create; mark the wrapper
@@ -577,8 +576,9 @@ export class ModelService<
           .put(
             this._basePath,
             data,
-            mergeConfig(reqConfig, {
-              params: { returning_all: returningAll, include_permissions: includePermissions },
+            mergeServiceParams(reqConfig, {
+              returning_all: returningAll,
+              include_permissions: includePermissions,
             }),
           )
           .then((res) => this.handleSuccess<ModelResponse<T, TData>>(res))
@@ -970,8 +970,9 @@ export class ModelService<
         this._axios
           .get(
             `${this._basePath}/${encodePathSegment(identifier)}`,
-            mergeConfig(reqConfig, {
-              params: { include_permissions: includePermissions, try_list: tryList },
+            mergeServiceParams(reqConfig, {
+              include_permissions: includePermissions,
+              try_list: tryList,
             }),
           )
           .then((res) => this.handleSuccess<ModelResponse<T, TData>>(res))
@@ -1325,8 +1326,9 @@ export class ModelService<
           .patch(
             `${this._basePath}/${encodePathSegment(identifier)}`,
             data,
-            mergeConfig(reqConfig, {
-              params: { returning_all: returningAll, include_permissions: includePermissions },
+            mergeServiceParams(reqConfig, {
+              returning_all: returningAll,
+              include_permissions: includePermissions,
             }),
           )
           .then((res) => this.handleSuccess<ModelResponse<T, TData>>(res))

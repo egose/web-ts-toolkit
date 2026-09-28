@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import mongoose from 'mongoose';
+import acl from '../src/index.ts';
 import type { ModelRequest } from '../src/interfaces/index.ts';
 import { Base } from '../src/services/base.ts';
 import {
@@ -7,6 +9,7 @@ import {
   isCorrelatedInclude,
   resolveCorrelatedFilterTemplate,
   resolveCorrelatedIdTemplate,
+  validateCorrelatedFilterTemplate,
   validateExpandedCorrelatedOperands,
 } from '../src/correlated-includes.ts';
 
@@ -22,7 +25,15 @@ class ProcessBase extends Base {
   }
 }
 
-const base = new ProcessBase({ macl: {} } as ModelRequest, 'User');
+const sourceModelName = 'AbbMetadataResolverSource';
+const base = new ProcessBase({ macl: {} } as ModelRequest, sourceModelName);
+
+beforeAll(() => {
+  // Include output validation now consults the owning model's metadata config.
+  acl.createRouter(mongoose.model(sourceModelName, new mongoose.Schema({ name: String })));
+});
+
+afterAll(() => mongoose.deleteModel(sourceModelName));
 
 const processDetail = (include: unknown): string => {
   try {
@@ -84,16 +95,111 @@ describe('correlated reference resolution (ACI-02)', () => {
   });
 
   it('applies the literal-object escape precisely', () => {
+    const literal = parentRef('x');
     const resolved = resolveCorrelatedFilterTemplate(
-      { note: { $escape: parentRef('x') }, authorId: parentRef('_id') },
+      { note: { $escape: literal }, authorId: parentRef('_id') },
       { _id: 'u1', x: 'ignored' },
     );
     expect(resolved).toEqual({
       status: 'resolved',
-      filter: { note: { $parent: 'x' }, authorId: 'u1' },
+      filter: { note: { $eq: { $parent: 'x' } }, authorId: 'u1' },
     });
     // The escaped literal is fresh output, not the template object.
-    expect((resolved as { filter: { note: unknown } }).filter.note).not.toBe(parentRef('x'));
+    expect((resolved as { filter: { note: { $eq: unknown } } }).filter.note.$eq).not.toBe(literal);
+  });
+
+  it.each([{}, { x: null }, { x: 'changed' }, { x: { $parent: 'y' }, y: 'recursive' }])(
+    'keeps escapes parent-independent in bare, logical, array and operator positions (%j)',
+    (parent) => {
+      const escaped = { $escape: parentRef('x') };
+      const literal = parentRef('x');
+      const filter = {
+        bare: escaped,
+        explicit: { $eq: escaped },
+        unequal: { $ne: escaped },
+        array: [escaped],
+        members: { $in: [escaped] },
+        $and: [{ note: escaped }],
+        $or: [{ note: escaped }],
+        $nor: [{ note: escaped }],
+        items: { $elemMatch: { note: escaped } },
+      };
+      expect(validateCorrelatedFilterTemplate(filter)).toEqual([]);
+      expect(resolveCorrelatedFilterTemplate(filter, parent)).toEqual({
+        status: 'resolved',
+        filter: {
+          bare: { $eq: literal },
+          explicit: { $eq: literal },
+          unequal: { $ne: literal },
+          array: [literal],
+          members: { $in: [literal] },
+          $and: [{ note: { $eq: literal } }],
+          $or: [{ note: { $eq: literal } }],
+          $nor: [{ note: { $eq: literal } }],
+          items: { $elemMatch: { note: { $eq: literal } } },
+        },
+      });
+      expect(
+        collectCorrelatedReferencePaths({ mode: 'correlated', model: 'Post', op: 'list', path: 'p', filter }),
+      ).toEqual([]);
+      expect(escaped).toEqual({ $escape: { $parent: 'x' } });
+    },
+  );
+
+  it('does not read escaped paths or interpret their strings as reference paths', () => {
+    const parent = Object.defineProperty({}, 'x', {
+      get: () => {
+        throw new Error('must not read parent');
+      },
+    });
+    for (const path of ['x', 'a..b', '__proto__']) {
+      const filter = { note: { $escape: parentRef(path) } };
+      expect(validateCorrelatedFilterTemplate(filter)).toEqual([]);
+      expect(resolveCorrelatedFilterTemplate(filter, parent)).toEqual({
+        status: 'resolved',
+        filter: { note: { $eq: parentRef(path) } },
+      });
+    }
+  });
+
+  it.each([
+    { $escape: 'x' },
+    { $escape: { $parent: '' } },
+    { $escape: { $parent: 7 } },
+    { $escape: { $parent: 'x', extra: true } },
+    { $escape: { $escape: { $parent: 'x' } } },
+    { $escape: { $parent: 'x' }, extra: true },
+  ])('rejects malformed escapes in every value position (%j)', (invalid) => {
+    for (const filter of [{ note: invalid }, { note: { $eq: invalid } }, { note: { $in: [invalid] } }]) {
+      expect(validateCorrelatedFilterTemplate(filter).length).toBeGreaterThan(0);
+      expect(() => resolveCorrelatedFilterTemplate(filter, {})).toThrow(CorrelatedReferenceError);
+    }
+  });
+
+  it('rejects escapes as whole filters, logical clauses and direct $elemMatch operands', () => {
+    const escaped = { $escape: parentRef('x') };
+    for (const filter of [
+      escaped,
+      { $and: [escaped] },
+      { $or: [escaped] },
+      { $nor: [escaped] },
+      { items: { $elemMatch: escaped } },
+    ]) {
+      expect(validateCorrelatedFilterTemplate(filter).length).toBeGreaterThan(0);
+      expect(() => resolveCorrelatedFilterTemplate(filter, {})).toThrow(CorrelatedReferenceError);
+    }
+  });
+
+  it('charges literal equality output to expanded node and depth budgets for both spellings', () => {
+    const escaped = { $escape: parentRef('x') };
+    for (const note of [escaped, { $eq: escaped }]) {
+      const resolved = resolveCorrelatedFilterTemplate({ note }, {});
+      expect(resolved.status).toBe('resolved');
+      if (resolved.status !== 'resolved') throw new Error('expected resolved filter');
+      expect(validateExpandedCorrelatedOperands(resolved.filter, { maxNodes: 4, maxDepth: 3 })).toEqual([]);
+      expect(validateExpandedCorrelatedOperands(resolved.filter, { maxNodes: 3 })).toHaveLength(1);
+      expect(validateExpandedCorrelatedOperands(resolved.filter, { maxDepth: 2 })).toHaveLength(1);
+    }
   });
 
   it('treats missing and null references as unresolvable and short-circuits', () => {

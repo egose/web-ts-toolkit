@@ -17,7 +17,7 @@ import {
   uniqBy,
 } from '@web-ts-toolkit/utils';
 import { diff } from 'just-diff';
-import MongooseModelAdapter from '../model';
+import MongooseModelAdapter, { admitModelPersistence } from '../model';
 import { getModelOptions } from '../options';
 import {
   getDocPermissions,
@@ -29,6 +29,7 @@ import {
 } from '../helpers';
 import { isFieldAllowed, isValidFieldPath, validateSortFields } from '../helpers/sort-policy';
 import { RequestConcurrencyScheduler } from '../helpers/concurrency';
+import { applyUpdate } from '../helpers/apply-update';
 import {
   Filter,
   Include,
@@ -161,6 +162,8 @@ export class Service<TModel = unknown> extends Base<TModel> {
   public defaults: Defaults<TModel>;
   protected baseFields: string[];
   protected baseFieldsExt: string[];
+  private readonly persist = <T>(operation: () => T | PromiseLike<T>): Promise<T> =>
+    this.getCorrelatedExecState().scheduler.work(operation);
 
   public findRawParentDoc(args: { filter: Filter<TModel>; select: string; populate: unknown; lean: boolean }): any {
     return this.model.findOne({
@@ -218,7 +221,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
   constructor(req: ModelRequest, modelName: string) {
     super(req, modelName);
 
-    this.model = this.createModelAdapter(modelName);
+    this.model = admitModelPersistence(this.createModelAdapter(modelName), this.getCorrelatedExecState().scheduler);
     this.options = this.getModelRouterOptions(modelName);
     this.defaults = this.options.defaults || {};
     this.baseFields = ['_id'];
@@ -239,8 +242,11 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const { filter: overrideFilter, select: overrideSelect, populate: overridePopulate } = overrides ?? {};
 
     let parsedFilter: Filter<TModel>;
+    let processedInclude: ReturnType<typeof this.processInclude>;
     try {
-      parsedFilter = await this.parseClientData(filter);
+      processedInclude = this.processInclude(include);
+      // A trusted denial must not dispatch subqueries while parsing client data.
+      parsedFilter = overrideFilter === false ? false : await this.parseClientData(filter);
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
       if (result) return result;
@@ -248,14 +254,14 @@ export class Service<TModel = unknown> extends Base<TModel> {
     }
 
     let [_filter, _select, _populate, allowedSortFields] = await Promise.all([
-      overrideFilter || this.genFilter(access, parsedFilter),
+      overrideFilter ?? this.genFilter(access, parsedFilter),
       overrideSelect || this.genQuerySelect(access, select),
       overridePopulate || this.genPopulate(populateAccess || access, populate),
       this.genAllowedFields({}, access, this.baseFieldsExt),
     ]);
 
     const { includes, correlatedIncludes, includeLocalFields, includePaths, correlatedReferenceFields } =
-      this.processInclude(include);
+      processedInclude;
     const correlatedOutputPaths = correlatedIncludes.map((entry) => entry.path);
     const finalSelect = normalizeSelect(_select).concat(includeLocalFields, correlatedReferenceFields);
 
@@ -356,7 +362,8 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const { skim, includePermissions, access, populateAccess, lean } = this.resolveFindByIdOptions(options);
 
     const { select: overrideSelect, populate: overridePopulate, idFilter: overrideIdFilter } = overrides ?? {};
-    const filter = overrideIdFilter || (await this.genIDFilter(id));
+    const filter = overrideIdFilter ?? (await this.genIDFilter(id));
+    if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query: { filter } };
 
     return this.findOne(
       filter,
@@ -388,8 +395,11 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const { filter: overrideFilter, select: overrideSelect, populate: overridePopulate } = overrides ?? {};
 
     let parsedFilter: Filter<TModel>;
+    let processedInclude: ReturnType<typeof this.processInclude>;
     try {
-      parsedFilter = await this.parseClientData(filter);
+      processedInclude = this.processInclude(include);
+      // A trusted denial must not dispatch subqueries while parsing client data.
+      parsedFilter = overrideFilter === false ? false : await this.parseClientData(filter);
     } catch (error) {
       const result = this.getClientRequestErrorResult(error);
       if (result) return result;
@@ -397,7 +407,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     }
 
     const [_filter, _select, _populate, pagination, allowedSortFields] = await Promise.all([
-      overrideFilter || this.genFilter('list', parsedFilter),
+      overrideFilter ?? this.genFilter('list', parsedFilter),
       overrideSelect || this.genQuerySelect('list', select),
       overridePopulate || this.genPopulate(populateAccess, populate),
       genPagination({ skip, limit, page, pageSize }, this.options.listHardLimit),
@@ -413,7 +423,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
         : _populate;
 
     const { includes, correlatedIncludes, includeLocalFields, includePaths, correlatedReferenceFields } =
-      this.processInclude(include);
+      processedInclude;
     const correlatedOutputPaths = correlatedIncludes.map((entry) => entry.path);
 
     const query = {
@@ -669,7 +679,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
       }
       if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'create', contexts[index]);
       if (includePermissions) doc = await this.addFieldPermissions(doc, 'read', contexts[index]);
-      if (resolvedPopulate.length > 0) await populateDoc(doc as Document, resolvedPopulate);
+      if (resolvedPopulate.length > 0) await this.persist(() => populateDoc(doc as Document, resolvedPopulate));
       doc = await this.trimOutputFields(doc, 'read', this.baseFieldsExt);
       let outputDoc = await _decorate(doc, contexts[index]);
       if (!includePermissions) outputDoc = this.addEmptyPermissions(outputDoc);
@@ -743,6 +753,13 @@ export class Service<TModel = unknown> extends Base<TModel> {
     };
   }
 
+  /**
+   * Update at authorized policy paths: admitted leaves preserve omitted siblings;
+   * whole-authorized objects/arrays replace. Shared by updateById and existing-row
+   * upsert. Validation precedes trusted prepare output (not re-filtered); partial
+   * prepare containers preserve omissions. Transform retains explicit document-setter
+   * replacement authority. Send nested client JSON, not literal dotted update keys.
+   */
   public async updateOne(
     filter: Filter<TModel>,
     data: Record<string, unknown>,
@@ -758,7 +775,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const { filter: overrideFilter, populate: overridePopulate } = overrides ?? {};
 
     const [_filter, _populate] = await Promise.all([
-      overrideFilter || this.genFilter('update', filter),
+      overrideFilter ?? this.genFilter('update', filter),
       overridePopulate || this.genPopulate(populateAccess, populate),
     ]);
 
@@ -827,12 +844,12 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const prepared = await this.prepare(allowedData, 'update', context);
 
     context.preparedData = prepared;
-    Object.assign(doc, prepared);
+    applyUpdate(doc, prepared, allowedFields);
 
     context.modifiedPaths = doc.modifiedPaths();
     doc = assertModelDocument<TModel>(await this.transform(doc, 'update', context), this.modelName, 'transform');
     context.currentDocument = doc;
-    doc = await doc.save();
+    doc = await this.persist(() => doc!.save());
 
     const diffExcludeFields = [this.options.documentPermissionField, '__v'];
     this.asServiceHookContext(context).diff = (d) => {
@@ -858,7 +875,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     }
     if (includeDocPermissions) doc = await this.addDocPermissions(doc, 'update', context);
     if (includePermissions) doc = await this.addFieldPermissions(doc, 'update', context);
-    if (_populate) await populateDoc(doc as Document, _populate);
+    if (_populate) await this.persist(() => populateDoc(doc as Document, _populate));
     doc = await this.trimOutputFields(doc, 'read', this.baseFieldsExt);
 
     let outputDoc: unknown = doc;
@@ -879,7 +896,8 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const { populate, overrides } = this.resolveUpdateByIdArgs(args);
     const { skim, includePermissions, populateAccess } = this.resolveUpdateByIdOptions(options);
     const { populate: overridePopulate, idFilter: overrideIdFilter } = overrides;
-    const filter = overrideIdFilter || (await this.genIDFilter(id));
+    const filter = overrideIdFilter ?? (await this.genIDFilter(id));
+    if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query: { filter } };
 
     return this.updateOne(
       filter,
@@ -908,7 +926,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const { populate, overrides } = this.resolveUpsertArgs(args);
     const { skim, includePermissions, populateAccess } = this.resolveUpsertOptions(options);
     const { filter: overrideFilter, populate: overridePopulate } = overrides ?? {};
-    const _filter = await (overrideFilter || this.genFilter('update', filter));
+    const _filter = await (overrideFilter ?? this.genFilter('update', filter));
     const query = { filter: _filter };
 
     const startedAt = this.beginOp('upsert', _filter);
@@ -981,7 +999,9 @@ export class Service<TModel = unknown> extends Base<TModel> {
     // this function utilizes the 'deleteOne' method to delete the document,
     // triggering 'deleteOne' hooks, as opposed to using 'findOneAndDelete'.
     // see https://mongoosejs.com/docs/api/model.html#Model.prototype.deleteOne()
-    await ('deleteOne' in doc ? doc.deleteOne() : (doc as Document & { remove: () => Promise<unknown> }).remove());
+    await this.persist(() =>
+      'deleteOne' in doc! ? doc.deleteOne() : (doc as Document & { remove: () => Promise<unknown> }).remove(),
+    );
 
     context.finalDocumentSnapshot = toObject(doc) as Record<string, unknown>;
     await this.afterDelete(doc, context);
@@ -990,10 +1010,17 @@ export class Service<TModel = unknown> extends Base<TModel> {
     return { success: true, kind: 'single', code: Codes.Success, data: doc._id, query };
   }
 
+  /**
+   * Check existence under row policy (read by default). Terminal false returns a
+   * Forbidden ErrorResult before adapter dispatch, in both includeId modes.
+   * Allowed matches return true or an `{ _id }` record; misses return false or null.
+   * Custom HTTP routes must map ErrorResult to their intended response status.
+   */
   public async exists(
     filter: Filter<TModel>,
     options: ExistsOptions & { includeId: true },
   ): Promise<SingleResult<unknown> | ErrorResult>;
+  /** Boolean existence; terminal false policy returns Forbidden, not successful false. */
   public async exists(filter: Filter<TModel>, options?: ExistsOptions): Promise<SingleResult<boolean> | ErrorResult>;
   public async exists(filter: Filter<TModel>, options?: ExistsOptions): Promise<SingleResult<unknown> | ErrorResult> {
     const filterErrors = this.validateClientFilter(filter);
@@ -1002,6 +1029,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const { access, includeId } = this.resolveExistsOptions(options);
 
     filter = await this.genFilter(access, filter);
+    if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query: { filter } };
     const result = await this.model.exists(filter);
     return {
       success: true,
@@ -1093,6 +1121,13 @@ export class Service<TModel = unknown> extends Base<TModel> {
     };
   }
 
+  /**
+   * Group target document IDs by original parent-key aliases using one aggregate.
+   * Resolves the requested row policy (legacy count includes pass `count`), casts
+   * authorized filters/foreign operands with the target schema, and deduplicates IDs
+   * independently of pagination. Cast failures return BadRequest; false policy returns
+   * Forbidden. Casting does not execute countDocuments middleware/plugins.
+   */
   public async countByFieldValues(
     foreignField: string,
     values: unknown[],
@@ -1120,7 +1155,29 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const query = { filter };
 
     if (filter === false) return { success: false, kind: 'error', code: Codes.Forbidden, query };
-    const matchFilter = filter as Record<string, unknown>;
+    let matchFilter = filter as Record<string, unknown>;
+    let castValues = uniqueValues;
+    try {
+      if (this.model.castFilter) {
+        matchFilter = this.model.castFilter(matchFilter);
+        // Cast against the real foreign path, before projection renames it.
+        // Keep this independent of ACL filter composition/overrides.
+        const foreignFilter = this.model.castFilter({ [foreignField]: { $in: uniqueValues } });
+        castValues = foreignFilter[foreignField]?.$in;
+        if (!Array.isArray(castValues) || castValues.length !== uniqueValues.length) {
+          throw new Error('Foreign field query casting must retain the join operands');
+        }
+      }
+    } catch {
+      // Only synchronous schema casting is in this boundary, never persistence.
+      // Avoid exposing values from trusted ACL filters in the client error detail.
+      return {
+        success: false,
+        kind: 'error',
+        code: Codes.BadRequest,
+        errors: [{ detail: 'Invalid grouped include count filter or foreign-key value' }],
+      };
+    }
 
     const rows = (await this.model.aggregate([
       { $match: matchFilter },
@@ -1132,13 +1189,23 @@ export class Service<TModel = unknown> extends Base<TModel> {
         },
       },
       { $unwind: '$foreignValues' },
-      { $match: { foreignValues: { $in: uniqueValues } } },
+      { $match: { foreignValues: { $in: castValues } } },
       { $group: { _id: '$foreignValues', documentIds: { $addToSet: '$_id' } } },
     ])) as Array<{ _id: unknown; documentIds: unknown[] }>;
 
-    const counts = new Map<string, Set<string>>();
+    const grouped = new Map<string, Set<string>>();
     for (const row of rows) {
-      counts.set(String(row._id), new Set(row.documentIds.map((id) => String(id))));
+      const key = String(row._id);
+      const ids = grouped.get(key) ?? new Set<string>();
+      for (const id of row.documentIds) ids.add(String(id));
+      grouped.set(key, ids);
+    }
+    const counts = new Map<string, Set<string>>();
+    for (let i = 0; i < uniqueValues.length; i++) {
+      // Casting can normalize a key (uppercase ObjectId hex, string setters,
+      // numeric strings). Attachment still looks up the original parent key.
+      const ids = grouped.get(String(castValues[i]));
+      if (ids) counts.set(String(uniqueValues[i]), ids);
     }
 
     return { success: true, kind: 'single', code: Codes.Success, data: counts, query };
@@ -1251,30 +1318,73 @@ export class Service<TModel = unknown> extends Base<TModel> {
     return readSubImpl(this, id, sub, subId, options);
   }
 
+  /**
+   * Apply authorized policy-path updates, preserving protected siblings, then save.
+   * Output requires post-save parent read and subdocument read operation/row access;
+   * hidden output is successful `data: null` (direct/root-entry 200), not a failed write.
+   * Visible output uses read fields plus `_id`. Do not retry solely for null output.
+   */
   public async updateSub(
     id: SubdocumentId,
     sub: SubdocumentName,
     subId: SubdocumentId,
     data: Record<string, unknown>,
   ): Promise<SingleResult | ErrorResult> {
-    return updateSubImpl(this, id, sub, subId, data);
+    return updateSubImpl(
+      this,
+      this.persist,
+      (access) => this.req.macl.isAllowed(this.modelName, access),
+      id,
+      sub,
+      subId,
+      data,
+    );
   }
 
+  /**
+   * Save authorized targeted updates, then return readable targets in stored order.
+   * Requires parent/subdocument read access for output, not subdocument list access;
+   * uses read fields plus `_id`. Hidden output succeeds with `data: [], count: 0`
+   * (direct/root-entry 200); count measures visible rows, not all updated rows.
+   */
   public async bulkUpdateSub(
     id: SubdocumentId,
     sub: SubdocumentName,
     data: SubdocumentBulkUpdateInput | Record<string, unknown>,
   ): Promise<ListResult | ErrorResult> {
-    return bulkUpdateSubImpl(this, id, sub, castArray(data));
+    return bulkUpdateSubImpl(
+      this,
+      this.persist,
+      (access) => this.req.macl.isAllowed(this.modelName, access),
+      id,
+      sub,
+      castArray(data),
+    );
   }
 
+  /**
+   * Append/prepend admitted rows, then return the visible full array (including when
+   * input is empty). Output requires post-save parent read and subdocument list AND
+   * read guards/row filters; fields use read projection plus `_id`.
+   * Hidden output succeeds with code `created`, `data: [], count: 0`
+   * (direct/root-entry 201). Visible count/order follow filtered stored rows.
+   * Empty output does not mean the write failed; addFirst is a service option.
+   */
   public async createSub(
     id: SubdocumentId,
     sub: SubdocumentName,
     data: SubdocumentCreateInput,
     options?: SubdocumentCreateOptions,
   ): Promise<ListResult | ErrorResult> {
-    return createSubImpl(this, id, sub, data, options);
+    return createSubImpl(
+      this,
+      this.persist,
+      (access) => this.req.macl.isAllowed(this.modelName, access),
+      id,
+      sub,
+      data,
+      options,
+    );
   }
 
   public async deleteSub(
@@ -1282,7 +1392,7 @@ export class Service<TModel = unknown> extends Base<TModel> {
     sub: SubdocumentName,
     subId: SubdocumentId,
   ): Promise<SingleResult | ErrorResult> {
-    return deleteSubImpl(this, id, sub, subId);
+    return deleteSubImpl(this, this.persist, id, sub, subId);
   }
 
   public async getParentDoc(

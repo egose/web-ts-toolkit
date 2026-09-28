@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { transpileModule, ScriptTarget, ModuleKind } from 'typescript';
 import {
   Module,
@@ -32,6 +32,7 @@ import {
 import { EgoseFactoryStatic } from '../src/factory';
 import {
   ARGS_METADATA,
+  METHOD_METADATA,
   OPTIONS_METADATA,
   GLOBAL_PERMISSIONS_WATERMARK,
   DOC_PERMISSIONS_WATERMARK,
@@ -72,7 +73,7 @@ function evalLegacy(source: string, bindings: Record<string, unknown>, exportExp
 }
 
 describe('BDECO-05 decorator boundary', () => {
-  describe('static method targets fail fast', () => {
+  describe('unsupported method targets fail fast', () => {
     const methodFactories: Array<{
       name: string;
       make: () => (target: object, key: string | symbol, descriptor: PropertyDescriptor) => void;
@@ -187,6 +188,79 @@ describe('BDECO-05 decorator boundary', () => {
       );
       expect(Reflect.getMetadata('routeGuard.read', InstanceAllow.prototype.guard)).toBe(true);
       expect(Reflect.getMetadata(ROUTE_GUARD_WATERMARK, InstanceAllow.prototype.guard)).toBe(true);
+    });
+
+    describe('PDEC-02 non-method targets fail before metadata writes', () => {
+      it.each(methodFactories.map((f) => [f.name, f] as const))(
+        '%s rejects accessors and malformed JavaScript descriptors without invoking getters',
+        (_name, factory) => {
+          const fn = vi.fn(() => false);
+          const getter = vi.fn(() => fn);
+          const setter = vi.fn();
+          const descriptors: unknown[] = [
+            { get: getter },
+            { set: setter },
+            { get: getter, set: setter },
+            undefined,
+            null,
+            {},
+            false,
+            'descriptor',
+            { value: undefined },
+            { value: false },
+            { value: 42 },
+            { value: 'method' },
+            { value: {} },
+            { value: fn, get: getter },
+            { value: fn, set: undefined },
+            Object.create({ get: getter }, { value: { value: fn } }),
+            Object.defineProperty({}, 'value', { get: getter }),
+          ];
+
+          for (const descriptor of descriptors) {
+            const key = Symbol('invalidHook');
+            class Probe {}
+            // A fallback lookup on the target would execute this getter.
+            Object.defineProperty(Probe.prototype, key, { get: getter });
+            const decorator = factory.make();
+            const writes = vi.spyOn(Reflect, 'defineMetadata');
+            try {
+              expect(() => decorator(Probe.prototype, key, descriptor as PropertyDescriptor)).toThrow(
+                /Invalid @\w+ target.*Symbol\(invalidHook\).*instance method/,
+              );
+              expect(writes).not.toHaveBeenCalled();
+            } finally {
+              writes.mockRestore();
+            }
+            expect(Reflect.getOwnMetadata(METHOD_METADATA, Probe.prototype, key)).toBeUndefined();
+            expect(Reflect.getOwnMetadataKeys(fn)).toEqual([]);
+            expect(Reflect.getOwnMetadataKeys(getter)).toEqual([]);
+            expect(Reflect.getOwnMetadataKeys(setter)).toEqual([]);
+            expect(getter).not.toHaveBeenCalled();
+            expect(setter).not.toHaveBeenCalled();
+            expect(fn).not.toHaveBeenCalled();
+          }
+        },
+      );
+
+      it('a rejected declaration preserves an existing member anchor and function metadata', () => {
+        class Probe {
+          guard() {
+            return false;
+          }
+        }
+        const descriptor = Object.getOwnPropertyDescriptor(Probe.prototype, 'guard')!;
+        RouteGuard('read')(Probe.prototype, 'guard', descriptor);
+        const declaration = Reflect.getOwnMetadata(METHOD_METADATA, Probe.prototype, 'guard');
+        const keys = Reflect.getOwnMetadataKeys(declaration);
+        expect(() =>
+          RouteGuard('list')(Probe.prototype, 'guard', { ...descriptor, get: () => descriptor.value }),
+        ).toThrow(/Invalid @routeGuard target.*guard.*instance method/);
+        expect(Reflect.getOwnMetadata(METHOD_METADATA, Probe.prototype, 'guard')).toBe(declaration);
+        expect(Reflect.getOwnMetadataKeys(declaration)).toEqual(keys);
+        expect(Reflect.getOwnMetadata('routeGuard.read', descriptor.value)).toBe(true);
+        expect(Reflect.getOwnMetadata('routeGuard.list', descriptor.value)).toBeUndefined();
+      });
     });
   });
 

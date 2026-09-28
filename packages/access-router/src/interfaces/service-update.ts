@@ -10,6 +10,7 @@ export interface PublicUpsertArgs extends PublicUpdateArgs {}
 
 export interface UpdateOneArgs<T = unknown> extends Omit<PublicUpdateArgs, 'select' | 'tasks'> {
   overrides?: {
+    /** Trusted replacement: nullish generates row policy; false returns Forbidden without filter generation or persistence. */
     filter?: Filter<T>;
     populate?: Populate[] | string;
   };
@@ -18,6 +19,7 @@ export interface UpdateOneArgs<T = unknown> extends Omit<PublicUpdateArgs, 'sele
 export interface UpdateByIdArgs<T = unknown> extends Omit<UpdateOneArgs<T>, 'overrides'> {
   overrides?: {
     populate?: Populate[] | string;
+    /** Nullish resolves the identifier; false denies without ID/filter generation or persistence. Objects still receive row policy. */
     idFilter?: Filter<T>;
   };
 }

@@ -14,6 +14,9 @@ vi.mock('@web-ts-toolkit/access-router', () => {
   mockAcl.getDefaultModelOption = vi.fn(() => undefined);
   mockAcl.registerModelInstance = vi.fn();
   mockAcl.createRouter = vi.fn(() => ({ routes: vi.fn() }));
+  // This fixture's setters only record calls; no runtime state needs restoring.
+  mockAcl.createBootstrapSnapshot = vi.fn(() => ({}));
+  mockAcl.restoreBootstrapSnapshot = vi.fn();
   return { default: mockAcl, createAccessRuntime: vi.fn(() => mockAcl) };
 });
 
@@ -1210,6 +1213,8 @@ describe('EgoseFactory', () => {
       runtime.getDefaultModelOption = vi.fn();
       runtime.registerModelInstance = vi.fn();
       runtime.createRouter = vi.fn(() => ({ routes: vi.fn() }));
+      runtime.createBootstrapSnapshot = vi.fn(() => ({}));
+      runtime.restoreBootstrapSnapshot = vi.fn();
 
       const UserRouter = class {};
       Router('User')(UserRouter);

@@ -27,6 +27,7 @@ references.
 packages/access-router-client/README.md	1	ea7f7dc92479cfb046e024221154724a81f43c282438921f949548bbccf1ca63	derived	readme-quickstart.ts
 packages/access-router-client/README.md	2	cec3248f2d06591a9ec6759b83d8407a69f0a0e6156af843f2e594892cdf6a77	derived	correlated-includes.ts
 packages/access-router-client/README.md	3	e0edba23e601248825a16de50e1812fcb6c73b4d6f28f37f99c9e792dede4f0d	exact	readme-exports.ts
+packages/access-router-client/README.md	4	d1d554ef1f811bce8d5168f93b9b356e1afacb7684e720a6e81353bf8995546f	exact	optional-fields-params.ts
 packages/access-router-client/llms.txt	1	6db26e108fd3e45bb6d5154b747f431943bbb914c027055514202d88e759199e	derived	readme-quickstart.ts
 packages/access-router-client/llms.txt	2	0cb6d1d0b741cc903bc3f4e7a3d00136f130fd703f3ceb02275e36368e105a13	derived	services-data.ts
 packages/access-router-client/llms.txt	3	5b07e991c4d49e4e151554cc017cf6d018b090d4f11acceef1daf11b3aab2f11	derived	readme-quickstart.ts
@@ -89,22 +90,23 @@ The fixtures live in `examples/` and are semantically compiled by
 `access-router-client.docs.compile.test.ts` against the packed npm tarball
 (the same artifact exercised by ARC-18's packed-consumer test).
 
-| Fixture                    | Source block(s)                                                                                                                                 |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `readme-quickstart.ts`     | README.md "Quick Start"; index.md "Quick Start"                                                                                                 |
-| `readme-exports.ts`        | README.md "Main Exports" (verbatim extracted block)                                                                                             |
-| `correlated-includes.ts`   | README.md "Correlated Includes"; llms.txt correlated-includes pattern; services.mdx "Correlated Includes"                                       |
-| `adapter-setup.ts`         | adapter.mdx "Basic Setup", "Adapter Options", "Matching Server Paths"; README.md "Contract"                                                     |
-| `services-model.ts`        | README.md "Unreleased Migration" model-create cardinality; services.mdx "ModelService" "Advanced query", "Service Defaults"                     |
-| `services-subdocs.ts`      | services.mdx "Subqueries", "Subdocument Helpers" + the create/update/bulk/edit example block                                                    |
-| `services-data.ts`         | services.mdx "DataService" "Advanced read options", "Example"                                                                                   |
-| `model-basics.ts`          | model.mdx "Basic Usage", "Dirty Tracking" + Revert, "`save()`", "`reset()`", "Field Collisions", `new Model`                                    |
-| `model-nested.ts`          | model.mdx "Nested-edit contract"                                                                                                                |
-| `types-filters.ts`         | typescript-and-errors.mdx "Selected Field Inference", "Filter Query Types", "Escape hatches", "Overriding The Inferred Shape"                   |
-| `types-mutation-inputs.ts` | typescript-and-errors.mdx "Mutation Input Types"                                                                                                |
-| `types-responses.ts`       | README.md / index.md "Unreleased Migration" response narrowing; typescript-and-errors.mdx "Important Response Types"; index.md "Response shape" |
-| `types-errors.ts`          | typescript-and-errors.mdx "Error Handling Modes", "`ServiceError`", "One Practical Rule"                                                        |
-| `group-wrapper.ts`         | adapter.mdx "Wrapped Endpoints", "Adapter-Level vs Service-Level", "Dynamic path segment encoding"                                              |
+| Fixture                     | Source block(s)                                                                                                                                 |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `readme-quickstart.ts`      | README.md "Quick Start"; index.md "Quick Start"                                                                                                 |
+| `readme-exports.ts`         | README.md "Main Exports" (verbatim extracted block)                                                                                             |
+| `optional-fields-params.ts` | README.md "Optional fields and ordered params example" (verbatim; CLC-06 optional assignment and URLSearchParams consumer contract)             |
+| `correlated-includes.ts`    | README.md "Correlated Includes"; llms.txt correlated-includes pattern; services.mdx "Correlated Includes"                                       |
+| `adapter-setup.ts`          | adapter.mdx "Basic Setup", "Adapter Options", "Matching Server Paths"; README.md "Contract"                                                     |
+| `services-model.ts`         | README.md "Unreleased Migration" model-create cardinality; services.mdx "ModelService" "Advanced query", "Service Defaults"                     |
+| `services-subdocs.ts`       | services.mdx "Subqueries", "Subdocument Helpers" + the create/update/bulk/edit example block                                                    |
+| `services-data.ts`          | services.mdx "DataService" "Advanced read options", "Example"                                                                                   |
+| `model-basics.ts`           | model.mdx "Basic Usage", "Dirty Tracking" + Revert, "`save()`", "`reset()`", "Field Collisions", `new Model`                                    |
+| `model-nested.ts`           | model.mdx "Nested-edit contract"                                                                                                                |
+| `types-filters.ts`          | typescript-and-errors.mdx "Selected Field Inference", "Filter Query Types", "Escape hatches", "Overriding The Inferred Shape"                   |
+| `types-mutation-inputs.ts`  | typescript-and-errors.mdx "Mutation Input Types"                                                                                                |
+| `types-responses.ts`        | README.md / index.md "Unreleased Migration" response narrowing; typescript-and-errors.mdx "Important Response Types"; index.md "Response shape" |
+| `types-errors.ts`           | typescript-and-errors.mdx "Error Handling Modes", "`ServiceError`", "One Practical Rule"                                                        |
+| `group-wrapper.ts`          | adapter.mdx "Wrapped Endpoints", "Adapter-Level vs Service-Level", "Dynamic path segment encoding"                                              |
 
 ## Intentionally partial snippets (embedded into the fixtures above)
 

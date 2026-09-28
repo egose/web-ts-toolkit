@@ -94,6 +94,7 @@ const stageConsumerDir = (): string => {
     { kind: 'pkg', name: 'express' },
     { kind: 'pkg', name: 'mongoose' },
     { kind: 'pkg', name: 'zod' },
+    { kind: 'pkg', name: 'ajv' },
     { kind: 'pkg', name: 'typescript' },
     { kind: 'pkg', name: 'just-diff' },
     { kind: 'pkg', name: 'sift' },

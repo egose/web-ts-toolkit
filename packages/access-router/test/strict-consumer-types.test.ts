@@ -51,6 +51,7 @@ function stageConsumerDir(): string {
     { kind: 'pkg', name: 'mongoose' },
     { kind: 'pkg', name: 'typescript' },
     { kind: 'pkg', name: 'zod' },
+    { kind: 'pkg', name: 'ajv' },
     { kind: 'pkg', name: 'just-diff' },
     { kind: 'pkg', name: 'sift' },
     { kind: 'pkg', name: 'winston' },
@@ -94,6 +95,93 @@ describe('ARF-14 strict packed-consumer types', () => {
   beforeAll(() => {
     consumerDir = stageConsumerDir();
   });
+
+  it.each(['ts', 'mts', 'cts'])(
+    'accepts real AJV overloads and rejects unsupported structural validators (%s)',
+    (extension) => {
+      const sourceFile = `ajv-consumer.${extension}`;
+      writeFileSync(
+        path.resolve(consumerDir, sourceFile),
+        `
+      import { Ajv, type AsyncSchema, type ValidateFunction, type AsyncValidateFunction } from 'ajv';
+      import { fromAjv, type AjvValidatorLike, type RequestSchemaValidator } from '@web-ts-toolkit/access-router';
+
+      const ajv = new Ajv();
+      const sync: ValidateFunction<boolean> = ajv.compile<boolean>({ type: 'boolean' });
+      const asyncSchema: AsyncSchema = { $async: true, type: 'boolean' };
+      const async: AsyncValidateFunction<boolean> = ajv.compile<boolean>(asyncSchema);
+      const syncShape: AjvValidatorLike<boolean> = sync;
+      const asyncShape: AjvValidatorLike<boolean> = async;
+      const syncAdapter: RequestSchemaValidator<boolean> = fromAjv<boolean>(sync);
+      const inferredAsync = fromAjv(async);
+      const asyncAdapter: RequestSchemaValidator<boolean> = inferredAsync;
+      const plainSync = fromAjv(sync);
+      const inferredSync: RequestSchemaValidator<boolean> = plainSync;
+      function acceptUnion(validate: ValidateFunction<boolean> | AsyncValidateFunction<boolean>) { return fromAjv<boolean>(validate); }
+      const retrieved = ajv.getSchema<boolean>('registered-schema');
+      if (retrieved) fromAjv<boolean>(retrieved);
+      const inline = ajv.compile<boolean>({ $async: true, type: 'boolean' });
+      fromAjv<boolean>(inline);
+      const inferredInline = fromAjv(inline);
+      const inlineAdapter: RequestSchemaValidator<boolean> = inferredInline;
+      // AJV permits erasing an async validator to its sync base interface. The
+      // actual runtime tag still decides semantics; don't copy or wrap it away.
+      const erased: ValidateFunction<boolean> = async;
+      const erasedAdapter = fromAjv<boolean>(erased);
+      const structuralSync: AjvValidatorLike = () => true;
+      const structuralAsync: AjvValidatorLike<boolean> = Object.assign(async () => false, { $async: true as const });
+      const thenable: AjvValidatorLike<boolean> = Object.assign(
+        (): PromiseLike<boolean> => Promise.resolve(false), { $async: true as const },
+      );
+      const structuralAdapter: RequestSchemaValidator<boolean> = fromAjv(structuralAsync);
+      // @ts-expect-error async output is boolean, not string
+      const wrongAdapter: RequestSchemaValidator<string> = inferredAsync;
+      // @ts-expect-error untagged async verdicts are unsupported
+      fromAjv(async () => false);
+      // @ts-expect-error an explicit false tag cannot return a promise
+      fromAjv(Object.assign(async () => false, { $async: false as const }));
+      // @ts-expect-error tag must be the literal true, not a widened boolean
+      fromAjv(Object.assign(async () => false, { $async: true }));
+      // @ts-expect-error tagged async structural calls must return a promise/thenable
+      fromAjv(Object.assign(() => false, { $async: true as const }));
+      // @ts-expect-error synchronous data-returning validators are unsupported
+      fromAjv(() => ({ value: true }));
+      async function compiledLater() {
+        const loadedSync = await ajv.compileAsync<boolean>({ type: 'boolean' });
+        const loadedAsync: AsyncValidateFunction<boolean> = await ajv.compileAsync<boolean>(asyncSchema);
+        const inferredLoaded = fromAjv(loadedAsync);
+        const s: RequestSchemaValidator<boolean> = fromAjv<boolean>(loadedSync);
+        const a: RequestSchemaValidator<boolean> = inferredLoaded;
+        return [s, a];
+      }
+      void [syncShape, asyncShape, syncAdapter, asyncAdapter, inferredSync, inlineAdapter, acceptUnion,
+        erasedAdapter, structuralSync, structuralAdapter, thenable, wrongAdapter, compiledLater];
+    `,
+      );
+      const tsconfigPath = path.resolve(consumerDir, `tsconfig.ajv-${extension}.json`);
+      writeFileSync(
+        tsconfigPath,
+        JSON.stringify({
+          compilerOptions: {
+            target: 'ES2022',
+            module: extension === 'ts' ? 'ESNext' : 'NodeNext',
+            moduleResolution: extension === 'ts' ? 'Bundler' : 'NodeNext',
+            strict: true,
+            noUnusedLocals: true,
+            noUnusedParameters: true,
+            noEmit: true,
+            skipLibCheck: true,
+            types: ['node'],
+            lib: ['ES2022', 'DOM'],
+          },
+          files: [sourceFile],
+        }),
+      );
+      const result = run('node', [path.resolve(consumerDir, ...TSC_PATH), '-p', tsconfigPath], consumerDir);
+      expect(result.stdout + result.stderr).toBe('');
+      expect(result.status).toBe(0);
+    },
+  );
 
   it('accepts valid filters/projections/runtime calls and rejects invalid ones across public subpaths', () => {
     const sourceFile = path.resolve(consumerDir, 'strict-consumer.ts');

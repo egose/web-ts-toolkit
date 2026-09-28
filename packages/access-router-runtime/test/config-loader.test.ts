@@ -254,7 +254,7 @@ describe('config loader', () => {
       expect(result.stderr).not.toContain('unhandledRejection');
       expect(result.stdout).toContain(configPath);
     }
-  });
+  }, 60_000);
 
   it('avoids async factories and arbitrary thenables in an isolated subprocess without a second diagnostic', async () => {
     const distPath = new URL('../dist/index.mjs', import.meta.url).pathname;

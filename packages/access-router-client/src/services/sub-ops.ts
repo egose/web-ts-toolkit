@@ -1,4 +1,4 @@
-import { AxiosInstance, AxiosRequestConfig, mergeConfig } from 'axios';
+import { AxiosInstance, AxiosRequestConfig } from 'axios';
 import {
   FilterQuery,
   Document,
@@ -10,6 +10,7 @@ import {
 } from '../types';
 import { cloneConfigWithCacheBypass } from './interceptors';
 import { makeRequest } from './request';
+import { mergeServiceParams } from './request-config';
 import { encodePathSegment } from '../helpers';
 import type { ModelService } from './model-service';
 
@@ -47,10 +48,7 @@ export function buildSubDocumentOps<
       return makeRequest<SubDocumentListResponse<S>>(
         () =>
           axios
-            .get(
-              `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}`,
-              mergeConfig(reqConfig, { params: {} }),
-            )
+            .get(`${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}`, mergeServiceParams(reqConfig, {}))
             .then((res) => handleSuccess<SubDocumentListResponse<S>>(res))
             .then((result: SubDocumentListResponse<S>) => {
               const rawArray = toArray<S>(result.raw);
@@ -141,7 +139,7 @@ export function buildSubDocumentOps<
           axios
             .get(
               `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}/${encodePathSegment(subId)}`,
-              mergeConfig(reqConfig, { params: {} }),
+              mergeServiceParams(reqConfig, {}),
             )
             .then((res) => handleSuccess<SubDocumentResponse<S>>(res))
             .then((result: SubDocumentResponse<S>) => {
@@ -226,7 +224,7 @@ export function buildSubDocumentOps<
             .patch(
               `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}/${encodePathSegment(subId)}`,
               data,
-              mergeConfig(reqConfig, { params: {} }),
+              mergeServiceParams(reqConfig, {}),
             )
             .then((res) => handleSuccess<SubDocumentResponse<S>>(res))
             .then((result: SubDocumentResponse<S>) => {
@@ -265,7 +263,7 @@ export function buildSubDocumentOps<
             .patch(
               `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}`,
               data,
-              mergeConfig(reqConfig, { params: {} }),
+              mergeServiceParams(reqConfig, {}),
             )
             .then((res) => handleSuccess<SubDocumentListResponse<S>>(res))
             .then((result: SubDocumentListResponse<S>) => {
@@ -314,7 +312,7 @@ export function buildSubDocumentOps<
             .post(
               `${basePath}/${encodePathSegment(id)}/${encodePathSegment(sub)}`,
               data,
-              mergeConfig(reqConfig, { params: {} }),
+              mergeServiceParams(reqConfig, {}),
             )
             .then((res) => handleSuccess<SubDocumentListResponse<S>>(res))
             .then((result: SubDocumentListResponse<S>) => {

@@ -134,13 +134,36 @@ export type AjvErrorObjectLike = {
 };
 
 export type AjvValidationErrorLike = {
-  errors?: ReadonlyArray<AjvErrorObjectLike> | null;
+  ajv: true;
+  validation: true;
+  errors: ReadonlyArray<AjvErrorObjectLike>;
 };
 
-export type AjvValidatorLike<T = unknown> = {
-  (value: unknown): boolean | Promise<T | boolean>;
+/**
+ * Structural AJV contract; AJV is not a runtime dependency of access-router.
+ * Sync validators return boolean verdicts and expose mutable errors, snapshotted
+ * in the same turn. Tagged `$async: true` validators resolve with data (even
+ * false/true/null), or reject with AJV ValidationError diagnostics.
+ *
+ * Untagged promises/thenables are unsupported. Migrate async boolean-verdict
+ * wrappers to RequestSchemaValidator, or return data/reject validation errors
+ * and retain the literal `$async: true` tag. Real AJV ValidateFunction and
+ * AsyncValidateFunction overloads infer output via their type guard without casts; a synchronous
+ * structural validator's output type can be supplied explicitly to fromAjv<T>.
+ * AJV can type inline async schemas through a sync overload; an AsyncSchema-typed
+ * schema selects its async compile/compileAsync overload. Runtime uses the tag.
+ */
+export type AjvValidatorLike<T = unknown> = (
+  | {
+      (value: unknown): boolean;
+      $async?: false;
+    }
+  | {
+      (value: unknown): PromiseLike<T>;
+      $async: true;
+    }
+) & {
   errors?: ReadonlyArray<AjvErrorObjectLike> | null;
-  $async?: boolean;
 };
 
 export type ValibotPathItemLike = {

@@ -1,4 +1,4 @@
-import { AxiosRequestConfig, AxiosInstance, mergeConfig } from 'axios';
+import { AxiosRequestConfig, AxiosInstance } from 'axios';
 import {
   DataRequest,
   FilterQuery,
@@ -25,6 +25,7 @@ import { Service } from './service';
 import { replaceSubQuery, encodePathSegment } from '../helpers';
 import { createResponseHandler, ensureListResultCount, normalizeServiceDefaults, processListResult } from './shared';
 import { makeRequest } from './request';
+import { mergeServiceParams } from './request-config';
 
 type RequestConfig = AxiosRequestConfig & AdditionalReqConfig;
 
@@ -101,15 +102,13 @@ export class DataService<T> extends Service {
         this._axios
           .get(
             this._basePath,
-            mergeConfig(reqConfig, {
-              params: {
-                skip,
-                limit,
-                page,
-                page_size: pageSize,
-                include_count: includeCount,
-                include_extra_headers: includeExtraHeaders,
-              },
+            mergeServiceParams(reqConfig, {
+              skip,
+              limit,
+              page,
+              page_size: pageSize,
+              include_count: includeCount,
+              include_extra_headers: includeExtraHeaders,
             }),
           )
           .then((res) => this.handleSuccess<ListDataResponse<TData>>(res))

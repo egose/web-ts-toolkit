@@ -10,6 +10,7 @@ export interface FindArgs<T = unknown> {
   page?: string | number;
   pageSize?: string | number;
   overrides?: {
+    /** Trusted replacement: nullish generates row policy; false returns Forbidden without filter generation or persistence. */
     filter?: Filter<T>;
     select?: Projection;
     populate?: Populate[] | string;
@@ -30,6 +31,7 @@ export interface FindOneArgs<T = unknown> {
   populate?: Populate[] | string;
   include?: Include | Include[];
   overrides?: {
+    /** Trusted replacement: nullish generates row policy; false returns Forbidden without filter generation or persistence. */
     filter?: Filter<T>;
     select?: Projection;
     populate?: Populate[] | string;
@@ -51,6 +53,7 @@ export interface FindByIdArgs<T = unknown> {
   overrides?: {
     select?: Projection;
     populate?: Populate[] | string;
+    /** Nullish resolves the identifier; false denies without ID/filter generation or persistence. Objects still receive row policy. */
     idFilter?: Filter<T>;
   };
 }

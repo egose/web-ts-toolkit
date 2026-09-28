@@ -113,6 +113,19 @@ export type UpsertOptions = UpdateOptions;
 export type UpsertAdvancedArgs<TSelect extends Projection = Projection> = UpdateAdvancedArgs<TSelect>;
 export type UpsertAdvancedOptions = UpdateAdvancedOptions;
 
+/**
+ * Model operation defaults, detached at service construction and per request.
+ * Accepts null, strings, booleans, finite numbers, valid Dates, plain objects
+ * and arrays. Unsupported values/cycles throw UnsupportedServiceDefaultValueError
+ * (not a root export). The entire effective defaults bag is depth 0: maximum
+ * 64 edges and 10,000 expanded visits across all operations, counting containers,
+ * primitive/Date leaves, array holes and repeated shared references. Adapter
+ * factories check the merged bag at service creation, not at createAdapter;
+ * overridden fields and generated empty option bags do not consume the budget.
+ * Each per-request selected default clone has a fresh budget. Frozen inputs
+ * and request-shaped values have no exemption. These are structural work limits,
+ * not byte limits or guarantees about arbitrary getters/proxies/exotic behavior.
+ */
 export interface Defaults {
   listArgs?: ListArgs;
   listOptions?: ListOptions;
@@ -193,6 +206,12 @@ export interface DataReadAdvancedOptions {
   ignoreCache?: boolean;
 }
 
+/**
+ * Data operation defaults. Uses the same value grammar, detached copies and
+ * synchronous UnsupportedServiceDefaultValueError contract as {@link Defaults}:
+ * 64 edges from the entire effective bag (root 0), 10,000 expanded visits across
+ * operations, and a fresh budget for each per-request selected default clone.
+ */
 export interface DataDefaults {
   listArgs?: DataListArgs;
   listOptions?: DataListOptions;

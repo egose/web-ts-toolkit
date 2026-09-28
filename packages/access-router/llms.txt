@@ -43,6 +43,24 @@ const validator = fromZod(z.object({ name: z.string() }));
 const schema = defineRequestSchema(validator);
 ```
 
+AJV (`fromAjv`, `AjvValidatorLike<T>` from the root export; install AJV in your app):
+sync boolean verdicts use same-turn snapshotted `validate.errors`; true returns input,
+false returns issues. `$async: true` means data-returning promises/thenables: every
+fulfillment (false/true/null/scalars/objects) succeeds with that value. Async diagnostics
+come only from rejection-carried AJV ValidationError (`ajv: true`, `validation: true`,
+errors array), never shared errors; other exceptions preserve operational identity.
+Untagged promises/thenables now fail with TypeError and are safely observed; sync
+non-booleans also fail. Migration: retain the real compiled validator/tag, or use a
+literal `$async: true as const` on structural data-returning validators; async boolean
+verdict wrappers must switch to data/rejection semantics or RequestSchemaValidator
+results. An errors property alone does not identify validation failure. Real AJV
+overloads infer output without casts; fromAjv<T>(sync) specifies output for a structural
+boolean validator without a type guard, structural async output is inferred from its
+promise. AJV types can erase the async tag to their sync base interface,
+so the runtime tag remains authoritative. Use an AJV `AsyncSchema`-typed schema for
+compile/compileAsync to select its async overload; inline schemas may match AJV's
+earlier sync overload even with `$async: true`. See README "AJV validation contract".
+
 Isolated runtime (no global state shared with default `acl`):
 
 <!-- doc-example: complete-runtime -->
@@ -85,7 +103,14 @@ parent against the immediate parent snapshot: reads attach doc-or-`null`,
 lists attach per-parent paginated arrays, counts attach numbers (missing/null
 refs attach `null`/`[]`/`0` with no query). Plain `'$special'` strings stay
 literal; match literal `{ "$parent": "x" }` objects with
-`{ "$escape": { "$parent": "x" } }`. Identifier behavior, per-op target
+`{ "$escape": { "$parent": "x" } }`. A bare field escape resolves to literal
+equality: `{ note: { $escape: { $parent: 'x' } } }` becomes
+`{ note: { $eq: { $parent: 'x' } } }`. Explicit `$eq` stays equivalent;
+operator operands and array elements stay literal values without double wrapping.
+Resolution is single-pass and parent-independent, including missing/null parent
+fields; malformed escapes are rejected and expanded complexity budgets still apply.
+Older servers with the bare-escape defect need explicit `$eq`; upgrade the server
+to use the corrected bare form. Identifier behavior, per-op target
 authorization (denials fail the whole request with zero target queries), and
 bounds (`maxIncludeCount`, revalidated `maxNodes`/`maxDepth`/`maxInValues`/
 `maxLogicalClauses`, `maxCorrelatedQueries` default 100,
@@ -94,6 +119,43 @@ section. Wire types (`ParentRef`, `CorrelatedInclude`, `Include`) are
 available from `@web-ts-toolkit/access-router/advanced` without deep
 imports.
 
+Business boundary contracts (see the corresponding README sections):
+
+- Include `path` is output-only. Legacy/correlated read/list/count paths cannot equal,
+  descend from, or contain the receiving model's `documentPermissionField` (default
+  `_permissions`), including equivalent legacy bracket paths. Nested receiving model
+  settings apply; preflight rejects before target persistence. Direct HTTP 400 / root
+  entry 400 `bad_request`; ordinary output collisions remain allowed.
+- Nested updates patch authorized policy leaves, preserving omitted/protected siblings.
+  Whole-authorized objects/arrays replace; explicit indexed grants patch that leaf.
+  Send nested JSON, not literal dotted keys or Mongo update operators. Model prepare
+  output is trusted and not re-filtered; at partial policy ancestors omitted children
+  survive. Use explicit null/undefined to clear/unset, or trusted transform document
+  setters for whole replacement. Never blindly copy `context.originalData` back in.
+- Subdocument create/update output requires post-save parent read access. Full-array
+  create also requires sub list AND read guards/row filters; targeted single/bulk
+  updates require sub read only. All use read fields plus `_id`, stored array order,
+  and visible counts. Hidden create: success/list/created, `data: [], count: 0`, HTTP
+  201; bulk update: success/list/success, empty/0, HTTP 200; single update:
+  success/single/success, `data: null`, HTTP 200. Root entries use those statuses inside
+  HTTP 200. These are completed writes: do not retry merely for empty output.
+- Legacy include counts use one grouped aggregate per include execution, exact distinct
+  authorized target-document counts beyond list limits/pagination, and target-schema
+  casting of ACL filters and foreign operands with original parent-key association.
+  Cast failures are BadRequest; terminal false count rows retain legacy omitted output.
+  Query setters/casting do not execute countDocuments middleware/plugins; arbitrary
+  aggregate pipelines are not auto-cast.
+- `maxBulkConcurrency` (default 10) admits awaited adapter/document persistence per
+  request AND owning runtime, across root entries and nested includes; pools are
+  independent across requests/runtimes. Bulk create admits singleton arrays per item,
+  keeps result order and submits all items despite rejection. Recursive orchestration
+  holds no permit; limit 1 works. Root `maxConcurrentOperations` bounds whole operations
+  per order group separately. Permits release on errors without refunding cumulative
+  `maxCorrelatedQueries` (100); `maxCorrelatedDepth` (5) is a separate nesting bound.
+  One admitted operation can issue multiple driver commands through Mongoose middleware
+  or populate. This is not a global connection limit, throughput guarantee, transaction,
+  or governance of direct DB/network calls in trusted application hooks.
+
 ## Gotchas
 
 - peer dependencies: `express >= 5` and `mongoose >= 8`
@@ -101,15 +163,18 @@ imports.
 - `acl.createOpenApiRouter(options)` uses the default runtime; the standalone `createOpenApiRouter(runtime, options)` export requires the runtime as the first argument
 - `createRouter('User', ...)` accepts a Mongoose model name OR a `mongoose.Model` instance — passing the instance registers the model with the runtime and preserves non-default `mongoose.createConnection()` instances
 - isolated runtimes do not silently read process-global `mongoose.models`; register the model first or pass the `mongoose.Model` instance to `runtime.createRouter(...)`
-- `/advanced` does NOT export `acl`, `defaultRuntime`, `createRouter`, or `createAccessRuntime` — those live on the root entry only
+- `/advanced` exports interfaces/wire types, symbols, enums and request validation helpers, not runtime-context functions or runtime instances/factories. Use root `createAccessRuntime`/`AccessRuntime`/`defaultRuntime`, or `acl.createRouter(...)` for the default runtime.
 - `/processors` `copyAndDepopulate(...)` defaults to conservative `CopyAndDepopulateOutput`; pass an explicit output type when the transformed shape is known. Unsafe paths and missing id fields throw plain `Error` instances.
 - `createDataRouter(...)` holds data in-memory; use it for lightweight/non-persisted resources
 - ACL filter value `false` is a terminal denial. Trusted `overrideFilter` hooks may replace ordinary filters before base-filter composition, but are not called for an existing denial; returning `false` also denies the query.
+- Model service `args.overrides.filter` (findOne/find/updateOne/upsert) and `args.overrides.idFilter` (findById/updateById): false returns Forbidden without fallback filter/ID generation or persistence, including client subqueries. Nullish uses normal generation; trusted object filters replace generated policy, while object idFilters still receive row policy.
+- `Service.exists`: terminal explicit/base/override false now returns a Forbidden ErrorResult before adapter dispatch in both includeId modes (previously successful false/null). Allowed matches/misses remain true/false, or `{ _id }`/null with includeId. Check success before data.
+- Public `_read`/`_readFilter` tryList never retries Forbidden/BadRequest. Authorized misses retain list fallback and its operation guard. `_upsert` with _id propagates denied exists as Forbidden (previously Unauthorized); allowed miss remains Unauthorized, with no create in either case. Generated direct/root-entry denial status is 403 (root envelope 200). Custom Express routes must map ErrorResult codes to HTTP status themselves; res.json does not do this automatically.
 - Shared-request cross-runtime composition keeps independent state: runtime B never reuses runtime A's permissions or base-filter cache, even with the same `requestPermissionField` name. Same-runtime middleware repeats reuse state without rerunning `globalPermissions`. Pre-populated request permission fields are application-supplied and preserved.
 - Advanced mutation routes persist the final parsed body: nested `data` validators run before the whole-body (`default`) validator, and only final `data`/`select`/`populate`/`tasks` plus allowed `options` (`includePermissions`/`populateAccess`, plus `returningAll` for update/upsert) reach the service. Missing body options fall back to `returning_all`/`include_permissions` query params.
 - `package.json` declares `sideEffects` array listing the bundled runtime entries that run the lazy `mongoose-schema-jsonschema` patch on first runtime construction — bundlers must retain those entries
 
 ## Pointers
 
-- README: installation, quickstart (Express + Mongoose end-to-end), main exports, runtime isolation, createRouter overloads
+- README: installation, quickstart, exports, runtime isolation, include safety/counts, nested updates/trusted hooks, hidden subdocument responses, persistence limits and compatibility notes
 - website/docs/packages/access-router/: full documentation (routing, configuration, hooks, validation, openapi)

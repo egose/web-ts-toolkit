@@ -1,7 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import request from 'supertest';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import acl, { permissionsPlugin, setGlobalOptions } from '../dist/index.mjs';
 import { useMongoTestDatabase } from './setup';
@@ -17,7 +17,7 @@ const resetGlobalOptions = () => {
   });
 };
 
-const createFallbackApp = async () => {
+const createFallbackApp = async (denial?: 'base' | 'override') => {
   const modelName = `AclReadListFallbackUser${++modelCounter}`;
   const schema = new mongoose.Schema({
     name: String,
@@ -54,9 +54,10 @@ const createFallbackApp = async () => {
       profile: { read: false, list: true },
     },
     baseFilter: {
-      read: () => ({ tenant: 'read' }),
+      read: () => (denial === 'base' ? false : { tenant: 'read' }),
       list: () => ({ tenant: 'list' }),
     },
+    overrideFilter: { read: (filter) => (denial === 'override' ? false : filter) },
     decorate: {
       list(doc) {
         listDecorateCalls += 1;
@@ -87,16 +88,46 @@ const createFallbackApp = async () => {
     app,
     docId: String(doc._id),
     modelName,
+    User,
     getListDecorateCalls: () => listDecorateCalls,
   };
 };
 
 afterEach(() => {
+  vi.restoreAllMocks();
   resetGlobalOptions();
   mongoose.deleteModel(/AclReadListFallbackUser.*/);
 });
 
 describe('read-to-list fallback authorization', () => {
+  it.each(['base', 'override'] as const)(
+    'keeps %s false terminal on direct/root id/filter reads with list allowed',
+    async (denial) => {
+      const { app, modelName, docId, User, getListDecorateCalls } = await createFallbackApp(denial);
+      const findOne = vi.spyOn(User, 'findOne');
+      await request(app).get(`/fallback-users/${docId}`).set('x-perms', 'canList').expect(403);
+      await request(app)
+        .post('/fallback-users/__query/__filter')
+        .set('x-perms', 'canList')
+        .send({ filter: { name: 'list-only' } })
+        .expect(403);
+      const root = await request(app)
+        .post('/root')
+        .set('x-perms', 'canList')
+        .send([
+          { target: 'model', name: modelName, op: 'read', id: docId },
+          { target: 'model', name: modelName, op: 'read', filter: { name: 'list-only' } },
+        ])
+        .expect(200);
+      expect(root.body).toHaveLength(2);
+      for (const entry of root.body) {
+        expect(entry).toMatchObject({ statusCode: 403, result: { success: false, code: 'forbidden' } });
+      }
+      expect(findOne).not.toHaveBeenCalled();
+      expect(getListDecorateCalls()).toBe(0);
+    },
+  );
+
   it('blocks direct id fallback unless list operation access is allowed', async () => {
     const { app, docId, getListDecorateCalls } = await createFallbackApp();
 

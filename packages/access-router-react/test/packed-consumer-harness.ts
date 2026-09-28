@@ -104,9 +104,7 @@ export const testVersion = '0.99.0-test';
 export const rootLicensePath = path.resolve(workspaceRoot, 'LICENSE');
 export const typescriptVersion = rootPackageJson.devDependencies.typescript;
 export const nodeTypesVersion = rootPackageJson.devDependencies['@types/node'];
-// React peer range declared by the package. Pinned to the React 19 versions
-// the workspace already builds against so the external consumer resolves a
-// real, compatible React rather than racing the registry.
+// Floating canary ranges; the supported lane below pins its direct runtime deps.
 export const reactVersion = reactPackageManifest.devDependencies.react;
 export const reactDomVersion = reactPackageManifest.devDependencies['react-dom'];
 export const typesReactVersion = reactPackageManifest.devDependencies['@types/react'];
@@ -114,9 +112,9 @@ export const testingLibraryReactVersion = reactPackageManifest.devDependencies['
 export const jsdomVersion = reactPackageManifest.devDependencies.jsdom;
 
 export const react19PackageVersions = {
-  react: reactVersion,
-  'react-dom': reactDomVersion,
-  '@testing-library/react': testingLibraryReactVersion,
+  react: '19.2.8',
+  'react-dom': '19.2.8',
+  '@testing-library/react': '16.3.2',
 } as const;
 
 export const reactPackage = { name: '@web-ts-toolkit/access-router-react', dir: packageRoot };
@@ -174,6 +172,18 @@ export function run(command: string, args: string[], cwd: string): string {
       { cause: error },
     );
   }
+}
+
+/** Run installed runtime/type consumers on the selected library floor, not the build-tool Node. */
+export function runConsumer(args: string[], cwd: string): string {
+  const node = process.env.ACCESS_ROUTER_REACT_CONSUMER_NODE || process.execPath;
+  const version = run(node, ['--version'], cwd).trim();
+  const expected = process.env.ACCESS_ROUTER_REACT_EXPECT_NODE;
+  if (expected && version !== `v${expected}`) {
+    throw new Error(`Consumer runtime mismatch: expected v${expected}, received ${version}`);
+  }
+  console.log(`Packed consumer ${version}: ${args.join(' ')}`);
+  return run(node, args, cwd);
 }
 
 /**
@@ -335,7 +345,14 @@ export function installPackedConsumer(options: PackedConsumerOptions = {}): stri
   seedToolVersions(consumerDir);
   const reactMajor = options.reactMajor ?? 19;
   const includeRuntimeDeps = options.includeRuntimeDeps ?? false;
-  const runtimeDeps = reactMajor === 18 ? react18PackageVersions : react19PackageVersions;
+  const floating = process.env.ACCESS_ROUTER_REACT_FLOATING === '1';
+  const pinnedDeps = reactMajor === 18 ? react18PackageVersions : react19PackageVersions;
+  const runtimeDeps = !floating
+    ? pinnedDeps
+    : reactMajor === 18
+      ? { react: '^18.0.0', 'react-dom': '^18.0.0', '@testing-library/react': testingLibraryReactVersion }
+      : { react: reactVersion, 'react-dom': reactDomVersion, '@testing-library/react': testingLibraryReactVersion };
+  const reactTypes = reactMajor === 18 ? (floating ? '^18.0.0' : '18.3.31') : floating ? typesReactVersion : '19.2.17';
 
   // Pin every internal workspace package to the prepared local source via a
   // `pnpm-workspace.yaml` override so pnpm resolves the local closure rather
@@ -361,14 +378,14 @@ export function installPackedConsumer(options: PackedConsumerOptions = {}): stri
           ...(includeRuntimeDeps
             ? {
                 '@testing-library/react': runtimeDeps['@testing-library/react'],
-                jsdom: jsdomVersion,
+                jsdom: floating ? jsdomVersion : '26.1.0',
               }
             : {}),
         },
         devDependencies: {
           typescript: typescriptVersion,
           '@types/node': nodeTypesVersion,
-          '@types/react': typesReactVersion,
+          '@types/react': reactTypes,
         },
       },
       null,
@@ -384,6 +401,50 @@ export function installPackedConsumer(options: PackedConsumerOptions = {}): stri
   );
 
   run('pnpm', ['install', '--no-frozen-lockfile'], consumerDir);
+  const expectedVersions = {
+    react: runtimeDeps.react,
+    'react-dom': runtimeDeps['react-dom'],
+    '@types/react': reactTypes,
+    ...(includeRuntimeDeps ? { '@testing-library/react': runtimeDeps['@testing-library/react'], jsdom: '26.1.0' } : {}),
+  };
+  const resolvedVersions: Record<string, string> = {};
+  for (const [name, expected] of Object.entries(expectedVersions)) {
+    const manifest = JSON.parse(
+      readFileSync(path.join(consumerDir, 'node_modules', name, 'package.json'), 'utf8'),
+    ) as PackageJson;
+    resolvedVersions[name] = manifest.version;
+    if (!floating && manifest.version !== expected) {
+      throw new Error(
+        `Supported consumer dependency mismatch: ${name} expected ${expected}, received ${manifest.version}`,
+      );
+    }
+  }
+  console.log(
+    `React ${reactMajor} ${floating ? 'floating' : 'supported'} dependencies: ${JSON.stringify(resolvedVersions)}`,
+  );
+  const reportDir = process.env.ACCESS_ROUTER_REACT_REPORT_DIR;
+  if (reportDir) {
+    mkdirSync(reportDir, { recursive: true });
+    const label = `react${reactMajor}-${includeRuntimeDeps ? 'runtime' : 'types'}`;
+    writeFileSync(
+      path.join(reportDir, `${label}-tree.json`),
+      run('pnpm', ['list', '--depth', 'Infinity', '--json'], consumerDir),
+    );
+    cpSync(path.join(consumerDir, 'pnpm-lock.yaml'), path.join(reportDir, `${label}-lock.yaml`));
+    writeFileSync(
+      path.join(reportDir, `${label}-versions.json`),
+      JSON.stringify(
+        {
+          buildNode: process.version,
+          consumerNode: runConsumer(['--version'], consumerDir).trim(),
+          floating,
+          resolvedVersions,
+        },
+        null,
+        2,
+      ),
+    );
+  }
   return consumerDir;
 }
 

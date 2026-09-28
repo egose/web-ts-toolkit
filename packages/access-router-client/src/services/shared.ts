@@ -2,6 +2,7 @@ import { castArray, get, noop } from '@web-ts-toolkit/utils';
 import { Model } from '../model';
 import { Document, ResponseCallback, RootQueryMeta } from '../types';
 import { CustomHeaders } from '../enums';
+import { MAX_INPUT_DEPTH, MAX_INPUT_NODES, validateBoundedInputs } from '../bounded-traversal';
 import { ModelService } from './model-service';
 import { finalizeOperationResult, normalizeTransportFailure, ResultError, ServiceError } from './service';
 
@@ -337,8 +338,6 @@ const cloneDefaultValueInner = (value: unknown, seen: WeakSet<object>, path: str
   return value;
 };
 
-const cloneDefaultValue = <T>(value: T): T => cloneDefaultValueInner(value, new WeakSet<object>(), 'defaults') as T;
-
 /**
  * Detached clone of a stored service-default value for per-request use.
  * Shares the supported domain and controlled rejection of
@@ -346,8 +345,31 @@ const cloneDefaultValue = <T>(value: T): T => cloneDefaultValueInner(value, new 
  * stored defaults (notably `Date` instances, whose mutators ignore
  * `Object.freeze`, and `__query` metadata readable via `prom.__query`).
  */
-export const cloneServiceDefaultValue = <T>(value: T): T =>
-  cloneDefaultValueInner(value, new WeakSet<object>(), 'defaults') as T;
+export const cloneServiceDefaultValue = <T>(value: T): T => {
+  // Preflight the entire effective defaults bag before constructor clone/freeze,
+  // or the selected stored value before its per-request clone. Unlike queries,
+  // default objects have no opaque request/descriptor exceptions. Grammar and
+  // Date detachment remain enforced by the existing clone below. Generated empty
+  // option bags added by normalization do not consume the caller-input budget.
+  validateBoundedInputs(
+    [{ value, path: 'defaults' }],
+    (item) => Array.isArray(item) || (item !== null && typeof item === 'object' && isPlainDefaultObject(item)),
+    (failure, path) => {
+      if (failure === 'nodes') {
+        throw new UnsupportedServiceDefaultValueError(
+          `Service defaults node limit ${MAX_INPUT_NODES} exceeded at ${path}`,
+        );
+      }
+      if (failure === 'depth') {
+        throw new UnsupportedServiceDefaultValueError(
+          `Service defaults depth limit ${MAX_INPUT_DEPTH} exceeded at ${path}`,
+        );
+      }
+      throw new UnsupportedServiceDefaultValueError(`Service defaults do not support circular value at ${path}`);
+    },
+  );
+  return cloneDefaultValueInner(value, new WeakSet<object>(), 'defaults') as T;
+};
 
 const deepFreeze = <T>(value: T, seen: WeakSet<object> = new WeakSet<object>()): T => {
   if (!value || typeof value !== 'object' || Object.isFrozen(value) || seen.has(value)) {
@@ -367,7 +389,7 @@ export const normalizeServiceDefaults = <TDefaults extends object>(
   defaults: TDefaults | undefined,
   objectKeys: readonly (keyof TDefaults)[],
 ): Required<TDefaults> => {
-  const normalized = cloneDefaultValue((defaults ?? {}) as TDefaults) as Record<keyof TDefaults, unknown>;
+  const normalized = cloneServiceDefaultValue((defaults ?? {}) as TDefaults) as Record<keyof TDefaults, unknown>;
 
   for (const key of objectKeys) {
     normalized[key] ??= {};

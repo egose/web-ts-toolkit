@@ -3,6 +3,8 @@ import {
   ROUTER_WATERMARK,
   DEFAULT_MODEL_ROUTER_OPTIONS_WATERMARK,
   MODEL_ROUTER_OPTIONS_WATERMARK,
+  METHOD_METADATA,
+  OPTIONS_METADATA,
 } from './constants';
 import type { HookDefinition } from './constants';
 
@@ -22,30 +24,26 @@ export const getOwnMetadata = (obj: object, key: MetadataKey) => {
   return Reflect.getOwnMetadata(key, obj) ?? null;
 };
 
+const filterMetadataKeysStartWith = (keys: unknown[], startKey: string) =>
+  keys.filter((key): key is string => typeof key === 'string' && (key === startKey || key.startsWith(`${startKey}.`)));
+
 export const getMetadataKeysStartWith = (obj: object, startKey: string) => {
-  return Reflect.getMetadataKeys(obj).filter(
-    (key): key is string => typeof key === 'string' && (key === startKey || key.startsWith(`${startKey}.`)),
-  );
+  return filterMetadataKeysStartWith(Reflect.getMetadataKeys(obj), startKey);
 };
 
-export const getMethodDescriptor = (obj: object, method: MethodKey) => {
+const getMethodEntry = (obj: object, method: MethodKey) => {
   let current: object | null = obj;
   do {
     const descriptor = Reflect.getOwnPropertyDescriptor(current, method);
-    if (descriptor) return descriptor;
+    if (descriptor) return { owner: current, descriptor };
   } while ((current = Reflect.getPrototypeOf(current)) && current !== Object.prototype);
 
   return undefined;
 };
 
-export const getMethodOwner = (obj: object, method: MethodKey) => {
-  let current: object | null = obj;
-  do {
-    if (Reflect.getOwnPropertyDescriptor(current, method)) return current;
-  } while ((current = Reflect.getPrototypeOf(current)) && current !== Object.prototype);
+export const getMethodDescriptor = (obj: object, method: MethodKey) => getMethodEntry(obj, method)?.descriptor;
 
-  return undefined;
-};
+export const getMethodOwner = (obj: object, method: MethodKey) => getMethodEntry(obj, method)?.owner;
 
 export const getOwnMetadataListFromPrototypeChain = <T extends Record<string, unknown>>(
   obj: object,
@@ -59,23 +57,67 @@ export const getOwnMetadataListFromPrototypeChain = <T extends Record<string, un
   } while ((current = Reflect.getPrototypeOf(current)) && current !== Object.prototype);
 
   const merged = new Map<unknown, T>();
+  const propertyKeys = new Map<unknown, unknown>();
   for (const item of chain) {
     const metadata = Reflect.getOwnMetadata(key, item) as T[] | undefined;
     if (!metadata) continue;
-    for (const entry of metadata) merged.set(entry[dedupeKey], entry);
+    for (const entry of metadata) {
+      const identity = entry[dedupeKey];
+      if (key === OPTIONS_METADATA) {
+        const previousKey = propertyKeys.get(entry.propertyKey);
+        if (propertyKeys.has(entry.propertyKey)) merged.delete(previousKey);
+        const replaced = merged.get(identity);
+        if (replaced) propertyKeys.delete(replaced.propertyKey);
+        propertyKeys.set(entry.propertyKey, identity);
+      }
+      merged.set(identity, entry);
+    }
   }
 
   return [...merged.values()];
 };
 
+/** Own-member anchor: replacing a descriptor's function must not erase its declarations. */
+export const defineMethodDeclarationMetadata = (owner: object, method: MethodKey, key: MetadataKey, value: unknown) => {
+  let declaration = Reflect.getOwnMetadata(METHOD_METADATA, owner, method) as object | undefined;
+  if (!declaration) {
+    declaration = {};
+    Reflect.defineMetadata(METHOD_METADATA, declaration, owner, method);
+  }
+  Reflect.defineMetadata(key, value, declaration);
+};
+
+/**
+ * Read only the effective owner's declarations, never an overridden ancestor's.
+ * The caller supplies the resolved function so registration can reuse its one
+ * owner traversal. Function metadata remains readable for older package copies.
+ */
+export const getMethodMetadataReader = (owner: object, method: MethodKey, fn: Function) => {
+  const declaration = Reflect.getOwnMetadata(METHOD_METADATA, owner, method) as object | undefined;
+  return {
+    get: (key: MetadataKey) => (declaration ? getOwnMetadata(declaration, key) : null) ?? getMetadata(fn, key),
+    keysStartWith: (startKey: string) => [
+      ...new Set([
+        ...(declaration ? filterMetadataKeysStartWith(Reflect.getOwnMetadataKeys(declaration), startKey) : []),
+        ...getMetadataKeysStartWith(fn, startKey),
+      ]),
+    ],
+  };
+};
+
+const getEffectiveMethodMetadataReader = (obj: object, method: MethodKey) => {
+  const entry = getMethodEntry(obj, method);
+  return entry && isFunction(entry.descriptor.value)
+    ? getMethodMetadataReader(entry.owner, method, entry.descriptor.value)
+    : null;
+};
+
 export const getMethodMetadata = (obj: object, method: MethodKey, key: MetadataKey) => {
-  const descriptor = getMethodDescriptor(obj, method);
-  return descriptor ? getMetadata(descriptor.value, key) : null;
+  return getEffectiveMethodMetadataReader(obj, method)?.get(key) ?? null;
 };
 
 export const getMethodMetadataKeysStartWith = (obj: object, method: MethodKey, startKey: string) => {
-  const descriptor = getMethodDescriptor(obj, method);
-  return descriptor ? getMetadataKeysStartWith(descriptor.value, startKey) : [];
+  return getEffectiveMethodMetadataReader(obj, method)?.keysStartWith(startKey) ?? [];
 };
 
 /**

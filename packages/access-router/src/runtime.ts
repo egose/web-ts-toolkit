@@ -11,6 +11,7 @@ import {
   isPlainObject,
   isString,
   keys,
+  normalizeUrlPath,
 } from '@web-ts-toolkit/utils';
 import { DEFAULT_LIST_HARD_LIMIT, buildRefs, buildSubPaths } from './helpers';
 import type { OpenApiDocumentOptions, OpenApiRouteDescriptor } from './openapi/types';
@@ -195,6 +196,7 @@ export class AccessRuntime {
   private readonly modelAtts: Record<string, string[]> = {};
   private readonly modelInstances: Record<string, mongoose.Model<unknown>> = {};
   private readonly openApiRegistry = new OpenApiRegistry();
+  private openApiPathPrefix = '';
 
   registerModelInstance<TModel>(modelName: string, model: mongoose.Model<TModel>): void {
     if (!modelName || typeof modelName !== 'string') {
@@ -227,7 +229,25 @@ export class AccessRuntime {
   }
 
   registerOpenApiRoute(route: OpenApiRouteDescriptor) {
-    this.openApiRegistry.register(route);
+    this.openApiRegistry.register(
+      this.openApiPathPrefix ? { ...route, path: normalizeUrlPath(`${this.openApiPathPrefix}/${route.path}`) } : route,
+    );
+  }
+
+  /**
+   * Compose OpenAPI paths while synchronously constructing mounted routers.
+   * Prefixes apply before collision checks; prior descriptors and Express paths
+   * are unchanged. Nested calls compose and the prior scope is restored even on
+   * failure. The callback must finish registration synchronously (no async work).
+   */
+  withOpenApiPathPrefix<T>(prefix: string, build: () => T): T {
+    const previous = this.openApiPathPrefix;
+    this.openApiPathPrefix = normalizeUrlPath(`${previous}/${prefix}`);
+    try {
+      return build();
+    } finally {
+      this.openApiPathPrefix = previous;
+    }
   }
 
   /**
