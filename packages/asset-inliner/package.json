@@ -1,14 +1,10 @@
 {
   "name": "@web-ts-toolkit/asset-inliner",
   "description": "Generic asset inliner for CSS and HTML — ESM-only Node 22+ Base64 data URL encoding, CSS url() and font source formatting, deterministic catalog and inlining pipeline",
-  "version": "0.1.0",
-  "license": "Apache-2.0",
+  "version": "0.0.0-PLACEHOLDER",
+  "license": "PLACEHOLDER",
   "homepage": "https://web-ts-toolkit.pages.dev/docs/packages/asset-inliner",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/egose/web-ts-toolkit.git",
-    "directory": "packages/asset-inliner"
-  },
+  "repository": "PLACEHOLDER",
   "keywords": [
     "asset",
     "inliner",
