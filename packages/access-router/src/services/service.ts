@@ -27,7 +27,7 @@ import {
   populateDoc,
   toObject,
 } from '../helpers';
-import { isFieldAllowed, isValidFieldPath, validateSortFields } from '../helpers/sort-policy';
+import { isFieldAllowed, isValidFieldPath, sanitizeSortFields, validateSortFields } from '../helpers/sort-policy';
 import { RequestConcurrencyScheduler } from '../helpers/concurrency';
 import { applyUpdate } from '../helpers/apply-update';
 import {
@@ -185,6 +185,11 @@ export class Service<TModel = unknown> extends Base<TModel> {
     return context as ServiceHookContext;
   }
 
+  private getEffectiveAllowedSortFields(allowedSortFields: string[]): string[] {
+    const extra = this.options?.sortableFields ?? [];
+    return extra.length > 0 ? [...allowedSortFields, ...extra] : allowedSortFields;
+  }
+
   private beginOp(
     op: string,
     filter: unknown,
@@ -265,15 +270,20 @@ export class Service<TModel = unknown> extends Base<TModel> {
     const correlatedOutputPaths = correlatedIncludes.map((entry) => entry.path);
     const finalSelect = normalizeSelect(_select).concat(includeLocalFields, correlatedReferenceFields);
 
+    const effectiveAllowedSortFields = this.getEffectiveAllowedSortFields(allowedSortFields);
+    const stripDisallowedSort = this.options?.stripDisallowedSort ?? false;
+    const sanitizedSort = stripDisallowedSort ? sanitizeSortFields(sort, effectiveAllowedSortFields) : null;
+    const effectiveSort = stripDisallowedSort ? (sanitizedSort?.sort as typeof sort) : sort;
+
     const query = {
       filter: _filter,
       select: finalSelect,
-      sort,
+      sort: effectiveSort,
       populate: _populate,
     };
 
     const startedAt = this.beginOp('findOne', _filter, {
-      sort,
+      sort: effectiveSort,
       selectCount: finalSelect.length,
       populateCount: Array.isArray(_populate) ? _populate.length : _populate ? 1 : 0,
     });
@@ -283,10 +293,18 @@ export class Service<TModel = unknown> extends Base<TModel> {
       return { success: false, kind: 'error', code: Codes.Forbidden, query };
     }
 
-    const sortErrors = validateSortFields(sort, allowedSortFields);
-    if (sortErrors.length > 0) {
-      this.completeOp('findOne', startedAt, Codes.BadRequest, _filter);
-      return { success: false, kind: 'error', code: Codes.BadRequest, errors: sortErrors, query };
+    if (stripDisallowedSort) {
+      // Disallowed keys already omitted from effectiveSort; malformed syntax still fails.
+      if (sanitizedSort && sanitizedSort.errors.length > 0) {
+        this.completeOp('findOne', startedAt, Codes.BadRequest, _filter);
+        return { success: false, kind: 'error', code: Codes.BadRequest, errors: sanitizedSort.errors, query };
+      }
+    } else {
+      const sortErrors = validateSortFields(sort, effectiveAllowedSortFields);
+      if (sortErrors.length > 0) {
+        this.completeOp('findOne', startedAt, Codes.BadRequest, _filter);
+        return { success: false, kind: 'error', code: Codes.BadRequest, errors: sortErrors, query };
+      }
     }
 
     let doc = await this.model.findOne({ ...query, lean });
@@ -426,16 +444,21 @@ export class Service<TModel = unknown> extends Base<TModel> {
       processedInclude;
     const correlatedOutputPaths = correlatedIncludes.map((entry) => entry.path);
 
+    const effectiveAllowedSortFields = this.getEffectiveAllowedSortFields(allowedSortFields);
+    const stripDisallowedSort = this.options?.stripDisallowedSort ?? false;
+    const sanitizedSort = stripDisallowedSort ? sanitizeSortFields(sort, effectiveAllowedSortFields) : null;
+    const effectiveSort = stripDisallowedSort ? (sanitizedSort?.sort as typeof sort) : sort;
+
     const query = {
       filter: _filter,
       select: finalSelect.concat(includeLocalFields, correlatedReferenceFields),
       populate: filteredPopulate,
-      sort,
+      sort: effectiveSort,
       ...pagination,
     };
 
     const startedAt = this.beginOp('find', _filter, {
-      sort,
+      sort: effectiveSort,
       skip: pagination.skip,
       limit: pagination.limit,
       selectCount: finalSelect.concat(includeLocalFields, correlatedReferenceFields).length,
@@ -447,10 +470,18 @@ export class Service<TModel = unknown> extends Base<TModel> {
       return { success: false, kind: 'error', code: Codes.Forbidden, query };
     }
 
-    const sortErrors = validateSortFields(sort, allowedSortFields);
-    if (sortErrors.length > 0) {
-      this.completeOp('find', startedAt, Codes.BadRequest, _filter);
-      return { success: false, kind: 'error', code: Codes.BadRequest, errors: sortErrors, query };
+    if (stripDisallowedSort) {
+      // Disallowed keys already omitted from effectiveSort; malformed syntax still fails.
+      if (sanitizedSort && sanitizedSort.errors.length > 0) {
+        this.completeOp('find', startedAt, Codes.BadRequest, _filter);
+        return { success: false, kind: 'error', code: Codes.BadRequest, errors: sanitizedSort.errors, query };
+      }
+    } else {
+      const sortErrors = validateSortFields(sort, effectiveAllowedSortFields);
+      if (sortErrors.length > 0) {
+        this.completeOp('find', startedAt, Codes.BadRequest, _filter);
+        return { success: false, kind: 'error', code: Codes.BadRequest, errors: sortErrors, query };
+      }
     }
 
     let docs = (await this.model.find({

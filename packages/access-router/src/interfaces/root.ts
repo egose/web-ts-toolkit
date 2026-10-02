@@ -180,6 +180,19 @@ export interface DefaultModelRouterOptions<TModel = unknown> {
   mutationRouteSegment?: string;
   operationAccess?: Validation | OperationAccess;
   modelPermissionPrefix?: string;
+  /**
+   * Extra fields allowed in `sort` regardless of `list`/`read` field policy.
+   * Merged as a union with permission-derived allowed fields (`id`/`_id` are
+   * always allowed). Does not grant output visibility, only sortability.
+   */
+  sortableFields?: string[];
+  /**
+   * When `true`, disallowed `sort` keys are omitted from the sort sent upstream
+   * (Mongoose) instead of returning `BadRequest`. Malformed sort syntax still
+   * returns `BadRequest`. If every key is stripped, no sort is applied.
+   * Defaults to `false` (strict: disallowed sort returns `BadRequest`).
+   */
+  stripDisallowedSort?: boolean;
 }
 
 export interface ExtendedDefaultModelRouterOptions<TModel = unknown> extends DefaultModelRouterOptions<TModel> {
