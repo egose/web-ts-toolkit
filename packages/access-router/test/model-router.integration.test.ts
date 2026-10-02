@@ -583,8 +583,8 @@ describe('model router integration', () => {
     const publicListRow = userListWithPermissions.body.data.find((row: { name: string }) => row.name === 'user3');
     expect(selfListRow._permissions._view.name).toBe(true);
     expect(selfListRow._permissions._edit.name).toBe(true);
-    expect(publicListRow._permissions._view).toEqual({});
-    expect(publicListRow._permissions._edit).toEqual({});
+    expect(publicListRow._permissions._view).toEqual({ $: '_' });
+    expect(publicListRow._permissions._edit).toEqual({ $: '_' });
 
     expect(selfRead.body).toMatchObject({
       name: 'user2',
