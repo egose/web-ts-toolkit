@@ -100,3 +100,61 @@ export function normalizeSortForOrderBy(sort: Sort | Map<string, SortOrder>): {
     orders: normalized.fields.map(({ direction }) => direction),
   };
 }
+
+export interface SanitizedSort {
+  /** Sort value to send upstream (`undefined` means omit / no sort). */
+  sort: Sort | Map<string, SortOrder> | undefined;
+  /** Disallowed field names that were removed. */
+  stripped: string[];
+  /** Malformed-sort errors; disallowed fields are NOT included here. */
+  errors: SortValidationError[];
+}
+
+/**
+ * Remove disallowed sort keys while preserving the caller's input shape
+ * (string / object / tuple array / Map). Syntax errors are returned as
+ * `errors`; disallowed keys are listed in `stripped` instead of erroring.
+ * When nothing is stripped the original `sort` reference is returned as-is;
+ * when every key is stripped `sort` is `undefined` so upstream applies no sort.
+ */
+export function sanitizeSortFields(sort: Sort | Map<string, SortOrder>, allowedFields: string[]): SanitizedSort {
+  const { fields, errors } = normalizeSort(sort);
+  if (errors.length > 0) return { sort: undefined, stripped: [], errors };
+
+  const allowedSet = new Set(allowedFields.concat(['id', '_id']));
+  const kept = fields.filter(({ field }) => allowedSet.has(field));
+  const stripped = fields.filter(({ field }) => !allowedSet.has(field)).map(({ field }) => field);
+
+  if (stripped.length === 0) return { sort: sort as Sort | Map<string, SortOrder> | undefined, stripped, errors: [] };
+  if (kept.length === 0) return { sort: undefined, stripped, errors: [] };
+
+  if (typeof sort === 'string') {
+    return {
+      sort: kept.map(({ field, direction }) => (direction === 'desc' ? `-${field}` : field)).join(' '),
+      stripped,
+      errors: [],
+    };
+  }
+
+  if (sort instanceof Map) {
+    return {
+      sort: new Map(kept.map(({ field, direction }) => [field, direction] as [string, SortOrder])),
+      stripped,
+      errors: [],
+    };
+  }
+
+  if (Array.isArray(sort)) {
+    return {
+      sort: kept.map(({ field, direction }) => [field, direction] as [string, SortOrder]),
+      stripped,
+      errors: [],
+    };
+  }
+
+  return {
+    sort: Object.fromEntries(kept.map(({ field, direction }) => [field, direction])) as Sort,
+    stripped,
+    errors: [],
+  };
+}

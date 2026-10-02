@@ -73,6 +73,15 @@ type InternalModelHookContext = ModelHookContext & {
   };
 };
 
+/**
+ * Fresh non-empty leaf marking "no fields granted" inside `_view`/`_edit`.
+ * Must stay a non-empty plain object at a `$`-prefixed key: Mongoose
+ * `toObject()`/`toJSON()` (`minimize: true`) strips empty plain objects on
+ * non-lean paths, and `$`-leading keys cannot collide with real field names.
+ * Always call (never share one reference) so rows cannot alias each other's maps.
+ */
+const emptyPermissionLeaf = () => ({ $: '_' });
+
 export class Core {
   private req: ModelRequest;
   private caches: {
@@ -359,8 +368,13 @@ export class Core {
 
   addEmptyPermissions<T>(modelName: string, doc: T): T {
     const docPermissionField = getModelOption(modelName, 'documentPermissionField');
-    // Mongoose `toObject` method omits empty values
-    setDocValue(doc, docPermissionField, { _view: { $: '_' }, _edit: { $: '_' } });
+    // Mongoose `toObject()`/`toJSON()` default to `minimize: true`, which recursively
+    // strips `undefined` values and empty plain objects (other falsy values such as
+    // `null`, `0`, `false`, `''` and empty arrays are kept). The placeholder must be
+    // non-empty at every nesting level so the permission field survives serialization
+    // on non-lean paths, and its `$`-prefixed key cannot collide with real field names.
+    // Keep in sync with `addFieldPermissions` below.
+    setDocValue(doc, docPermissionField, { _view: emptyPermissionLeaf(), _edit: emptyPermissionLeaf() });
     return doc;
   }
 
@@ -432,8 +446,12 @@ export class Core {
       {} as Record<string, boolean>,
     );
 
-    setDocValue(doc, `${docPermissionField}._view`, viewObj);
-    setDocValue(doc, `${docPermissionField}._edit`, editObj);
+    // An empty grant map would be stripped by Mongoose `toObject()`/`toJSON()`
+    // minimization on non-lean paths, so substitute the same non-empty
+    // placeholder `addEmptyPermissions` uses. This keeps list (lean) and read
+    // (non-lean) output consistent.
+    setDocValue(doc, `${docPermissionField}._view`, Object.keys(viewObj).length > 0 ? viewObj : emptyPermissionLeaf());
+    setDocValue(doc, `${docPermissionField}._edit`, Object.keys(editObj).length > 0 ? editObj : emptyPermissionLeaf());
 
     return doc;
   }
