@@ -21,7 +21,7 @@ import {
   updateBodySchema,
   upsertBodySchema,
 } from './validation';
-import { handleResultError } from '../helpers';
+import { handleResultError, parseSelectParam } from '../helpers';
 import { parseBooleanString } from './shared';
 import type { ModelRouterRouteContext } from './model-router-route-context';
 import {
@@ -102,13 +102,17 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     await context.assertAllowed(req, 'read');
 
     const id = parsePathParam(req.params[options.idParam], options.idParam);
-    const { include_permissions, try_list } = parseQuery(requestSchemas.readQuery, req.query);
+    const { include_permissions, include_field_permissions, try_list, select } = parseQuery(
+      requestSchemas.readQuery,
+      req.query,
+    );
     const svc = context.getPublicService(req);
     const result = await svc._read(
       id,
-      {},
+      { select: parseSelectParam(select) },
       {
         includePermissions: parseBooleanString(include_permissions),
+        includeFieldPermissions: parseBooleanString(include_field_permissions),
         tryList: parseBooleanString(try_list),
       },
     );
@@ -135,13 +139,19 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     )) as AdvancedReadFilterBody;
     const { filter, select, sort, populate, include, tasks } = body;
     const advancedOptions: NonNullable<AdvancedReadFilterBody['options']> = body.options ?? {};
-    const { skim, includePermissions, tryList, populateAccess } = advancedOptions;
+    const { skim, includePermissions, includeFieldPermissions, tryList, populateAccess } = advancedOptions;
 
     const svc = context.getPublicService(req);
     const result = await svc._readFilter(
       (filter ?? {}) as Filter<TModel>,
       { select, sort, populate, include, tasks },
-      { skim, includePermissions, tryList, populateAccess: populateAccess as PopulateAccess | undefined },
+      {
+        skim,
+        includePermissions,
+        includeFieldPermissions,
+        tryList,
+        populateAccess: populateAccess as PopulateAccess | undefined,
+      },
     );
 
     handleResultError(result);
@@ -169,13 +179,19 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     )) as AdvancedReadBody;
     const { select, populate, include, tasks } = body;
     const advancedOptions: NonNullable<AdvancedReadBody['options']> = body.options ?? {};
-    const { skim, includePermissions, tryList, populateAccess } = advancedOptions;
+    const { skim, includePermissions, includeFieldPermissions, tryList, populateAccess } = advancedOptions;
 
     const svc = context.getPublicService(req);
     const result = await svc._read(
       id,
       { select, populate, include, tasks },
-      { skim, includePermissions, tryList, populateAccess: populateAccess as PopulateAccess | undefined },
+      {
+        skim,
+        includePermissions,
+        includeFieldPermissions,
+        tryList,
+        populateAccess: populateAccess as PopulateAccess | undefined,
+      },
     );
 
     handleResultError(result);
@@ -196,7 +212,10 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     await context.assertAllowed(req, 'update');
 
     const id = parsePathParam(req.params[options.idParam], options.idParam);
-    const { returning_all, include_permissions } = parseQuery(requestSchemas.updateQuery, req.query);
+    const { returning_all, include_permissions, include_field_permissions, select } = parseQuery(
+      requestSchemas.updateQuery,
+      req.query,
+    );
     const data = await parseBodyWithSchema(
       updateBodySchema,
       req.body,
@@ -207,10 +226,11 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     const result = await svc._update(
       id,
       data,
-      {},
+      { select: parseSelectParam(select) },
       {
         returningAll: parseBooleanString(returning_all),
         includePermissions: parseBooleanString(include_permissions),
+        includeFieldPermissions: parseBooleanString(include_field_permissions),
       },
     );
 
@@ -231,7 +251,10 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     await context.assertAllowed(req, 'update');
 
     const id = parsePathParam(req.params[options.idParam], options.idParam);
-    const { returning_all, include_permissions } = parseQuery(requestSchemas.updateQuery, req.query);
+    const { returning_all, include_permissions, include_field_permissions } = parseQuery(
+      requestSchemas.updateQuery,
+      req.query,
+    );
     const intermediateBody = (await parseNestedBodyWithSchema(
       advancedUpdateBodySchema,
       req.body,
@@ -254,7 +277,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     )) as AdvancedUpdateBody;
     const { data: finalData, select: finalSelect, populate: finalPopulate, tasks: finalTasks } = finalBody;
     const finalOptions: NonNullable<AdvancedUpdateBody['options']> = finalBody.options ?? {};
-    const { returningAll, includePermissions, populateAccess } = finalOptions;
+    const { returningAll, includePermissions, includeFieldPermissions, populateAccess } = finalOptions;
 
     const svc = context.getPublicService(req);
     const result = await svc._update(
@@ -264,6 +287,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
       {
         returningAll: returningAll ?? parseBooleanString(returning_all),
         includePermissions: includePermissions ?? parseBooleanString(include_permissions),
+        includeFieldPermissions: includeFieldPermissions ?? parseBooleanString(include_field_permissions),
         populateAccess: populateAccess as PopulateAccess | undefined,
       },
     );
@@ -285,7 +309,10 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     await context.assertAllowed(req, 'upsert');
 
     const svc = context.getPublicService(req);
-    const { returning_all, include_permissions } = parseQuery(requestSchemas.upsertQuery, req.query);
+    const { returning_all, include_permissions, include_field_permissions } = parseQuery(
+      requestSchemas.upsertQuery,
+      req.query,
+    );
     const body = await parseBodyWithSchema(
       upsertBodySchema,
       req.body,
@@ -297,6 +324,7 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
       {
         returningAll: parseBooleanString(returning_all),
         includePermissions: parseBooleanString(include_permissions),
+        includeFieldPermissions: parseBooleanString(include_field_permissions),
       },
     );
 
@@ -317,7 +345,10 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     await context.assertAllowed(req, 'upsert');
 
     const svc = context.getPublicService(req);
-    const { returning_all, include_permissions } = parseQuery(requestSchemas.upsertQuery, req.query);
+    const { returning_all, include_permissions, include_field_permissions } = parseQuery(
+      requestSchemas.upsertQuery,
+      req.query,
+    );
     const intermediateBody = (await parseNestedBodyWithSchema(
       advancedUpsertBodySchema,
       req.body,
@@ -340,13 +371,14 @@ export function setModelDocumentRoutes<TModel>(context: ModelRouterRouteContext<
     )) as AdvancedUpsertBody;
     const { data: finalData, select: finalSelect, populate: finalPopulate, tasks: finalTasks } = finalBody;
     const finalOptions: NonNullable<AdvancedUpsertBody['options']> = finalBody.options ?? {};
-    const { returningAll, includePermissions, populateAccess } = finalOptions;
+    const { returningAll, includePermissions, includeFieldPermissions, populateAccess } = finalOptions;
     const result = await svc._upsert(
       finalData,
       { select: finalSelect, populate: finalPopulate, tasks: finalTasks },
       {
         returningAll: returningAll ?? parseBooleanString(returning_all),
         includePermissions: includePermissions ?? parseBooleanString(include_permissions),
+        includeFieldPermissions: includeFieldPermissions ?? parseBooleanString(include_field_permissions),
         populateAccess: populateAccess as PopulateAccess | undefined,
       },
     );

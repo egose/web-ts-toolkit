@@ -17,6 +17,25 @@ import type {
 } from '../interfaces';
 import type { Service } from './service';
 
+/**
+ * Router-level permission postures win over client input and per-operation
+ * `defaults`: `stripPermissionsField` drops all permission output,
+ * `disableFieldPermissions` drops field maps while keeping doc hook keys.
+ */
+function applyPermissionsPosture<
+  TModel,
+  TResolved extends { includePermissions?: boolean; includeFieldPermissions?: boolean },
+>(service: Service<TModel>, resolved: TResolved): TResolved {
+  const posture = service.getPermissionsPosture();
+  if (posture.stripPermissionsField) {
+    resolved.includePermissions = false;
+    resolved.includeFieldPermissions = false;
+  } else if (posture.disableFieldPermissions) {
+    resolved.includeFieldPermissions = false;
+  }
+  return resolved;
+}
+
 export function resolveFindOneArgs<TModel>(service: Service<TModel>, args: FindOneArgs<TModel> = {}) {
   return {
     select: args.select ?? service.defaults.findOneArgs?.select,
@@ -28,13 +47,16 @@ export function resolveFindOneArgs<TModel>(service: Service<TModel>, args: FindO
 }
 
 export function resolveFindOneOptions<TModel>(service: Service<TModel>, options: FindOneOptions = {}) {
-  return {
+  const includePermissions = options.includePermissions ?? service.defaults.findOneOptions?.includePermissions ?? true;
+  return applyPermissionsPosture(service, {
     skim: options.skim ?? service.defaults.findOneOptions?.skim ?? false,
-    includePermissions: options.includePermissions ?? service.defaults.findOneOptions?.includePermissions ?? true,
+    includePermissions,
+    includeFieldPermissions:
+      options.includeFieldPermissions ?? service.defaults.findOneOptions?.includeFieldPermissions ?? includePermissions,
     access: options.access ?? service.defaults.findOneOptions?.access ?? 'read',
     populateAccess: options.populateAccess ?? service.defaults.findOneOptions?.populateAccess,
     lean: options.lean ?? service.defaults.findOneOptions?.lean ?? false,
-  };
+  });
 }
 
 export function resolveFindByIdArgs<TModel>(service: Service<TModel>, args: FindByIdArgs<TModel> = {}) {
@@ -47,13 +69,18 @@ export function resolveFindByIdArgs<TModel>(service: Service<TModel>, args: Find
 }
 
 export function resolveFindByIdOptions<TModel>(service: Service<TModel>, options: FindByIdOptions = {}) {
-  return {
+  const includePermissions = options.includePermissions ?? service.defaults.findByIdOptions?.includePermissions ?? true;
+  return applyPermissionsPosture(service, {
     skim: options.skim ?? service.defaults.findByIdOptions?.skim ?? false,
-    includePermissions: options.includePermissions ?? service.defaults.findByIdOptions?.includePermissions ?? true,
+    includePermissions,
+    includeFieldPermissions:
+      options.includeFieldPermissions ??
+      service.defaults.findByIdOptions?.includeFieldPermissions ??
+      includePermissions,
     access: options.access ?? service.defaults.findByIdOptions?.access ?? 'read',
     populateAccess: options.populateAccess ?? service.defaults.findByIdOptions?.populateAccess,
     lean: options.lean ?? service.defaults.findByIdOptions?.lean ?? false,
-  };
+  });
 }
 
 export function resolveFindArgs<TModel>(service: Service<TModel>, args: FindArgs<TModel> = {}) {
@@ -71,13 +98,16 @@ export function resolveFindArgs<TModel>(service: Service<TModel>, args: FindArgs
 }
 
 export function resolveFindOptions<TModel>(service: Service<TModel>, options: FindOptions = {}) {
-  return {
+  const includePermissions = options.includePermissions ?? service.defaults.findOptions?.includePermissions ?? true;
+  return applyPermissionsPosture(service, {
     skim: options.skim ?? service.defaults.findOptions?.skim ?? false,
-    includePermissions: options.includePermissions ?? service.defaults.findOptions?.includePermissions ?? true,
+    includePermissions,
+    includeFieldPermissions:
+      options.includeFieldPermissions ?? service.defaults.findOptions?.includeFieldPermissions ?? includePermissions,
     includeCount: options.includeCount ?? service.defaults.findOptions?.includeCount ?? false,
     populateAccess: options.populateAccess ?? service.defaults.findOptions?.populateAccess ?? 'read',
     lean: options.lean ?? service.defaults.findOptions?.lean ?? false,
-  };
+  });
 }
 
 export function resolveCreateArgs<TModel>(service: Service<TModel>, args: CreateArgs = {}) {
@@ -87,11 +117,14 @@ export function resolveCreateArgs<TModel>(service: Service<TModel>, args: Create
 }
 
 export function resolveCreateOptions<TModel>(service: Service<TModel>, options: CreateOptions = {}) {
-  return {
+  const includePermissions = options.includePermissions ?? service.defaults.createOptions?.includePermissions ?? true;
+  return applyPermissionsPosture(service, {
     skim: options.skim ?? service.defaults.createOptions?.skim ?? false,
-    includePermissions: options.includePermissions ?? service.defaults.createOptions?.includePermissions ?? true,
+    includePermissions,
+    includeFieldPermissions:
+      options.includeFieldPermissions ?? service.defaults.createOptions?.includeFieldPermissions ?? includePermissions,
     populateAccess: options.populateAccess ?? service.defaults.createOptions?.populateAccess ?? 'read',
-  };
+  });
 }
 
 export function resolveUpdateOneArgs<TModel>(service: Service<TModel>, args: UpdateOneArgs<TModel> = {}) {
@@ -102,11 +135,17 @@ export function resolveUpdateOneArgs<TModel>(service: Service<TModel>, args: Upd
 }
 
 export function resolveUpdateOneOptions<TModel>(service: Service<TModel>, options: UpdateOneOptions = {}) {
-  return {
+  const includePermissions =
+    options.includePermissions ?? service.defaults.updateOneOptions?.includePermissions ?? true;
+  return applyPermissionsPosture(service, {
     skim: options.skim ?? service.defaults.updateOneOptions?.skim ?? false,
-    includePermissions: options.includePermissions ?? service.defaults.updateOneOptions?.includePermissions ?? true,
+    includePermissions,
+    includeFieldPermissions:
+      options.includeFieldPermissions ??
+      service.defaults.updateOneOptions?.includeFieldPermissions ??
+      includePermissions,
     populateAccess: options.populateAccess ?? service.defaults.updateOneOptions?.populateAccess ?? 'read',
-  };
+  });
 }
 
 export function resolveUpdateByIdArgs<TModel>(service: Service<TModel>, args: UpdateByIdArgs<TModel> = {}) {
@@ -117,11 +156,17 @@ export function resolveUpdateByIdArgs<TModel>(service: Service<TModel>, args: Up
 }
 
 export function resolveUpdateByIdOptions<TModel>(service: Service<TModel>, options: UpdateByIdOptions = {}) {
-  return {
+  const includePermissions =
+    options.includePermissions ?? service.defaults.updateByIdOptions?.includePermissions ?? true;
+  return applyPermissionsPosture(service, {
     skim: options.skim ?? service.defaults.updateByIdOptions?.skim ?? false,
-    includePermissions: options.includePermissions ?? service.defaults.updateByIdOptions?.includePermissions ?? true,
+    includePermissions,
+    includeFieldPermissions:
+      options.includeFieldPermissions ??
+      service.defaults.updateByIdOptions?.includeFieldPermissions ??
+      includePermissions,
     populateAccess: options.populateAccess ?? service.defaults.updateByIdOptions?.populateAccess ?? 'read',
-  };
+  });
 }
 
 export function resolveUpsertArgs<TModel>(service: Service<TModel>, args: UpsertArgs<TModel> = {}) {
@@ -132,11 +177,14 @@ export function resolveUpsertArgs<TModel>(service: Service<TModel>, args: Upsert
 }
 
 export function resolveUpsertOptions<TModel>(service: Service<TModel>, options: UpsertOptions = {}) {
-  return {
+  const includePermissions = options.includePermissions ?? service.defaults.upsertOptions?.includePermissions ?? true;
+  return applyPermissionsPosture(service, {
     skim: options.skim ?? service.defaults.upsertOptions?.skim ?? false,
-    includePermissions: options.includePermissions ?? service.defaults.upsertOptions?.includePermissions ?? true,
+    includePermissions,
+    includeFieldPermissions:
+      options.includeFieldPermissions ?? service.defaults.upsertOptions?.includeFieldPermissions ?? includePermissions,
     populateAccess: options.populateAccess ?? service.defaults.upsertOptions?.populateAccess ?? 'read',
-  };
+  });
 }
 
 export function resolveExistsOptions<TModel>(service: Service<TModel>, options: ExistsOptions = {}) {

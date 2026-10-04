@@ -73,6 +73,14 @@ Default route segments are `__query` and `__mutation`.
 - `GET /base/distinct/:field` for distinct values
 - `POST /base/distinct/:field` for filtered distinct values
 
+Basic model list GETs accept `select` and `sort` query params, for example
+`GET /base?select=name&sort=name%20-createdAt`. `sort` is a single
+space-separated list of fields, prefixed with `-` for descending; order sets
+multi-field priority. Sort authorization and `sortableFields`/
+`stripDisallowedSort` apply exactly as on advanced lists. Omitted sort keeps
+backend defaults; `?sort=` disables them. Basic GET-by-id reads also accept
+`select`.
+
 Sub-document routes are generated for every referenced subpath discovered on the model schema.
 
 For each subdocument path `sub`, these routes are added:

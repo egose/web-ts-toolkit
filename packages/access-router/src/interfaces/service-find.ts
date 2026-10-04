@@ -20,6 +20,15 @@ export interface FindArgs<T = unknown> {
 export interface FindOptions {
   skim?: boolean;
   includePermissions?: boolean;
+  /**
+   * Include field-level `_view`/`_edit` maps. Defaults to `includePermissions`
+   * when omitted. `includePermissions: true` + `includeFieldPermissions: false`
+   * keeps `docPermissions`-hook keys but omits `_view`/`_edit` entirely.
+   * Enabling field maps also computes doc permissions as grant input (even
+   * under skim or when `includePermissions` is false), so the maps match the
+   * `includePermissions: true` output.
+   */
+  includeFieldPermissions?: boolean;
   includeCount?: boolean;
   populateAccess?: PopulateAccess;
   lean?: boolean;
@@ -44,6 +53,15 @@ export interface FindOneOptions {
   skim?: boolean;
   lean?: boolean;
   includePermissions?: boolean;
+  /**
+   * Include field-level `_view`/`_edit` maps. Defaults to `includePermissions`
+   * when omitted. `includePermissions: true` + `includeFieldPermissions: false`
+   * keeps `docPermissions`-hook keys but omits `_view`/`_edit` entirely.
+   * Enabling field maps also computes doc permissions as grant input (even
+   * under skim or when `includePermissions` is false), so the maps match the
+   * `includePermissions: true` output.
+   */
+  includeFieldPermissions?: boolean;
 }
 
 export interface FindByIdArgs<T = unknown> {

@@ -123,12 +123,12 @@ const classifyPermissionSchema = (
 
       if (isBoolean(value)) {
         globalPermissionKeys[accessKey].push(schemaKey);
-        return;
+        continue;
       }
 
       if (hasModelPermission(value, modelPermissionPrefix)) {
         modelPermissionKeys[accessKey].push(schemaKey);
-        return;
+        continue;
       }
 
       globalPermissionKeys[accessKey].push(schemaKey);

@@ -12,6 +12,15 @@ export interface PublicReadOptions {
   populateAccess?: PopulateAccess;
   lean?: boolean;
   includePermissions?: boolean;
+  /**
+   * Include field-level `_view`/`_edit` maps. Defaults to `includePermissions`
+   * when omitted. `includePermissions: true` + `includeFieldPermissions: false`
+   * keeps `docPermissions`-hook keys but omits `_view`/`_edit` entirely.
+   * Enabling field maps also computes doc permissions as grant input (even
+   * under skim or when `includePermissions` is false), so the maps match the
+   * `includePermissions: true` output.
+   */
+  includeFieldPermissions?: boolean;
   /** Retry an authorized read miss with list access (default true); requires list operation access. Forbidden/BadRequest never retry. */
   tryList?: boolean;
 }

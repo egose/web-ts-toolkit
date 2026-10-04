@@ -525,6 +525,7 @@ export class Base<TModel = unknown> {
         access: 'read',
         lean: true,
         includePermissions: false,
+        includeFieldPermissions: false,
       };
       const result = await svc.findOne(filter, this.sanitizeIncludeArgs(args) as never, trustedOptions as never);
 
@@ -558,6 +559,7 @@ export class Base<TModel = unknown> {
       ...(options as Record<string, unknown>),
       lean: true,
       includePermissions: false,
+      includeFieldPermissions: false,
       includeCount: false,
     };
     const trustedResult = await svc.find(filter, trustedArgs as never, trustedOptions as never);
@@ -730,7 +732,7 @@ export class Base<TModel = unknown> {
               include: nestedInclude as never,
               overrides: { filter: authorized as never },
             },
-            { access: 'read', lean: true, includePermissions: false } as never,
+            { access: 'read', lean: true, includePermissions: false, includeFieldPermissions: false } as never,
           );
         } catch (error) {
           const clientResult = this.getClientRequestErrorResult(error);
@@ -809,7 +811,7 @@ export class Base<TModel = unknown> {
             include: nestedInclude as never,
             overrides: { filter: authorized as never },
           },
-          { access: 'read', lean: true, includePermissions: false } as never,
+          { access: 'read', lean: true, includePermissions: false, includeFieldPermissions: false } as never,
         );
       } catch (error) {
         const clientResult = this.getClientRequestErrorResult(error);
@@ -901,7 +903,7 @@ export class Base<TModel = unknown> {
             include: nestedInclude as never,
             overrides: { filter: authorized as never },
           },
-          { includeCount: false, lean: true, includePermissions: false } as never,
+          { includeCount: false, lean: true, includePermissions: false, includeFieldPermissions: false } as never,
         );
       } catch (error) {
         const clientResult = this.getClientRequestErrorResult(error);

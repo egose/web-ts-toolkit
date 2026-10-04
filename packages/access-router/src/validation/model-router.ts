@@ -12,6 +12,7 @@ import {
   queryBooleanString,
   rejectKeys,
   sortSchema,
+  stringOrStringArray,
   subPopulateSchema,
   tasksSchema,
 } from './common';
@@ -24,21 +25,27 @@ export const listQuerySchema = z
     page_size: positiveIntegerString.optional(),
     skim: queryBooleanString.optional(),
     include_permissions: queryBooleanString.optional(),
+    include_field_permissions: queryBooleanString.optional(),
     include_count: queryBooleanString.optional(),
     include_extra_headers: queryBooleanString.optional(),
+    select: stringOrStringArray.optional(),
+    sort: z.string().optional().describe('Space-separated sort fields; prefix a field with - for descending order.'),
   })
   .passthrough();
 
 export const createQuerySchema = z
   .object({
     include_permissions: queryBooleanString.optional(),
+    include_field_permissions: queryBooleanString.optional(),
   })
   .passthrough();
 
 export const readQuerySchema = z
   .object({
     include_permissions: queryBooleanString.optional(),
+    include_field_permissions: queryBooleanString.optional(),
     try_list: queryBooleanString.optional(),
+    select: stringOrStringArray.optional(),
   })
   .passthrough();
 
@@ -46,6 +53,8 @@ export const updateQuerySchema = z
   .object({
     returning_all: queryBooleanString.optional(),
     include_permissions: queryBooleanString.optional(),
+    include_field_permissions: queryBooleanString.optional(),
+    select: stringOrStringArray.optional(),
   })
   .passthrough();
 
@@ -53,6 +62,7 @@ export const upsertQuerySchema = z
   .object({
     returning_all: queryBooleanString.optional(),
     include_permissions: queryBooleanString.optional(),
+    include_field_permissions: queryBooleanString.optional(),
   })
   .passthrough();
 
@@ -72,6 +82,7 @@ export const listBodySchema = z
       .object({
         skim: z.boolean().optional(),
         includePermissions: z.boolean().optional(),
+        includeFieldPermissions: z.boolean().optional(),
         includeCount: z.boolean().optional(),
         includeExtraHeaders: z.boolean().optional(),
         populateAccess: z.unknown().optional(),
@@ -101,6 +112,7 @@ export const readFilterBodySchema = z
       .object({
         skim: z.boolean().optional(),
         includePermissions: z.boolean().optional(),
+        includeFieldPermissions: z.boolean().optional(),
         tryList: z.boolean().optional(),
         populateAccess: z.unknown().optional(),
       })
@@ -119,6 +131,7 @@ export const readByIdBodySchema = z
       .object({
         skim: z.boolean().optional(),
         includePermissions: z.boolean().optional(),
+        includeFieldPermissions: z.boolean().optional(),
         tryList: z.boolean().optional(),
         populateAccess: z.unknown().optional(),
       })
@@ -136,6 +149,7 @@ export const advancedCreateBodySchema = z
     options: z
       .object({
         includePermissions: z.boolean().optional(),
+        includeFieldPermissions: z.boolean().optional(),
         populateAccess: z.unknown().optional(),
       })
       .passthrough()
@@ -159,6 +173,7 @@ export const advancedUpdateBodySchema = z
       .object({
         returningAll: z.boolean().optional(),
         includePermissions: z.boolean().optional(),
+        includeFieldPermissions: z.boolean().optional(),
         populateAccess: z.unknown().optional(),
       })
       .passthrough()
@@ -178,6 +193,7 @@ export const advancedUpsertBodySchema = z
       .object({
         returningAll: z.boolean().optional(),
         includePermissions: z.boolean().optional(),
+        includeFieldPermissions: z.boolean().optional(),
         populateAccess: z.unknown().optional(),
       })
       .passthrough()
