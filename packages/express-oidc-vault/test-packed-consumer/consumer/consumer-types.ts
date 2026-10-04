@@ -368,9 +368,9 @@ const missingReplayStore: OidcVaultApiDeviceBindingOptions = {
   publicOrigin: 'https://api.example.com',
   replayNamespace: 'api',
 };
-// @ts-expect-error Request input permits only the normalized Bearer/DPoP scheme.
 const invalidScheme: OidcVaultAccessTokenRequestInput = {
   token: 'token',
+  // @ts-expect-error Request input permits only the normalized Bearer/DPoP scheme.
   scheme: 'bearer',
   req: {} as express.Request,
 };
@@ -424,9 +424,9 @@ const domainTransactionCookie: OidcVaultTransactionCookieOptions = { domain: 'ex
 const readableTransactionCookie: OidcVaultTransactionCookieOptions = { httpOnly: false };
 // @ts-expect-error An unproved body thumbprint cannot select the login key.
 const bodyKeyLogin: OidcVaultLoginInitiationInput = { jkt: binding.jkt };
-// @ts-expect-error POST login returns only authorizationUrl, not redirect/session credentials.
 const leakedLogin: OidcVaultLoginInitiationResult = {
   authorizationUrl: 'https://issuer.example.com/auth',
+  // @ts-expect-error POST login returns only authorizationUrl, not redirect/session credentials.
   sessionId: 'secret',
 };
 void [
