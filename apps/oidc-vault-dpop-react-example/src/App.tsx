@@ -57,16 +57,14 @@ export default function App(): JSX.Element {
 
   return (
     <main>
-            <h1>OIDC vault · DPoP · React</h1>
-            <p>Persistent non-extractable browser key, memory-only JWT, real OIDC navigation.</p>
+      <h1>OIDC vault · DPoP · React</h1>
+      <p>Persistent non-extractable browser key, memory-only JWT, real OIDC navigation.</p>
 
       <p>
-                Backend: {backendOrigin} · {phase} · {message}
-
+        Backend: {backendOrigin} · {phase} · {message}
       </p>
 
       <nav>
-
         <button
           type="button"
           disabled={busy}
@@ -76,7 +74,7 @@ export default function App(): JSX.Element {
             })
           }
         >
-                    Sign in via OIDC provider
+          Sign in via OIDC provider
         </button>
 
         <button
@@ -92,7 +90,7 @@ export default function App(): JSX.Element {
             })
           }
         >
-                    GET protected profile
+          GET protected profile
         </button>
 
         <button
@@ -106,7 +104,7 @@ export default function App(): JSX.Element {
             })
           }
         >
-                    Refresh (also after JWT expiry)
+          Refresh (also after JWT expiry)
         </button>
 
         <button
@@ -121,12 +119,10 @@ export default function App(): JSX.Element {
             })
           }
         >
-                    Log out
+          Log out
         </button>
-
       </nav>
-            <pre>{result}</pre>
-
+      <pre>{result}</pre>
     </main>
   );
 }
