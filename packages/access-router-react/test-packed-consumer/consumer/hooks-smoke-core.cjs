@@ -143,7 +143,8 @@ async function runHookSmoke(options) {
     assert.strictEqual(typeof renderHook, 'function', 'testing-library renderHook is available');
 
     const successService = {
-      read(id, _options, requestConfig) {
+      read(id, ...rest) {
+        const requestConfig = rest[rest.length - 1];
         const data = { _id: id, name: 'Milo', status: 'active' };
         return createLazyRequest(async () => {
           assert.ok(requestConfig && requestConfig.signal instanceof AbortSignal, 'query forwards an AbortSignal');
@@ -204,7 +205,8 @@ async function runHookSmoke(options) {
 
     const cancellationHooks = createModelHooks({
       modelService: {
-        read(_id, _options, requestConfig) {
+        read(_id, ...rest) {
+          const requestConfig = rest[rest.length - 1];
           forwardedSignal = requestConfig && requestConfig.signal;
           return createLazyRequest(
             () =>

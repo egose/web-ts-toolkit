@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {},
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    "strict": true,
+    "ignoreDeprecations": "6.0",
+    "skipLibCheck": false,
+    "noEmit": true,
+    "esModuleInterop": true
+  },
+  "include": [
+    "src/signer.ts",
+    "src/shared/**/*.ts",
+    "src/request-signer.ts",
+    "src/signer-client.ts",
+    "src/client-errors.ts",
+    "src/request-body.ts",
+    "src/attested-fetch.ts"
+  ]
+}

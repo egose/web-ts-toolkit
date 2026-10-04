@@ -960,7 +960,9 @@ export function createModelHooks<
           assertSuccess(raw);
           return raw;
         }
-        const raw = (await modelService.read(targetId, basicOptions, forwardedConfig).exec()) as unknown as ResM;
+        const raw = (await modelService
+          .read(targetId, { select }, basicOptions, forwardedConfig)
+          .exec()) as unknown as ResM;
         assertSuccess(raw);
         return raw;
       },
@@ -1185,7 +1187,9 @@ export function createModelHooks<
           assertSuccess(raw);
           return raw;
         }
-        const raw = (await modelService.list(effectiveArgs, basicOptions, forwardedConfig).exec()) as unknown as ResL;
+        const raw = (await modelService
+          .list({ sort, select, ...effectiveArgs }, basicOptions, forwardedConfig)
+          .exec()) as unknown as ResL;
         assertSuccess(raw);
         return raw;
       },
@@ -1415,7 +1419,7 @@ export function createModelHooks<
             .exec()) as unknown as ResM;
         } else {
           res = (await modelService
-            .update(updateId, updateData, basicOptions, requestConfig)
+            .update(updateId, updateData, { select }, basicOptions, requestConfig)
             .exec()) as unknown as ResM;
         }
         assertSuccess(res);

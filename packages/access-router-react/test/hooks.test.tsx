@@ -169,7 +169,16 @@ describe('createModelHooks', () => {
       const { useRead } = createModelHooks({ modelService: service });
       renderHook(() => useRead({ id: '1' }));
       await waitFor(() => {
-        expect(service.read).toHaveBeenCalledWith('1', undefined, expect.any(Object));
+        expect(service.read).toHaveBeenCalledWith('1', { select: undefined }, undefined, expect.any(Object));
+      });
+    });
+
+    it('forwards top-level select on the basic path', async () => {
+      const { service } = createMockService();
+      const { useRead } = createModelHooks({ modelService: service });
+      renderHook(() => useRead({ id: '1', select: ['name'] }));
+      await waitFor(() => {
+        expect(service.read).toHaveBeenCalledWith('1', { select: ['name'] }, undefined, expect.any(Object));
       });
     });
 

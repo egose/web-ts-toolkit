@@ -73,9 +73,11 @@ function OrganizationList() {
 
   return (
     <ul>
+
       {data.map((org) => (
         <li key={org._id}>{org.name}</li>
       ))}
+
     </ul>
   );
 }
@@ -272,7 +274,7 @@ function Save() {
 
   return (
     <button disabled={isPending} onClick={() => void saveTwice().catch(() => undefined)}>
-      Save twice
+                  Save twice
     </button>
   );
 }
@@ -296,7 +298,7 @@ if (data) {
 }
 ```
 
-A literal `select` narrows `data`, `onSuccess(result)`/`onSettled(result, …)` callbacks, manual `query()`/`refetch()` response payloads, and mutation `mutate()` return promises uniformly. Acceptable `select` forms: a literal tuple (`['name', 'status'] as const`, recommended), a literal string (`'name'`), or a `{ name: 1; age: -1 }` object. Omitted properties become `T[key] | undefined` rather than definitely-present. A literal `select` requires `advanced: true` to actually reach the server's narrowing code path; the basic `read`/`list`/`create`/etc. APIs do not forward `select`.
+A literal `select` narrows `data`, `onSuccess(result)`/`onSettled(result, …)` callbacks, manual `query()`/`refetch()` response payloads, and mutation `mutate()` return promises uniformly. Acceptable `select` forms: a literal tuple (`['name', 'status'] as const`, recommended), a literal string (`'name'`), or a `{ name: 1; age: -1 }` object. Omitted properties become `T[key] | undefined` rather than definitely-present. On the `read`/`list`/`update` hooks the projection reaches the server on both paths — as a `?select=` query value on the basic path and as body `select` with `advanced: true`. The basic `create`/`upsert` APIs accept no `select` argument, so a literal `select` on those two hooks still requires `advanced: true` to actually reach the server's narrowing code path.
 
 Only an omitted `select` keeps the full required model. A supplied-but-indeterminable `select` (a broad `string`/`string[]` variable or an exclusion-only object such as `{ status: -1 }`) marks every field optional, and a union `select` (e.g. `readonly ['name'] | readonly ['status']`) keeps each alternative's own required/optional contract instead of merging keys — required access to an omitted or uncertain field fails to compile.
 

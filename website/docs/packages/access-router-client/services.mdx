@@ -20,11 +20,11 @@ Model reads usually return `data` as `Model<T>` wrappers. That means read result
 
 ### Standard model methods
 
-- `list(args?, options?, axiosRequestConfig?)`
-- `read(id, options?, axiosRequestConfig?)`
+- `list(args?, options?, axiosRequestConfig?)` or `list(options?, axiosRequestConfig?)`
+- `read(id, args?, options?, axiosRequestConfig?)` or `read(id, options?, axiosRequestConfig?)`
 - `new(axiosRequestConfig?)`
 - `create(data, options?, axiosRequestConfig?)`
-- `update(id, data, options?, axiosRequestConfig?)`
+- `update(id, data, args?, options?, axiosRequestConfig?)` or `update(id, data, options?, axiosRequestConfig?)`
 - `upsert(data, options?, axiosRequestConfig?)`
 - `delete(id, axiosRequestConfig?)`
 - `distinct(field, axiosRequestConfig?)`
@@ -38,6 +38,26 @@ boolean values arrive as-is. Narrow elements (for example with
 `typeof v === 'string'`) before calling string methods.
 
 These methods map closely to the server-side model router operations.
+
+Basic model `list`/`read`/`update` accept `select` in their args and send it as a GET
+query parameter (`update` sends it as a PATCH `?select=` value). List args also support sorting and pagination. Skip args with
+`list({ includeCount: true }, config)`, `read(id, { tryList: false }, config)`, or
+`update(id, data, { returningAll: false }, config)`;
+stored `listArgs` / `readArgs` / `updateArgs` defaults still apply. Keep args and options in
+separate objects: mixed keys throw `TypeError`. Empty ambiguous objects retain
+the original form (list args-first, read/update options-first); supplying the final
+config slot selects the full form, including `read(id, {}, {}, config)` and
+`update(id, data, {}, {}, config)`.
+Both forms return typed lazy requests with grouping and `$include()` support.
+Basic projections retain the existing `T`/explicit `TData` response types.
+
+Basic list `sort` accepts signed-field strings (`'name -createdAt'`), field/order
+objects (`{ name: 1, createdAt: -1 }`), and ordered tuples
+(`[['name', 'asc'], ['createdAt', 'desc']]`). The client sends one space-separated
+GET `sort` query value; grouped queries and correlated includes keep the original
+sort form. `listArgs.sort` defaults apply when omitted, and empty sorts send
+`sort=` to disable backend default sorting. GET sorting uses the same server
+field authorization, `sortableFields`, and `stripDisallowedSort` as advanced lists.
 
 `create(...)` and `createAdvanced(...)` preserve input cardinality: one object
 returns `ModelResponse<T>`, while an array returns `ArrayModelResponse<T>`.
@@ -87,7 +107,7 @@ The exact shape depends on the specific method, but the names mirror the `access
 Rules of thumb:
 
 - use non-advanced methods for straightforward CRUD by id
-- use advanced methods when you need projection, populate, includes, server tasks, or filter-based reads
+- use advanced methods when you need populate, includes, server tasks, or filter-based reads
 - use `includeCount` only when you actually need total counts, since it may add work on the server side
 - use `includeExtraHeaders` when the server exposes count metadata through headers rather than body metadata
 - `ignoreCache` always lives on the **options** argument (never on args); use `{ ignoreCache: true }` to bypass an existing cache entry
