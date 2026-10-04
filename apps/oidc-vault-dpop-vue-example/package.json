@@ -1,0 +1,29 @@
+{
+  "name": "oidc-vault-dpop-vue-example",
+  "private": true,
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:server": "FRONTEND_ORIGIN=http://127.0.0.1:4321 BACKEND_ORIGIN=http://127.0.0.1:4340 PORT=4340 IDP_PORT=4341 pnpm --filter oidc-vault-dpop-example dev:server",
+    "build": "pnpm typecheck && vite build",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
+    "lint": "eslint .",
+    "preview": "vite preview --host 127.0.0.1 --port 4321 --strictPort"
+  },
+  "dependencies": {
+    "@web-ts-toolkit/oidc-vault-dpop-client": "workspace:*",
+    "vue": "^3.5.43"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.5",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.14",
+    "vue-tsc": "^3.3.12"
+  }
+}

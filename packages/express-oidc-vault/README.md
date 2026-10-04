@@ -517,11 +517,15 @@ async function initiateRecognizedLogin(getSignal: () => Promise<string | undefin
 
 Obtain the same current signal through the source at `/exchange` (body `{ code }`) and `/refresh` (body `{ sessionId }` or cookie `{}`). Login/exchange always use `credentials: 'include'` for the temporary cookie; cookie refresh does too. On a recognition 403, start fresh login rather than a refresh retry loop. CORS must allow the configured fingerprint header and `Content-Type`, explicit trusted origins and credentials; also allow `Authorization`/`DPoP` and expose `DPoP-Nonce`/`WWW-Authenticate` when using DPoP. Cross-site SPAs may need explicit HTTPS `transactionCookie: { sameSite: 'none' }`; browser third-party-cookie policy still applies.
 
-The copyable private example utility is `apps/oidc-vault-dpop-example/src/auth/device-fingerprint.ts` (not a backend package export). It provides `createDeviceFingerprint(source, { headerName? })` plus a structural optional-vendor adapter:
+The published browser client [`@web-ts-toolkit/oidc-vault-dpop-client`](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md) ships this generic adapter as `createDeviceFingerprint(source, { headerName? })` plus a structural optional-vendor adapter (not a backend package export):
 
 ```ts
-// In the private example frontend, after choosing to collect recognition:
-import { createDeviceFingerprint, fingerprintJsSignalSource, type FingerprintJsAgent } from './auth/device-fingerprint';
+// In your frontend, after choosing to collect recognition:
+import {
+  createDeviceFingerprint,
+  fingerprintJsSignalSource,
+  type FingerprintJsAgent,
+} from '@web-ts-toolkit/oidc-vault-dpop-client';
 
 function recognitionWithOptionalFingerprintJs(load: () => Promise<FingerprintJsAgent>) {
   return createDeviceFingerprint(fingerprintJsSignalSource(load));
@@ -861,19 +865,21 @@ Wire it to a sign-in button (`signIn()`), callback/app startup (`bootstrap()`), 
 
 ### Persistent-key DPoP SPA example
 
-For a bound flow, copy `src/auth/` from [`apps/oidc-vault-dpop-example`](https://github.com/egose/web-ts-toolkit/blob/main/apps/oidc-vault-dpop-example/README.md) into your frontend and install `jose` + `idb`. These are **private example exports**, separate from the Express package. The complete app's server uses required DPoP, a local issuer, and API request-aware validation; its default mounts are `/auth/oidc/body` and `/auth/oidc/cookie`. Your own core mount can use the default `/auth/oidc`.
+For a bound flow, install the published browser client
+[`@web-ts-toolkit/oidc-vault-dpop-client`](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md)
+in your frontend (it brings `jose` + `idb` as runtime dependencies) and use its
+named root exports. These are **versioned package exports**, separate from the
+Express package. The complete example app's server uses required DPoP, a local
+issuer, and API request-aware validation; its default mounts are
+`/auth/oidc/body` and `/auth/oidc/cookie`. Your own core mount can use the
+default `/auth/oidc`.
 
 ```sh
-# Repository root, two terminals:
-pnpm --filter oidc-vault-dpop-example dev:server
-pnpm --filter oidc-vault-dpop-example dev
-# Open http://127.0.0.1:4317/?transport=body (or cookie).
+pnpm add @web-ts-toolkit/oidc-vault-dpop-client
 ```
 
-After copying the helper directory, this frontend code matches the example's actual endpoints:
-
 ```ts
-import { createOidcVaultDpopSession, fetchWithDpop } from './auth';
+import { createOidcVaultDpopSession, fetchWithDpop } from '@web-ts-toolkit/oidc-vault-dpop-client';
 
 const backendOrigin = 'http://127.0.0.1:4318';
 const session = createOidcVaultDpopSession({ backendOrigin, basePath: '/auth/oidc/body', sessionTransport: 'body' }); // Cookie: basePath '/auth/oidc/cookie', sessionTransport 'cookie'.
@@ -902,6 +908,8 @@ export async function getBoundProfile(): Promise<unknown> {
 }
 export const signOut = (): Promise<void> => session.logout();
 ```
+
+To run this flow live against the example vault/API server and local IdP (repository root, two terminals: `pnpm --filter oidc-vault-dpop-example dev:server`, then `pnpm --filter oidc-vault-dpop-example dev`), open http://127.0.0.1:4317/?transport=body (or `cookie`).
 
 `login()` atomically creates a non-extractable ES256/P-256 private CryptoKey in IndexedDB **before** POST initiation/navigation; callback, exchange, refresh and API use that same origin/backend/basePath-scoped key. Key loss requires fresh login. Tokens stay in memory; body handles use sessionStorage, cookie handles stay backend-only. Login/exchange always include credentials for the temporary cookie. Cookie-mode refresh uses a per-context promise plus Web Locks/BroadcastChannel winner-token delivery, with current-recognition matching and fresh independent API proofs. All flows require a secure context, Web Crypto, sessionStorage and IndexedDB CryptoKey structured clone; **cookie mode additionally requires Web Locks/BroadcastChannel**. Unsupported capabilities fail explicitly, with no ephemeral-key/Bearer fallback.
 

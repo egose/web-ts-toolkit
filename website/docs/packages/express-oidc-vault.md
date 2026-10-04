@@ -355,10 +355,14 @@ const vault = createOidcVaultMiddleware({
 
 Collect in the frontend and inject a current signal source. Send its header on each POST login/exchange/refresh; an intentional `undefined` means unenrolled, while collection failures should stop the operation rather than silently omit an enrolled check. Login/exchange always use `credentials: 'include'` for the temporary cookie; cookie refresh does too. Bodies are `{ returnTo?: string }`, `{ code }`, and body `{ sessionId }` or cookie `{}` respectively. Navigate to login's validated `200 { authorizationUrl }`; the callback is headerless. Obtain the current signal each operation instead of persisting a login-time identifier that would hide changes. Recognition 403 requires fresh login, not a retry loop.
 
-The standalone private example utility is `apps/oidc-vault-dpop-example/src/auth/device-fingerprint.ts`, not a backend export:
+The published browser client [@web-ts-toolkit/oidc-vault-dpop-client](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md) ships this generic adapter, not a backend export:
 
 ```ts
-import { createDeviceFingerprint, fingerprintJsSignalSource, type FingerprintJsAgent } from './auth/device-fingerprint';
+import {
+  createDeviceFingerprint,
+  fingerprintJsSignalSource,
+  type FingerprintJsAgent,
+} from '@web-ts-toolkit/oidc-vault-dpop-client';
 
 function recognitionWithOptionalFingerprintJs(load: () => Promise<FingerprintJsAgent>) {
   return createDeviceFingerprint(fingerprintJsSignalSource(load));
@@ -401,10 +405,10 @@ Omitting `sessionTtlMs` assigns no default session expiry and retains applicatio
 
 ### Persistent-key DPoP SPA example
 
-The shipped README contains a [standalone body-transport client](https://github.com/egose/web-ts-toolkit/blob/main/packages/express-oidc-vault/README.md#standalone-body-transport-dpop-client), including key persistence, proof signing, POST login/exchange/API/refresh/logout and nonce retry, with no repo-only imports. For cookie coordination and a fuller scoped fetch helper, install jose + idb in your frontend and copy src/auth/ from the [private example](https://github.com/egose/web-ts-toolkit/blob/main/apps/oidc-vault-dpop-example/README.md). Its four intended local APIs are getOrCreateDpopKey, createDpopProof, createOidcVaultDpopSession and fetchWithDpop; they are not Express package exports.
+The shipped README contains a [standalone body-transport client](https://github.com/egose/web-ts-toolkit/blob/main/packages/express-oidc-vault/README.md#standalone-body-transport-dpop-client), including key persistence, proof signing, POST login/exchange/API/refresh/logout and nonce retry, with no repo-only imports. For cookie coordination and a fuller scoped fetch helper, install the published browser client [@web-ts-toolkit/oidc-vault-dpop-client](https://github.com/egose/web-ts-toolkit/blob/main/packages/oidc-vault-dpop-client/README.md) in your frontend. Its four intended APIs are getOrCreateDpopKey, createDpopProof, createOidcVaultDpopSession and fetchWithDpop; they are not Express package exports.
 
 ```ts
-import { createOidcVaultDpopSession, fetchWithDpop } from './auth';
+import { createOidcVaultDpopSession, fetchWithDpop } from '@web-ts-toolkit/oidc-vault-dpop-client';
 
 const backendOrigin = 'http://127.0.0.1:4318';
 const session = createOidcVaultDpopSession({ backendOrigin, basePath: '/auth/oidc/body', sessionTransport: 'body' }); // Cookie: basePath '/auth/oidc/cookie', sessionTransport 'cookie'.

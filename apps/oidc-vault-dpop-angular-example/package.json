@@ -1,0 +1,36 @@
+{
+  "name": "oidc-vault-dpop-angular-example",
+  "private": true,
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:server": "FRONTEND_ORIGIN=http://127.0.0.1:4322 BACKEND_ORIGIN=http://127.0.0.1:4350 PORT=4350 IDP_PORT=4351 pnpm --filter oidc-vault-dpop-example dev:server",
+    "build": "pnpm typecheck && vite build",
+    "typecheck": "ngc -p tsconfig.app.json --noEmit && tsc --noEmit -p tsconfig.node.json",
+    "lint": "eslint .",
+    "preview": "vite preview --host 127.0.0.1 --port 4322 --strictPort"
+  },
+  "dependencies": {
+    "@angular/common": "^22.2.1",
+    "@angular/compiler": "^22.2.1",
+    "@angular/core": "^22.2.1",
+    "@angular/platform-browser": "^22.2.1",
+    "@web-ts-toolkit/oidc-vault-dpop-client": "workspace:*",
+    "rxjs": "^7.8.0",
+    "tslib": "^2.8.1",
+    "zone.js": "^0.16.3"
+  },
+  "devDependencies": {
+    "@analogjs/vite-plugin-angular": "^2.8.0",
+    "@angular/build": "^22.0.0",
+    "@angular/compiler-cli": "^22.2.1",
+    "@types/node": "^25.9.5",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.14"
+  }
+}
