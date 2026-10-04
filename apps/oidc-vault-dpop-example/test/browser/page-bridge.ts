@@ -1,11 +1,26 @@
 // Test-only Vite module executed inside the actual page. It is not imported by
 // src/main.ts or included in the built production app.
-import { createOidcVaultDpopSession, type OidcVaultDpopSession } from '../../src/auth/auth-session';
-import { fetchWithDpop, type DpopFetchOptions } from '../../src/auth/auth-fetch';
-import { createDeviceFingerprint } from '../../src/auth/device-fingerprint';
-import { getOrCreateDpopKey } from '../../src/auth/dpop-key-store';
-import { withDpopDatabase } from '../../src/auth/key-database';
-import { assertDpopBrowserFeatures, resolveDpopScope } from '../../src/auth/scope';
+//
+// CLIENT-08 migration: the application now consumes the published package
+// (`@web-ts-toolkit/oidc-vault-dpop-client` dist) instead of the deleted
+// `src/auth/` copy. Public session/fetch/fingerprint/key helpers come from the
+// package root. Two non-public package internals that this bridge used —
+// `resolveDpopScope` (scope-id computation for key surgery) and
+// `withDpopDatabase` (raw IndexedDB access for remove/replaceKey) — are
+// intentionally NOT imported: the package publishes no deep entrypoints, and
+// no test-only subpath was invented for v1. This bridge keeps minimal local
+// test-only copies below. Any drift between the copies and the package fails
+// loudly in the real-browser suite (wrong scope id => key surgery misses;
+// wrong store shape => IndexedDB errors), so the duplication is self-checking.
+import {
+  createDeviceFingerprint,
+  createOidcVaultDpopSession,
+  fetchWithDpop,
+  getOrCreateDpopKey,
+  type DpopFetchOptions,
+  type OidcVaultDpopSession,
+} from '@web-ts-toolkit/oidc-vault-dpop-client';
+import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import { calculateJwkThumbprint } from 'jose';
 
 const sessions = new Map<string, OidcVaultDpopSession>();
@@ -16,6 +31,55 @@ interface Scope {
 }
 let keyGenerationReady = false;
 let releaseGeneration: (() => void) | undefined;
+
+// Test-only mirror of the package's internal scope-id computation, valid for
+// the exact origin + slash-free basePath inputs this bridge passes (e.g.
+// backendOrigin already an origin, basePath '/auth/oidc/body'). It must stay
+// in sync with the package's `[frontendOrigin, backendOrigin, basePath]`
+// scope or removeKey/replaceKey target the wrong record and tests fail.
+const testScopeId = (frontendOrigin: string, backendOrigin: string, basePath: string): string => {
+  const normalized = basePath.replace(/\/+$/g, '') || '/';
+  return JSON.stringify([
+    'oidc-vault-dpop-v1',
+    new URL(frontendOrigin).origin,
+    new URL(backendOrigin).origin,
+    normalized,
+  ]);
+};
+
+interface TestStoredKey {
+  version: 1;
+  scopeId: string;
+  privateKey: CryptoKey;
+  publicJwk: { kty: 'EC'; crv: 'P-256'; x: string; y: string };
+  jkt: string;
+}
+interface TestCookieVersion {
+  jkt: string;
+  generation: string;
+  active: boolean;
+}
+interface TestDatabase extends DBSchema {
+  keys: { key: string; value: TestStoredKey };
+  cookieSessions: { key: string; value: TestCookieVersion };
+}
+
+// Test-only mirror of the package's internal IndexedDB helper: same database
+// name, version, and object stores as the client (see also `dropDatabase`
+// below, which already hardcoded this name before the migration).
+const withTestDatabase = async <T>(operation: (db: IDBPDatabase<TestDatabase>) => Promise<T>): Promise<T> => {
+  const db = await openDB<TestDatabase>('oidc-vault-dpop-example-v1', 1, {
+    upgrade(database) {
+      database.createObjectStore('keys');
+      database.createObjectStore('cookieSessions');
+    },
+  });
+  try {
+    return await operation(db);
+  } finally {
+    db.close();
+  }
+};
 
 export const gateKeyCreation = async (_input: object) => {
   void _input;
@@ -64,19 +128,19 @@ export const inspectKey = async (scope: Scope & { create: boolean }) => {
 };
 
 export const removeKey = async (scope: Scope) => {
-  const { id } = resolveDpopScope({ frontendOrigin: location.origin, ...scope });
-  await withDpopDatabase(async (db) => {
+  const id = testScopeId(location.origin, scope.backendOrigin, scope.basePath);
+  await withTestDatabase(async (db) => {
     await db.delete('keys', id);
   });
 };
 
 export const replaceKey = async (scope: Scope) => {
-  const { id } = resolveDpopScope({ frontendOrigin: location.origin, ...scope });
+  const id = testScopeId(location.origin, scope.backendOrigin, scope.basePath);
   const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign', 'verify']);
   const exported = await crypto.subtle.exportKey('jwk', pair.publicKey);
   const publicJwk = { kty: 'EC' as const, crv: 'P-256' as const, x: exported.x!, y: exported.y! };
   const jkt = await calculateJwkThumbprint(publicJwk);
-  await withDpopDatabase(async (db) => {
+  await withTestDatabase(async (db) => {
     await db.put('keys', { version: 1, scopeId: id, privateKey: pair.privateKey, publicJwk, jkt }, id);
   });
   return jkt;
@@ -92,8 +156,20 @@ export const dropDatabase = async (_input: object) => {
   });
 };
 
+// Test-only mirror of the package's `assertDpopBrowserFeatures`: body mode
+// needs a secure context, Web Crypto, and IndexedDB; cookie mode additionally
+// needs Web Locks and BroadcastChannel. No fallbacks, same as the package.
 export const featureDetection = async (input: { cookie: boolean }) => {
-  assertDpopBrowserFeatures(input.cookie);
+  if (
+    globalThis.isSecureContext !== true ||
+    !globalThis.crypto?.subtle ||
+    typeof globalThis.crypto.randomUUID !== 'function' ||
+    typeof globalThis.CryptoKey !== 'function' ||
+    !globalThis.indexedDB
+  )
+    throw new Error('A secure context, Web Crypto and IndexedDB are required.');
+  if (input.cookie && (!globalThis.navigator?.locks?.request || typeof globalThis.BroadcastChannel !== 'function'))
+    throw new Error('Cookie sessions require Web Locks and BroadcastChannel.');
   return true;
 };
 

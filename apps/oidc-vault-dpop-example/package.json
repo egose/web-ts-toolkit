@@ -23,6 +23,7 @@
   "dependencies": {
     "@web-ts-toolkit/express-oidc-vault": "workspace:*",
     "@web-ts-toolkit/express-oidc-vault-memory-store": "workspace:*",
+    "@web-ts-toolkit/oidc-vault-dpop-client": "workspace:*",
     "express": "^5.2.1",
     "idb": "^8.0.3",
     "jose": "^6.1.0"

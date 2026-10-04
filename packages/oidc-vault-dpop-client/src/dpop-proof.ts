@@ -1,3 +1,9 @@
+/**
+ * Browser-only DPoP client (CLIENT-02 port of apps/oidc-vault-dpop-example/src/auth/*).
+ * No `node:*` or `express` imports. Browser globals (crypto.subtle, indexedDB,
+ * sessionStorage, navigator.locks, BroadcastChannel) only behind
+ * assertDpopBrowserFeatures / lazy factory calls, never at module top-level.
+ */
 import { base64url, SignJWT } from 'jose';
 
 import type { DpopKey } from './dpop-key-store';
@@ -13,7 +19,19 @@ export interface DpopProofInput {
   now?: () => number;
 }
 
-/** Every invocation signs a new proof, including every nonce/refresh retry. */
+/**
+ * Mint a fresh DPoP proof for exactly one request attempt with the scoped key.
+ *
+ * Every invocation signs a new proof: exact uppercase `htm`, canonical absolute
+ * `htu` without query/fragment (see `normalizeDpopTarget`), current integer
+ * `iat`, fresh 128-bit random `jti`, API-only `ath`, and the optional server
+ * `nonce`. The protected header is `{ typ: 'dpop+jwt', alg: 'ES256', jwk:
+ * <public P-256 JWK> }`. Call again — with a new `jti`/`iat`/signature — for
+ * every nonce or refresh retry; never reuse a proof across attempts.
+ *
+ * Canonical import: `import { createDpopProof } from
+ * '@web-ts-toolkit/oidc-vault-dpop-client'` (named root import).
+ */
 export const createDpopProof = async (key: DpopKey, input: DpopProofInput): Promise<string> => {
   const { method, url, accessToken, nonce, now = Date.now } = input;
   if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(method) || method !== method.toUpperCase()) {

@@ -1,3 +1,9 @@
+/**
+ * Browser-only DPoP client (CLIENT-02 port of apps/oidc-vault-dpop-example/src/auth/*).
+ * No `node:*` or `express` imports. Browser globals (crypto.subtle, indexedDB,
+ * sessionStorage, navigator.locks, BroadcastChannel) only behind
+ * assertDpopBrowserFeatures / lazy factory calls, never at module top-level.
+ */
 import { base64url } from 'jose';
 
 import { createDpopProof } from './dpop-proof';
@@ -54,7 +60,15 @@ interface ChannelMessage {
   token?: unknown;
 }
 
-/** Copyable app helper. It is not an export of the Express package. */
+/**
+ * Create a browser DPoP session for one vault mount (`backendOrigin` + `basePath`).
+ * Canonical import: `import { createOidcVaultDpopSession } from
+ * '@web-ts-toolkit/oidc-vault-dpop-client'` (named root import, no default export).
+ * Lifecycle: `login` → `exchange(code)` → `getAccessToken`/`fetchWithDpop` →
+ * `refresh` → `logout`. Cookie transport additionally needs Web Locks +
+ * `BroadcastChannel` at runtime (see `assertDpopBrowserFeatures`).
+ * Copyable app helper. It is not an export of the Express package.
+ */
 export const createOidcVaultDpopSession = (options: OidcVaultDpopSessionOptions): OidcVaultDpopSession => {
   const {
     backendOrigin,

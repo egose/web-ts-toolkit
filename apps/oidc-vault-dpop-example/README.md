@@ -1,6 +1,6 @@
 # OIDC vault DPoP example
 
-Private workspace **`oidc-vault-dpop-example`**: a Vite/TypeScript SPA, Express vault/API server, and deterministic local OIDC provider. The browser helpers are copyable application code. The backend uses named imports from `@web-ts-toolkit/express-oidc-vault` and its memory store; the browser imports only `jose`, `idb`, and local modules.
+Private workspace **`oidc-vault-dpop-example`**: a Vite/TypeScript SPA, Express vault/API server, and deterministic local OIDC provider. The browser consumes the published client `@web-ts-toolkit/oidc-vault-dpop-client` like any other consumer. The backend uses named imports from `@web-ts-toolkit/express-oidc-vault` and its memory store.
 
 ## Run it
 
@@ -47,12 +47,23 @@ DPOP_TEST_BROWSERS=chromium,firefox pnpm --filter oidc-vault-dpop-example test:b
 
 The Node/Vitest controller drives **actual Playwright pages**, with dynamic loopback ports, a real IdP document, backend redirects, browser cookie jars and cross-origin CORS. Tests inspect real IndexedDB keys, prove private-key export failure and persistence, and race first creation and refresh across tabs. There is no fake IndexedDB acceptance evidence. WebKit can be selected with `DPOP_TEST_BROWSERS=webkit` after installing that browser and its Linux dependencies; unavailable engines fail the run rather than silently skip certification.
 
-## Copy the frontend helpers
+## Use the published browser client
 
-Install **`jose` and `idb`** in your frontend, copy `src/auth/`, and use the named local exports. The DTOs in `src/auth/wire.ts` are copied and strict-checked against installed backend declarations by `test/wire-contract.test.ts`; Express is absent from the browser runtime graph.
+Install the published browser client in your frontend — it brings `jose` and
+`idb` as runtime dependencies — and use the named root exports. There is no
+`src/auth/` copy anymore: this app consumes
+`@web-ts-toolkit/oidc-vault-dpop-client` (workspace link here, registry
+elsewhere) exactly as documented in
+[its README](../../packages/oidc-vault-dpop-client/README.md). The DTOs stay
+single-sourced from `@web-ts-toolkit/express-oidc-vault` as types inside the
+package; Express is absent from the browser runtime graph.
+
+```sh
+pnpm add @web-ts-toolkit/oidc-vault-dpop-client
+```
 
 ```ts
-import { createOidcVaultDpopSession, fetchWithDpop } from './auth';
+import { createOidcVaultDpopSession, fetchWithDpop } from '@web-ts-toolkit/oidc-vault-dpop-client';
 
 const backendOrigin = 'http://127.0.0.1:4318';
 const session = createOidcVaultDpopSession({
@@ -93,7 +104,7 @@ export async function signOut(): Promise<void> {
 }
 ```
 
-The four intended example APIs are `getOrCreateDpopKey`, `createDpopProof`, `createOidcVaultDpopSession` (`login`, `exchange`, `refresh`, `logout`) and `fetchWithDpop`. They are exported by `src/auth/index.ts`. For your own backend mount, set `basePath` to its exact public path (the core default is `/auth/oidc`). The example server uses separate `/body` and `/cookie` suffixes and cookie names to exercise both transports.
+The four intended client APIs are `getOrCreateDpopKey`, `createDpopProof`, `createOidcVaultDpopSession` (`login`, `exchange`, `refresh`, `logout`) and `fetchWithDpop`. They are exported by the package root. For your own backend mount, set `basePath` to its exact public path (the core default is `/auth/oidc`). The example server uses separate `/body` and `/cookie` suffixes and cookie names to exercise both transports.
 
 ### Key, token and tab lifecycle
 
@@ -131,14 +142,14 @@ CORS uses explicit frontend origins and credentials, allows **Content-Type, Auth
 
 ## Optional recognition and privacy
 
-`src/auth/device-fingerprint.ts` is the preserved DBJWT-09 generic adapter. It rereads the current signal on POST login/exchange/refresh and persists/caches no identifier. The unchecked demo source in `src/recognition.ts` collects only `navigator.language` and `navigator.platform`; it is deliberately low-entropy/copyable, not a unique device ID, PoP or API sender constraint. The UI discloses purpose and retention before opting in.
+The package's `createDeviceFingerprint` is the preserved DBJWT-09 generic adapter (see the client README's recognition section). It rereads the current signal on POST login/exchange/refresh and persists/caches no identifier. The unchecked demo source in `src/recognition.ts` collects only `navigator.language` and `navigator.platform`; it is deliberately low-entropy/copyable, not a unique device ID, PoP or API sender constraint. The UI discloses purpose and retention before opting in.
 
 ```ts
-import { createDeviceFingerprint } from './auth';
+import { createDeviceFingerprint } from '@web-ts-toolkit/oidc-vault-dpop-client';
 
 // If YOUR frontend opts into installing @fingerprintjs/fingerprintjs:
 // import FingerprintJS from '@fingerprintjs/fingerprintjs';
-// import { fingerprintJsSignalSource } from './auth';
+// import { fingerprintJsSignalSource } from '@web-ts-toolkit/oidc-vault-dpop-client';
 // const fingerprint = createDeviceFingerprint(
 //   fingerprintJsSignalSource(() => FingerprintJS.load()),
 // );

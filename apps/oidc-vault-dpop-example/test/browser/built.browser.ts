@@ -1,5 +1,6 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -24,7 +25,7 @@ describe.each(browserNames)('DBJWT-10 real %s production SPA bundle', (name) => 
   });
 
   it('runs bundled OIDC/cookie/refresh/API with real cloned keys and a browser-only module graph', async () => {
-    const output = await mkdtemp('/tmp/opencode/dbjwt-10-built-');
+    const output = await mkdtemp(join(tmpdir(), 'dbjwt-10-built-'));
     const idp = await startLocalIdp();
     const frontendApp = express();
     const frontendServer = createServer(frontendApp);

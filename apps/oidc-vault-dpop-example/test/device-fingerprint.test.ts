@@ -6,7 +6,7 @@ import {
   type DeviceFingerprintOptions,
   type DeviceFingerprintSignalSource,
   type FingerprintJsAgent,
-} from '../src/auth/device-fingerprint';
+} from '@web-ts-toolkit/oidc-vault-dpop-client';
 
 describe('DBJWT-09 generic frontend recognition adapter (before DBJWT-10 app integration)', () => {
   it('collects lazily, emits the configured single header, and rereads the current signal each operation', async () => {

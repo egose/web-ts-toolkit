@@ -1,3 +1,9 @@
+/**
+ * Browser-only DPoP client (CLIENT-02 port of apps/oidc-vault-dpop-example/src/auth/*).
+ * No `node:*` or `express` imports. Browser globals (crypto.subtle, indexedDB,
+ * sessionStorage, navigator.locks, BroadcastChannel) only behind
+ * assertDpopBrowserFeatures / lazy factory calls, never at module top-level.
+ */
 import type { OidcVaultDpopSession } from './auth-session';
 import { createDpopProof } from './dpop-proof';
 import { loginRequired, OidcVaultDpopClientError } from './errors';
@@ -77,7 +83,15 @@ const challengeError = (response: Response): string | undefined =>
     ? /(?:^|,\s*)DPoP\s+error="([a-z_]+)"(?:,|$)/i.exec(response.headers.get('WWW-Authenticate') ?? '')?.[1]
     : undefined;
 
-/** Scoped fetch: one nonce retry total, at most one refresh/retry, all fresh proofs. */
+/**
+ * Scoped DPoP `fetch` for one configured API origin: mints a fresh proof per
+ * attempt, sends `Authorization: DPoP`, then retries once on a DPoP nonce
+ * challenge and at most once via `session.refresh()` on `invalid_token`.
+ * Canonical import: `import { fetchWithDpop } from
+ * '@web-ts-toolkit/oidc-vault-dpop-client'` (named root import). Only origins
+ * listed in `context.apis` are called; authentication headers are owned by the
+ * helper and must not be set by callers.
+ */
 export const fetchWithDpop = async (
   context: DpopFetchContext,
   input: string | URL,

@@ -1,3 +1,9 @@
+/**
+ * Browser-only DPoP client (CLIENT-02 port of apps/oidc-vault-dpop-example/src/auth/*).
+ * No `node:*` or `express` imports. Browser globals (crypto.subtle, indexedDB,
+ * sessionStorage, navigator.locks, BroadcastChannel) only behind
+ * assertDpopBrowserFeatures / lazy factory calls, never at module top-level.
+ */
 import { calculateJwkThumbprint } from 'jose';
 
 import { keyLost, OidcVaultDpopClientError } from './errors';
@@ -38,10 +44,20 @@ const validateKey = async (value: StoredDpopKey, scopeId: string): Promise<DpopK
 };
 
 /**
- * Call with the default create=true ONLY at fresh login. All credential-bearing
- * operations use create=false, so losing IndexedDB cannot silently rebind a login.
+ * Read (or, at fresh login, atomically create) the non-extractable ES256/P-256
+ * browser key scoped to `[frontendOrigin, backendOrigin, basePath]`.
+ *
+ * Call with the default `create=true` ONLY at fresh login (`session.login()`
+ * does this for you). All credential-bearing operations use `create=false`,
+ * so losing IndexedDB cannot silently rebind a login: a missing or changed
+ * key throws `DPOP_KEY_LOST` and the caller must start a fresh login. There is
+ * no ephemeral-key or Bearer fallback.
+ *
  * Candidate crypto work happens outside the readwrite transaction. IndexedDB
  * serializes the final read/add across tabs, making exactly one candidate win.
+ *
+ * Canonical import: `import { getOrCreateDpopKey } from
+ * '@web-ts-toolkit/oidc-vault-dpop-client'` (named root import).
  */
 export const getOrCreateDpopKey = async (input: DpopKeyScope, options: { create?: boolean } = {}): Promise<DpopKey> => {
   assertDpopBrowserFeatures();

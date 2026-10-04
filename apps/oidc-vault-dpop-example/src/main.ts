@@ -1,4 +1,9 @@
-import { createDeviceFingerprint, createOidcVaultDpopSession, fetchWithDpop, OidcVaultDpopClientError } from './auth';
+import {
+  createDeviceFingerprint,
+  createOidcVaultDpopSession,
+  fetchWithDpop,
+  OidcVaultDpopClientError,
+} from '@web-ts-toolkit/oidc-vault-dpop-client';
 import { currentExampleRecognitionSignal } from './recognition';
 import './style.css';
 

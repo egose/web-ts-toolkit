@@ -1,0 +1,45 @@
+@web-ts-toolkit/oidc-vault-dpop-client: browser-only DPoP client for
+@web-ts-toolkit/express-oidc-vault vault flows (body + cookie transports).
+Vanilla TS, no framework, no default export. Full guide: README.md.
+
+Install: pnpm add @web-ts-toolkit/oidc-vault-dpop-client
+(jose + idb ride as dependencies; no separate install needed.)
+
+Imports (named root only):
+  import { createOidcVaultDpopSession, fetchWithDpop } from
+    '@web-ts-toolkit/oidc-vault-dpop-client';
+Also root-exported: getOrCreateDpopKey, createDpopProof, DpopNonceCache,
+createDeviceFingerprint, fingerprintJsSignalSource, OidcVaultDpopClientError,
+plus DpopKey/Scope, DpopAccessToken, DpopFetchContext/Options/Api,
+OidcVaultDpopSession/Options, DeviceFingerprint types.
+
+Workflow 1 — vault session lifecycle:
+  session = createOidcVaultDpopSession({ backendOrigin, basePath,
+    sessionTransport: 'body' | 'cookie' });  // basePath = exact mount
+  login(returnTo?) -> exchange(code) -> getAccessToken/refresh -> logout.
+  login/exchange always credentials:include; refresh/logout body=omit+sessionId,
+  cookie=include+{} (never sessionId in cookie JSON). Vault nonce failures are
+  HTTP 400 OIDC_VAULT_USE_DPOP_NONCE with one retry. Key loss (DPOP_KEY_LOST)
+  requires fresh login; never fall back to Bearer or ephemeral keys.
+  Access JWT: memory only. Body handle: tab-local sessionStorage. Cookie
+  handle: backend HttpOnly. Keys: IndexedDB scoped
+  [frontendOrigin, backendOrigin, basePath]. Cookie mode also needs Web Locks
+  + BroadcastChannel. Cross-site HTTPS needs transactionCookie sameSite none,
+  trustedOrigins, credentialed CORS exposing DPoP-Nonce/WWW-Authenticate.
+
+Workflow 2 — bound API fetch:
+  fetchWithDpop({ session, apis: [{ origin, replayNamespace }] }, url, opts?).
+  Owns Authorization/DPoP, redirect:error, no-store; fresh proof+ath per
+  attempt. API nonce failures are 401 use_dpop_nonce with one retry; only
+  invalid_token triggers one refresh. GET/HEAD/OPTIONS retryable; mutations
+  single-attempt unless retry:'idempotent' with a server idempotency contract.
+
+Workflow 3 — optional recognition (opt-in change detection, never PoP):
+  fingerprint = createDeviceFingerprint(async () => signal | undefined);
+  Pass { fingerprint } to session options. 403
+  OIDC_VAULT_FINGERPRINT_REAUTH_REQUIRED -> clear auth, fresh login.
+
+Limits: Chromium 151 + Firefox 153 evidenced (same-site loopback); Safari/
+WebKit uncertified; third-party-cookie policy is deployment-specific.
+Backend wire tables stay authoritative in express-oidc-vault README.
+Live example: apps/oidc-vault-dpop-example (both transports + browsers).

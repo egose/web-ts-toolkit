@@ -17,9 +17,9 @@ import type {
   OidcVaultSessionTransport,
   OidcVaultTokenIssueResult,
   OidcVaultUserProfile,
-} from '../src/auth/wire';
+} from '../src/wire';
 
-describe('DBJWT-10 copied browser DTOs vs installed backend root declarations', () => {
+describe('CLIENT-03 single-sourced browser DTOs vs backend root declarations', () => {
   it('matches the full credential and profile wire contracts without runtime Express imports', () => {
     expectTypeOf<OidcVaultExchangeResult>().toEqualTypeOf<BackendExchange>();
     expectTypeOf<OidcVaultTokenIssueResult>().toEqualTypeOf<BackendToken>();
