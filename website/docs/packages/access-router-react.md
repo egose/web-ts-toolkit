@@ -73,11 +73,9 @@ function OrganizationList() {
 
   return (
     <ul>
-
       {data.map((org) => (
         <li key={org._id}>{org.name}</li>
       ))}
-
     </ul>
   );
 }
@@ -274,7 +272,7 @@ function Save() {
 
   return (
     <button disabled={isPending} onClick={() => void saveTwice().catch(() => undefined)}>
-                  Save twice
+      Save twice
     </button>
   );
 }

@@ -84,23 +84,19 @@ function OrganizationList() {
 
   return (
     <div>
-
       {/* Hook error state (createError) still surfaces the failure; the catch only avoids an unhandled rejection. */}
 
       <button disabled={isPending} onClick={() => void mutate({ name: 'Northwind Labs' }).catch(() => undefined)}>
-                        Create
+        Create
       </button>
-                  {createError && <p role="alert">Create failed: {createError.message}</p>}
-                  <button onClick={reset}>Clear create error</button>
+      {createError && <p role="alert">Create failed: {createError.message}</p>}
+      <button onClick={reset}>Clear create error</button>
 
       <ul>
-
         {data.map((org) => (
           <li key={org._id}>{org.name}</li>
         ))}
-
       </ul>
-
     </div>
   );
 }
@@ -322,7 +318,7 @@ function Save() {
 
   return (
     <button disabled={isPending} onClick={() => void saveTwice().catch(() => undefined)}>
-                  Save twice
+      Save twice
     </button>
   );
 }
